@@ -1,0 +1,5 @@
+# Ignore everything by default
+*
+
+# Allow only the backend directory
+!PuppyEngine/

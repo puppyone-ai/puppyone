@@ -1,0 +1,29 @@
+{
+    "blocks": {
+        "1": {
+            "label": "",
+            "type": "text",
+            "data": {
+                "content": "ffuygfuygliugilugi"
+            }
+        },
+        "2": {
+            "label": "",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "edge_14": {
+            "type": "modify",
+            "data": {
+                "modify_type": "deep_copy",
+                "inputs": {"1": ""},
+                "outputs": {"2": ""},
+                "extra_config": {}
+            }
+        }
+    }
+}

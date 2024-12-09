@@ -1,0 +1,683 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.ProseMirror.bn-editor {
+  background: #252525;
+  color: #CDCDCD;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  caret-color: #CDCDCD;
+  caret-shape: bar;
+  cursor: text;
+  padding-left: 16px;
+}
+
+/* 方法1：使用 ::-webkit-scrollbar 完全隐藏滚动条 */
+.bn-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* 方法2：使用 scrollbar-width 属性（Firefox支持） */
+.bn-container {
+  scrollbar-width: none;
+}
+
+.bn-suggestion-menu {
+  border-radius: 8px !important;
+  overflow-y: auto !important;
+  max-height: 40vh !important;
+  z-index: 1000000000 !important;
+  scrollbar-width: none !important;
+  -webkit-scrollbar: none !important;
+
+}
+
+.bn-suggestion-menu > .bn-suggestion-menu-item {
+  width: 260px !important;
+  min-height: 60px !important;
+  padding: 0px 10px !important;
+}
+
+/* .bn-suggestion-menu > .bn-suggestion-menu-item:hover {
+  background-color: #FFA73D !important;
+}
+
+.bn-suggestion-menu > .bn-suggestion-menu-item.selected {
+  background-color: #FFA73D !important;
+}
+
+.bn-suggestion-menu > .bn-suggestion-menu-item.active {
+  background-color: #FFA73D !important;
+} */
+
+/* .ProseMirror {
+  background: #252525;
+  color: #CDCDCD;
+  font-size: 12px;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  caret-color: #CDCDCD;
+  caret-shape: bar;
+  padding-left: 16px;
+}
+
+.ProseMirror h1 {
+  color: #FF9CAC;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.ProseMirror h2 {
+  color: #9cffc98c;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.ProseMirror h3 {
+  color: #9cfffc5d;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.ProseMirror p {
+  color: #CDCDCD;
+  font-size: 12px;
+}
+
+.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
+}
+
+.ProseMirror p.is-empty::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #adb5bd;
+  pointer-events: none;
+  height: 0;
+} */
+
+
+
+/* .paragraph-with-menu {
+  display: flex;
+  position: relative;
+  gap: 4px;
+}
+
+.menu-trigger {
+  width: 12px;
+  opacity: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: -16px;
+  position: absolute;
+}
+
+.paragraph-with-menu:hover .menu-trigger {
+  opacity: 1;
+}
+
+.menu-trigger.active {
+  opacity: 1;
+}
+
+.menu-dot {
+  color: #999;
+  cursor: pointer;
+}
+
+.paragraph-content {
+  flex: 1;
+  min-width: 0;
+} */
+
+/* for Font */
+/* https://github.com/JetBrains/JetBrainsMono */
+@font-face{
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 200 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/fonts/PlusJakartaSans-Italic-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 200 800;
+  font-style: italic;
+}
+
+
+* {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.no-scrollbar {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+
+
+.react-flow .react-flow__handle {
+    width: 12px;
+    height: 12px;
+    border-radius: 8px;
+    background-color: transparent;
+    border: 2px solid #42454A;
+  }
+
+  .react-flow .react-flow__handle:hover {
+    border: 3px solid #FFA73D;
+    transition-duration: 0.3s;
+    cursor: pointer;
+  }
+
+  /* 防止react flow的滚动和拖拽 */
+.react-flow__renderer,
+.react-flow__draggable {
+  transform: none !important;
+  transition: none !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 100vh !important;
+  width: 100vw !important;
+}
+
+  .react-flow .react-flow__handle.active {
+    width: 12px;
+    height: 12px;
+    border-radius: 8px;
+    background-color: transparent;
+    border: 2px solid #42454A;
+  }
+
+  .react-flow .react-flow__handle.transparent {
+    width: 12px;
+    height: 12px;
+    border-radius: 6px;
+    background-color: transparent;
+    border: 2px solid transparent;
+    z-index: 3;
+  }
+
+  .react-flow .react-flow__handle.selected {
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 2px solid #FFA73D;
+  }
+
+  .react-flow .react-flow__handle.connectingfrom {
+    border: 3px solid #FFA73D;
+  }
+
+/* custom react flow handle position */
+.react-flow .react-flow__handle-top {
+    top: 16px;
+  }
+  
+.react-flow .react-flow__handle-bottom {
+    bottom: 16px;
+  }
+
+.react-flow .react-flow__handle-left {
+    left: 16px;
+  }
+
+  .react-flow .react-flow__handle-right {
+    right: 16px;
+  }
+
+  .react-flow .react-flow__handle-bottom.edgeSrcHandle {
+    bottom: -10px;
+    border: transparent;
+    
+  }
+
+  select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: none;
+    border: 1px solid #CDCDCD;
+    /* 你可以根据需要添加其他样式 */
+  }
+
+  .max-w-custom {
+    width: max(320px, fit-content);
+  }
+
+  .max-role-w-custom {
+    width: max(80px, fit-content);
+  }
+
+  /* 使用CSS来截断文本并显示省略号 */
+  input {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  input:focus, select:focus {
+    outline-color: rgb(205,205,205);
+    z-index: 2000000;
+  }
+
+
+  /* 删除全局中number input的默认样式, 上面是针对于firefox呢， 下面是针对于Webkit浏览器的（比如Chrome，Safari， newer versions of Opera */
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  
+
+ 
+  .ace_editor,
+  .ace_editor * {
+    font-family:'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Droid Sans Mono', 'Consolas', monospace !important;
+    font-weight: 400 !important;
+    letter-spacing: 0 !important;
+    text-align: left !important;
+  } 
+
+  /* 自定义行号背景色 */
+.ace-github-dark .ace_gutter {
+  background: #1C1D1F; /* 设置为和编辑器背景一样的颜色 */
+  color: #FFFFFF; /* 设置行号的颜色 */
+}
+
+/* 自定义边框颜色 */
+.ace-github-dark .ace_gutter-active-line {
+  background-color: #FFA73D; /* 设置活动行的背景颜色 */
+}
+
+
+/* 在你的 CSS 文件中 */
+.monaco-editor {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
+/* 屏蔽水平滚动条并防止水平滚动 */
+.monaco-editor .monaco-scrollable-element > .scrollbar.horizontal {
+  display: none !important;
+}
+
+.monaco-editor .monaco-scrollable-element {
+  overflow-x: hidden !important;
+}  
+
+/* 在你的 CSS 文件中 */
+ .monaco-editor .monaco-editor-background,
+ .monaco-editor .margin-view-overlays,
+ .monaco-editor .margin-view-overlays .line-numbers {
+  background-color: #000 !important;
+}
+
+ .monaco-editor,
+ .monaco-editor-background {
+  background-color: #000 !important;
+}
+
+
+/* 设置editor的各项文字颜色 */
+/* 普通文本颜色 */
+.monaco-editor .mtk1 {
+  color: #9CDCFE  !important; /* 浅灰色文本 */
+}
+
+/* 字符串值 */
+.monaco-editor .mtk5 {
+  color: #FF9CAC !important; /* 橙红色 */
+}
+
+/* 键名 */
+.monaco-editor .mtk6 {
+  color: #9CDCFE !important; /* 浅蓝色 */
+}
+
+/* 数字 */
+.monaco-editor .mtk7 {
+  color: #B5CEA8 !important; /* 浅绿色 */
+}
+
+/* 布尔值和 null */
+.monaco-editor .mtk9 {
+  color: #569CD6 !important; /* 蓝色 */
+}
+
+
+.monaco-editor .mtk20 {
+  color: #9CDCFE !important; /* 浅蓝色 */
+}
+
+
+
+/* 修改输入法组合文本的背景色和前景色 */
+.monaco-editor .inputarea.ime-input {
+  background-color: transparent !important; /* 使用半透明的橙色背景 */
+  color: transparent !important; /* 使用浅灰色文字 */
+  opacity: 0 !important;
+}
+
+/* 确保组合文本区域不会影响周围文本的布局 */
+.monaco-editor .monaco-editor-background,
+.monaco-editor .inputarea.ime-input {
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* 移除编辑器容器的边框 */
+.monaco-editor-background,
+.monaco-editor .overflow-guard,
+.monaco-editor .monaco-scrollable-element {
+  border: none !important;
+  outline: none !important;
+}
+
+/* .monaco-editor {
+  position: relative !important;
+} */
+
+
+.monaco-editor .monaco-scrollable-element > .lines-content {
+  position: relative !important;
+  width: 100% !important;
+}
+
+.monaco-editor .inputarea {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: 2000000 !important;
+}
+
+/* 确保提示框不受影响 */
+.monaco-editor .suggest-widget {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 10000000 !important;
+}
+
+
+/* monaco的悬停提示样式 */
+.custom-hover {
+  position: absolute;
+  background-color: #f8f8f8;
+  border: 1px solid #ddd;
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-size: 12px;
+  z-index: 100;
+  max-width: 300px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+/* 设置左边line number的颜色 */
+.monaco-editor .line-numbers {
+  color: #6D7177 !important;
+}
+
+.monaco-editor .current-line {
+  border: none !important;
+  background-color: transparent !important;
+}
+
+.monaco-editor .selected-text {
+  background-color: #9370DB !important; /* 半透明白色，可以根据需要调整 */
+}
+
+.monaco-editor .view-overlays .selected-text {
+  color: #CDCDCD !important; /* 可以根据需要调整颜色 */
+}
+
+
+.monaco-editor .cursor {
+  background-color: #CDCDCD !important;
+  width: 2px !important;
+}
+
+
+
+
+/* 为单个editor 设置背景色 */
+
+.json-form .monaco-editor,
+.json-form .monaco-editor .margin,
+.json-form .monaco-editor-background,
+.json-form .monaco-editor .margin-view-overlays,
+.json-form .monaco-editor .margin-view-overlays .line-numbers {
+  background-color: #1C1D1F !important;
+  border: none !important;
+  outline: none !important;
+}
+
+
+/* 为editor的文本字体颜色设置 */
+.json-form .monaco-editor .mtk1 {
+  color: #CDCDCD !important;
+}
+
+.json-form .monaco-editor .mtk1.bracket-highlighting-0 {
+  color:#C586C0 !important;
+}
+
+.json-form .monaco-editor .mtk1.bracket-highlighting-1 {
+  color:#4EC9B0 !important;
+}
+
+.text-editor .monaco-editor {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+.text-editor .monaco-editor,
+.text-editor .monaco-editor .margin,
+.text-editor .monaco-editor-background {
+  background-color: #1C1D1F !important;
+  border: none !important;
+  outline: none !important;
+}
+
+
+
+.text-editor .monaco-editor .mtk1 {
+  color: #D4D4D4 !important;
+}
+
+
+.json-config-editor .monaco-editor,
+.json-config-editor .monaco-editor .margin,
+.json-config-editor .monaco-editor-background {
+  background-color: #000000 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.json-config-editor .monaco-editor .mtk1 {
+  color: #D4D4D4 !important;
+}
+
+
+.json-config-editor .monaco-editor .mtk1.bracket-highlighting-0 {
+  color:#C586C0 !important;
+}
+
+.json-config-editor .monaco-editor .mtk1.bracket-highlighting-1 {
+  color:#4EC9B0 !important;
+}
+
+.text-config-editor .monaco-editor {
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+
+.text-config-editor .monaco-editor,
+.text-config-editor .monaco-editor .margin,
+.text-config-editor .monaco-editor-background {
+  background-color: #000000 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.text-config-editor .monaco-editor .mtk1 {
+  color: #D4D4D4 !important;
+}
+
+.python-config-editor .monaco-editor,
+.python-config-editor .monaco-editor .margin,
+.python-config-editor .monaco-editor-background {
+  background-color: #000000 !important;
+  border: none !important;
+  outline: none !important;
+}
+
+.python-config-editor .monaco-editor .mtk1 {
+  color: #D4D4D4 !important;
+}
+
+
+.python-config-editor .monaco-editor .mtk1.bracket-highlighting-0 {
+  color:#C586C0 !important;
+}
+
+.python-config-editor .monaco-editor .mtk1.bracket-highlighting-1 {
+  color:#4EC9B0 !important;
+}
+
+/* .readonly-line {
+  background-color: rgba(100, 100, 100, 0.1) !important;
+  opacity: 0.8;
+  cursor: not-allowed !important;
+}
+
+.readonly-line * {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+} */
+
+.monaco-editor .readonly-line {
+  /* background-color: rgba(100, 100, 100, 0.1) !important; */
+  pointer-events: none !important;
+}
+
+/* 内联内容样式 */
+.monaco-editor .readonly-line-inline {
+  opacity: 0.7;
+  cursor: not-allowed !important;
+}
+
+/* 行装饰样式 */
+.monaco-editor .readonly-line-decoration {
+  cursor: not-allowed !important;
+  /* background-color: rgba(100, 100, 100, 0.1) !important; */
+}
+
+/* 边距样式 */
+.monaco-editor .readonly-line-margin {
+  cursor: not-allowed !important;
+}
+
+/* 确保鼠标悬停时的样式 */
+.monaco-editor .readonly-line:hover,
+.monaco-editor .readonly-line * {
+  cursor: not-allowed !important;
+  pointer-events: none !important;
+}
+
+/* 处理选择时的样式 */
+.monaco-editor .readonly-line .selected,
+.monaco-editor .readonly-line.focused {
+  cursor: not-allowed !important;
+}
+
+
+
+/* monica editor placeholder */ 
+.hideLineNumbers .line-numbers {
+  display: none !important;
+}
+
+
+/* 修改Ant.design Select 默认背景颜色和边框 */
+.dark-Select .ant-select-selector {
+  background-color: #000 !important;
+  border: none !important;
+}
+
+/* 修改Ant.design Select 多选输入框的选中项的背景颜色和文字颜色 */
+.dark-Select .ant-select-selection-item {
+  color: #000 !important;
+  background: #6D7177 !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/* 修改Ant.design Select 下拉框选项的背景颜色 */
+.ant-select-dropdown {
+  background-color: #1C1D1F !important;
+}
+
+/* 修改Ant.design Select 下拉框选项的文字颜色和背景颜色 */
+.ant-select-item {
+  color: #CDCDCD !important;
+  background-color: #3E3E41 !important;
+}
+
+/* 修改Ant.design Select 下拉框选项的选中项的背景颜色和文字颜色 */
+.ant-select-item-option-selected {
+  background-color: #FFA73D !important;
+  color: #1C1D1F !important;
+}
+
+/* 修改Ant.design Select 多选输入框的placeholder颜色 */
+.dark-Select .ant-select-selection-placeholder {
+  color: #CDCDCD !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
+}
+
+/* 修改Ant.design Select 多选输入框的箭头颜色 */
+.dark-Select .ant-select-arrow {
+  color: #CDCDCD !important;
+}
+
+/* 修改Ant.design Select 多选输入框的光标颜色 */
+.dark-Select .ant-select-selection-search-input {
+  caret-color: #CDCDCD !important;
+}
+

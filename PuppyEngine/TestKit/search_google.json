@@ -1,0 +1,29 @@
+{
+    "blocks": {
+        "2": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "1": {
+            "type": "text",
+            "data": {
+                "content": "how to train an anime waifu"
+            }
+        }
+    },
+    "edges": {
+        "search-1728381436093": {
+            "type": "search",
+            "data": {
+              "search_type": "web",
+              "sub_search_type": "google",
+              "top_k": 5,
+              "inputs": {"1": ""},
+              "outputs": {"2": ""},
+              "extra_configs": {}
+            }
+          }
+    }
+}

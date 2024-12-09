@@ -1,0 +1,38 @@
+{
+    "blocks": {
+        "4": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "3": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "2": {
+            "type": "structured",
+            "data": {
+                "content": {
+                    "subaru": "awa", "momoka": {"san":"daisuki"}
+                }
+            }
+        }
+    },
+    "edges": {
+        "modify-1727674646321": {
+            "type": "modify",
+            "data": {
+                "inputs": {"2": "2"},
+                "outputs": {"3": "", "4": ""},
+                "content_type": "dict",
+                "modify_type": "get",
+                "extra_configs": {
+                    "key": "momoka"
+                }
+            }
+        }
+    }
+}

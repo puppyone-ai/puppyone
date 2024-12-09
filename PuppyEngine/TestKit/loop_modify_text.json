@@ -1,0 +1,37 @@
+{
+    "blocks": {
+        "2": {
+            "label":"2",
+            "type": "structured",
+            "data": {
+                "content": ["world","senpai"]
+            }
+        },
+        "1": {
+            "label":"1",
+            "type": "structured",
+            "data": {
+                "content": ["hello","ohaiyou"]
+            }
+        },
+        "3": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "edge_14": {
+            "type": "modify",
+            "data": {
+                "modify_type": "modify_text",
+                "extra_config": {},
+                "content": "{{1}},{{2}}",
+                "inputs": {"1": "1", "2": "2"},
+                "outputs": {"3": ""},
+                "looped": true
+            }
+        }
+    }
+}

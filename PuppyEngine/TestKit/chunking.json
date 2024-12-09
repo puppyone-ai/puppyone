@@ -1,0 +1,67 @@
+{
+    "blocks": {
+        "2": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "4": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "5": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "1": {
+            "type": "text",
+            "data": {
+                "content": "In a quaint little town nestled between rolling hills, there lived a talented young musician named Elara. With her golden hair and emerald eyes, she often played her violin by the shimmering lake at sunset, drawing the attention of townsfolk who would pause their busy lives to listen to her enchanting melodies.\r\n\r\nOne fateful evening, as Elara played a haunting tune that echoed through the trees, she noticed a shimmering light beneath the water\u2019s surface. Intrigued, she leaned closer, her bow resting on the strings. To her astonishment, a delicate figure emerged\u2014a water sprite named Lira, with translucent wings and an iridescent gown.\r\n\r\n\u201cYour music is beautiful,\u201d Lira said, her voice like a gentle breeze. \u201cBut it\u2019s missing something\u2014a piece that can only be found in the depths of the lake.\u201d"
+            }
+        }
+    },
+    "edges": {
+        "chunk-1727406844633": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"1":""},
+                "outputs": {"2":""},
+                "chunking_mode": "auto",
+                "extra_configs": {}
+            }
+        },
+        "chunk-1727412095851": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"1":""},
+                "outputs": {"4":""},
+                "chunking_mode": "character",
+                "sub_chunking_mode": "character",
+                "extra_configs": {
+                    "delimiters": [
+                        "g"
+                    ]
+                }
+            }
+        },
+        "chunk-1727412091713": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"1":""},
+                "outputs": {"5":""},
+                "chunking_mode": "length",
+                "sub_chunking_mode": "size",
+                "extra_configs": {
+                    "chunk_size": 150,
+                    "overlap": 30,
+                    "handle_half_word": false
+                }
+            }
+        }
+    }
+}

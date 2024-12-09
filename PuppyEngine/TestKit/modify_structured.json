@@ -1,0 +1,40 @@
+{
+    "blocks": {
+        "2": {
+            "label": "bbb",
+            "type": "structured",
+            "data": {
+                "content": "{\"world\":3}"
+            }
+        },
+        "1": {
+            "label": "aaa",
+            "type": "structured",
+            "data": {
+                "content": "[\"222\"]"
+            }
+        },
+        "3": {
+            "label": "",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "edge_14": {
+            "type": "modify",
+            "data": {
+                "modify_type": "modify_structured",
+                "extra_config": {},
+                "content": [
+                    "{{1}}",
+                    "{{2}}"
+                ],
+                "inputs": {"1": "1", "2": "2"},
+                "outputs": {"3": ""}
+            }
+        }
+    }
+}
