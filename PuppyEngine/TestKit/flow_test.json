@@ -1,0 +1,68 @@
+{
+    "blocks": {
+        "1": {
+            "label":"",
+            "type": "text",
+            "data": {
+                "content": "Mei"
+            }
+        },
+        "2": {
+            "label":"",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "3": {
+            "label":"",
+            "type": "text",
+            "data": {
+                "content": "apple"
+            }
+        },
+        "4": {
+            "label":"",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "llm-1723230193364": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {"role": "system", "content": "You are a helpful AI assistant that called {{1}}"},
+                    {"role": "user", "content": "Introduce yourself in one sentence and say `apple`."}
+                ],
+                "sys_prompt": "",
+                "model": "gpt-4o",
+                "base_url": "",
+                "max_tokens": 2048,
+                "temperature": 0.7,
+                "inputs": {"1": "1"},
+                "outputs": {"2": "2"},
+                "structured_output": false
+            }
+        },
+        "llm-1727364074151": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {"role": "system", "content": "count how many 'apple' are in user input"},
+                    {"role": "user", "content": "{{2}}, {{3}}"}
+                ],
+                "sys_prompt": "",
+                "model": "gpt-4o",
+                "base_url": "",
+                "max_tokens": 2048,
+                "temperature": 0.7,
+                "inputs": {"2":"","3":""},
+                "outputs": {"4":""},
+                "structured_output":false
+            }
+        }
+    }
+}

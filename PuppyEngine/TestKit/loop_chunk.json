@@ -1,0 +1,101 @@
+{
+    "blocks": {
+        "6": {
+            "label": "6",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "7": {
+            "label": "7",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "5": {
+            "label": "5",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "4": {
+            "label": "4",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "2": {
+            "label": "2",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "hello my name is pepsi",
+                    "it is nice to meet you",
+                    "not bad not bad"
+                ]
+            }
+        }
+    },
+    "edges": {
+        "chunk-1730708380780": {
+            "type": "chunk",
+            "data": {
+                "inputs":{"2": "2"},
+                "outputs": {"6": ""},
+                "chunking_mode": "character",
+                "sub_chunking_mode": "character",
+                "extra_configs": {
+                    "delimiters": [
+                        ",",
+                        ";",
+                        "\n"
+                    ]
+                },
+                "looped": true
+            }
+        },
+        "chunk-1730708353346": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"2": "2"},
+                "outputs": {"5": ""},
+                "chunking_mode": "length",
+                "sub_chunking_mode": "size",
+                "extra_configs": {
+                    "chunk_size": 10,
+                    "overlap": 1,
+                    "handle_half_word": false
+                },
+                "looped": true
+            }
+        },
+        "chunk-1730708132454": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"2": "2"},
+                "outputs": {"4": ""},
+                "chunking_mode": "auto",
+                "extra_configs": {},
+                "looped": true
+            }
+        },
+        "chunk-1730708400498": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"2": "2"},
+                "outputs": {"7": ""},
+                "chunking_mode": "llm",
+                "sub_chunking_mode": "llm",
+                "extra_configs": {
+                    "model": "gpt-4o",
+                    "prompt": ""
+                },
+                "looped": true
+            }
+        }
+    }
+}

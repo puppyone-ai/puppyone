@@ -1,0 +1,45 @@
+firecrawl-py
+python-dotenv
+duckduckgo_search
+
+# Server and Request
+axiom_py
+requests
+gunicorn
+waitress
+beautifulsoup4
+fastapi[standard]
+
+# Edges
+numpy
+pandas
+pillow
+cohere
+openai
+litellm
+scikit-learn
+transformers
+sentence_transformers
+
+# File
+fpdf
+boto3
+easyocr
+pypandoc
+markdown2
+pymupdf4llm
+ffmpeg-python
+openai-whisper
+
+# Database
+pymongo
+sqlalchemy
+
+# Vector Database
+pymilvus
+qdrant_client
+weaviate-client
+pinecone-client[grpc]
+
+#code
+RestrictedPython

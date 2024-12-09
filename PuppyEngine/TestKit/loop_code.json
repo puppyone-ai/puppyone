@@ -1,0 +1,28 @@
+{
+    "blocks": {
+        "2": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "1": {
+            "label":"1",
+            "type": "structured",
+            "data": {
+                "content": ["hello world", "你好，世界", "こんにちは、世界"]
+            }
+        }
+    },
+    "edges": {
+        "code-1727595538664": {
+            "type": "code",
+            "data": {
+                "inputs": {"1": "1"},
+                "outputs": {"2": ""},
+                "code": "def func(arg_1):\n    return(arg_1)\n    \n",
+                "looped": true
+            }
+        }
+    }
+}

@@ -1,0 +1,41 @@
+{
+    "blocks": {
+        "2": {
+            "label": "2",
+            "type": "structured",
+            "data": {
+                "content": ["{\"world\":3}","{\"sekai\":4}"]
+            }
+        },
+        "1": {
+            "label": "1",
+            "type": "structured",
+            "data": {
+                "content": ["[\"222\"]","[\"333\"]"]
+            }
+        },
+        "3": {
+            "label": "",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "edge_14": {
+            "type": "modify",
+            "data": {
+                "modify_type": "modify_structured",
+                "extra_config": {},
+                "content": [
+                    "{{1}}",
+                    "{{2}}"
+                ],
+                "looped": true,
+                "inputs": {"1": "1", "2": "2"},
+                "outputs": {"3": ""}
+            }
+        }
+    }
+}

@@ -1,0 +1,36 @@
+{
+    "blocks": {
+        "2": {
+            "label":"hhh",
+            "type": "text",
+            "data": {
+                "content": "world"
+            }
+        },
+        "1": {
+            "label":"aaa",
+            "type": "structured",
+            "data": {
+                "content": "[\"222\"]"
+            }
+        },
+        "3": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "edge_14": {
+            "type": "modify",
+            "data": {
+                "modify_type": "modify_text",
+                "extra_config": {},
+                "content": "111,{{1}}, 222,{{2}}",
+                "inputs": {"1": "1", "2": "2"},
+                "outputs": {"3": ""}
+            }
+        }
+    }
+}

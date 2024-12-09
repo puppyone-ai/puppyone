@@ -1,0 +1,41 @@
+{
+    "blocks": {
+        "3": {
+            "label": "3",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "2": {
+            "label": "2",
+            "type": "structured",
+            "data": {
+                "content": [
+                    [
+                        "hello",
+                        "world"
+                    ],
+                    [
+                        "asdsada",
+                        "eqwe"
+                    ]
+                ]
+            }
+        }
+    },
+    "edges": {
+        "modify-1730439189986": {
+            "type": "modify",
+            "data": {
+                "modify_type": "get",
+                "extra_configs": {
+                    "index": 0
+                },
+                "inputs": {"2": "2"},
+                "outputs": {"3": ""},
+                "looped": true
+            }
+        }
+    }
+}

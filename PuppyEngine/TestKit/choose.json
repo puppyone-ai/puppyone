@@ -1,0 +1,70 @@
+{
+    "blocks": {
+        "2": {
+            "type": "text",
+            "data": {
+                "content": "world"
+            }
+        },
+        "1": {
+            "label":"1",
+            "type": "switch",
+            "data": {
+                "content": "ON"
+            }
+        },
+        "3": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "4": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "5": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "choose-426782387": {
+            "type": "choose",
+            "data": {
+                "switch":{"1": ""},
+                "content":{"2": ""},
+                "inputs":{"1": "", "2": ""},
+                "outputs":{"3": "", "4": ""},
+                "ON":{"3": ""},
+                "OFF":{"4": ""}
+            }
+        },
+        "edge-34567432132": {
+            "type": "modify",
+            "data": {
+                "content_type": "str",
+                "modify_type": "modify_text",
+                "extra_config": {},
+                "content": "hello {{3}}",
+                "inputs": {"3": ""},
+                "outputs": {"5": ""}
+            }
+        },
+        "edge-65762984": {
+            "type": "modify",
+            "data": {
+                "content_type": "str",
+                "modify_type": "modify_text",
+                "extra_config": {},
+                "content": "goodbye {{4}}",
+                "inputs": {"4": ""},
+                "outputs": {"5": ""}
+            }
+        }
+    }
+}

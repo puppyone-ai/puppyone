@@ -1,0 +1,58 @@
+{
+    "blocks": {
+        "4": {
+            "label": "4",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "2": {
+            "label": "2",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "happy",
+                    "subaru",
+                    "yan"
+                ]
+            }
+        },
+        "3": {
+            "label": "3",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "Introduce yourself",
+                    "Say hi, and your name",
+                    "Say Apple, and your name"
+                ]
+            }
+        }
+    },
+    "edges": {
+        "llm-1730183187764": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an AI called {{2}}"
+                    },
+                    {
+                        "role": "user",
+                        "content": "{{3}}"
+                    }
+                ],
+                "model": "gpt-4o",
+                "base_url": "",
+                "max_tokens": 4096,
+                "temperature": 0.7,
+                "structured_output": false,
+                "inputs": {"2": "2", "3": "3"},
+                "outputs": {"4": ""},
+                "looped": true
+            }
+        }
+    }
+}

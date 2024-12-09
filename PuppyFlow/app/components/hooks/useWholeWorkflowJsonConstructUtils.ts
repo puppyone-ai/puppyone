@@ -1,0 +1,576 @@
+import React, { useState, useCallback, useEffect }  from 'react'
+import useJsonConstructUtils, {NodeJsonType, FileData} from './useJsonConstructUtils'
+import { useReactFlow } from '@xyflow/react'
+import { useNodeContext } from '../states/NodeContext'
+import { nodeSmallProps } from '../menu/nodeMenu/NodeMenu'
+import {ChunkingAutoEdgeJsonType} from '../menu/configMenu/ChunkingAutoConfigMenu'
+import {CodeEdgeJsonType} from '../menu/configMenu/CodeConfigMenu'
+import {EmbeddingEdgeJsonType} from '../menu/configMenu/EmbeddingConfigMenu'
+import {LLMEdgeJsonType} from '../menu/configMenu/LLMConfigMenu'
+import {ModifyCopyEdgeJsonType} from '../menu/configMenu/ModifyCopyConfigMenu'
+import {ModifyGetEdgeJsonType} from '../menu/configMenu/ModifyGetConfigMenu'
+import {ModifyStructuredEdgeJsonType} from '../menu/configMenu/ModifyStructuredConfigMenu'
+import {ModifyTextEdgeJsonType} from '../menu/configMenu/ModifyTextConfigMenu'
+import {SearchGoogleEdgeJsonType} from '../menu/configMenu/SearchGoogleConfigMenu'
+import {SearchPerplexityEdgeJsonType} from '../menu/configMenu/SearchPerplexityConfigMenu'
+import {SearchByVectorEdgeJsonType} from '../menu/configMenu/SearchByVectorConfigMenu'
+import {ChunkingByCharacterEdgeJsonType} from '../menu/configMenu/ChunkingByCharacterConfigMenu'
+import {ChunkingByLengthEdgeJsonType} from '../menu/configMenu/ChunkingByLengthConfigMenu'
+import {ChunkingLLMEdgeJsonType} from '../menu/configMenu/ChunkingByLLMConfigMenu'
+import {ChunkingHTMLEdgeJsonType} from '../menu/configMenu/ChunkingForHTMLConfigMenu'
+import {ChunkingMarkdownEdgeJsonType} from '../menu/configMenu/ChunkingForMarkdownConfigMenu'
+import {ChooseEdgeJsonType} from '../menu/configMenu/ChooseConfigMenu'
+import {ChunkingConfigNodeData} from '../workflow/edges/configNodes/ChunkingConfig'
+import {LLMConfigNodeData} from '../workflow/edges/configNodes/LLMConfig'
+import {EmbeddingConfigNodeData} from '../workflow/edges/configNodes/EmbeddingConfig'
+import {ModifyConfigNodeData} from '../workflow/edges/configNodes/ModifyConfig'
+import {SearchConfigNodeData} from '../workflow/edges/configNodes/SearchConfig'
+import {ChooseConfigNodeData} from '../workflow/edges/configNodes/ChooseConfig'
+import {ProcessingData} from './useJsonConstructUtils'
+import { CodeConfigNodeData } from '../workflow/edges/configNodes/CodeConfig'
+import {backend_IP_address_for_sendingData, backend_IP_address_for_receivingData} from './useJsonConstructUtils'
+
+type validEdgeType = ChunkingAutoEdgeJsonType | LLMEdgeJsonType | EmbeddingEdgeJsonType | ModifyCopyEdgeJsonType | ModifyGetEdgeJsonType | ModifyStructuredEdgeJsonType | ModifyTextEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType | SearchByVectorEdgeJsonType | ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType | ChunkingLLMEdgeJsonType | ChunkingHTMLEdgeJsonType | ChunkingMarkdownEdgeJsonType | CodeEdgeJsonType | ChooseEdgeJsonType
+
+/* send whole workflow data to backend and get updated result , update all results, used only for one file: StartCodeController.tsx */
+export default function useWholeWorkflowJsonConstructUtils() {
+
+    
+  
+    const {getNodes, getNode, setNodes} = useReactFlow()
+    const {getSourceNodeIdWithLabel, cleanJsonString} = useJsonConstructUtils()
+    const [isComplete, setIsComplete] = useState(true)
+
+    
+    const sendWholeWorkflowJsonDataToBackend = async  () => {
+        try {
+            const jsonData = constructWholeWorkflowJsonData()
+            // console.log(jsonData, "whole json data in Workflow")
+            const response = await fetch(`${backend_IP_address_for_sendingData}`, {
+                method:'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jsonData)
+            })
+  
+            if (!response.ok) {
+                throw new Error(`HTTP Error: ${response.status}`)
+            }
+            
+            // console.log(response)
+            const result = await response.json();  // 解析响应的 JSON 数据
+            // console.log('Success:', result);
+            await streamWholeWorkflowResult(result.task_id)
+            
+            } catch (error) {
+                console.warn(`Get Error: ${error}`)
+                window.alert(`Get Error: ${error}`)
+            } finally {
+                // console.log("set isComplete to true")
+                setIsComplete(true)
+            }   
+    }
+
+    /* Possible Error: 
+    1. typeError, ResultNode.nodeid undefind, 原因是因为没有生成最终的所有resultNode的情况下传递了json 会报错 
+    */
+    const constructWholeWorkflowJsonData = () => {
+        const nodesInWorkflow = getNodes()
+    
+        let blocks: NodeJsonType[] = []
+        let edges: validEdgeType[] = []
+        for (let nodeInfo of nodesInWorkflow) {
+           let nodeContent = ""
+           let nodejson: NodeJsonType
+           let edgejson: validEdgeType
+           let sourceNodeIdWithLabelGroup: {id: string, label: string}[] = []
+           let subMenuType = ""
+           switch (nodeInfo.type) {
+            case "none":
+              nodeContent = nodeInfo.data?.subType === "structured" ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
+              if (nodeContent === "error") return "error"
+              nodejson = {
+                  id: nodeInfo.id,
+                  label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                  type: nodeInfo.type!,
+                  data: {
+                      content: nodeContent,
+                      subType: nodeInfo.data?.subType as string ?? "text"
+                  }
+              }
+              blocks = [...blocks, nodejson]
+              break
+            case "structured":
+              nodeContent = cleanJsonString(nodeInfo.data.content as string | any)
+              if (nodeContent === "error") return "error"
+              nodejson = {
+                  id: nodeInfo.id,
+                  label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                  type: nodeInfo.type!,
+                  data: {
+                      content: nodeContent
+                  }
+              }
+              blocks = [...blocks, nodejson]
+              break
+            case "text":
+            case "file":   
+            case "switch":
+            case "weblink":
+            case "vector":
+            case "vector_database":
+            case "database":
+              nodeContent = nodeInfo.data.content as string
+              nodejson = {
+                  id: nodeInfo.id,
+                  label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                  type: nodeInfo.type!,
+                  data: {
+                      content: nodeContent
+                  }
+              }
+              blocks = [...blocks, nodejson]
+              break
+            case "load":
+              break
+            case "chunk":
+              subMenuType = (nodeInfo.data as ChunkingConfigNodeData).subMenuType as string ?? ""
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              if (subMenuType === "chunk-Auto") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "chunk",
+                  data: {  
+                      inputs: sourceNodeIdWithLabelGroup,
+                      chunking_mode: "auto",
+                      extra_configs: {},
+                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                  },
+                  
+                } as ChunkingAutoEdgeJsonType
+                edges = [...edges, edgejson]
+          
+              }
+              else if (subMenuType === "chunk-Bylength") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "chunk",
+                  data: {  
+                      inputs: sourceNodeIdWithLabelGroup,
+                      chunking_mode: "length",
+                      sub_chunking_mode: (nodeInfo.data as ChunkingConfigNodeData).sub_chunking_mode,
+                      extra_configs: {
+                          chunk_size: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.chunk_size ?? 200,
+                          overlap: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.overlap ?? 20,
+                          handle_half_word: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.handle_half_word ?? false,
+                      },
+                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                  },
+                } as ChunkingByLengthEdgeJsonType
+                edges = [...edges, edgejson]
+               
+              }
+              else if (subMenuType === "chunk-Bycharacter") {
+                const delimiterConfig = cleanJsonString((nodeInfo.data as ChunkingConfigNodeData)?.content as string) as string[]
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "chunk",
+                  data: {  
+                      inputs: sourceNodeIdWithLabelGroup,
+                      chunking_mode: "character",
+                      sub_chunking_mode: "character",
+                      extra_configs: {delimiters: delimiterConfig},
+                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      
+                  },
+                } as ChunkingByCharacterEdgeJsonType
+                edges = [...edges, edgejson]
+               
+              } 
+              else if (subMenuType === "chunk-ByLLM") {
+                  edgejson = {
+                    id: nodeInfo.id,
+                    type: "chunk",
+                    data: {  
+                        inputs: sourceNodeIdWithLabelGroup,
+                        chunking_mode: "llm",
+                        sub_chunking_mode: "llm",
+                        extra_configs: {
+                            model: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.model ?? "gpt-4o",
+                            prompt: (nodeInfo.data as ChunkingConfigNodeData)?.content as string ?? ""
+                        },
+                        looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                    },
+                  } as ChunkingLLMEdgeJsonType
+                  edges = [...edges, edgejson]
+                
+              }
+              else if (subMenuType === "chunk-ForHTML") {
+                const tagValue = cleanJsonString((nodeInfo.data as ChunkingConfigNodeData)?.content as string) || []
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "chunk",
+                  data: {  
+                      inputs: sourceNodeIdWithLabelGroup,
+                      chunking_mode: "advanced",
+                      sub_chunking_mode: "html",
+                      extra_configs: {
+                          tags: tagValue
+                      },
+                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                  },
+                 
+                } as ChunkingHTMLEdgeJsonType
+                edges = [...edges, edgejson]
+              
+              }
+              else if (subMenuType === "chunk-ForMarkdown") {
+                const tagValue = cleanJsonString((nodeInfo.data as ChunkingConfigNodeData)?.content as string) || []
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "chunk",
+                  data: {  
+                      inputs: sourceNodeIdWithLabelGroup,
+                      chunking_mode: "advanced",
+                      sub_chunking_mode: "markdown",
+                      extra_configs: {
+                          tags: tagValue
+                      },
+                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      
+                  },
+                } as ChunkingMarkdownEdgeJsonType
+                edges = [...edges, edgejson]
+      
+              }
+              break
+            case "generate":
+              break     
+            case "llm":
+              const messageContent = cleanJsonString(nodeInfo.data.content as string)
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              edgejson = {
+                id: nodeInfo.id,
+                type: "llm",
+                data: {
+                    messages: messageContent !== "error" ? messageContent : [
+                        {"role": "system", 
+                         "content": "You are an AI"},
+                        {"role": "user", 
+                        "content": "introduce yourself"}
+                       ],
+                    model: (nodeInfo.data as LLMConfigNodeData)?.model ?? "gpt-4o",
+                    base_url: (nodeInfo.data as LLMConfigNodeData)?.base_url ?? "",
+                    max_tokens: 4096,
+                    temperature: 0.7,
+                    structured_output: (nodeInfo.data as LLMConfigNodeData)?.structured_output ?? false,
+                    inputs: sourceNodeIdWithLabelGroup,
+                    looped: (nodeInfo.data as LLMConfigNodeData).looped ?? false,
+                    outputs: [{id: (nodeInfo.data as LLMConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as LLMConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as LLMConfigNodeData).resultNode as string}]
+                    
+                },
+              } as LLMEdgeJsonType
+              edges = [...edges, edgejson]
+              break
+            case "embedding":
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              edgejson = {
+                id: nodeInfo.id,
+                type: "embedding",
+                data: {  
+                    inputs: sourceNodeIdWithLabelGroup,
+                    model: (nodeInfo.data as EmbeddingConfigNodeData)?.model ?? "text-embedding-ada-002",
+                    method: (nodeInfo.data as EmbeddingConfigNodeData)?.method ?? "distance",
+                    looped: (nodeInfo.data as EmbeddingConfigNodeData).looped ?? false,
+                    outputs: [{id: (nodeInfo.data as EmbeddingConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as EmbeddingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as EmbeddingConfigNodeData).resultNode as string}]
+                },
+              } as EmbeddingEdgeJsonType
+              edges = [...edges, edgejson]
+              break
+            case "modify":
+              subMenuType = (nodeInfo.data as ModifyConfigNodeData).subMenuType as string ?? ""
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              if (subMenuType === "modify-copy") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "modify",
+                  data: { 
+                      content_type: "str",
+                      modify_type: "deep_copy_string",
+                      extra_configs: {}, 
+                      inputs: sourceNodeIdWithLabelGroup,
+                      looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}]
+                  },
+                } as ModifyCopyEdgeJsonType
+                edges = [...edges, edgejson]
+              } 
+              else if (subMenuType === "modify-get") {
+                const mode = (nodeInfo.data as ModifyConfigNodeData).content_type as string ?? "list"
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "modify",
+                  data: {  
+                      content_type: mode,
+                      modify_type: "get",
+                      extra_configs: {
+                          index: mode === "list" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.index as number : undefined,
+                          key: mode === "dict" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.key as string : undefined
+                      },
+                      inputs: sourceNodeIdWithLabelGroup,
+                      looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}]
+                  },
+                } as ModifyGetEdgeJsonType
+                edges = [...edges, edgejson]
+              }   
+              else if (subMenuType === "modify-structured") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "modify",
+                  data: {  
+                    content_type: "str",
+                    modify_type: "modify_structured",
+                    extra_configs: {},
+                    content: cleanJsonString(nodeInfo.data.content as string),
+                    inputs: sourceNodeIdWithLabelGroup,
+                    looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                    outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}] 
+                },
+                } as ModifyStructuredEdgeJsonType
+                edges = [...edges, edgejson]
+              }
+              else if (subMenuType === "modify-text") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "modify",
+                  data: {  
+                      content_type: "str",
+                      modify_type: "modify_text",
+                      extra_configs: {},
+                      content: nodeInfo.data.content as string,
+                      inputs: sourceNodeIdWithLabelGroup,
+                      looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}]
+                  },
+                } as ModifyTextEdgeJsonType
+                edges = [...edges, edgejson]
+              }
+              break
+            case "search":
+              subMenuType = (nodeInfo.data as SearchConfigNodeData).subMenuType as string ?? ""
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              if (subMenuType === "search-Vector") {
+                const vectorDB_id = (nodeInfo.data as SearchConfigNodeData)?.vector_db?.id
+                const vectorDB_label = vectorDB_id ? getNode(vectorDB_id)?.data?.label as string | undefined ?? vectorDB_id : undefined
+                const query_id = (nodeInfo.data as SearchConfigNodeData)?.query_id?.id
+                const query_label = query_id ? getNode(query_id)?.data?.label as string | undefined ?? query_id : undefined
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "search",
+                  data: {  
+                      search_type: "vector",
+                      sub_search_type: "embedding",
+                      top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
+                      inputs: sourceNodeIdWithLabelGroup,
+                      extra_configs: {
+                          threshold: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7
+                      },
+                      vector_db: {id: vectorDB_id, label: vectorDB_label},
+                      query_id: {id: query_id, label: query_label},
+                      looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as SearchConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}]
+                  },
+                } as SearchByVectorEdgeJsonType
+                edges = [...edges, edgejson]
+              }
+              else if (subMenuType === "search-Elastic") {
+    
+              }
+              else if (subMenuType === "search-Perplexity") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "search",
+                  data: { 
+                      search_type:"llm", 
+                      sub_search_type:"perplexity",
+                      inputs: sourceNodeIdWithLabelGroup,
+                      extra_configs: {model: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"},
+                      looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as SearchConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}]
+                  },
+                } as SearchPerplexityEdgeJsonType
+                edges = [...edges, edgejson]
+              }
+              else if (subMenuType === "search-Google") {
+                edgejson = {
+                  id: nodeInfo.id,
+                  type: "search",
+                  data: { 
+                      search_type:"web", 
+                      sub_search_type:"google",
+                      top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
+                      inputs: sourceNodeIdWithLabelGroup,
+                      extra_configs: {},
+                      looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
+                      outputs: [{id: (nodeInfo.data as SearchConfigNodeData).resultNode, 
+                        label: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}]
+                  },
+                } as SearchGoogleEdgeJsonType
+                edges = [...edges, edgejson]
+              }
+              break 
+            case "code":
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              edgejson = {
+                id: nodeInfo.id,
+                type: "code",
+                data: {  
+                    inputs: sourceNodeIdWithLabelGroup,
+                    code: (nodeInfo.data as CodeConfigNodeData).code as string ?? `def func(${sourceNodeIdWithLabelGroup.map(node => `arg_${node.label}`).join(",")}):\n    # write your code here\n    return`,
+                    looped: (nodeInfo.data as CodeConfigNodeData).looped ?? false,
+                    outputs: [{id: (nodeInfo.data as CodeConfigNodeData).resultNode, label: getNode((nodeInfo.data as CodeConfigNodeData).resultNode as string)?.data.label as string ?? (nodeInfo.data as CodeConfigNodeData).resultNode as string}]
+                },
+              } as CodeEdgeJsonType
+              edges = [...edges, edgejson]
+              break
+            case "choose":
+              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              const chooseSwitch = (nodeInfo.data as ChooseConfigNodeData).switch
+              const chooseContent = (nodeInfo.data as ChooseConfigNodeData).content
+              const chooseOutputs = (nodeInfo.data as ChooseConfigNodeData).resultNodes
+              const chooseON = (nodeInfo.data as ChooseConfigNodeData).ON
+              const chooseOFF = (nodeInfo.data as ChooseConfigNodeData).OFF
+              edgejson = {
+                id: nodeInfo.id,
+                type: "choose",
+                data: {  
+                    switch: chooseSwitch ? {id: chooseSwitch, label: getNode(chooseSwitch as string)?.data?.label as string ?? chooseSwitch} : undefined,
+                    content: chooseContent ? {id: chooseContent, label: getNode(chooseContent as string)?.data?.label as string ?? chooseContent} : undefined,
+                    inputs: sourceNodeIdWithLabelGroup,
+                    outputs: chooseOutputs ? chooseOutputs.map((node: string) => ({id: node, label: getNode(node)?.data?.label as string ?? node})) : [],
+                    looped: false,
+                    ON: chooseON ? chooseON.map((node: string) => ({id: node, label: getNode(node)?.data?.label as string ?? node})) : [],
+                    OFF: chooseOFF ? chooseOFF.map((node: string) => ({id: node, label: getNode(node)?.data?.label as string ?? node})) : []
+                },
+              } as ChooseEdgeJsonType
+              edges = [...edges, edgejson]
+              break
+           }  
+            
+        }
+    
+        return {
+            blocks,
+            edges
+        }
+      }
+
+   
+       /*
+        开放一个持久化的通话session，持续的更新所有resultblock的结果，用于
+        整体run 一遍结果更新所有resultNode, session 持续时长 5min
+    */
+        const streamWholeWorkflowResult = useCallback(async (taskId: string) => {
+          return new Promise((resolve, reject) => { 
+            const eventSource = new EventSource(`${backend_IP_address_for_receivingData}/${taskId}`);
+        
+            eventSource.onmessage = (event) => {
+                // console.log('Raw event data:', typeof event.data, event.data);
+                
+                try {
+                    // const data = deepParseJSON(event.data)
+                    const data = JSON.parse(event.data)
+                    
+                    
+        
+                    // 解析数据
+                    // const data: ProcessingData = JSON.parse(jsonString);
+                    
+                    // console.log('Parsed data:', data);
+        
+                    // 检查是否收到完成信号
+                    if (data.is_complete === true) {
+                        // console.log(getNodes())
+                        // console.log('Processing completed');
+                        eventSource.close();
+                        resolve(true)
+                        return;
+                    }
+        
+                    // 更新UI或进行其他操作
+                    updateWholeWorkflowUI(data);
+                } catch (error) {
+                    console.error('Error processing event data:', error);
+                    reject(error)
+                }
+            };
+        
+            eventSource.onerror = (error) => {
+                console.error('EventSource failed:', error);
+                eventSource.close();
+                reject(error)
+            };
+        
+            // 可选：添加一个超时机制
+            const timeout = setTimeout(() => {
+                console.log('Connection timed out');
+                eventSource.close();
+                reject(new Error("Connection timed out"))
+            }, 300000); // 5分钟超时
+        
+            // 使用 addEventListener 来监听 'close' 事件
+            eventSource.addEventListener('close', () => {
+                clearTimeout(timeout);
+                console.log('EventSource connection closed');
+                // 可以在这里添加其他清理工作或状态更新
+            });
+          })
+        }, []);
+
+     /*
+       获取新的结果需要更新前端content
+    */
+       const updateWholeWorkflowUI = useCallback(async (jsonResult: ProcessingData) => {
+        const data = jsonResult.data;
+        // console.log(`Received ${data.length} file(s)`);
+        // console.log(getNodes(), "current nodes in reactflow")
+        
+        for (let item of data) {
+          
+            // console.log(item.id,item.data.content, typeof item.data.content, "check the content type")
+            setNodes(prevNodes => (prevNodes.map(node => node.id === item.id ? {
+                ...node,
+                type: item.type ?? node.type,
+                data: {
+                    ...node.data,
+                    // content: item.type === "structured" || (!item.type && node.type === "structured") ? JSON.stringify(item.data.content) : typeof item.data.content === "string" ? item.data.content : JSON.stringify(item.data.content),
+                    content: item.data.content,
+                    ...(node.type === "none" ? {subtype: item.type} : {})
+                }
+            }: node)))
+           
+            
+            // console.log("Attempting to fetch:", item.data.content);
+        }
+    }, []);
+
+
+    return {sendWholeWorkflowJsonDataToBackend, isComplete, setIsComplete}
+}

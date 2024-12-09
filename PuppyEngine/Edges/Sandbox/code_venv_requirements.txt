@@ -1,0 +1,52 @@
+# Core libraries
+numpy
+pandas
+scipy
+
+# Machine learning and deep learning libraries
+scikit-learn
+torch
+
+# NLP and text processing libraries
+nltk
+spacy
+transformers
+textblob
+gensim
+
+# Web and API libraries
+requests
+httpx
+uvicorn
+
+# Web scraping libraries
+beautifulsoup4
+scrapy
+selenium
+lxml
+
+# Database libraries
+sqlalchemy
+pymongo
+psycopg2
+mysql-connector-python
+redis
+pydantic
+
+# Cloud and distributed systems
+boto3
+google-cloud-storage
+dask
+ray
+
+# Data serialization and communication
+protobuf
+msgpack
+h5py
+pyarrow
+
+# Utility libraries
+pytest
+
+# Docker and containerization
+docker

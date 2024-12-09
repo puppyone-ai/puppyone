@@ -1,0 +1,67 @@
+.venv
+PuppyFlow/node_modules/
+**/node_modules/
+**/code_venv/
+**/new_venv/
+pandoc-3.3-windows-x86_64.msi
+
+**/__pycache__/
+__pycache__/
+*.pyc
+**.pyc
+./PuppyEngine/Edges/__pycache__/
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# testing
+/coverage
+
+# next.js
+**/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env*.local
+!PuppyFlow/.env
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# pycharm & vscode
+.idea/
+.vscode/
+
+
+# environment
+venv/
+myenv/
+
+
+# Results
+results/ 
+FaissIndexes/ 
+PuppyEngine/json_received.json
+json_received.json
+
+# vs code
+.vscode/
