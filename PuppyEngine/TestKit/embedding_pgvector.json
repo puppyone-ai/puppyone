@@ -35,8 +35,8 @@
                 "embedding_type": "text",
                 "model": "text-embedding-ada-002",
                 "vdb_configs": {
-                    "vdb_type": "pinecone",
-                    "collection_name": "test_collection",
+                    "vdb_type": "pgvector",
+                    "collection_name": "pg_test_collection",
                     "ids": [],
                     "create_new": true
                 }

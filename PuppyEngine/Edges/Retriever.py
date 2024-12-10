@@ -297,7 +297,7 @@ Output:
             raise PuppyEngineException(3502, "Unsupported Embedding Data Type", "Embeddings have to be a list of lists of floats!")
 
         db = VectorDatabaseFactory.get_database(db_type=db_type)
-        db.connect()
+        db.connect(collection_name=collection_name)
         vector_results = db.search_embeddings(
             collection_name=collection_name,
             query_embedding=query_embedding,
@@ -305,19 +305,12 @@ Output:
         )
 
         if threshold:
-            filtered_results = [
-                match for match in vector_results["matches"]
+            vector_results = [
+                match for match in vector_results
                 if match["score"] >= threshold
             ]
-        else:
-            filtered_results = vector_results["matches"]
 
-        results = [
-            match["metadata"].get("text", "No text metadata")
-            for match in filtered_results
-        ]
-
-        return results
+        return vector_results
 
 
 if __name__ == "__main__":

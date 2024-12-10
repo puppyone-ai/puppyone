@@ -276,9 +276,6 @@ if __name__ == "__main__":
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name.startswith("embedding"):
-            continue
-
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
         with open(file_path, encoding="utf-8") as f:
@@ -288,13 +285,3 @@ if __name__ == "__main__":
         for block in workflow.process_all():
             print(block)
         workflow.clear_workflow()
-
-
-    # Single test
-    # with open("PuppyEngine/TestKit/flow_test.json") as f:
-    #     data = json.load(f)
-    # workflow = WorkFlow()
-    # workflow.config_workflow_json(data)
-    # for block in workflow.process_all():
-    #     print(block)
-    # workflow.clear_workflow()

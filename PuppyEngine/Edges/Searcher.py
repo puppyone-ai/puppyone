@@ -310,7 +310,7 @@ class RAGSearchClient(BaseSearchClient):
                 top_k=self.top_k,
                 threshold=self.threshold,
                 query_embedding=query_embedding,
-                db_type=extra_configs.get("db_type", "pinecone"),
+                db_type=extra_configs.get("db_type", "pgvector"),
                 collection_name=extra_configs.get("collection_name", "")
             )
         elif sub_search_type == "word":
@@ -331,7 +331,7 @@ class RAGSearchClient(BaseSearchClient):
             raise ValueError(f"{sub_search_type} is unsupported for Vector Search!")
 
         if not extra_configs.get("show_score", False):
-            retrieved_results = [result[0] for result in retrieved_results]
+            retrieved_results = [result["document"] for result in retrieved_results]
 
         return retrieved_results
 

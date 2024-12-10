@@ -36,9 +36,11 @@ pymongo
 sqlalchemy
 
 # Vector Database
+vecs
 pymilvus
 qdrant_client
 weaviate-client
+psycopg2-binary
 pinecone-client[grpc]
 
 #code

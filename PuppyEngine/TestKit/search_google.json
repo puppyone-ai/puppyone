@@ -22,6 +22,7 @@
               "top_k": 5,
               "inputs": {"1": ""},
               "outputs": {"2": ""},
+              "query_id": {"1": ""},
               "extra_configs": {}
             }
           }
