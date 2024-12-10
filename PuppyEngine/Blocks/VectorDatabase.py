@@ -8,6 +8,8 @@ import uuid
 import logging
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
+import vecs
+from psycopg2.extras import execute_values
 from pymilvus import MilvusClient, CollectionSchema, FieldSchema, DataType
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import VectorParams, Distance
@@ -25,25 +27,31 @@ logger = logging.getLogger(__name__)
 
 
 class VectorDatabase(ABC):
-    def __init__(self):
+    def __init__(
+        self,
+        client_type: int
+    ):
         self.collections = {}
-        self.zilliz_client = MilvusClient(
-            uri=os.environ.get("ZILLIZ_ENDPOINT"),
-            token=os.environ.get("MILVUS_API_KEY"),
-        )
-        self.qdrant_client = QdrantClient(
-            url=os.environ.get("QDRANT_URL"),
-            api_key=os.environ.get("QDRANT_API_KEY")
-        )
-        self.pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
-        self.weaviate_client = connect_to_weaviate_cloud(
-            cluster_url=os.getenv("WEAVIATE_RESTFUL_URL"),
-            auth_credentials=Auth.api_key(api_key=os.getenv("WEAVIATE_ADMIN_KEY")),
-            headers={
-                "X-OpenAI-Api-Key": os.getenv("DEEPBRICKS_API_KEY"),
-                "X-OpenAI-BaseURL": os.getenv("DEEPBRICKS_BASE_URL")
-            }
-        )
+        if client_type == 0:
+            self.pgvector_client = vecs.create_client(os.environ.get("SUPABASE_URL"))
+        else:
+            # self.zilliz_client = MilvusClient(
+            #     uri=os.environ.get("ZILLIZ_ENDPOINT"),
+            #     token=os.environ.get("MILVUS_API_KEY"),
+            # )
+            self.qdrant_client = QdrantClient(
+                url=os.environ.get("QDRANT_URL"),
+                api_key=os.environ.get("QDRANT_API_KEY")
+            )
+            self.pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
+            self.weaviate_client = connect_to_weaviate_cloud(
+                cluster_url=os.getenv("WEAVIATE_RESTFUL_URL"),
+                auth_credentials=Auth.api_key(api_key=os.getenv("WEAVIATE_ADMIN_KEY")),
+                headers={
+                    "X-OpenAI-Api-Key": os.getenv("DEEPBRICKS_API_KEY"),
+                    "X-OpenAI-BaseURL": os.getenv("DEEPBRICKS_BASE_URL")
+                }
+            )
 
     @abstractmethod
     def connect(
@@ -76,6 +84,13 @@ class VectorDatabase(ABC):
 
 
 class ZillizVectorDatabase(VectorDatabase):
+    def __init__(
+        self,
+        client_type: int
+    ):
+        super().__init__(client_type=client_type)
+        self.connections = {}
+
     @global_exception_handler(1604, "Error Connecting to Zilliz Vector Database")
     def connect(
         self,
@@ -167,7 +182,7 @@ class ZillizVectorDatabase(VectorDatabase):
 
         search_params = {"metric_type": kwargs.get("metric_type", "COSINE"), "params": {"nprobe": 10}}
         partition_names = kwargs.get("partition_names")
-        results = client.search(
+        responses = client.search(
             collection_name=collection_name,
             data=[query_embedding],
             filter="embedding",
@@ -176,17 +191,22 @@ class ZillizVectorDatabase(VectorDatabase):
             partition_names=partition_names
         )
 
-        output = []
-        for result in results[0]:
-            output.append({
-                "id": result.id,
-                "document": result.entity.get("document"),
-                "score": result.distance
-            })
-        return output
+        results = [{
+            "id": result.id,
+            "document": result.entity.get("document"),
+            "score": result.distance
+        } for result in responses[0]]
+        return results
 
 
 class QdrantVectorDatabase(VectorDatabase):
+    def __init__(
+        self,
+        client_type: int
+    ):
+        super().__init__(client_type=client_type)
+        self.connections = {}
+
     @global_exception_handler(1606, "Error Connecting to Qdrant Vector Database")
     def connect(
         self,
@@ -287,7 +307,7 @@ class QdrantVectorDatabase(VectorDatabase):
 
         filter_tag, filter_str = kwargs.get("filter_tag"), kwargs.get("filter_str")
         with_payload = kwargs.get("with_payload", True)
-        results = client.search(
+        response = client.search(
             collection_name=collection_name,
             query_vector=query_embedding,
             query_filter=(
@@ -305,17 +325,23 @@ class QdrantVectorDatabase(VectorDatabase):
             limit=top_k,
         )
 
-        output = []
-        for result in results:
-            output.append({
-                "id": result.id,
-                "document": result.payload.get("document"),
-                "score": result.score
-            })
-        return output
+        results = [{
+            "id": result.id,
+            "document": result.payload.get("document"),
+            "score": result.score
+            } for result in response
+        ]
+        return results
 
 
 class PineconeVectorDatabase(VectorDatabase):
+    def __init__(
+        self,
+        client_type: int
+    ):
+        super().__init__(client_type=client_type)
+        self.connections = {}
+
     @global_exception_handler(1608, "Error Connecting to Pinecone Vector Database")
     def connect(
         self,
@@ -421,17 +447,22 @@ class PineconeVectorDatabase(VectorDatabase):
             include_metadata=True,
         )
 
-        results = []
-        for match in query_response['matches']:
-            results.append({
-                "id": match['id'],
-                "document": match['metadata'].get('document'),
-                "score": match['score']
-            })
+        results = [{
+            "id": match['id'],
+            "document": match['metadata'].get('document'),
+            "score": match['score']
+        } for match in query_response['matches']]
         return results
     
 
 class WeaviateVectorDatabase(VectorDatabase):
+    def __init__(
+        self,
+        client_type: int
+    ):
+        super().__init__(client_type=client_type)
+        self.connections = {}
+
     @global_exception_handler(1612, "Error Connecting to Weaviate Vector Database")
     def connect(
         self,
@@ -541,16 +572,152 @@ class WeaviateVectorDatabase(VectorDatabase):
             target_vector="embedding"
         )
 
-        results = []
-        for obj in response.objects:
-            result = {
-                "id": obj.id,
-                "document": obj.properties.get("document"),
-                "score": obj.metadata.get("distance")
-            }
-            results.append(result)
-
+        results = [{
+            "id": obj.id,
+            "document": obj.properties.get("document"),
+            "score": obj.metadata.get("distance")
+        } for obj in response.objects]
         return results
+    
+        
+class PostgresVectorDatabase(VectorDatabase):
+    def __init__(
+        self,
+        client_type: int
+    ):
+        """
+        Initialize the PostgresVectorDatabase client.
+        """
+
+        super().__init__(client_type=client_type)        
+        self.vecs = None
+        self.connections = {}
+
+    @global_exception_handler(1614, "Error Connecting to Postgres Vector Database")
+    def connect(
+        self,
+        collection_name: str
+    ) -> None:
+        """
+        Connect to a Postgres-based vector database collection.
+
+        Args:
+            collection_name (str): Name of the collection to connect to.
+        """
+
+        if collection_name not in self.connections:
+            self.connections[collection_name] = self.pgvector_client
+            logging.info(f"Connected to collection '{collection_name}' in Pgvector.")
+
+    @global_exception_handler(2221, "Error Saving Embeddings to Postgres Vector Database")
+    def save_embeddings(
+        self,
+        collection_name: str,
+        embeddings: List[List[float]],
+        documents: List[str],
+        ids: List[str] = None,
+        create_new: bool = False,
+        metric: str = "cosine",
+        **kwargs,
+    ) -> None:
+        """
+        Save embeddings to the Postgres-based vector database.
+
+        Args:
+            collection_name (str): Name of the collection.
+            embeddings (List[List[float]]): List of embeddings.
+            documents (List[str]): List of associated documents.
+            ids (List[str]): List of unique IDs.
+            create_new (bool): Whether to create a new collection (if it doesn't exist).
+            metric (str): Similarity metric to use for the collection (default: "cosine").
+        """
+
+        client = self.connections.get(collection_name)
+        if not client:
+            raise ValueError(f"Not connected to collection '{collection_name}'.")
+
+        collection = client.get_or_create_collection(name=collection_name, dimension=len(embeddings[0]))
+        if create_new:
+            logging.info(f"Created new collection: {collection_name}")
+
+        metric_value = {
+            "cosine": "cosine_distance",
+            "l1": "l1_distance",
+            "l2": "l2_distance",
+            "inner_product": "inner_product"
+        }
+        collection.create_index(measure=metric_value.get(metric, "cosine_distance"))
+
+        if not ids:
+            ids = [str(uuid.uuid4()) for _ in embeddings]
+
+        records = [
+            (ids[i], embeddings[i], {"doc": documents[i]}) for i in range(len(embeddings))
+        ]
+        collection.upsert(records=records)
+        logging.info(f"Inserted {len(records)} embeddings into collection '{collection_name}'.")
+
+    @global_exception_handler(3617, "Error Searching in Postgres Vector Database")
+    def search_embeddings(
+        self,
+        collection_name: str,
+        query_embedding: List[float],
+        top_k: int,
+        **kwargs,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for embeddings in the Postgres-based vector database.
+
+        Args:
+            collection_name (str): Name of the collection to search.
+            query_embedding (List[float]): Query embedding vector.
+            top_k (int): Number of nearest neighbors to return.
+
+        Returns:
+            List[Dict[str, Any]]: List of results, including IDs, documents, and scores.
+        """
+
+        client = self.connections.get(collection_name)
+        if not client:
+            raise ValueError(f"Not connected to collection '{collection_name}'.")
+
+        collection = client.get_or_create_collection(name=collection_name, dimension=len(query_embedding))
+        response = collection.query(
+            data=query_embedding,
+            limit=top_k,
+            filters={},
+            measure="cosine_distance",
+            include_value=True,
+            include_metadata=True,
+        )
+
+        results = [
+            {
+                "id": record[0],
+                "document": record[2].get("doc"),
+                "score": record[1],
+            } for record in response
+        ]
+        return results
+
+    @global_exception_handler(2222, "Error Deleting Collection in Postgres Vector Database")
+    def delete_index(
+        self,
+        collection_name: str
+    ) -> None:
+        """
+        Delete a collection (index) from the Postgres-based vector database.
+
+        Args:
+            collection_name (str): Name of the collection to delete.
+        """
+
+        client = self.connections.get(collection_name)
+        if not client:
+            raise ValueError(f"Not connected to collection '{collection_name}'.")
+        
+        client.delete_collection(collection_name)
+        logging.info(f"Deleted collection: {collection_name}")
 
 
 class VectorDatabaseFactory:
@@ -558,7 +725,8 @@ class VectorDatabaseFactory:
         "zilliz": ZillizVectorDatabase,
         "qdrant": QdrantVectorDatabase,
         "pinecone": PineconeVectorDatabase,
-        "weaviate": WeaviateVectorDatabase
+        "weaviate": WeaviateVectorDatabase,
+        "pgvector": PostgresVectorDatabase
     }
 
     @staticmethod
@@ -570,7 +738,8 @@ class VectorDatabaseFactory:
             raise PuppyEngineException(
                 1601, "Unsupported Vector Database Type", f"Type: {db_type}"
             )
-        return db_class()
+        client_type = 0 if db_type == "pgvector" else 1
+        return db_class(client_type=client_type)
 
 
 if __name__ == "__main__":
@@ -590,65 +759,81 @@ if __name__ == "__main__":
     query_vector = rng.random(512).tolist()
 
     # Zilliz Test
-    zilliz_db = VectorDatabaseFactory.get_database("zilliz")
-    zilliz_db.connect("zilliz_test_collection")
-    zilliz_db.save_embeddings(
-        collection_name="zilliz_test_collection",
-        embeddings=embeddings,
-        documents=documents,
-        create_new=True,
-    )
-    zilliz_results = zilliz_db.search_embeddings(
-        collection_name="zilliz_test_collection",
-        query_embedding=query_vector,
-        top_k=5,
-    )
-    print("Zilliz Search Results:", zilliz_results)
+    # zilliz_db = VectorDatabaseFactory.get_database("zilliz")
+    # zilliz_db.connect("zilliz_test_collection")
+    # zilliz_db.save_embeddings(
+    #     collection_name="zilliz_test_collection",
+    #     embeddings=embeddings,
+    #     documents=documents,
+    #     create_new=True,
+    # )
+    # zilliz_results = zilliz_db.search_embeddings(
+    #     collection_name="zilliz_test_collection",
+    #     query_embedding=query_vector,
+    #     top_k=5,
+    # )
+    # print("Zilliz Search Results:", zilliz_results)
 
-    # Qdrant Test
-    qdrant_db = VectorDatabaseFactory.get_database("qdrant")
-    qdrant_db.connect("qdrant_test_collection")
-    qdrant_db.save_embeddings(
-        collection_name="qdrant_test_collection",
-        embeddings=embeddings,
-        documents=documents,
-        create_new=True,
-    )
-    qdrant_results = qdrant_db.search_embeddings(
-        collection_name="qdrant_test_collection",
-        query_embedding=query_vector,
-        top_k=5,
-    )
-    print("Qdrant Search Results:", qdrant_results)
+    # # Qdrant Test
+    # qdrant_db = VectorDatabaseFactory.get_database("qdrant")
+    # qdrant_db.connect("qdrant_test_collection")
+    # qdrant_db.save_embeddings(
+    #     collection_name="qdrant_test_collection",
+    #     embeddings=embeddings,
+    #     documents=documents,
+    #     create_new=True,
+    # )
+    # qdrant_results = qdrant_db.search_embeddings(
+    #     collection_name="qdrant_test_collection",
+    #     query_embedding=query_vector,
+    #     top_k=5,
+    # )
+    # print("Qdrant Search Results:", qdrant_results)
 
-    # Pinecone Test
-    pinecone_db = VectorDatabaseFactory.get_database("pinecone")
-    pinecone_db.connect("pinecone_test_collection")
-    pinecone_db.save_embeddings(
-        collection_name="pinecone_test_collection",
-        embeddings=embeddings,
-        documents=documents,
-        create_new=True,
-    )
-    pinecone_results = pinecone_db.search_embeddings(
-        collection_name="pinecone_test_collection",
-        query_embedding=query_vector,
-        top_k=5,
-    )
-    print("Pinecone Search Results:", pinecone_results)
+    # # Pinecone Test
+    # pinecone_db = VectorDatabaseFactory.get_database("pinecone")
+    # pinecone_db.connect("pinecone_test_collection")
+    # pinecone_db.save_embeddings(
+    #     collection_name="pinecone_test_collection",
+    #     embeddings=embeddings,
+    #     documents=documents,
+    #     create_new=True,
+    # )
+    # pinecone_results = pinecone_db.search_embeddings(
+    #     collection_name="pinecone_test_collection",
+    #     query_embedding=query_vector,
+    #     top_k=5,
+    # )
+    # print("Pinecone Search Results:", pinecone_results)
 
-    # Weaviate Test
-    weaviate_db = VectorDatabaseFactory.get_database("weaviate")
-    weaviate_db.connect("weaviate_test_collection")
-    weaviate_db.save_embeddings(
-        collection_name="weaviate_test_collection",
+    # # Weaviate Test
+    # weaviate_db = VectorDatabaseFactory.get_database("weaviate")
+    # weaviate_db.connect("weaviate_test_collection")
+    # weaviate_db.save_embeddings(
+    #     collection_name="weaviate_test_collection",
+    #     embeddings=embeddings,
+    #     documents=documents,
+    #     create_new=True,
+    # )
+    # weaviate_results = weaviate_db.search_embeddings(
+    #     collection_name="weaviate_test_collection",
+    #     query_embedding=query_vector,
+    #     top_k=5,
+    # )
+    # print("Weaviate Search Results:", weaviate_results)
+    
+    # Pgvector Test
+    pgvector_db = VectorDatabaseFactory.get_database("pgvector")
+    pgvector_db.connect("test_collection")
+    pgvector_db.save_embeddings(
+        collection_name="test_collection",
         embeddings=embeddings,
         documents=documents,
         create_new=True,
     )
-    weaviate_results = weaviate_db.search_embeddings(
-        collection_name="weaviate_test_collection",
+    pgvector_results = pgvector_db.search_embeddings(
+        collection_name="test_collection",
         query_embedding=query_vector,
         top_k=5,
     )
-    print("Weaviate Search Results:", weaviate_results)
+    print("Pgvector Search Results:", pgvector_results)

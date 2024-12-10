@@ -19,15 +19,6 @@ One block can be connected with multiple edges, and they will be executed concur
 2. The `Blocks/testfiles` and `Blocks/savedfiles` folders contain files for testing `FileLoader`, not part of the backend, can be removed later on.
 3. The `Results` and `FaissIndexes` folders store the result data when executing the pipeline. For tracking all the intermediate values and can be accessible from frontend code, those files are not deleted. However, can open the commanded-out codes (line 86 and 87) in the `Server/json_parer.py` to clear all the files in those folders all in once.
 
-
-## TODOs
-1. [x] Test the database clients connection and methods in the `Blocks/Database.py`.
-2. [x] Implement the AWS Vector Database client for in the `Blocks/VectorDatabase.py`.
-3. [ ] Implement the partition search based on the vector embedding ids for each vector database client.
-4. [ ] Improve the LLM Prompts in the `Edges/QueryRewriter.py`.
-5. [ ] Improve the chunking methods in the `Edges/Chunker.py`.
-
-
 ## Run Frontend
 ### **Install all Dependencies**
 ```bash
