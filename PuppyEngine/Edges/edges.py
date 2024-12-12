@@ -19,7 +19,7 @@ from Edges.Sandbox.code_v4 import CustomCode
 from Edges.QueryRewriter import QueryRewriter
 from Edges.Searcher import SearchClientFactory
 from Edges.Generator import lite_llm_chat
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 class Edge:
@@ -31,7 +31,7 @@ class Edge:
         self.edge_type = edge_type
         self.data = data
 
-    @global_exception_handler(3010, "Unexpected Error in Executing Edge")
+    @global_exception_handler(3000, "Unexpected Error in Executing Edge")
     def process(
         self
     ) -> Any:
@@ -51,7 +51,7 @@ class Edge:
         }
         method = edge_methods.get(self.edge_type)
         if not method:
-            raise PuppyEngineException(3000, "Unsupported Edge Type", f"Edge Type: {self.edge_type} is unsupported!")
+            raise ValueError(f"Unsupported Edge Type: {self.edge_type}!")
         
         # loop logics
         if self.data.get("looped", False):
@@ -59,7 +59,7 @@ class Edge:
         else:   
             return method()
 
-    @global_exception_handler(3014, "Unexpected Error in Handling Loop")
+    @global_exception_handler(3001, "Unexpected Error in Handling Loop")
     def handle_loop_mode(
         self,
         method: Any
@@ -94,7 +94,7 @@ class Edge:
 
         return results
 
-    @global_exception_handler(2001, "Unexpected Error in Loading Data")
+    @global_exception_handler(3002, "Unexpected Error in Load Edge Execution")
     def load(
         self
     ) -> Any:
@@ -102,7 +102,7 @@ class Edge:
         loader = DataLoader(block_type, self.data)
         return loader.load()
 
-    @global_exception_handler(2000, "Unexpected Error in Saving Data")
+    @global_exception_handler(3003, "Unexpected Error in Save Edge Execution")
     def save(
         self
     ):
@@ -114,7 +114,7 @@ class Edge:
         saver = DataSaver()
         saver.save_data(data_to_save, save_name, file_type, **extra_configs)
 
-    @global_exception_handler(3009, "Unexpected Error in Modifying Data")
+    @global_exception_handler(3004, "Unexpected Error in Modify Edge Execution")
     def modify(
         self,
     ) -> Any:
@@ -124,7 +124,7 @@ class Edge:
         modifier = JSONModifier(content)
         return modifier.modify(modify_type=modify_type, **extra_configs)
 
-    @global_exception_handler(3008, "Unexpected Error in Calling LLM")
+    @global_exception_handler(3005, "Unexpected Error in LLM Edge Execution")
     def llm(
         self
     ) -> str:
@@ -182,7 +182,7 @@ class Edge:
         )
         return response if not structured_output else json.loads(response)
 
-    @global_exception_handler(3001, "Unexpected Error in Chunking Data")
+    @global_exception_handler(3006, "Unexpected Error in Chunk Edge Execution")
     def chunk(
         self
     ) -> List[str]:
@@ -205,7 +205,7 @@ class Edge:
                 raise ValueError(f"Invalid chunk type: {type(o)}.")
         return processed_output
 
-    @global_exception_handler(3011, "Unexpected Error in Rechunking Data")
+    @global_exception_handler(3006, "Unexpected Error in Chunk Edge Execution")
     def rechunk(
         self
     ) -> List[str]:
@@ -214,7 +214,7 @@ class Edge:
         new_chunks = ac.get_chunks(as_list=self.data.get("as_list", True))
         return new_chunks
 
-    @global_exception_handler(3002, "Unexpected Error in Embedding Data")
+    @global_exception_handler(3007, "Unexpected Error in Embedding Edge Execution")
     def embedding(
         self
     ) -> str:
@@ -246,7 +246,7 @@ class Edge:
             create_new=vdb_configs.get("create_new", False),
         )
     
-    @global_exception_handler(3005, "Unexpected Error in Searching Data")
+    @global_exception_handler(3008, "Unexpected Error in Search Edge Execution")
     def search(
         self
     ) -> list:
@@ -258,7 +258,7 @@ class Edge:
         )
         return retrieved_results
 
-    @global_exception_handler(3003, "Unexpected Error in Reranking Data")
+    @global_exception_handler(3009, "Unexpected Error in Reranking Edge Execution")
     def rerank(
         self
     ):
@@ -275,7 +275,7 @@ class Edge:
             result = [item["text"] for item in result]
         return result
 
-    @global_exception_handler(3006, "Unexpected Error in Rewriting Query")
+    @global_exception_handler(3010, "Unexpected Error in Query-Rewrite Edge Execution")
     def query_rewrite(
         self
     ):
@@ -302,7 +302,7 @@ class Edge:
             raise ValueError(f"Unknown query rewrite mode: {mode}")
         return rewrite_method()
 
-    @global_exception_handler(3012, "Unexpected Error in Executing Code")
+    @global_exception_handler(3011, "Unexpected Error in Code Edge Execution")
     def code(
         self
     ) -> Any:
@@ -312,7 +312,7 @@ class Edge:
         result = custom_code.execute_restricted_code(code, arg_values)
         return result
     
-    @global_exception_handler(3013, "Unexpected Error in Executing Choose")
+    @global_exception_handler(3012, "Unexpected Error in Choose Edge Execution")
     def choose(
         self
     ) -> Any:

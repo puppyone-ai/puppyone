@@ -13,7 +13,7 @@ from markdown2 import markdown
 from sklearn.metrics.pairwise import cosine_similarity
 from DataClass.Chunk import Chunk
 from Edges.Generator import lite_llm_chat
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 class AutoChunking:
@@ -36,7 +36,7 @@ class AutoChunking:
             }) for i, content in enumerate(contents) if content.strip()
         ]
 
-    @global_exception_handler(3100, "Error Executing Auto-Chunk")
+    @global_exception_handler(3101, "Error Executing Auto-Chunk")
     def chunk(
         self,
         sub_mode: str,
@@ -238,7 +238,7 @@ class LengthChunking:
             case _:
                 raise ValueError("Unsupported Sub Chunking Mode for Length Chunk")
 
-    @global_exception_handler(3101, "Error Executing Size-Chunk")
+    @global_exception_handler(3102, "Error Executing Size-Chunk")
     def size_chunk(
         self, 
         chunk_size: int, 
@@ -412,101 +412,6 @@ class LengthChunking:
         return chunk_content
 
 
-class LLMChunking:
-    def __init__(
-        self, 
-        doc: str
-    ):
-        self.doc = doc
-
-    def chunk(
-        self,
-        sub_mode: str,
-        extra_configs: dict
-    ) -> str:
-        match sub_mode.lower():
-            case "llm":
-                prompt = extra_configs.get("prompt", None)
-                model = extra_configs.get("model", "gpt-4o")
-                return self.llm_chunk(prompt, model)
-            case _:
-                raise ValueError("Unsupported Sub Chunking Mode for LLM Chunk")
-
-    @global_exception_handler(3108, "Error Executing LLM-Chunk")
-    def llm_chunk(
-        self,
-        prompt: str = None,
-        model: str = "gpt-4o"
-    ):
-        # System prompt guiding the LLM to understand the task
-        sys_prompt = """
-You are an expert document chunker. Your task is to split the original document into semantically meaningful chunks. 
-Ensure that the document is chunked in a way that each chunk contains coherent and complete thoughts or ideas.
-
-Important Guidelines:
-- Each chunk should be a collection of sentences that talk about a similar topic.
-- Ensure that no sentence is split between chunks; keep all sentences intact within the same chunk.
-- The chunks should preserve the natural flow of the content but break the text down into digestible parts.
-- The chunks should not exceed a length where meaning might be lost but should also not be too short, avoid one-liner chunks unless necessary.
-- Return the chunks in a Python list format, where each element is a string representing a chunk.
-
-Example:
-Input:
-"Artificial Intelligence is rapidly evolving. It can now perform complex tasks. Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
-
-Desired Output in json list:
-[
-    "Artificial Intelligence is rapidly evolving. It can now perform complex tasks.",
-    "Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
-]
-        """
-
-        # Use sys_prompt if no user-supplied prompt is provided
-        prompt = prompt if prompt else sys_prompt
-        
-        messages = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": f"The original document: {self.doc}"}
-        ]
-
-        # Call to the LLM chat function
-        response = lite_llm_chat(
-            messages=messages,
-            model=model,
-            temperature=0.7,
-            max_tokens=4096,
-            printing=False,
-            stream=False,
-            response_format={"type": "json_object"},
-        )
-        
-        return self._parse_chunks(response)
-
-    @global_exception_handler(3111, "Error Parsing Chunks from LLM Response")
-    def _parse_chunks(
-        self,
-        response: str
-    ) -> List[str]:
-        """
-        Parse the response from the LLM and convert it into a list of chunks (list of strings).
-        """
-
-        # Use regex to find the list of chunks within the response
-        list_pattern = re.search(r"\[(?:[^\[\]]*?\])+", response, re.DOTALL)
-        
-        if list_pattern:
-            list_str = list_pattern.group(0)
-            chunks = ast.literal_eval(list_str)
-
-            # Ensure it"s a list of strings
-            if isinstance(chunks, list) and all(isinstance(item, str) for item in chunks):
-                return chunks
-            else:
-                raise ValueError("Extracted content is not a list of strings")
-        else:
-            raise ValueError("No list found in LLM response")
-
-
 class CharacterChunking:
     def __init__(
         self, 
@@ -656,7 +561,7 @@ class SpecialChunking:
             case _:
                 raise ValueError("Unsupported Sub Chunking Mode for Special Chunk")
 
-    @global_exception_handler(3102, "Error Executing Recursive-Chunk")
+    @global_exception_handler(3108, "Error Executing Recursive-Chunk")
     def recursive_text_splitter(
         self,
         max_length: int = 200,
@@ -744,9 +649,112 @@ class SpecialChunking:
         return chunks
 
 
+class LLMChunking:
+    def __init__(
+        self, 
+        doc: str
+    ):
+        self.doc = doc
+
+    def chunk(
+        self,
+        sub_mode: str,
+        extra_configs: dict
+    ) -> str:
+        match sub_mode.lower():
+            case "llm":
+                prompt = extra_configs.get("prompt", None)
+                model = extra_configs.get("model", "gpt-4o")
+                return self.llm_chunk(prompt, model)
+            case _:
+                raise ValueError("Unsupported Sub Chunking Mode for LLM Chunk")
+
+    @global_exception_handler(3109, "Error Executing LLM-Chunk")
+    def llm_chunk(
+        self,
+        prompt: str = None,
+        model: str = "gpt-4o"
+    ):
+        # System prompt guiding the LLM to understand the task
+        sys_prompt = """
+You are an expert document chunker. Your task is to split the original document into semantically meaningful chunks. 
+Ensure that the document is chunked in a way that each chunk contains coherent and complete thoughts or ideas.
+
+Important Guidelines:
+- Each chunk should be a collection of sentences that talk about a similar topic.
+- Ensure that no sentence is split between chunks; keep all sentences intact within the same chunk.
+- The chunks should preserve the natural flow of the content but break the text down into digestible parts.
+- The chunks should not exceed a length where meaning might be lost but should also not be too short, avoid one-liner chunks unless necessary.
+- Return the chunks in a json list, where each element is a string representing a chunk.
+
+Example:
+The original document: "Artificial Intelligence is rapidly evolving. It can now perform complex tasks. Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
+
+Desired Output in json list:
+[
+    "Artificial Intelligence is rapidly evolving. It can now perform complex tasks.",
+    "Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
+]
+
+The original document: "The quick brown fox jumps over the lazy dog. The dog barks at the fox."
+Desired Output in json list:
+[
+    "The quick brown fox jumps over the lazy dog.",
+    "The dog barks at the fox."
+]
+
+**Note**: Always output with a list.
+        """
+
+        # Use sys_prompt if no user-supplied prompt is provided
+        prompt = prompt if prompt else sys_prompt
+        
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"The original document: {self.doc}"}
+        ]
+
+        # Call to the LLM chat function
+        response = lite_llm_chat(
+            messages=messages,
+            model=model,
+            temperature=0.7,
+            max_tokens=4096,
+            printing=False,
+            stream=False,
+            response_format={"type": "json_object"},
+        )
+        
+        return self._parse_chunks(response)
+
+    @global_exception_handler(3110, "Error Parsing Chunks from LLM Response")
+    def _parse_chunks(
+        self,
+        response: str
+    ) -> List[str]:
+        """
+        Parse the response from the LLM and convert it into a list of chunks (list of strings).
+        """
+
+        # Use regex to find the list of chunks within the response
+        list_pattern = re.search(r"\[(?:[^\[\]]*?\])+", response, re.DOTALL)
+        
+        if list_pattern:
+            list_str = list_pattern.group(0)
+            chunks = ast.literal_eval(list_str)
+
+            # Ensure it"s a list of strings
+            if isinstance(chunks, list) and all(isinstance(item, str) for item in chunks):
+                return chunks
+            else:
+                raise ValueError("Extracted content is not a list of strings")
+        else:
+            raise ValueError("No list found in LLM response")
+
+
 class ChunkingFactory:
     @staticmethod
-    @global_exception_handler(3110, "Error Initializing Chunking Method")
+    @global_exception_handler(3100, "Error Initializing Chunking Method")
     def create_chunking(
         chunking_mode: str,
         sub_mode: str,
@@ -764,7 +772,7 @@ class ChunkingFactory:
 
         chunking_class = chunking_classes.get(chunking_mode.lower())
         if not chunking_class:
-            raise PuppyEngineException(3109, "Unsupported Chunking Mode", f"Chunking Mode: {chunking_mode} is unsupported!")
+            raise ValueError(f"Unsupported Chunking Mode: {chunking_mode} is unsupported!")
 
         chunker = chunking_class(doc)
         chunks = chunker.chunk(sub_mode, extra_configs)
@@ -784,7 +792,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
 """
     chunker = LLMChunking(doc)
     
-    print("LLM Chunking: ", ChunkingFactory.create_chunking("llm", "llm", doc))
+    print("LLM Chunking: ", ChunkingFactory.create_chunking("llm", "llm", doc, {}))
     print("Auto Chunking -- Text: ", ChunkingFactory.create_chunking("auto", "text", doc))
 
     json_input = """

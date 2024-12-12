@@ -35,7 +35,8 @@ class WorkFlow:
 
         self.processed_block_ids = set()
         self.current_block_ids = set()
-    
+
+    @global_exception_handler(5200, "Error Configuring Workflow JSON")
     def config_workflow_json(
         self,
         json_data: Dict[str, Dict[str, str]]
@@ -52,7 +53,8 @@ class WorkFlow:
         self.parser = JsonParser(self.block_data, self.edge_data)
         self.edge_inputs = self.parser.parse_inputs()
         self.edge_outputs = self.parser.parse_outputs()
-    
+
+    @global_exception_handler(5201, "Error Clearing Workflow")
     def clear_workflow(
         self
     ):
@@ -68,6 +70,7 @@ class WorkFlow:
         self.processed_block_ids = set()
         self.current_block_ids = set()
 
+    @global_exception_handler(5202, "Error Processing All Blocks", True)
     def process_all(
         self
     ):
@@ -105,7 +108,7 @@ class WorkFlow:
             self.current_block_ids = next_block_ids
             logging.info("Next batch: %s", next_block_ids)
 
-    @global_exception_handler(6200, "Error finding first batch")
+    @global_exception_handler(5203, "Error Finding the First Batch")
     def _find_first_batch(
         self
     ) -> Set[str]:
@@ -126,7 +129,7 @@ class WorkFlow:
 
         return self.processed_block_ids
 
-    @global_exception_handler(6303, "Error finding valid edges")
+    @global_exception_handler(5204, "Error Finding Valid Edges")
     def _find_valid_edges(
         self,
         block_ids: List[str]
@@ -162,7 +165,7 @@ class WorkFlow:
 
         return valid_edge_dicts
 
-    @global_exception_handler(6400, "Error executing batch")
+    @global_exception_handler(5205, "Error Executing Batch")
     def _execute_batch(
         self,
         block_ids: Set[str]
@@ -193,7 +196,7 @@ class WorkFlow:
                 for result in results:
                     yield result
 
-    @global_exception_handler(6300, "Error processing edge")
+    @global_exception_handler(5206, "Error Processing Edge")
     def _process_edge(
         self,
         edge_info: Tuple[str, Dict[str, str]]
@@ -211,12 +214,12 @@ class WorkFlow:
         edge_id, edge_dict = edge_info
         target_block_ids = self.edge_outputs[edge_id]
         if not target_block_ids:
-            raise PuppyEngineException(6301, "Invalid edge: Output block IDs are missing")
+            raise ValueError("Invalid edge: Output block IDs are missing")
 
         edge_type = edge_dict.get("type")
         edge_data = edge_dict.get("data")
         if not edge_type:
-            raise PuppyEngineException(6302, "Invalid edge: Edge type is missing")
+            raise ValueError("Invalid edge: Edge type is missing")
 
         output = Edge(edge_type, edge_data).process()
         logger.info("Output: %s", output)

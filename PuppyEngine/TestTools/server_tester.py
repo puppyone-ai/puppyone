@@ -68,13 +68,14 @@ def parse_results(
 
 if __name__ == "__main__":
     import os
-    base_url = "https://api.puppyagent.com"
+    import time
+    base_url = "http://127.0.0.1:8000"
     test_kit = '../TestKit'
     directory = os.path.join(os.path.dirname(__file__), test_kit)
 
     server_health_check(base_url)
 
-    failed_test = []
+    start = time.time()
     for file_name in os.listdir(directory):
         if not file_name.endswith('.json'):
             print(f"ERROR: Invalid test case format: {file_name} \nJson format required")
@@ -89,3 +90,5 @@ if __name__ == "__main__":
         else:
             print("Failed to retrieve task_id.")
         print("============================================================\n")
+    end = time.time()
+    print(f"Total time taken: {end - start} seconds")

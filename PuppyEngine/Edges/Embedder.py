@@ -88,7 +88,7 @@ class TextEmbedding(Embedder):
         self.provider = self.model_provider_dict.get(model_name, "openai")
         self._initialize_model()
 
-    @global_exception_handler(3305, "Error Initializing Embedding Model")
+    @global_exception_handler(3200, "Error Initializing Embedding Model")
     def _initialize_model(self):
         """
         Initializes the model based on the provider.
@@ -106,7 +106,7 @@ class TextEmbedding(Embedder):
         else:
             raise PuppyEngineException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self.provider} is unsupported!")
 
-    @global_exception_handler(3306, "Error Generating Embeddings")
+    @global_exception_handler(3201, "Error Generating Embeddings")
     def get_embeddings(
         self,
         docs: List[str]
@@ -133,7 +133,7 @@ class TextEmbedding(Embedder):
             response = self.client.embeddings.create(input=docs, model=self.model_name).data
             embeddings = [item.embedding for item in response]
         else:
-            raise PuppyEngineException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self.provider} is unsupported!")
+            raise ValueError(f"Unsupported Embedding Model Provider: {self.provider}!")
         return embeddings
 
 
@@ -145,12 +145,14 @@ class MultiModalEmbedding:
     ):
         self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
 
+    @global_exception_handler(3202, "Error Encoding Text")
     def encode_text(
         self,
         sentences: List[str]
     ):
         return self.model.encode_text(sentences)
 
+    @global_exception_handler(3203, "Error Encoding Image")
     def encode_image(
         self,
         image_sources: List[Union[str, Image.Image]]
@@ -159,6 +161,7 @@ class MultiModalEmbedding:
         return self.model.encode_image(images)
 
     @staticmethod
+    @global_exception_handler(3204, "Error Loading Image")
     def load_image(
         image_source: Union[str, Image.Image]
     ) -> Image.Image:
@@ -190,6 +193,7 @@ class MultiModalEmbedding:
 
         return average_similarity
 
+    @global_exception_handler(3205, "Error Computing Text-Image Similarity")
     def text_image_similarity(
         self,
         text_inputs: List[str],

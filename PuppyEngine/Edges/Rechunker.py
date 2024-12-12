@@ -36,7 +36,7 @@ class ReChunker:
         )
         return response
 
-    @global_exception_handler(3200, "Error Adding Propositions")
+    @global_exception_handler(3111, "Error Adding Propositions")
     def add_propositions(
         self,
         propositions: List[str]
@@ -189,7 +189,7 @@ Output:
         return "; ".join([f"ID: {chunk['chunk_id']}, Title: {chunk['title']}, Summary: {chunk['summary']}"
                           for chunk in self.chunks.values()])
 
-    @global_exception_handler(3202, "Error Getting Chunks")
+    @global_exception_handler(3112, "Error Getting Chunks")
     def get_chunks(
         self,
         as_list: bool = False
@@ -198,7 +198,7 @@ Output:
             return [" ".join(chunk['propositions']) for chunk in self.chunks.values()]
         return self.chunks
 
-    @global_exception_handler(3201, "Error Printing Chunks")
+    @global_exception_handler(3113, "Error Printing Chunks")
     def print_chunks(
         self
     ):

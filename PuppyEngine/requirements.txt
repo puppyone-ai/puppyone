@@ -7,6 +7,7 @@ axiom_py
 requests
 gunicorn
 waitress
+hypercorn
 beautifulsoup4
 fastapi[standard]
 

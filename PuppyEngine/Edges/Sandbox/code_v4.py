@@ -1,13 +1,19 @@
+import os
 import re
+import sys
 import ast
 import json
+import logging
+import subprocess
 from operator import getitem
 from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_builtins
 from RestrictedPython.PrintCollector import PrintCollector
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 class CustomCode:
+    @global_exception_handler(3900, "Error Preprocessing Code")
     def preprocess_code(
         self,
         code_string: str = "",
@@ -42,6 +48,7 @@ class CustomCode:
         code_string += f"\nprint({func_name}({formatted_args}))"
         return code_string
 
+    @global_exception_handler(3901, "Error Executing Restricted Code")
     def execute_restricted_code(
         self,
         code_string: str,
@@ -95,6 +102,31 @@ class CustomCode:
 
         except Exception as e:
             return f"Error: {str(e)}"
+
+    @global_exception_handler(3902, "Error Creating Virtual Environment")
+    def create_virtualenv(
+        self
+    ):
+        venv_dir = os.path.join(self.env_path, self.env_name)
+        if not os.path.exists(venv_dir):
+            subprocess.run([sys.executable, "-m", "venv", venv_dir])
+            logging.info(f"Virtual environment `{self.env_name}` created at {self.env_path}")
+        else:
+            logging.info(f"Virtual environment `{self.env_name}` already exists at {self.env_path}")
+
+    @global_exception_handler(3903, "Error Installing Dependencies")
+    def install_dependencies(
+        self,
+        requirements_file: str = "code_venv_requirements.txt"
+    ):
+        venv_python = os.path.join(self.env_path, self.env_name, "Scripts" if os.name == "nt" else "bin", "python")
+        requirements_file = os.path.join(self.env_path, requirements_file)
+
+        # Upgrade pip and install dependencies
+        subprocess.run([venv_python, "-m", "pip", "install", "--upgrade", "pip"])
+        subprocess.run([venv_python, "-m", "pip", "install", "-r", requirements_file])
+
+        logging.info(f"Dependencies installed in virtual environment `{self.env_name}`")
 
 
 if __name__ == "__main__":

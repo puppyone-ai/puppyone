@@ -9,7 +9,6 @@ import logging
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 import vecs
-from psycopg2.extras import execute_values
 from pymilvus import MilvusClient, CollectionSchema, FieldSchema, DataType
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import VectorParams, Distance
@@ -35,10 +34,10 @@ class VectorDatabase(ABC):
         if client_type == 0:
             self.pgvector_client = vecs.create_client(os.environ.get("SUPABASE_URL"))
         else:
-            # self.zilliz_client = MilvusClient(
-            #     uri=os.environ.get("ZILLIZ_ENDPOINT"),
-            #     token=os.environ.get("MILVUS_API_KEY"),
-            # )
+            self.zilliz_client = MilvusClient(
+                uri=os.environ.get("ZILLIZ_ENDPOINT"),
+                token=os.environ.get("MILVUS_API_KEY"),
+            )
             self.qdrant_client = QdrantClient(
                 url=os.environ.get("QDRANT_URL"),
                 api_key=os.environ.get("QDRANT_API_KEY")
@@ -593,7 +592,7 @@ class PostgresVectorDatabase(VectorDatabase):
         self.vecs = None
         self.connections = {}
 
-    @global_exception_handler(1614, "Error Connecting to Postgres Vector Database")
+    @global_exception_handler(1501, "Error Connecting to Postgres Vector Database")
     def connect(
         self,
         collection_name: str
@@ -735,9 +734,7 @@ class VectorDatabaseFactory:
     ) -> VectorDatabase:
         db_class = VectorDatabaseFactory._db_mapping.get(db_type.lower())
         if db_class is None:
-            raise PuppyEngineException(
-                1601, "Unsupported Vector Database Type", f"Type: {db_type}"
-            )
+            raise ValueError(f"Unsupported Vector Database Type: {db_type}")
         client_type = 0 if db_type == "pgvector" else 1
         return db_class(client_type=client_type)
 

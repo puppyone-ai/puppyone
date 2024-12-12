@@ -50,7 +50,7 @@ class WebSearchClient(BaseSearchClient):
             case _:
                 raise ValueError(f"{sub_search_type} is unsupported for Web Search!")
 
-    @global_exception_handler(3602, "Error Searching Using Google Search")
+    @global_exception_handler(3501, "Error Searching Using Google Search")
     def google_search(
         self
     ) -> List[dict]:
@@ -70,7 +70,7 @@ class WebSearchClient(BaseSearchClient):
             raise ValueError(f"Failed to get the search result from Google, status code: {response.status_code}")
         return response.json()["items"]
 
-    @global_exception_handler(3603, "Error Searching Using DuckDuckGo Search")
+    @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
     def duckduckgo_search(
         self,
         search_type: str = "text",
@@ -137,7 +137,7 @@ class LLMSearchClient(BaseSearchClient):
 
         return [search_method(extra_configs.get("model", ""))]
 
-    @global_exception_handler(3604, "Error Searching Using Perplexity Search")
+    @global_exception_handler(3503, "Error Searching Using Perplexity Search")
     def perplexity_search(
         self,
         model: str = "mixtral-7b-instruct"
@@ -176,7 +176,7 @@ You are an artificial intelligence assistant and you need to engage in a helpful
 
         return response
 
-    @global_exception_handler(3603, "Error Searching Using DuckDuckGo Search")
+    @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
     def ddg_search(
         self,
         model: str = "gpt-4o-mini"
@@ -264,7 +264,7 @@ class ElasticsearchClient(BaseSearchClient):
             raise ValueError(f"Failed to refresh index, status code: {response.status_code}")
         return response.json()
 
-    @global_exception_handler(3605, "Error Searching Using Elastic Search")
+    @global_exception_handler(3504, "Error Searching Using Elastic Search")
     def search_data(
         self,
         index: str,
@@ -288,7 +288,7 @@ class RAGSearchClient(BaseSearchClient):
         self.top_k = top_k
         self.threshold = threshold
 
-    @global_exception_handler(3606, "Error Searching Using Embedding Search")
+    @global_exception_handler(3505, "Error Searching Using RAG Search")
     def search(
         self,
         sub_search_type: str,
@@ -338,7 +338,7 @@ class RAGSearchClient(BaseSearchClient):
 
 class SearchClientFactory:
     @staticmethod
-    @global_exception_handler(3601, "Error Initializing Searching Client")
+    @global_exception_handler(3500, "Error Initializing Searching Client")
     def create_search_client(
         search_type: str,
         sub_search_type: str,
@@ -354,7 +354,7 @@ class SearchClientFactory:
         search_type = search_type.lower()
         search_client_class = search_clients.get(search_type)
         if not search_client_class:
-            raise PuppyEngineException(3600, "Unsupported Searching Mode", f"Search Mode: {search_type} is unsupported!")
+            raise ValueError(f"Unsupported Searching Mode: {search_type}!")
 
         if search_type == "rag":
             top_k = extra_configs.get("top_k", 10)

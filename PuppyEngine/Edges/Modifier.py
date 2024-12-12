@@ -275,7 +275,7 @@ class JSONModifier:
             case "dict":
                 return self._handle_dict_modifications(modify_type)
             case _:
-                raise PuppyEngineException(4100, "Unsupported Content Type", f"Content type: {content_type} is unsupported!")
+                raise ValueError(f"Unsupported Content Type: {content_type}!")
 
     def _handle_str_modifications(
         self,
@@ -292,9 +292,9 @@ class JSONModifier:
             try:
                 return str_operations[modify_type]()
             except Exception as e:
-                raise PuppyEngineException(4102, "Error Executing String Operation", str(e))
+                raise ValueError(3800, "Error Executing String Operation", str(e))
         else:
-            raise PuppyEngineException(4101, "Unsupported String Operation", f"String operation: {modify_type} is unsupported!")
+            raise ValueError(f"Unsupported String Operation: {modify_type}!")
 
     def _handle_list_modifications(
         self,
@@ -322,9 +322,9 @@ class JSONModifier:
             try:
                 return list_operations[modify_type]()
             except Exception as e:
-                raise PuppyEngineException(4104, "Error Executing List Operation", str(e))
+                raise PuppyEngineException(3801, "Error Executing List Operation", str(e))
         else:
-            raise PuppyEngineException(4103, "Unsupported List Operation", f"List operation: {modify_type} is unsupported!")
+            raise ValueError(f"Unsupported List Operation: {modify_type}!")
 
     def _handle_dict_modifications(
         self,
@@ -349,9 +349,9 @@ class JSONModifier:
             try:
                 return dict_operations[modify_type]()
             except Exception as e:
-                raise PuppyEngineException(4106, "Error Executing Dict Operation", str(e))
+                raise PuppyEngineException(3802, "Error Executing Dict Operation", str(e))
         else:
-            raise PuppyEngineException(4105, "Unsupported Dict Operation", f"Dict operation: {modify_type} is unsupported!")
+            raise ValueError(f"Unsupported Dict Operation: {modify_type}!")
 
 
 if __name__ == "__main__":

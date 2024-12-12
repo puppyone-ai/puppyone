@@ -12,9 +12,9 @@ class WebScraper:
     ):
         self.api_client = FirecrawlApp(api_key or os.getenv("FIRECRAWL_API_KEY"))
         if not api_key:
-            raise PuppyEngineException(1302, "Invalid or Missing FireCrawl API Key", f"FIRECRAWL_API_KEY: {api_key}")
+            raise PuppyEngineException(1202, "Invalid or Missing FireCrawl API Key", f"FIRECRAWL_API_KEY: {api_key}")
 
-    @global_exception_handler(1301, "Error in getting URL Mapping")
+    @global_exception_handler(1203, "Error in getting URL Mapping")
     def url_map(
         self,
         url: str
@@ -28,7 +28,7 @@ class WebScraper:
 
         return self.api_client.map_url(url)
 
-    @global_exception_handler(1302, "Error in Scraping URL")
+    @global_exception_handler(1204, "Error in Scraping URL")
     def url_scrape(
         self,
         url: str,
@@ -71,7 +71,7 @@ class WebScraper:
         )
         return scrape_result
 
-    @global_exception_handler(1303, "Error in Scraping Multiple URLs")
+    @global_exception_handler(1205, "Error in Scraping Multiple URLs")
     def scrape_multiple(
         self,
         urls: List[str],
@@ -120,7 +120,7 @@ class WebScraper:
                 results.append(result)
         return results
 
-    @global_exception_handler(1304, "Error in Crawling URL")
+    @global_exception_handler(1206, "Error in Crawling URL")
     def url_crawl(
         self,
         url: str,

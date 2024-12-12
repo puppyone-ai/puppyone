@@ -19,9 +19,32 @@ class PuppyEngineException(Exception):
         super().__init__(self.raise_message)
 
 
+# def global_exception_handler(
+#     error_code: int,
+#     error_message: str
+# ):
+#     def decorator(func):
+#         @wraps(func)
+#         def wrapper(*args, **kwargs):
+#             try:
+#                 return func(*args, **kwargs)
+#             except PuppyEngineException as e:
+#                 tb_str = traceback.format_exc()
+#                 full_error_message = f"{str(e)}\nTraceback:\n{tb_str}"
+#                 logging.error(full_error_message)
+#                 raise
+#             except Exception as e:
+#                 tb_str = traceback.format_exc()
+#                 full_error_message = f"[PE_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
+#                 logging.error(full_error_message)
+#                 raise PuppyEngineException(error_code, error_message, str(e))
+#         return wrapper
+#     return decorator
+
 def global_exception_handler(
     error_code: int,
-    error_message: str
+    error_message: str,
+    log_at_root: bool = False
 ):
     def decorator(func):
         @wraps(func)
@@ -29,11 +52,16 @@ def global_exception_handler(
             try:
                 return func(*args, **kwargs)
             except PuppyEngineException as e:
+                # Propagate the error without re-logging
+                if not log_at_root:
+                    raise
                 tb_str = traceback.format_exc()
-                full_error_message = f"{str(e)}\nTraceback:\n{tb_str}"
-                logging.error(full_error_message)
+                logging.error(f"{str(e)}\nTraceback:\n{tb_str}")
                 raise
             except Exception as e:
+                # Wrap and propagate the exception, logging only at root level
+                if not log_at_root:
+                    raise PuppyEngineException(error_code, error_message, str(e))
                 tb_str = traceback.format_exc()
                 full_error_message = f"[PE_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
                 logging.error(full_error_message)

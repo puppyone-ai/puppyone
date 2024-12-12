@@ -23,6 +23,7 @@ class Retriever:
         if self.retriever_type == "word":
             self.init_bm25(corpus=self.documents)
 
+    @global_exception_handler(3400, "Error Retrieving Chunks")
     def retrieve(
         self,
         top_k: int = 10,
@@ -36,9 +37,10 @@ class Retriever:
         }
         retriever = retriever_dict.get(self.retriever_type)
         if not retriever:
-            raise PuppyEngineException(3500, "Unsupported Retriever Type", f"Retriever Type: {self.retriever_type}")
+            raise ValueError(f"Unsupported Retriever Type: {self.retriever_type}!")
         return retriever(top_k=top_k, threshold=threshold, **kwargs)
     
+    @ global_exception_handler(3401, "Error Initializing BM25 Scorer")
     def init_bm25(
         self,
         corpus: List[str],
@@ -142,6 +144,7 @@ class Retriever:
 
         return score
 
+    @global_exception_handler(3402, "Error Retrieving Using BM25 Scorer")
     def bm25_retrieve(
         self,
         top_k: int = 5,
@@ -192,6 +195,7 @@ class Retriever:
         # Sort and return top-k results
         return sorted(normalized_scores, key=lambda x: x["score"], reverse=True)[:top_k]
 
+    @global_exception_handler(3403, "Error Parsing Chunks from LLM Scorer")
     def _safe_parse_response(
         self,
         response: str
@@ -220,7 +224,7 @@ class Retriever:
         except json.JSONDecodeError:
             return []
 
-    @global_exception_handler(3506, "Error Retrieving Using LLM Scorer")
+    @global_exception_handler(3404, "Error Retrieving Using LLM Scorer")
     def llm_retrieve(
         self,
         top_k: int = 10,
@@ -284,7 +288,7 @@ Output:
         relevances = sorted(relevances, key=lambda x: x[1], reverse=True)
         return relevances[:top_k]
 
-    @global_exception_handler(3503, "Error Retrieving Using Similarity Computation")
+    @global_exception_handler(3405, "Error Retrieving Using Embedding Scorer")
     def vector_retrieve(
         self,
         top_k: int = 10,
