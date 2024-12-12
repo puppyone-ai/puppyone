@@ -103,7 +103,7 @@ class DatabaseClient(ABC):
 
 
 class SQLAlchemyClient(DatabaseClient):
-    @global_exception_handler(1501, "Error in Database Configurations")
+    @global_exception_handler(1401, "Error in SQL Database Configurations")
     def connect(
         self,
         alias: str
@@ -129,7 +129,7 @@ class SQLAlchemyClient(DatabaseClient):
         self.get_metadata(alias)
         logger.info(f"Connected to {alias}")
 
-    @global_exception_handler(1502, "Error Fetching Database Metadata")
+    @global_exception_handler(1402, "Error Fetching SQL Database Metadata")
     def get_metadata(
         self,
         alias: str
@@ -151,7 +151,7 @@ class SQLAlchemyClient(DatabaseClient):
         }
         logger.info(f"Fetched metadata for {alias}")
 
-    @global_exception_handler(1503, "Error Querying Database")
+    @global_exception_handler(1403, "Error Querying SQL Database")
     def query(
         self,
         alias: str,
@@ -183,7 +183,7 @@ class SQLAlchemyClient(DatabaseClient):
             result = connection.execute(stmt)
             return [dict(row) for row in result]
 
-    @global_exception_handler(2203, "Error Saving New Table in Database")
+    @global_exception_handler(2300, "Error Saving New Table in SQL Database")
     def save_new_table(
         self,
         alias: str,
@@ -211,7 +211,7 @@ class SQLAlchemyClient(DatabaseClient):
         with engine.connect() as connection:
             connection.execute(table.insert(), insert_data)
 
-    @global_exception_handler(2204, "Error Saving Data to Existing Table")
+    @global_exception_handler(2301, "Error Saving Data to Existing Table")
     def save_to_existing_table(
         self,
         alias: str,
@@ -234,7 +234,7 @@ class SQLAlchemyClient(DatabaseClient):
             connection.execute(table.insert(), insert_data)
 
 class MongoDBClient(DatabaseClient):
-    @global_exception_handler(1507, "Error MongoDB Database Configurations")
+    @global_exception_handler(1404, "Error MongoDB Database Configurations")
     def connect(
         self,
         alias: str
@@ -256,7 +256,7 @@ class MongoDBClient(DatabaseClient):
         self.metadata_cache[alias] = {"database": database}
         logger.info(f"Connected to MongoDB with alias {alias}")
 
-    @global_exception_handler(1508, "Error Fetching MongoDB Metadata")
+    @global_exception_handler(1405, "Error Fetching MongoDB Metadata")
     def get_metadata(
         self,
         alias: str
@@ -283,7 +283,7 @@ class MongoDBClient(DatabaseClient):
         self.metadata_cache[alias]["collections"] = metadata
         logger.info(f"Fetched metadata for MongoDB with alias {alias}")
 
-    @global_exception_handler(1509, "Error Querying MongoDB")
+    @global_exception_handler(1406, "Error Querying MongoDB Database")
     def query(
         self,
         alias: str,
@@ -311,7 +311,7 @@ class MongoDBClient(DatabaseClient):
         logger.info(f"Queried MongoDB collection {table_name} with alias {alias}")
         return results
 
-    @global_exception_handler(2224, "Error Saving New Collection in MongoDB")
+    @global_exception_handler(2302, "Error Saving New Collection in MongoDB")
     def save_new_table(
         self,
         alias: str,
@@ -334,7 +334,7 @@ class MongoDBClient(DatabaseClient):
         collection.insert_many(documents)
         logger.info(f"Saved new collection {table_name} to MongoDB with alias {alias}")
 
-    @global_exception_handler(2225, "Error Saving Data to Existing MongoDB Collection")
+    @global_exception_handler(2303, "Error Saving Data to Existing MongoDB Collection")
     def save_to_existing_table(
         self,
         alias: str,
@@ -377,7 +377,7 @@ class DatabaseFactory:
         self.config = config
         self.clients = {}
 
-    @global_exception_handler(1515, "Error Initializing Database Client")
+    @global_exception_handler(1407, "Error Initializing Database Client")
     def get_client(
         self,
         alias: str
@@ -403,7 +403,7 @@ class DatabaseFactory:
         self.clients[alias] = client
         return client
 
-    @global_exception_handler(1514, "Error Connecting to Database")
+    @global_exception_handler(1408, "Error Connecting to Database")
     def get_metadata(
         self,
         alias: str
@@ -418,7 +418,7 @@ class DatabaseFactory:
         client.disconnect(alias)
         return metadata
 
-    @global_exception_handler(1513, "Error Querying Data from Database")
+    @global_exception_handler(1409, "Error Querying Data from Database")
     def query(
         self,
         alias: str,
@@ -437,7 +437,7 @@ class DatabaseFactory:
         client.disconnect(alias)
         return results
 
-    @global_exception_handler(2203, "Error Saving Data to Database")
+    @global_exception_handler(2304, "Error Saving Data to Database")
     def save_data(
         self,
         alias: str,

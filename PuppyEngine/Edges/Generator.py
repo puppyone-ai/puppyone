@@ -75,7 +75,7 @@ class ChatService:
         for key, value in kwargs.items():
             setattr(self, key, value)
 
-    @global_exception_handler(3703, "Error Generating Response for the Current Prompt Message")
+    @global_exception_handler(3600, "Error Generating Response for the Current Prompt Message")
     def chat_completion(
         self, 
     ) -> Any:
@@ -141,7 +141,7 @@ class ChatService:
         return final_response
 
 
-@global_exception_handler(3704, "Error Generating Response Using Lite LLM")
+@global_exception_handler(3601, "Error Generating Response Using Lite LLM")
 def lite_llm_chat(
     history: List[Dict[str, str]] = None,
     **kwargs
@@ -217,11 +217,54 @@ Query: What's the name of the PuppyAgent's agent framework?
             "required": ["name"]
         }
     }
+    
     response = lite_llm_chat(
         user_prompt=user_prompt,
         response_format=structure,
+        messages=[
+            {"role": "user", "content": user_prompt}
+        ],
         history=[
             {"role": "system", "content": "You are a helpful assistant designed to output JSON."}
-        ]
+        ],
+        max_tokens=100
+    )
+    print(response)
+    
+    structure = {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "chunked_document",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "chunks": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": ["chunks"]  # Specify required properties
+            }
+        }
+    }
+    doc = """
+Artificial Intelligence (AI) is the simulation of human intelligence in machines.
+AI systems are used to perform tasks that normally require human intelligence.
+There are two types of AI: narrow AI and general AI.
+Narrow AI is designed to perform a narrow task like facial recognition.
+General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
+"""
+    response = lite_llm_chat(
+        user_prompt=user_prompt,
+        response_format=structure,
+        messages=[
+            {"role": "user", "content": doc}
+        ],
+        history=[
+            {"role": "system", "content": "You are an expert document chunker. Your task is to split the original document into semantically meaningful chunks. Ensure that the document is chunked in a way that each chunk contains coherent and complete thoughts or ideas. Output in json."}
+        ],
+        max_tokens=100
     )
     print(response)

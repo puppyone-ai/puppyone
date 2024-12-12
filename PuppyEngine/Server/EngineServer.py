@@ -31,7 +31,6 @@ logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
-
 # Initialize Axiom client for logging
 axiom_client = Client(
     os.getenv("AXIOM_TOKEN"),
@@ -162,7 +161,7 @@ except PuppyEngineException as e:
     raise
 except Exception as e:
     log_error(f"Server Initialization Error: {str(e)}")
-    raise PuppyEngineException(7301, "Server Initialization Error", str(e))
+    raise PuppyEngineException(6301, "Server Initialization Error", str(e))
 
 
 @app.get("/health")
@@ -200,10 +199,10 @@ async def get_data(
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     except PuppyEngineException as e:
         log_error(f"Error Getting Data from Server: {str(e)}")
-        raise PuppyEngineException(7100, "Error Getting Data from Server", str(e))
+        raise PuppyEngineException(6100, "Error Getting Data from Server", str(e))
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyEngineException(7300, "Server Internal Error", str(e))
+        raise PuppyEngineException(6300, "Server Internal Error", str(e))
 
 @app.post("/send_data")
 async def send_data(
@@ -221,10 +220,10 @@ async def send_data(
         return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
     except PuppyEngineException as e:
         log_error(f"Error Sending Data to Server: {str(e)}")
-        raise PuppyEngineException(7200, "Error Sending Data to Server", str(e))
+        raise PuppyEngineException(6200, "Error Sending Data to Server", str(e))
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyEngineException(7300, "Server Internal Error", str(e))
+        raise PuppyEngineException(6300, "Server Internal Error", str(e))
     
 @app.get("/generate_presigned_url")
 async def generate_presigned_url():
@@ -252,8 +251,15 @@ if __name__ == "__main__":
     try:
         import uvicorn
         uvicorn.run(app, host="127.0.0.1", port=8000)
+        
+        # Use Hypercorn for ASGI server
+        # import hypercorn.asyncio
+        # import asyncio
+        # config = hypercorn.Config()
+        # config.bind = ["127.0.0.1:8001"]
+        # asyncio.run(hypercorn.asyncio.serve(app, config))
     except PuppyEngineException as e:
         raise
     except Exception as e:
         log_error(f"Unexpected Error in Launching Server: {str(e)}")
-        raise PuppyEngineException(7000, "Unexpected Error in Launching Server", str(e))
+        raise PuppyEngineException(6000, "Unexpected Error in Launching Server", str(e))

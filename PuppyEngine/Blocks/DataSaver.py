@@ -22,7 +22,7 @@ class DataSaver:
     """
 
     @staticmethod
-    @global_exception_handler(2101, "Error Saving Data to TXT File")
+    @global_exception_handler(2100, "Error Saving Data to TXT File")
     def save_to_txt(
         data: str,
         filename: str
@@ -32,7 +32,7 @@ class DataSaver:
         return f"Data saved to {filename}.txt"
 
     @staticmethod
-    @global_exception_handler(2102, "Error Saving Data to DOCX File")
+    @global_exception_handler(2101, "Error Saving Data to DOCX File")
     def save_to_docx(
         data: str,
         filename: str
@@ -41,7 +41,7 @@ class DataSaver:
         return f"Data saved to {filename}.docx"
 
     @staticmethod
-    @global_exception_handler(2103, "Error Saving Data to PDF File")
+    @global_exception_handler(2102, "Error Saving Data to PDF File")
     def save_to_pdf(
         data: str,
         filename: str,
@@ -55,7 +55,7 @@ class DataSaver:
         return f"Data saved to {filename}.pdf"
 
     @staticmethod
-    @global_exception_handler(2104, "Error Saving Data to Markdown File")
+    @global_exception_handler(2103, "Error Saving Data to Markdown File")
     def save_to_markdown(
         data: str,
         filename: str
@@ -65,7 +65,7 @@ class DataSaver:
         return f"Data saved to {filename}.md"
 
     @staticmethod
-    @global_exception_handler(2105, "Error Saving Data to HTML File")
+    @global_exception_handler(2104, "Error Saving Data to HTML File")
     def save_to_html(
         data: str,
         filename: str
@@ -76,7 +76,7 @@ class DataSaver:
         return f"Data saved to {filename}.html"
 
     @staticmethod
-    @global_exception_handler(2201, "Error Saving Data to JSON File")
+    @global_exception_handler(2200, "Error Saving Data to JSON File")
     def save_to_json(
         data: Dict,
         filename: str
@@ -86,7 +86,7 @@ class DataSaver:
         return f"Data saved to {filename}.json"
 
     @staticmethod
-    @global_exception_handler(2202, "Error Saving Data to CSV File")
+    @global_exception_handler(2201, "Error Saving Data to CSV File")
     def save_to_csv(
         data: Dict,
         filename: str
@@ -98,7 +98,7 @@ class DataSaver:
         return f"Data saved to {filename}.csv"
 
     @staticmethod
-    @global_exception_handler(2203, "Error Saving Data to XLSX File")
+    @global_exception_handler(2202, "Error Saving Data to XLSX File")
     def save_to_xlsx(
         data: Dict,
         filename: str
@@ -112,7 +112,7 @@ class DataSaver:
         return f"Data saved to {filename}.xlsx"
 
     @staticmethod
-    @global_exception_handler(2204, "Error Saving Data to Database")
+    @global_exception_handler(2203, "Error Saving Data to Database")
     def save_to_database(
         data: Dict,
         table_name: str,
@@ -125,7 +125,7 @@ class DataSaver:
         return f"Data saved to database table {table_name}"
 
     @staticmethod
-    @global_exception_handler(2205, "Error Saving Data to Vector Database")
+    @global_exception_handler(2204, "Error Saving Data to Vector Database")
     def save_to_vector_database(
         data: Dict,
         collection_name: str,
@@ -143,6 +143,7 @@ class DataSaver:
         return f"Data saved to Vector Database {collection_name}"
 
     @staticmethod
+    @global_exception_handler(2000, "Unexpected Error in Saving Data")
     def save_data(
         data: Any,
         filename: str,
@@ -183,10 +184,10 @@ class DataSaver:
         elif isinstance(data, dict):
             saver_func = dict_savers.get(file_type)
         else:
-            raise PuppyEngineException(2300, "Unsupported Data Type", f"Data type {type(data).__name__} is unsupported!")
+            raise PuppyEngineException(2301, "Unsupported Data Type", f"Data type {type(data).__name__} is unsupported!")
 
         if not saver_func:
-            raise PuppyEngineException(2301, "Unsupported File Type", f"Type {file_type} is unsupported!")
+            raise PuppyEngineException(2302, "Unsupported File Type", f"Type {file_type} is unsupported!")
 
         return saver_func(data, filename, **kwargs)
 

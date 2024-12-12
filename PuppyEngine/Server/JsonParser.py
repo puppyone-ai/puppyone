@@ -13,7 +13,6 @@ class JsonParser:
     JSONParser is responsible for parsing and processing JSON data representing blocks and edges in a workflow.
     """
 
-    @global_exception_handler(8300, "Error Initializing JSONParser")
     def __init__(
         self,
         block_data: Dict[str, dict],
@@ -29,7 +28,8 @@ class JsonParser:
 
         self.block_data = block_data
         self.edge_data = edges_data
-    
+
+    @global_exception_handler(5100, "Error Parsing Input Block IDs")
     def parse_inputs(
         self
     ) -> Dict[str, set]:
@@ -45,7 +45,8 @@ class JsonParser:
             for edge_id, edge_data in self.edge_data.items()
             if "data" in edge_data and "inputs" in edge_data["data"]
         }
-    
+
+    @global_exception_handler(5101, "Error Parsing Output Block IDs")
     def parse_outputs(
         self
     ) -> Dict[str, set]:
@@ -62,7 +63,7 @@ class JsonParser:
             if "data" in edge_data and "outputs" in edge_data["data"]
         }
 
-    @global_exception_handler(8301, "Error Parsing Edge")
+    @global_exception_handler(5102, "Error Parsing Edge")
     def parse(
         self,
         edge_dicts: List[Dict[str, dict]]
@@ -102,13 +103,14 @@ class JsonParser:
             return edge_handlers[edge_type](edge_dict)
         return edge_dict
 
-    @global_exception_handler(8308, "Error Extracting Content")
+    @global_exception_handler(5103, "Error Extracting Content")
     def _extract_content(
         self,
         block_id: str
     ) -> str:
         return self.block_data.get(block_id).get("data", {}).get("content", "")
 
+    @global_exception_handler(5104, "Error Getting Plugin Details")
     def _get_plugin_details(
         self,
         edge_dict: Dict[str, dict]
@@ -120,14 +122,14 @@ class JsonParser:
             edge_dict["data"]["plugins"][block_id] = source_content
         return edge_dict
 
-    @global_exception_handler(8302, "Error Handling LLM Edge")
+    @global_exception_handler(5105, "Error Handling LLM Edge")
     def _handle_llm_edge(
         self,
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
         return self._get_plugin_details(edge_dict)
 
-    @global_exception_handler(8306, "Error Handling Modify Edge")
+    @global_exception_handler(5106, "Error Handling Modify Edge")
     def _handle_modify_edge(
         self,
         edge_dict: Dict[str, dict]
@@ -140,7 +142,7 @@ class JsonParser:
 
         return self._get_plugin_details(edge_dict)
 
-    @global_exception_handler(8303, "Error Handling Chunk Edge")
+    @global_exception_handler(5107, "Error Handling Chunk Edge")
     def _handle_chunk_edge(
         self,
         edge_dict: Dict[str, dict]
@@ -154,7 +156,7 @@ class JsonParser:
         edge_dict["data"]["doc"] = doc_content
         return edge_dict
 
-    @global_exception_handler(8302, "Error Handling Embedding Edge")
+    @global_exception_handler(5108, "Error Handling Embedding Edge")
     def _handle_embedding_edge(
         self,
         edge_dict: Dict[str, dict]
@@ -163,7 +165,7 @@ class JsonParser:
         edge_dict["data"]["chunks"] = self._extract_content(source_block_id)
         return edge_dict
 
-    @global_exception_handler(8304, "Error Handling Search Edge")
+    @global_exception_handler(5109, "Error Handling Search Edge")
     def _handle_search_edge(
         self,
         edge_dict: Dict[str, dict]
@@ -174,14 +176,14 @@ class JsonParser:
             edge_dict["data"]["docs"] = self._extract_content(list(edge_dict.get("data").get("docs_id").keys())[0])
         return edge_dict
 
-    @global_exception_handler(8302, "Error Handling Code Edge")
+    @global_exception_handler(5110, "Error Handling Code Edge")
     def _handle_code_edge(
         self,
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
         return self._get_plugin_details(edge_dict)
-    
-    @global_exception_handler(8306, "Error Handling Choose Edge")
+
+    @global_exception_handler(51112, "Error Handling Choose Edge")
     def _handle_choose_edge(
         self,
         edge_dict: Dict[str, dict]

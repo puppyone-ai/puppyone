@@ -68,10 +68,10 @@ class FileToTextParser:
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
-            raise PuppyEngineException(1401, "Unsupported File Type")
+            raise PuppyEngineException(1301, "Unsupported File Type")
         return parse_method(**kwargs)
 
-    @global_exception_handler(1402, "Error Parsing JSON File")
+    @global_exception_handler(1302, "Error Parsing JSON File")
     def _parse_json(
         self,
         **kwargs
@@ -90,7 +90,7 @@ class FileToTextParser:
         """
 
         if kwargs:
-            raise PuppyEngineException(1416, "Error JSON File Configurations", "TypeError: There should not be any parameters for parsing JSON File!")
+            raise ValueError("There should not be any parameters for parsing JSON File!")
 
         with open(self.file_path, "r", encoding="utf-8") as f:
             content = f.read()
@@ -99,7 +99,7 @@ class FileToTextParser:
                 content = json.loads(content)
         return content
 
-    @global_exception_handler(1403, "Error Parsing TXT File")
+    @global_exception_handler(1303, "Error Parsing TXT File")
     def _parse_txt(
         self,
         **kwargs
@@ -123,7 +123,7 @@ class FileToTextParser:
 
         return content
 
-    @global_exception_handler(1404, "Error Parsing MARKDOWN File")
+    @global_exception_handler(1304, "Error Parsing MARKDOWN File")
     def _parse_markdown(
         self,
         **kwargs
@@ -147,7 +147,7 @@ class FileToTextParser:
 
         return markdown_content
 
-    @global_exception_handler(1412, "Error Removing Markdown Syntax")
+    @global_exception_handler(1312, "Error Removing Markdown Syntax")
     def _remove_markdown_syntax(
         self,
         markdown_text: str
@@ -175,7 +175,7 @@ class FileToTextParser:
             markdown_text = re.sub(pattern, repl, markdown_text, flags=flags[0] if flags else 0)
         return markdown_text.strip()
 
-    @global_exception_handler(1405, "Error Parsing DOC File")
+    @global_exception_handler(1305, "Error Parsing DOC File")
     def _parse_doc(
         self,
         **kwargs
@@ -207,7 +207,7 @@ class FileToTextParser:
 
         return output
 
-    @global_exception_handler(1406, "Error Parsing PDF File")
+    @global_exception_handler(1306, "Error Parsing PDF File")
     def _parse_pdf(
         self,
         **kwargs
@@ -228,13 +228,13 @@ class FileToTextParser:
         use_images = kwargs.get("use_images", False)
         pages = kwargs.get("pages", None)
         if pages is not None and not isinstance(pages, list):
-            raise PuppyEngineException(1420, "Error PDF File Configurations", "TypeError: pages must be a list of integers!")
+            raise ValueError("Pages must be a list of integers!")
 
         pdf_content = pymupdf4llm.to_markdown(self.file_path, pages=pages, write_images=use_images)
 
         return pdf_content
 
-    @global_exception_handler(1413, "Error OCRing Image")
+    @global_exception_handler(1313, "Error in OCR Image")
     def _ocr_image(
         self,
         image_path: str,
@@ -257,7 +257,7 @@ class FileToTextParser:
         texts_in_img = "\n".join([text[1] for text in result])
         return texts_in_img
 
-    @global_exception_handler(1409, "Error Parsing Image")
+    @global_exception_handler(1309, "Error Parsing Image")
     def _parse_image(
         self,
         **kwargs
@@ -281,7 +281,7 @@ class FileToTextParser:
             return description
         return self._ocr_image(self.file_path)
 
-    @global_exception_handler(1410, "Error Parsing Audio")
+    @global_exception_handler(1310, "Error Parsing Audio")
     def _parse_audio(
         self,
         **kwargs
@@ -302,7 +302,7 @@ class FileToTextParser:
         result = model.transcribe(self.file_path)
         return result["text"]
 
-    @global_exception_handler(1411, "Error Parsing Video")
+    @global_exception_handler(1311, "Error Parsing Video")
     def _parse_video(
         self,
         **kwargs
@@ -326,7 +326,7 @@ class FileToTextParser:
         else:
             return self._parse_audio(split_speakers=False)
 
-    @global_exception_handler(1407, "Error Parsing CSV File")
+    @global_exception_handler(1307, "Error Parsing CSV File")
     def _parse_csv(
         self,
         **kwargs
@@ -345,7 +345,7 @@ class FileToTextParser:
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
-            raise PuppyEngineException(1421, "Error CSV File Configurations", "TypeError: column range and row range should be lists of integers!")
+            raise ValueError("Column range and row range should be lists of integers!")
 
         df = pd.read_csv(self.file_path)
         if column_range:
@@ -354,7 +354,7 @@ class FileToTextParser:
             df = df.iloc[row_range[0]:row_range[1]]
         return df.to_csv(index=False)
 
-    @global_exception_handler(1408, "Error Parsing XLSX File")
+    @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
         self,
         **kwargs
@@ -374,7 +374,7 @@ class FileToTextParser:
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
-            raise PuppyEngineException(1422, "Error XLSX File Configurations", "TypeError: column range and row range should be lists of integers!")
+            raise ValueError("Column range and row range should be lists of integers!")
 
         df = pd.read_excel(self.file_path)
         if column_range:
@@ -384,7 +384,7 @@ class FileToTextParser:
 
         return df.to_csv(index=False)
 
-    @global_exception_handler(1414, "Error Describing Image")
+    @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
         self,
         base64_image: str
@@ -436,6 +436,7 @@ class FileToTextParser:
 
         return response.json()["choices"][0]["message"]["content"]
 
+    @global_exception_handler(1315, "Error Describing Video")
     def _describe_video_with_llm(
         self,
         skip_num: int = 30

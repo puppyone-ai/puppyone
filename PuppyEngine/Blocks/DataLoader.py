@@ -28,7 +28,7 @@ class DataLoader:
         self.block_type = block_type
         self.data = data
 
-    @global_exception_handler(1007, "Unexpected Error in Loading Block")
+    @global_exception_handler(1005, "Unexpected Error in Loading Block")
     def load(
         self
     ) -> Any:
@@ -41,20 +41,26 @@ class DataLoader:
         }
         loader = loader_dict.get(self.block_type)
         if not loader:
-            raise PuppyEngineException(1006, "Unsupported Block Type", f"Block Type: {self.block_type}")
+            raise ValueError(f"Unsupported Block Type: {self.block_type}")
         return loader()
 
     @global_exception_handler(1000, "Unexpected Error in Loading Text")
     def _load_text(
         self
     ) -> str:
-        return self.data.get("content", "")
+        text = self.data.get("content", "")
+        if not text:
+            raise PuppyEngineException(1100, "Empty Text Content")
+        return text
 
     @global_exception_handler(1001, "Unexpected Error in Loading Structure Text")
     def _load_structured_text(
         self
     ) -> Any:
-        return self.data.get("content", {})
+        structured = self.data.get("content", {})
+        if not structured:
+            raise PuppyEngineException(1101, "Empty Structured Text Content")
+        return structured
 
     @global_exception_handler(1002, "Unexpected Error in Loading Weblink")
     def _load_weblink(
@@ -62,7 +68,7 @@ class DataLoader:
     ) -> str:
         url = self.data.get("content", "")
         if not url:
-            raise PuppyEngineException(1300, "Empty Weblink")
+            raise PuppyEngineException(1200, "Empty Weblink")
 
         extra_config = self.data.get("extra_config", {})
 
@@ -76,16 +82,13 @@ class DataLoader:
         }
 
         if mode not in mode_dict:
-            raise PuppyEngineException(1301, f"Invalid mode '{mode}' provided. Supported modes: {list(mode_dict.keys())}")
+            raise PuppyEngineException(1201, "Invalid Mode", f"Invalid mode '{mode}' provided. Supported modes: {list(mode_dict.keys())}")
 
         scraper = WebScraper()
 
-        try:
-            logging.info(f"Fetching web content using mode '{mode}' for URL: {url}")
-            web_content = getattr(scraper, mode_dict[mode])(url, **extra_config)
-            return web_content
-        except Exception as e:
-            raise PuppyEngineException(1302, f"Error fetching web content: {str(e)}") from e
+        logging.info(f"Fetching web content using mode '{mode}' for URL: {url}")
+        web_content = getattr(scraper, mode_dict[mode])(url, **extra_config)
+        return web_content
 
     @global_exception_handler(1003, "Unexpected Error in Loading File")
     def _load_file(
@@ -93,7 +96,7 @@ class DataLoader:
     ) -> str:
         file_path = self.data.get("content", "")
         if not file_path:
-            raise PuppyEngineException(1400, "Empty File Path")
+            raise PuppyEngineException(1300, "Empty File Path")
 
         root_path, file_name = os.path.split(file_path)
         extra_configs = self.data.get("extra_configs", {})
@@ -112,6 +115,8 @@ class DataLoader:
         self
     ) -> dict:
         db_configs = self.data.get("content", {})
+        if not db_configs:
+            raise PuppyEngineException(1400, "Empty Database Configuration")
         extra_configs = self.data.get("extra_configs", {})
         client_name = extra_configs.get("client_name", "")
         table_name = extra_configs.get("table_name", "")

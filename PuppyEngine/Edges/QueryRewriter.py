@@ -47,7 +47,7 @@ class QueryRewriter:
         return response
 
     @staticmethod
-    @global_exception_handler(3900, "Error Parsing LLM Response")
+    @global_exception_handler(3700, "Error Parsing LLM Response")
     def _safe_eval(
         expression: str
     ) -> List[str]:
@@ -72,7 +72,7 @@ class QueryRewriter:
         except Exception as e:
             raise ValueError(f"Safe eval error: {str(e)}")
 
-    @global_exception_handler(3901, "Error Rewrite Using Multi-Query")
+    @global_exception_handler(3701, "Error Rewrite Using Multi-Query")
     def multi_query(
         self, 
         num_query: int
@@ -104,7 +104,7 @@ Your output:
         multi_q = self._execute_lite_llm_chat(prompt)
         return self._safe_eval(multi_q)
 
-    @global_exception_handler(3902, "Error Rewrite Using Query Expansion")
+    @global_exception_handler(3702, "Error Rewrite Using Query Expansion")
     def query_expansion(
         self
     ) -> List[str]:
@@ -137,7 +137,7 @@ Your output:
         expanded_query = self._execute_lite_llm_chat(prompt)
         return self._safe_eval(expanded_query)
 
-    @global_exception_handler(3903, "Error Rewrite Using Query Relaxation")
+    @global_exception_handler(3703, "Error Rewrite Using Query Relaxation")
     def query_relaxation(
         self
     ) -> str:
@@ -165,7 +165,7 @@ Your output:
         relaxed_query = self._execute_lite_llm_chat(prompt)
         return relaxed_query.strip()
 
-    @global_exception_handler(3904, "Error Rewrite Using Query Segmentation")
+    @global_exception_handler(3704, "Error Rewrite Using Query Segmentation")
     def query_segmentation(
         self
     ) -> List[str]:
@@ -195,7 +195,7 @@ Your output:
         segmented_query = self._execute_lite_llm_chat(prompt)
         return self._safe_eval(segmented_query)
 
-    @global_exception_handler(3905, "Error Rewrite Using Query Scoping")
+    @global_exception_handler(3705, "Error Rewrite Using Query Scoping")
     def query_scoping(
         self
     ) -> str:
@@ -222,7 +222,7 @@ Your output:
         scoped_query = self._execute_lite_llm_chat(prompt)
         return scoped_query.strip()
 
-    @global_exception_handler(3906, "Error Rewrite Using Sub-Question Query")
+    @global_exception_handler(3706, "Error Rewrite Using Sub-Question Query")
     def sub_question_query(
         self
     ) -> List[str]:
@@ -253,7 +253,7 @@ Your output:
         sub_questions = self._execute_lite_llm_chat(prompt)
         return self._safe_eval(sub_questions)
 
-    @global_exception_handler(3907, "Error Rewrite Using HYDE Query")
+    @global_exception_handler(3707, "Error Rewrite Using HYDE Query")
     def hyde_query_conversion(
         self
     ) -> str:
@@ -280,7 +280,7 @@ Your output:
         pseudo_doc = self._execute_lite_llm_chat(prompt)
         return pseudo_doc.strip()
 
-    @global_exception_handler(3908, "Error Rewrite Using Step-Back Prompting")
+    @global_exception_handler(3708, "Error Rewrite Using Step-Back Prompting")
     def step_back_prompting(
         self
     ) -> List[str]:
@@ -311,7 +311,7 @@ Your output:
         step_back_queries = self._execute_lite_llm_chat(prompt)
         return self._safe_eval(step_back_queries)
 
-    @global_exception_handler(3909, "Error Rewrite Using Rewrite-Retrieve-Read")
+    @global_exception_handler(3709, "Error Rewrite Using Rewrite-Retrieve-Read")
     def rewrite_retrieve_read(
         self
     ) -> List[str]:
@@ -341,7 +341,7 @@ Your output:
         rewritten_queries = self._execute_lite_llm_chat(prompt)
         return self._safe_eval(rewritten_queries)
 
-    @global_exception_handler(3910, "Error Rewrite Using Query-to-Doc")
+    @global_exception_handler(3710, "Error Rewrite Using Query-to-Doc")
     def query2doc(
         self
     ) -> str:
@@ -368,7 +368,7 @@ Your output:
         pseudo_doc = self._execute_lite_llm_chat(prompt)
         return pseudo_doc
 
-    @global_exception_handler(3911, "Error Rewrite Using Iter-Retgen")
+    @global_exception_handler(3711, "Error Rewrite Using Iter-Retgen")
     def iter_retgen(
         self,
         iterations: int = 3

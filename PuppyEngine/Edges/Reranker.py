@@ -32,6 +32,7 @@ class LLMBasedReranker(BaseReranker):
     ):
         self.model_name = model_name if model_name else "gpt-4o"
   
+    @global_exception_handler(3302, "Error Parsing Reranked Content from LLM")
     def _safe_parse_response(
         self,
         response: str
@@ -60,7 +61,7 @@ class LLMBasedReranker(BaseReranker):
         except json.JSONDecodeError:
             return []
 
-    @global_exception_handler(3401, "Error Reranking Using LLM")
+    @global_exception_handler(3301, "Error Reranking Using LLM")
     def rerank(
         self,
         query: str,
@@ -132,7 +133,7 @@ class HuggingFaceReranker(BaseReranker):
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
 
-    @global_exception_handler(3402, "Error Reranking Using Hugging Face Reranking Model")
+    @global_exception_handler(3303, "Error Reranking Using Hugging Face Reranking Model")
     def rerank(
         self,
         query: str,
@@ -159,7 +160,7 @@ class CohereReranker(BaseReranker):
         self.client = cohere.Client(os.environ.get("COHERE_API_KEY"))
         self.model = model_name if model_name else "rerank-english-v3.0"
 
-    @global_exception_handler(3403, "Error Reranking Using Cohere Reranking Model")
+    @global_exception_handler(3304, "Error Reranking Using Cohere Reranking Model")
     def rerank(
         self,
         query: str,
@@ -180,7 +181,7 @@ class CohereReranker(BaseReranker):
 
 
 class RRFReranker(BaseReranker):
-    @global_exception_handler(3404, "Error Reranking Using Reciprocal Rank Fusion")
+    @global_exception_handler(3305, "Error Reranking Using Reciprocal Rank Fusion")
     def rerank(
         self,
         query: str,
@@ -204,6 +205,7 @@ class RRFReranker(BaseReranker):
 
 class RerankerFactory:
     @staticmethod
+    @global_exception_handler(3300, "Error Creating Reranker")
     def get_reranker(
         reranker_type: str,
         model_name: str = None
@@ -217,7 +219,7 @@ class RerankerFactory:
 
         reranker_class = reranker_classes.get(reranker_type.lower())
         if not reranker_class:
-            raise PuppyEngineException(3400, "Unsupported Reranking Type", f"The Reranking Type: {reranker_type} is unsupported!")
+            raise ValueError(f"Unsupported Reranking Type: {reranker_type}!")
 
         return reranker_class(model_name) if model_name else reranker_class()
 
