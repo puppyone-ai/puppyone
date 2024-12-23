@@ -18,7 +18,8 @@ import concurrent.futures
 from typing import List, Dict, Set, Any, Tuple
 from Edges.edges import Edge
 from Server.JsonParser import JsonParser
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Server.JsonConverter import JsonConverter
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 class WorkFlow:
@@ -28,11 +29,13 @@ class WorkFlow:
 
     def __init__(
         self,
+        latest_version: str = "0.1"
     ):
         """
         Initialize the states for the WorkFlow object.
         """
 
+        self.latest_version = latest_version
         self.processed_block_ids = set()
         self.current_block_ids = set()
 
@@ -47,6 +50,12 @@ class WorkFlow:
         Args:
             json_data (dict): Dictionary containing block and edge data.
         """
+
+        # Convert the JSON data to the latest version
+        self.version_id = json_data.get("version", "0.1")
+        if self.version_id != self.latest_version:
+            converter = JsonConverter(self.latest_version)
+            json_data = converter.convert(json_data)
 
         self.block_data = json_data.get("blocks", [])
         self.edge_data = json_data.get("edges", [])

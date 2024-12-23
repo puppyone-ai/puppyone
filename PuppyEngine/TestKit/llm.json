@@ -33,5 +33,6 @@
                 "structured_output":false
             }
         }
-    }
+    },
+    "version": "0.1"
 }

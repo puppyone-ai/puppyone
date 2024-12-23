@@ -56,7 +56,7 @@ class DataLoader:
     @global_exception_handler(1001, "Unexpected Error in Loading Structure Text")
     def _load_structured_text(
         self
-    ) -> Any:
+    ) -> Dict[str, Any]:
         structured = self.data.get("content", {})
         if not structured:
             raise PuppyEngineException(1101, "Empty Structured Text Content")

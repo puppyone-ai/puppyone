@@ -1,3 +1,8 @@
+# If you are a VS Code users:
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import os
 import concurrent.futures
 from typing import List, Optional
@@ -10,7 +15,8 @@ class WebScraper:
         self,
         api_key: Optional[str] = None
     ):
-        self.api_client = FirecrawlApp(api_key or os.getenv("FIRECRAWL_API_KEY"))
+        api_key = api_key or os.environ.get("FIRECRAWL_API_KEY")
+        self.api_client = FirecrawlApp(api_key or os.environ.get("FIRECRAWL_API_KEY"))
         if not api_key:
             raise PuppyEngineException(1202, "Invalid or Missing FireCrawl API Key", f"FIRECRAWL_API_KEY: {api_key}")
 
@@ -181,6 +187,9 @@ class WebScraper:
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv("PuppyEngine/.env", override=True)
+
     scraper = WebScraper()
 
     # URL Map
@@ -194,3 +203,4 @@ if __name__ == "__main__":
     # URL Crawl
     crawl_result = scraper.url_crawl(url="https://docs.firecrawl.dev/api-reference/endpoint/scrape")
     print("URL Crawl Result:\n", crawl_result)
+

@@ -19,7 +19,8 @@ from botocore.config import Config
 from botocore.exceptions import NoCredentialsError
 
 from dotenv import load_dotenv
-load_dotenv()
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path, override=True)
 
 import warnings
 warnings.simplefilter("ignore", DeprecationWarning)
@@ -249,15 +250,16 @@ async def generate_presigned_url():
 
 if __name__ == "__main__":
     try:
-        import uvicorn
-        uvicorn.run(app, host="127.0.0.1", port=8000)
-        
+        # Use Uvicorn for ASGI server
+        # import uvicorn
+        # uvicorn.run(app, host="127.0.0.1", port=8000)
+
         # Use Hypercorn for ASGI server
-        # import hypercorn.asyncio
-        # import asyncio
-        # config = hypercorn.Config()
-        # config.bind = ["127.0.0.1:8001"]
-        # asyncio.run(hypercorn.asyncio.serve(app, config))
+        import hypercorn.asyncio
+        import asyncio
+        config = hypercorn.Config()
+        config.bind = ["127.0.0.1:8001"]
+        asyncio.run(hypercorn.asyncio.serve(app, config))
     except PuppyEngineException as e:
         raise
     except Exception as e:

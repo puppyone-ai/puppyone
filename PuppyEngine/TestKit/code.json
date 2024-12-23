@@ -23,5 +23,6 @@
                 "code": "def func(arg_1):\n    return(arg_1)\n    \n"
             }
         }
-    }
+    },
+    "version": "0.1"
 }
