@@ -61,13 +61,19 @@ python ./PuppyEngine/Server/json_parser.py
 ```
 
 ### 2. **Run the Server**
+- Using Python
 ```bash
-python ./PuppyEngine/Server/flask_server.py
+python -Wd PuppyEngine/Server/EngineServer.py
+```
+
+- Using Hypercorn
+```bash
+python -Wd -m hypercorn -b 127.0.0.1:8001 PuppyEngine/Server/EngineServer:app
 ```
 
 ### 3. **Run the Server Tester**
 ```bash
-python ./PuppyEngine/Server/server_tester.py
+python PuppyEngine/TestTools/server_tester.py
 ```
 
 

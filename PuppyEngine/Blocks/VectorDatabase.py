@@ -90,7 +90,7 @@ class ZillizVectorDatabase(VectorDatabase):
         super().__init__(client_type=client_type)
         self.connections = {}
 
-    @global_exception_handler(1604, "Error Connecting to Zilliz Vector Database")
+    @global_exception_handler(2404, "Error Connecting to Zilliz Vector Database")
     def connect(
         self,
         collection_name: str
@@ -106,7 +106,7 @@ class ZillizVectorDatabase(VectorDatabase):
             self.connections[collection_name] = self.zilliz_client
             logging.info(f"Connected to collection '{collection_name}' in Zilliz.")
 
-    @global_exception_handler(2209, "Error Saving Embeddings to Zilliz Vector Database")
+    @global_exception_handler(2405, "Error Saving Embeddings to Zilliz Vector Database")
     def save_embeddings(
         self,
         collection_name: str,
@@ -151,7 +151,7 @@ class ZillizVectorDatabase(VectorDatabase):
         client.upsert(collection_name, data)
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
 
-    @global_exception_handler(3612, "Error Searching Embeddings in Zilliz Vector Database")
+    @global_exception_handler(2406, "Error Searching Embeddings in Zilliz Vector Database")
     def search_embeddings(
         self,
         collection_name: str,
@@ -206,7 +206,7 @@ class QdrantVectorDatabase(VectorDatabase):
         super().__init__(client_type=client_type)
         self.connections = {}
 
-    @global_exception_handler(1606, "Error Connecting to Qdrant Vector Database")
+    @global_exception_handler(2407, "Error Connecting to Qdrant Vector Database")
     def connect(
         self,
         collection_name: str
@@ -222,7 +222,7 @@ class QdrantVectorDatabase(VectorDatabase):
             self.connections[collection_name] = self.qdrant_client
             logging.info(f"Connected to collection '{collection_name}' in Qdrant.")
 
-    @global_exception_handler(2212, "Error Saving Embeddings to Qdrant Vector Database")
+    @global_exception_handler(2408, "Error Saving Embeddings to Qdrant Vector Database")
     def save_embeddings(
         self,
         collection_name: str,
@@ -276,7 +276,7 @@ class QdrantVectorDatabase(VectorDatabase):
         client.upsert(collection_name=collection_name, points=points)
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
 
-    @global_exception_handler(3613, "Error Searching Embeddings in Qdrant Vector Database")
+    @global_exception_handler(2409, "Error Searching Embeddings in Qdrant Vector Database")
     def search_embeddings(
         self,
         collection_name: str,
@@ -341,7 +341,7 @@ class PineconeVectorDatabase(VectorDatabase):
         super().__init__(client_type=client_type)
         self.connections = {}
 
-    @global_exception_handler(1608, "Error Connecting to Pinecone Vector Database")
+    @global_exception_handler(2410, "Error Connecting to Pinecone Vector Database")
     def connect(
         self,
         collection_name: str
@@ -357,7 +357,7 @@ class PineconeVectorDatabase(VectorDatabase):
             self.connections[collection_name] = self.pinecone_client
             logging.info(f"Connected to collection '{collection_name}' in Pinecone.")
 
-    @global_exception_handler(2209, "Error Saving Embeddings to Pinecone Vector Database")
+    @global_exception_handler(2411, "Error Saving Embeddings to Pinecone Vector Database")
     def save_embeddings(
         self,
         collection_name: str,
@@ -411,7 +411,7 @@ class PineconeVectorDatabase(VectorDatabase):
         index.upsert(vectors=upsert_data)
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
 
-    @global_exception_handler(3612, "Error Searching Embeddings in Pinecone Vector Database")
+    @global_exception_handler(2412, "Error Searching Embeddings in Pinecone Vector Database")
     def search_embeddings(
         self,
         collection_name: str,
@@ -462,7 +462,7 @@ class WeaviateVectorDatabase(VectorDatabase):
         super().__init__(client_type=client_type)
         self.connections = {}
 
-    @global_exception_handler(1612, "Error Connecting to Weaviate Vector Database")
+    @global_exception_handler(2413, "Error Connecting to Weaviate Vector Database")
     def connect(
         self,
         collection_name: str
@@ -478,7 +478,7 @@ class WeaviateVectorDatabase(VectorDatabase):
             self.connections[collection_name] = self.weaviate_client
             logging.info(f"Connected to collection '{collection_name}' in Weaviate.")
 
-    @global_exception_handler(2229, "Error Saving Embeddings to Weaviate Vector Database")
+    @global_exception_handler(2414, "Error Saving Embeddings to Weaviate Vector Database")
     def save_embeddings(
         self,
         collection_name: str,
@@ -533,7 +533,7 @@ class WeaviateVectorDatabase(VectorDatabase):
                 )
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
 
-    @global_exception_handler(3616, "Error Searching Embeddings in Weaviate Vector Database")
+    @global_exception_handler(2415, "Error Searching Embeddings in Weaviate Vector Database")
     def search_embeddings(
         self,
         collection_name: str,
@@ -592,7 +592,7 @@ class PostgresVectorDatabase(VectorDatabase):
         self.vecs = None
         self.connections = {}
 
-    @global_exception_handler(1501, "Error Connecting to Postgres Vector Database")
+    @global_exception_handler(2400, "Error Connecting to Postgres Vector Database")
     def connect(
         self,
         collection_name: str
@@ -608,7 +608,7 @@ class PostgresVectorDatabase(VectorDatabase):
             self.connections[collection_name] = self.pgvector_client
             logging.info(f"Connected to collection '{collection_name}' in Pgvector.")
 
-    @global_exception_handler(2221, "Error Saving Embeddings to Postgres Vector Database")
+    @global_exception_handler(2401, "Error Saving Embeddings to Postgres Vector Database")
     def save_embeddings(
         self,
         collection_name: str,
@@ -656,7 +656,7 @@ class PostgresVectorDatabase(VectorDatabase):
         collection.upsert(records=records)
         logging.info(f"Inserted {len(records)} embeddings into collection '{collection_name}'.")
 
-    @global_exception_handler(3617, "Error Searching in Postgres Vector Database")
+    @global_exception_handler(2402, "Error Searching in Postgres Vector Database")
     def search_embeddings(
         self,
         collection_name: str,
@@ -699,7 +699,7 @@ class PostgresVectorDatabase(VectorDatabase):
         ]
         return results
 
-    @global_exception_handler(2222, "Error Deleting Collection in Postgres Vector Database")
+    @global_exception_handler(2403, "Error Deleting Collection in Postgres Vector Database")
     def delete_index(
         self,
         collection_name: str

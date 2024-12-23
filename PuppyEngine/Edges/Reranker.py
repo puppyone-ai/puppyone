@@ -10,7 +10,7 @@ from abc import ABC, abstractmethod
 import cohere
 from torch import no_grad
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.PuppyEngineExceptions import global_exception_handler
 from Edges.Generator import lite_llm_chat
 
 
@@ -117,8 +117,6 @@ Example output:
             model=self.model_name,
             temperature=0.3,
             max_tokens=4096,
-            printing=True,
-            stream=True
         )
 
         final_response = self._safe_parse_response(response)
@@ -176,7 +174,7 @@ class CohereReranker(BaseReranker):
 
         final_results: List[Dict[str, float]] = []
         for result in response.results:
-            final_results.append({"text": retrieval_chunks[result.index], "relevance_score": result.relevance_score})
+            final_results.append({"doc": retrieval_chunks[result.index], "score": result.relevance_score})
         return final_results
 
 

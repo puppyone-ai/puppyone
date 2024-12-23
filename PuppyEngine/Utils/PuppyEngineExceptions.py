@@ -19,28 +19,6 @@ class PuppyEngineException(Exception):
         super().__init__(self.raise_message)
 
 
-# def global_exception_handler(
-#     error_code: int,
-#     error_message: str
-# ):
-#     def decorator(func):
-#         @wraps(func)
-#         def wrapper(*args, **kwargs):
-#             try:
-#                 return func(*args, **kwargs)
-#             except PuppyEngineException as e:
-#                 tb_str = traceback.format_exc()
-#                 full_error_message = f"{str(e)}\nTraceback:\n{tb_str}"
-#                 logging.error(full_error_message)
-#                 raise
-#             except Exception as e:
-#                 tb_str = traceback.format_exc()
-#                 full_error_message = f"[PE_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
-#                 logging.error(full_error_message)
-#                 raise PuppyEngineException(error_code, error_message, str(e))
-#         return wrapper
-#     return decorator
-
 def global_exception_handler(
     error_code: int,
     error_message: str,

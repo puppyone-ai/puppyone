@@ -69,7 +69,7 @@ def parse_results(
 if __name__ == "__main__":
     import os
     import time
-    base_url = "http://127.0.0.1:8000"
+    base_url = "http://127.0.0.1:8001"
     test_kit = '../TestKit'
     directory = os.path.join(os.path.dirname(__file__), test_kit)
 

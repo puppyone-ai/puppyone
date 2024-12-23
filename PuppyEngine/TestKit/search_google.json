@@ -26,5 +26,6 @@
               "extra_configs": {}
             }
           }
-    }
+    },
+    "version": "0.1"
 }
