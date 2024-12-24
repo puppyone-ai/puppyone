@@ -177,7 +177,18 @@ class DictModifier:
         key: Any,
         default_value: Any = None
     ) -> Any:
-        return self.dct.get(key, default_value)
+        current_value = self.dct
+
+        if isinstance(key, (list, tuple)):
+            # Navigate the nested dictionary
+            for k in key:
+                if isinstance(current_value, dict) and k in current_value:
+                    current_value = current_value[k]
+                else:
+                    return default_value
+            return current_value
+
+        return current_value.get(key, default_value)
 
     def get_keys(
         self
@@ -274,6 +285,25 @@ class JSONModifier:
                 return self._handle_list_modifications(modify_type)
             case "dict":
                 return self._handle_dict_modifications(modify_type)
+            case _:
+                raise ValueError(f"Unsupported Content Type: {content_type}!")
+
+    def modify(self, operations: List[Dict[str, Any]]) -> Any:
+        for operation in operations:
+            modify_type = operation.get("modify_type")
+            kwargs = {key: value for key, value in operation.items() if key != "modify_type"}
+            self.data = self._apply_modification(modify_type, **kwargs)
+        return self.data
+
+    def _apply_modification(self, modify_type: str, **kwargs) -> Any:
+        content_type = type(self.data).__name__
+        match content_type:
+            case "str":
+                return self._handle_str_modifications(modify_type, **kwargs)
+            case "list":
+                return self._handle_list_modifications(modify_type, **kwargs)
+            case "dict":
+                return self._handle_dict_modifications(modify_type, **kwargs)
             case _:
                 raise ValueError(f"Unsupported Content Type: {content_type}!")
 
