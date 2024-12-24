@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from typing import List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
+from Server.StructuredConverter import StructuredConverter
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 
@@ -28,6 +29,7 @@ class JsonParser:
 
         self.block_data = block_data
         self.edge_data = edges_data
+        self.structured_converter = StructuredConverter(block_data)
 
     @global_exception_handler(5100, "Error Parsing Input Block IDs")
     def parse_inputs(
@@ -163,6 +165,9 @@ class JsonParser:
     ) -> Dict[str, dict]:
         source_block_id = list(edge_dict.get("data").get("inputs").keys())[0]
         edge_dict["data"]["chunks"] = self._extract_content(source_block_id)
+        source_block = self.block_data.get(source_block_id)
+        self.structured_converter.set_structured_text(source_block.get("data").get("content"))
+        source_block["data"]["content"] = self.structured_converter.convert_to_embedding_view()
         return edge_dict
 
     @global_exception_handler(5109, "Error Handling Search Edge")
