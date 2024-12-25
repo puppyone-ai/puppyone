@@ -1,0 +1,40 @@
+{
+    "blocks": {
+        "5": {
+            "type": "vector",
+            "data": {
+                "content": ""
+            }
+        },
+        "3": {
+            "label":"",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "BYD",
+                    "as a leading new energy vehicle manufacturer in China",
+                    "has been accelerating its globalization efforts in recent years",
+                    "aiming to secure a position in the global electric vehicle market. The United States",
+                    "being the second-largest automotive market in the world",
+                    "offers a significant opportunity for BYD with its substantial demand for new energy vehicles. However",
+                    "BYD also faces numerous challenges",
+                    "having to navigate the multifaceted influences from policy",
+                    "economic",
+                    "social",
+                    "and technological factors."
+                ]
+            }
+        }
+    },
+    "edges": {
+        "test-embedding": {
+            "type": "embedding",
+            "data": {
+                "inputs": {"3":""},
+                "outputs": {"5":""},
+                "model": "text-embedding-ada-002",
+                "method": "cosine"
+            }
+        }
+    }
+}

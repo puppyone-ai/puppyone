@@ -1,0 +1,27 @@
+python-dotenv
+
+# Embedding
+openai
+transformers
+sentence_transformers
+
+# Vector Database
+vecs
+pymilvus
+qdrant_client
+weaviate-client
+psycopg2-binary
+pinecone-client[grpc]
+
+# Server
+boto3
+fastapi
+axiom-py
+hypercorn
+
+# Unknown -- Delete?
+grpcio
+grpcio-tools
+protobuf
+protoc-gen-openapiv2
+googleapis-common-protos
