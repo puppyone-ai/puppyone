@@ -4,23 +4,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
 import uuid
-import logging
 from threading import Lock
 from axiom_py import Client
 from collections import defaultdict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from Server.WorkFlow import WorkFlow
-from Utils.PuppyEngineExceptions import PuppyEngineException
-
-from boto3 import client
 from botocore.config import Config
 from botocore.exceptions import NoCredentialsError
-
+from boto3 import client
 from dotenv import load_dotenv
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(dotenv_path, override=True)
+from Server.WorkFlow import WorkFlow
+from Utils.PuppyEngineExceptions import PuppyEngineException
 
 import warnings
 warnings.simplefilter("ignore", DeprecationWarning)
@@ -249,6 +244,9 @@ async def generate_presigned_url():
 
 
 if __name__ == "__main__":
+    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    load_dotenv(dotenv_path, override=True)
+
     try:
         # Use Uvicorn for ASGI server
         # import uvicorn
