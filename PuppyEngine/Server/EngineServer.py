@@ -13,9 +13,12 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from botocore.config import Config
 from botocore.exceptions import NoCredentialsError
 from boto3 import client
-from dotenv import load_dotenv
 from Server.WorkFlow import WorkFlow
 from Utils.PuppyEngineExceptions import PuppyEngineException
+
+from dotenv import load_dotenv
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path, override=True)
 
 import warnings
 warnings.simplefilter("ignore", DeprecationWarning)
@@ -244,9 +247,6 @@ async def generate_presigned_url():
 
 
 if __name__ == "__main__":
-    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-    load_dotenv(dotenv_path, override=True)
-
     try:
         # Use Uvicorn for ASGI server
         # import uvicorn

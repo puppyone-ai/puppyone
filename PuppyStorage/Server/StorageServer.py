@@ -10,9 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from botocore.config import Config
 from botocore.exceptions import NoCredentialsError
 from boto3 import client
-from dotenv import load_dotenv
 from Scripts.actions import embedding, delete_index
 from Utils.PuppyEngineExceptions import PuppyEngineException
+
+from dotenv import load_dotenv
+dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+load_dotenv(dotenv_path, override=True)
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -139,9 +142,6 @@ async def delete_index_endpoint(index_name: str, vdb_type: str):
 
 
 if __name__ == "__main__":
-    dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-    load_dotenv(dotenv_path, override=True)
-
     try:
         import asyncio
         from hypercorn.config import Config
