@@ -183,7 +183,7 @@ async def get_data(
                 workflow.config_workflow_json(json_data)
 
                 for intermediate_data in workflow.process_all():
-                    intermediate_data = [intermediate_data]
+                    # intermediate_data = [intermediate_data]
                     yield f"data: {json.dumps({'data': intermediate_data, 'is_complete': False})}\n\n"
 
                 log_info("data: Execution complete")
