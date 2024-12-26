@@ -113,7 +113,7 @@ class WorkFlow:
                         }
                     }
                 logging.info("Yielded Data: %s", dumped_block)
-                yield dumped_block
+                yield finished_id, dumped_block
             self.current_block_ids = next_block_ids
             logging.info("Next batch: %s", next_block_ids)
 
