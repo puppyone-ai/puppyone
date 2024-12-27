@@ -103,7 +103,7 @@ class WorkFlow:
                 next_block_ids.add(finished_id)
                 self.processed_block_ids.add(finished_id)
 
-                block = self.block_data.get(finished_id)
+                block = self.block_data.get(finished_id, {})
                 if block["type"] == "text":
                     dumped_block = block
                 else:
@@ -114,6 +114,12 @@ class WorkFlow:
                             "content": json.dumps(block["data"]["content"])
                         }
                     }
+                
+                # Decode the unicode contents
+                content = dumped_block.get("data", {}).get("content", "")
+                dumped_block["data"]["content"] = self._unicode_formatting(content)
+
+                # Add the block data to the yield dictionary
                 yield_dict[finished_id] = dumped_block
                 logging.info("Yielded Data for ID - %s:\n%s", finished_id, dumped_block)
 
@@ -122,6 +128,29 @@ class WorkFlow:
 
             self.current_block_ids = next_block_ids
             logging.info("Next batch: %s", next_block_ids)
+
+    def _unicode_formatting(
+        self,
+        content: str
+    ) -> str:
+        """
+        Format the content to handle escaped unicode characters.
+
+        Args:
+            content (str): The content to format.
+
+        Returns:
+            str: The formatted content.
+        """
+
+        if isinstance(content, str):
+            if "\\u" in content or "\\x" in content:
+                content = content.encode("utf-8", "ignore").decode("unicode_escape")
+
+            content = content.replace("\n", "\\n").replace("\r", "\\r")
+            if content.startswith("[") or content.startswith("{"):
+                content = json.loads(content)
+        return content
 
     @global_exception_handler(5203, "Error Finding the First Batch")
     def _find_first_batch(
@@ -231,8 +260,8 @@ class WorkFlow:
         if not target_block_ids:
             raise ValueError("Invalid edge: Output block IDs are missing")
 
-        edge_type = edge_dict.get("type")
-        edge_data = edge_dict.get("data")
+        edge_type = edge_dict.get("type", {})
+        edge_data = edge_dict.get("data", {})
         if not edge_type:
             raise ValueError("Invalid edge: Edge type is missing")
 
@@ -278,7 +307,7 @@ class WorkFlow:
         Returns:
             Any: The unchanged output.
         """
-        edge_type = edge_dict.get("type")
+        edge_type = edge_dict.get("type", {})
         modify_type = edge_dict.get("data", {}).get("modify_type")
 
         if edge_type == "code" or (edge_type == "modify" and modify_type == "modify_get"):
@@ -294,10 +323,10 @@ if __name__ == "__main__":
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        # if file_name != "concurrency.json":
-        #     continue
-        if not file_name.startswith("modify"):
+        if file_name != "test_test.json":
             continue
+        # if not file_name.startswith("search"):
+        #     continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
         with open(file_path, encoding="utf-8") as f:

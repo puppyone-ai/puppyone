@@ -1,0 +1,33 @@
+{
+      "blocks": {
+        "Qbp_1Y": {
+            "data": {
+                "content": "Rosebery 区居住如何?"
+            },
+            "label": "Qbp_1Y",
+            "type": "text"
+        },
+        "fv7x8J": {
+            "data": {
+                "content": ""
+            },
+            "label": "fv7x8J",
+            "type": "text"
+        }
+      },
+    "edges": {
+        "code-1735285036365": {
+            "data": {
+                "code": "def func(arg_Qbp_1Y):\n    return arg_Qbp_1Y",
+                "inputs": {
+                    "Qbp_1Y": "Qbp_1Y"
+                },
+                "looped": false,
+                "outputs": {
+                    "fv7x8J": "fv7x8J"
+                }
+            },
+          "type": "code"
+        }
+    }
+}

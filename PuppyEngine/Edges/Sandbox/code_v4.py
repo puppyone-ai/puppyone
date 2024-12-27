@@ -40,6 +40,7 @@ class CustomCode:
         arg_names = match.group(2).split(",")  # Extract parameter names
 
         # Remove any extra spaces and prepare arguments as keyword arguments
+        variables = {f"arg_{k}": v for k, v in variables.items()}
         formatted_args = ", ".join(
             f"{arg.strip()}={repr(variables.get(arg.strip(), None))}" for arg in arg_names
         )
