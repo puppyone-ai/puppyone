@@ -714,7 +714,7 @@ class PostgresVectorDatabase(VectorDatabase):
         client = self.connections.get(collection_name)
         if not client:
             raise ValueError(f"Not connected to collection '{collection_name}'.")
-        
+
         client.delete_collection(collection_name)
         logging.info(f"Deleted collection: {collection_name}")
 

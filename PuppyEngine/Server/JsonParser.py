@@ -3,7 +3,8 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from typing import List, Dict, Any
+import re
+from typing import Tuple, List, Dict, Any
 from concurrent.futures import ThreadPoolExecutor
 from Server.StructuredConverter import StructuredConverter
 from Utils.PuppyEngineExceptions import global_exception_handler
@@ -124,6 +125,23 @@ class JsonParser:
             edge_dict["data"]["plugins"][block_id] = source_content
         return edge_dict
 
+    def _process_placeholders_in_extra_configs(
+        self,
+        edge_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        extra_configs = edge_data.get("extra_configs", {})
+
+        for key, value in extra_configs.items():
+            if isinstance(value, str):
+                # Replace all placeholders matching the pattern {{xxx}}
+                placeholders = re.findall(r"\{\{(.*?)\}\}", value)
+                for block_id in placeholders:
+                    content = self._extract_content(block_id)
+                    value = value.replace(f"{{{{{block_id}}}}}", content)
+                extra_configs[key] = value
+
+        return extra_configs
+
     @global_exception_handler(5105, "Error Handling LLM Edge")
     def _handle_llm_edge(
         self,
@@ -137,12 +155,14 @@ class JsonParser:
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
         edge_data = edge_dict.get("data")
-        if edge_data.get("modify_type") in {"deep_copy", "get"}:
-            source_block_id = list(edge_data.get("inputs").keys())[0]
-            edge_dict["data"]["content"] = self._extract_content(source_block_id)
-            return edge_dict
+        if edge_data.get("modify_type") in {"modify_text", "modify_structured"}:
+            return self._get_plugin_details(edge_dict)
 
-        return self._get_plugin_details(edge_dict)
+        source_block_id = list(edge_data.get("inputs").keys())[0]
+        edge_dict["data"]["content"] = self._extract_content(source_block_id)
+        edge_dict["data"]["extra_configs"] = self._process_placeholders_in_extra_configs(edge_data)
+
+        return edge_dict
 
     @global_exception_handler(5107, "Error Handling Chunk Edge")
     def _handle_chunk_edge(

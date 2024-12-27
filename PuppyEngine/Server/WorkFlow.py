@@ -96,12 +96,14 @@ class WorkFlow:
             next_block_ids = set()
             # _execute_batch returns the ids of the blocks that have been updated
             finished_ids = self._execute_batch(self.current_block_ids)
+            
+            yield_dict = {}
 
             for finished_id in finished_ids:
                 next_block_ids.add(finished_id)
                 self.processed_block_ids.add(finished_id)
 
-                block = self.block_data[finished_id]
+                block = self.block_data.get(finished_id)
                 if block["type"] == "text":
                     dumped_block = block
                 else:
@@ -112,8 +114,12 @@ class WorkFlow:
                             "content": json.dumps(block["data"]["content"])
                         }
                     }
-                logging.info("Yielded Data: %s", dumped_block)
-                yield finished_id, dumped_block
+                yield_dict[finished_id] = dumped_block
+                logging.info("Yielded Data for ID - %s:\n%s", finished_id, dumped_block)
+
+            yield yield_dict
+            yield_dict.clear()
+
             self.current_block_ids = next_block_ids
             logging.info("Next batch: %s", next_block_ids)
 
@@ -288,6 +294,8 @@ if __name__ == "__main__":
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
+        if file_name != "concurrency.json":
+            continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
         with open(file_path, encoding="utf-8") as f:
@@ -297,3 +305,4 @@ if __name__ == "__main__":
         for block in workflow.process_all():
             print(block)
         workflow.clear_workflow()
+        

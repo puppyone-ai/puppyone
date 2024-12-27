@@ -58,9 +58,9 @@ class ListModifier:
     
     def get(
         self,
-        index: str
+        key: str
     ) -> Any:
-        return self.lst[int(index)]
+        return self.lst[int(key)]
 
     def slice_list(
         self,
@@ -288,7 +288,8 @@ class JSONModifier:
             case _:
                 raise ValueError(f"Unsupported Content Type: {content_type}!")
 
-    def modify(self, operations: List[Dict[str, Any]]) -> Any:
+    # For future development
+    def modify2(self, operations: List[Dict[str, Any]]) -> Any:
         for operation in operations:
             modify_type = operation.get("modify_type")
             kwargs = {key: value for key, value in operation.items() if key != "modify_type"}
@@ -331,7 +332,7 @@ class JSONModifier:
         modify_type: str
     ) -> Any:
         list_operations = {
-            "get": lambda: self.list_modifier.get(self.kwargs.get("index", 0)),
+            "get": lambda: self.list_modifier.get(self.kwargs.get("key", "0")),
             "slice": lambda: self.list_modifier.slice_list(self.kwargs.get("start", 0), self.kwargs.get("end", -1)),
             "append": lambda: self.list_modifier.append_element(self.kwargs.get("item")),
             "insert": lambda: self.list_modifier.insert_element(self.kwargs.get("index", 0), self.kwargs.get("item")),
@@ -396,7 +397,7 @@ if __name__ == "__main__":
     # Initialize a BlockModifier instance for list
     list_data = [1, 2, 3, 4, 5, "{{abc}}", "{{def}}"]
     block_modifier = JSONModifier(list_data)
-    print("Access element at index 1:", block_modifier.modify("get", index="1"))
+    print("Access element at index 1:", block_modifier.modify("get", key="1"))
     print("Slice the list from index 1 to 3:", block_modifier.modify("slice", start=1, end=3))
     block_modifier.modify("append", item=6)
     print("After appending 6:", block_modifier.data)

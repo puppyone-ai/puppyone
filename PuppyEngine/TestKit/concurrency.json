@@ -1,0 +1,62 @@
+{
+    "blocks": {
+        "1": {
+            "type": "text",
+            "data": {
+                "content": "BYD as a leading new energy vehicle manufacturer in China has been accelerating its globalization efforts in recent years aiming to secure a position in the global electric vehicle market. The United States being the second-largest automotive market in the world offers a significant opportunity for BYD with its substantial demand for new energy vehicles. However BYD also faces numerous challenges having to navigate the multifaceted influences from policy economic social and technological factors."
+            }
+        },
+        "2": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "3": {
+            "type": "structured",
+            "data": {
+                "content": []
+            }
+        },
+        "4": {
+            "type": "structured",
+            "data": {
+                "content": []
+            }
+        }
+    },
+    "edges": {
+        "modify-1727674646321": {
+            "type": "modify",
+            "data": {
+                "inputs": {"1": ""},
+                "outputs": {"2": ""},
+                "modify_type": "append",
+                "extra_configs": {
+                    "string2": "{{1}}"
+                }
+            }
+        },
+        "chunk-1727406844633": {
+            "type": "chunk",
+            "data": {
+                "inputs": {"1":""},
+                "outputs": {"3":""},
+                "chunking_mode": "auto",
+                "extra_configs": {}
+            }
+        },
+        "modify-8306729527535": {
+            "type": "modify",
+            "data": {
+                "inputs": {"3": "3"},
+                "outputs": {"4": ""},
+                "modify_type": "get",
+                "extra_configs": {
+                    "key": "0"
+                }
+            }
+        }
+    },
+    "version": "0.1"
+}

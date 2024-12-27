@@ -68,8 +68,18 @@ class AutoChunking:
         """
         Chunk a text string, split by newlines.
         """
+        
+        # Define multilingual sentence-ending delimiters
+        delimiters = (
+            r"[.!?]"                # English and similar
+            r"|[。！？]"             # Chinese, Japanese, Korean (CJK)
+            r"|[۔؟]"                # Arabic, Persian
+            r"|[।]"                 # Hindi, Indic languages
+            r"|[።၊။།]"             # Ethiopic, Myanmar, Tibetan
+            r"|(?:\r?\n)+"          # Newlines
+        )
 
-        return self._create_chunks(self.doc.split("\n"))
+        return self._create_chunks(re.split(delimiters, self.doc))
 
     def _chunk_list(
         self

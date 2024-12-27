@@ -125,7 +125,7 @@ async def embed_chunks(request: Request, user_id: str):
             content={"error": str(e)}, 
             status_code=500
         )
-    
+
 @app.delete("/index/{index_name}/{vdb_type}")
 async def delete_index_endpoint(index_name: str, vdb_type: str):
     try:
