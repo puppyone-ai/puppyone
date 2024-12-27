@@ -307,7 +307,7 @@ class Edge:
         self
     ) -> Any:
         code = self.data.get("code", "")
-        arg_values = self.data.get("arg_values", {})
+        arg_values = self.data.get("plugins", {})
         custom_code = CustomCode()
         result = custom_code.execute_restricted_code(code, arg_values)
         return result

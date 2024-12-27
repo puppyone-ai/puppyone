@@ -186,10 +186,10 @@ class JsonParser:
         self,
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
-        source_block_id = list(edge_dict.get("data").get("inputs").keys())[0]
+        source_block_id = list(edge_dict.get("data", {}).get("inputs", {}).keys())[0]
         edge_dict["data"]["chunks"] = self._extract_content(source_block_id)
-        source_block = self.block_data.get(source_block_id)
-        self.structured_converter.set_structured_text(source_block.get("data").get("content"))
+        source_block = self.block_data.get(source_block_id, {})
+        self.structured_converter.set_structured_text(source_block.get("data", {}).get("content", {}))
         source_block["data"]["content"] = self.structured_converter.convert_to_embedding_view()
         return edge_dict
 
@@ -198,10 +198,10 @@ class JsonParser:
         self,
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
-        query_block_id = list(edge_dict.get("data").get("query_id").keys())[0]
+        query_block_id = list(edge_dict.get("data", {}).get("query_id", {}).keys())[0]
         edge_dict["data"]["query"] = self._extract_content(query_block_id)
-        if edge_dict.get("data").get("sub_search_type") == "vector":
-            edge_dict["data"]["docs"] = self._extract_content(list(edge_dict.get("data").get("docs_id").keys())[0])
+        if edge_dict.get("data", {}).get("sub_search_type", "") == "vector":
+            edge_dict["data"]["docs"] = self._extract_content(list(edge_dict.get("data", {}).get("docs_id", "").keys())[0])
         return edge_dict
 
     @global_exception_handler(5110, "Error Handling Code Edge")
@@ -216,8 +216,8 @@ class JsonParser:
         self,
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
-        edge_dict["data"]["content"] = self._extract_content(list(edge_dict.get("data").get("content").keys())[0])
-        edge_dict["data"]["switch"] = self._extract_content(list(edge_dict.get("data").get("switch").keys())[0])
+        edge_dict["data"]["content"] = self._extract_content(list(edge_dict.get("data", {}).get("content", {}).keys())[0])
+        edge_dict["data"]["switch"] = self._extract_content(list(edge_dict.get("data", {}).get("switch", {}).keys())[0])
         return edge_dict
 
 
