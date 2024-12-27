@@ -185,12 +185,8 @@ async def get_data(
                     json.dump(json_data, file, indent=4)
                 workflow.config_workflow_json(json_data)
 
-                # 创建累积字典
-                accumulated_data = {}
-                
-                for finished_id, intermediate_data in workflow.process_all():
-                    accumulated_data[finished_id] = intermediate_data
-                    yield f"data: {json.dumps({'data': accumulated_data, 'is_complete': False})}\n\n"
+                for yield_dict in workflow.process_all():
+                    yield f"data: {json.dumps({'data': yield_dict, 'is_complete': False})}\n\n"
 
                 log_info("data: Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"
