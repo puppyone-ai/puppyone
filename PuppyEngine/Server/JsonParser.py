@@ -156,7 +156,10 @@ class JsonParser:
     ) -> Dict[str, dict]:
         edge_data = edge_dict.get("data")
         if edge_data.get("modify_type") in {"modify_text", "modify_structured"}:
-            return self._get_plugin_details(edge_dict)
+            edge_dict = self._get_plugin_details(edge_dict)
+            edge_dict["data"]["extra_configs"] = {}
+            edge_dict["data"]["extra_configs"]["plugins"] = edge_dict["data"]["plugins"]
+            return edge_dict
 
         source_block_id = list(edge_data.get("inputs").keys())[0]
         edge_dict["data"]["content"] = self._extract_content(source_block_id)

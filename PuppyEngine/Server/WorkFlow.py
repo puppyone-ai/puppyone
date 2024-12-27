@@ -294,7 +294,9 @@ if __name__ == "__main__":
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name != "concurrency.json":
+        # if file_name != "concurrency.json":
+        #     continue
+        if not file_name.startswith("modify"):
             continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
