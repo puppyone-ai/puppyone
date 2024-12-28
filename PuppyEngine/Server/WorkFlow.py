@@ -121,13 +121,13 @@ class WorkFlow:
 
                 # Add the block data to the yield dictionary
                 yield_dict[finished_id] = dumped_block
-                logging.info("Yielded Data for ID - %s:\n%s", finished_id, dumped_block)
+                logger.info("Yielded Data for ID - %s:\n%s", finished_id, dumped_block)
 
             yield yield_dict
             yield_dict.clear()
 
             self.current_block_ids = next_block_ids
-            logging.info("Next batch: %s", next_block_ids)
+            logger.info("Next batch: %s", next_block_ids)
 
     def _unicode_formatting(
         self,
@@ -149,7 +149,12 @@ class WorkFlow:
 
             content = content.replace("\n", "\\n").replace("\r", "\\r")
             if content.startswith("[") or content.startswith("{"):
-                content = json.loads(content)
+                try:
+                    json.loads(content)
+                except json.JSONDecodeError:
+                    logger.error("Invalid Result Structured Content: %s", content)
+                    raise ValueError("Invalid Result Structured Content")
+                    
         return content
 
     @global_exception_handler(5203, "Error Finding the First Batch")
@@ -323,9 +328,9 @@ if __name__ == "__main__":
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name != "test_test.json":
+        if file_name != "search_perplexity.json":
             continue
-        # if not file_name.startswith("search"):
+        # if not file_name.startswith("loop_modify"):
         #     continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")

@@ -695,25 +695,28 @@ Important Guidelines:
 - Ensure that no sentence is split between chunks; keep all sentences intact within the same chunk.
 - The chunks should preserve the natural flow of the content but break the text down into digestible parts.
 - The chunks should not exceed a length where meaning might be lost but should also not be too short, avoid one-liner chunks unless necessary.
-- Return the chunks in a json list, where each element is a string representing a chunk.
+- Return the chunks in a valid json object, where contains one `chunks` field only and the value is a list of string each represent a chunk.
 
-Example:
+## Examples:
 The original document: "Artificial Intelligence is rapidly evolving. It can now perform complex tasks. Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
-
-Desired Output in json list:
-[
-    "Artificial Intelligence is rapidly evolving. It can now perform complex tasks.",
-    "Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
-]
+Desired Output in json format:
+{
+    "chunks": [
+        "Artificial Intelligence is rapidly evolving. It can now perform complex tasks.",
+        "Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
+    ]
+}
 
 The original document: "The quick brown fox jumps over the lazy dog. The dog barks at the fox."
-Desired Output in json list:
-[
-    "The quick brown fox jumps over the lazy dog.",
-    "The dog barks at the fox."
-]
+Desired Output in json:
+{
+    "chunks": [
+        "The quick brown fox jumps over the lazy dog.",
+        "The dog barks at the fox."
+    ]
+}
 
-**Note**: Always output with a list.
+**Note**: Always output with a valid json with the `chunks` field as the key and a list of chunks in sequence.
         """
 
         # Use sys_prompt if no user-supplied prompt is provided
@@ -757,9 +760,9 @@ Desired Output in json list:
             if isinstance(chunks, list) and all(isinstance(item, str) for item in chunks):
                 return chunks
             else:
-                raise ValueError("Extracted content is not a list of strings")
+                raise ValueError(f"Extracted content is not a list of strings: {chunks}")
         else:
-            raise ValueError("No list found in LLM response")
+            raise ValueError(f"No list found in LLM response: {response}")
 
 
 class ChunkingFactory:
