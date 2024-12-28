@@ -1,0 +1,56 @@
+{
+    "blocks": {
+        "2": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "1": {
+            "type": "text",
+            "data": {
+                "content": "how to train an anime waifu"
+            }
+        },
+        "4": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "3": {
+            "type": "text",
+            "data": {
+                "content": "how to train an anime waifu"
+            }
+        }
+    },
+    "edges": {
+        "search-1728381436093": {
+            "type": "search",
+            "data": {
+              "search_type": "web",
+              "sub_search_type": "google",
+              "top_k": 5,
+              "inputs": {"1": ""},
+              "outputs": {"2": ""},
+              "query_id": {"1": ""},
+              "extra_configs": {}
+            }
+        },
+        "search-1728381295016": {
+            "type": "search",
+            "data": {
+              "search_type": "llm",
+              "sub_search_type": "perplexity",
+              "inputs": {"1": ""},
+              "outputs": {"2": ""},
+              "query_id": {"1": ""},
+              "extra_configs": {
+                "model": "llama-3.1-sonar-small-128k-online"
+              }
+            }
+        }
+    },
+    "version": "0.1"
+}
