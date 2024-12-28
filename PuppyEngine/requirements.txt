@@ -19,6 +19,7 @@ cohere
 openai
 litellm
 scikit-learn
+pyyaml # for transformers
 transformers
 sentence_transformers
 
@@ -27,6 +28,7 @@ fpdf
 boto3
 easyocr
 pypandoc
+openpyxl
 markdown2
 pymupdf4llm
 ffmpeg-python
@@ -40,9 +42,9 @@ sqlalchemy
 vecs
 pymilvus
 qdrant_client
+pinecone[grpc]
 weaviate-client
 psycopg2-binary
-pinecone-client[grpc]
 
 #code
 RestrictedPython

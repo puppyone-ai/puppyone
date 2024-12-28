@@ -157,6 +157,7 @@ class ListModifier:
         plugins: Dict[str, str],
     ) -> List[Any]:
         def replace_item(item):
+            print("Item:", item, type(item), plugins)
             if isinstance(item, str):
                 return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), item)
             return item
