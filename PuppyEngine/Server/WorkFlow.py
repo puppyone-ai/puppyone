@@ -147,7 +147,7 @@ class WorkFlow:
             if "\\u" in content or "\\x" in content:
                 content = content.encode("utf-8", "ignore").decode("unicode_escape")
 
-            content = content.replace("\n", "\\n").replace("\r", "\\r")
+            # content = content.replace("\n", "\\n").replace("\r", "\\r")
             if content.startswith("[") or content.startswith("{"):
                 try:
                     json.loads(content)
