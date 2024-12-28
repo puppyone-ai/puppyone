@@ -150,7 +150,8 @@ class WorkFlow:
             # content = content.replace("\n", "\\n").replace("\r", "\\r")
             if content.startswith("[") or content.startswith("{"):
                 try:
-                    json.loads(content)
+                    parsed_content = content.replace("\n", "\\n").replace("\r", "\\r")
+                    parsed_content = json.loads(parsed_content)
                 except json.JSONDecodeError:
                     logger.error("Invalid Result Structured Content: %s", content)
                     raise ValueError("Invalid Result Structured Content")
