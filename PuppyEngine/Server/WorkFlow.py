@@ -104,7 +104,8 @@ class WorkFlow:
                 self.processed_block_ids.add(finished_id)
 
                 block = self.block_data.get(finished_id, {})
-                if block["type"] == "text":
+                block_type = block.get("type", "text")
+                if block_type == "text":
                     dumped_block = block
                 else:
                     dumped_block = {
@@ -117,7 +118,7 @@ class WorkFlow:
                 
                 # Decode the unicode contents
                 content = dumped_block.get("data", {}).get("content", "")
-                dumped_block["data"]["content"] = self._unicode_formatting(content)
+                dumped_block["data"]["content"] = self._unicode_formatting(content, block_type)
 
                 # Add the block data to the yield dictionary
                 yield_dict[finished_id] = dumped_block
@@ -131,13 +132,15 @@ class WorkFlow:
 
     def _unicode_formatting(
         self,
-        content: str
+        content: str,
+        block_type: str
     ) -> str:
         """
         Format the content to handle escaped unicode characters.
 
         Args:
             content (str): The content to format.
+            block_type (str): The type of block.
 
         Returns:
             str: The formatted content.
@@ -147,11 +150,10 @@ class WorkFlow:
             if "\\u" in content or "\\x" in content:
                 content = content.encode("utf-8", "ignore").decode("unicode_escape")
 
-            # content = content.replace("\n", "\\n").replace("\r", "\\r")
-            if content.startswith("[") or content.startswith("{"):
+            if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
+                content = content.replace("\n", "\\n").replace("\r", "\\r")
                 try:
-                    parsed_content = content.replace("\n", "\\n").replace("\r", "\\r")
-                    parsed_content = json.loads(parsed_content)
+                    json.loads(content)
                 except json.JSONDecodeError:
                     logger.error("Invalid Result Structured Content: %s", content)
                     raise ValueError("Invalid Result Structured Content")
