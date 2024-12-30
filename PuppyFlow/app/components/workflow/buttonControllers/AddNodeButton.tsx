@@ -2,7 +2,8 @@
 import React, {useState, useEffect} from 'react'
 import {useReactFlow, Node} from '@xyflow/react'
 import NodeMenu from '../../menu/nodeMenu/NodeMenu'
-import { useNodeContext } from '../../states/NodeContext'
+// import { useNodeContext } from '../../states/NodeContext'
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
 type menuProps = {
     selectedMenu:number,
@@ -12,7 +13,8 @@ type menuProps = {
 function AddNodeButton() {
 
   const [selectedMenu, setSelectedMenu] = useState(0)
-  const {allowActivateNode, addNode, nodes, clear, activateEdgeNode} = useNodeContext()
+  // const {allowActivateNode, addNode, nodes, clear, activateEdgeNode} = useNodeContext()
+  const {allowActivateOtherNodesWhenConnectEnd, clearAll, isOnGeneratingNewNode} = useNodesPerFlowContext()
   const {setNodes, getNodes} = useReactFlow()
 
   useEffect(() => {
@@ -33,8 +35,8 @@ function AddNodeButton() {
       }
       else if (menubutton.contains(target)){
         setSelectedMenu(prev => prev === 0 ? 1 : 0)
-        clear()
-        activateEdgeNode("-1")
+        clearAll()
+        // activateEdgeNode("-1")
       }
 
     }
@@ -69,15 +71,10 @@ function AddNodeButton() {
     
   return (
     <div id="nodeMenuButtonContainer">
-     <button id="nodeMenuButton"  className={`w-[56px] h-[36px] border-[2px] border-[#3E3E41] rounded-[10px]  bg-main-black-theme flex flex-row items-center justify-between px-[8px] cursor-pointer ${selectedMenu === 1 ? "border-[#D9D9D9]" : ""} transition-colors`} >
-        <div className='w-[20px] h-[20px] border-[#D9D9D9] border-[1.5px] border-solid flex items-center justify-center rounded-[6px]'>
-          <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-          <path d="M4 0L4 8" stroke="#D9D9D9" strokeWidth="1.5"/>
-          <path d="M0 4L8 4" stroke="#D9D9D9" strokeWidth="1.5"/>
-        </svg>
-        </div>
-        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="5" viewBox="0 0 8 5" fill="none">
-        <path d="M1 1L4 4L7 1" stroke={selectedMenu === 1 ? "#D9D9D9" : "#6D7177"}/>
+     <button id="nodeMenuButton"  className={`w-[44px] h-[44px] rounded-full  flex flex-row items-center justify-center px-[8px] cursor-pointer ${selectedMenu === 1 ? "bg-[#CDCDCD]" : "bg-main-blue"} transition-colors ${isOnGeneratingNewNode ? "pointer-events-none" : "pointer-events-auto"}`} >
+     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 8 8" fill="none">
+          <path d="M4 0L4 8" stroke="#181818" strokeWidth="1.5"/>
+          <path d="M0 4L8 4" stroke="#181818" strokeWidth="1.5"/>
         </svg>
     </button>
     <NodeMenu selectedMenu={selectedMenu} clearMenu={clearMenu}/>

@@ -1,9 +1,11 @@
-import React, {useEffect, useState, useCallback} from 'react'
+import React, {useEffect, useState, useCallback, useRef} from 'react'
 import { useReactFlow } from '@xyflow/react';
-import { useNodeContext } from '../../states/NodeContext';
+// import { useNodeContext } from '../../states/NodeContext';
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import DatabaseSubMenu from './DatabaseSubMenu';
 import OtherNodesSubMenu from './OtherNodesSubMenu';
 import TextBlockNode from '../../workflow/nodes/TextBlockNode';
+import { nanoid } from 'nanoid';
 
 type menuProps = {
     selectedMenu: number,
@@ -16,26 +18,29 @@ export type nodeSmallProps = {
   nodeType: string,
 }
 
-type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "Databasesub1" | "Otherssub1"
+type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1"
 
 
 function NodeMenu({selectedMenu, clearMenu}: menuProps) {
 
   const {getNodes, setNodes, screenToFlowPosition, getZoom} = useReactFlow()
-  const {addNode, nodes, totalCount, addCount, allowActivateNode, clear} = useNodeContext()
+  // const {addNode, nodes, totalCount, addCount, allowActivateNode, clear} = useNodeContext()
+  const { allowActivateOtherNodesWhenConnectEnd, clearAll, preventActivateOtherNodesWhenConnectStart, generateNewNode, finishGeneratingNewNode, isOnGeneratingNewNode} = useNodesPerFlowContext()
   const [node, setNode] = useState<nodeSmallProps | null>(null)
-  const [isAdd, setIsAdd] = useState(false)
+  // const [isAdd, setIsAdd] = useState(false)
   
-
 
   // for drag and drop purpose
   const [isDragging, setIsDragging] = useState(false);
   const [draggedNodeType, setDraggedNodeType] = useState<string | null>(null);
   const [mousePosition, setMousePosition] = useState<{x: number, y: number} | null>(null);
+  const [lastMousePosition, setLastMousePosition] = useState<{x: number, y: number} | null>(null);
+  // const lastMousePositionRef = useRef<{x: number, y: number} | null>(null);
 
   const handleMouseDown = useCallback((nodeType: string) => {
     setIsDragging(true);
     setDraggedNodeType(nodeType);
+    generateNewNode()
     clearMenu()
   }, []);
 
@@ -49,29 +54,102 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
 
 
   const handleMouseSettlePosition = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
     if (isDragging && draggedNodeType) {
-      const newNodeId = `${totalCount + 1}`;
+      const newNodeId = nanoid(6);
+      // const newNodeId = `node-${Date.now()}`
+      // const newNodeId = `${totalCount + 1}`;
+      // if (!mousePosition) return
       const position = screenToFlowPosition({
         x: event.clientX - 32 * getZoom(),
         y: event.clientY - 32 * getZoom(),
       });
       setNode({nodeid: newNodeId, nodeType: draggedNodeType});
-      setIsAdd(false);
+      // setIsAdd(false);
       setMousePosition(position);
+      // setLastMousePosition(position)
       
     }
   }, [isDragging, draggedNodeType]);
+
+  // 新增：右键点击事件处理函数
+  const handleRightClick = useCallback((event: MouseEvent) => {
+    event.preventDefault();
+    if (isOnGeneratingNewNode) {
+      // 重置状态
+      setIsDragging(false);
+      setDraggedNodeType(null);
+      setMousePosition(null);
+      setNode(null);
+      clearAll();
+      console.log('Node generation cancelled');
+    }
+  }, [isOnGeneratingNewNode]);
+
       
   useEffect(() => {
     if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove as unknown as EventListener);
       document.addEventListener('click', handleMouseSettlePosition as unknown as EventListener);
+      document.addEventListener('contextmenu', handleRightClick as unknown as EventListener); // 新增监听右键点击
       return () => {
         document.removeEventListener('mousemove', handleMouseMove as unknown as EventListener);
         document.removeEventListener('click', handleMouseSettlePosition as unknown as EventListener);
+        document.removeEventListener('contextmenu', handleRightClick as unknown as EventListener); // 移除监听
       };
     }
-  }, [isDragging, handleMouseMove, handleMouseSettlePosition]);
+  }, [isDragging, handleMouseMove, handleMouseSettlePosition, handleRightClick]);
+
+
+//   const handleMouseMove = useCallback((event: MouseEvent) => {
+//     if (isDragging) {
+//         // 更新最后的鼠标位置
+//         lastMousePositionRef.current = {
+//             x: event.clientX,
+//             y: event.clientY
+//         };
+//         setMousePosition({ x: event.clientX, y: event.clientY });
+//     }
+// }, [isDragging]);
+
+// const handleMouseSettlePosition = useCallback((event: React.MouseEvent) => {
+//     if (isDragging && draggedNodeType && lastMousePositionRef.current) {
+//         event.preventDefault();
+//         event.stopPropagation();
+        
+//         const newNodeId = nanoid(6);
+//         // 使用记录的最后位置，而不是 click 事件的位置
+//         const position = screenToFlowPosition({
+//             x: lastMousePositionRef.current.x - 32 * getZoom(),
+//             y: lastMousePositionRef.current.y - 32 * getZoom(),
+            
+//         });
+      
+//         setNode({nodeid: newNodeId, nodeType: draggedNodeType});
+//         setMousePosition(position);
+//     }
+// }, [isDragging, draggedNodeType, screenToFlowPosition, getZoom]);
+
+// useEffect(() => {
+//     if (isDragging) {
+//         const handleMouseMoveEvent = (e: MouseEvent) => handleMouseMove(e);
+//         const handleMouseSettleEvent = (e: MouseEvent) => {
+//             const reactEvent = e as unknown as React.MouseEvent;
+//             handleMouseSettlePosition(reactEvent);
+//         };
+
+//         document.addEventListener('mousemove', handleMouseMoveEvent);
+//         document.addEventListener('click', handleMouseSettleEvent);
+        
+//         return () => {
+//             document.removeEventListener('mousemove', handleMouseMoveEvent);
+//             document.removeEventListener('click', handleMouseSettleEvent);
+//             // 清理最后位置记录
+//             lastMousePositionRef.current = null;
+//         };
+//     }
+// }, [isDragging, handleMouseMove, handleMouseSettlePosition]);
   
   /*
     0: Text + TextSubMenu
@@ -83,41 +161,91 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
   */
   const [selectedNodeMenuSubMenu, setSelectedNodeMenuSubMenu] = useState(-1)
 
+  // useEffect(() => {
+  //   console.log("mousePosition", mousePosition)
+  // }, [mousePosition])
+
   useEffect(() => {
 
-    if (!node) return
+    if (!node || !isOnGeneratingNewNode) return
 
-    const addNodeAndSetFlag = async () => {
-      await addNode(node.nodeid); // 假设 addNode 返回一个 Promise
-      setIsAdd(true);
-    };
+    // const addNodeAndSetFlag = async () => {
+    //   await addNode(node.nodeid); // 假设 addNode 返回一个 Promise
+    //   setIsAdd(true);
+    // };
 
-    if (!isAdd) {
-      addNodeAndSetFlag()
-      addCount()
+    // if (!isAdd) {
+    //   addNodeAndSetFlag()
+    //   addCount()
+    // }
+
+   
+    //   if (mousePosition) {
+    //     // console.log(nodes)
+    //   // const location = Math.random() * 500;
+    //   setNodes(prevNodes => [
+    //     ...prevNodes,
+    //     {
+    //         id: node.nodeid,
+    //         position: mousePosition,
+    //         data: { 
+    //           content: "",
+    //           label: node.nodeid,
+    //           isLoading: false,
+    //           locked: false,
+    //           isInput: false,
+    //           isOutput: false,
+    //           editable: false,
+    //          },
+    //         type: node.nodeType,
+    //     }
+    // ]);
+    //   setNode(null)
+    //   // setIsAdd(false)
+    //   setIsDragging(false)
+    //   setDraggedNodeType(null)
+    //   setMousePosition(null)
+    //   // allowActivateOtherNodesWhenConnectEnd()
+    //   clearAll()
+
+    // }
+    if (mousePosition) {
+      console.log("mousePosition will be set", mousePosition)
+      const defaultNodeContent = node.nodeType === "switch" ? "OFF" : ""
+      new Promise(resolve => {
+        setNodes(prevNodes => {
+            resolve(null);  // 在状态更新完成后解析 Promise
+            return [
+                ...prevNodes,
+                {
+                    id: node.nodeid,
+                    position: mousePosition,
+                    data: { 
+                      content: defaultNodeContent,
+                      label: node.nodeid,
+                      isLoading: false,
+                      locked: false,
+                      isInput: false,
+                      isOutput: false,
+                      editable: false,
+                     },
+                    type: node.nodeType,
+                }
+            ];
+        });
+    }).then(() => {
+        
+      setNode(null);
+      setIsDragging(false);
+      setDraggedNodeType(null);
+      setMousePosition(null);
+       
+    }).finally(() => {
+      clearAll()
+      
+    });
     }
-    else if (isAdd && mousePosition) {
-      // console.log(nodes)
-      // const location = Math.random() * 500;
-      setNodes(prevNodes => [
-        ...prevNodes,
-        {
-            id: node.nodeid,
-            position: mousePosition,
-            data: { content: "" },
-            type: node.nodeType,
-        }
-    ]);
-      setNode(null)
-      setIsAdd(false)
-      setIsDragging(false)
-      setDraggedNodeType(null)
-      setMousePosition(null)
-      allowActivateNode()
-      clear()
-
-    }
-  }, [node, isAdd])
+  }, [node, isOnGeneratingNewNode])
 
   useEffect(() => {
     if (selectedMenu === 0) {
@@ -146,7 +274,10 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       case "Switchsub1":
         value = 3
         break
-      case 'Databasesub1':
+      // case 'Databasesub1':
+      //   value = 4
+      //   break
+      case 'VectorDatabasesub1':
         value = 4
         break
       case 'Otherssub1':
@@ -161,9 +292,14 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
   }
 
 
-   // 渲染拖拽指示器
+  //  渲染拖拽指示器
    const renderDragIndicator = () => {
-    if (!isDragging || !draggedNodeType || !mousePosition) return <></>;
+    if (!isDragging || !draggedNodeType || !mousePosition || !isOnGeneratingNewNode || node ) return <></>;
+
+    
+
+  
+
 
     let renderSvgName: string
     switch (draggedNodeType) {
@@ -219,17 +355,19 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
           transform: 'translate(-50%, -50%)'
         }}
       >
-        <img src={renderSvgName} alt="text block Node Prototype" width={getZoom() * 186} height={getZoom() * 96} />
+        <img src={renderSvgName} alt="text block Node Prototype" width={getZoom() * 186} height={getZoom() * 96} style={{
+          pointerEvents: 'none'
+        }}/>
       </div>
     );
   };
 
   return (
         <>
-         <ul id="nodeMenu" className={`${selectedMenu === 1? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 hidden'} will-change-auto bg-[#1c1d1f] rounded-[8px] border-solid border-[1px] border-[#3e3e41] absolute top-[59px] left-[37px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[10px] p-[10px] transition-all duration-300 ease-in-out transform origin-top`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
+         <ul id="nodeMenu" className={`${selectedMenu === 1? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 hidden'} will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[37px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[10px] p-[10px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
   
   <li>
-      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer ${selectedNodeMenuSubMenu === 0 ? "bg-main-blue" : ""} transition-colors`} 
+      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer ${selectedNodeMenuSubMenu === 0 ? "bg-main-blue" : ""} transition-colors`} 
       onMouseEnter={() => {manageNodeMenuSubMenu("Textsub1")}}
       onClick={(event)=> {
         event.preventDefault()
@@ -239,11 +377,11 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
         handleMouseDown("text")
       }}>
       <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>Aa</div>
-      <div className='text-[12px] font-[700] pt-1'>Text</div>
+      <div className='text-[12px] font-[500] pt-1'>Text</div>
       </button> 
   </li> 
   <li>
-      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer ${selectedNodeMenuSubMenu === 1 ? "bg-main-blue" : ""} transition-colors`} 
+      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer ${selectedNodeMenuSubMenu === 1 ? "bg-main-blue" : ""} transition-colors`} 
       onMouseEnter={() => {manageNodeMenuSubMenu("StructuredTextsub1")}}
       onClick={(event)=> {
         event.preventDefault()
@@ -254,10 +392,10 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       }}>
       <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[16px] font-[400] rounded-[5px]'> {"{Aa}"}
       </div>
-      <div className='text-[12px] font-[700] pt-1'>Structured Text</div>
+      <div className='text-[12px] font-[500] pt-1'>Structured Text</div>
       </button> 
   </li> 
-  <li>
+  {/* <li>
     <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 2 ? "bg-main-blue" : ""}`} 
     onMouseEnter={() => {manageNodeMenuSubMenu("Filesub1")}}
     onClick={(event) => {
@@ -276,9 +414,9 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       </div>
       <div className='text-[12px] font-[700] pt-1'>File</div>
     </button>
-  </li>
+  </li> */}
   <li>
-    <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 3 ? "bg-main-blue" : ""}`} 
+    <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start  gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 3 ? "bg-main-blue" : ""}`} 
     onMouseEnter={() => {manageNodeMenuSubMenu("Switchsub1")}}
     onClick={(event) => {
       event.preventDefault()
@@ -294,10 +432,10 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       <rect x="14.5" y="3.5" width="7" height="7" rx="3.5" stroke="#CDCDCD"/>
     </svg>
       </div>
-      <div className='text-[12px] font-[700] pt-1'>Switch</div>
+      <div className='text-[12px] font-[500] pt-1'>Switch</div>
     </button>
   </li>
-  <li>
+  {/* <li>
     <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start justify-between gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 4 ? "bg-main-blue" : ""}`}
      onMouseEnter={() => {manageNodeMenuSubMenu("Databasesub1")}}>
     <div className='flex gap-2'>
@@ -321,11 +459,43 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
     </button>
     <DatabaseSubMenu selectedMenu={selectedNodeMenuSubMenu === 4 ? 1 : 0} 
     handleMouseDown={handleMouseDown}/>
-  </li> 
+  </li>  */}
+  {/* <li>
+        <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start justify-between gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 4 ? "bg-main-blue" : ""}`} 
+        onMouseEnter={() => {manageNodeMenuSubMenu("VectorDatabasesub1")}}
+        onClick={(event)=> {
+          event.preventDefault()
+          event.stopPropagation()
+          // setNode({nodeid: `${totalCount + 1}`, nodeType: "vector_database"})
+          // setIsAdd(false)
+          handleMouseDown("vector_database")
+        }}>
+        <div className='flex gap-[16px]'>
+        <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="31" viewBox="0 0 14 31" fill="none">
+          <path d="M11.4999 20.2173C11.4999 20.3604 11.4366 20.5346 11.2452 20.7353C11.0513 20.9386 10.7471 21.1444 10.3328 21.3281C9.50551 21.695 8.32759 21.9346 6.99997 21.9346C5.67235 21.9346 4.49443 21.695 3.66715 21.3281C3.25286 21.1444 2.94862 20.9386 2.75474 20.7353C2.5633 20.5346 2.5 20.3604 2.5 20.2173C2.5 20.0742 2.5633 19.9 2.75474 19.6993C2.94862 19.496 3.25286 19.2902 3.66715 19.1065C4.49443 18.7396 5.67235 18.5 6.99997 18.5C8.32759 18.5 9.50551 18.7396 10.3328 19.1065C10.7471 19.2902 11.0513 19.496 11.2452 19.6993C11.4366 19.9 11.4999 20.0742 11.4999 20.2173Z" stroke="#CDCDCD"/>
+          <path fillRule="evenodd" clipRule="evenodd" d="M2 25.3911C2.00002 26.4796 4.23857 27.362 6.99997 27.362C9.76136 27.362 11.9999 26.4796 11.9999 25.3911H10.9613C10.9513 25.4017 10.9394 25.4136 10.9252 25.4267C10.7951 25.548 10.5524 25.7032 10.1688 25.8544C9.40749 26.1545 8.28754 26.362 6.99997 26.362C5.7124 26.362 4.59245 26.1545 3.83118 25.8544C3.44757 25.7032 3.20482 25.548 3.07471 25.4267C3.06058 25.4136 3.04866 25.4017 3.03863 25.3911H2ZM2.98881 25.4556C2.98866 25.4556 2.9893 25.4539 2.99121 25.4505C2.98992 25.4539 2.98896 25.4556 2.98881 25.4556ZM11.0087 25.4505C11.0106 25.4539 11.0113 25.4556 11.0111 25.4556C11.011 25.4556 11.01 25.4539 11.0087 25.4505Z" fill="#CDCDCD"/>
+          <path fillRule="evenodd" clipRule="evenodd" d="M2 22.9275C2.00002 24.016 4.23857 24.8984 6.99997 24.8984C9.76136 24.8984 11.9999 24.016 11.9999 22.9275H10.9613C10.9513 22.9381 10.9394 22.9499 10.9252 22.9631C10.7951 23.0844 10.5524 23.2396 10.1688 23.3908C9.40749 23.6909 8.28754 23.8984 6.99997 23.8984C5.7124 23.8984 4.59245 23.6909 3.83118 23.3908C3.44757 23.2396 3.20482 23.0844 3.07471 22.9631C3.06058 22.9499 3.04866 22.9381 3.03863 22.9275H2ZM2.98881 22.992C2.98866 22.992 2.9893 22.9903 2.99121 22.9869C2.98992 22.9903 2.98896 22.992 2.98881 22.992ZM11.0087 22.9869C11.0106 22.9903 11.0113 22.992 11.0111 22.992C11.011 22.992 11.01 22.9903 11.0087 22.9869Z" fill="#CDCDCD"/>
+          <path fillRule="evenodd" clipRule="evenodd" d="M2.00422 27.8547C2.00142 27.8852 2 27.9159 2 27.9467C2 29.1713 4.23856 30.164 6.99997 30.164C9.76138 30.164 11.9999 29.1713 11.9999 27.9467C11.9999 27.9159 11.9985 27.8852 11.9957 27.8547H10.9516C10.9716 27.8823 10.9835 27.9039 10.9904 27.9188C10.9965 27.932 10.9986 27.94 10.9994 27.9432L10.9999 27.9462L10.9999 27.9467L10.9999 27.9472L10.9994 27.9502C10.9986 27.9533 10.9965 27.9614 10.9904 27.9746C10.9778 28.0018 10.9482 28.0517 10.8834 28.1196C10.7486 28.2609 10.5063 28.4336 10.1301 28.6004C9.38034 28.9329 8.27451 29.164 6.99997 29.164C5.72543 29.164 4.61959 28.9329 3.86985 28.6004C3.49368 28.4336 3.2513 28.2609 3.11656 28.1196C3.05178 28.0517 3.02216 28.0018 3.00958 27.9746C3.00348 27.9614 3.00131 27.9533 3.00058 27.9502L3.00004 27.9472L3 27.9467L3.00004 27.9462L3.00058 27.9432C3.00131 27.94 3.00348 27.932 3.00958 27.9188C3.01644 27.9039 3.02838 27.8823 3.04834 27.8547H2.00422Z" fill="#CDCDCD"/>
+          <path d="M11.5002 27.9773L11.4998 20.4773" stroke="#CDCDCD"/>
+          <path d="M2.5 27.9773L2.5 20.4773" stroke="#CDCDCD"/>
+          <path d="M0 14L4.59725 13.5543L1.91262 9.79581L0 14ZM6.7675 8.67451L2.69695 11.582L3.16194 12.233L7.2325 9.32549L6.7675 8.67451Z" fill="#CDCDCD"/>
+          <path d="M7 9V2" stroke="#CDCDCD" strokeWidth="1.5"/>
+          <path d="M7 -8.9407e-08L4.6906 4L9.3094 4L7 -8.9407e-08Z" fill="#CDCDCD"/>
+          <path d="M7 9L2 12.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+          <path d="M14 14L9.40275 13.5543L12.0874 9.79581L14 14ZM7.2325 8.67451L11.3031 11.582L10.8381 12.233L6.7675 9.32549L7.2325 8.67451Z" fill="#CDCDCD"/>
+          <path d="M7 9L12 12.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+          </svg>
+      </div>
+      <div className='text-[12px] font-[500] pt-1'>Vector DB</div>
+        </div>
+        
+        </button> 
+  </li> */}
   <li>
-    <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start justify-between gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 5 ? "bg-main-blue" : ""}`}
+    <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start justify-between gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 5 ? "bg-main-blue" : ""}`}
      onMouseEnter={() => {manageNodeMenuSubMenu("Otherssub1")}}>
-    <div className='flex gap-2'>
+    <div className='flex gap-[16px]'>
       <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="12" viewBox="0 0 20 12" fill="none">
           <rect width="4" height="4" fill="#CDCDCD"/>
@@ -336,7 +506,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
           <rect x="16" y="8" width="4" height="4" fill="#CDCDCD"/>
         </svg>
         </div>
-        <div className='text-[12px] font-[700] pt-1'>Others</div>
+        <div className='text-[12px] font-[500] pt-1'>Others</div>
     </div>
     <div className='h-full w-[12px] flex items-center justify-center'>
     <svg xmlns="http://www.w3.org/2000/svg" width="7" height="14" viewBox="0 0 7 14" fill="none">

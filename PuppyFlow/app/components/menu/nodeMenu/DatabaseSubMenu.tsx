@@ -1,7 +1,5 @@
-import React, {useState, useEffect} from 'react'
-import { useNodeContext } from '../../states/NodeContext'
+import React from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { nodeSmallProps } from './NodeMenu'
 
 type DatabaseSubMenuProps = {
     selectedMenu: number,
@@ -13,12 +11,11 @@ type DatabaseSubMenuProps = {
 
 function DatabaseSubMenu({selectedMenu, handleMouseDown}: DatabaseSubMenuProps) {
     const {getNodes, setNodes} = useReactFlow()
-  const {addNode, nodes, totalCount, addCount} = useNodeContext()
 
 
 
   return (
-        <ul id="nodeMenu" className={` ${selectedMenu === 1? 'opacity-100 translate-y-0' : 'opacity-0 hidden translate-y-4'}  bg-[#1c1d1f] rounded-[8px] border-solid border-[1px] border-[#3e3e41] absolute top-[275px] overflow-hidden left-[195px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[6px] p-[6px] transition-all duration-300 ease-in-out transform origin-top`} >
+        <ul id="nodeMenu" className={` ${selectedMenu === 1? 'opacity-100 translate-y-0' : 'opacity-0 hidden translate-y-4'}  bg-[#1c1d1f] rounded-[8px] border-solid border-[1px] border-[#3e3e41] absolute top-[207px] overflow-hidden left-[195px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[6px] p-[6px] transition-all duration-300 ease-in-out transform origin-top`} >
         <li>
             <button id="" className='w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors' onClick={(event)=> {
               event.preventDefault()

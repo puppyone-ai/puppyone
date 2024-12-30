@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
+    "dev": "next dev -p 4000",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 4000",
     "lint": "next lint"
   },
   "dependencies": {
@@ -40,11 +40,16 @@
     "antd": "^5.22.0",
     "elkjs": "^0.9.3",
     "file-saver": "^2.0.5",
+    "http-proxy-middleware": "^3.0.3",
+    "js-cookie": "^3.0.5",
     "json-edit-react": "^1.15.10-rc1",
     "lodash": "^4.17.21",
     "lucide-react": "^0.454.0",
+    "moment-timezone": "^0.5.46",
     "monaco-python": "^0.1.7",
+    "nanoid": "^5.0.9",
     "next": "^14.2.5",
+    "nookies": "^2.5.2",
     "react": "^18",
     "react-ace": "^12.0.0",
     "react-dom": "^18",
@@ -53,10 +58,12 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "@types/lodash": "^4.17.7",
     "@types/node": "20.14.14",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/uuid": "^10.0.0",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
     "postcss": "^8",

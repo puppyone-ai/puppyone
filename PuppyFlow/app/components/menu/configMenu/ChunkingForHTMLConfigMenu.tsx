@@ -3,13 +3,13 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import JSONForm from '../tableComponent/JSONForm'
 import useJsonConstructUtils, {NodeJsonType, FileData} from '../../hooks/useJsonConstructUtils'
-import { useNodeContext } from '../../states/NodeContext'
-import { nodeSmallProps } from '../nodeMenu/NodeMenu'
+// import { useNodeContext } from '../../states/NodeContext'
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import JSONConfigEditor from '../tableComponent/JSONConfigEditor'
 import { ChunkingConfigNodeData } from '../../workflow/edges/configNodes/ChunkingConfig'
 import { backend_IP_address_for_sendingData } from '../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../workflow/edges/ConfigToTargetEdge'
-
+import { nanoid } from 'nanoid'
 
 type ChunkingForHTMLConfigProps = {
     show: boolean,
@@ -17,32 +17,38 @@ type ChunkingForHTMLConfigProps = {
 }
 
 export type ChunkingHTMLEdgeJsonType = {
-    id: string,
+    // id: string,
     type: "chunk",
     data: {
-        inputs:{id: string, label: string}[],
+        inputs: { [key: string]: string },
         chunking_mode: "advanced",
         sub_chunking_mode: "html",
         extra_configs: {
             tags: tagType,
         },
         looped: boolean,
-        outputs: {id: string, label: string}[]
+        outputs: { [key: string]: string }
     },
+}
+
+type ConstructedChunkingForHTMLJsonData = {
+    blocks: { [key: string]: NodeJsonType },
+    edges: { [key: string]: ChunkingHTMLEdgeJsonType }
 }
 
 type tagType = [string, string][] | string[]
 function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
-    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError} = useJsonConstructUtils()
-    const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
+    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
+    // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
+    const {clearAll} = useNodesPerFlowContext()
     // const {getZoom, getViewport, getNode, flowToScreenPosition} = useReactFlow()
     const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as ChunkingConfigNodeData)?.resultNode ?? null
     )
-    const [isAddContext, setIsAddContext] = useState(true)
+    // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
 
@@ -55,10 +61,61 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
         if (!resultNode) return
         if (isComplete) return
     
-        const addNodeAndSetFlag = async () => {
-          await addNode(resultNode); // 假设 addNode 返回一个 Promise
-          setIsAddContext(true);
-        };
+        const addNewNodeEdgeIntoFlow = async () => {
+            const parentEdgeNode = getNode(parentId)
+            if (!parentEdgeNode) return
+            const location = {
+                // 120 - 24 = 96 is half of the height of the targetNode - chunk node
+                x: parentEdgeNode.position.x + 160,
+                y: parentEdgeNode.position.y - 96,
+            }
+
+            const newNode = {
+                id: resultNode,
+                position: location,
+                data: { 
+                    content: "", 
+                    label: resultNode,
+                    isLoading: true,
+                    locked: false,
+                    isInput: false,
+                    isOutput: false,
+                    editable: false,
+                },
+                type: 'structured',
+            }
+
+            const newEdge = {
+                id: `connection-${Date.now()}`,
+                source: parentId,
+                target: resultNode,
+                type: "floating",
+                data: {
+                    connectionType: "CTT",
+                },
+                markerEnd: markerEnd,
+            }
+
+            await Promise.all([
+                new Promise(resolve => {
+                    setNodes(prevNodes => {
+                        resolve(null);
+                        return [...prevNodes, newNode];
+                    })
+                }),
+                new Promise(resolve => {
+                    setEdges(prevEdges => {
+                        resolve(null);
+                        return [...prevEdges, newEdge];
+                    })
+                }),
+            ]);
+
+            onResultNodeChange(resultNode)
+            setIsAddFlow(true)
+            // 不可以和 setEdge, setNodes 发生冲突一定要一先一后
+            // clearActivation()
+        }
 
         const sendData = async  () => {
             try {
@@ -85,48 +142,18 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
                     console.warn(error)
                     window.alert(error)
                 } finally {
+                    resetLoadingUI(resultNode)
                     setIsComplete(true)
                 }
         }
     
-        if (!isAddContext) {
-          addNodeAndSetFlag()
-          addCount()
+        if (!isAddFlow && !isComplete) {
+            addNewNodeEdgeIntoFlow()
         }
-        else if (isAddContext && !isAddFlow) {
-            const parentEdgeNode = getNode(parentId)
-            if (!parentEdgeNode) return
-            const location = {
-                // 120 - 40 = 80 is half of the width of the target node - chunk node
-                x: parentEdgeNode.position.x - 80,
-                y: parentEdgeNode.position.y + 160
-            }
-            setNodes(prevNodes => [
-                ...prevNodes,
-                {
-                    id: resultNode,
-                    position: location,
-                    data: { content: "" },
-                    type: "structured",
-                }
-        ]);
-        setEdges((edges) => edges.concat({
-            id: `connection-${Date.now()}`,
-            source: parentId,
-            target: resultNode,
-            type: "CTT",
-            markerEnd: markerEnd,
-        }))
-           setIsAddFlow(true)  
-            allowActivateNode()
-            clear()
-    
-        }
-        else if (isAddContext && isAddFlow) {
+        else if (isAddFlow && !isComplete) {
             sendData()
-            
         }
-      }, [resultNode, isAddContext, isAddFlow, isComplete])
+      }, [resultNode, isAddFlow, isComplete])
 
   
 
@@ -151,57 +178,58 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
         ))
     }
     
-    const constructJsonData = () => {
+    const constructJsonData = (): ConstructedChunkingForHTMLJsonData | Error => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
             resultNodeLabel = getNode(resultNode)?.data?.label as string
         }
         else {
-            resultNodeLabel = resultNode || `${totalCount + 1}`
+            resultNodeLabel = resultNode as string
         }
-        let blocks: NodeJsonType[] = [{
-            id: resultNode || `${totalCount + 1}`,
-            label: resultNodeLabel,
-            type: "structured",
-            data:{content: ""}
-        }]
+        let blocks: {[key: string]: NodeJsonType} = {
+            [resultNode as string]: {
+                label: resultNodeLabel as string,
+                type: "structured",
+                data:{content: ""}
+            }
+        }
         for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id)
             if (!nodeInfo) continue
             const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return "error"
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
             const nodejson: NodeJsonType = {
-                id: nodeInfo.id,
+                // id: nodeInfo.id,
                 label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
                 type: nodeInfo.type!,
                 data: {
                     content: nodeContent,
-                    ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
+                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
                 }
             }
-            blocks = [...blocks, nodejson]
+            blocks[nodeInfo.id] = nodejson
         }
 
-        let edges:ChunkingHTMLEdgeJsonType[] = []
+        let edges: { [key: string]: ChunkingHTMLEdgeJsonType } = {}
 
         const tagValue: tagType = getNode(parentId)?.data.content ? cleanJsonString(getNode(parentId)?.data.content as string) : []
         const edgejson: ChunkingHTMLEdgeJsonType = {
-            id: parentId,
+            // id: parentId,
             type: "chunk",
             data: {  
-                inputs: sourceNodeIdWithLabelGroup,
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 chunking_mode: "advanced",
                 sub_chunking_mode: "html",
                 extra_configs: {
                     tags:tagValue
                 },
                 looped: isLoop,
-                outputs: [{id: resultNode || `${totalCount + 1}`, label: resultNodeLabel}]
+                outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
 
-        edges = [...edges, edgejson]
+        edges[parentId] = edgejson
         console.log(blocks, edges)
 
         return {
@@ -212,24 +240,31 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
 
 
     const onDataSubmit = async () => {
+          // click 第一步： clearActivation
+          await new Promise(resolve => {
+            clearAll()
+            resolve(null)
+        });
+
+        // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
         if (!resultNode || !getNode(resultNode)){
 
-            onResultNodeChange(`${totalCount+1}`)
-
-            setResultNode(`${totalCount+1}`)
+            const newResultNodeId = nanoid(6)
+            // onResultNodeChange(newResultNodeId)
+            setResultNode(newResultNodeId)
             
-            setIsAddContext(false)
+            // setIsAddContext(false)
             setIsAddFlow(false)
         }
+        // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
         else {
             setNodes(prevNodes => prevNodes.map(node => {
                 if (node.id === resultNode){
-                    return {...node, data: {...node.data, content: ""}}
+                    return {...node, data: {...node.data, content: "", isLoading: true}}
                 }
                 return node
             }))
-            allowActivateNode()
-            clear()
+          
         }
         setIsComplete(false)
         };

@@ -2,18 +2,19 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import { useDropzone } from 'react-dropzone'
-import { useNodeContext } from '../../states/NodeContext'
+// import { useNodeContext } from '../../states/NodeContext'
 import {useReactFlow, Panel} from '@xyflow/react'
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
 
 type MoreOptionsButtonMenuProps = {
   clearTopRightToolBarMenu: () => void
 }
 function MoreOptionsButtonMenu({clearTopRightToolBarMenu}: MoreOptionsButtonMenuProps) {
 
-  const {restore} = useNodeContext()
   const {setNodes, setEdges} = useReactFlow()
   const fileInputRef = useRef<HTMLInputElement>(null);
   const moreOptionsButtonMenuRef = useRef<HTMLUListElement>(null);
+  const {constructWholeJsonWorkflow} = useJsonConstructUtils()
   
   
 
@@ -80,6 +81,7 @@ function MoreOptionsButtonMenu({clearTopRightToolBarMenu}: MoreOptionsButtonMenu
   // }, [file])
 
 
+  /* --  used for upload json file -- */
   const openFile = async () => {
     try {
       if ('showOpenFilePicker' in window) {
@@ -163,7 +165,7 @@ function MoreOptionsButtonMenu({clearTopRightToolBarMenu}: MoreOptionsButtonMenu
       const jsonContent = JSON.parse(text);
       
       if (jsonContent.blocks && jsonContent.edges) {
-        restore(jsonContent.blocks, jsonContent.edges, jsonContent.totalCount);
+        // restore(jsonContent.blocks, jsonContent.edges, jsonContent.totalCount);
         setNodes(jsonContent.blocks);
         setEdges(jsonContent.edges);
       }
@@ -186,12 +188,65 @@ const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   }
 };
 
+ 
+/* -- used for save json file -- */
+const saveJsonToLocal = async (jsonData: any) => {
+  const stringJsonData = JSON.stringify(jsonData, null, 2);
+  const blob = new Blob([stringJsonData], { type: "application/json;charset=utf-8" });
+
+  // console.log(window)
+
+  try {
+      // 尝试使用现代 API
+      if ( 'showSaveFilePicker' in window) {
+          const fileHandle = await (window as any).showSaveFilePicker({
+              suggestedName: 'data.json',
+              types: [{
+                  description: 'JSON File',
+                  accept: { 'application/json': ['.json'] },
+              }],
+          });
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+      } else {
+          
+
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          document.body.appendChild(iframe);
+          
+          // 在 iframe 中创建链接并触发下载
+          const iframeWindow = iframe.contentWindow;
+          const url = URL.createObjectURL(blob);
+          
+          if (iframeWindow) {
+          const link = iframeWindow.document.createElement('a');
+          link.href = url;
+          link.download = 'data.json';
+          link.click();
+          }
+          
+          // 延迟清理
+          setTimeout(() => {
+          document.body.removeChild(iframe);
+          URL.revokeObjectURL(url);
+          }, 1000);
+
+          
+      }
+  }catch (err) {
+      console.error('保存文件时出错:', err);
+  }
+
+}
+
 
   return (
     <>
     <ul ref={moreOptionsButtonMenuRef} className='bg-[#3E3E41] py-[8px] rounded-[10px] flex flex-col items-center justify-center absolute top-10 left-0'>
         <li>
-            <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap' onClick={(e) => {
+            <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap' onClick={(e) => {
                 // open()
                 // openFile()
                 e.stopPropagation()
@@ -204,22 +259,29 @@ const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
                 fileInputRef.current?.click()
                 
             }}>
-                Upload JSON
+                import JSON
             </button>
-            {/* <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleInputChange}
-            accept=".json"
-            style={{ display: 'none' }}
-          /> */}
-            {/* {ReactDOM.createPortal(
-      <div {...getRootProps()} style={{display: 'none', position: 'absolute', top: "50%", right: "50%", transform: "translate(50%, -50%)", zIndex: 9999, padding: 20, border: '2px dashed #ccc' }}>
-        <input {...getInputProps()} />
-        <p className='text-center text-main-grey'>Drag and drop files here, or click to select files</p>
-    </div>, document.getElementById('flowChart') as Element
-    )}   */}
         </li>
+        <li>
+        <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap' onClick={() => {
+            const jsonData = constructWholeJsonWorkflow()
+            console.log(jsonData)
+            saveJsonToLocal(jsonData)
+            clearTopRightToolBarMenu()
+        }}>
+                export JSON
+            </button>
+        </li>
+    <li>
+        <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'>
+            Publish API
+        </button>
+    </li>
+    <li>
+        <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'>
+            Share Link
+        </button>
+    </li>
     </ul>
     {ReactDOM.createPortal(
       <input
@@ -241,37 +303,6 @@ const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       />,
       document.body
     )}
-     {/* {showUploadFileForm && ReactDOM.createPortal(
-        <form className='absolute p-[20px] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[10000000] bg-[#3E3E41] rounded-[10px] flex flex-col items-center justify-center'>
-          <input
-          id="file-input"
-          type="file"
-          ref={fileInputRef}
-          onChange={(e) => {
-            e.stopPropagation();
-            const file = e.target.files?.[0];
-           
-            console.log(file, "file")
-            if (file) {
-              setFile(file)
-            }
-          }}
-          onClick={(e) => e.stopPropagation()}
-          accept=".json"
-        />
-        SelectedFileName: {file?.name}
-        <div className='flex justify-between items-center gap-[6px]'>
-        <button className='bg-main-green text-white px-[10px] py-[4px] rounded-[4px] text-[10px]' onClick={async () => {
-          if (file) {
-            await handleFileContent(file)
-          }
-          setShowUploadFileForm(false)
-        }}>Confirm Upload</button>
-        <button className='bg-main-red text-white px-[10px] py-[4px] rounded-[4px] text-[10px]' onClick={() => setShowUploadFileForm(false)}>Cancel Upload</button>
-        </div>
-        </form>,
-        document.body
-      )} */}
     </>
     
   )

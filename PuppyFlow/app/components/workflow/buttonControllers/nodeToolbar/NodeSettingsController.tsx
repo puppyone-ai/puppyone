@@ -1,9 +1,11 @@
 
-import { useNodeContext } from '@/app/components/states/NodeContext'
+// import { useNodeContext } from '@/app/components/states/NodeContext'
+import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import { Position } from '@xyflow/react'
 import React, {useState, useRef, useEffect} from 'react'
 import { useReactFlow } from '@xyflow/react'
-import TextJsonNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/TextJsonNodeSettingMenu' 
+import TextNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/TextNodeSettingMenu' 
+import JsonNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/JsonNodeSettingMenu'
 import FileNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/FileNodeSettingMenu'
 import WebLinkNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/WebLinkNodeSettingMenu'
 import DatabaseNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/DatabaseNodeSettingMenu'
@@ -18,7 +20,8 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
     const settingControllerRef = useRef<HTMLButtonElement | null>(null)
     const componentRef = useRef<HTMLDivElement | null>(null)
     const [showSettingMenu, setShowSettingMenu] = useState(0) // for toolbar
-    const {searchNode, inactivateHandle} = useNodeContext()
+    // const {searchNode, inactivateHandle} = useNodeContext()
+    const {activatedNode, setHandleActivated} = useNodesPerFlowContext()
     const {getNode} = useReactFlow()
   
 
@@ -43,21 +46,22 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
 
 
     useEffect(() => {
-        if (!searchNode(nodeid)?.activated) {
+        if (activatedNode?.id !== nodeid) {
             setShowSettingMenu(0)
         }
-    }, [searchNode(nodeid)?.activated])
+    }, [activatedNode?.id])
     
 
 
     const manageSettings = () => {
-        const target = searchNode(nodeid)
+        const target = getNode(nodeid)
         if (target) {
             
-            if (target.TopSrcHandle.activated) inactivateHandle(nodeid, Position.Top)
-            else if (target.RightSrcHandle.activated) inactivateHandle(nodeid, Position.Right)
-            else if (target.BottomSrcHandle.activated) inactivateHandle(nodeid, Position.Bottom)
-            else if (target.LeftSrcHandle.activated) inactivateHandle(nodeid, Position.Left)
+            // if (target.TopSrcHandle.activated) inactivateHandle(nodeid, Position.Top)
+            // else if (target.RightSrcHandle.activated) inactivateHandle(nodeid, Position.Right)
+            // else if (target.BottomSrcHandle.activated) inactivateHandle(nodeid, Position.Bottom)
+            // else if (target.LeftSrcHandle.activated) inactivateHandle(nodeid, Position.Left)
+            setHandleActivated(nodeid, null)
             
             setShowSettingMenu(prev => prev === 0 ? 1 : 0)
         }
@@ -81,8 +85,9 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
         const parentNodeType = getNode(nodeid)?.type
         switch (parentNodeType) {
             case "text":
+                return <TextNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
             case "structured":
-                return <TextJsonNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
+                return <JsonNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
             case "file":
                 return <FileNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
             case "weblink":
@@ -93,7 +98,7 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
             case "switch":
                 return <SwitchNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
             default:
-                return <TextJsonNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
+                return <TextNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
         }
     }
 
@@ -102,7 +107,7 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
 
   return(
     <div ref={componentRef}>
-     <button ref={settingControllerRef} className={`flex items-center justify-center ${isHovered || showSettingMenu ? "bg-main-grey" : ""} w-[16px] h-[16px] rounded-[5px]`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={manageSettings}>
+     <button ref={settingControllerRef} className={`flex items-center justify-center ${isHovered || showSettingMenu ? "bg-main-grey" : ""} w-[24px] h-[24px] rounded-[8px]`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={manageSettings}>
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="2" viewBox="0 0 11 2" fill="none">
         <path d="M0 0H2V2H0V0Z" fill={fillColor}/>
         <path d="M9 0H11V2H9V0Z" fill={fillColor}/>

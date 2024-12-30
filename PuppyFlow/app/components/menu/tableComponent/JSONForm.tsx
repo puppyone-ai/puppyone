@@ -7,8 +7,7 @@ import dynamic from 'next/dynamic';
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 import { useReactFlow } from '@xyflow/react';
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
-// import { useMonacoTheme } from '../../hooks/useMonacoTheme';
-// import { themeManager } from '../../hooks/themeManager';
+import {useNodesPerFlowContext} from '../../states/NodesPerFlowContext';
 
 const Editor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false
@@ -53,6 +52,7 @@ const JSONForm = ({preventParentDrag,
     const {getSourceNodeIdWithLabel} = useJsonConstructUtils()
     const variableRef = useRef<{id: string, label: string}[]>([])
     const jsonFormRef = useRef<HTMLDivElement>(null)
+    const {isOnGeneratingNewNode} = useNodesPerFlowContext()
     // const applyTheme = useMonacoTheme(JSON_FORM_THEME, jsonFormThemeData)
     useEffect(() => {
       const parent = getNode(parentId)
@@ -206,13 +206,14 @@ const JSONForm = ({preventParentDrag,
     
 
   return (
-    <div ref={jsonFormRef} className={`relative flex flex-col border-[1px] rounded-[4px] cursor-pointer px-[9px] py-[8px] bg-[#1C1D1F] border-[#6D7177] ${IsFocused ? "outline-[#FFA73D] outline-4 -outline-offset-2 shadow-[0_0_0_1px_rgba(205,205,205)] border-[1px] border-[#CDCDCD] transition-all duration-300 ease-in-out": "" }`}
+    <div ref={jsonFormRef} className={`relative flex flex-col border-[1px] rounded-[8px] cursor-pointer pl-[2px] pt-[8px] bg-[#1C1D1F] border-[#6D7177] ${IsFocused ? "outline-[#FFA73D] outline-4 -outline-offset-2 shadow-[0_0_0_1px_rgba(205,205,205)] border-[1px] border-[#CDCDCD] transition-all duration-300 ease-in-out": "" } ${isOnGeneratingNewNode ? 'pointer-events-none' : ''}`}
     style={{
       width: widthStyle,
-      height: heightStyle
+      height: heightStyle,
+      opacity: isOnGeneratingNewNode ? '0.7' : '1'
     }}>
     {isEmpty && (
-      <div className="absolute top-0 left-0 w-full h-full flex items-start justify-start p-[8px] pl-[44px] text-[#6D7177] bg-transparent text-[12px] font-[500] leading-normal pointer-events-none z-[10] font-jetbrains-mono">
+      <div className="absolute top-0 left-0 w-full h-full flex items-start justify-start p-[8px] pl-[44px] text-[#6D7177] bg-transparent text-[14px] font-[500] leading-normal pointer-events-none z-[10] font-jetbrains-mono">
         {placeholder}
       </div>
     )}
@@ -220,8 +221,8 @@ const JSONForm = ({preventParentDrag,
       className='json-form'
       defaultLanguage="json"
       // theme={themeManager.getCurrentTheme()}
-      width={widthStyle - 18}
-      height={heightStyle - 16}
+      width={widthStyle-8 }
+      height={heightStyle - 12}
       onChange={handleChange}
       value={getNode(parentId)?.data.content as string}
       options={{
@@ -233,7 +234,7 @@ const JSONForm = ({preventParentDrag,
           horizontal: 'hidden', // 隐藏水平滚动条
           horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
         },
-        fontSize: 12,
+        fontSize: 14,
         fontWeight: 'normal',
         lineHeight: 20,
         wordWrap: 'on',
@@ -245,6 +246,7 @@ const JSONForm = ({preventParentDrag,
         lineNumbersMinChars: 3,
         glyphMargin: false,
         lineDecorationsWidth: 0, // 控制行号和正文的间距
+        readOnly: isOnGeneratingNewNode,
       }}
       onMount={handleEditorDidMount}
     />

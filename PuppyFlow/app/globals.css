@@ -178,16 +178,36 @@
 }
 
 
+.react-flow {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 确保画布区域正确定位 */
+.react-flow__pane {
+  position: absolute !important;
+  width: 100% !important;
+  height: 100% !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 1;
+}
+
+
 .react-flow .react-flow__handle {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border-radius: 8px;
     background-color: transparent;
     border: 2px solid #42454A;
   }
 
   .react-flow .react-flow__handle:hover {
-    border: 3px solid #FFA73D;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    border: 2px solid #FFA73D;
     transition-duration: 0.3s;
     cursor: pointer;
   }
@@ -197,27 +217,27 @@
 .react-flow__draggable {
   transform: none !important;
   transition: none !important;
-  position: fixed !important;
+  position: absolute !important;
   top: 0 !important;
   left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  height: 100vh !important;
-  width: 100vw !important;
+  /* right: 0 !important;
+  bottom: 0 !important; */
+  height: 100% !important;
+  width: 100% !important;
 }
 
   .react-flow .react-flow__handle.active {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border-radius: 8px;
     background-color: transparent;
     border: 2px solid #42454A;
   }
 
   .react-flow .react-flow__handle.transparent {
-    width: 12px;
-    height: 12px;
-    border-radius: 6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
     background-color: transparent;
     border: 2px solid transparent;
     z-index: 3;
@@ -229,9 +249,9 @@
     border-radius: 8px;
     border: 2px solid #FFA73D;
   }
-
+  
   .react-flow .react-flow__handle.connectingfrom {
-    border: 3px solid #FFA73D;
+    border: 2px solid #FFA73D;
   }
 
 /* custom react flow handle position */
@@ -256,6 +276,45 @@
     border: transparent;
     
   }
+
+  .react-flow .react-flow__handle-left.edgeSrcHandle {
+    left: -10px;
+    border: transparent;
+  }
+
+  .react-flow .react-flow__handle-right.edgeSrcHandle {
+    right: -10px;
+    border: transparent;
+  }
+
+  .react-flow .react-flow__handle-top.edgeSrcHandle {
+    top: -10px;
+    border: transparent;
+  }
+
+  /* 修改选中边的样式 */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #FFA73D !important;  /* 选中时的边颜色 */
+  stroke-dasharray: 8, 4;
+  animation: flow 15s linear infinite;
+}
+
+/* 可选：添加hover效果 */
+.react-flow__edge:hover .react-flow__edge-path,
+.react-flow__edge:hover #custom-arrow-default path {
+  stroke: #FFA73D !important;
+  /* fill: #FFA73D !important; */
+}
+
+/* 定义流动动画 */
+@keyframes flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -200;
+  }
+}
 
   select {
     -webkit-appearance: none;
@@ -298,6 +357,15 @@
   input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+
+  /* 修改HeaderTitle的placeholder样式 */
+
+  .HeaderTitle:focus,
+  .FlowElementInput:focus {
+    caret-color: #CDCDCD !important;
+    caret-shape: block !important;
+    outline: none !important;
   }
   
 
@@ -681,3 +749,29 @@
   caret-color: #CDCDCD !important;
 }
 
+/* 修改 loading图标样式 */
+/* Skeleton Loading */
+.skeleton-container {
+  width: 100%;
+}
+
+.skeleton-line {
+  height: 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  margin: 10px 0;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+
+@keyframes skeleton-loading {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}

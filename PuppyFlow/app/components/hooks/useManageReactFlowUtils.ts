@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react';
 export default function useManageReactFlowUtils() {
   const [zoomOnScroll, setZoomOnScroll] = useState(true);
   const reactFlowInstance = useReactFlow();
-  const {getEdges} = reactFlowInstance
+  const {getEdges, getNode} = reactFlowInstance
 
 
   const lockZoom = useCallback(() => {
@@ -19,8 +19,14 @@ export default function useManageReactFlowUtils() {
 
   // for edgeButtonNodes
   const getResultNodes = useCallback((nodeId: string) => {
-    return getEdges().filter(edge => edge.type === "CTT" && edge.source === nodeId).map(edge => edge.target)
+    return getEdges().filter(edge => edge.type === "floating" && edge.data?.connectionType === "CTT" && edge.source === nodeId).map(edge => edge.target)
   }, [reactFlowInstance])
+
+  // judge if the node is a node or ConfigNode
+  const judgeNodeIsEdgeNode = useCallback((nodeId: string) => {
+    const nodeType = getNode(nodeId)?.type
+    return nodeType === 'load' || nodeType === 'chunk' || nodeType === 'code' || nodeType === 'generate' || nodeType === 'llm' || nodeType === 'search' || nodeType === 'embedding' || nodeType === 'modify' || nodeType === 'choose'
+  }, [])
  
 
 
@@ -28,7 +34,8 @@ export default function useManageReactFlowUtils() {
     zoomOnScroll,
     lockZoom,
     freeZoom,
-    getResultNodes
+    getResultNodes,
+    judgeNodeIsEdgeNode
   };
 }
 
