@@ -22,11 +22,12 @@ function StartCodeController() {
 
   return (
 
-    <button className='w-[28px] h-[28px] rounded-[8px] bg-[rgba(217,217,217, 0)] border-main-green border-[1.5px] border-solid flex items-center justify-center hover:cursor-pointer hover:bg-main-green transition-colors' onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onClick={onDataSubmit}>
-    <svg xmlns="http://www.w3.org/2000/svg" width="7" height="8" viewBox="0 0 5 6" fill="none">
+    <button className='w-[62px] h-[36px] rounded-r-[8px] bg-[rgba(217,217,217, 0)]  flex items-center justify-center gap-[4px] hover:cursor-pointer hover:bg-main-green transition-colors' onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} onClick={onDataSubmit}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 5 6" fill="none">
 
     <path d="M0.5 5.1169V0.883095L4.02817 3L0.5 5.1169Z" fill={hovered === true ? "#000" : "#39BC66"} stroke={hovered === true ? "#000" : "#39BC66"}/>
     </svg>
+    <div className={`text-[14px] font-plus-jakarta-sans font-semibold leading-normal ${hovered === true ? "text-[#000]" : "text-[#39BC66]"}`}>Run</div>
     </button>
   )
 }

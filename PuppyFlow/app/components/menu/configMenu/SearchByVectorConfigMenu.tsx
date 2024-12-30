@@ -2,12 +2,15 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import useJsonConstructUtils, {NodeJsonType, FileData} from '../../hooks/useJsonConstructUtils'
-import { useNodeContext } from '../../states/NodeContext'
-import { nodeSmallProps } from '../nodeMenu/NodeMenu'
+// import { useNodeContext } from '../../states/NodeContext'
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import {isEqual} from 'lodash'
 import { SearchConfigNodeData } from '@/app/components/workflow/edges/configNodes/SearchConfig'
-import { backend_IP_address_for_sendingData } from '../../hooks/useJsonConstructUtils'
+import { backend_IP_address_for_sendingData, BasicNodeData } from '../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../workflow/edges/ConfigToTargetEdge'
+import { nanoid } from 'nanoid'
+import {JsonNodeData} from '../../workflow/nodes/JsonNode'
+
 
 type SearchByVectorConfigProps = {
     show: boolean,
@@ -15,32 +18,45 @@ type SearchByVectorConfigProps = {
 }
 
 export type SearchByVectorEdgeJsonType = {
-    id: string,
+    // id: string,
     type: "search",
     data: {
-        search_type: "vector",
-        sub_search_type: "embedding",
+        // search_type: "vector",
+        // sub_search_type: "embedding",
+        search_type: "rag",
+        sub_search_type: "vector",
         top_k: number,
-        inputs: {id: string, label: string}[],
+        inputs: { [key: string]: string },
+        threshold: number,
         extra_configs: {
-            threshold: number
+            // For vector
+            provider: "openai",
+            model: "text-embedding-ada-002",
+            db_type: "pinecone",
+            collection_name: "test_collection",
         },
-        vector_db: {id: string, label: string},
-        query_id: {id: string, label: string},
+        docs_id: { [key: string]: string }, // 用于储藏vectordb的id
+        query_id: { [key: string]: string }, // 用于储藏query的id
         looped: boolean,
-        outputs: {id: string, label: string}[]
+        outputs: { [key: string]: string }
     },
+}
+
+type ConstructedSearchByVectorJsonData = {
+    blocks: { [key: string]: NodeJsonType },
+    edges: { [key: string]: SearchByVectorEdgeJsonType }
 }
 
 function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges, getNodes} = useReactFlow()
-    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError} = useJsonConstructUtils()
-    const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
+    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
+    // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
+    const {clearAll} = useNodesPerFlowContext()
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as SearchConfigNodeData)?.resultNode ?? null
     )
-    const [isAddContext, setIsAddContext] = useState(true)
+    // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     
@@ -57,9 +73,9 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
     const vectorDBRef = useRef<HTMLSelectElement>(null)
     const thresholdRef = useRef<HTMLInputElement>(null)
     const topkRef = useRef<HTMLInputElement>(null)
-    const [queryList, setQueryList] = useState<{id: string, label: string}[]>([])
-    const [vectorDBList, setVectorDBList] = useState<{id: string, label: string}[]>([])
-    const [parents, setParents] = useState<{id: string, label: string}[]>([]);
+    // const [queryList, setQueryList] = useState<{id: string, label: string}[]>([])
+    // const [vectorDBList, setVectorDBList] = useState<{id: string, label: string}[]>([])
+    // const [parents, setParents] = useState<{id: string, label: string}[]>([]);
     const [threshold, setThreshold] = useState<number | undefined>(
         (getNode(parentId)?.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7
     )
@@ -83,66 +99,117 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
     
     
     // update query and vectorDBList based on parents
-    useEffect(() => {
-            setQueryList(parents.filter(node => {
-                const nodeInfo = getNode(node.id)
-                if (nodeInfo){
-                    console.log(nodeInfo, "nodeInfo")
-                    if (nodeInfo.type === "text" || (nodeInfo.type === "none" && nodeInfo.data.subtype !== "structured")){
-                        return true
-                    }
-                }
-                return false
-            }))
+    // useEffect(() => {
+    //         setQueryList(parents.filter(node => {
+    //             const nodeInfo = getNode(node.id)
+    //             if (nodeInfo){
+    //                 console.log(nodeInfo, "nodeInfo")
+    //                 if (nodeInfo.type === "text" || (nodeInfo.type === "none" && nodeInfo.data.subtype !== "structured")){
+    //                     return true
+    //                 }
+    //             }
+    //             return false
+    //         }))
 
-            setVectorDBList(parents.filter(
-                node => {
-                    const nodeInfo = getNode(node.id)
-                    if (nodeInfo) {
-                        if (nodeInfo.type === "vector_database") {
-                            return true
-                        }
-                    }
-                    return false
-                }
-            ))
-        }, [parents])
+    //         setVectorDBList(parents.filter(
+    //             node => {
+    //                 const nodeInfo = getNode(node.id)
+    //                 if (nodeInfo) {
+    //                     if (nodeInfo.type === "structured") {
+    //                         return true
+    //                     }
+    //                 }
+    //                 return false
+    //             }
+    //         ))
+    //     }, [parents])
 
         
         // update to set query => default query value
-        useEffect(() => {
-            if (queryList.length > 0 && queryRef.current) {
-              const defaultQuery = queryList[0];
-              const selectedLabel = getNode(defaultQuery.id)?.data?.label as string | undefined ?? defaultQuery.id;
-              if (!query.id) {
-                setQuery({id: defaultQuery.id, label: selectedLabel});
-              }
+        // useEffect(() => {
+        //     if (queryList.length > 0 && queryRef.current) {
+        //       const defaultQuery = queryList[0];
+        //       const selectedLabel = getNode(defaultQuery.id)?.data?.label as string | undefined ?? defaultQuery.id;
+        //       if (!query.id) {
+        //         setQuery({id: defaultQuery.id, label: selectedLabel});
+        //       }
               
-            }
-          }, [queryList]);
+        //     }
+        //   }, [queryList]);
 
           
-          // update to set vectorDB => default vectorDB value
-          useEffect(() => {
-            if (vectorDBList.length > 0 && vectorDBRef.current) {
-              const defaultVectorDB = vectorDBList[0];
-              const selectedLabel = getNode(defaultVectorDB.id)?.data?.label as string | undefined ?? defaultVectorDB.id;
-              if (!vectorDB.id) {
-                setVectorDB({id: defaultVectorDB.id, label: selectedLabel});
-              }
+        //   // update to set vectorDB => default vectorDB value
+        //   useEffect(() => {
+        //     if (vectorDBList.length > 0 && vectorDBRef.current) {
+        //       const defaultVectorDB = vectorDBList[0];
+        //       const selectedLabel = getNode(defaultVectorDB.id)?.data?.label as string | undefined ?? defaultVectorDB.id;
+        //       if (!vectorDB.id) {
+        //         setVectorDB({id: defaultVectorDB.id, label: selectedLabel});
+        //       }
               
-            }
-          }, [vectorDBList]);
+        //     }
+        //   }, [vectorDBList]);
 
     
         useEffect( () => {
             if (!resultNode) return
             if (isComplete) return
         
-            const addNodeAndSetFlag = async () => {
-              await addNode(resultNode); // 假设 addNode 返回一个 Promise
-              setIsAddContext(true);
-            };
+            const addNewNodeEdgeIntoFlow = async () => {
+                const parentEdgeNode = getNode(parentId)
+                if (!parentEdgeNode) return
+                const location = {
+                    // 120 - 24 = 96 is half of the height of the targetNode - chunk node
+                    x: parentEdgeNode.position.x + 160,
+                    y: parentEdgeNode.position.y - 96,
+                }
+    
+                const newNode = {
+                    id: resultNode,
+                    position: location,
+                    data: { 
+                        content: "", 
+                        label: resultNode,
+                        isLoading: true,
+                        locked: false,
+                        isInput: false,
+                        isOutput: false,
+                        editable: false,
+                    },
+                    type: 'structured',
+                }
+    
+                const newEdge = {
+                    id: `connection-${Date.now()}`,
+                    source: parentId,
+                    target: resultNode,
+                    type: "floating",
+                    data: {
+                        connectionType: "CTT",
+                    },
+                    markerEnd: markerEnd,
+                }
+    
+                await Promise.all([
+                    new Promise(resolve => {
+                        setNodes(prevNodes => {
+                            resolve(null);
+                            return [...prevNodes, newNode];
+                        })
+                    }),
+                    new Promise(resolve => {
+                        setEdges(prevEdges => {
+                            resolve(null);
+                            return [...prevEdges, newEdge];
+                        })
+                    }),
+                ]);
+    
+                onResultNodeChange(resultNode)
+                setIsAddFlow(true)
+                // 不可以和 setEdge, setNodes 发生冲突一定要一先一后
+                // clearActivation()
+            }
     
             const sendData = async  () => {
                 try {
@@ -170,48 +237,18 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                         console.warn(error)
                         window.alert(error)
                     } finally {
+                        resetLoadingUI(resultNode)
                         setIsComplete(true)
                     }
             }
         
-            if (!isAddContext) {
-              addNodeAndSetFlag()
-              addCount()
+            if (!isAddFlow && !isComplete) {
+                addNewNodeEdgeIntoFlow()
             }
-            else if (isAddContext && !isAddFlow) {
-                const parentEdgeNode = getNode(parentId)
-                if (!parentEdgeNode) return
-                const location = {
-                    // 120 - 40 = 80 is half of the width of the target node - search node
-                    x: parentEdgeNode.position.x - 80,
-                    y: parentEdgeNode.position.y + 160
-                }
-                setNodes(prevNodes => [
-                    ...prevNodes,
-                    {
-                        id: resultNode,
-                        position: location,
-                        data: { content: "" },
-                        type: 'structured',
-                    }
-            ]);
-            setEdges((edges) => edges.concat({
-                id: `connection-${Date.now()}`,
-                source: parentId,
-                target: resultNode,
-                type: "CTT",
-                markerEnd: markerEnd,
-            }))
-               setIsAddFlow(true)  
-                allowActivateNode()
-                clear()
-        
-            }
-            else if (isAddContext && isAddFlow) {
+            else if (isAddFlow && !isComplete) {
                 sendData()
-                
             }
-          }, [resultNode, isAddContext, isAddFlow, isComplete])
+          }, [resultNode, isAddFlow, isComplete])
     
 
     const onFocus: () => void = () => {
@@ -230,73 +267,85 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        if (!isEqual(sourceNodeIdWithLabelGroup, parents)) {
-            setParents(sourceNodeIdWithLabelGroup);
-        }
+        // if (!isEqual(sourceNodeIdWithLabelGroup, parents)) {
+        //     setParents(sourceNodeIdWithLabelGroup);
+        // }
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
             <span key={`${node.id}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{node.label}</span>
         ))
     }
 
-    const constructJsonData = () => {
+    const constructJsonData = (): ConstructedSearchByVectorJsonData | Error => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
             resultNodeLabel = getNode(resultNode)?.data?.label as string
         }
         else {
-            resultNodeLabel = resultNode || `${totalCount + 1}`
+            resultNodeLabel = resultNode as string
         }
-        let blocks: NodeJsonType[] = [{
-            id: resultNode || `${totalCount + 1}`,
-            label: resultNodeLabel,
-            type: "structured",
-            data:{content: ""}
-        }]
+        let blocks: { [key: string]: NodeJsonType } = {
+            [resultNode as string]: {
+                label: resultNodeLabel as string,
+                type: "structured",
+                data: {content: ""}
+            }
+        }
         for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id)
             if (!nodeInfo) continue
             const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return "error"
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
             const nodejson: NodeJsonType = {
-                id: nodeInfo.id,
+                // id: nodeInfo.id,
                 label: nodeInfo.data.label as string | undefined ?? nodeInfo.id,
                 type: nodeInfo.type!,
                 data: {
                     content: nodeContent,
-                    ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
+                    ...(nodeInfo.id === vectorDB.id ? {
+                        model: nodeInfo.data.model as string,
+                        method: nodeInfo.data.method as string,
+                        vdb_type: nodeInfo.data.vdb_type as string,
+                        index_name: nodeInfo.data.index_name as string
+                    }: {})
+                        
+                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
                 }
             }
-            blocks = [...blocks, nodejson]
+            blocks[nodeInfo.id] = nodejson
         }
 
-        let edges:SearchByVectorEdgeJsonType[] = []
+        let edges: { [key: string]: SearchByVectorEdgeJsonType } = {}
 
 
         const query_label = getNode(query.id)?.data?.label as string | undefined ?? query.label
         const vectorDB_label = getNode(vectorDB.id)?.data?.label as string | undefined ?? vectorDB.label
        
         const edgejson: SearchByVectorEdgeJsonType = {
-            id: parentId,
+            // id: parentId,
             type: "search",
             data: {  
-                search_type: "vector",
-                sub_search_type: "embedding",
+                search_type: "rag",
+                sub_search_type: "vector",
                 top_k: top_k ?? 5,
-                inputs: sourceNodeIdWithLabelGroup,
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                threshold: threshold ?? 0.7,
                 extra_configs: {
-                    threshold: threshold ?? 0.7
+                    provider: "openai",
+                    model: "text-embedding-ada-002",
+                    db_type: "pinecone",
+                    collection_name: "test_collection"
                 },
-                vector_db: {id: vectorDB.id, label: vectorDB_label},
-                query_id: {id: query.id, label: query_label},
+                docs_id: {[vectorDB.id]: vectorDB_label},
+                query_id: {[query.id]: query_label},
                 looped: false,
-                outputs: [{id: resultNode || `${totalCount + 1}`, label: resultNodeLabel}]
+                outputs: {[resultNode as string]: resultNodeLabel as string}
             },
         }
 
         if (query_label !== query.label) setQuery({id: query.id, label: query_label})
         if (vectorDB_label !== vectorDB.label) setVectorDB({id: vectorDB.id, label: vectorDB_label})
-        edges = [...edges, edgejson]
+        edges[parentId] = edgejson
         console.log(blocks, edges)
 
         return {
@@ -307,27 +356,87 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
 
     const onDataSubmit = async () => {
+
+         // click 第一步： clearActivation
+        await new Promise(resolve => {
+            clearAll()
+            resolve(null)
+        });
+
+        // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
         if (!resultNode || !getNode(resultNode)){
 
-            onResultNodeChange(`${totalCount+1}`)
-
-            setResultNode(`${totalCount+1}`)
+            const newResultNodeId = nanoid(6)
+            // onResultNodeChange(newResultNodeId)
+            setResultNode(newResultNodeId)
             
-            setIsAddContext(false)
+            // setIsAddContext(false)
             setIsAddFlow(false)
         }
+        // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
         else {
             setNodes(prevNodes => prevNodes.map(node => {
                 if (node.id === resultNode){
-                    return {...node, data: {...node.data, content: ""}}
+                    return {...node, data: {...node.data, content: "", isLoading: true}}
                 }
                 return node
             }))
-            allowActivateNode()
-            clear()
         }
         setIsComplete(false)
         };
+
+
+    const displayQueryLabels = () => {
+        const queryList = getSourceNodeIdWithLabel(parentId).filter(node => {
+            const nodeInfo = getNode(node.id)
+            if (nodeInfo?.type === "text") {
+                return true
+            }
+            return false
+        })
+        if (queryList.length > 0 && !query.id) {
+            setQuery({id: queryList[0].id, label: queryList[0].label})
+        }
+        else if (queryList.length > 0 && query.id) {
+            if (!queryList.map(node => node.id).includes(query.id)) {
+                setQuery({id: queryList[0].id, label: queryList[0].label})
+            }
+        }
+        else if (queryList.length === 0 && query.id) {
+            setQuery({id: "", label: ""})
+        }
+        return queryList.map((q: {id: string, label: string}) => (
+            <option key={`${q.id}-${parentId}`} value={q.id}>
+                {q.label}
+            </option>
+        ))
+    }
+
+    const displayVectorDBLabels = () => {
+        const vectorDBList = getSourceNodeIdWithLabel(parentId).filter(node => {
+            const nodeInfo = getNode(node.id)
+            if (nodeInfo?.type === "structured" && nodeInfo.data.index_name) {
+                return true
+            }
+            return false
+        })
+        if (vectorDBList.length > 0 && !vectorDB.id) {
+            setVectorDB({id: vectorDBList[0].id, label: vectorDBList[0].label})
+        }
+        else if (vectorDBList.length > 0 && vectorDB.id) {
+            if (!vectorDBList.map(node => node.id).includes(vectorDB.id)) {
+                setVectorDB({id: vectorDBList[0].id, label: vectorDBList[0].label})
+            }
+        }
+        else if (vectorDBList.length === 0 && vectorDB.id) {
+            setVectorDB({id: "", label: ""})
+        }
+        return vectorDBList.map((db: {id: string, label: string}) => (
+            <option key={`${db.id}-${parentId}`} value={db.id}>
+                {db.label}
+            </option>
+        ))
+    }
 
     const onResultNodeChange = (newResultNode: string) => {
         setNodes(prevNodes => prevNodes.map(node => {
@@ -441,15 +550,14 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             </div>
             <select ref={queryRef} id='query' value={query.id} onChange={() => {
                 if (queryRef.current){
-                    const selectedLabel = getNode(queryRef.current.value)?.data?.label as string | undefined ?? queryRef.current.value
-                    console.log(selectedLabel, "queryValue")
-                    setQuery({id: queryRef.current.value, label: selectedLabel})
+                    if (queryRef.current.value !== query.id) {
+                        const selectedLabel = getNode(queryRef.current.value)?.data?.label as string | undefined ?? queryRef.current.value
+                        console.log(selectedLabel, "queryValue")
+                        setQuery({id: queryRef.current.value, label: selectedLabel})
+                    }
                 }
             }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                {queryList.map(q => (
-                <option key={`no.${q.id}-${Date.now()}`} value={q.id}>
-                    {q.label}
-                </option>))}
+                {displayQueryLabels()}
             </select>
             
             </li>
@@ -459,15 +567,14 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             </div>
             <select ref={vectorDBRef} id='vectorDB' value={vectorDB.id} onChange={() => {
                 if (vectorDBRef.current){
-                    const selectedLabel = getNode(vectorDBRef.current.value)?.data?.label as string | undefined ?? vectorDBRef.current.value
-                    console.log(selectedLabel, "vectordb")
-                    setVectorDB({id: vectorDBRef.current.value, label: selectedLabel})
+                    if (vectorDBRef.current.value !== vectorDB.id) {
+                        const selectedLabel = getNode(vectorDBRef.current.value)?.data?.label as string | undefined ?? vectorDBRef.current.value
+                        console.log(selectedLabel, "vectordb")
+                        setVectorDB({id: vectorDBRef.current.value, label: selectedLabel})
+                    }
                 }
             }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                {vectorDBList.map(db => (
-                <option key={`no.${db.id}-${Date.now()}`} value={db.id}>
-                    {db.label}
-                </option>))}
+                {displayVectorDBLabels()}
             </select>
             </li>
         </ul>

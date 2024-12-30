@@ -13,7 +13,7 @@ function SaveIntoSubMenu({nodeType, sourceNodeId, showMenu}: SaveIntoSubMenuProp
     
   
   return (
-    <ul id="edgeMenu" className={`bg-[#1c1d1f] rounded-[8px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] top-[180px] left-[135px] gap-[3px] p-[3px] items-center ${showMenu === 1 ? "" : "hidden"}`} >
+    <ul id="edgeMenu" className={`bg-[#1c1d1f] rounded-[11px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] top-[180px] left-[135px] gap-[3px] p-[3px] items-center ${showMenu === 1 ? "" : "hidden"}`} >
             <li>
                 <button className='w-[116px] h-[30px] bg-[#3E3E41] hover:bg-main-orange rounded-[5px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[3px] pl-[3px] cursor-pointer' onClick={(event) => {
                     event.preventDefault()
