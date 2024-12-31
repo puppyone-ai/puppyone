@@ -2,13 +2,15 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import JSONForm from '../tableComponent/JSONForm'
-import { useNodeContext } from '../../states/NodeContext'
+// import { useNodeContext } from '../../states/NodeContext'
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import { nodeSmallProps } from '../nodeMenu/NodeMenu'
 import useJsonConstructUtils, { ProcessingData, NodeJsonType } from '../../hooks/useJsonConstructUtils'
 import JSONConfigEditor from '../tableComponent/JSONConfigEditor'
 import { LLMConfigNodeData } from '../../workflow/edges/configNodes/LLMConfig'
 import { backend_IP_address_for_sendingData } from '../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../workflow/edges/ConfigToTargetEdge'
+import { nanoid } from 'nanoid'
 
 type LLMConfigProps = {
     show: boolean,
@@ -22,7 +24,7 @@ type messageType = {
 
 type modelType = "gpt-4o" | "gpt-4o-mini" | "gpt-4"
 export interface LLMEdgeJsonType {
-    id: string,
+    // id: string,
     type: "llm",
     data: {
         messages: messageType[],
@@ -30,24 +32,25 @@ export interface LLMEdgeJsonType {
         base_url: string,
         max_tokens: number,
         temperature: number,
-        inputs: {id: string, label: string}[],
+        inputs: { [key: string]: string },
         structured_output: boolean,
         looped: boolean,
-        outputs: {id: string, label: string}[]
+        outputs: { [key: string]: string }
     }
    
 }
 
-type jsonDataType = {
-    blocks: NodeJsonType[],
-    edges: LLMEdgeJsonType[]
+type ConstructedLLMJsonData = {
+    blocks: { [key: string]: NodeJsonType },
+    edges: { [key: string]: LLMEdgeJsonType }
 }
 
 function LLMConfigMenu({show, parentId}: LLMConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes} = useReactFlow()
-    const {totalCount, addCount, addNode, allowActivateNode, clear} = useNodeContext()
-    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError} = useJsonConstructUtils()
+    // const {totalCount, addCount, addNode, allowActivateNode, clear} = useNodeContext()
+    const {allowActivateOtherNodesWhenConnectEnd, clearAll} = useNodesPerFlowContext()
+    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
@@ -60,7 +63,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.resultNode ?? null
     )
-    const [isAddContext, setIsAddContext] = useState(true)
+    // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     const [isStructured_output, setStructured_output] = useState(
@@ -89,11 +92,76 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
     useEffect( () => {
         if (!resultNode) return
         if (isComplete) return
-    
-        const addNodeAndSetFlag = async () => {
-          await addNode(resultNode); // 假设 addNode 返回一个 Promise
-          setIsAddContext(true);
-        };
+        console.log(resultNode, "send data")
+        // const addNodeAndSetFlag = async () => {
+        //   await addNode(resultNode); // 假设 addNode 返回一个 Promise
+        //   setIsAddContext(true);
+        // };
+
+        const addNewNodeEdgeIntoFlow = async () => {
+            const parentEdgeNode = getNode(parentId)
+            if (!parentEdgeNode) return
+            const location = {
+                // 120 - 24 = 96 is half of the height of the targetNode - chunk node
+                x: parentEdgeNode.position.x + 160,
+                y: parentEdgeNode.position.y - 96,
+            }
+
+            const newNode = {
+                id: resultNode,
+                position: location,
+                data: { 
+                    content: "", 
+                    label: resultNode,
+                    isLoading: true,
+                    locked: false,
+                    isInput: false,
+                    isOutput: false,
+                    editable: false,
+                },
+                type: isStructured_output ? "structured" : "text",
+            }
+
+            const newEdge = {
+                id: `connection-${Date.now()}`,
+                source: parentId,
+                target: resultNode,
+                type: "floating",
+                data: {
+                    connectionType: "CTT",
+                },
+                markerEnd: markerEnd,
+            }
+
+            // setNodes(prevNodes => {
+            //     return [...prevNodes, newNode];
+            // });
+        
+            // setEdges(prevEdges => {
+            //     return [...prevEdges, newEdge];
+            // });
+            // setIsAddFlow(true)  
+
+            await Promise.all([
+                new Promise(resolve => {
+                    setNodes(prevNodes => {
+                        resolve(null);
+                        return [...prevNodes, newNode];
+                    })
+                }),
+                new Promise(resolve => {
+                    setEdges(prevEdges => {
+                        resolve(null);
+                        return [...prevEdges, newEdge];
+                    })
+                }),
+            ]);
+
+            onResultNodeChange(resultNode)
+            setIsAddFlow(true)
+            // 不可以和 setEdge, setNodes 发生冲突一定要一先一后
+            // clearActivation()
+        }
 
         const sendData = async  () => {
             try {
@@ -120,48 +188,17 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
                     console.warn(error)
                     window.alert(error)
                 } finally {
+                    resetLoadingUI(resultNode)
                     setIsComplete(true)
                 }
         }
-    
-        if (!isAddContext) {
-          addNodeAndSetFlag()
-          addCount()
+        if (!isAddFlow && !isComplete) {
+            addNewNodeEdgeIntoFlow()
         }
-        else if (isAddContext && !isAddFlow) {
-            const parentEdgeNode = getNode(parentId)
-            if (!parentEdgeNode) return
-            const location = {
-                // 120 - 40 = 80 is half of the width of the target node - llm node
-                x: parentEdgeNode.position.x - 80,
-                y: parentEdgeNode.position.y + 160
-            }
-            setNodes(prevNodes => [
-                ...prevNodes,
-                {
-                    id: resultNode,
-                    position: location,
-                    data: { content: "" },
-                    type: isStructured_output ? "structured" : "text",
-                }
-        ]);
-        setEdges((edges) => edges.concat({
-            id: `connection-${Date.now()}`,
-            source: parentId,
-            target: resultNode,
-            type: "CTT",
-            markerEnd: markerEnd,
-        }))
-           setIsAddFlow(true)  
-            allowActivateNode()
-            clear()
-    
-        }
-        else if (isAddContext && isAddFlow) {
+        else if (isAddFlow && !isComplete) {
             sendData()
-            
         }
-      }, [resultNode, isAddContext, isAddFlow, isComplete])
+      }, [resultNode, isAddFlow, isComplete])
   
     const onFocus: () => void = () => {
         const curRef = menuRef.current
@@ -186,43 +223,46 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
     }
 
 
-    const constructJsonData = () => {
+    const constructJsonData = (): ConstructedLLMJsonData | Error => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
+        // const newResultNodeId = nanoid()
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
             resultNodeLabel = getNode(resultNode)?.data?.label as string
         }
         else {
-            resultNodeLabel = resultNode || `${totalCount + 1}`
+            resultNodeLabel = resultNode as string
         }
-        let blocks: NodeJsonType[] = [{
-            id: resultNode || `${totalCount + 1}`,
-            label: resultNodeLabel,
-            type: isStructured_output ? "structured" : "text",
-            data:{content: ""}
-        }]
+        let blocks: { [key: string]: NodeJsonType } = {
+            [resultNode as string]: {
+                label: resultNodeLabel as string,
+                type: isStructured_output ? "structured" : "text",
+                data:{content: ""}
+            }
+        }
+        
         for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id)
             if (!nodeInfo) continue
             const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return "error"
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
             const nodejson: NodeJsonType = {
-                id: nodeInfo.id,
+                // id: nodeInfo.id,
                 label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
                 type: nodeInfo.type!,
                 data: {
                     content: nodeContent,
-                    ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
+                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
                 }
             }
-            blocks = [...blocks, nodejson]
+            blocks[nodeInfo.id] = nodejson
         }
 
-        let edges:LLMEdgeJsonType[] = []
+        let edges: { [key: string]: LLMEdgeJsonType } = {}
 
         const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
         const edgejson: LLMEdgeJsonType = {
-            id: parentId,
+            // id: parentId,
             type: "llm",
             data: {
                 messages: messageContent !== "error" ? messageContent : [
@@ -236,14 +276,14 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
                 max_tokens: 4096,
                 temperature: 0.7,
                 structured_output: isStructured_output,
-                inputs: sourceNodeIdWithLabelGroup,
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 looped: isLoop,
-                outputs: [{id: resultNode || `${totalCount + 1}`, label: resultNodeLabel}]
+                outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         
         }
 
-        edges = [...edges, edgejson]
+        edges[parentId] = edgejson
         console.log(blocks, edges)
 
         return {
@@ -254,26 +294,38 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
 
 
     const onDataSubmit = async () => {
+        // click 第一步： clearActivation
+        await new Promise(resolve => {
+            clearAll()
+            resolve(null)
+        });
+
+        // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
         if (!resultNode || !getNode(resultNode)){
 
-            onResultNodeChange(`${totalCount+1}`)
-            setResultNode(`${totalCount+1}`)
+            const newResultNodeId = nanoid(6)
+            // onResultNodeChange(newResultNodeId)
+            setResultNode(newResultNodeId)
             
-            setIsAddContext(false)
+            // setIsAddContext(false)
             setIsAddFlow(false)
         }
+        // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
         else {
             const newNodeType = isStructured_output ? "structured" : "text"
             setNodes(prevNodes => prevNodes.map(node => {
                 if (node.id === resultNode){
-                    return {...node, type: newNodeType, data: {...node.data, content: ""}}
+                    return {...node, type: newNodeType, data: {...node.data, content: "", isLoading: true}}
                 }
                 return node
             }))
-            allowActivateNode()
-            clear()
+            // allowActivateNode()
+            // clear()
+            // clearActivation()
+            // inactivateNode(parentId)
         }
         setIsComplete(false)
+        
         };
 
     const onModelChange = (newModel: "gpt-4o" | "gpt-4o-mini" | "gpt-4") => {
@@ -376,7 +428,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[384px]'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
@@ -385,7 +437,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
             </div>
             
         </li>
-        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
+        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[384px] h-[36px]'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              model
             </div>  
@@ -417,10 +469,10 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
             "content": "You are an AI"},
             {"role": "user", 
             "content": "{{1}}"}
-            ]' parentId={parentId}  widthStyle={280} heightStyle={140} />
+            ]' parentId={parentId}  widthStyle={384} heightStyle={140} />
         </li>
 
-        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
+        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[384px] h-[36px]'>
             <div className='text-[#6D7177] w-[130px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
              structured output
             </div>  
@@ -444,7 +496,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
             <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
                 base url
             </div>
-            <input ref={baseUrlRef} id="base_url" type='text' className='px-[9px] py-[8px] border-[1px] border-[#6D7177] rounded-[4px] bg-black text-[12px] font-[600] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center w-[280px] font-plus-jakarta-sans' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur} value={baseUrl} onChange={() => {
+            <input ref={baseUrlRef} id="base_url" type='text' className='px-[9px] py-[8px] border-[1px] border-[#6D7177] rounded-[4px] bg-black text-[12px] font-[600] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center w-[384px] font-plus-jakarta-sans' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur} value={baseUrl} onChange={() => {
                 if (baseUrlRef.current){
                     setBaseUrl(baseUrlRef.current.value)
                 }

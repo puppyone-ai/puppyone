@@ -13,9 +13,9 @@ function OthersSubMenu({nodeType, sourceNodeId, showMenu}: OthersSubMenuProps) {
                         "top-[250px]"
   
   return (
-    <ul id="edgeMenu" className={`bg-[#1c1d1f] rounded-[8px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] ${topPosition} left-[135px] gap-[3px] p-[3px] items-center ${showMenu === 1 ? "" : "hidden"}`} >
-            <li>
-                <button className='w-[141px] h-[30px] bg-[#3E3E41] hover:bg-main-orange rounded-[5px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[3px] pl-[3px] cursor-pointer' onClick={(event) => {
+    <ul id="edgeMenu" className={`bg-[#1c1d1f] rounded-[11px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] ${topPosition} left-[135px] gap-[3px] p-[3px] items-center ${showMenu === 1 ? "" : "hidden"}`} >
+            <li className='w-full'>
+                <button className='w-full h-[30px] bg-[#3E3E41] hover:bg-main-orange rounded-[5px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[3px] pl-[3px] cursor-pointer' onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
                     // createNewConnection('LLM')
@@ -28,8 +28,8 @@ function OthersSubMenu({nodeType, sourceNodeId, showMenu}: OthersSubMenuProps) {
                 <div className='text-[12px] font-[700] flex items-center justify-center h-full'>query rewriting</div>
                 </button>
             </li> 
-            <li>
-                <button className='w-[141px] h-[30px] bg-[#3E3E41] hover:bg-main-orange rounded-[5px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[3px] pl-[3px] cursor-pointer' onClick={(event) => {
+            <li className='w-full'>
+                <button className='w-full h-[30px] bg-[#3E3E41] hover:bg-main-orange rounded-[5px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[3px] pl-[3px] cursor-pointer' onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()
                     // createNewConnection('LLM')

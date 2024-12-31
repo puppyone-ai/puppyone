@@ -1,67 +1,89 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React,{useRef, useEffect, useState, ReactElement, useMemo} from 'react'
-import { nodeState, useNodeContext } from '../../states/NodeContext'
+import React,{useRef, useEffect, useState} from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
-import JSONForm from '../../menu/tableComponent/JSONForm'
 import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
 import TextEditor from '../../menu/tableComponent/TextEditor'
 import TextEditorTextArea from '../../menu/tableComponent/TextEditorTextArea'
 import TextEditorTipTap from '../../menu/tableComponent/TextEditorTipTap'
 import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils'
+import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import dynamic from 'next/dynamic'
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
+export type TextBlockNodeData = {
+  content: string,
+  label: string,
+  isLoading: boolean,
+  locked: boolean,
+  isInput: boolean,
+  isOutput: boolean,
+  editable: boolean,
 
-type TextBlockNodeProps = NodeProps<Node<{ content: string, label:string }>>
+}
+
+type TextBlockNodeProps = NodeProps<Node<TextBlockNodeData>>
 
 const TextEditorBlockNote = dynamic(() => import('../../menu/tableComponent/TextEditorBlockNote'), { ssr: false })
 
-function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBlockNodeProps ) {
+function TextBlockNode({isConnectable, id, type, data: {content, label, isLoading, locked, isInput, isOutput, editable}}: TextBlockNodeProps ) {
 
   
-  // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
-  // Initialization: 0
-  const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
-  const [isAdd, setIsAdd] = useState(false)
-  const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
-  const {getEdges, screenToFlowPosition, setNodes, getNode} = useReactFlow()
-  const [isActivated, setIsActivated] = useState(false)
+  // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
+  const {getNode} = useReactFlow()
+  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
+  // const [isActivated, setIsActivated] = useState(false)
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
   const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
-  const [self, setSelf] = useState<nodeState | null>(searchNode(id))
+  // const [self, setSelf] = useState<nodeState | null>(searchNode(id))
   const labelRef = useRef<HTMLInputElement | null>(null) // 管理label input field 的宽度
   const labelContainerRef = useRef<HTMLDivElement | null>(null) // 管理labelContainer的宽度 = possible width of label input field + left logo svg
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
+  const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
+  const [borderColor, setBorderColor] = useState("border-main-deep-grey")
 
   
+
   useEffect(() => {
-    const addNodeAndSetFlag = async () => {
-      // console.log(isAdd, id)
-      // console.log(`I am waiting to add you node ${id}`)
-      await addNode(id); // 假设 addNode 返回一个 Promise
-      setIsAdd(true);
-    };
+    if (activatedNode?.id === id) {
+      setBorderColor("border-main-blue");
+  } else {
+      setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
+     
+    }
+  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+
+
+  
+  
+  // useEffect(() => {
+  //   const addNodeAndSetFlag = async () => {
+  //     // console.log(isAdd, id)
+  //     // console.log(`I am waiting to add you node ${id}`)
+  //     await addNode(id); // 假设 addNode 返回一个 Promise
+  //     setIsAdd(true);
+  //   };
     
-    if (!isAdd) {
-      const findnode = searchNode(id)
-      if (findnode) {
-        // console.log("have already create. no need to recreate")
-        setIsAdd(true)
-        allowActivateNode()
-        return
-      }
-      addNodeAndSetFlag();
-      allowActivateNode()
-    }
+  //   if (!isAdd) {
+  //     const findnode = searchNode(id)
+  //     if (findnode) {
+  //       // console.log("have already create. no need to recreate")
+  //       setIsAdd(true)
+  //       allowActivateNode()
+  //       return
+  //     }
+  //     addNodeAndSetFlag();
+  //     allowActivateNode()
+  //   }
 
-    if (isAdd){
-      setSelf(searchNode(id))
-    }
+  //   if (isAdd){
+  //     setSelf(searchNode(id))
+  //   }
 
-  }, [isAdd, id]);
+  // }, [isAdd, id]);
   
 
   // useEffect(() => {
@@ -162,13 +184,13 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
 
   // 管理labelContainer的宽度
   useEffect(() => {
-    const onLabelContainerFocus = () => {
-      if (labelContainerRef.current) {
-        if (contentRef.current) {
-          labelContainerRef.current.style.width = `${contentRef.current.clientWidth - 16}px`
-        }
-      }
-    }
+    // const onLabelContainerFocus = () => {
+    //   if (labelContainerRef.current) {
+    //     if (contentRef.current) {
+    //       labelContainerRef.current.style.width = `${contentRef.current.clientWidth - 16}px`
+    //     }
+    //   }
+    // }
 
     const onLabelContainerBlur = () => {
       
@@ -179,14 +201,33 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
       //   setIsLocalEdit(false)
       // }
       if (labelContainerRef.current) {
-        labelContainerRef.current.style.width = `60px`
-        disallowEditLabel(id)
+        // labelContainerRef.current.style.width = `60px`
+        // labelContainerRef.current.style.width = `fit-content`
+        // if (contentRef.current) {
+        //   labelContainerRef.current.style.maxWidth = `${contentRef.current.clientWidth - 32}px`
+        // }
+        setNodeUneditable(id)
       }
+
+      // if (labelRef.current) {
+      //   // labelContainerRef.current.style.width = `60px`
+      //   // labelContainerRef.current.style.width = `fit-content`
+      //   if (contentRef.current) {
+      //     labelRef.current.style.maxWidth = `${contentRef.current.clientWidth - 55}px`
+      //   }
+      //   disallowEditLabel(id)
+      // }
     }
 
     if (labelContainerRef.current) {
-      labelContainerRef.current.addEventListener("click", onLabelContainerFocus)
+      // labelContainerRef.current.addEventListener("click", onLabelContainerFocus)
       // labelRef.current.addEventListener("blur", onLabelBlur)
+      // document.addEventListener("click", (e: MouseEvent) => {
+      //   if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
+      //     onLabelContainerBlur()
+      //   }
+      // })
+
       document.addEventListener("click", (e: MouseEvent) => {
         if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
           onLabelContainerBlur()
@@ -196,7 +237,7 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
 
     return () => {
       if (labelContainerRef.current) {
-        labelContainerRef.current.removeEventListener("click", onLabelContainerFocus)
+        // labelContainerRef.current.removeEventListener("click", onLabelContainerFocus)
         // labelRef.current.removeEventListener("blur", onLabelBlur)
         document.removeEventListener("click", (e: MouseEvent) => {
           if (!labelContainerRef.current?.contains(e.target as HTMLElement)) {
@@ -207,39 +248,34 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
     }
   }, [])
   
-  // 自动聚焦
+  // 自动聚焦，同时需要让cursor focus 到input 的最后一位
   useEffect(() => {
-    if (searchNode(id)?.editable && labelRef.current) {
+    if (editable && labelRef.current) {
       labelRef.current?.focus();
+      const length = labelRef.current.value.length;
+      labelRef.current.setSelectionRange(length, length);
     }
-  }, [searchNode(id)?.editable, id]);
+  }, [editable, id]);
 
 
 
 
-  // 管理 label onchange， 注意：若是当前的workflow中已经存在同样的id，那么不回重新对于这个node进行initialized，那么此时label就是改变了也不会rendering 最新的值，所以我们必须要通过这个useEffect来确保label的值是最新的
+  // 管理 label onchange， 注意：若是当前的workflow中已经存在同样的id，那么不回重新对于这个node进行initialized，那么此时label就是改变了也不会rendering 最新的值，所以我们必须要通过这个useEffect来确保label的值是最新的，同时需要update measureSpanRef 中需要被测量的内容
   useEffect(() => {
     const currentLabel= getNode(id)?.data?.label as string | undefined
     if (currentLabel !== undefined && currentLabel !== nodeLabel && !isLocalEdit) {
+        
         setNodeLabel(currentLabel)
+        if (measureSpanRef.current) {
+          measureSpanRef.current.textContent = currentLabel
+        }
       }
   }, [label, id, isLocalEdit])
 
 
 
-  const getBorderColor  = () => {
-    if (searchNode(id)?.activated){
-      return "border-main-blue"
-    }
-    else {
-      if (isOnConnect && isTargetHandleTouched) return "border-main-orange" 
-      return "border-main-deep-grey"
-    }
-  }
-
-
   const onFocus: () => void = () => {
-    preventInactivateNode(id)
+    preventInactivateNode()
     const curRef = componentRef.current
     if (curRef && !curRef.classList.contains("nodrag")) {
         curRef.classList.add("nodrag")
@@ -248,19 +284,22 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
     }
 
     const onBlur: () => void = () => {
-        allowInactivateNode(id)  
+     
+        allowInactivateNodeWhenClickOutside()  
         const curRef = componentRef.current
         if (curRef) {
             curRef.classList.remove("nodrag")
         }
         if (isLocalEdit){
           //  管理 node label onchange，只有 onBlur 的时候，才会更新 label
-          setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, label: nodeLabel } } : node))
+          // setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, label: nodeLabel } } : node))
+          editNodeLabel(id, nodeLabel)
           setIsLocalEdit(false)
         }
     }
 
     const preventNodeDrag = () => {
+    
       const curRef = componentRef.current
     if (curRef && !curRef.classList.contains("nodrag")) {
         curRef.classList.add("nodrag")
@@ -268,6 +307,7 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
     }
 
     const allowNodeDrag = () => {
+     
       const curRef = componentRef.current
         if (curRef) {
             curRef.classList.remove("nodrag")
@@ -276,28 +316,28 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
 
     // for rendering different background color of upper right tag
     const renderTagStyle = () => {
-      if (searchNode(id)?.locked) return "bg-[#3EDBC9] w-[53px]"
-      else if (searchNode(id)?.isInput) return "bg-[#6C98D5] w-[53px]"
-      else if (searchNode(id)?.isOutput) return "bg-[#FF9267] w-[53px]"
-      else return "border-[#6D7177] bg-[#6D7177] w-[41px]"
+      if (locked) return "bg-[#3EDBC9] w-fit"
+      else if (isInput) return "bg-[#6C98D5] w-fit"
+      else if (isOutput) return "bg-[#FF9267] w-fit"
+      else return "border-[#6D7177] bg-[#6D7177] w-fit"
     } 
 
     // for rendering diffent logo of upper right tag
     const renderTagLogo = () => {
-      if (searchNode(id)?.locked) return (
+      if (locked) return (
         <svg xmlns="http://www.w3.org/2000/svg" width="8" height="9" viewBox="0 0 8 9" fill="none">
         <rect y="4" width="8" height="5" fill="black"/>
         <rect x="1.75" y="0.75" width="4.5" height="6.5" rx="2.25" stroke="black" strokeWidth="1.5"/>
       </svg>
       )
-      else if (searchNode(id)?.isInput) return (
+      else if (isInput) return (
         <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
         <path d="M2.5 1.5L5.5 4L2.5 6.5V1.5Z" fill="black"/>
         <path d="M3 4H0" stroke="black" strokeWidth="1.5"/>
         <path d="M4 0H8V8H4V6.5H6.5V1.5H4V0Z" fill="black"/>
       </svg>
       )
-      else if (searchNode(id)?.isOutput) return (
+      else if (isOutput) return (
         <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
         <path d="M5.5 2L8 4L5.5 6V2Z" fill="black"/>
         <path d="M6 4H3" stroke="black" strokeWidth="1.5"/>
@@ -316,27 +356,61 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
       }
     }
 
+    // 计算 measureSpanRef 的宽度，这个就是在计算input element内部内容的真实宽度，记得+4px不然所有内容无法完全的展现在input中，另外若是存在isInput, isOutput, locked，则需要考虑当整体的内容+icon width 溢出最大值时，我们必须设定 inputbox 的width = maxWidth - 21px，不然因为我们设置了 input 的 maxWidth = '100%', 他会把icon 给覆盖掉的，若是没有icon，则不需要担心，因为就算是设计他的宽度=文本宽度，但是一旦整体宽度 > maxWidth, css 会自动把文本宽度给压缩到 maxWidth 的，所以不用担心.  4px padding + logo width (8px) + 5px gap (if contains logo) + input width + 4px padding = input width 判断是否可以完全展现出结果
     const calculateLabelWidth = () => {
-      if (contentRef.current) {
-        return searchNode(id)?.editable ? 
-        contentRef.current.clientWidth - 16 : 60
+      if (measureSpanRef.current) {
+        if (isInput || isOutput || locked) {
+          if (contentRef.current) {
+            if (measureSpanRef.current.offsetWidth + 21 > contentRef.current.clientWidth - 32) {
+              // console.log("hello")
+              return `${contentRef.current.clientWidth - 53}px`
+            }
+        }
       }
-      return 60
+        return `${measureSpanRef.current.offsetWidth + 4}px`;
+    }
+      return 'auto'
+  }
+
+
+    // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要拉到当前的label的宽度（拖住文体即可）
+    const calculateInputWidth = () => {
+      if (contentRef.current) {
+        if (editable) {
+          if (isInput || isOutput || locked) {
+            return `${contentRef.current.clientWidth - 53}px`
+          }
+          else {
+            return `${contentRef.current.clientWidth - 32}px`
+          }
+        }
+      }
+      return calculateLabelWidth()
+    }
+
+    // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
+    const calculateMaxLabelContainerWidth = () => {
+      if (contentRef.current) {
+        return `${contentRef.current.clientWidth - 32}px`
+      }
+      return '100%'
     }
  
-    
 
   return (
-    <div ref={componentRef} className="relative w-full h-full min-w-[240px] min-h-[304px] p-[32px]">
-      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-h-[240px] rounded-[8px] px-[16px] pt-[40px] pb-[16px] ${getBorderColor()} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[176px] min-h-[176px] rounded-[8px] px-[16px] pt-[40px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden `}  >
            {/* <TextEditor preventParentDrag={onFocus} allowParentDrag={onBlur}
           widthStyle={contentSize.width - 6} heightStyle={contentSize.height}
           placeholder='Text' parentId={id} /> */}
 
           {/* plain text editor */}
+          {isLoading ? <SkeletonLoadingIcon /> : 
           <TextEditorTextArea preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
           widthStyle={contentSize.width} heightStyle={contentSize.height}
           placeholder='Text' parentId={id} />
+          
+          }
 
 
           {/* <TextEditorTipTap preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
@@ -348,18 +422,56 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
           widthStyle={contentSize.width} heightStyle={contentSize.height}
           placeholder='[{"type": "paragraph", "content": "Text"}]' parentId={id} /> */}
            
-           <div ref={labelContainerRef} style={{
-            width: `${calculateLabelWidth()}px`
-          }} className={`absolute top-[40px] left-[40px] h-[18px] rounded-[4px]  ${renderTagStyle()} py-[4px] px-[8px] flex items-center justify-center gap-[5px] z-[20000]`}>
-            {renderTagLogo()}
-          <input ref={labelRef}  autoFocus={searchNode(id)?.editable} className={`flex items-center justify-center text-[#000] font-[700] text-[10px] w-full leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`} value={`${nodeLabel}`} readOnly={!searchNode(id)?.editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
+           <div ref={labelContainerRef} 
+           style={{
+            width: 'fit-content',
+            maxWidth: calculateMaxLabelContainerWidth(),
+           }}
+           className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
+           <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+             <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+             <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+             <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+             <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+             <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+             <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+           </svg>
+           {renderTagLogo()}
+
+            {/* 测量label的宽度, 隐藏，若是更改input 字体样式，需要同步更改这里的样式！！不然得到的input width 会不准确，展现出省略号 */}
+            <span
+            ref={measureSpanRef}
+            style={{
+              visibility: 'hidden',
+              position: 'absolute',
+              whiteSpace: 'pre',
+              fontSize: '12px',
+              lineHeight: '18px',
+              fontWeight: '700',
+              fontFamily: 'Plus Jakarta Sans',
+            }}
+          >
+            {nodeLabel}
+          </span>
+           
+            <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
+            style={{
+              boxSizing: "content-box",
+              width: calculateInputWidth(),
+              maxWidth: '100%',
+              
+            }}
+            size={nodeLabel.length ?? 0}
+            value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
+           
+          
         </div>
 
         <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
         
         <NodeResizeControl 
           minWidth={240} 
-          minHeight={304}
+          minHeight={240}
           style={{ position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize', 
             background: 'transparent',
             border: 'none' }}
@@ -367,20 +479,25 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
           <div 
             style={{
               position: "absolute",
-              visibility: `${searchNode(id)?.activated ? "visible" : "hidden"}`,
-              right: "34px",
-              bottom: "34px",
-              display: 'flex',
+              visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
+              right: "32px",
+              bottom: "32px",
+              display: "flex",
               justifyContent: 'center',
               alignItems: 'center',
               backgroundColor: 'transparent',
               zIndex: "200000",
-              width:"14px",
-              height:"14px",
+              width:"26px",
+              height:"26px",
             }}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="6" height="7" viewBox="0 0 6 7" fill="none">
-            <path fillRule="evenodd" clipRule="evenodd" d="M3.98944 0C3.981 0.450097 3.96581 0.830004 3.93852 1.16404C3.8805 1.87412 3.7779 2.19904 3.67302 2.40488C3.3854 2.96937 2.92646 3.42831 2.36197 3.71593C2.15613 3.82082 1.83121 3.92342 1.12113 3.98143C0.797759 4.00785 0.431405 4.02293 0 4.03153V6.03187C1.53922 6.0024 2.49203 5.89432 3.26995 5.49795C4.21076 5.01858 4.97567 4.25368 5.45503 3.31287C5.85508 2.52773 5.96146 1.56447 5.98975 0H3.98944Z" fill="#6D7177"/>
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="group active:group-[]:fill-[#4599DF]">
+              <path d="M10 5.99998H12V7.99998H10V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+              <path d="M10 2H12V4H10V2Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+              <path d="M6 5.99998H8V7.99998H6V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+              <path d="M6 10H8V12H6V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+              <path d="M2 10H4V12H2V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+              <path d="M10 10H12V12H10V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
             </svg>
           </div>
         </NodeResizeControl>
@@ -394,7 +511,7 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
             <WhiteBallHandle id={`${id}-d`} type="source" sourceNodeId={id}
             isConnectable={isConnectable} 
             position={Position.Left}  />
-            <Handle
+            {/* <Handle
             type="target"
             position={Position.Top}
             style={{
@@ -414,7 +531,95 @@ function TextBlockNode({isConnectable, id, type, data: {content, label}}: TextBl
           isConnectable={isConnectable}
           onMouseEnter={() => setIsTargetHandleTouched(true)}
           onMouseLeave={() => setIsTargetHandleTouched(false)}
-        />  
+        />   */}
+          <Handle
+            id={`${id}-a`}
+            type="target"
+            position={Position.Top}
+            style={{
+              position: "absolute",
+              width: "calc(100%)",
+              height: "calc(100%)",
+              top: "0",
+              left: "0",
+              borderRadius: "0",
+              transform: "translate(0px, 0px)",
+              background: "transparent",
+              // border: isActivated ? "1px solid #4599DF" : "none",
+              border: "3px solid transparent",
+              zIndex: !isOnConnect ? "-1" : "1",
+              // maybe consider about using stored isActivated
+            }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+            id={`${id}-b`}
+            type="target"
+            position={Position.Right}
+            style={{
+              position: "absolute",
+              width: "calc(100%)",
+              height: "calc(100%)",
+              top: "0",
+              left: "0",
+              borderRadius: "0",
+              transform: "translate(0px, 0px)",
+              background: "transparent",
+              // border: isActivated ? "1px solid #4599DF" : "none",
+              border: "3px solid transparent",
+              zIndex: !isOnConnect ? "-1" : "1",
+              // maybe consider about using stored isActivated
+            }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+            id={`${id}-c`}
+            type="target"
+            position={Position.Bottom}
+            style={{
+              position: "absolute",
+              width: "calc(100%)",
+              height: "calc(100%)",
+              top: "0",
+              left: "0",
+              borderRadius: "0",
+              transform: "translate(0px, 0px)",
+              background: "transparent",
+              // border: isActivated ? "1px solid #4599DF" : "none",
+              border: "3px solid transparent",
+              zIndex: !isOnConnect ? "-1" : "1",
+              // maybe consider about using stored isActivated
+            }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+            id={`${id}-d`}
+            type="target"
+            position={Position.Left}
+            style={{
+              position: "absolute",
+              width: "calc(100%)",
+              height: "calc(100%)",
+              top: "0",
+              left: "0",
+              borderRadius: "0",
+              transform: "translate(0px, 0px)",
+              background: "transparent",
+              // border: isActivated ? "1px solid #4599DF" : "none",
+              border: "3px solid transparent",
+              zIndex: !isOnConnect ? "-1" : "1",
+              // maybe consider about using stored isActivated
+            }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
             
       </div>
     </div>

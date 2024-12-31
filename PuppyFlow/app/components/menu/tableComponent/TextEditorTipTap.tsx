@@ -14,7 +14,8 @@ import { TipTapMenuBar } from './TipTapMenuBar'
 import { SlashCommands } from './SlashCommands'
 import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils';
 import { useReactFlow } from '@xyflow/react';
-import { useNodeContext } from '../../states/NodeContext';
+// import { useNodeContext } from '../../states/NodeContext';
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import React,{ useState, useRef, useEffect, useCallback, useLayoutEffect } from 'react';
 import RichEditorSideBarMenuController from './RichEditorSideBarMenuController';
 import { ReactNodeViewRenderer } from '@tiptap/react';
@@ -42,7 +43,8 @@ const TextEditorTipTap = ({preventParentDrag,
         const editorContainerRef = useRef<HTMLDivElement>(null)
         const [isEmpty, setIsEmpty] = useState(!(getNode(parentId)?.data.content as string) ? true : false);
         const {lockZoom, freeZoom} = useManageReactFlowUtils()
-        const {searchNode, preventInactivateNode, allowInactivateNode} = useNodeContext()
+        // const {searchNode, preventInactivateNode, allowInactivateNode} = useNodeContext()
+        const {preventInactivateNode, allowInactivateNodeWhenClickOutside, isOnGeneratingNewNode} = useNodesPerFlowContext()
         const [isLocalEdit, setIsLocalEdit] = useState(false)
         const [isZoomLocked, setIsZoomLocked] = useState(false)
 
@@ -267,10 +269,16 @@ const createBlockNodeView = (setIsLocalEdit: any, preventParentDrag: any, allowP
         className='no-scrollbar bg-transparent text-[#CDCDCD] text-[12px] font-plus-jakarta-sans border-none outline-none resize-none  w-full h-full whitespace-pre-wrap break-words cursor-text overflow-x-hidden overflow-y-scroll '
         value={text}
        editor={editor} 
-       onFocus={() => preventInactivateNode(parentId)}
-       onBlur={() => {
+       onFocus={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        preventInactivateNode()
+       }}
+       onBlur={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
         //  saveTextIntoNodeContent()
-         allowInactivateNode(parentId)
+         allowInactivateNodeWhenClickOutside()
        }}
     />
        

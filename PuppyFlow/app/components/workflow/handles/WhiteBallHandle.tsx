@@ -2,6 +2,7 @@ import React, {useEffect, useState} from 'react'
 import {HandleProps, Handle, Position, Connection, useReactFlow} from '@xyflow/react'
 import EdgeMenu1 from '../../menu/edgeMenu/EdgeMenu1'
 import { useNodeContext } from '../../states/NodeContext'
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
 
 type WhiteBallHandleProps = HandleProps & {
@@ -16,25 +17,26 @@ function WhiteBallHandle({sourceNodeId, ...props}: WhiteBallHandleProps) {
 
     // console.log(sourceNodeId)
     // design handle bar with multiple handles, must add id for handle
-    const {nodes, searchNode, preventActivateNode, allowActivateNode, activateNode, preventInactivateNode, activateHandle, inactivateHandle, allowInactivateNode} = useNodeContext()
+    // const {nodes, searchNode, preventActivateNode, allowActivateNode, activateNode, preventInactivateNode, activateHandle, inactivateHandle, allowInactivateNode} = useNodeContext()
+    const {activatedNode,activateNode, inactivateNode,setHandleActivated, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll, clearEdgeActivation} = useNodesPerFlowContext()
     const {getNode} = useReactFlow()
 
-    const handlePositions = {
-      [Position.Top]: 'TopSrcHandle',
-      [Position.Bottom]: 'BottomSrcHandle',
-      [Position.Left]: 'LeftSrcHandle',
-      [Position.Right]: 'RightSrcHandle',
-    };
-    const handleName = handlePositions[props.position] as HandleNames;
+    // const handlePositions = {
+    //   [Position.Top]: 'TopSrcHandle',
+    //   [Position.Bottom]: 'BottomSrcHandle',
+    //   [Position.Left]: 'LeftSrcHandle',
+    //   [Position.Right]: 'RightSrcHandle',
+    // };
+    // const handleName = handlePositions[props.position] as HandleNames;
 
-
+  
 
     
     function judgeDisplay() {
       let showHandle = false
-      const sourceNode = searchNode(sourceNodeId)
+      const sourceNode = getNode(sourceNodeId)
       if (!sourceNode) return "transparent"
-      showHandle = sourceNode[handleName].isConnected
+      // showHandle = sourceNode[handleName].isConnected
       
 
 
@@ -42,7 +44,7 @@ function WhiteBallHandle({sourceNodeId, ...props}: WhiteBallHandleProps) {
       // else if (!showHandle && !sourceNode.activated) return "transparent"
       // else return "active"
 
-      return (sourceNode.activated) ? "active" : "transparent"
+      return (activatedNode?.id === sourceNodeId) ? "active" : "transparent"
 
     }
 
@@ -53,35 +55,40 @@ function WhiteBallHandle({sourceNodeId, ...props}: WhiteBallHandleProps) {
         event.stopPropagation()
         console.log(sourceNodeId, props.position)
         // onHandleClick(props.position)
-        const sourceNode = searchNode(sourceNodeId)
+        const sourceNode = getNode(sourceNodeId)
         if (!sourceNode) return 
-        if (!sourceNode.activated) {
-          activateNode(sourceNodeId)
-          activateHandle(sourceNodeId, props.position)
-          preventInactivateNode(sourceNodeId)
+        if (activatedNode?.id !== sourceNodeId) {
+          clearAll()
+          // activateNode(sourceNodeId)
+          setHandleActivated(sourceNodeId, props.position)
+          
+          // preventInactivateNodeWhenClickHandle()
         }
         else {
           
-          if (handleName) {
-            if (sourceNode[handleName].activated) {
-              inactivateHandle(sourceNodeId, props.position);
-              allowInactivateNode(sourceNodeId);
+            if (activatedNode?.HandlePosition === props.position) {
+              setHandleActivated(sourceNodeId, null)
+              allowInactivateNodeWhenClickOutside()
             } else {
               // console.log(`activate node ${sourceNodeId}, handle ${props.position}, and preventInactivate node ${sourceNodeId}`)
-              activateHandle(sourceNodeId, props.position);
-              preventInactivateNode(sourceNodeId);
+              // activateHandle(sourceNodeId, props.position);
+              // preventInactivateNode(sourceNodeId);
+              // console.log("activate handle!!", props.position)
+              setHandleActivated(sourceNodeId, props.position)
+              clearEdgeActivation()
+              preventInactivateNode()
             }
-          }
+          
         }
         // if (selectedHandle === null) preventActivateNode()
         // else allowActivateNode()
     }
 
     const showHandleColor = () => {
-      const sourceNode = searchNode(sourceNodeId)
-      if (!sourceNode) return ""
+      // const sourceNode = getNode(sourceNodeId)
+      // if (!sourceNode) return ""
       // console.log(sourceNode, "show handle")
-      return sourceNode[handleName].activated ? "selected" : ""
+      return activatedNode?.id === sourceNodeId && activatedNode?.HandlePosition === props.position ? "selected" : ""
     }
    
     

@@ -27,6 +27,7 @@ export default function ConfigToTargetEdge ({
   targetY,
   sourcePosition,
   targetPosition,
+  selected,
   style = {
     strokeWidth: "4px",
     stroke: "#CDCDCD",
@@ -37,14 +38,13 @@ export default function ConfigToTargetEdge ({
 
   
 
-  const { getNode } = useReactFlow();
   const defaultTargetPosition = Position.Top
 
   // const sourceNode = getNode(source)
   // const targetNode = getNode(target)
 
   const newTargetX = targetX
-  const newTargetY = targetY + 32
+  const newTargetY = targetY + 29
 
   
   // const defaultTargetWidth = 256
@@ -87,7 +87,50 @@ export default function ConfigToTargetEdge ({
 
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} style={style}  />
+      
+      
+         <defs>
+          {/* 默认箭头 */}
+         <marker
+            id="custom-arrow-default"
+            viewBox="0 0 10 10"
+            refX="5"
+            refY="5"
+            markerWidth="4"
+            markerHeight="4"
+            orient="auto-start-reverse"
+          >
+            {/* 自定义箭头形状 */}
+            <path
+              // d="M 0 0 L 10 5 L 0 10 L 3 5 Z"
+              d="M 0 0 L 7 5 L 0 10 L 1 5 Z"
+              fill="#CDCDCD"
+              // stroke="#CDCDCD"
+              // 或者使用三角形箭头
+              // d="M 0 0 L 10 5 L 0 10 z"
+            />
+      
+          </marker>  
+          {/* 选中箭头 */}
+          <marker
+          id="custom-arrow-selected"
+          viewBox="0 0 10 10"
+          refX="5"
+          refY="5"
+          markerWidth="4"
+          markerHeight="4"
+          orient="auto-start-reverse"
+        >
+          <path
+            d="M 0 0 L 7 5 L 0 10 L 1 5 Z"
+            fill="#FFA73D"
+            stroke="#FFA73D"
+          />
+        </marker>
+
+          
+      </defs>  
+      <BaseEdge path={edgePath} markerEnd={`url(#custom-arrow-${selected ? "selected" : "default"})`} style={style}  />
     </>
   );
 }
