@@ -683,7 +683,7 @@ class LLMChunking:
     def llm_chunk(
         self,
         prompt: str = None,
-        model: str = "gpt-4o"
+        model: str = "gpt-4o-2024-08-06"
     ):
         # System prompt guiding the LLM to understand the task
         sys_prompt = """
@@ -721,23 +721,42 @@ Desired Output in json:
 
         # Use sys_prompt if no user-supplied prompt is provided
         prompt = prompt if prompt else sys_prompt
-        
+
         messages = [
             {"role": "system", "content": prompt},
             {"role": "user", "content": f"The original document: {self.doc}"}
         ]
 
+        structure = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "chunk_json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "chunks": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "required": ["chunks"]
+                }
+            }
+        }
+
         # Call to the LLM chat function
         response = lite_llm_chat(
             messages=messages,
             model=model,
-            temperature=0.7,
+            temperature=0.9,
             max_tokens=4096,
             printing=False,
             stream=False,
-            response_format={"type": "json_object"},
+            response_format=structure,
         )
-        
+
         return self._parse_chunks(response)
 
     @global_exception_handler(3110, "Error Parsing Chunks from LLM Response")
