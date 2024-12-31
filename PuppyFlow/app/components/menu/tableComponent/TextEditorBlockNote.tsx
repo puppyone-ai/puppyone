@@ -8,7 +8,8 @@ import { BlockNoteEditor, PartialBlock, Block } from '@blocknote/core';
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import useManageReactFlowUtils from "../../hooks/useManageReactFlowUtils";
-import {useNodeContext} from "../../states/NodeContext";
+// import {useNodeContext} from "../../states/NodeContext";
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { isEqual } from "lodash";
 import { useUploadThing, uploadFiles } from "../../../utils/uploadthing";
 
@@ -35,7 +36,8 @@ function TextEditorBlockNote(
     const [content, setContent] = useState<string | undefined>(undefined);
     const [blocks, setBlocks] = useState<Block[]>([]);
     const {lockZoom, freeZoom} = useManageReactFlowUtils();
-    const {preventInactivateNode, allowInactivateNode} = useNodeContext();
+    // const {preventInactivateNode, allowInactivateNode} = useNodeContext();
+    const {preventInactivateNode, allowInactivateNodeWhenClickOutside, isOnGeneratingNewNode} = useNodesPerFlowContext()
     const {startUpload} = useUploadThing('imageUploader')
 
     const editor: BlockNoteEditor = useCreateBlockNote(
@@ -192,10 +194,16 @@ function TextEditorBlockNote(
     style={{width: widthStyle, height: heightStyle, overflow: 'hidden'}}
     onMouseEnter={onMouseEnterActions}
     onMouseLeave={onMouseLeaveActions}
-    onFocus={() => preventInactivateNode(parentId)}
-    onBlur={async () => {
+    onFocus={(e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      preventInactivateNode()
+    }}
+    onBlur={async (e) => {
+      e.preventDefault()
+      e.stopPropagation()
       await saveTextIntoNodeContent()
-      allowInactivateNode(parentId)
+      allowInactivateNodeWhenClickOutside()
     }}
     >
     <BlockNoteView 

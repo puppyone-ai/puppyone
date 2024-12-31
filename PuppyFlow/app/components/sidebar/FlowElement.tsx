@@ -1,14 +1,71 @@
-import React from 'react'
+import React, { useState } from 'react'
+import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import FlowElementOperationMenu from './FlowElementOperationMenu'
+type FlowElementProps = {
+    FlowId: string;
+    FlowName: string;
+    handleOperationMenuShow: (flowId: string | null) => void;
+    flowIdShowOperationMenu: string | null;
+    // showFlowName: (flowId: string) => string;
+    // editFlow: (flowId: string, flowName: string) => void;
+    // removeFlow: (flowId: string) => void;
+}
 
-function FlowElement({customFlowName="unknown flow"}) {
+function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOperationMenu}: FlowElementProps) {
     // 需要定义一个css 条件是当hover到这个flow bar 时，bg背景颜色需要变化 bg-[#3d3e41]
+
+    const [isHover, setIsHover] = useState(false);
+    // const {removeFlow, editFlowName, setSelectedFlowId, selectedFlowId} = useFlowsPerUserContext()
+    const {handleFlowSwitch, selectedFlowId, removeFlow, editFlowName} = useFlowsPerUserContext()
+
+
+    
+
+
   return (
-    <div className='flex items-center justify-center px-[25px] py-[8px] h-[30px] flex-shrink-0 w-full'>
-      <div className='flex items-center justify-start text-left w-full text-[13px] tracking-[0.65px] font-normal font-plus-jakarta-sans text-[#CDCDCD] active:bg-[#3E3E41]
-       rounded-[8px]'>
-      {customFlowName}
-      </div> 
-    </div>
+    <li className={`
+      flex items-center justify-center pl-[16px] pr-[4px] h-[30px] w-full gap-[10px] rounded-[6px] relative
+      ${FlowId === selectedFlowId || flowIdShowOperationMenu === FlowId 
+        ? 'bg-[#454545] hover:bg-[#454545]' 
+        : 'hover:bg-[#313131]'
+      }
+    `} 
+      onMouseEnter={() => setIsHover(true)} 
+      onMouseLeave={() => setIsHover(false)} 
+      onClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (FlowId !== selectedFlowId) {
+            handleFlowSwitch(FlowId)
+        }
+    }}>
+      <div className='flex items-center justify-start text-left text-[12px] tracking-[0.65px] rounded-[6px] w-full font-normal font-plus-jakarta-sans text-[#CDCDCD] 
+      FlowElementInput border-none outline-none bg-transparent cursor-pointer'  >
+        {FlowName}
+      </div>
+      <div className={`w-[24px] h-[24px] ${flowIdShowOperationMenu === FlowId || isHover ? 'flex' : 'hidden'}`}> {/* 添加固定宽度的容器 */}
+        
+          <button 
+            className='flex items-center justify-center w-[22px] h-[22px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-300' 
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleOperationMenuShow(FlowId)
+              // removeFlow(FlowId)
+            }}
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"  fill="none">
+              <path d="M7 11H9V13H7V11Z" fill="#CDCDCD"/>
+              <path d="M16 11H18V13H16V11Z" fill="#CDCDCD"/>
+              <path d="M11.5 11H13.5V13H11.5V11Z" fill="#CDCDCD"/>
+            </svg>
+          </button>
+          <FlowElementOperationMenu flowId={FlowId} 
+          show={flowIdShowOperationMenu === FlowId} 
+          handleOperationMenuHide={() => handleOperationMenuShow(null)} />
+      </div>
+
+    </li>
   )
 }
 

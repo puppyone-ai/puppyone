@@ -1,11 +1,8 @@
 import React, { useState, useCallback, useEffect }  from 'react'
 import useJsonConstructUtils, {NodeJsonType, FileData} from './useJsonConstructUtils'
 import { useReactFlow } from '@xyflow/react'
-import { useNodeContext } from '../states/NodeContext'
-import { nodeSmallProps } from '../menu/nodeMenu/NodeMenu'
 import {ChunkingAutoEdgeJsonType} from '../menu/configMenu/ChunkingAutoConfigMenu'
 import {CodeEdgeJsonType} from '../menu/configMenu/CodeConfigMenu'
-import {EmbeddingEdgeJsonType} from '../menu/configMenu/EmbeddingConfigMenu'
 import {LLMEdgeJsonType} from '../menu/configMenu/LLMConfigMenu'
 import {ModifyCopyEdgeJsonType} from '../menu/configMenu/ModifyCopyConfigMenu'
 import {ModifyGetEdgeJsonType} from '../menu/configMenu/ModifyGetConfigMenu'
@@ -22,7 +19,6 @@ import {ChunkingMarkdownEdgeJsonType} from '../menu/configMenu/ChunkingForMarkdo
 import {ChooseEdgeJsonType} from '../menu/configMenu/ChooseConfigMenu'
 import {ChunkingConfigNodeData} from '../workflow/edges/configNodes/ChunkingConfig'
 import {LLMConfigNodeData} from '../workflow/edges/configNodes/LLMConfig'
-import {EmbeddingConfigNodeData} from '../workflow/edges/configNodes/EmbeddingConfig'
 import {ModifyConfigNodeData} from '../workflow/edges/configNodes/ModifyConfig'
 import {SearchConfigNodeData} from '../workflow/edges/configNodes/SearchConfig'
 import {ChooseConfigNodeData} from '../workflow/edges/configNodes/ChooseConfig'
@@ -30,7 +26,12 @@ import {ProcessingData} from './useJsonConstructUtils'
 import { CodeConfigNodeData } from '../workflow/edges/configNodes/CodeConfig'
 import {backend_IP_address_for_sendingData, backend_IP_address_for_receivingData} from './useJsonConstructUtils'
 
-type validEdgeType = ChunkingAutoEdgeJsonType | LLMEdgeJsonType | EmbeddingEdgeJsonType | ModifyCopyEdgeJsonType | ModifyGetEdgeJsonType | ModifyStructuredEdgeJsonType | ModifyTextEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType | SearchByVectorEdgeJsonType | ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType | ChunkingLLMEdgeJsonType | ChunkingHTMLEdgeJsonType | ChunkingMarkdownEdgeJsonType | CodeEdgeJsonType | ChooseEdgeJsonType
+type validEdgeType = ChunkingAutoEdgeJsonType | LLMEdgeJsonType | ModifyCopyEdgeJsonType | ModifyGetEdgeJsonType | ModifyStructuredEdgeJsonType | ModifyTextEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType | SearchByVectorEdgeJsonType | ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType | ChunkingLLMEdgeJsonType | ChunkingHTMLEdgeJsonType | ChunkingMarkdownEdgeJsonType | CodeEdgeJsonType | ChooseEdgeJsonType
+
+type validWholeWorkflowJsonType = {
+    blocks: { [key: string]: NodeJsonType },
+    edges: { [key: string]: validEdgeType }
+}
 
 /* send whole workflow data to backend and get updated result , update all results, used only for one file: StartCodeController.tsx */
 export default function useWholeWorkflowJsonConstructUtils() {
@@ -45,7 +46,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
     const sendWholeWorkflowJsonDataToBackend = async  () => {
         try {
             const jsonData = constructWholeWorkflowJsonData()
-            // console.log(jsonData, "whole json data in Workflow")
+            console.log(jsonData, "whole json data in Workflow")
             const response = await fetch(`${backend_IP_address_for_sendingData}`, {
                 method:'POST',
                 headers: {
@@ -75,11 +76,11 @@ export default function useWholeWorkflowJsonConstructUtils() {
     /* Possible Error: 
     1. typeError, ResultNode.nodeid undefind, 原因是因为没有生成最终的所有resultNode的情况下传递了json 会报错 
     */
-    const constructWholeWorkflowJsonData = () => {
+    const constructWholeWorkflowJsonData = (): validWholeWorkflowJsonType | Error => {
         const nodesInWorkflow = getNodes()
     
-        let blocks: NodeJsonType[] = []
-        let edges: validEdgeType[] = []
+        let blocks: { [key: string]: NodeJsonType } = {}
+        let edges: { [key: string]: validEdgeType } = {}
         for (let nodeInfo of nodesInWorkflow) {
            let nodeContent = ""
            let nodejson: NodeJsonType
@@ -89,30 +90,34 @@ export default function useWholeWorkflowJsonConstructUtils() {
            switch (nodeInfo.type) {
             case "none":
               nodeContent = nodeInfo.data?.subType === "structured" ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-              if (nodeContent === "error") return "error"
+              if (nodeContent === "error") return new Error("Error in Parsing JSON Content")
               nodejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
                   type: nodeInfo.type!,
                   data: {
                       content: nodeContent,
-                      subType: nodeInfo.data?.subType as string ?? "text"
+                      subtype: nodeInfo.data?.subtype as string ?? "text"
                   }
               }
-              blocks = [...blocks, nodejson]
+              blocks[nodeInfo.id] = nodejson
               break
             case "structured":
               nodeContent = cleanJsonString(nodeInfo.data.content as string | any)
-              if (nodeContent === "error") return "error"
+              if (nodeContent === "error") return new Error("Error in Parsing JSON Content")
               nodejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
                   type: nodeInfo.type!,
                   data: {
-                      content: nodeContent
+                      content: nodeContent,
+                      model: nodeInfo.data.model as string | undefined,
+                      method: nodeInfo.data.method as string | undefined,
+                      vdb_type: nodeInfo.data.vdb_type as string | undefined,
+                      index_name: nodeInfo.data.index_name as string | undefined
                   }
               }
-              blocks = [...blocks, nodejson]
+              blocks[nodeInfo.id] = nodejson
               break
             case "text":
             case "file":   
@@ -123,14 +128,14 @@ export default function useWholeWorkflowJsonConstructUtils() {
             case "database":
               nodeContent = nodeInfo.data.content as string
               nodejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
                   type: nodeInfo.type!,
                   data: {
                       content: nodeContent
                   }
               }
-              blocks = [...blocks, nodejson]
+              blocks[nodeInfo.id] = nodejson
               break
             case "load":
               break
@@ -139,27 +144,26 @@ export default function useWholeWorkflowJsonConstructUtils() {
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
               if (subMenuType === "chunk-Auto") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "chunk",
                   data: {  
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       chunking_mode: "auto",
                       extra_configs: {},
                       looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                   },
                   
                 } as ChunkingAutoEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
           
               }
               else if (subMenuType === "chunk-Bylength") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "chunk",
                   data: {  
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       chunking_mode: "length",
                       sub_chunking_mode: (nodeInfo.data as ChunkingConfigNodeData).sub_chunking_mode,
                       extra_configs: {
@@ -168,36 +172,36 @@ export default function useWholeWorkflowJsonConstructUtils() {
                           handle_half_word: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.handle_half_word ?? false,
                       },
                       looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                   },
                 } as ChunkingByLengthEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
                
               }
               else if (subMenuType === "chunk-Bycharacter") {
                 const delimiterConfig = cleanJsonString((nodeInfo.data as ChunkingConfigNodeData)?.content as string) as string[]
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "chunk",
                   data: {  
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       chunking_mode: "character",
                       sub_chunking_mode: "character",
                       extra_configs: {delimiters: delimiterConfig},
                       looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                       
                   },
                 } as ChunkingByCharacterEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
                
               } 
               else if (subMenuType === "chunk-ByLLM") {
                   edgejson = {
-                    id: nodeInfo.id,
+                    // id: nodeInfo.id,
                     type: "chunk",
                     data: {  
-                        inputs: sourceNodeIdWithLabelGroup,
+                        inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                         chunking_mode: "llm",
                         sub_chunking_mode: "llm",
                         extra_configs: {
@@ -205,50 +209,50 @@ export default function useWholeWorkflowJsonConstructUtils() {
                             prompt: (nodeInfo.data as ChunkingConfigNodeData)?.content as string ?? ""
                         },
                         looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                        outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: (getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string)}
                     },
                   } as ChunkingLLMEdgeJsonType
-                  edges = [...edges, edgejson]
+                  edges[nodeInfo.id] = edgejson
                 
               }
               else if (subMenuType === "chunk-ForHTML") {
                 const tagValue = cleanJsonString((nodeInfo.data as ChunkingConfigNodeData)?.content as string) || []
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "chunk",
                   data: {  
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       chunking_mode: "advanced",
                       sub_chunking_mode: "html",
                       extra_configs: {
                           tags: tagValue
                       },
                       looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: (getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string)}
                   },
                  
                 } as ChunkingHTMLEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               
               }
               else if (subMenuType === "chunk-ForMarkdown") {
                 const tagValue = cleanJsonString((nodeInfo.data as ChunkingConfigNodeData)?.content as string) || []
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "chunk",
                   data: {  
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       chunking_mode: "advanced",
                       sub_chunking_mode: "markdown",
                       extra_configs: {
                           tags: tagValue
                       },
                       looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ChunkingConfigNodeData).resultNode, label: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                       
                   },
                 } as ChunkingMarkdownEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
       
               }
               break
@@ -258,7 +262,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
               const messageContent = cleanJsonString(nodeInfo.data.content as string)
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
               edgejson = {
-                id: nodeInfo.id,
+                // id: nodeInfo.id,
                 type: "llm",
                 data: {
                     messages: messageContent !== "error" ? messageContent : [
@@ -272,54 +276,35 @@ export default function useWholeWorkflowJsonConstructUtils() {
                     max_tokens: 4096,
                     temperature: 0.7,
                     structured_output: (nodeInfo.data as LLMConfigNodeData)?.structured_output ?? false,
-                    inputs: sourceNodeIdWithLabelGroup,
+                    inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                     looped: (nodeInfo.data as LLMConfigNodeData).looped ?? false,
-                    outputs: [{id: (nodeInfo.data as LLMConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as LLMConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as LLMConfigNodeData).resultNode as string}]
+                    outputs: {[(nodeInfo.data as LLMConfigNodeData).resultNode as string]: getNode((nodeInfo.data as LLMConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as LLMConfigNodeData).resultNode as string}
                     
                 },
               } as LLMEdgeJsonType
-              edges = [...edges, edgejson]
-              break
-            case "embedding":
-              sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
-              edgejson = {
-                id: nodeInfo.id,
-                type: "embedding",
-                data: {  
-                    inputs: sourceNodeIdWithLabelGroup,
-                    model: (nodeInfo.data as EmbeddingConfigNodeData)?.model ?? "text-embedding-ada-002",
-                    method: (nodeInfo.data as EmbeddingConfigNodeData)?.method ?? "distance",
-                    looped: (nodeInfo.data as EmbeddingConfigNodeData).looped ?? false,
-                    outputs: [{id: (nodeInfo.data as EmbeddingConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as EmbeddingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as EmbeddingConfigNodeData).resultNode as string}]
-                },
-              } as EmbeddingEdgeJsonType
-              edges = [...edges, edgejson]
+              edges[nodeInfo.id] = edgejson
               break
             case "modify":
               subMenuType = (nodeInfo.data as ModifyConfigNodeData).subMenuType as string ?? ""
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
               if (subMenuType === "modify-copy") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "modify",
                   data: { 
-                      content_type: "str",
-                      modify_type: "deep_copy_string",
+                      modify_type: "deep_copy",
                       extra_configs: {}, 
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyCopyEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               } 
               else if (subMenuType === "modify-get") {
                 const mode = (nodeInfo.data as ModifyConfigNodeData).content_type as string ?? "list"
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "modify",
                   data: {  
                       content_type: mode,
@@ -328,47 +313,42 @@ export default function useWholeWorkflowJsonConstructUtils() {
                           index: mode === "list" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.index as number : undefined,
                           key: mode === "dict" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.key as string : undefined
                       },
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyGetEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               }   
               else if (subMenuType === "modify-structured") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "modify",
                   data: {  
-                    content_type: "str",
                     modify_type: "modify_structured",
                     extra_configs: {},
                     content: cleanJsonString(nodeInfo.data.content as string),
-                    inputs: sourceNodeIdWithLabelGroup,
+                    inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                     looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
-                    outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}] 
-                },
+                    outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
+                  },
                 } as ModifyStructuredEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               }
               else if (subMenuType === "modify-text") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "modify",
                   data: {  
-                      content_type: "str",
                       modify_type: "modify_text",
                       extra_configs: {},
                       content: nodeInfo.data.content as string,
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as ModifyConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyTextEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               }
               break
             case "search":
@@ -380,75 +360,78 @@ export default function useWholeWorkflowJsonConstructUtils() {
                 const query_id = (nodeInfo.data as SearchConfigNodeData)?.query_id?.id
                 const query_label = query_id ? getNode(query_id)?.data?.label as string | undefined ?? query_id : undefined
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "search",
                   data: {  
-                      search_type: "vector",
-                      sub_search_type: "embedding",
+                      search_type: "rag",
+                      sub_search_type: "vector",
                       top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                      threshold: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7,
                       extra_configs: {
-                          threshold: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7
+                        provider: "openai",
+                        model: "text-embedding-ada-002",
+                        db_type: "pinecone",
+                        collection_name: "test_collection"
                       },
-                      vector_db: {id: vectorDB_id, label: vectorDB_label},
-                      query_id: {id: query_id, label: query_label},
+                      docs_id: {[vectorDB_id as string]: vectorDB_label as string},
+                      query_id: {[query_id as string]: query_label as string},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as SearchConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
                 } as SearchByVectorEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               }
               else if (subMenuType === "search-Elastic") {
     
               }
               else if (subMenuType === "search-Perplexity") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "search",
                   data: { 
                       search_type:"llm", 
                       sub_search_type:"perplexity",
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                      query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                       extra_configs: {model: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as SearchConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
                 } as SearchPerplexityEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               }
               else if (subMenuType === "search-Google") {
                 edgejson = {
-                  id: nodeInfo.id,
+                  // id: nodeInfo.id,
                   type: "search",
                   data: { 
                       search_type:"web", 
                       sub_search_type:"google",
                       top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
-                      inputs: sourceNodeIdWithLabelGroup,
+                      inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                      query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                       extra_configs: {},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
-                      outputs: [{id: (nodeInfo.data as SearchConfigNodeData).resultNode, 
-                        label: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}]
+                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
                 } as SearchGoogleEdgeJsonType
-                edges = [...edges, edgejson]
+                edges[nodeInfo.id] = edgejson
               }
               break 
             case "code":
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
               edgejson = {
-                id: nodeInfo.id,
+                // id: nodeInfo.id,
                 type: "code",
                 data: {  
-                    inputs: sourceNodeIdWithLabelGroup,
+                    inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                     code: (nodeInfo.data as CodeConfigNodeData).code as string ?? `def func(${sourceNodeIdWithLabelGroup.map(node => `arg_${node.label}`).join(",")}):\n    # write your code here\n    return`,
                     looped: (nodeInfo.data as CodeConfigNodeData).looped ?? false,
-                    outputs: [{id: (nodeInfo.data as CodeConfigNodeData).resultNode, label: getNode((nodeInfo.data as CodeConfigNodeData).resultNode as string)?.data.label as string ?? (nodeInfo.data as CodeConfigNodeData).resultNode as string}]
+                    outputs: {[(nodeInfo.data as CodeConfigNodeData).resultNode as string]: getNode((nodeInfo.data as CodeConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as CodeConfigNodeData).resultNode as string}
                 },
               } as CodeEdgeJsonType
-              edges = [...edges, edgejson]
+              edges[nodeInfo.id] = edgejson
               break
             case "choose":
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
@@ -458,19 +441,19 @@ export default function useWholeWorkflowJsonConstructUtils() {
               const chooseON = (nodeInfo.data as ChooseConfigNodeData).ON
               const chooseOFF = (nodeInfo.data as ChooseConfigNodeData).OFF
               edgejson = {
-                id: nodeInfo.id,
+                // id: nodeInfo.id,
                 type: "choose",
                 data: {  
-                    switch: chooseSwitch ? {id: chooseSwitch, label: getNode(chooseSwitch as string)?.data?.label as string ?? chooseSwitch} : undefined,
-                    content: chooseContent ? {id: chooseContent, label: getNode(chooseContent as string)?.data?.label as string ?? chooseContent} : undefined,
-                    inputs: sourceNodeIdWithLabelGroup,
-                    outputs: chooseOutputs ? chooseOutputs.map((node: string) => ({id: node, label: getNode(node)?.data?.label as string ?? node})) : [],
+                    switch: chooseSwitch ? {[chooseSwitch as string]: (getNode(chooseSwitch as string)?.data?.label as string ?? chooseSwitch as string)} : undefined,
+                    content: chooseContent ? {[chooseContent as string]: (getNode(chooseContent as string)?.data?.label as string ?? chooseContent as string)} : undefined,
+                    inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                    outputs: chooseOutputs ? Object.fromEntries(chooseOutputs.map((node: string) => ([node, (getNode(node)?.data?.label as string ?? node as string)]))) : {},
                     looped: false,
-                    ON: chooseON ? chooseON.map((node: string) => ({id: node, label: getNode(node)?.data?.label as string ?? node})) : [],
-                    OFF: chooseOFF ? chooseOFF.map((node: string) => ({id: node, label: getNode(node)?.data?.label as string ?? node})) : []
+                    ON: chooseON ? Object.fromEntries(chooseON.map((node: string) => ([node, (getNode(node)?.data?.label as string ?? node as string)]))) : {},
+                    OFF: chooseOFF ? Object.fromEntries(chooseOFF.map((node: string) => ([node, (getNode(node)?.data?.label as string ?? node as string)]))) : {}
                 },
               } as ChooseEdgeJsonType
-              edges = [...edges, edgejson]
+              edges[nodeInfo.id] = edgejson
               break
            }  
             
@@ -552,17 +535,17 @@ export default function useWholeWorkflowJsonConstructUtils() {
         // console.log(`Received ${data.length} file(s)`);
         // console.log(getNodes(), "current nodes in reactflow")
         
-        for (let item of data) {
+        for (let [nodeid, nodeProps] of Object.entries(data)) {
           
             // console.log(item.id,item.data.content, typeof item.data.content, "check the content type")
-            setNodes(prevNodes => (prevNodes.map(node => node.id === item.id ? {
+            setNodes(prevNodes => (prevNodes.map(node => node.id === nodeid ? {
                 ...node,
-                type: item.type ?? node.type,
+                type: nodeProps.type ?? node.type,
                 data: {
                     ...node.data,
                     // content: item.type === "structured" || (!item.type && node.type === "structured") ? JSON.stringify(item.data.content) : typeof item.data.content === "string" ? item.data.content : JSON.stringify(item.data.content),
-                    content: item.data.content,
-                    ...(node.type === "none" ? {subtype: item.type} : {})
+                    content: nodeProps.data.content,
+                    ...(node.type === "none" ? {subtype: nodeProps.type} : {})
                 }
             }: node)))
            

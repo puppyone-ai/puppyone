@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils';
 import { useReactFlow } from '@xyflow/react';
-import { useNodeContext } from '../../states/NodeContext';
+// import { useNodeContext } from '../../states/NodeContext';
+import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 
 type TextConfigEditorTextAreaProps = {
   preventParentDrag: () => void,
@@ -26,9 +27,30 @@ function TextConfigEditorTextArea({preventParentDrag,
     const [isEmpty, setIsEmpty] = useState(!(getNode(parentId)?.data.content as string) ? true : false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {lockZoom, freeZoom} = useManageReactFlowUtils()
-  const {searchNode, preventInactivateNode, allowInactivateNode} = useNodeContext()
+  // const {searchNode, preventInactivateNode, allowInactivateNode} = useNodeContext()
+  const {preventInactivateNode, allowInactivateNodeWhenClickOutside, isOnGeneratingNewNode} = useNodesPerFlowContext()
   const [isLocalEdit, setIsLocalEdit] = useState(false)
   
+  // when click sidebar panel, blur textarea and save text
+  useEffect(() => {
+    const handleWorkspacePanelEnter = () => {
+      if (textareaRef.current) {
+        textareaRef.current.blur()  // 这会自动触发onBlur事件，执行保存和allowInactivateNodeWhenClickOutside
+      }
+    }
+
+    const workspacePanel = document.getElementById('workspace-manage-panel')
+    
+    if (workspacePanel) {
+      workspacePanel.addEventListener('mouseenter', handleWorkspacePanelEnter)
+    }
+
+    return () => {
+      if (workspacePanel) {
+        workspacePanel.removeEventListener('mouseenter', handleWorkspacePanelEnter)
+      }
+    }
+  }, []) // 不需要依赖text，因为onBlur会处理保存逻辑
  
 
   useEffect(() => {
@@ -131,10 +153,16 @@ function TextConfigEditorTextArea({preventParentDrag,
       <textarea ref={textareaRef}  className='no-scrollbar bg-transparent text-[#CDCDCD] text-[12px] font-plus-jakarta-sans border-none outline-none resize-none overflow-y-auto overflow-x-hidden w-full h-full whitespace-pre-wrap break-words ' 
       value={text}
       onChange={handleChange} 
-      onFocus={() => preventInactivateNode(parentId)}
-      onBlur={() => {
+      onFocus={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        preventInactivateNode()
+      }}
+      onBlur={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
         saveTextIntoNodeContent()
-        allowInactivateNode(parentId)
+        allowInactivateNodeWhenClickOutside()
       }}
       onMouseEnter={onMouseEnterActions} onMouseLeave={onMouseLeaveActions}/>
     </div>
