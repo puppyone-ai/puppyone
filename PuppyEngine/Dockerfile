@@ -10,7 +10,6 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0
 
 # Copy requirements.txt and install dependencies
-COPY PuppyEngine/requirements.txt . 
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the entire project directory to the container
@@ -23,4 +22,4 @@ ENV PYTHONPATH="/app/PuppyEngine"
 EXPOSE 8000
 
 # Set the entry point to run the FastAPI server from PuppyEngine
-CMD ["uvicorn", "PuppyEngine.Server.fastapi_server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "PuppyEngine.Server.fastapi_server:app", "--host", "0.0.0.0", "--port", "8001"]

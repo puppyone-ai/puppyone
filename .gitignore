@@ -3,6 +3,7 @@ PuppyFlow/node_modules/
 **/node_modules/
 **/code_venv/
 **/new_venv/
+**.msi
 pandoc-3.3-windows-x86_64.msi
 pandoc-3.5-windows-x86_64.msi
 

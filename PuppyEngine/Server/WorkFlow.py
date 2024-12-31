@@ -153,7 +153,10 @@ class WorkFlow:
             if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
                 content = content.replace("\n", "\\n").replace("\r", "\\r")
                 try:
-                    json.loads(content)
+                    json_content = content
+                    if json_content.startswith("["):
+                        json_content = f'{{"content": {json.dumps(json_content)}}}'
+                    json.loads(json_content)
                 except json.JSONDecodeError:
                     logger.error("Invalid Result Structured Content: %s", content)
                     raise ValueError("Invalid Result Structured Content")
@@ -324,14 +327,14 @@ class WorkFlow:
         return output
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     from dotenv import load_dotenv
     load_dotenv()
     
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name != "search_perplexity.json":
+        if file_name != "test_test4.json":
             continue
         # if not file_name.startswith("loop_modify"):
         #     continue
