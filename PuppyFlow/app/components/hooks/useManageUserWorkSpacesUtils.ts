@@ -240,7 +240,7 @@ export default function useManageUserWorkspacesUtils(): ManageUserWorkspacesUtil
     const updateWorkspaceNameInDatabase = async (workspaceId: string, newWorkspaceName: string) => {
         try {
             const response = await fetch(`${UserSystem_Backend_Base_Url}/update_workspace_name/${workspaceId}`, {
-              method: 'POST',
+              method: 'PUT',
               credentials: 'include',
               headers: {
                 'Content-Type': 'application/json'
