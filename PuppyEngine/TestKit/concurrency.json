@@ -15,13 +15,15 @@
         "3": {
             "type": "structured",
             "data": {
-                "content": []
+                "content": [],
+                "embedding_view": []
             }
         },
         "4": {
             "type": "structured",
             "data": {
-                "content": []
+                "content": [],
+                "embedding_view": []
             }
         }
     },

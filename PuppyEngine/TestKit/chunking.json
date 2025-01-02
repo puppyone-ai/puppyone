@@ -3,19 +3,22 @@
         "2": {
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "4": {
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "5": {
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "1": {

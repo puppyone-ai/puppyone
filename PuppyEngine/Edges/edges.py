@@ -71,7 +71,7 @@ class Edge:
         if self.edge_type == "chunk":
             docs = method_data.get("doc", [])
             for doc in docs:
-                self.data["doc"] = doc
+                self.data["doc"] = doc.get("content", "")
                 results.append(method())
 
         # Handle 'llm', 'code', and 'modify' edge types
@@ -186,10 +186,14 @@ class Edge:
     def chunk(
         self
     ) -> List[str]:
+        doc_content = self.data.get("doc")
+        if isinstance(doc_content, list):
+            doc_content = "".join([content.get("content", "") for content in doc_content])
+
         chunks = ChunkingFactory.create_chunking(
             chunking_mode=self.data.get("chunking_mode", ""),
             sub_mode=self.data.get("sub_chunking_mode", ""),
-            doc=self.data.get("doc", ""),
+            doc=doc_content,
             extra_configs=self.data.get("extra_configs", "")
         )
 

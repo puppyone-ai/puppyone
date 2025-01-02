@@ -172,13 +172,11 @@ class JsonParser:
         self,
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
-        is_loop = edge_dict.get("data").get("looped", False)
-        if is_loop:
-            doc_content = [item for sublist in (self._extract_content(block_id) for block_id in edge_dict.get("data").get("inputs").keys()) for item in sublist]
-        else:
-            doc_content = "".join([self._extract_content(block_id) for block_id in edge_dict.get("data").get("inputs").keys()])
-        
-        edge_dict["data"]["doc"] = doc_content
+        block = self.block_data.get(list(edge_dict.get("data").get("inputs").keys())[0])
+        edge_dict["data"]["doc"] = block.get("data", {}).get("embedding_view", [])
+        looped = block.get("data", {}).get("looped", False)
+        block_type = block.get("type", "")
+        edge_dict["data"]["looped"] = True if looped and block_type == "structured" else False
         return edge_dict
 
     @global_exception_handler(5108, "Error Handling Embedding Edge")
@@ -187,10 +185,7 @@ class JsonParser:
         edge_dict: Dict[str, dict]
     ) -> Dict[str, dict]:
         source_block_id = list(edge_dict.get("data", {}).get("inputs", {}).keys())[0]
-        edge_dict["data"]["chunks"] = self._extract_content(source_block_id)
-        source_block = self.block_data.get(source_block_id, {})
-        self.structured_converter.set_structured_text(source_block.get("data", {}).get("content", {}))
-        source_block["data"]["content"] = self.structured_converter.convert_to_embedding_view()
+        edge_dict["data"]["chunks"] = self.block_data.get(source_block_id).get("data", {}).get("embedding_view", [])
         return edge_dict
 
     @global_exception_handler(5109, "Error Handling Search Edge")
@@ -200,8 +195,9 @@ class JsonParser:
     ) -> Dict[str, dict]:
         query_block_id = list(edge_dict.get("data", {}).get("query_id", {}).keys())[0]
         edge_dict["data"]["query"] = self._extract_content(query_block_id)
-        if edge_dict.get("data", {}).get("sub_search_type", "") == "vector":
-            edge_dict["data"]["docs"] = self._extract_content(list(edge_dict.get("data", {}).get("docs_id", "").keys())[0])
+        if edge_dict.get("data", {}).get("search_type", "") == "rag":
+            doc_block_id = list(edge_dict.get("data", {}).get("docs_id", "").keys())[0]
+            edge_dict["data"]["docs"] = self.block_data.get(doc_block_id).get("data", {}).get("embedding_view", [])
         return edge_dict
 
     @global_exception_handler(5110, "Error Handling Code Edge")

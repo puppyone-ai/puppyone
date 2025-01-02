@@ -1,0 +1,115 @@
+{
+    "blocks": {
+        "2": {
+            "type": "text",
+            "data": {
+                "content": "world"
+            }
+        },
+        "1": {
+            "label":"1",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "3": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "4": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "5": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "6": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "choose-426782387": {
+            "type": "ifelse",
+            "data": {
+                "cases": { 
+                    "case1": {
+                        "conditions": [
+                            {
+                                "block": "1",
+                                "condition": "is_empty",
+                                "parameters": {},
+                                "operation": "and"
+                            },
+                            {
+                                "block": "2", 
+                                "condition": "is",
+                                "parameters": {"value": "world"},
+                                "operation": "/"
+                            }
+                        ],
+                        "then": {
+                            "from": "1",
+                            "to": "3"
+                        }
+                    },
+                    "case2": {
+                        "conditions": [
+                            {
+                                "block": "1",
+                                "condition": "is_not_empty",
+                                "parameters": {},
+                                "operation": "or"
+                            },
+                            {
+                                "block": "2", 
+                                "condition": "contains",
+                                "parameters": {"value": "h"},
+                                "operation": "/"
+                            }
+                        ],
+                        "then": {
+                            "from": "2",
+                            "to": "4"
+                        }
+                    }
+                },
+                "inputs":{"1": "", "2": ""},
+                "outputs":{"3": "", "4": ""}
+            }
+        },
+        "edge-34567432132": {
+            "type": "modify",
+            "data": {
+                "content_type": "str",
+                "modify_type": "modify_text",
+                "extra_config": {},
+                "content": "hello {{3}}",
+                "inputs": {"3": ""},
+                "outputs": {"5": ""}
+            }
+        },
+        "edge-65762984": {
+            "type": "modify",
+            "data": {
+                "content_type": "str",
+                "modify_type": "modify_text",
+                "extra_config": {},
+                "content": "goodbye {{4}}",
+                "inputs": {"4": ""},
+                "outputs": {"6": ""}
+            }
+        }
+    },
+    "version": "0.1"
+}
