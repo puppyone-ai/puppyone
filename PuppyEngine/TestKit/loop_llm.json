@@ -15,8 +15,23 @@
                     "happy",
                     "subaru",
                     "yan"
+                ],
+                "embedding_view": [
+                    {
+                        "content": "happy",
+                        "metadata": {"id": "1"}
+                    },
+                    {
+                        "content": "subaru",
+                        "metadata": {"id": "2"}
+                    },
+                    {
+                        "content": "yan",
+                        "metadata": {"id": "3"}
+                    }
                 ]
-            }
+            },
+            "looped": true
         },
         "3": {
             "label": "3",
@@ -27,7 +42,8 @@
                     "Say hi, and your name",
                     "Say Apple, and your name"
                 ]
-            }
+            },
+            "looped": true
         }
     },
     "edges": {
@@ -50,8 +66,7 @@
                 "temperature": 0.7,
                 "structured_output": false,
                 "inputs": {"2": "2", "3": "3"},
-                "outputs": {"4": ""},
-                "looped": true
+                "outputs": {"4": ""}
             }
         }
     },

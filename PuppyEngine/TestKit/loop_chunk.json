@@ -4,28 +4,32 @@
             "label": "6",
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "7": {
             "label": "7",
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "5": {
             "label": "5",
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "4": {
             "label": "4",
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "2": {
@@ -36,8 +40,23 @@
                     "hello my name is pepsi",
                     "it is nice to meet you",
                     "not bad not bad"
+                ],
+                "embedding_view": [
+                    {
+                        "content": "hello my name is pepsi",
+                        "metadata": {"id": "1"}
+                    },
+                    {
+                        "content": "it is nice to meet you",
+                        "metadata": {"id": "2"}
+                    },
+                    {
+                        "content": "not bad not bad",
+                        "metadata": {"id": "3"}
+                    }
                 ]
-            }
+            },
+            "looped": true
         }
     },
     "edges": {
@@ -54,8 +73,7 @@
                         ";",
                         "\n"
                     ]
-                },
-                "looped": true
+                }
             }
         },
         "chunk-1730708353346": {
@@ -69,8 +87,7 @@
                     "chunk_size": 10,
                     "overlap": 1,
                     "handle_half_word": false
-                },
-                "looped": true
+                }
             }
         },
         "chunk-1730708132454": {
@@ -79,8 +96,7 @@
                 "inputs": {"2": "2"},
                 "outputs": {"4": ""},
                 "chunking_mode": "auto",
-                "extra_configs": {},
-                "looped": true
+                "extra_configs": {}
             }
         },
         "chunk-1730708400498": {
@@ -93,8 +109,7 @@
                 "extra_configs": {
                     "model": "gpt-4o",
                     "prompt": ""
-                },
-                "looped": true
+                }
             }
         }
     },
