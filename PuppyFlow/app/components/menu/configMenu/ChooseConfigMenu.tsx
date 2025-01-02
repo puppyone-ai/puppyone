@@ -602,161 +602,430 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             }))
         }
 
+        interface Condition {
+            id: string;
+            label: string;
+            condition: string;
+            type?: string;
+            cond_v?: string;
+            cond_input?: string;
+        }
+    
+        interface Action {
+            from_id: string;
+            from_label:string;
+            outputs:string[]
+        }
+    
+        interface Case {
+            conditions: Condition[];
+            actions: Action[];
+        }
+    
+        // TODO 3
+        const [cases,setCases] = useState<Case[]>([
+            {
+                conditions: [
+                    {
+                        id: '1',
+                        label: '1',
+                        condition: 'condition1'
+                    }
+                ],
+                actions: [
+                    {
+                        from_id: '1',
+                        from_label: '1',
+                        outputs:outputs
+                    }
+                ]
+            }
+        ])
+    
+        const onConditionAdd = (index: number) => () => {
+            console.log("hello", index)
+            setCases(prevCases => {
+                return prevCases.map((caseItem, caseIndex) => {
+                    if (caseIndex === index) {
+                        return {
+                            ...caseItem,
+                            conditions: [
+                                ...caseItem.conditions,
+                                {
+                                    id: `${caseItem.conditions.length + 1}`,
+                                    label: `${caseItem.conditions.length + 1}`,
+                                    condition: `condition${caseItem.conditions.length + 1}`
+                                }
+                            ]
+                        }
+                    }
+                    return caseItem
+                })
+            })
+        }
+    
+        const onActionAdd = (index: number) => () => {
+            console.log("hello", index)
+            setCases(prevCases => {
+                return prevCases.map((caseItem, caseIndex) => {
+                    if (caseIndex === index) {
+                        return {
+                            ...caseItem,
+                            actions: [
+                                ...caseItem.actions,
+                                {
+                                    from_id: '1',
+                                    from_label: '1',
+                                    outputs: outputs
+                                }
+                            ]
+                        }
+                    }
+                    return caseItem
+                })
+            })
+        }
+    
+        const onCaseAdd = () => {
+            console.log("outputs", outputs)
+            setCases(prevCases => [
+                ...prevCases,
+                {
+                    conditions: [
+                        {
+                            id: '1',
+                            label: '1',
+                            condition: 'condition1'
+                        }
+                    ],
+                    actions: [
+                        {
+                            from_id: '1',
+                            from_label: '1',
+                            outputs: outputs
+                        }
+                    ]
+                }
+            ])
+        }
+
+        const getConditionSelections = (type:string) =>{
+            console.log("GetConditionSelections",type)
+            if(type === "text"){
+                console.log("text")
+                // contains XXX
+                // doesn’t contain XXX
+                // is greater than [N] characters
+                // is less than [N] characters
+                return ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
+            }else if(type === "structured"){
+            // is empty
+            // is not empty
+            // contains XXX
+            // doesn’t contain XXX
+            // is List
+            // is Dict
+            // length is greater than [N]
+            // length is less than [N]
+                return ["is empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "list or dict"]
+            }else if(type === "switch"){
+                // (for Switch)
+                // is True
+                // is False
+                return ["is True","is False"]
+            }
+
+            return []
+        }
+
   
     
-  return (
+        return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
-        <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
-            <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                    <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                    <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                    <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                    </svg>
-                </div>
-                <div className='flex items-center justify-center text-[12px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                Choose
-                </div>
-            </div>
-            <div className='w-[57px] h-[26px]'>
-                <button className='w-full h-full rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[700] font-plus-jakarta-sans flex flex-row items-center  justify-center gap-[7px]' onClick={onDataSubmit}>
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                    <path d="M8 5L0 10V0L8 5Z" fill="black"/>
-                    </svg>
-                </span>
-                <span>
-                    Run
-                </span>
-                </button>
-            </div>
-        </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
-            <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
-            </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
-            </div>
-            
-        </li>
-        <ul className='flex flex-col border-[#6D7177] rounded-[4px] w-[280px]'>
-            <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[4px] w-[280px] h-[36px]'>
-            <div className='text-[#6D7177] w-[112px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             switch
-            </div>
-            <select ref={switchRef} id='switch' defaultValue={undefined} value={switchValue ?? undefined} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                e.preventDefault()
-                e.stopPropagation()
-                setSwitchValue(e.target.value)
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                {displaySwitchLabels()}
-            </select>
-            
-            </li>
-            <li className='flex items-center justify-start font-plus-jakarta-sans border-x-[1px] border-b-[1px] bg-black border-[#6D7177] rounded-b-[4px] w-[280px] h-[36px]'>
-            <div className='text-[#6D7177] w-[112px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             content
-            </div>
-            <select ref={contentRef} id='content' defaultValue={undefined} value={contentValue ?? undefined} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
-                e.preventDefault()
-                e.stopPropagation()
-                setContentValue(e.target.value)
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-               {displayContentLabels()}
-            </select>
-            </li>
-        </ul>
-
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
-            <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             output
-            </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displayOutputNodeLabels()}
-            </div>
-            
-        </li>
+            <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+                <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
+                            <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
+                            <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
+                            <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[12px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Choose
+                        </div>
+                    </div>
+                    <div className='w-[57px] h-[26px]'>
+                        <button className='w-full h-full rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[700] font-plus-jakarta-sans flex flex-row items-center  justify-center gap-[7px]' onClick={onDataSubmit}>
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                            <path d="M8 5L0 10V0L8 5Z" fill="black"/>
+                            </svg>
+                        </span>
+                        <span>
+                            Run
+                        </span>
+                        </button>
+                    </div>
+                </li>
+                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                     input
+                    </div>
+                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                        {displaySourceNodeLabels()}
+                    </div>
+                    
+                </li>
+                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                     output
+                    </div>
+                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                        {displayOutputNodeLabels()}
+                    </div>
+                </li>
+                {
+                    cases.map((case_value,case_index)=>(
+                        <li key={case_index} className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
+                            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
+                            Case {case_index+1}
+                            </div>
+                            
+                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3'>
+                                {
+                                    case_value.conditions.map(
+                                        (condition_value,conditions_index)=>(
+                                            <>
+                                                <label>IF</label>
+                                                <ul key={conditions_index} className='flex flex-col border-[#6D7177] rounded-[4px] min-w-[280px] bg-black'>
+                                                    <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
+                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                        <select 
+                                                            className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[150px]'
+                                                            onChange={(e) => {
+                                                                const selectedNode = getSourceNodeIdWithLabel(parentId).find(
+                                                                    node => node.id === e.target.value
+                                                                );
+                                                                if (selectedNode) {
+                                                                    const cases_clone = [...cases];
+                                                                    cases_clone[case_index].conditions[conditions_index] = {
+                                                                        ...cases_clone[case_index].conditions[conditions_index],
+                                                                        id: selectedNode.id,
+                                                                        label: selectedNode.label,
+                                                                        type: getNode(selectedNode.id)?.type
+                                                                    };
+                                                                    setCases(cases_clone);
+                                                                    console.log("selected ndoe:", getNode(selectedNode.id))
+                                                                }
+                                                            }}
+                                                            value={condition_value.id}
+                                                        >
+                                                            <option value="">Select a node</option>
+                                                            {getSourceNodeIdWithLabel(parentId).map((node) => (
+                                                                <option key={node.id} value={node.id}>
+                                                                    {node.label || node.id}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        </div>
+                                                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
+                                                        {
+                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type === "structured" && (
+                                                                <select 
+                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[150px]'
+                                                                    onChange={(e) => {
+                                                
+                                                                        if (e.target.value) {
+                                                                            const cases_clone = [...cases];
+                                                                            cases_clone[case_index].conditions[conditions_index] = {
+                                                                                ...cases_clone[case_index].conditions[conditions_index],
+                                                                                cond_v: e.target.value
+                                                                            };
+                                                                            setCases(cases_clone);
+                                                                            console.log("cond_v",cases)
+                                                                        }
+                                                                    }}
+                                                                    value={cases[case_index].conditions[conditions_index].cond_v}
+                                                                >
+                                                                    <option value=""> condition </option>
+                                                                    {   
+                                                                        getConditionSelections("structured").map((sl_v,sl_id) => (
+                                                                            <option key={sl_id} value={sl_v}>
+                                                                                {sl_v}
+                                                                            </option>
+                                                                        ))
+                                                                    }
+                                                                </select>
+                                                            )
+                                                            }
+                                                            {               
+                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type === "text" && (
+                                                                <select 
+                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] w-[150px] border-none outline-none'
+                                                                    onChange={(e) => {
+                                                
+                                                                        if (e.target.value) {
+                                                                            const cases_clone = [...cases];
+                                                                            cases_clone[case_index].conditions[conditions_index] = {
+                                                                                ...cases_clone[case_index].conditions[conditions_index],
+                                                                                cond_v: e.target.value
+                                                                            };
+                                                                            setCases(cases_clone);
+                                                                            console.log("cond_v",cases)
+                                                                        }
+                                                                    }}
+                                                                    value={cases[case_index].conditions[conditions_index].cond_v}
+                                                                >
+                                                                    <option value="">condition</option>
+                                                                    {   
+                                                                        getConditionSelections("text").map((sl_v,sl_id) => (
+                                                                            <option key={sl_id} value={sl_v}>
+                                                                                {sl_v}
+                                                                            </option>
+                                                                        ))
+                                                                    }
+                                                                </select>
+                                                            )}
+                                                            {
+                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type === "switch" && (
+                                                                <select 
+                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                onChange={(e) => {
+                                            
+                                                                    if (e.target.value) {
+                                                                        const cases_clone = [...cases];
+                                                                        cases_clone[case_index].conditions[conditions_index] = {
+                                                                            ...cases_clone[case_index].conditions[conditions_index],
+                                                                            cond_v: e.target.value
+                                                                        };
+                                                                        setCases(cases_clone);
+                                                                        console.log("cond_v",cases)
+                                                                    }
+                                                                }}
+                                                                value={cases[case_index].conditions[conditions_index].cond_v}
+                                                            >
+                                                                    <option value="">condition</option>
+                                                                    {   
+                                                                        getConditionSelections("switch").map((sl_v,sl_id) => (
+                                                                            <option key={sl_id} value={sl_v}>
+                                                                                {sl_v}
+                                                                            </option>
+                                                                        ))
+                                                                    }
+                                                                </select>
+                                                            )
+                                                        }
+                                                        </div>
+                                                        {
+                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type !== "switch" && (
+                                                                <input 
+                                                                value={cases[case_index].conditions[conditions_index].cond_input}
+                                                                onChange={(e)=>{
+                                                                    const cases_clone = [...cases];
+                                                                    cases_clone[case_index].conditions[conditions_index] = {
+                                                                        ...cases_clone[case_index].conditions[conditions_index],
+                                                                        cond_input: e.target.value
+                                                                    };
+                                                                    setCases(cases_clone);
+                                                                    console.log("cond_v",cases)
+                                                                }} className="w-[200px] text-black" type="text"></input>
+                                                            )
+                                                        }
+                                                        
+                                                    </li>
+                                                </ul>
+                                            </>
+                                        )
+                                    )
+                                }
+                                <button onClick={onConditionAdd(case_index)} className='bg-black text-[#6D7177] mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[12px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                        +condition
+                                </button>
+                            </div>
         
-        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
-            chose output when switch
-            </div>
-            <div className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
-            <div className='text-[#6D7177] w-[112px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             ON
-            </div>
-            {/* <select ref={ONRef} id='ON' multiple={true} value={ON} contentEditable={outputs.length > 0} onChange={() => {
-                if (ONRef.current){
-                    const selectedLabel = getNode(ONRef.current.value)?.data?.label as string | undefined ?? ONRef.current.value
-                    // console.log(selectedLabel, "ON")
-                    setON([...])
+                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3'>
+                                {
+                                    case_value.actions.map(
+                                        (action_value, action_index) => (
+                                            <>                                
+                                                <label>THEN</label>
+                                                <ul className='flex flex-col border-[#6D7177] rounded-[4px] bg-black'>
+                                                    <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
+                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                            <select 
+                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                onChange={(e) => {
+                                                                    const selectedNode = getSourceNodeIdWithLabel(parentId).find(
+                                                                        node => node.id === e.target.value
+                                                                    );
+                                                                    if (selectedNode) {
+                                                                        const cases_clone = [...cases];
+                                                                        cases_clone[case_index].actions[action_index] = {
+                                                                            ...cases_clone[case_index].actions[action_index],
+                                                                            from_id: selectedNode.id,
+                                                                            from_label: selectedNode.label
+                                                                        };
+                                                                        setCases(cases_clone);
+                                                                    }
+                                                                }}
+                                                                value={action_value.from_id}
+                                                            >
+                                                                <option value="">Select a node</option>
+                                                                {getSourceNodeIdWithLabel(parentId).map((node) => (
+                                                                    <option key={node.id} value={node.id}>
+                                                                        {node.label || node.id}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
+                                                            TO
+                                                        </div>
+                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                            <select 
+                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                onChange={(e) => {
+                                                                    const cases_clone = [...cases];
+                                                                    cases_clone[case_index].actions[action_index].outputs = [e.target.value];
+                                                                    setCases(cases_clone);
+                                                                }}
+                                                                value={action_value.outputs[0]}
+                                                            >
+                                                                <option value="">Select output</option>
+                                                                {outputs.map((output) => (
+                                                                    <option key={output} value={output}>
+                                                                        {(getNode(output)?.data?.label as string) || output}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </>
+                                        )
+                                    )
+                                }
+                                
+                                <button onClick={onActionAdd(case_index)} className='bg-black text-[#6D7177] mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[12px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                        +action
+                                </button>
+                            </div>
+                        </li>
+        
+                    )
+                    )
                 }
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                {displayONLabels()}
-            </select> */}
-            <Select
-            className='dark-Select'
-            mode="multiple"
-            allowClear
-            disabled={outputs.length === 0}
-            style={{ width: '100%' }}
-            placeholder="Please select"
-            defaultValue={[]}
-            value={ON}
-            onMouseEnter={onFocus}
-            onMouseLeave={onBlur}
-            maxTagCount={(ON?.length || 0) <= 2 ? undefined : 1}  // 当选择超过2个时只显示1个
-            maxTagPlaceholder={(omittedValues) => `+${omittedValues.length} more`}  // 自定义超出显示
-            maxTagTextLength={6}  // 限制每个标签的文本长度
-            onChange={(value) => {
-                if (isEqual(ON, value)) return
-                setON(value)
-            }}
-            options={outputs.map((node: string) => ({label: getNode(node)?.data?.label as string ?? node, value: node}))} />
-            </div>
-        </li>
-
-        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
-            chose output when switch
-            </div>
-            <div className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
-            <div className='text-[#6D7177] w-[112px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             OFF
-            </div>
-            {/* <select ref={OFFRef} id='OFF' multiple={true} value={OFF} contentEditable={outputs.length > 0} onChange={() => {
+                        <div className='flex flex-col items-center '>
+                            <button onClick={onCaseAdd} className='text-[#6D7177] w-auto mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[12px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                +
+                            </button>
+                        </div>
                 
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                {displayOFFLabels()}
-            </select> */}
-             <Select
-            className='dark-Select'
-            mode="multiple"
-            allowClear
-            disabled={outputs.length === 0}
-            style={{ width: '100%' }}
-            placeholder="Please select"
-            defaultValue={[]}
-            value={OFF}
-            onMouseEnter={onFocus}
-            onMouseLeave={onBlur}
-            maxTagCount={(OFF?.length || 0) <= 2 ? undefined : 1}  // 当选择超过2个时只显示1个
-            maxTagPlaceholder={(omittedValues) => `+${omittedValues.length} more`}  // 自定义超出显示
-            maxTagTextLength={6}  // 限制每个标签的文本长度
-            onChange={(value) => {
-                if (isEqual(OFF, value)) return
-                setOFF(value)
-            }}
-            options={outputs.map((node: string) => ({label: getNode(node)?.data?.label as string ?? node, value: node}))} />
-            </div>
-        </li>
-        
-    </ul>
-  )
+            </ul>
+          )        
 }
 
 export default ChooseConfigMenu
