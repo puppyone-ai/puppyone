@@ -57,6 +57,7 @@ next-env.d.ts
 # environment
 venv/
 myenv/
+jack/
 
 
 # Results
