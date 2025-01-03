@@ -377,10 +377,10 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
     
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] border-box ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] border-box ${show ? "" : "hidden"} `} >
         <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans '>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
                     <g clipPath="url(#clip0_3289_923)">
                         <mask id="mask0_3289_923" style={{maskType:"luminance"}} maskUnits="userSpaceOnUse" x="0" y="0" width="14" height="14">
@@ -397,7 +397,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
         </defs>
                     </svg>
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
                 LLM
                 </div>
             </div>
@@ -415,7 +415,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
                     Loop
                 </div>
                 </div>
-                <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -428,7 +428,7 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[384px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
@@ -437,7 +437,21 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
             </div>
             
         </li>
-        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[384px] h-[36px]'>
+        
+     
+        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans w-full'>
+            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
+                message
+            </div>
+            <JSONConfigEditor preventParentDrag={onFocus} allowParentDrag={onBlur} placeholder='[
+            {"role": "system", 
+            "content": "You are an AI"},
+            {"role": "user", 
+            "content": "{{1}}"}
+            ]' parentId={parentId}  widthStyle={432} heightStyle={208} />
+        </li>
+        
+        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              model
             </div>  
@@ -459,20 +473,8 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
             </select>
             
         </li>
-     
-        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
-                message
-            </div>
-            <JSONConfigEditor preventParentDrag={onFocus} allowParentDrag={onBlur} placeholder='[
-            {"role": "system", 
-            "content": "You are an AI"},
-            {"role": "user", 
-            "content": "{{1}}"}
-            ]' parentId={parentId}  widthStyle={384} heightStyle={140} />
-        </li>
-
-        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[384px] h-[36px]'>
+        
+        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
             <div className='text-[#6D7177] w-[130px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
              structured output
             </div>  
@@ -492,16 +494,16 @@ function LLMConfigMenu({show, parentId}: LLMConfigProps) {
             
         </li>
 
-        <li className='flex flex-col gap-1  items-start justify-center font-plus-jakarta-sans'>
+        {/* <li className='flex flex-col gap-1  items-start justify-center font-plus-jakarta-sans'>
             <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
                 base url
             </div>
-            <input ref={baseUrlRef} id="base_url" type='text' className='px-[9px] py-[8px] border-[1px] border-[#6D7177] rounded-[4px] bg-black text-[12px] font-[600] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center w-[384px] font-plus-jakarta-sans' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur} value={baseUrl} onChange={() => {
+            <input ref={baseUrlRef} id="base_url" type='text' className='px-[9px] py-[8px] border-[1px] border-[#6D7177] rounded-[8px] bg-black text-[12px] font-[600] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center w-[384px] font-plus-jakarta-sans' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur} value={baseUrl} onChange={() => {
                 if (baseUrlRef.current){
                     setBaseUrl(baseUrlRef.current.value)
                 }
             }}></input>
-        </li>
+        </li> */}
         
     </ul>
   )

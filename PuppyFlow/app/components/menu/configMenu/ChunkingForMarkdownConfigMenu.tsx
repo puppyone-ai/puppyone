@@ -289,33 +289,32 @@ function ChunkingForMarkdownConfigMenu({show, parentId}: ChunkingForMarkdownConf
         } 
 
 
-    
+
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[384px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
         <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 14 14">
                 <path stroke="#CDCDCD" strokeWidth="1.5" d="M3.5 7c6.417 0 7-4.667 7-4.667M3.5 7c6.417 0 7 4.667 7 4.667"/>
                 <path fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" d="M.75 3.75h3.5v6.5H.75zm9-3h3.5v3.5h-3.5zm0 9h3.5v3.5h-3.5z"/>
                 </svg>
-
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                 Chunking
                 </div>
             </div>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="10" fill="none" viewBox="0 0 18 10">
                     <path fill="#CDCDCD" d="M2.974 8H1.572V.803H3.76l1.308 5.659 1.3-5.66H8.53V8h-1.4V3.132c0-.14.002-.335.005-.586a49.2 49.2 0 0 0 .005-.586L5.776 8h-1.46L2.964 1.96c0 .137.001.332.005.586.003.25.005.446.005.586V8Z"/>
                     <path stroke="#CDCDCD" strokeWidth="1.5" d="M13.5 1v6m-3-3 3 3 3-3"/>
                     </svg>
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal whitespace-nowrap'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal whitespace-nowrap'>
                 for Markdown
                 </div>
             </div>
@@ -334,7 +333,7 @@ function ChunkingForMarkdownConfigMenu({show, parentId}: ChunkingForMarkdownConf
                     Loop
                 </div>
                 </div>
-                <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -347,28 +346,25 @@ function ChunkingForMarkdownConfigMenu({show, parentId}: ChunkingForMarkdownConf
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[310px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
             <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
                {displaySourceNodeLabels()}
             </div>
-            
         </li>
-        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
+        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans w-full'>
             <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
                 tags
             </div>
             <JSONConfigEditor preventParentDrag={onFocus} 
                       allowParentDrag={onBlur} 
-                      placeholder='[”h1”, “heading 1”]'
+                      placeholder='["h1", "heading 1"]'
                       parentId={parentId}
-                      widthStyle={310} 
+                      widthStyle={368} 
                       heightStyle={140} />
         </li>
-
-        
     </ul>
   )
 }
