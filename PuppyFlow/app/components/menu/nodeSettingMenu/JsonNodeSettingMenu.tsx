@@ -30,13 +30,171 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
         clearMenu()
     }
 
-    const onEmbeddingClick = async () => {
-        
-        clearMenu()
-        try {
+    interface EmbeddingItem {
+        content: string;
+        metadata: {
+          id?: string;
+          [key: string]: any;
+        }
+      }
+      
+      function traverseJson(
+        data: any, 
+        result: EmbeddingItem[] = [], 
+        path: string[] = [], 
+        idCounter: { value: number } = { value: 0 }
+      ): EmbeddingItem[] {
+        if (typeof data === 'string') {
+          // We found a leaf string, create an embedding item
+          const metadata: Record<string, any> = {
+            id: String(idCounter.value++)
+          };
+      
+          // Convert path to metadata keys
+          path.forEach((step, index) => {
+            if (step.startsWith('key_')) {
+              metadata[`key_${index}`] = step.substring(4);
+            } else if (step.startsWith('list_')) {
+              metadata[`list_${index}`] = parseInt(step.substring(5));
+            }
+          });
 
+          path.forEach((step, _) => {
+            if (step.startsWith('key_')) {
+              if (!metadata.path){
+                metadata.path = []
+              }
+              metadata[`path`].push(step.substring(4));
+            } else if (step.startsWith('list_')) {
+              if (!metadata.path){
+                metadata.path = []
+              }
+              metadata[`path`].push(parseInt(step.substring(5)));
+            }
+          });
+      
+          result.push({
+            content: data,
+            metadata: metadata
+          });
+        } 
+        else if (Array.isArray(data)) {
+          // Traverse each array element
+          data.forEach((item, index) => {
+            traverseJson(item, result, [...path, `list_${index}`], idCounter);
+          });
+        } 
+        else if (data && typeof data === 'object') {
+          // Traverse each object property
+          Object.entries(data).forEach(([key, value]) => {
+            traverseJson(value, result, [...path, `key_${key}`], idCounter);
+          });
+        }
+      
+        return result;
+      }
+
+      function removeItemFromData(data: any, path: (string | number)[]) {
+        //remove the item content itself from data according to path
+        /**
+         * example:
+         * data:
+        {
+          "name": "John",
+          "details": {
+            "hobbies": [
+              "reading",
+              "gaming"
+            ],
+            "address": {
+              "street": "123 Main St",
+              "city": "Springfield"
+            }
+          }
+        }
+        path: ["details", "hobbies", "0"]
+        result:
+        {
+          "name": "John",
+          "details": {
+            "hobbies": [
+              "gaming"
+            ],
+            "address": {
+              "street": "123 Main St",
+              "city": "Springfield"
+            }
+          }
+        }
+          * 
+          */
+        if (!path) return data;
+        if (path.length === 0) return data;
+        
+        const clone = JSON.parse(JSON.stringify(data));
+        let current = clone;
+        
+        for (let i = 0; i < path.length - 1; i++) {
+            current = current[path[i]];
+        }
+        
+        const lastKey = path[path.length - 1];
+        if (Array.isArray(current)) {
+            current.splice(Number(lastKey), 1);
+        } else {
+            delete current[lastKey];
+        }
+        
+        return clone;
+    }
+
+    const constructMetadataInfo = (data:any, embeddingViewData: EmbeddingItem[]) => {
+        
+          embeddingViewData.forEach((item, index) => {
+            if (item.metadata.path){
+              // then append modified data to EmbeddingItem
+              const path = item.metadata.path
+              const result = removeItemFromData(data, path)
+              item.metadata.info = result
+              
+            }
+          })  
+
+        return embeddingViewData
+    }
+
+    const onEmbeddingClick = async () => {
+      /**
+       * 1. clear menu
+       * 2. construct embeddingNodeData
+       * 3. construct embeddingViewData
+       * 4. setNodes
+       */
+
+      // 1. clear menu
+        clearMenu()
+      // 2. construct embeddingNodeData
+        try {
             const embeddingNodeData = constructStructuredNodeEmbeddingData()
             console.log(embeddingNodeData)
+
+            if (embeddingNodeData === "error") {
+                throw new Error("Invalid node data")
+            }
+
+            
+            const embeddingViewData=traverseJson(embeddingNodeData.data.content)
+
+            const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+
+            setNodes(prevNodes => prevNodes.map(
+                (node) => {
+                  if (node.id === nodeid) {
+                    return {...node, data: {...node.data, embeddingView: embeddingViewDataWithInfo}}
+                  }
+                  return node
+                }
+              ))
 
             // TODO: 需要修改为动态的user_id
             const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/Rose123`, {
@@ -51,6 +209,7 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
                 throw new Error(`HTTP Error: ${response.status}`)
             }
 
+            // 5. updateNode
             const newJsonNode = await response.json()
             updateNode(newJsonNode)
             
@@ -64,6 +223,7 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
     const constructStructuredNodeEmbeddingData = () => {
         const node = getNode(nodeid)
         const nodeContent = (node?.type === "structured" || node?.type === "none" && node?.data?.subType === "structured") ? cleanJsonString(node?.data.content as string | any) : node?.data.content as string
+
         if (nodeContent === "error") return "error"
         const embeddingData = {
             ...node?.data,
