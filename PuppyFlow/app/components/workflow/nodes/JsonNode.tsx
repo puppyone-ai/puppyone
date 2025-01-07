@@ -7,6 +7,7 @@ import WhiteBallHandle from '../handles/WhiteBallHandle'
 import JSONForm from '../../menu/tableComponent/JSONForm'
 import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
+import { json } from 'stream/consumers'
 
 
 type methodNames = "cosine"
@@ -49,6 +50,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
+  const [buttonText, setButtonText] = useState("embedding view"); // State for button text
 
 
   useEffect(() => {
@@ -66,10 +68,16 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     if (!contentRef.current) return;
 
     const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContentSize({ width, height });
-      }
+      // Prevent unnecessary updates by checking if size actually changed
+      const { width, height } = entries[0].contentRect;
+      
+      // Only update if the size is different from current state
+      setContentSize(prevSize => {
+        if (prevSize.width !== width || prevSize.height !== height) {
+          return { width, height };
+        }
+        return prevSize;
+      });
     });
 
     resizeObserver.observe(contentRef.current);
@@ -278,16 +286,43 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
 
   // height by default: 304px, inner-box: 240px, resize-control: 304px, without embedding
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
+
+
+  // TODO Auto resize of content box
+  // TODO dialogue selection of content atttribute(key onl y, no index) 
+  // embeding view switch button
+  const handleButtonClick = () => {
+    setButtonText(prevText => prevText === "embedding view" ? "input view" : "embedding view"); // Toggle button text
+  };
+
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+
+    
     <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[40px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
-          
-          {isLoading ? <SkeletonLoadingIcon /> : 
-      <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
-      placeholder='["JSON"]'
-              parentId={id}
-              heightStyle={index_name ? contentSize.height - 22.5 : contentSize.height} />
+          {
+            buttonText=="embedding view"?
+            <div style={{
+              width: 'fit-content',
+              maxWidth: calculateMaxLabelContainerWidth(),
+            }}>
+            {
+              getNode(id)?.data?.embeddingView? JSON.stringify((getNode(id)?.data?.embeddingView)):<></>
+            }
+            </div>
+            :
+          <div className='w-full h-full'>
+                {isLoading ? <SkeletonLoadingIcon /> : 
+                            <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
+                            placeholder='["JSON"]'
+                                    parentId={id}
+                                    heightStyle={contentSize.height-1} />
+                }
+          </div>
           }
+          
+
+
          
          <div ref={labelContainerRef} 
            style={{
@@ -307,6 +342,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             {renderTagLogo()}
 
 
+
             <span
             ref={measureSpanRef}
             style={{
@@ -318,7 +354,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
               fontWeight: '700',
               fontFamily: 'Plus Jakarta Sans'
             }}
-          >
+            >
             {nodeLabel}
           </span>
            
@@ -333,6 +369,12 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
            
           
+            <button 
+              onClick={handleButtonClick} 
+              className="border border-main-deep-grey hover:border-main-blue hover:bg-gray-600 transition duration-200"
+            >
+              {buttonText}
+            </button>
         </div>
 
         <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
