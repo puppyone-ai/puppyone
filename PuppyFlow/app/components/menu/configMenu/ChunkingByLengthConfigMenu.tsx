@@ -366,30 +366,28 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
     
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
         <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
-            
             <div className='flex flex-row gap-[12px]'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 14 14">
                 <path stroke="#CDCDCD" strokeWidth="1.5" d="M3.5 7c6.417 0 7-4.667 7-4.667M3.5 7c6.417 0 7 4.667 7 4.667"/>
                 <path fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" d="M.75 3.75h3.5v6.5H.75zm9-3h3.5v3.5h-3.5zm0 9h3.5v3.5h-3.5z"/>
                 </svg>
-
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                 Chunking
                 </div>
                 </div>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
-                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="10" fill="none" viewBox="0 0 16 10">
                         <path stroke="#CDCDCD" d="m10 3 2 2-2 2M6 3 4 5l2 2M4 5h7.5"/>
                         <path stroke="#CDCDCD" strokeWidth="1.5" d="M1 10V0m14 10V0"/>
                         </svg>
                     </div>
-                    <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                     By length
                     </div>
                 </div>
@@ -408,7 +406,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                     Loop
                 </div>
                 </div>
-                <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -421,32 +419,30 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
             <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
                 {displaySourceNodeLabels()}
             </div>
-            
         </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
+        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              mode
             </div>
             <select ref={subChunkingModeRef} value={sub_chunk_mode} onChange={() => {
                 if (subChunkingModeRef.current)
                     { setSubChunkMode(subChunkingModeRef.current.value as sub_chunking_mode_names)}
-            }} id='mode' className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
+            }} id='mode' className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
                 <option value={"size"}>
                     by size
                 </option>
             </select>
-            
         </li>
         <li>
-            <ul className='flex flex-col border-[#6D7177] rounded-[4px] w-[280px]'>
-                <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[4px] w-[280px] h-[36px]'>
+            <ul className='flex flex-col border-[#6D7177] rounded-[8px] w-full'>
+                <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[8px] w-full h-[36px]'>
                 <div className='text-[#6D7177] w-[88px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                 chunk_size
                 </div>
@@ -454,9 +450,9 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                     if (chunk_sizeRef.current) {
                         setChunk_size(chunk_sizeRef.current.value === "" ? undefined : Number(chunk_sizeRef.current.value))
                     }
-                }} id="chunk_size" type='number' className='px-[14px] py-[5px] rounded-r-[4px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
+                }} id="chunk_size" type='number' className='px-[10px] py-[5px] rounded-r-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
                 </li>
-                <li className='flex items-center justify-start font-plus-jakarta-sans border-x-[1px] border-b-[1px] bg-black border-[#6D7177] rounded-b-[4px] w-[280px] h-[36px]'>
+                <li className='flex items-center justify-start font-plus-jakarta-sans border-x-[1px] border-b-[1px] bg-black border-[#6D7177] rounded-b-[8px] w-full h-[36px]'>
                 <div className='text-[#6D7177] w-[122px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                 overlap
                 </div>
@@ -464,12 +460,11 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                     if (overlapRef.current) {
                         setOverlap(overlapRef.current.value === "" ? undefined : Number(overlapRef.current.value))
                     }
-                }} id="overlap" type='number' className='px-[14px] py-[5px] rounded-r-[4px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
-                
+                }} id="overlap" type='number' className='px-[10px] py-[5px] rounded-r-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
                 </li>
             </ul>
         </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
+        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
             <div className='text-[#6D7177] w-[140px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              handle_half_word
             </div>
@@ -485,7 +480,6 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                     False
                 </option>
             </select>
-            
         </li>
      
 

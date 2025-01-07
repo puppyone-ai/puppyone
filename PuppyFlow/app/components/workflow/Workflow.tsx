@@ -79,6 +79,54 @@ const fitViewOptions = {
 
 }
 
+function useCtrlZoom() {
+  const [canZoom, setCanZoom] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey) setCanZoom(true);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (!event.ctrlKey) setCanZoom(false);
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  return canZoom;
+}
+
+function useMiddleMousePan() {
+  const [canPan, setCanPan] = useState(false);
+
+  useEffect(() => {
+    const handleMouseDown = (event: MouseEvent) => {
+      if (event.button === 1) setCanPan(true);
+    };
+
+    const handleMouseUp = (event: MouseEvent) => {
+      if (event.button === 1) setCanPan(false);
+    };
+
+    window.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  return canPan;
+}
+
 function Workflow() {
 
 
@@ -90,11 +138,30 @@ function Workflow() {
   // const {setHandleConnected, preventActivateNode, allowActivateNode, isOnConnect, searchNode, addNode, nodes: newNodes, activateNode, preventInactivateNode,
   //   inactivateNode, clear, activateHandle, addCount, totalCount, activateEdgeNode
   // } = useNodeContext()
-  const {screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges} = useReactFlow()
+  const {screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport} = useReactFlow()
   const {zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode} = useManageReactFlowUtils()
   const {activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode} = useNodesPerFlowContext()
+  const canZoom = useCtrlZoom();
+  const canPan = useMiddleMousePan();
 
+  const onWheel = useCallback((event: WheelEvent) => {
+    event.preventDefault();
+    
+    if (event.ctrlKey) {
+      // 如果按住 Ctrl，保持原有的缩放行为
+      return;
+    }
 
+    // 获取当前视口位置
+    const viewport = getViewport();
+    
+    // 根据滚轮方向移动画布，deltaY 为正时向下滚动，为负时向上滚动
+    setViewport({
+      x: viewport.x,
+      y: viewport.y - event.deltaY,
+      zoom: viewport.zoom
+    });
+  }, [getViewport, setViewport]);
 
   // useEffect(() => {
   //   console.log(getZoom())
@@ -372,9 +439,33 @@ function Workflow() {
     // allowActivateNode()
   }
 
-  
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      // 检查是否是双指触控
+      if (e.touches && e.touches.length === 2) {
+        e.preventDefault();
+        const viewport = getViewport();
+        
+        setViewport({
+          x: viewport.x,
+          y: viewport.y - e.deltaY,
+          zoom: viewport.zoom
+        });
+      }
+    };
 
-  
+    const flowContainer = document.getElementById('flowChart');
+    if (flowContainer) {
+      flowContainer.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
+    return () => {
+      if (flowContainer) {
+        flowContainer.removeEventListener('wheel', handleWheel);
+      }
+    };
+  }, [getViewport, setViewport]);
+
   return (
     
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
@@ -419,9 +510,16 @@ function Workflow() {
          snapGrid={[16, 16]}
          fitView
         
-         minZoom={0.7}           // 最小缩放级别
+         minZoom={0.35}           // 最小缩放级别
          maxZoom={1.5} 
-         zoomOnScroll={zoomOnScroll ?? true}
+         zoomOnScroll={canZoom}
+         zoomOnPinch={true}
+         panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
+         panOnScroll={true}          // 重新启用默认的滚动行为
+         panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
+         panOnScrollMode="free"      // 允许任意方向的滚动
+         selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
+         className="nocursor"             // 可选：添加自定义样式
          
          >
           <Upbar />
