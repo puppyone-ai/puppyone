@@ -56,7 +56,7 @@
                     }
                 ]
             },
-            "looped": true
+            "looped": false
         }
     },
     "edges": {

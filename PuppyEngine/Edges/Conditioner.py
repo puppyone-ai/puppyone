@@ -29,6 +29,7 @@ class ConditionEvaluator:
             "less_than_n": self._length_is_less_than
         }
 
+    @global_exception_handler(4100, "Error Evaluating Condition")
     def evaluate(
         self,
         condition: str,
@@ -144,6 +145,7 @@ class Conditioner:
         self.content_blocks = content_blocks
         self.cases = cases
 
+    @global_exception_handler(4101, "Error Evaluating Cases")
     def evaluate_cases(
         self
     ) -> Dict[str,Any]:
@@ -156,18 +158,17 @@ class Conditioner:
 
         results = {}
 
-        for case_name, case_data in self.cases.items():
+        for _, case_data in self.cases.items():
             conditions = case_data["conditions"]
             then_clause = case_data.get("then", {})
 
             satisfied = self._evaluate_conditions(conditions)
-            results[case_name] = {
-                "satisfied": satisfied,
-                "to": then_clause.get("to") if satisfied else None
-            }
+            if satisfied:
+                results[then_clause.get("from")] = then_clause.get("to")
 
         return results
 
+    @global_exception_handler(4102, "Error Evaluating Case Conditions")
     def _evaluate_conditions(
         self,
         conditions: List[Dict[str, Any]]
@@ -200,7 +201,8 @@ class Conditioner:
         result = self.evaluate_with_operations(evaluations, operations)
 
         return result
-    
+
+    @global_exception_handler(4103, "Error Evaluating Conditions with Operations")
     def evaluate_with_operations(
         self,
         evaluations: List[bool],
@@ -219,7 +221,7 @@ class Conditioner:
 
         if not evaluations or not operations:
             raise ValueError("Evaluations and operations must not be empty.")
-        
+
         if len(evaluations) != len(operations):
             raise ValueError("Mismatch between evaluations and operations length.")
 

@@ -39,7 +39,7 @@
         }
     },
     "edges": {
-        "choose-426782387": {
+        "ifelse-426782387": {
             "type": "ifelse",
             "data": {
                 "cases": { 
@@ -73,8 +73,8 @@
                             },
                             {
                                 "block": "2", 
-                                "condition": "contains",
-                                "parameters": {"value": "h"},
+                                "condition": "contain",
+                                "parameters": {"value": "d"},
                                 "operation": "/"
                             }
                         ],
