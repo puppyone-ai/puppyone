@@ -11,9 +11,8 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional
 from duckduckgo_search import DDGS
 from Edges.Retriever import Retriever
-from Edges.Embedder import TextEmbedding
 from Edges.Generator import lite_llm_chat
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 class BaseSearchClient(ABC):
@@ -301,15 +300,11 @@ class RAGSearchClient(BaseSearchClient):
         sub_search_type = sub_search_type.lower()
         retriever = Retriever(sub_search_type, extra_configs.get("docs", []))
         if sub_search_type == "vector":
-            embedder = TextEmbedding(
-                model_name=extra_configs.get("model", "")
-            )
-            query_embedding = embedder.get_embeddings([self.query])[0]
-
             retrieved_results = retriever.retrieve(
                 top_k=self.top_k,
                 threshold=self.threshold,
-                query_embedding=query_embedding,
+                query=query,
+                model=extra_configs.get("model", "text-embedding-ada-002"),
                 db_type=extra_configs.get("db_type", "pgvector"),
                 collection_name=extra_configs.get("collection_name", "")
             )

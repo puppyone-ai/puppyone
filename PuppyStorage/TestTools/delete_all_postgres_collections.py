@@ -3,9 +3,9 @@ import vecs
 import logging
 from dotenv import load_dotenv
 
-
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
+
 
 def delete_all_postgres_collections():
     # Connect to the database
