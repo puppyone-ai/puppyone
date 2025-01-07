@@ -19,7 +19,7 @@ from weaviate.classes.init import Auth
 from weaviate.classes.config import DataType
 from weaviate import connect_to_weaviate_cloud
 from weaviate.classes.config import Property, DataType, Configure
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -65,9 +65,8 @@ class VectorDatabase(ABC):
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
-        ids: List[str] = None,
         create_new: bool = False,
-        **kwargs
+        metadatas: List[Dict[str, Any]] = [{}]
     ):
         pass
 
@@ -112,8 +111,8 @@ class ZillizVectorDatabase(VectorDatabase):
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
-        ids: List[str] = None,
-        create_new: bool = False
+        create_new: bool = False,
+        metadatas: List[Dict[str, Any]] = [{}]
     ) -> None:
         """
         Save embeddings to the specified collection in Zilliz.
@@ -122,8 +121,8 @@ class ZillizVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection.
             embeddings (List[List[float]]): List of embeddings.
             documents (List[str]): List of documents.
-            ids (List[str]): List of unique IDs.
             create_new (bool): Whether to create a new collection.
+            metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
         client = self.connections.get(collection_name)
@@ -134,19 +133,20 @@ class ZillizVectorDatabase(VectorDatabase):
             fields = [
                 FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=64),
                 FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=len(embeddings[0])),
-                FieldSchema(name="document", dtype=DataType.VARCHAR, max_length=1024)
+                FieldSchema(name="metadata", dtype=DataType.OBJECT)
             ]
             schema = CollectionSchema(fields)
             client.create_collection(collection_name, schema)
             logging.info(f"Created new collection '{collection_name}' with specified schema.")
 
+        ids = [metadata.get("id") for metadata in metadatas]
         if not ids:
             ids = [str(uuid.uuid4()) for _ in embeddings]
 
         data = [
             ids,
             embeddings,
-            documents
+            [{"document": documents[i], **metadatas[i]} for i in range(len(documents))]
         ]
         client.upsert(collection_name, data)
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
@@ -228,9 +228,9 @@ class QdrantVectorDatabase(VectorDatabase):
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
-        ids: List[str] = None,
         create_new: bool = False,
-        metric: str = "cosine"
+        metric: str = "cosine",
+        metadatas: List[Dict[str, Any]] = [{}]
     ) -> None:
         """
         Save embeddings to the specified collection in Qdrant.
@@ -239,9 +239,9 @@ class QdrantVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection.
             embeddings (List[List[float]]): List of embeddings.
             documents (List[str]): List of documents.
-            ids (List[str]): List of unique IDs.
             create_new (bool): Whether to create a new collection.
             metric (str): Similarity metric (default: "cosine").
+            metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
         client = self.connections.get(collection_name)
@@ -262,6 +262,7 @@ class QdrantVectorDatabase(VectorDatabase):
             )
             logging.info(f"Created new collection '{collection_name}' with specified configuration.")
 
+        ids = [metadata.get("id") for metadata in metadatas]
         if not ids:
             ids = [str(uuid.uuid4()) for _ in embeddings]
 
@@ -269,7 +270,7 @@ class QdrantVectorDatabase(VectorDatabase):
             {
                 "id": ids[i],
                 "vector": embeddings[i],
-                "payload": {"document": documents[i]}
+                "payload": {"document": documents[i], **metadatas[i]}
             }
             for i in range(len(embeddings))
         ]
@@ -363,9 +364,9 @@ class PineconeVectorDatabase(VectorDatabase):
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
-        ids: List[str] = None,
         create_new: bool = False,
-        metric: str = "cosine"
+        metric: str = "cosine",
+        metadatas: List[Dict[str, Any]] = [{}]
     ) -> None:
         """
         Save embeddings to the specified collection in Pinecone.
@@ -374,9 +375,9 @@ class PineconeVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection.
             embeddings (List[List[float]]): List of embeddings.
             documents (List[str]): List of documents.
-            ids (List[str]): List of unique IDs.
             create_new (bool): Whether to create a new collection.
             metric (str): Similarity metric, could be "cosine", "dotproduct", or "euclidean" (default: "cosine"). Only used when creating a new collection.
+            metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
         client = self.connections.get(collection_name)
@@ -395,6 +396,7 @@ class PineconeVectorDatabase(VectorDatabase):
                 )
                 logging.info(f"Created new collection '{collection_name}' with specified configuration.")
 
+        ids = [metadata.get("id") for metadata in metadatas]
         if not ids:
             ids = [str(uuid.uuid4()) for _ in embeddings]
 
@@ -402,9 +404,9 @@ class PineconeVectorDatabase(VectorDatabase):
             {
                 "id": vector_id,
                 "values": vector_values,
-                "metadata": {"document": document},
+                "metadata": {"document": document, **metadata},
             }
-            for vector_id, vector_values, document in zip(ids, embeddings, documents)
+            for vector_id, vector_values, document, metadata in zip(ids, embeddings, documents, metadatas)
         ]
 
         index = client.Index(collection_name)
@@ -484,8 +486,8 @@ class WeaviateVectorDatabase(VectorDatabase):
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
-        ids: List[str] = None,
-        create_new: bool = False
+        create_new: bool = False,
+        metadatas: List[Dict[str, Any]] = [{}]
     ) -> None:
         """
         Save embeddings to the specified collection in Weaviate.
@@ -494,8 +496,8 @@ class WeaviateVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection.
             embeddings (List[List[float]]): List of embeddings.
             documents (List[str]): List of documents.
-            ids (List[str]): List of unique IDs.
             create_new (bool): Whether to create a new collection.
+            metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
         client = self.connections.get(collection_name)
@@ -508,7 +510,7 @@ class WeaviateVectorDatabase(VectorDatabase):
                 properties=[
                     Property(name="vector_id", data_type=DataType.TEXT),
                     Property(name="embedding", data_type=DataType.NUMBER_ARRAY),
-                    Property(name="documents", data_type=DataType.TEXT),
+                    Property(name="metadata", data_type=DataType.OBJECT)
                 ],
                 vectorizer_config=[
                     Configure.NamedVectors.none(name="vector_id"),
@@ -517,6 +519,7 @@ class WeaviateVectorDatabase(VectorDatabase):
             )
             logging.info(f"Created new collection '{collection_name}' with specified schema.")
 
+        ids = [metadata.get("id") for metadata in metadatas]
         if not ids:
             ids = [str(uuid.uuid4()) for _ in embeddings]
 
@@ -527,8 +530,8 @@ class WeaviateVectorDatabase(VectorDatabase):
                     {
                         "vector_id": ids[i],
                         "embedding": embeddings[i],
-                        "documents": documents[i]
-                    }, 
+                        "metadata":{"document": documents[i], **metadatas[i]}
+                    },
                     vector={"embedding": embeddings[i]}
                 )
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
@@ -614,10 +617,9 @@ class PostgresVectorDatabase(VectorDatabase):
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
-        ids: List[str] = None,
         create_new: bool = False,
         metric: str = "cosine",
-        **kwargs,
+        metadatas: List[Dict[str, Any]] = [{}]
     ) -> None:
         """
         Save embeddings to the Postgres-based vector database.
@@ -626,9 +628,9 @@ class PostgresVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection.
             embeddings (List[List[float]]): List of embeddings.
             documents (List[str]): List of associated documents.
-            ids (List[str]): List of unique IDs.
             create_new (bool): Whether to create a new collection (if it doesn't exist).
             metric (str): Similarity metric to use for the collection (default: "cosine").
+            metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
         client = self.connections.get(collection_name)
@@ -647,11 +649,12 @@ class PostgresVectorDatabase(VectorDatabase):
         }
         collection.create_index(measure=metric_value.get(metric, "cosine_distance"))
 
+        ids = [metadata.get("id") for metadata in metadatas]
         if not ids:
             ids = [str(uuid.uuid4()) for _ in embeddings]
 
         records = [
-            (ids[i], embeddings[i], {"doc": documents[i]}) for i in range(len(embeddings))
+            (ids[i], embeddings[i], {"doc": documents[i], **metadatas[i]}) for i in range(len(embeddings))
         ]
         collection.upsert(records=records)
         logging.info(f"Inserted {len(records)} embeddings into collection '{collection_name}'.")

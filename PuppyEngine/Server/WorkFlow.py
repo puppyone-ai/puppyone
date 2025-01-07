@@ -257,7 +257,7 @@ class WorkFlow:
         edge_info: Tuple[str, Dict[str, str]]
     ) -> Tuple[Any, str]:
         """
-        Process the edge, processes it, updates the target block with the result, and handles specific configurations for embedding edges.
+        Process the edge, processes it, updates the target block with the result.
 
         Args:
             edge_info (tuple): Edge id and the dictionary containing edge data.
@@ -280,51 +280,37 @@ class WorkFlow:
         logger.info("Output: %s", output)
 
         # Handling the choose edge
-        if edge_type == "choose":
-            target_block_ids = output
-            output = edge_dict["data"]["content"]
-
-        for target_block_id in target_block_ids:
-            # Handle looped edges
-            self._handle_loop_edge(edge_dict["data"], target_block_id)
-            # Handle switch edges
-            output = self._code_output_types_switch(edge_dict, target_block_id, output)
-            # Update the block 
-            self.block_data[target_block_id]["data"]["content"] = output
+        if edge_type == "ifelse":
+            target_block_ids = []
+            for from_block, to_block in output.items():
+                target_block_ids.append(to_block)
+                self.block_data[to_block]["data"]["content"] = self.block_data.get(from_block, {}).get("data", {}).get("content", "")
+        else:
+            for target_block_id in target_block_ids:
+                self._valid_output_block_type(target_block_id, output)
+                self.block_data[target_block_id]["data"]["content"] = output
         return target_block_ids
 
-    def _handle_loop_edge(
+    def _valid_output_block_type(
         self,
-        edge_data: Dict[str, str],
-        target_block_id: str
-    ):
-        if edge_data.get("looped", False):
-            self.block_data[target_block_id]["type"] = "structured"
-
-    def _code_output_types_switch(
-        self,
-        edge_dict: dict,
         target_block_id: str,
         output: Any
-    ) -> Any:
+    ) -> None:
         """
-        Determines and updates the output type (text or structured) based on the edge type and output content.
+        Check and classify the output to determine the type of the target block.
 
         Args:
             edge_dict (dict): Dictionary containing edge data.
             target_block_id (str): ID of the target block to update.
             output (Any): The output to check and classify.
-
-        Returns:
-            Any: The unchanged output.
         """
-        edge_type = edge_dict.get("type", {})
-        modify_type = edge_dict.get("data", {}).get("modify_type")
 
-        if edge_type == "code" or (edge_type == "modify" and modify_type == "modify_get"):
-            self.block_data[target_block_id]["type"] = "structured" if isinstance(output, (list, dict)) else "text"
+        block_type = self.block_data[target_block_id].get("type", "text")
+        if isinstance(output, (list, dict)) and block_type == "text":
+            self.block_data[target_block_id]["type"] = "structured"
 
-        return output
+        if isinstance(output, str) and block_type == "structured":
+            self.block_data[target_block_id]["type"] = "text"
 
 
 if __name__ == "__main__":  
@@ -334,9 +320,9 @@ if __name__ == "__main__":
     test_kit = 'PuppyEngine/TestKit'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name != "test_test4.json":
+        if file_name == "embedding_search.json":
             continue
-        # if not file_name.startswith("loop_modify"):
+        # if file_name.startswith("modify") or file_name.startswith("loop_modify"):
         #     continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
