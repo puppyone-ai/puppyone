@@ -11,7 +11,13 @@
             "label":"aaa",
             "type": "structured",
             "data": {
-                "content": "[\"222\"]"
+                "content": ["222"],
+                "embedding_view": [
+                    {
+                        "content": "222",
+                        "metadata": {"id": "1"}
+                    }
+                ]
             }
         },
         "3": {

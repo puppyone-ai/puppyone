@@ -1,39 +1,39 @@
 {
     "blocks": {
-      "2kSVeX": {
-        "data": {
-          "content": ""
+        "2kSVeX": {
+            "data": {
+                "content": [],
+                "embedding_view": []
+            },
+            "label": "2kSVeX",
+            "type": "structured"
         },
-        "label": "2kSVeX",
-        "type": "structured"
-      },
-      "Qbp_1Y": {
-        "data": {
-          "content": "Rosebery 居住如何?"
-        },
-        "label": "Qbp_1Y",
-        "type": "text"
-      }
+        "Qbp_1Y": {
+            "data": {
+                "content": "Rosebery 居住如何?"
+            },
+            "label": "Qbp_1Y",
+            "type": "text"
+        }
     },
     "edges": {
-      "search-1735285908460": {
-        "data": {
-          "extra_configs": {
-            "model": "llama-3.1-sonar-small-128k-online"
-          },
-          "inputs": {
-            "Qbp_1Y": "Qbp_1Y"
-          },
-          "query_id": {"Qbp_1Y": "Qbp_1Y"},
-          "looped": false,
-          "outputs": {
-            "2kSVeX": "2kSVeX"
-          },
-          "search_type": "llm",
-          "sub_search_type": "perplexity"
-        },
-        "type": "search"
-      }
+        "search-1735285908460": {
+            "data": {
+                "extra_configs": {
+                    "model": "llama-3.1-sonar-small-128k-online"
+                },
+                "inputs": {
+                    "Qbp_1Y": "Qbp_1Y"
+                },
+                "query_id": {"Qbp_1Y": "Qbp_1Y"},
+                "outputs": {
+                    "2kSVeX": "2kSVeX"
+                },
+                "search_type": "llm",
+                "sub_search_type": "perplexity"
+            },
+            "type": "search"
+        }
     },
     "task_id": "a87a703b-f87e-4754-8d18-ef048b627ae1"
 }

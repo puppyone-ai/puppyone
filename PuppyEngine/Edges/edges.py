@@ -3,21 +3,20 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import re
 import json
+from itertools import product
 from typing import List, Dict, Any
 from DataClass.Chunk import Chunk
 from Blocks.DataSaver import DataSaver
 from Blocks.DataLoader import DataLoader
-from Blocks.VectorDatabase import VectorDatabaseFactory
 from Edges.Rechunker import ReChunker
 from Edges.Modifier import JSONModifier
-from Edges.Embedder import TextEmbedding
 from Edges.Chunker import ChunkingFactory
 from Edges.Reranker import RerankerFactory
 from Edges.Sandbox.code_v4 import CustomCode
 from Edges.QueryRewriter import QueryRewriter
 from Edges.Searcher import SearchClientFactory
+from Edges.Conditioner import Conditioner
 from Edges.Generator import lite_llm_chat
 from Utils.PuppyEngineExceptions import global_exception_handler
 
@@ -42,55 +41,48 @@ class Edge:
             "llm": self.llm,
             "chunk": self.chunk,
             "rechunk": self.rechunk,
-            "embedding": self.embedding,
             "search": self.search,
             "rerank": self.rerank,
             "rewrite": self.query_rewrite,
             "code": self.code,
-            "choose": self.choose
+            "ifelse": self.ifelse
         }
         method = edge_methods.get(self.edge_type)
         if not method:
             raise ValueError(f"Unsupported Edge Type: {self.edge_type}!")
         
         # loop logics
-        if self.data.get("looped", False):
+        if self.data.get("looped", []):
             return self.handle_loop_mode(method)
-        else:   
+        else:
             return method()
 
     @global_exception_handler(3001, "Unexpected Error in Handling Loop")
     def handle_loop_mode(
         self,
         method: Any
-    ):
+    ) -> List[Any]:
         results = []
         method_data = self.data
 
-        # Handle 'chunk' edge type
-        if self.edge_type == "chunk":
-            docs = method_data.get("doc", [])
-            for doc in docs:
-                self.data["doc"] = doc
-                results.append(method())
+        modify_condition = self.edge_type == "modify" and method_data.get("modify_type") in {"modify_text", "modify_structured"}
 
-        # Handle 'llm', 'code', and 'modify' edge types
-        elif self.edge_type in {"llm", "code", "modify"}:
-            plugins = method_data.get("plugins", {})
-            contents = method_data.get("content", [])
+        # Identify looped keys and their corresponding values
+        looped_keys = method_data.get("looped", [])
+        looped_values = {key: method_data.get("plugins", {}).get(key, []) if modify_condition else method_data.get(key, []) for key in looped_keys}
 
-            # If plugins are available
-            if plugins:
-                for i in range(len(next(iter(plugins.values()), []))):
-                    # Update plugin data for the current iteration
-                    self.data["plugins"] = {k: v[i] for k, v in plugins.items()}
-                    results.append(method())
+        # Generate all combinations of looped values
+        combinations = list(product(*looped_values.values()))
+        for combination in combinations:
+            # Update the data dictionary for each combination
+            for idx, key in enumerate(looped_keys):
+                if modify_condition:
+                    self.data["plugins"][key] = combination[idx]
+                else:
+                    self.data[key] = combination[idx]
 
-            # If contents are available
-            elif contents:
-                for content in contents:
-                    self.data["content"] = content
-                    results.append(method())
+            # Call the method and store the result
+            results.append(method())
 
         return results
 
@@ -128,38 +120,7 @@ class Edge:
     def llm(
         self
     ) -> str:
-        """
-            data: 
-            {'messages': [{"role": "system", "content": "You are a helpful AI assistant that called {{3}}}"},
-                        {"role": "user", "content": "What is the capital of the moon?"},
-                        {"role": "user", "content": "What is the capital of the earth?"}],
-            'model': 'gpt-4o', 
-            'base_url': '', 
-            'max_tokens': 4096, 
-            'temperature': 0.7, 
-            'inputs': ["1", "3"],
-            'plugins': [{"1": "input one"},
-                        {"2": "input two"}]
-            }
-        """
-
-        raw_messages = self.data.get("messages", [])
-
-        # Replace placeholders with actual content from inputs
-        pattern = re.compile(r'\{\{(.*?)\}\}')
-        plugins = self.data.get("plugins", {})
-        messages = [
-            {
-                "role": message.get("role", ""),
-                "content": pattern.sub(
-                    lambda match: plugins.get(match.group(1), json.dumps(plugins.get(match.group(1), ""))) 
-                    if isinstance(plugins.get(match.group(1), ""), str) 
-                    else json.dumps(plugins.get(match.group(1), "")),
-                    message.get("content", "")
-                )
-            }
-            for message in raw_messages
-        ]
+        messages = self.data.get("messages", [])
 
         # Handle structured output
         structured_output = self.data.get("structured_output", False)
@@ -189,7 +150,7 @@ class Edge:
         chunks = ChunkingFactory.create_chunking(
             chunking_mode=self.data.get("chunking_mode", ""),
             sub_mode=self.data.get("sub_chunking_mode", ""),
-            doc=self.data.get("doc", ""),
+            doc=self.data.get("doc"),
             extra_configs=self.data.get("extra_configs", "")
         )
 
@@ -214,38 +175,6 @@ class Edge:
         new_chunks = ac.get_chunks(as_list=self.data.get("as_list", True))
         return new_chunks
 
-    @global_exception_handler(3007, "Unexpected Error in Embedding Edge Execution")
-    def embedding(
-        self
-    ) -> str:
-        embedder = TextEmbedding(
-            model_name=self.data.get("model", "text-embedding-ada-002")
-        )
-        chunks = self.data.get("chunks", [])
-        chunks_contents = [
-            chunk.content if isinstance(chunk, Chunk) else
-            chunk["content"] if isinstance(chunk, dict) else
-            chunk if isinstance(chunk, str) else
-            ValueError("Invalid chunk type.")
-            for chunk in chunks
-        ]
-
-        embeddings = embedder.get_embeddings(chunks_contents)
-
-        # Store the embeddings
-        vdb_configs = self.data.get("vdb_configs", {})
-        db = VectorDatabaseFactory.get_database(
-            db_type=vdb_configs.get("vdb_type", "pinecone")
-        )
-        db.connect(vdb_configs.get("collection_name", ""))
-        db.save_embeddings(
-            collection_name=vdb_configs.get("collection_name", ""),
-            embeddings=embeddings,
-            documents=chunks_contents,
-            ids=vdb_configs.get("ids", []),
-            create_new=vdb_configs.get("create_new", False),
-        )
-    
     @global_exception_handler(3008, "Unexpected Error in Search Edge Execution")
     def search(
         self
@@ -307,15 +236,18 @@ class Edge:
         self
     ) -> Any:
         code = self.data.get("code", "")
-        arg_values = self.data.get("plugins", {})
+        arg_values = self.data.get("arg_values", {})
         custom_code = CustomCode()
         result = custom_code.execute_restricted_code(code, arg_values)
         return result
-    
-    @global_exception_handler(3012, "Unexpected Error in Choose Edge Execution")
-    def choose(
+
+    @global_exception_handler(3012, "Unexpected Error in If-Else Edge Execution")
+    def ifelse(
         self
     ) -> Any:
-        switch_value = self.data.get("switch", "ON")
-        return list(self.data.get(switch_value).keys())
+        content_blocks = self.data.get("content_blocks", {})
+        cases = self.data.get("cases", [])
+        conditioner = Conditioner(content_blocks, cases)
+        results = conditioner.evaluate_cases()
+        return results
 

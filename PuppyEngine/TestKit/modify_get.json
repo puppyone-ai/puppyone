@@ -11,7 +11,13 @@
             "data": {
                 "content": {
                     "subaru": "awa", "momoka": {"san":"daisuki"}
-                }
+                },
+                "embedding_view": [
+                    {
+                        "content": "awa",
+                        "metadata": {"id": "1", "key": "subaru", "momoka": {"san":"daisuki"}}
+                    }
+                ]
             }
         }
     },

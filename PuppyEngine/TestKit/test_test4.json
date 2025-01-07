@@ -4,7 +4,8 @@
             "label": "fY7TWt",
             "type": "structured",
             "data": {
-                "content": []
+                "content": [],
+                "embedding_view": []
             }
         },
         "bMtAZs": {
@@ -18,7 +19,8 @@
             "label": "8CjIrB",
             "type": "structured",
             "data": {
-                "content": []
+                "content": [],
+                "embedding_view": []
             }
         }
     },
@@ -36,7 +38,6 @@
                     "bMtAZs": "bMtAZs"
                 },
                 "extra_configs": {},
-                "looped": false,
                 "outputs": {
                     "fY7TWt": "fY7TWt"
                 }
@@ -56,7 +57,6 @@
                 "extra_configs": {
                     "model": "llama-3.1-sonar-small-128k-online"
                 },
-                "looped": false,
                 "outputs": {
                     "8CjIrB": "8CjIrB"
                 }
