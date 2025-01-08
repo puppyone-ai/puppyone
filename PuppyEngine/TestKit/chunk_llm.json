@@ -3,7 +3,8 @@
         "2": {
             "type": "structured",
             "data": {
-                "content": ""
+                "content": "",
+                "embedding_view": []
             }
         },
         "1": {

@@ -20,8 +20,43 @@
                         "asdsada",
                         "eqwe"
                     ]
+                ],
+                "embedding_view": [
+                    {
+                        "content": "hello",
+                        "metadata": {
+                            "id": "0",
+                            "list_index_1": 0,
+                            "list_index_2": 0
+                        }
+                    },
+                    {
+                        "content": "world",
+                        "metadata": {
+                            "id": "1",
+                            "list_index_1": 0,
+                            "list_index_2": 1
+                        }
+                    },
+                    {
+                        "content": "asdsada",
+                        "metadata": {
+                            "id": "2",
+                            "list_index_1": 1,
+                            "list_index_2": 0
+                        }
+                    },
+                    {
+                        "content": "eqwe",
+                        "metadata": {
+                            "id": "3",
+                            "list_index_1": 1,
+                            "list_index_2": 1
+                        }
+                    }
                 ]
-            }
+            },
+            "looped": false
         }
     },
     "edges": {
@@ -33,8 +68,7 @@
                     "index": 0
                 },
                 "inputs": {"2": "2"},
-                "outputs": {"3": ""},
-                "looped": true
+                "outputs": {"3": ""}
             }
         }
     },
