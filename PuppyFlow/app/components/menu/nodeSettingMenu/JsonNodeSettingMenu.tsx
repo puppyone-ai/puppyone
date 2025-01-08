@@ -190,7 +190,7 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
             setNodes(prevNodes => prevNodes.map(
                 (node) => {
                   if (node.id === nodeid) {
-                    return {...node, data: {...node.data, embeddingView: embeddingViewDataWithInfo}}
+                    return {...node, data: {...node.data, chunks: embeddingViewDataWithInfo}}
                   }
                   return node
                 }
