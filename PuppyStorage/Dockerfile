@@ -1,20 +1,20 @@
-# 使用官方的 Python 3.11 slim 基础镜像
+# Use Python 3.11-slim base image
 FROM python:3.11-slim
 
-# 设置工作目录
+# Set the working directory
 WORKDIR /app
 
-# 复制项目的 requirements.txt 文件到容器中
+# Copy the dependencies file
 COPY requirements.txt .
 
-# 安装 Python 依赖
+# Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制项目的所有文件到容器中
+# Copy the entire project directory to the container
 COPY . .
 
-# 暴露应用运行的端口（假设 FastAPI 默认端口为8000）
+# Expose the port
 EXPOSE 8002
 
-# 启动 FastAPI 服务器，使用 hypercorn
-CMD ["hypercorn", "Server.fastapi_server:app", "--bind", "0.0.0.0:8002"] 
+# Use Hypercorn as the ASGI server
+CMD ["hypercorn", "Server.fastapi_server:app", "--bind", "0.0.0.0:8002"]

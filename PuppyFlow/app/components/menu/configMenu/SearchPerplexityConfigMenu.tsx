@@ -290,32 +290,32 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
     
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
          <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                     <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 13 13">
                     <path stroke="#CDCDCD" strokeWidth="2" d="M5.143 5.143 12 12"/>
                     <circle cx="4.714" cy="4.714" r="3.714" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="2"/>
                     </svg>
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                 Search
                 </div>
                 </div>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
-                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                         <img src="/Perplexity.svg" alt="Perplexity icon" />
                     </div>
-                    <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                     Perplexity
                     </div>
                 </div>
             </div>
             <div className='w-[57px] h-[26px]'>
-                <button className='w-full h-full rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[700] font-plus-jakarta-sans flex flex-row items-center  justify-center gap-[7px]' onClick={onDataSubmit}>
+                <button className='w-full h-full rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]' onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
                     <path d="M8 5L0 10V0L8 5Z" fill="black"/>
@@ -327,16 +327,15 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
             <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
                 {displaySourceNodeLabels()}
             </div>
-            
         </li>
-        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
+        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              model
             </div>  
@@ -344,7 +343,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                 if (modelRef.current){
                     setModel(modelRef.current.value as perplexityModelNames)
                 }
-            }}  id='model' className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[700] leading-normal text-main-grey border-none h-full w-full font-plus-jakarta-sans'>
+            }}  id='model' className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none h-full w-full font-plus-jakarta-sans'>
                 <option value={"llama-3.1-sonar-small-128k-online"}>
                 llama-3.1-sonar-small-128k-online
                 </option>
@@ -355,9 +354,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                 llama-3.1-sonar-huge-128k-online
                 </option>
             </select>
-            
         </li>
-        
     </ul>
   )
 }

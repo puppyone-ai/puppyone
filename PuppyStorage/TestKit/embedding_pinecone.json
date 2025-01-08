@@ -1,40 +1,31 @@
 {
-    "blocks": {
-        "5": {
-            "type": "vector",
-            "data": {
-                "content": ""
-            }
+    "query": "What did the fox do?",
+    "chunks": [
+        {
+            "content": "The quick brown fox jumps over the lazy dog.",
+            "metadata": {"id": 0, "extra": "metadata"}
         },
-        "3": {
-            "label":"",
-            "type": "structured",
-            "data": {
-                "content": [
-                    "BYD",
-                    "as a leading new energy vehicle manufacturer in China",
-                    "has been accelerating its globalization efforts in recent years",
-                    "aiming to secure a position in the global electric vehicle market. The United States",
-                    "being the second-largest automotive market in the world",
-                    "offers a significant opportunity for BYD with its substantial demand for new energy vehicles. However",
-                    "BYD also faces numerous challenges",
-                    "having to navigate the multifaceted influences from policy",
-                    "economic",
-                    "social",
-                    "and technological factors."
-                ]
-            }
+        {
+            "content": "A fast brown animal jumps over a sleepy canine.",
+            "metadata": {"id": 1, "extra": "metadata"}
+        },
+        {
+            "content": "The sky is blue and the sun is bright.",
+            "metadata": {"id": 2, "extra": "metadata"}
+        },
+        {
+            "content": "Blue skies and bright sunshine are beautiful.",
+            "metadata": {"id": 3, "extra": "metadata"}
+        },
+        {
+            "content": "Blue skies and bright sunshine are beautiful.",
+            "metadata": {"id": 4, "extra": "metadata"}
         }
-    },
-    "edges": {
-        "test-embedding": {
-            "type": "embedding",
-            "data": {
-                "inputs": {"3":""},
-                "outputs": {"5":""},
-                "model": "text-embedding-ada-002",
-                "method": "cosine"
-            }
-        }
-    }
+    ],
+    "create_new": true,
+    "vdb_type": "pgvector",
+    "user_id": "test_user",
+    "model": "text-embedding-ada-002",
+    "top_k": 3,
+    "threshold": 0.2
 }
