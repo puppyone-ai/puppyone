@@ -50,7 +50,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
-  const [buttonText, setButtonText] = useState("embedding view"); // State for button text
+  const [buttonText, setButtonText] = useState("input view"); // State for button text
 
 
   useEffect(() => {
@@ -307,7 +307,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
               maxWidth: calculateMaxLabelContainerWidth(),
             }}>
             {
-              getNode(id)?.data?.embeddingView? JSON.stringify((getNode(id)?.data?.embeddingView)):<></>
+              getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):<></>
             }
             </div>
             :
