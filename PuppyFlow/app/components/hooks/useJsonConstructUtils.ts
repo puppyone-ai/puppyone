@@ -20,7 +20,7 @@ import { SYSTEM_URLS } from "@/config/urls";
 export const backend_IP_address_for_sendingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/send_data`
 export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/get_data`
 export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/generate_presigned_url`
-export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/index/embed`
+export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`
 
 export type BasicNodeData = JsonNodeData | FileNodeData | ResultNodeData | StructuredTextDatabaseNodeData | SwitchNodeData | TextBlockNodeData | VectorDatabaseNodeData | VectorNodeData | WebLinkNodeData | {content: string | any, subtype?: string, model?: string, method?: string, vdb_type?: string, index_name?: string}
 
