@@ -130,10 +130,12 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     //     setON(prevOn => prevOn.filter(node => outputs.includes(node)))
     //     setOFF(prevOff => prevOff.filter(node => outputs.includes(node)))
     // }, [outputs])
-  
+    //TODO
     useEffect(() => {
+
         if (!outputs.length) return
         if (isComplete) return
+        console.log("send data useeffect")
     
         const addNewNodesEdgesIntoFlow = async () => {
             const parentEdgeNode = getNode(parentId)
@@ -162,7 +164,9 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 },
                 type: 'text',
             }));
-    
+
+            console.log("newnodes",newNodes)
+
             // 准备所有新边
             const newEdges = outputs.map((output, index) => ({
                 id: `connection-${Date.now() + index}`,
@@ -176,6 +180,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 markerEnd: markerEnd,
             }));
 
+            console.log("newedges",newEdges)
             await Promise.all([
                 new Promise(resolve => {
                     setNodes(prevNodes => {
@@ -191,14 +196,17 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 }),
             ]);
 
+            console.log("updated",getNode(parentId))
+
             onResultNodesChange(outputs)
             setIsAddFlow(true)
         };
 
         const sendData = async  () => {
+            console.log("senddata")
             try {
                 const jsonData = constructJsonData()
-                console.log(jsonData)
+                console.log("jsondata",jsonData)
                 const response = await fetch(`${backend_IP_address_for_sendingData}`, {
                     method:'POST',
                     headers: {
@@ -240,66 +248,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 }
         }
     
-        // if (!isAddContext) {
-        //   addNodeAndSetFlag()
-        //   addCount(outputs.length)
-        // }
-        // else if (isAddContext && !isAddFlow) {
-        //     const parentEdgeNode = getNode(parentId)
-        //     if (!parentEdgeNode) return
-        //     // const location1 = {
-        //     //     // 120 - 40 = 80 is half of the width of the target node - code node
-        //     //     x: parentEdgeNode.position.x - 160,
-        //     //     y: parentEdgeNode.position.y + 200
-        //     // }
-
-        //     // const location2 = {
-        //     //     x: parentEdgeNode.position.x,
-        //     //     y: parentEdgeNode.position.y + 200
-        //     // }
-        //     // ... existing code ...
-        //     const centerX = parentEdgeNode.position.x - 80; // 中心点
-        //     const spacing = 288; // 节点间距
-        //     const totalWidth = spacing * (outputs.length - 1); // 所有间距的总宽度
-        //     const startX = centerX - totalWidth / 2; // 最左侧节点的x坐标
-           
-        //     for (let output of outputs) {
-        //         const location = {
-        //             x: startX + spacing * outputs.indexOf(output),
-        //             y: parentEdgeNode.position.y + 200
-        //         }
-
-        //         setNodes(prevNodes => [
-        //             ...prevNodes,
-        //             {
-        //                 id: output,
-        //                 position: location,
-        //                 data: { content: "" },
-        //                 type: 'text', // default type
-        //             }
-        //         ]);
-
-        //         setEdges((edges) => edges.concat({
-        //             id: `connection-${Date.now() + outputs.indexOf(output)}`,
-        //             source: parentId,
-        //             target: output,
-        //             type: "CTT",
-        //             markerEnd: markerEnd,
-        //         }))
-
-        //     }
-
-        //    setIsAddFlow(true)  
-        //    allowActivateNode()
-        //    clear()
-    
-        // }
-        // else if (isAddContext && isAddFlow) {
-        //     setAutogenarated(false)
-        //     sendData()
-            
-        // }
         if (!isAddFlow && !isComplete) {
+            console.log("addNewNodesEdgesIntoFlow")
            addNewNodesEdgesIntoFlow()
 
         }
@@ -352,8 +302,10 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         ))
     }
 
+    //to check if sourcenode is sturctured text
     const displayContentLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
+        console.log(getNode(sourceNodeIdWithLabelGroup[0].id))
         const contentNodes = sourceNodeIdWithLabelGroup.filter(node => getNode(node.id)?.type === "text")
         if (contentNodes.length > 0 && !contentValue) {
             setContentValue(contentNodes[0].id)
@@ -412,40 +364,35 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         for (let output of outputs) {
             let resultNodeLabel
             if (getNode(output) && getNode(output)?.data?.label !== undefined) {
-                resultNodeLabel = getNode(output)?.data?.label as string
-            }
-            else {
-                resultNodeLabel = output
+                resultNodeLabel = getNode(output)?.data?.label as string;
+            } else {
+                resultNodeLabel = output;
             }
 
             const nodejson: NodeJsonType = {
-                // id: output,
                 label: resultNodeLabel,
                 type: "text",
-                data:{content: ""}
-            }
-            blocks[output] = nodejson
+                data: { content: "" }
+            };
+            blocks[output] = nodejson;
         }
 
         for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
+            const nodeInfo = getNode(sourceNodeIdWithLabel.id);
+            if (!nodeInfo) continue;
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string;
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
             const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
                 label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
                 type: nodeInfo.type!,
                 data: {
                     content: nodeContent,
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
                 }
-            }
-            // blocks = [...blocks, nodejson]
-            blocks[nodeInfo.id] = nodejson
+            };
+            blocks[nodeInfo.id] = nodejson;
         }
 
-        let edges: { [key: string]: ChooseEdgeJsonType } = {}
+        let edges: { [key: string]: ChooseEdgeJsonType } = {};
 
         // const edgejson: ChooseEdgeJsonType = {
         //     id: parentId,
@@ -480,26 +427,27 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         return {
             blocks,
             edges
-        }
+        };
     }
 
 
     const onDataSubmit = async () => {
-
-         // click 第一步： clearActivation
-         await new Promise(resolve => {
+          // click 第一步： clearActivation
+          await new Promise(resolve => {
             clearAll()
             resolve(null)
         });
+
+        console.log(outputs)
 
         // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
         if (!outputs.length){
 
             const newResultNodeOneId = nanoid(6)
-            const newResultNodeTwoId = nanoid(6)
             // onResultNodeChange(newResultNodeId)
             setAutogenerated(true)
-            setOutputs([newResultNodeOneId, newResultNodeTwoId])
+            setOutputs([newResultNodeOneId])
+            console.log(outputs)
             
             // setIsAddContext(false)
             setIsAddFlow(false)
@@ -607,7 +555,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             label: string;
             condition: string;
             type?: string;
-            cond_v?: string;
+            cond_v: string;
             cond_input?: string;
         }
     
@@ -624,23 +572,19 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     
         // TODO 3
         const [cases,setCases] = useState<Case[]>([
-            {
-                conditions: [
-                    {
-                        id: '1',
-                        label: '1',
-                        condition: 'condition1'
-                    }
-                ],
-                actions: [
-                    {
-                        from_id: '1',
-                        from_label: '1',
-                        outputs:outputs
-                    }
-                ]
-            }
         ])
+    
+
+        useEffect(() => {
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId) {
+                    return { ...node, data: { ...node.data, cases } }; // Update the cases in the node's data
+                }
+                return node;
+            }));
+
+            console.log(getNode(parentId))
+        }, [cases]); // Dependency array includes cases
     
         const onConditionAdd = (index: number) => () => {
             console.log("hello", index)
@@ -654,7 +598,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                 {
                                     id: `${caseItem.conditions.length + 1}`,
                                     label: `${caseItem.conditions.length + 1}`,
-                                    condition: `condition${caseItem.conditions.length + 1}`
+                                    condition: `condition${caseItem.conditions.length + 1}`,
+                                    cond_v:'condition'
                                 }
                             ]
                         }
@@ -674,9 +619,9 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                             actions: [
                                 ...caseItem.actions,
                                 {
-                                    from_id: '1',
-                                    from_label: '1',
-                                    outputs: outputs
+                                    from_id: '',
+                                    from_label: '',
+                                    outputs: []
                                 }
                             ]
                         }
@@ -693,16 +638,18 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 {
                     conditions: [
                         {
-                            id: '1',
-                            label: '1',
-                            condition: 'condition1'
+                            id: '',
+                            label: '',
+                            condition: '',
+                            cond_v:'condition',
+                            cond_input:""
                         }
                     ],
                     actions: [
                         {
-                            from_id: '1',
-                            from_label: '1',
-                            outputs: outputs
+                            from_id: '',
+                            from_label: '',
+                            outputs: []
                         }
                     ]
                 }
@@ -742,7 +689,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     
         return (
 
-            <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+            <ul ref={menuRef} className={`w-[450px] absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
                 <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
@@ -770,7 +717,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                         </button>
                     </div>
                 </li>
-                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[420px]'>
                     <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                      input
                     </div>
@@ -779,7 +726,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     </div>
                     
                 </li>
-                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[420px]'>
                     <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                      output
                     </div>
@@ -804,7 +751,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                     <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
                                                         <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
                                                         <select 
-                                                            className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[150px]'
+                                                            className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[100px]'
                                                             onChange={(e) => {
                                                                 const selectedNode = getSourceNodeIdWithLabel(parentId).find(
                                                                     node => node.id === e.target.value
@@ -831,7 +778,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                             ))}
                                                         </select>
                                                         </div>
-                                                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
+                                                        <div className='text-[#6D7177] w-[190px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
                                                         {
                                                             getNode(cases[case_index].conditions[conditions_index].id)?.type === "structured" && (
                                                                 <select 
@@ -931,7 +878,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                                     };
                                                                     setCases(cases_clone);
                                                                     console.log("cond_v",cases)
-                                                                }} className="w-[200px] text-black" type="text"></input>
+                                                                }} className="w-[100px] text-black" type="text"></input>
                                                             )
                                                         }
                                                         
@@ -946,7 +893,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                 </button>
                             </div>
         
-                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3'>
+                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3 w-[428px]'>
                                 {
                                     case_value.actions.map(
                                         (action_value, action_index) => (
