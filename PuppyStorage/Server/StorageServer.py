@@ -112,13 +112,16 @@ async def embed_chunks(
     user_id: str
 ):
     try:
-        data = await request.json()
+        json_data = await request.json()
+        data = json_data.get("data", {})
         chunks = data.get("chunks", [])
         chunk_documents = [chunk.get("content", "") for chunk in chunks]
         metadatas = [chunk.get("metadata", {}) for chunk in chunks]
         model = data.get("model", "text-embedding-ada-002")
         vdb_type = data.get("vdb_type", "pgvector")
         create_new = data.get("create_new", True)
+
+        log_info(f"Embedding request data - user_id: {user_id}, chunks: {chunks}, model: {model}, vdb_type: {vdb_type}, create_new: {create_new}")
 
         collection_name = embedding(
             chunks=chunk_documents,
