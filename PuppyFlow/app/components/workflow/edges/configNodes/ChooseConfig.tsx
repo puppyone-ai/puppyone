@@ -11,7 +11,8 @@ export type ChooseConfigNodeData = {
     switch?: string | undefined,
     resultNodes: string[] | null,
     ON?: string[] | undefined,
-    OFF?: string[] | undefined
+    OFF?: string[] | undefined,
+    resultNode: string | null,
 }
 
 type ChooseConfigNodeProps = NodeProps<Node<ChooseConfigNodeData>>
