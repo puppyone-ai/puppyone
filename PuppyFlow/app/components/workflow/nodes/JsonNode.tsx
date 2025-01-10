@@ -316,7 +316,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
                             <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
                             placeholder='["JSON"]'
                                     parentId={id}
-                                    heightStyle={contentSize.height-1} />
+                                    heightStyle={contentSize.height-18} />
                 }
           </div>
           }
