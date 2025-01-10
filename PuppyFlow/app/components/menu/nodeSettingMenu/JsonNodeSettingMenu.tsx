@@ -222,7 +222,7 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
 
             // // 5. updateNode
             const index_name_response = await response.json()
-            if (typeof index_name_response === 'object' && index_name_response !== null && index_name_response.isString) {
+            if (typeof index_name_response === 'string') {
                 setNodes(prevNodes => prevNodes.map(node => node.id === nodeid ? {
                   ...node,
                   data: {
@@ -231,7 +231,13 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
                       index_name: index_name_response
                   }
               } : node))
-              console.log("index_name",getNode(nodeid))
+
+              
+              setTimeout(() => {
+                const newnode = getNode(nodeid)
+                console.log("index_name",newnode)
+              }, 1200);
+              
           }
             
         } catch (error) {
