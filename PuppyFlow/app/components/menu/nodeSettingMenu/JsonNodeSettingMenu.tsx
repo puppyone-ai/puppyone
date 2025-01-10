@@ -196,22 +196,43 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
                 }
               ))
 
+            const transformPayload = (originalPayload: any) => {
+                return {
+                    chunks: originalPayload.data.chunks,
+                    create_new: true, // Indicates that a new entry is being created
+                    vdb_type: originalPayload.data.vdb_type,
+                    model: originalPayload.data.model
+                };
+            };
+
+            const payloaddata = transformPayload(embeddingNodeData)
+
             // TODO: 需要修改为动态的user_id
             const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/Rose123`, {
                 method:'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(embeddingNodeData)
+                body: JSON.stringify(payloaddata)
             })
 
             if (!response.ok) {
                 throw new Error(`HTTP Error: ${response.status}`)
             }
 
-            // 5. updateNode
-            const newJsonNode = await response.json()
-            updateNode(newJsonNode)
+            // // 5. updateNode
+            const index_name_response = await response.json()
+            if (typeof index_name_response === 'object' && index_name_response !== null && index_name_response.isString) {
+                setNodes(prevNodes => prevNodes.map(node => node.id === nodeid ? {
+                  ...node,
+                  data: {
+                      ...node.data,
+                      content: node.data.content,
+                      index_name: index_name_response
+                  }
+              } : node))
+              console.log("index_name",getNode(nodeid))
+          }
             
         } catch (error) {
             console.error("Error fetching embedding:", error);
