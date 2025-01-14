@@ -8,6 +8,7 @@ import JSONForm from '../../menu/tableComponent/JSONForm'
 import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import { json } from 'stream/consumers'
+import { set } from 'lodash'
 
 
 type methodNames = "cosine"
@@ -50,7 +51,9 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
-  const [buttonText, setButtonText] = useState("input view"); // State for button text
+  const [INPUT_VIEW_MODE, EMBED_VIEW_MODE] = ["input view", "embedding view"]
+  const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
+  const [isEmbedHidden, setIsEmbedHidden] = useState(true)
 
 
   useEffect(() => {
@@ -291,17 +294,133 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   // TODO Auto resize of content box
   // TODO dialogue selection of content atttribute(key onl y, no index) 
   // embeding view switch button
-  const handleButtonClick = () => {
-    setButtonText(prevText => prevText === "embedding view" ? "input view" : "embedding view"); // Toggle button text
+  const handleInputViewClick = () => {
+    setViewMode(INPUT_VIEW_MODE); // Toggle button text
   };
+  const handleEmbedViewClick = () => {
+    setViewMode(EMBED_VIEW_MODE); // Toggle button text
+  };
+  const handleAddTagPage = () => {
+    setIsEmbedHidden(!isEmbedHidden)
+  }
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[300px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
     
-    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[40px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div ref={contentRef} id={id} style={{}} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[90px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+        <div style={{
+                  width: calculateMaxLabelContainerWidth(),
+                  borderStyle: "solid",
+                  height:"50px",
+                  position:"absolute",
+                  borderWidth:"0px",
+                  top:"70px"
+                }}>
+          <div style={{
+              display: 'flex',
+              justifyContent: 'left',
+              width: '100%',
+              height: '100%',
+              borderTopLeftRadius: '8px',
+              borderTopRightRadius: '8px',
+              borderBottom: 'none',
+              paddingLeft:"5px"
+            }}>
+            {viewMode==INPUT_VIEW_MODE?
+            <button style={{
+                border: 'solid',
+                paddingTop: '1px',
+                cursor: 'pointer',
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+                borderWidth:"0px",
+                borderBottomStyle: "none",
+                boxShadow:"0px -0.5px 1px 0.1px grey",
+                paddingLeft:"20px",
+                paddingRight:"20px",
+              }}
+              className={`${borderColor} bg-gray-600/20`}
+              onClick={handleInputViewClick}
+              >
+              Input View
+            </button>:
+            <button style={{
+              border: 'solid',
+              paddingTop: '1px',
+              cursor: 'pointer',
+              borderTopLeftRadius: '8px',
+              borderTopRightRadius: '8px',
+              borderWidth:"0px",
+              borderBottomStyle: "none",
+              boxShadow:"0px -0.5px 1px 0.1px grey",
+              paddingLeft:"20px",
+              paddingRight:"20px",
+            }}
+            onClick={handleInputViewClick}
+            >
+            Input View
+          </button>
+          }
+          {viewMode==EMBED_VIEW_MODE?
+            <button style={{
+                border: 'solid',
+                paddingTop: '1px',
+                cursor: 'pointer',
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+                borderWidth:"0px",
+                borderBottomStyle: "none",
+                boxShadow:"0px -0.5px 1px 0.1px grey",
+                paddingLeft:"20px",
+                paddingRight:"20px",
+                display:isEmbedHidden?"none":"inline"
+              }}
+              className={`${borderColor} bg-gray-600/20`}
+              onClick={handleInputViewClick}
+              >
+              Embedding View
+            </button>:
+            <button style={{
+              border: 'solid',
+              paddingTop: '1px',
+              cursor: 'pointer',
+              borderTopLeftRadius: '8px',
+              borderTopRightRadius: '8px',
+              borderWidth:"0px",
+              borderBottomStyle: "none",
+              boxShadow:"0px -0.5px 1px 0.1px grey",
+              paddingLeft:"20px",
+              paddingRight:"20px",
+              display:isEmbedHidden?"none":"inline"
+            }}
+            onClick={handleEmbedViewClick}
+            >
+            Embedding View
+          </button>
+          }
           {
-            buttonText=="embedding view"?
+            isEmbedHidden?
+            <button style={{
+                border: 'solid',
+                paddingLeft:"15px",
+                paddingRight:"15px",
+                cursor: 'pointer',
+                borderRadius: '8px',
+                borderWidth:"1px",
+              }}
+              className={`hover:bg-gray-700`}
+              onClick={handleAddTagPage}
+              >
+              +
+            </button>:
+            <></>
+          }
+
+          </div>
+        </div>
+          {
+            viewMode=="embedding view"?
             <div style={{
               width: 'fit-content',
               maxWidth: calculateMaxLabelContainerWidth(),
@@ -316,7 +435,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
                             <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
                             placeholder='["JSON"]'
                                     parentId={id}
-                                    heightStyle={contentSize.height-1} />
+                                    heightStyle={contentSize.height-18} />
                 }
           </div>
           }
@@ -369,12 +488,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
            
           
-            <button 
-              onClick={handleButtonClick} 
-              className="border border-main-deep-grey hover:border-main-blue hover:bg-gray-600 transition duration-200"
-            >
-              {buttonText}
-            </button>
+
         </div>
 
         <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
