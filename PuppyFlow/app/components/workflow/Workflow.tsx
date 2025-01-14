@@ -440,7 +440,7 @@ function Workflow() {
   }
 
   useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
+    const handleWheel = (e: any) => {
       e.preventDefault();
       const viewport = getViewport();
       
