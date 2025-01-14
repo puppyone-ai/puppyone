@@ -317,7 +317,7 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    test_kit = 'PuppyEngine/TestKit'
+    test_kit = 'TestKit/'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
         if file_name == "embedding_search.json":
