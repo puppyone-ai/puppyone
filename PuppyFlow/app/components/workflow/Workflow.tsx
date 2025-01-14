@@ -441,14 +441,24 @@ function Workflow() {
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-      // 检查是否是双指触控
-      if (e.touches && e.touches.length === 2) {
+      e.preventDefault();
+      const viewport = getViewport();
+      
+      setViewport({
+        x: viewport.x,
+        y: viewport.y - e.deltaY,
+        zoom: viewport.zoom
+      });
+    };
+
+    const handleTouch = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
         e.preventDefault();
         const viewport = getViewport();
         
         setViewport({
           x: viewport.x,
-          y: viewport.y - e.deltaY,
+          y: viewport.y - e.touches[0].clientY,
           zoom: viewport.zoom
         });
       }
@@ -457,11 +467,13 @@ function Workflow() {
     const flowContainer = document.getElementById('flowChart');
     if (flowContainer) {
       flowContainer.addEventListener('wheel', handleWheel, { passive: false });
+      flowContainer.addEventListener('touchmove', handleTouch, { passive: false });
     }
 
     return () => {
       if (flowContainer) {
         flowContainer.removeEventListener('wheel', handleWheel);
+        flowContainer.removeEventListener('touchmove', handleTouch);
       }
     };
   }, [getViewport, setViewport]);
@@ -510,14 +522,13 @@ function Workflow() {
          snapGrid={[16, 16]}
          fitView
         
-         minZoom={0.35}           // 最小缩放级别
+         minZoom={0.2}           // 最小缩放级别
          maxZoom={1.5} 
          zoomOnScroll={canZoom}
          zoomOnPinch={true}
          panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
          panOnScroll={true}          // 重新启用默认的滚动行为
          panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
-         panOnScrollMode="free"      // 允许任意方向的滚动
          selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
          className="nocursor"             // 可选：添加自定义样式
          
