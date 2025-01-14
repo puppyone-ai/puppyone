@@ -748,8 +748,10 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 }
                 return node;
             }));
-
-            console.log(getNode(parentId))
+            
+            setTimeout(() => {
+                console.log(getNode(parentId))
+            }, 2000) // Log after 2 seconds
         }, [cases]); // Dependency array includes cases
     
 
@@ -1099,8 +1101,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                 </ul>
                                                 {case_value.conditions.length - 1 === conditions_index ? (
                                                     <>
-                                                    <span className='text-center align-baseline inline-block pt-[5px] w-[40px] text-transparent'>
-                                                        {case_value.conditions[conditions_index].operation.toUpperCase()}
+                                                    <span className='text-center align-baseline inline-block pt-[5px] w-[45px] text-transparent'>
+                                                        AND
                                                     </span>
                                                     <button onClick={onConditionAdd(case_index)} className='cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-3 pr-3 font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
                                                         +
@@ -1124,72 +1126,84 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
 
                             </div>
         
-                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3 w-[428px]'>
+                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3 w-[535px]'>
                                 {
                                     case_value.actions.map(
                                         (action_value, action_index) => (
                                             <>                                
                                                 <label>THEN</label>
-                                                <ul className='flex flex-col border-[#6D7177] rounded-[4px] bg-black'>
-                                                    <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
-                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                                                            <select 
-                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
-                                                                onChange={(e) => {
-                                                                    const selectedNode = getSourceNodeIdWithLabel(parentId).find(
-                                                                        node => node.id === e.target.value
-                                                                    );
-                                                                    if (selectedNode) {
+                                                <div className='inline-flex space-x-2'>
+                                                    <button onClick={() => {
+                                                                const cases_clone = [...cases];
+                                                                cases_clone[case_index].actions.splice(action_index, 1); // Remove the action
+                                                                setCases(cases_clone);
+                                                            }} className='w-[40px] cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-[3px] pr-[3px] font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                                                -
+                                                    </button>
+                                                    <ul className='flex flex-col border-[#6D7177] rounded-[4px] bg-black w-[370px]'>
+                                                        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
+                                                            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                                <select 
+                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                    onChange={(e) => {
+                                                                        const selectedNode = getSourceNodeIdWithLabel(parentId).find(
+                                                                            node => node.id === e.target.value
+                                                                        );
+                                                                        if (selectedNode) {
+                                                                            const cases_clone = [...cases];
+                                                                            cases_clone[case_index].actions[action_index] = {
+                                                                                ...cases_clone[case_index].actions[action_index],
+                                                                                from_id: selectedNode.id,
+                                                                                from_label: selectedNode.label
+                                                                            };
+                                                                            setCases(cases_clone);
+                                                                        }
+                                                                    }}
+                                                                    value={action_value.from_id}
+                                                                >
+                                                                    <option value="">Select a node</option>
+                                                                    {getSourceNodeIdWithLabel(parentId).map((node) => (
+                                                                        <option key={node.id} value={node.id}>
+                                                                            {node.label || node.id}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
+                                                                TO
+                                                            </div>
+                                                            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                                <select 
+                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                    onChange={(e) => {
                                                                         const cases_clone = [...cases];
-                                                                        cases_clone[case_index].actions[action_index] = {
-                                                                            ...cases_clone[case_index].actions[action_index],
-                                                                            from_id: selectedNode.id,
-                                                                            from_label: selectedNode.label
-                                                                        };
+                                                                        cases_clone[case_index].actions[action_index].outputs = [e.target.value];
                                                                         setCases(cases_clone);
-                                                                    }
-                                                                }}
-                                                                value={action_value.from_id}
-                                                            >
-                                                                <option value="">Select a node</option>
-                                                                {getSourceNodeIdWithLabel(parentId).map((node) => (
-                                                                    <option key={node.id} value={node.id}>
-                                                                        {node.label || node.id}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
-                                                            TO
-                                                        </div>
-                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                                                            <select 
-                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
-                                                                onChange={(e) => {
-                                                                    const cases_clone = [...cases];
-                                                                    cases_clone[case_index].actions[action_index].outputs = [e.target.value];
-                                                                    setCases(cases_clone);
-                                                                }}
-                                                                value={action_value.outputs[0]}
-                                                            >
-                                                                <option value="">Select output</option>
-                                                                {outputs.map((output) => (
-                                                                    <option key={output} value={output}>
-                                                                        {(getNode(output)?.data?.label as string) || output}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                        </div>
-                                                    </li>
-                                                </ul>
+                                                                    }}
+                                                                    value={action_value.outputs[0]}
+                                                                >
+                                                                    <option value="">Select output</option>
+                                                                    {outputs.map((output) => (
+                                                                        <option key={output} value={output}>
+                                                                            {(getNode(output)?.data?.label as string) || output}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <span className='text-center align-baseline inline-block pt-[5px] w-[40px] text-transparent'>
+                                                        AND
+                                                    </span>
+                                                    <button onClick={onActionAdd(case_index)} className='cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-3 pr-3 font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                                        +
+                                                    </button>
+                                                </div>
                                             </>
                                         )
                                     )
                                 }
                                 
-                                <button onClick={onActionAdd(case_index)} className='bg-black text-[#6D7177] mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[12px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                        +action
-                                </button>
                             </div>
                         </li>
         
