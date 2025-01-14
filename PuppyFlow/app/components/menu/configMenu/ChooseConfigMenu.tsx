@@ -1044,7 +1044,9 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                                     };
                                                                     setCases(cases_clone);
                                                                     console.log("cond_v",cases)
-                                                                }} className="w-[100px] text-black" type="text"></input>
+                                                                }} 
+                                                                className="w-[100px] text-white bg-black caret-white"
+                                                                type="text"></input>
                                                             )
                                                         }
                                                         
@@ -1132,8 +1134,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     )
                 }
                         <div className='flex flex-col items-center '>
-                            <button onClick={onCaseAdd} className='text-[#6D7177] w-auto mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[12px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                +
+                            <button onClick={onCaseAdd} className='rounded bg-black text-[#6D7177] w-auto mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[12px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                + case
                             </button>
                         </div>
                 
