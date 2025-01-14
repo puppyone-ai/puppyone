@@ -157,7 +157,6 @@ class ListModifier:
         plugins: Dict[str, str],
     ) -> List[Any]:
         def replace_item(item):
-            print("Item:", item, type(item), plugins)
             if isinstance(item, str):
                 return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), item)
             return item
@@ -279,29 +278,98 @@ class JSONModifier:
     ) -> Any:
         self.kwargs = kwargs
         content_type = type(self.data).__name__
-        match content_type:
-            case "str":
-                return self._handle_str_modifications(modify_type)
-            case "list":
-                return self._handle_list_modifications(modify_type)
-            case "dict":
-                return self._handle_dict_modifications(modify_type)
+        match modify_type:
+            case "copy":
+                return self._handle_copy()
+            case "convert":
+                return self._handle_convert(**kwargs)
+            case "edit_text":
+                return self._handle_edit_text(**kwargs)
+            case "edit_structured":
+                return self._handle_edit_structured(**kwargs)
             case _:
-                raise ValueError(f"Unsupported Content Type: {content_type}!")
+                raise ValueError(f"Unsupported Modify Type: {content_type}!")
+
+    def _handle_copy(
+        self,
+    ) -> Any:
+        return copy.deepcopy(self.data)
+
+    def _handle_convert(
+        self,
+        **kwargs
+    ) -> Any:
+        source_type = kwargs.get("source_type", "text")
+        target_type = kwargs.get("target_type", "structured")
+        if source_type == "structured" and target_type == "text":
+            return str(self.data)
+
+        if source_type == "text" and target_type == "structured":
+            target_structure = kwargs.get("target_structure", "list")
+            separator = kwargs.get("separator", " ")
+            if target_structure == "list":
+                return self.data.split(separator)
+            if target_structure == "dict":
+                return {separator: self.data}
+
+        return self.data
+   
+    def _handle_edit_text(
+        self,
+        **kwargs
+    ) -> str:
+        plugins = kwargs.get("plugins", {})
+        slice_range = kwargs.get("slice", [0, -1])
+        sort_type = kwargs.get("sort_type", "")
+
+        def replacer(match):
+            key = match.group(1)
+            return plugins.get(key, f"{{{{{key}}}}}")
+
+        plugin_pattern_compiled = re.compile(plugin_pattern)
+        self.data = plugin_pattern_compiled.sub(replacer, self.data)
+        self.data = self.data[slice_range[0]:slice_range[1]]
+        if sort_type in {"ascending", "descending"}:
+            self.data = sorted(self.data, reverse=(sort_type == "descending"))
+
+        return self.data
+
+    def _handle_edit_structured(
+        self,
+        **kwargs
+    ) -> Any:
+        plugins = kwargs.get("plugins", {})
+
+        def replace_value(value):
+            if isinstance(value, str):
+                return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), value)
+            return value
+
+        if isinstance(self.data, list):
+            self.data = [replace_value(item) for item in self.data]
+        elif isinstance(self.data, dict):
+            self.data = {key: replace_value(value) for key, value in self.data.items()}
+
+        return self.data
 
     # For future development
-    def modify2(self, operations: List[Dict[str, Any]]) -> Any:
+    def modify2(
+        self,
+        operations: List[Dict[str, Any]]
+    ) -> Any:
         for operation in operations:
             modify_type = operation.get("modify_type")
             kwargs = {key: value for key, value in operation.items() if key != "modify_type"}
             self.data = self._apply_modification(modify_type, **kwargs)
         return self.data
 
-    def _apply_modification(self, modify_type: str, **kwargs) -> Any:
+    def _apply_modification(
+        self,
+        modify_type: str,
+        **kwargs
+    ) -> Any:
         content_type = type(self.data).__name__
         match content_type:
-            case "str":
-                return self._handle_str_modifications(modify_type, **kwargs)
             case "list":
                 return self._handle_list_modifications(modify_type, **kwargs)
             case "dict":

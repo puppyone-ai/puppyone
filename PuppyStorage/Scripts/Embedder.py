@@ -207,6 +207,9 @@ class MultiModalEmbedding:
 
 
 if __name__ == "__main__":
+    from dotenv import load_dotenv
+    load_dotenv()
+    
     docs = ["This is a sample text.", "This is another sentence."]
     huggerface_embedder = TextEmbedding("BAAI/bge-m3")
     print(huggerface_embedder.get_embeddings(docs))
