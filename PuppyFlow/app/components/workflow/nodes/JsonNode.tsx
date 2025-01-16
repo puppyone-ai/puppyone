@@ -15,6 +15,8 @@ type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
 type vdb_typeNames = "pgvector"
 
+const HEIGHT_STD = 500
+
 export type JsonNodeData = {
   content: string,
   label: string,
@@ -44,7 +46,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
+  const [contentSize, setContentSize] = useState({ width: 0, height: 0})
   const labelContainerRef = useRef<HTMLDivElement | null>(null)
   const labelRef = useRef<HTMLInputElement | null>(null)
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
@@ -305,7 +307,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   }
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[300px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[400px] min-h-[560] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
     
     <div ref={contentRef} id={id} style={{}} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[90px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
@@ -430,12 +432,12 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             }
             </div>
             :
-          <div className='w-full h-full'>
+          <div className='w-full h-full fit-content'>
                 {isLoading ? <SkeletonLoadingIcon /> : 
                             <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
                             placeholder='["JSON"]'
                                     parentId={id}
-                                    heightStyle={contentSize.height-18} />
+                                    heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-18:HEIGHT_STD-160} />
                 }
           </div>
           }
@@ -495,7 +497,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
       
         <NodeResizeControl 
           minWidth={240} 
-          minHeight={240}
+          minHeight={HEIGHT_STD}
           style={{ position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize', 
             background: 'transparent',
             border: 'none' }}
