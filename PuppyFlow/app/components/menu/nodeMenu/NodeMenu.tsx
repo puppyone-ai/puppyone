@@ -367,13 +367,12 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
          <ul id="nodeMenu" className={`${selectedMenu === 1? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 hidden'} will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[37px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[10px] p-[10px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
   
   <li>
-      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer ${selectedNodeMenuSubMenu === 0 ? "bg-main-blue" : ""} transition-colors`} 
+      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
       onMouseEnter={() => {manageNodeMenuSubMenu("Textsub1")}}
+      onMouseLeave={() => {manageNodeMenuSubMenu(null)}}
       onClick={(event)=> {
         event.preventDefault()
         event.stopPropagation()
-        // setNode({nodeid: `${totalCount + 1}`, nodeType: "text"})
-        // setIsAdd(false)
         handleMouseDown("text")
       }}>
       <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>Aa</div>
@@ -381,13 +380,12 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       </button> 
   </li> 
   <li>
-      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer ${selectedNodeMenuSubMenu === 1 ? "bg-main-blue" : ""} transition-colors`} 
+      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
       onMouseEnter={() => {manageNodeMenuSubMenu("StructuredTextsub1")}}
+      onMouseLeave={() => {manageNodeMenuSubMenu(null)}}
       onClick={(event)=> {
         event.preventDefault()
         event.stopPropagation()
-        // setNode({nodeid: `${totalCount + 1}`, nodeType: "structured"})
-        // setIsAdd(false)
         handleMouseDown("structured")
       }}>
       <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[16px] font-[400] rounded-[5px]'> {"{Aa}"}
@@ -415,7 +413,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       <div className='text-[12px] font-[700] pt-1'>File</div>
     </button>
   </li> */}
-  <li>
+  {/* <li>
     <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start  gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 3 ? "bg-main-blue" : ""}`} 
     onMouseEnter={() => {manageNodeMenuSubMenu("Switchsub1")}}
     onClick={(event) => {
@@ -434,7 +432,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       </div>
       <div className='text-[12px] font-[500] pt-1'>Switch</div>
     </button>
-  </li>
+  </li> */}
   {/* <li>
     <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start justify-between gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 4 ? "bg-main-blue" : ""}`}
      onMouseEnter={() => {manageNodeMenuSubMenu("Databasesub1")}}>
@@ -493,6 +491,38 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
         </button> 
   </li> */}
   <li>
+          <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            handleMouseDown("file")
+          }}>
+          <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="18" viewBox="0 0 22 18" fill="none">
+          <path d="M0.5 0.5H14.1667L21.25 17.5H0.5V0.5Z" stroke="#CDCDCD"/>
+          <rect x="0.5" y="4.5" width="21" height="13" fill="#1C1D1F" stroke="#CDCDCD"/>
+          </svg>
+            </div>
+            <div className='text-[12px] font-[500] pt-1'>File</div>
+          </button>
+        </li>
+        <li>
+            <button id="" className='w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors' onClick={(event)=> {
+              event.preventDefault()
+              event.stopPropagation()
+              handleMouseDown("weblink")
+            }}>
+            <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[16px] font-[400] rounded-[5px]'>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="23" viewBox="0 0 24 23" fill="none">
+            <path fillRule="evenodd" clipRule="evenodd" d="M14.5965 10.2725C14.4386 10.0347 14.2537 9.80936 14.0418 9.60053C12.3803 7.96313 9.6864 7.96313 8.02487 9.60053L3.69489 13.8676C2.03335 15.505 2.03336 18.1598 3.69489 19.7972C5.35642 21.4346 8.0503 21.4346 9.71184 19.7972L12.5341 17.0159L11.4658 15.963L8.64345 18.7443C7.57197 19.8002 5.83476 19.8002 4.76328 18.7443C3.6918 17.6884 3.6918 15.9764 4.76328 14.9205L9.09326 10.6534C10.1647 9.59749 11.902 9.59749 12.9734 10.6534C13.1896 10.8664 13.3621 11.1061 13.4911 11.3618L14.5965 10.2725Z" fill="#CDCDCD"/>
+            <path fillRule="evenodd" clipRule="evenodd" d="M9.46603 12.4973C9.62388 12.735 9.80877 12.9604 10.0207 13.1692C11.6822 14.8066 14.3761 14.8066 16.0376 13.1692L20.3676 8.90215C22.0291 7.26475 22.0291 4.60999 20.3676 2.97259C18.7061 1.33519 16.0122 1.33519 14.3507 2.97259L11.5284 5.75391L12.5967 6.80678L15.4191 4.02547C16.4905 2.96955 18.2277 2.96955 19.2992 4.02546C20.3707 5.08138 20.3707 6.79336 19.2992 7.84927L14.9692 12.1164C13.8978 13.1723 12.1605 13.1723 11.0891 12.1164C10.8729 11.9034 10.7004 11.6636 10.5714 11.408L9.46603 12.4973Z" fill="#CDCDCD"/>
+            </svg>
+            </div>
+            <div className='text-[12px] font-[500] pt-1'>Weblink</div>
+            </button> 
+        </li> 
+        
+  {/* <li>
     <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start justify-between gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 5 ? "bg-main-blue" : ""}`}
      onMouseEnter={() => {manageNodeMenuSubMenu("Otherssub1")}}>
     <div className='flex gap-[16px]'>
@@ -516,7 +546,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
     </button>
     <OtherNodesSubMenu selectedMenu={selectedNodeMenuSubMenu === 5 ? 1 : 0} 
     handleMouseDown={handleMouseDown}/>
-  </li> 
+  </li> */}
 
       </ul>
     
