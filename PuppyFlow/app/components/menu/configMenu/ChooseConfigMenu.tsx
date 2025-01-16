@@ -964,8 +964,26 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 {
                     cases.map((case_value,case_index)=>(
                         <li key={case_index} className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
-                            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
+                            <div className='flex h-[25px] gap-[4px] text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
                             Case {case_index+1}
+                            <svg 
+                                onClick={() => {
+                                    setCases(prevCases => {
+                                        return prevCases.length > 1 
+                                            ? prevCases.filter((_, index) => index !== case_index) 
+                                            : prevCases; // Prevent removing the last case
+                                    });
+                                }} 
+                                className={`cursor-pointer flex-inline ${cases.length <= 1 ? 'invisible' : ''}`} 
+                                width="20" 
+                                height="20" 
+                                viewBox="0 0 20 20" 
+                                fill="none" 
+                                xmlns="http://www.w3.org/2000/svg"
+                            >
+                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
+                                <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
+                            </svg>
                             </div>
 
                             <div className='border-[#6D7177] border-[1px] rounded-[8px]'>
