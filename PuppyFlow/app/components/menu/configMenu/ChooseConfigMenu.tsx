@@ -916,7 +916,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     
         return (
 
-            <ul ref={menuRef} className={`w-[535px] absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+            <ul ref={menuRef} className={`w-[535px] absolute top-[58px] left-[0px] text-white rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[8px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
                 <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
@@ -944,7 +944,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                         </button>
                     </div>
                 </li>
-                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[520px]'>
+                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
                     <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                      input
                     </div>
@@ -953,7 +953,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     </div>
                     
                 </li>
-                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[520px]'>
+                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
                     <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                      output
                     </div>
@@ -1175,7 +1175,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
 
                                 </div>
             
-                                <div className='flex flex-col border-[#6D7177] p-3 w-[520px] justify-start'>
+                                <div className='flex flex-col border-[#6D7177] p-3 w-[510px] justify-start'>
                                     <label className='text-[12px]'>THEN</label>
                                     {
                                         case_value.actions.map(
