@@ -274,11 +274,6 @@ const saveJsonToLocal = async (jsonData: any) => {
         </li>
     <li>
         <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'>
-            Publish API
-        </button>
-    </li>
-    <li>
-        <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'>
             Share Link
         </button>
     </li>
