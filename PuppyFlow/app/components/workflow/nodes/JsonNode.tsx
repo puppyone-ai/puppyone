@@ -323,6 +323,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const handleAddTagPage = async () => {
     setIsEmbedHidden(!isEmbedHidden)
     await onEmbeddingClick()
+    await onEmbeddingClick()
     setTimeout(() => {
       const newnode = getNode(id)
       if(newnode?.data.index_name){
@@ -463,8 +464,20 @@ const constructMetadataInfo = (data:any, embeddingViewData: EmbeddingItem[]) => 
     return embeddingViewData
 }
 
-const constructStructuredNodeEmbeddingData = () => {
-  const node = getNode(id)
+const getNodePromise = (id: string):any => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const node = getNode(id);
+      resolve(node);
+    }, 0);
+  });
+};
+
+
+const constructStructuredNodeEmbeddingData = async() => {
+
+  const node = await getNodePromise(id);
+  
   const nodeContent = (node?.type === "structured" || node?.type === "none" && node?.data?.subType === "structured") ? cleanJsonString(node?.data.content as string | any) : node?.data.content as string
 
   if (nodeContent === "error") return "error"
@@ -493,8 +506,9 @@ const constructStructuredNodeEmbeddingData = () => {
 
     // 2. construct embeddingNodeData
       try {
-          const embeddingNodeData = constructStructuredNodeEmbeddingData()
-          console.log(embeddingNodeData)
+
+          const embeddingNodeData = await constructStructuredNodeEmbeddingData()
+          console.log("embeddingnode data",embeddingNodeData)
 
           if (embeddingNodeData === "error") {
               throw new Error("Invalid node data")
@@ -504,6 +518,8 @@ const constructStructuredNodeEmbeddingData = () => {
           const embeddingViewData=traverseJson(embeddingNodeData.data.content)
 
           const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+          console.log(embeddingViewData)
+          console.log(embeddingViewDataWithInfo)
 
           setNodes(prevNodes => prevNodes.map(
               (node) => {
@@ -524,6 +540,12 @@ const constructStructuredNodeEmbeddingData = () => {
           };
 
           const payloaddata = transformPayload(embeddingNodeData)
+
+          console.log("payload",payloaddata)
+
+          if(payloaddata.chunks==undefined){
+            return
+          }
 
           // TODO: 需要修改为动态的user_id
           const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/Rose123`, {
@@ -623,23 +645,36 @@ const constructStructuredNodeEmbeddingData = () => {
                 paddingRight:"8px",
                 display:isEmbedHidden?"none":"inline"
               }}
-              className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
+              className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
                 onClick={handleEmbedViewClick}
                 >
-              <svg 
-              style={{
-                display:isEmbedded?"none":"inline"
-              }}
-               width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M5 0V3" stroke="#A4A4A4"/>
-                <path d="M5 7V10" stroke="#A4A4A4"/>
-                <path d="M10 5H7" stroke="#A4A4A4"/>
-                <path d="M3 5H0" stroke="#A4A4A4"/>
-                <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
-                <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
-                <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
-                <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
-                </svg>
+<svg 
+  style={{
+    display: isEmbedded ? "none" : "inline",
+    animation: "rotate 2s linear infinite", // Added inline animation
+  }}
+  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    {`
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `}
+  </style>
+  <path d="M5 0V3" stroke="#A4A4A4"/>
+  <path d="M5 7V10" stroke="#A4A4A4"/>
+  <path d="M10 5H7" stroke="#A4A4A4"/>
+  <path d="M3 5H0" stroke="#A4A4A4"/>
+  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+</svg>
                 Embedding View
               </button>:
               <button style={{
@@ -652,23 +687,36 @@ const constructStructuredNodeEmbeddingData = () => {
                 paddingRight:"8px",
                 display:isEmbedHidden?"none":"inline"
               }}
-              className={`text-[10px] text-[#A4A4A4]`}
+              className={`text-[10px] text-[#A4A4A4] justify-center items-center`}
               onClick={handleEmbedViewClick}
               >
-              <svg 
-              style={{
-                display:isEmbedded?"none":"inline"
-              }}
-               width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M5 0V3" stroke="#A4A4A4"/>
-                <path d="M5 7V10" stroke="#A4A4A4"/>
-                <path d="M10 5H7" stroke="#A4A4A4"/>
-                <path d="M3 5H0" stroke="#A4A4A4"/>
-                <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
-                <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
-                <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
-                <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
-                </svg>
+<svg 
+  style={{
+    display: isEmbedded ? "none" : "inline",
+    animation: "rotate 2s linear infinite", // Added inline animation
+  }}
+  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    {`
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `}
+  </style>
+  <path d="M5 0V3" stroke="#A4A4A4"/>
+  <path d="M5 7V10" stroke="#A4A4A4"/>
+  <path d="M10 5H7" stroke="#A4A4A4"/>
+  <path d="M3 5H0" stroke="#A4A4A4"/>
+  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+</svg>
               Embedding View
             </button>
             }
