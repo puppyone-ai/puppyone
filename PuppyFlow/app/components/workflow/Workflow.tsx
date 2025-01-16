@@ -21,7 +21,7 @@ import '@xyflow/react/dist/style.css';
 import WebLinkNode from './nodes/WebLinkNode'
 import AddNodeButton from './buttonControllers/AddNodeButton'
 import Upbar from '../upbar/Upbar'
-import ModeController from '../upbar/topRightToolBar/ModeController'
+import ModeController from '../upbar/topRightToolBar/ModeControllerButton'
 import JsonBlockNode from './nodes/JsonNode'
 import LoadConfig from './edges/configNodes/LoadConfig'
 import ChunkingConfig from './edges/configNodes/ChunkingConfig'
