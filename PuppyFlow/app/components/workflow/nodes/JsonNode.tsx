@@ -9,7 +9,8 @@ import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import { json } from 'stream/consumers'
 import { set } from 'lodash'
-
+import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -41,8 +42,8 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
-  const {getNode} = useReactFlow()
+  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll} = useNodesPerFlowContext()
+  const {setNodes, setEdges, getEdges,getNode} = useReactFlow()
   // for linking to handle bar, it will be highlighed.
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
@@ -57,6 +58,8 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [INPUT_VIEW_MODE, EMBED_VIEW_MODE] = ["input view", "embedding view"]
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
   const [isEmbedHidden, setIsEmbedHidden] = useState(true)
+  const {cleanJsonString} = useJsonConstructUtils()
+
 
 
   useEffect(() => {
@@ -314,8 +317,252 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const handleEmbedViewClick = () => {
     setViewMode(EMBED_VIEW_MODE); // Toggle button text
   };
-  const handleAddTagPage = () => {
+
+  const [isEmbedded, setIsEmbedded] = useState(false)
+
+  const handleAddTagPage = async () => {
     setIsEmbedHidden(!isEmbedHidden)
+    await onEmbeddingClick()
+    setTimeout(() => {
+      const newnode = getNode(id)
+      if(newnode?.data.index_name){
+        setIsEmbedded(true)
+      }
+    }, 600);
+  }
+
+  interface EmbeddingItem {
+    content: string;
+    metadata: {
+      id?: string;
+      [key: string]: any;
+    }
+  }
+  function traverseJson(
+    data: any, 
+    result: EmbeddingItem[] = [], 
+    path: string[] = [], 
+    idCounter: { value: number } = { value: 0 }
+  ): EmbeddingItem[] {
+    if (typeof data === 'string') {
+      // We found a leaf string, create an embedding item
+      const metadata: Record<string, any> = {
+        id: String(idCounter.value++)
+      };
+  
+      // Convert path to metadata keys
+      path.forEach((step, index) => {
+        if (step.startsWith('key_')) {
+          metadata[`key_${index}`] = step.substring(4);
+        } else if (step.startsWith('list_')) {
+          metadata[`list_${index}`] = parseInt(step.substring(5));
+        }
+      });
+
+      path.forEach((step, _) => {
+        if (step.startsWith('key_')) {
+          if (!metadata.path){
+            metadata.path = []
+          }
+          metadata[`path`].push(step.substring(4));
+        } else if (step.startsWith('list_')) {
+          if (!metadata.path){
+            metadata.path = []
+          }
+          metadata[`path`].push(parseInt(step.substring(5)));
+        }
+      });
+  
+      result.push({
+        content: data,
+        metadata: metadata
+      });
+    } 
+    else if (Array.isArray(data)) {
+      // Traverse each array element
+      data.forEach((item, index) => {
+        traverseJson(item, result, [...path, `list_${index}`], idCounter);
+      });
+    } 
+    else if (data && typeof data === 'object') {
+      // Traverse each object property
+      Object.entries(data).forEach(([key, value]) => {
+        traverseJson(value, result, [...path, `key_${key}`], idCounter);
+      });
+    }
+  
+    return result;
+  }
+
+  function removeItemFromData(data: any, path: (string | number)[]) {
+    //remove the item content itself from data according to path
+    /**
+     * example:
+     * data:
+    {
+      "name": "John",
+      "details": {
+        "hobbies": [
+          "reading",
+          "gaming"
+        ],
+        "address": {
+          "street": "123 Main St",
+          "city": "Springfield"
+        }
+      }
+    }
+    path: ["details", "hobbies", "0"]
+    result:
+    {
+      "name": "John",
+      "details": {
+        "hobbies": [
+          "gaming"
+        ],
+        "address": {
+          "street": "123 Main St",
+          "city": "Springfield"
+        }
+      }
+    }
+      * 
+      */
+    if (!path) return data;
+    if (path.length === 0) return data;
+    
+    const clone = JSON.parse(JSON.stringify(data));
+    let current = clone;
+    
+    for (let i = 0; i < path.length - 1; i++) {
+        current = current[path[i]];
+    }
+    
+    const lastKey = path[path.length - 1];
+    if (Array.isArray(current)) {
+        current.splice(Number(lastKey), 1);
+    } else {
+        delete current[lastKey];
+    }
+    
+    return clone;
+}
+
+const constructMetadataInfo = (data:any, embeddingViewData: EmbeddingItem[]) => {
+    
+      embeddingViewData.forEach((item, index) => {
+        if (item.metadata.path){
+          // then append modified data to EmbeddingItem
+          const path = item.metadata.path
+          const result = removeItemFromData(data, path)
+          item.metadata.info = result
+          
+        }
+      })  
+
+    return embeddingViewData
+}
+
+const constructStructuredNodeEmbeddingData = () => {
+  const node = getNode(id)
+  const nodeContent = (node?.type === "structured" || node?.type === "none" && node?.data?.subType === "structured") ? cleanJsonString(node?.data.content as string | any) : node?.data.content as string
+
+  if (nodeContent === "error") return "error"
+  const embeddingData = {
+      ...node?.data,
+      content: nodeContent,
+      vdb_type: "pgvector",
+      model: "text-embedding-ada-002",
+      method: "cosine",
+  }
+  const embeddingNode = {
+      ...node,
+      data: embeddingData,
+  }
+  return embeddingNode
+}
+
+  const onEmbeddingClick = async () => {
+    /**
+     * 1. clear menu
+     * 2. construct embeddingNodeData
+     * 3. construct embeddingViewData
+     * 4. setNodes
+     */
+
+
+    // 2. construct embeddingNodeData
+      try {
+          const embeddingNodeData = constructStructuredNodeEmbeddingData()
+          console.log(embeddingNodeData)
+
+          if (embeddingNodeData === "error") {
+              throw new Error("Invalid node data")
+          }
+
+          
+          const embeddingViewData=traverseJson(embeddingNodeData.data.content)
+
+          const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+
+          setNodes(prevNodes => prevNodes.map(
+              (node) => {
+                if (node.id === id) {
+                  return {...node, data: {...node.data, chunks: embeddingViewDataWithInfo}}
+                }
+                return node
+              }
+            ))
+
+          const transformPayload = (originalPayload: any) => {
+              return {
+                  chunks: originalPayload.data.chunks,
+                  create_new: true, // Indicates that a new entry is being created
+                  vdb_type: originalPayload.data.vdb_type,
+                  model: originalPayload.data.model
+              };
+          };
+
+          const payloaddata = transformPayload(embeddingNodeData)
+
+          // TODO: 需要修改为动态的user_id
+          const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/Rose123`, {
+              method:'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payloaddata)
+          })
+
+          if (!response.ok) {
+              throw new Error(`HTTP Error: ${response.status}`)
+          }
+
+          // // 5. updateNode
+          const index_name_response = await response.json()
+          if (typeof index_name_response === 'string') {
+              setNodes(prevNodes => prevNodes.map(node => node.id === id ? {
+                ...node,
+                data: {
+                    ...node.data,
+                    content: node.data.content,
+                    index_name: index_name_response
+                }
+            } : node))
+
+            
+            setTimeout(() => {
+              const newnode = getNode(id)
+              console.log("index_name",newnode)
+            }, 1200);
+            
+        }
+          
+      } catch (error) {
+          console.error("Error fetching embedding:", error);
+      } finally {
+          clearAll()
+      }
   }
 
   return (
@@ -379,6 +626,20 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
               className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
                 onClick={handleEmbedViewClick}
                 >
+              <svg 
+              style={{
+                display:isEmbedded?"none":"inline"
+              }}
+               width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 0V3" stroke="#A4A4A4"/>
+                <path d="M5 7V10" stroke="#A4A4A4"/>
+                <path d="M10 5H7" stroke="#A4A4A4"/>
+                <path d="M3 5H0" stroke="#A4A4A4"/>
+                <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+                <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+                <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+                <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+                </svg>
                 Embedding View
               </button>:
               <button style={{
@@ -394,6 +655,20 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
               className={`text-[10px] text-[#A4A4A4]`}
               onClick={handleEmbedViewClick}
               >
+              <svg 
+              style={{
+                display:isEmbedded?"none":"inline"
+              }}
+               width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 0V3" stroke="#A4A4A4"/>
+                <path d="M5 7V10" stroke="#A4A4A4"/>
+                <path d="M10 5H7" stroke="#A4A4A4"/>
+                <path d="M3 5H0" stroke="#A4A4A4"/>
+                <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+                <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+                <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+                <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+                </svg>
               Embedding View
             </button>
             }
@@ -428,6 +703,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
                                       parentId={id}
                                       heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
                                       inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
+                                      readonly={true}
                                       />
               </div>
               :
