@@ -21,6 +21,8 @@ type JSONEditorProps = {
     placeholder?: string,
     widthStyle?: number,
     heightStyle?: number,
+    inputvalue?:string,
+    readonly?:boolean
 }
 
 
@@ -41,7 +43,10 @@ const JSONForm = ({preventParentDrag,
                     parentId,
                     placeholder = "",
                     widthStyle = 0,
-                    heightStyle=0}:JSONEditorProps) => {
+                    heightStyle=0,
+                    inputvalue="",
+                    readonly=false
+                  }:JSONEditorProps) => {
 
     // const [jsonValue, setJsonValue] = useState("");
         
@@ -206,7 +211,7 @@ const JSONForm = ({preventParentDrag,
     
 
   return (
-    <div ref={jsonFormRef} className={`relative flex flex-col border-[1px] rounded-[8px] cursor-pointer pl-[2px] pt-[8px] bg-[#1C1D1F] border-[#6D7177] ${IsFocused ? "outline-[#FFA73D] outline-4 -outline-offset-2 shadow-[0_0_0_1px_rgba(205,205,205)] border-[1px] border-[#CDCDCD] transition-all duration-300 ease-in-out": "" } ${isOnGeneratingNewNode ? 'pointer-events-none' : ''}`}
+    <div ref={jsonFormRef} className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] bg-[#1C1D1F] ${isOnGeneratingNewNode ? 'pointer-events-none' : ''}`}
     style={{
       width: widthStyle,
       height: heightStyle,
@@ -224,7 +229,7 @@ const JSONForm = ({preventParentDrag,
       width={widthStyle-8 }
       height={heightStyle - 12}
       onChange={handleChange}
-      value={getNode(parentId)?.data.content as string}
+      value={inputvalue?inputvalue:getNode(parentId)?.data.content as string}
       options={{
         fontFamily: "'JetBrains Mono', monospace",
         fontLigatures: true,
@@ -246,7 +251,7 @@ const JSONForm = ({preventParentDrag,
         lineNumbersMinChars: 3,
         glyphMargin: false,
         lineDecorationsWidth: 0, // 控制行号和正文的间距
-        readOnly: isOnGeneratingNewNode,
+        readOnly: readonly?readonly:isOnGeneratingNewNode,
       }}
       onMount={handleEditorDidMount}
     />
