@@ -260,13 +260,18 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             console.log("senddata")
             try {
                 const jsonData = constructJsonData()
-                console.log("jsondata",jsonData)
+                                // Type guarding to check if jsonData is an Error
+                if (jsonData instanceof Error) {
+                    throw new Error(jsonData.message); // Handle the error appropriately
+                }
+
+                console.log("jsondata",jsonData.edges)
                 const response = await fetch(`${backend_IP_address_for_sendingData}`, {
                     method:'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(jsonData)
+                    body: JSON.stringify(jsonData.edges)
                 })
 
                 if (!response.ok) {
@@ -545,7 +550,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         //       }
         //     }
 
-        console.log(JSON.stringify(cases))
+        console.log("cases raw",JSON.stringify(cases))
 
         const casesdata =  transformCases(cases)
 
@@ -553,13 +558,26 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         const edgejson: ChooseEdgeJsonType = {
             type: "ifelse",
             data: {
-                cases: transformCases(cases),
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string }) => ([node.id, ""]))), // Adjust inputs as needed
-                outputs: Object.fromEntries(outputs.map((node: string) => ([node, ""]))) // Adjust outputs as needed
+                ...transformCases(cases),
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string }) => {
+                    const content = getNode(node.id)?.data.content;
+                    return [node.id, typeof content === "string" ? JSON.parse(content) : content || ""];
+                })),
+                outputs: Object.fromEntries(outputs.map((node: string) => {
+                    let content = getNode(node)?.data.content;
+                    if(typeof content === "string" ){
+                        try {
+                            content = JSON.parse(content);
+                        } catch (error) {
+                            // Handle the error appropriately, e.g., set content to a default value or log it
+                        }
+                    }
+                    return ([node, typeof content === "string" ? content: JSON.stringify(content)|| ""])
+                })) // Adjust outputs as needed
             }
         };
 
-        const ifelseid = parentId.replace(/choose/g, 'ifelse');
+        const ifelseid = parentId.replace(/choose/g, 'IFELSE');
 
         edges[ifelseid] = edgejson;
 
@@ -861,7 +879,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
 
         const onConditionDelete = (caseIndex: number, conditionIndex: number) => () => {
             setCases(prevCases => {
-                return prevCases.map((caseItem, index) => {
+                return prevCases[caseIndex].conditions.length>1? prevCases.map((caseItem, index) => {
                     if (index === caseIndex) {
                         return {
                             ...caseItem,
@@ -869,7 +887,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                         };
                     }
                     return caseItem;
-                });
+                }): prevCases
             });
         };
 
@@ -898,7 +916,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     
         return (
 
-            <ul ref={menuRef} className={`w-[550px] absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+            <ul ref={menuRef} className={`w-[535px] absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
                 <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
@@ -945,274 +963,305 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 </li>
                 {
                     cases.map((case_value,case_index)=>(
-                        <li key={case_index} className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
+                        <li key={case_index} className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
                             <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
                             Case {case_index+1}
                             </div>
-                            
-                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3'>
-                                {
-                                    case_value.conditions.map(
-                                        (condition_value,conditions_index)=>(
-                                            <>
-                                                <label>IF</label>
-                                                <div className='inline-flex space-x-2'>
-                                                <button onClick={onConditionDelete(case_index, conditions_index)} className='w-[40px] cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-[3px] pr-[3px] font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                                        -
-                                                </button>
-                                                <ul key={conditions_index} className='flex-col border-[#6D7177] rounded-[4px] min-w-[280px] bg-black'>
-                                                    <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
-                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                                                        <select 
-                                                            className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[100px]'
-                                                            onChange={(e) => {
-                                                                const selectedNode = getSourceNodeIdWithLabel(parentId).find(
-                                                                    node => node.id === e.target.value
-                                                                );
-                                                                if (selectedNode) {
-                                                                    const cases_clone = [...cases];
-                                                                    cases_clone[case_index].conditions[conditions_index] = {
-                                                                        ...cases_clone[case_index].conditions[conditions_index],
-                                                                        id: selectedNode.id,
-                                                                        label: selectedNode.label,
-                                                                        type: getNode(selectedNode.id)?.type
-                                                                    };
-                                                                    setCases(cases_clone);
-                                                                    console.log("selected ndoe:", getNode(selectedNode.id))
-                                                                }
-                                                            }}
-                                                            value={condition_value.id}
-                                                        >
-                                                            <option value="">Select a node</option>
-                                                            {getSourceNodeIdWithLabel(parentId).map((node) => (
-                                                                <option key={node.id} value={node.id}>
-                                                                    {node.label || node.id}
-                                                                </option>
-                                                            ))}
-                                                        </select>
-                                                        </div>
-                                                        <div className='text-[#6D7177] w-[190px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
-                                                        {
-                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type === "structured" && (
-                                                                <select 
-                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[150px]'
-                                                                    onChange={(e) => {
-                                                
-                                                                        if (e.target.value) {
-                                                                            const cases_clone = [...cases];
-                                                                            cases_clone[case_index].conditions[conditions_index] = {
-                                                                                ...cases_clone[case_index].conditions[conditions_index],
-                                                                                cond_v: e.target.value
-                                                                            };
-                                                                            setCases(cases_clone);
-                                                                            console.log("cond_v",cases)
-                                                                        }
-                                                                    }}
-                                                                    value={cases[case_index].conditions[conditions_index].cond_v}
-                                                                >
-                                                                    <option value=""> condition </option>
-                                                                    {   
-                                                                        getConditionSelections("structured").map((sl_v,sl_id) => (
-                                                                            <option key={sl_id} value={sl_v}>
-                                                                                {sl_v}
-                                                                            </option>
-                                                                        ))
-                                                                    }
-                                                                </select>
-                                                            )
-                                                            }
-                                                            {               
-                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type === "text" && (
-                                                                <select 
-                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] w-[150px] border-none outline-none'
-                                                                    onChange={(e) => {
-                                                
-                                                                        if (e.target.value) {
-                                                                            const cases_clone = [...cases];
-                                                                            cases_clone[case_index].conditions[conditions_index] = {
-                                                                                ...cases_clone[case_index].conditions[conditions_index],
-                                                                                cond_v: e.target.value
-                                                                            };
-                                                                            setCases(cases_clone);
-                                                                            console.log("cond_v",cases)
-                                                                        }
-                                                                    }}
-                                                                    value={cases[case_index].conditions[conditions_index].cond_v}
-                                                                >
-                                                                    <option value="">condition</option>
-                                                                    {   
-                                                                        getConditionSelections("text").map((sl_v,sl_id) => (
-                                                                            <option key={sl_id} value={sl_v}>
-                                                                                {sl_v}
-                                                                            </option>
-                                                                        ))
-                                                                    }
-                                                                </select>
-                                                            )}
-                                                            {
-                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type === "switch" && (
-                                                                <select 
-                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+
+                            <div className='border-[#6D7177] border-[1px] rounded-[8px]'>
+                                
+                                <div className='flex flex-col border-[#6D7177] border-b-[1px] p-3'>
+                                    <label className='text-[12px]'>IF</label>
+                                    {
+                                        case_value.conditions.map(
+                                            (condition_value,conditions_index)=>(
+                                                <>
+                                                <span className='h-[16px]'>   </span>
+                                                    <div className='inline-flex space-x-[12px] items-center justify-start'>
+                                                    <svg onClick={onConditionDelete(case_index, conditions_index)} className={`cursor-pointer ${case_value.conditions.length <= 1 ? 'invisible' : ''}`}  width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                        <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
+                                                        <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
+                                                    </svg>
+                                                    <ul key={conditions_index} className='flex-col border-[#6D7177] rounded-[4px] min-w-[280px] bg-black'>
+                                                        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
+                                                            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                            <select 
+                                                                className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[100px]'
                                                                 onChange={(e) => {
-                                            
-                                                                    if (e.target.value) {
+                                                                    const selectedNode = getSourceNodeIdWithLabel(parentId).find(
+                                                                        node => node.id === e.target.value
+                                                                    );
+                                                                    if (selectedNode) {
                                                                         const cases_clone = [...cases];
                                                                         cases_clone[case_index].conditions[conditions_index] = {
                                                                             ...cases_clone[case_index].conditions[conditions_index],
-                                                                            cond_v: e.target.value
+                                                                            id: selectedNode.id,
+                                                                            label: selectedNode.label,
+                                                                            type: getNode(selectedNode.id)?.type
                                                                         };
                                                                         setCases(cases_clone);
-                                                                        console.log("cond_v",cases)
+                                                                        console.log("selected ndoe:", getNode(selectedNode.id))
                                                                     }
                                                                 }}
-                                                                value={cases[case_index].conditions[conditions_index].cond_v}
+                                                                value={condition_value.id}
                                                             >
-                                                                    <option value="">condition</option>
-                                                                    {   
-                                                                        getConditionSelections("switch").map((sl_v,sl_id) => (
-                                                                            <option key={sl_id} value={sl_v}>
-                                                                                {sl_v}
-                                                                            </option>
-                                                                        ))
-                                                                    }
-                                                                </select>
-                                                            )
-                                                        }
-                                                        </div>
-                                                        {
-                                                            getNode(cases[case_index].conditions[conditions_index].id)?.type !== "switch" && (
-                                                                <input 
-                                                                value={cases[case_index].conditions[conditions_index].cond_input}
-                                                                onChange={(e)=>{
-                                                                    const cases_clone = [...cases];
-                                                                    cases_clone[case_index].conditions[conditions_index] = {
-                                                                        ...cases_clone[case_index].conditions[conditions_index],
-                                                                        cond_input: e.target.value
-                                                                    };
-                                                                    setCases(cases_clone);
-                                                                    console.log("cond_v",cases)
-                                                                }} 
-                                                                className="w-[100px] text-white bg-black caret-white"
-                                                                type="text"></input>
-                                                            )
-                                                        }
-                                                        
-                                                    </li>
-                                                </ul>
-                                                {case_value.conditions.length - 1 === conditions_index ? (
-                                                    <>
-                                                    <span className='text-center align-baseline inline-block pt-[5px] w-[45px] text-transparent'>
-                                                        AND
-                                                    </span>
-                                                    <button onClick={onConditionAdd(case_index)} className='cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-3 pr-3 font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                                        +
-                                                    </button>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                    <span className='text-center align-baseline inline-block pt-[5px] w-[40px]'>
-                                                        {case_value.conditions[conditions_index].operation.toUpperCase()}
-                                                    </span>
-                                                    <button onClick={onAndOrSwitch(case_index, conditions_index)} className='cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-3 pr-3 font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                                        #
-                                                    </button>
-                                                    </>
-                                                )}
-                                                </div>
-                                            </>
-                                        )
-                                    )
-                                }
-
-                            </div>
-        
-                            <div className='flex flex-col border-[#6D7177] rounded-[4px] border-[1px] p-3 w-[535px]'>
-                                {
-                                    case_value.actions.map(
-                                        (action_value, action_index) => (
-                                            <>                                
-                                                <label>THEN</label>
-                                                <div className='inline-flex space-x-2'>
-                                                    <button onClick={() => {
-                                                                const cases_clone = [...cases];
-                                                                cases_clone[case_index].actions.splice(action_index, 1); // Remove the action
-                                                                setCases(cases_clone);
-                                                            }} className='w-[40px] cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-[3px] pr-[3px] font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                                                -
-                                                    </button>
-                                                    <ul className='flex flex-col border-[#6D7177] rounded-[4px] bg-black w-[370px]'>
-                                                        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
-                                                            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                                                                <select 
+                                                                <option value="">Select a node</option>
+                                                                {getSourceNodeIdWithLabel(parentId).map((node) => (
+                                                                    <option key={node.id} value={node.id}>
+                                                                        {node.label || node.id}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                            </div>
+                                                            <div className='text-[#6D7177] w-[190px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
+                                                            {
+                                                                getNode(cases[case_index].conditions[conditions_index].id)?.type === "structured" && (
+                                                                    <select 
+                                                                        className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none w-[150px]'
+                                                                        onChange={(e) => {
+                                                    
+                                                                            if (e.target.value) {
+                                                                                const cases_clone = [...cases];
+                                                                                cases_clone[case_index].conditions[conditions_index] = {
+                                                                                    ...cases_clone[case_index].conditions[conditions_index],
+                                                                                    cond_v: e.target.value
+                                                                                };
+                                                                                setCases(cases_clone);
+                                                                                console.log("cond_v",cases)
+                                                                            }
+                                                                        }}
+                                                                        value={cases[case_index].conditions[conditions_index].cond_v}
+                                                                    >
+                                                                        <option value=""> condition </option>
+                                                                        {   
+                                                                            getConditionSelections("structured").map((sl_v,sl_id) => (
+                                                                                <option key={sl_id} value={sl_v}>
+                                                                                    {sl_v}
+                                                                                </option>
+                                                                            ))
+                                                                        }
+                                                                    </select>
+                                                                )
+                                                                }
+                                                                {               
+                                                                getNode(cases[case_index].conditions[conditions_index].id)?.type === "text" && (
+                                                                    <select 
+                                                                        className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] w-[150px] border-none outline-none'
+                                                                        onChange={(e) => {
+                                                    
+                                                                            if (e.target.value) {
+                                                                                const cases_clone = [...cases];
+                                                                                cases_clone[case_index].conditions[conditions_index] = {
+                                                                                    ...cases_clone[case_index].conditions[conditions_index],
+                                                                                    cond_v: e.target.value
+                                                                                };
+                                                                                setCases(cases_clone);
+                                                                                console.log("cond_v",cases)
+                                                                            }
+                                                                        }}
+                                                                        value={cases[case_index].conditions[conditions_index].cond_v}
+                                                                    >
+                                                                        <option value="">condition</option>
+                                                                        {   
+                                                                            getConditionSelections("text").map((sl_v,sl_id) => (
+                                                                                <option key={sl_id} value={sl_v}>
+                                                                                    {sl_v}
+                                                                                </option>
+                                                                            ))
+                                                                        }
+                                                                    </select>
+                                                                )}
+                                                                {
+                                                                getNode(cases[case_index].conditions[conditions_index].id)?.type === "switch" && (
+                                                                    <select 
                                                                     className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
                                                                     onChange={(e) => {
-                                                                        const selectedNode = getSourceNodeIdWithLabel(parentId).find(
-                                                                            node => node.id === e.target.value
-                                                                        );
-                                                                        if (selectedNode) {
+                                                
+                                                                        if (e.target.value) {
                                                                             const cases_clone = [...cases];
-                                                                            cases_clone[case_index].actions[action_index] = {
-                                                                                ...cases_clone[case_index].actions[action_index],
-                                                                                from_id: selectedNode.id,
-                                                                                from_label: selectedNode.label
+                                                                            cases_clone[case_index].conditions[conditions_index] = {
+                                                                                ...cases_clone[case_index].conditions[conditions_index],
+                                                                                cond_v: e.target.value
                                                                             };
                                                                             setCases(cases_clone);
+                                                                            console.log("cond_v",cases)
                                                                         }
                                                                     }}
-                                                                    value={action_value.from_id}
+                                                                    value={cases[case_index].conditions[conditions_index].cond_v}
                                                                 >
-                                                                    <option value="">Select a node</option>
-                                                                    {getSourceNodeIdWithLabel(parentId).map((node) => (
-                                                                        <option key={node.id} value={node.id}>
-                                                                            {node.label || node.id}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
+                                                                        <option value="">condition</option>
+                                                                        {   
+                                                                            getConditionSelections("switch").map((sl_v,sl_id) => (
+                                                                                <option key={sl_id} value={sl_v}>
+                                                                                    {sl_v}
+                                                                                </option>
+                                                                            ))
+                                                                        }
+                                                                    </select>
+                                                                )
+                                                            }
                                                             </div>
-                                                            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
-                                                                TO
-                                                            </div>
-                                                            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                                                                <select 
-                                                                    className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
-                                                                    onChange={(e) => {
+                                                            {
+                                                                getNode(cases[case_index].conditions[conditions_index].id)?.type !== "switch" && (
+                                                                    <input 
+                                                                    value={cases[case_index].conditions[conditions_index].cond_input?cases[case_index].conditions[conditions_index].cond_input:""}
+                                                                    onChange={(e)=>{
                                                                         const cases_clone = [...cases];
-                                                                        cases_clone[case_index].actions[action_index].outputs = [e.target.value];
-                                                                        setCases(cases_clone);
-                                                                    }}
-                                                                    value={action_value.outputs[0]}
-                                                                >
-                                                                    <option value="">Select output</option>
-                                                                    {outputs.map((output) => (
-                                                                        <option key={output} value={output}>
-                                                                            {(getNode(output)?.data?.label as string) || output}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </div>
+                                                                        cases_clone[case_index].conditions[conditions_index] = {
+                                                                            ...cases_clone[case_index].conditions[conditions_index],
+                                                                            cond_input: e.target.value
+                                                                        };
+                                                                        setCases(cases_clone); 
+                                                                        console.log("cond_v",cases)
+                                                                    }} 
+                                                                    className="w-[100px] text-white bg-black caret-white"
+                                                                    type="text"></input>
+                                                                )
+                                                            }
+                                                            
                                                         </li>
                                                     </ul>
-                                                    <span className='text-center align-baseline inline-block pt-[5px] w-[40px] text-transparent'>
-                                                        AND
-                                                    </span>
-                                                    <button onClick={onActionAdd(case_index)} className='cursor-pointer rounded-[15px] mt-0 ml-0 bg-black text-[#6D7177] pl-3 pr-3 font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                                        +
-                                                    </button>
-                                                </div>
-                                            </>
+                                                    {case_value.conditions.length - 1 === conditions_index ? (
+                                                        <>
+                                                        <span> </span>
+                                                        <svg onClick={onConditionAdd(case_index)} className='cursor-pointer' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
+                                                            <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                                                            <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                                                        </svg>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                        <button onClick={onAndOrSwitch(case_index, conditions_index)} className='cursor-pointer rounded-[15px] mt-0 ml-0 text-[#6D7177] pl-3 pr-3 font-plus-jakarta-sans text-[20px] font-[700] border-[0px] border-[#6D7177] items-center'>
+                                                            <div className='w-[22px] text-[10px] flex-col justify-center items-center'>
+                                                                {case_value.conditions[conditions_index].operation.toUpperCase()}
+                                                                <div className='w-[22px] text-[10px] flex justify-center items-center'>
+                                                                <svg width="12" height="5" viewBox="0 0 12 5" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                                    <path d="M12 3.75L2 3.75L5 0.75" stroke="#63676C" strokeWidth="1.5"/>
+                                                                </svg>
+                                                                </div>
+                                                                <div className='w-[22px] text-[10px] flex justify-center items-center'>
+                                                                <svg width="12" height="5" viewBox="0 0 12 5" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                                <path d="M0 0.75H10L7 3.75" stroke="#63676C" strokeWidth="1.5"/>
+                                                                </svg>
+                                                                </div>
+                                                            </div>
+                                                        </button>
+                                                        </>
+                                                    )}
+                                                    </div>
+                                                </>
+                                            )
                                         )
-                                    )
-                                }
-                                
+                                    }
+
+                                </div>
+            
+                                <div className='flex flex-col border-[#6D7177] p-3 w-[520px] justify-start'>
+                                    <label className='text-[12px]'>THEN</label>
+                                    {
+                                        case_value.actions.map(
+                                            (action_value, action_index) => (
+                                                <>                                
+                                                    <span className='h-[16px]'></span>
+                                                    <div className='inline-flex space-x-[12px] justify-start items-center'>
+                                                    <svg 
+                                                        onClick={() => {
+                                                            const cases_clone = [...cases];
+                                                            if(cases_clone[case_index].actions.length >1){
+                                                                cases_clone[case_index].actions.splice(action_index, 1); // Remove the action
+                                                                setCases(cases_clone);
+                                                            }
+                                                        }} 
+                                                        className={`cursor-pointer ${case_value.actions.length <= 1 ? 'invisible' : ''}`} 
+                                                        width="20" 
+                                                        height="20" 
+                                                        viewBox="0 0 20 20" 
+                                                        fill="none" 
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                    >
+                                                        <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
+                                                        <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
+                                                    </svg>
+                                                        <ul className='flex flex-col border-[#6D7177] rounded-[4px] bg-black w-[400px]'>
+                                                            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] min-w-[280px]'>
+                                                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                                    <select 
+                                                                        className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                        onChange={(e) => {
+                                                                            const selectedNode = getSourceNodeIdWithLabel(parentId).find(
+                                                                                node => node.id === e.target.value
+                                                                            );
+                                                                            if (selectedNode) {
+                                                                                const cases_clone = [...cases];
+                                                                                cases_clone[case_index].actions[action_index] = {
+                                                                                    ...cases_clone[case_index].actions[action_index],
+                                                                                    from_id: selectedNode.id,
+                                                                                    from_label: selectedNode.label
+                                                                                };
+                                                                                setCases(cases_clone);
+                                                                            }
+                                                                        }}
+                                                                        value={action_value.from_id}
+                                                                    >
+                                                                        <option value="">Select a node</option>
+                                                                        {getSourceNodeIdWithLabel(parentId).map((node) => (
+                                                                            <option key={node.id} value={node.id}>
+                                                                                {node.label || node.id}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                                <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
+                                                                    TO
+                                                                </div>
+                                                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                                    <select 
+                                                                        className='w-full bg-black text-white font-plus-jakarta-sans text-[12px] border-none outline-none'
+                                                                        onChange={(e) => {
+                                                                            const cases_clone = [...cases];
+                                                                            cases_clone[case_index].actions[action_index].outputs = [e.target.value];
+                                                                            setCases(cases_clone);
+                                                                        }}
+                                                                        value={action_value.outputs[0]}
+                                                                    >
+                                                                        <option value="">Select output</option>
+                                                                        {outputs.map((output) => (
+                                                                            <option key={output} value={output}>
+                                                                                {(getNode(output)?.data?.label as string) || output}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                </div>
+                                                            </li>
+                                                        </ul>
+                                                        <>
+                                                        <span> </span>
+                                                        <svg onClick={onActionAdd(case_index)} className='cursor-pointer' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
+                                                            <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                                                            <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                                                        </svg>
+                                                        </>
+                                                    </div>
+                                                </>
+                                            )
+                                        )
+                                    }
+                                    
+                                </div>
                             </div>
                         </li>
         
                     )
                     )
                 }
-                        <div className='flex flex-col items-center '>
-                            <button onClick={onCaseAdd} className='rounded-[10px] bg-black text-[#6D7177] w-auto mt-1 pl-2 pr-2 font-plus-jakarta-sans text-[20px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                                + case
+                        <div className='flex flex-col gap-0 items-start justify-center '>
+                            <button onClick={onCaseAdd} className='flex rounded-[8px] bg-black text-[#6D7177] w-[52px] mt-1 font-plus-jakarta-sans text-[10px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                                        <svg className="flex-inline" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                                            <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                                        </svg> Case
                             </button>
                         </div>
                 
