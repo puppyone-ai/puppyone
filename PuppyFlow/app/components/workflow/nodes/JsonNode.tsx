@@ -16,6 +16,7 @@ type modelNames = "text-embedding-ada-002"
 type vdb_typeNames = "pgvector"
 
 const HEIGHT_STD = 500
+const WIDTH_STD = 300
 
 export type JsonNodeData = {
   content: string,
@@ -75,10 +76,14 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     const resizeObserver = new ResizeObserver(entries => {
       // Prevent unnecessary updates by checking if size actually changed
       const { width, height } = entries[0].contentRect;
-      
+      const widthThreshold = 24; // Set a threshold of 10 pixels for width changes
+      const heightThreshold = 25; 
       // Only update if the size is different from current state
       setContentSize(prevSize => {
-        if (prevSize.width !== width || prevSize.height !== height) {
+        if (
+          Math.abs(prevSize.width - width) > widthThreshold || // Check if width change exceeds threshold
+          Math.abs(prevSize.height - height) > heightThreshold
+        ) {
           return { width, height };
         }
         return prevSize;
@@ -289,6 +294,13 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     return '100%'
   }
 
+  const calculateMaxLabelContainerWidthN = () => {
+    if (contentRef.current) {
+      return `${contentRef.current.clientWidth-15.6}px`
+    }
+    return '100%'
+  }
+
   // height by default: 304px, inner-box: 240px, resize-control: 304px, without embedding
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
 
@@ -310,137 +322,129 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     <div ref={componentRef} className={`relative w-full h-full min-w-[400px] min-h-[560] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
     
-    <div ref={contentRef} id={id} style={{}} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[90px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
-        <div style={{
-                  width: calculateMaxLabelContainerWidth(),
-                  borderStyle: "solid",
-                  height:"50px",
-                  position:"absolute",
-                  borderWidth:"0px",
-                  top:"70px"
-                }}>
-          <div style={{
-              display: 'flex',
-              justifyContent: 'left',
-              width: '100%',
-              height: '100%',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
-              borderBottom: 'none',
-              paddingLeft:"5px"
-            }}>
-            {viewMode==INPUT_VIEW_MODE?
-            <button style={{
-                border: 'solid',
-                paddingTop: '1px',
-                cursor: 'pointer',
+    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[30px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
+      style={{
+        borderRadius: "8px",
+        border: "1px solid #6D7177",
+        background: "#1C1D1F",
+      }}
+    >
+      <div 
+              style={{
+                    width: "100%",
+                    height: "32px",
+                    top: "70px"
+                  }}>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'left',
+                width: '100%',
+                height: '100%',
                 borderTopLeftRadius: '8px',
                 borderTopRightRadius: '8px',
-                borderWidth:"0px",
-                borderBottomStyle: "none",
-                boxShadow:"0px -0.5px 1px 0.1px grey",
-                paddingLeft:"20px",
-                paddingRight:"20px",
+              }}>
+              {viewMode==INPUT_VIEW_MODE?
+              <button style={{
+                  paddingTop: '1px',
+                  cursor: 'pointer',
+                  paddingLeft:"8px",
+                  paddingRight:"8px",
+                }}
+                className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
+                onClick={handleInputViewClick}
+                >
+                JSON View
+              </button>:
+              <button style={{
+                paddingTop: '1px',
+                cursor: 'pointer',
+                paddingLeft:"8px",
+                paddingRight:"8px",
               }}
-              className={`${borderColor} bg-gray-600/20`}
+              className={`text-[10px] text-[#A4A4A4]`}
               onClick={handleInputViewClick}
               >
-              Input View
-            </button>:
-            <button style={{
-              border: 'solid',
-              paddingTop: '1px',
-              cursor: 'pointer',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
-              borderWidth:"0px",
-              borderBottomStyle: "none",
-              boxShadow:"0px -0.5px 1px 0.1px grey",
-              paddingLeft:"20px",
-              paddingRight:"20px",
-            }}
-            onClick={handleInputViewClick}
-            >
-            Input View
-          </button>
-          }
-          {viewMode==EMBED_VIEW_MODE?
-            <button style={{
-                border: 'solid',
+              JSON View
+            </button>
+            }
+            {viewMode==EMBED_VIEW_MODE?
+              <button style={{
                 paddingTop: '1px',
                 cursor: 'pointer',
-                borderTopLeftRadius: '8px',
-                borderTopRightRadius: '8px',
-                borderWidth:"0px",
-                borderBottomStyle: "none",
-                boxShadow:"0px -0.5px 1px 0.1px grey",
-                paddingLeft:"20px",
-                paddingRight:"20px",
+                paddingLeft:"8px",
+                paddingRight:"8px",
                 display:isEmbedHidden?"none":"inline"
               }}
-              className={`${borderColor} bg-gray-600/20`}
-              onClick={handleInputViewClick}
+              className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
+                onClick={handleEmbedViewClick}
+                >
+                Embedding View
+              </button>:
+              <button style={{
+                paddingTop: '1px',
+                cursor: 'pointer',
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+                borderWidth:"0px",
+                paddingLeft:"8px",
+                paddingRight:"8px",
+                display:isEmbedHidden?"none":"inline"
+              }}
+              className={`text-[10px] text-[#A4A4A4]`}
+              onClick={handleEmbedViewClick}
               >
               Embedding View
-            </button>:
-            <button style={{
-              border: 'solid',
-              paddingTop: '1px',
-              cursor: 'pointer',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
-              borderWidth:"0px",
-              borderBottomStyle: "none",
-              boxShadow:"0px -0.5px 1px 0.1px grey",
-              paddingLeft:"20px",
-              paddingRight:"20px",
-              display:isEmbedHidden?"none":"inline"
-            }}
-            onClick={handleEmbedViewClick}
-            >
-            Embedding View
-          </button>
-          }
-          {
-            isEmbedHidden?
-            <button style={{
-                border: 'solid',
-                paddingLeft:"15px",
-                paddingRight:"15px",
-                cursor: 'pointer',
-                borderRadius: '8px',
-                borderWidth:"1px",
-              }}
-              className={`hover:bg-gray-700`}
-              onClick={handleAddTagPage}
-              >
-              +
-            </button>:
-            <></>
-          }
-
-          </div>
-        </div>
-          {
-            viewMode=="embedding view"?
-            <div style={{
-              width: 'fit-content',
-              maxWidth: calculateMaxLabelContainerWidth(),
-            }}>
-            {
-              getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):<></>
+            </button>
             }
+            {
+              isEmbedHidden?
+              <div
+              onClick={handleAddTagPage}
+              className='cursor-pointer flex justify-center items-center'
+              >
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
+              >
+              <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5"/>
+              <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5"/>
+            </svg>
+              </div>
+              :
+              <></>
+            }
+
             </div>
-            :
-          <div className='w-full h-full fit-content'>
-                {isLoading ? <SkeletonLoadingIcon /> : 
-                            <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
-                            placeholder='["JSON"]'
-                                    parentId={id}
-                                    heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-18:HEIGHT_STD-160} />
-                }
           </div>
-          }
+            {
+              viewMode=="embedding view"?
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow:"hidden"
+              }}>
+
+              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3}
+                              placeholder='["JSON"]'
+                                      parentId={id}
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
+                                      inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
+                                      />
+              </div>
+              :
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow:"hidden"
+              }}>
+                  {isLoading ? <SkeletonLoadingIcon /> : 
+                              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
+                              placeholder='["JSON"]'
+                                      parentId={id}
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160} />
+                  }
+            </div>
+            }
+    </div>
           
 
 
