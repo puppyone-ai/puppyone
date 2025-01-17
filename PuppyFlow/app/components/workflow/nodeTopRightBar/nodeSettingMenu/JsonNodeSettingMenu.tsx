@@ -1,9 +1,10 @@
-import React,{useEffect, useState} from 'react'
+import React,{useEffect, useState, Fragment} from 'react'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useReactFlow , Position, Node} from '@xyflow/react'
-import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
+import { PuppyStorage_IP_address_for_embedding } from '../../../hooks/useJsonConstructUtils'
+import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
+import { Transition } from '@headlessui/react'
 
 type JsonNodeSettingMenuProps = {
     showSettingMenu: number,
@@ -277,97 +278,107 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
     }
 
   return (
-    <ul className={`flex flex-col absolute top-[24px] py-[8px] w-[128px] bg-[#3E3E41] rounded-[4px] left-0 z-[20000] ${showSettingMenu ? "" : "hidden"}`}>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px]  gap-[8px] w-full h-[24px] bg-[#3E3E41] border-none rounded-t-[4px] '
-            onClick={()=> manageNodeasInput(nodeid)}>
-            <div className='flex items-center justify-center'>
-            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <path d="M3 2L5.5 4L3 6V2Z" fill="#BEBEBE"/>
-            <path d="M3 4H0" stroke="#BEBEBE" strokeWidth="1.5"/>
-            <path d="M4 0H8V8H4V6.5H6.5V1.5H4V0Z" fill="#BEBEBE"/>
-            </svg>
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                {getNode(nodeid)?.data?.isInput ? "unset input" :"set as input"}
-            </div>
-            </button>
-        </li>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px]  gap-[8px] w-full h-[24px] bg-[#3E3E41] border-none'
-            onClick={()=> manageNodeasOutput(nodeid)}>
-            <div className='flex items-center justify-center'>
-            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-            <path d="M5.5 2L8 4L5.5 6V2Z" fill="#BEBEBE"/>
-            <path d="M6 4H3" stroke="#BEBEBE" strokeWidth="1.5"/>
-            <path d="M0 0H4V1.5H1.5V6.5H4V8H0V0Z" fill="#BEBEBE"/>
-            </svg>
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                {getNode(nodeid)?.data?.isOutput ? "unset output" :"set as output"}
-            </div>
-            </button>
-        </li>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px] gap-[9px] w-full h-[24px] bg-[#3E3E41]'
-            onClick={()=> manageNodeasLocked(nodeid)}>
-            <div className='flex items-center justify-center'>
-            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="9" viewBox="0 0 8 9" fill="none">
-            <rect y="4" width="8" height="5" fill="#BEBEBE"/>
-            <rect x="1.75" y="0.75" width="4.5" height="6.5" rx="2.25" stroke="#BEBEBE" strokeWidth="1.5"/>
-            </svg>
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                {getNode(nodeid)?.data?.locked ? "Unlock the text" :"Lock the text"}
-            </div>
-            </button>
-        </li>
-        <li>
-            <div className='h-[1px] w-full bg-[#181818] my-[8px]'></div>
-        </li>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px]  gap-[9px] w-full h-[24px] bg-[#3E3E41]'
-            onClick={onEmbeddingClick}
-            >
-            <div className='flex items-center justify-center font-plus-jakarta-sans text-[12px] font-bold leading-normal text-[#BEBEBE] whitespace-nowrap'>
-            E
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                embedding
-            </div>
-            </button>
-        </li>
-        <li>
-            <div className='h-[1px] w-full bg-[#181818] my-[8px]'></div>
-        </li>
-        <li>
-            <button className='renameButton flex flex-row items-center justify-start px-[16px] gap-[8px] w-full h-[24px] bg-[#3E3E41]'
-            onClick={manageEditLabel}>
-            <div className='renameButton flex items-center justify-center'>
-            <svg className='renameButton' xmlns="http://www.w3.org/2000/svg" width="9" height="10" viewBox="0 0 9 10" fill="none">
-            <path d="M7 0.5L9.00006 2.50006L4.5 7L2.5 5L7 0.5Z" fill="#BEBEBE"/>
-            <path d="M2 5.5L4 7.5L1 8.5L2 5.5Z" fill="#BEBEBE"/>
-            </svg>
-            </div>
-            <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                rename
-            </div>
-            </button>
-        </li>
-        <li >
-            <button className='flex flex-row items-center justify-start px-[16px] gap-[7px] w-full h-[24px] bg-[#3E3E41] rounded-b-[4px]' onClick={deleteNode}>
+    <Transition
+        show={!!showSettingMenu}
+        as={Fragment}
+        enter="transition ease-out duration-100"
+        enterFrom="transform opacity-0 translate-y-[-10px]"
+        enterTo="transform opacity-100 translate-y-0"
+        leave="transition ease-in duration-75"
+        leaveFrom="transform opacity-100 translate-y-0"
+        leaveTo="transform opacity-0 translate-y-[-10px]"
+    >
+        <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
+              {/* <li>
+                <button className='flex flex-row items-center justify-start   gap-[8px] w-full h-[26px]  border-none rounded-t-[4px]'
+                onClick={()=> manageNodeasInput(nodeid)}>
                 <div className='flex items-center justify-center'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="none">
-                <path d="M9 1L1 9" stroke="#BEBEBE" strokeWidth="2"/>
-                <path d="M9 9L1 1" stroke="#BEBEBE" strokeWidth="2"/>
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M11.5 15V11L14.1667 13L11.5 15Z" fill="#BEBEBE" stroke="#BEBEBE"/>
+                <path d="M12 12.9961L7 13.001" stroke="#BEBEBE" stroke-width="2"/>
+                <path d="M16.5 8H12.5V6.5H18.5V19.5H12.5V18H16.5H17V17.5V8.5V8H16.5Z" fill="#BEBEBE" stroke="#BEBEBE"/>
                 </svg>
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                Delete
-            </div>
-            </button>
-        </li>
-    </ul>
+
+                </div>
+                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
+                    {getNode(nodeid)?.data?.isInput ? "Unset input" :"Set as input"}
+                </div>
+                </button>
+            </li>
+            <li>
+                <button className='flex flex-row items-center justify-start  gap-[8px] w-full h-[26px]  border-none'
+                onClick={()=> manageNodeasOutput(nodeid)}>
+                <div className='flex items-center justify-center'>
+                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M15.5 15V11L18.1667 13L15.5 15Z" fill="#BEBEBE" stroke="#BEBEBE"/>
+                <path d="M16 12.9961L11 13.001" stroke="#BEBEBE" stroke-width="2"/>
+                <path d="M9.5 8H13.5V6.5H7.5V19.5H13.5V18H9.5H9V17.5V8.5V8H9.5Z" fill="#BEBEBE" stroke="#BEBEBE"/>
+                </svg>
+
+                </div>
+                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
+                    {getNode(nodeid)?.data?.isOutput ? "Unset output" :"Set as output"}
+                </div>
+                </button>
+            </li> */}
+            
+            <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                onClick={()=> manageNodeasLocked(nodeid)}>
+                    <div className='flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="7" y="13" width="12" height="7" fill="currentColor"/>
+                            <rect x="9" y="7" width="8" height="11" rx="4" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        {getNode(nodeid)?.data?.locked ? "Unlock the text" : "Lock the text"}
+                    </div>
+                </button>
+            </li>
+            {/* <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                onClick={onEmbeddingClick}>
+                    <div className='flex items-center justify-center w-[26px] h-[26px]'>
+                        <span className='font-bold'>E</span>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        Embedding
+                    </div>
+                </button>
+            </li>
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li> */}
+            <li>
+                <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                onClick={manageEditLabel}>
+                    <div className='renameButton flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16.8891 6L20.0003 9.11118L13.0002 16.111L9.88915 13L16.8891 6Z" fill="currentColor"/>
+                            <path d="M9.1109 13.7776L12.222 16.8887L7.55536 18.4442L9.1109 13.7776Z" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        Rename
+                    </div>
+                </button>
+            </li>
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]' 
+                onClick={deleteNode}>
+                    <div className='flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        Delete
+                    </div>
+                </button>
+            </li>
+        </ul>
+    </Transition>
   )
 }
 

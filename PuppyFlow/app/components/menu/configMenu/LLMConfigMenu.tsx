@@ -4,7 +4,7 @@ import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react
 import JSONForm from '../tableComponent/JSONForm'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-import { nodeSmallProps } from '../nodeMenu/NodeMenu'
+import { nodeSmallProps } from '../../upbar/topLeftToolBar/addNodeMenu'
 import useJsonConstructUtils, { ProcessingData, NodeJsonType } from '../../hooks/useJsonConstructUtils'
 import JSONConfigEditor from '../tableComponent/JSONConfigEditor'
 import { LLMConfigNodeData } from '../../workflow/edges/configNodes/LLMConfig'

@@ -4,7 +4,7 @@ import React,{useRef, useEffect, useState, ReactElement} from 'react'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import JSONForm from '../../menu/tableComponent/JSONForm'
-import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
+import NodeToolBar from '../nodeTopRightBar/NodeTopRightBar'
 import TextEditorTextArea from '../../menu/tableComponent/TextEditorTextArea'
 
 export type ResultNodeData = {
