@@ -1,15 +1,17 @@
 'use client'
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, Fragment } from 'react'
 import ReactDOM from 'react-dom'
 import { useDropzone } from 'react-dropzone'
 // import { useNodeContext } from '../../states/NodeContext'
 import {useReactFlow, Panel} from '@xyflow/react'
 import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
+import { Menu, Transition } from '@headlessui/react'
 
 type MoreOptionsButtonMenuProps = {
   clearTopRightToolBarMenu: () => void
 }
 function MoreOptionsButtonMenu({clearTopRightToolBarMenu}: MoreOptionsButtonMenuProps) {
+  const [mounted, setMounted] = useState(false);
 
   const {setNodes, setEdges} = useReactFlow()
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -241,65 +243,93 @@ const saveJsonToLocal = async (jsonData: any) => {
 
 }
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <>
-    <ul ref={moreOptionsButtonMenuRef} className='bg-[#3E3E41] py-[8px] rounded-[10px] flex flex-col items-center justify-center absolute top-10 left-0'>
-        <li>
-            <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap' onClick={(e) => {
-                // open()
-                // openFile()
-                e.stopPropagation()
-                e.preventDefault()
-                // setShowUploadFileForm(true)
-                // document.getElementById("file-input")?.click()
-                if (moreOptionsButtonMenuRef.current) {
-                  moreOptionsButtonMenuRef.current.style.display = 'none'
-                }
-                fileInputRef.current?.click()
-                
-            }}>
-                import JSON
-            </button>
-        </li>
-        <li>
-        <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap' onClick={() => {
-            const jsonData = constructWholeJsonWorkflow()
-            console.log(jsonData)
-            saveJsonToLocal(jsonData)
-            clearTopRightToolBarMenu()
-        }}>
-                export JSON
-            </button>
-        </li>
-    <li>
-        <button className='px-[10px] py-[4px] bg-inherit hover:bg-[#525257] w-[95px] h-[28px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'>
-            Share Link
-        </button>
-    </li>
-    </ul>
-    {ReactDOM.createPortal(
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleInputChange}
-        onClick={(e) => e.stopPropagation()}
-        accept=".json"
-        className="opacity-0 absolute top-0 left-0 w-full h-full cursor-pointer"
-        style={{
-          position: 'fixed',
-          top: '-100%',
-          left: '-100%',
-          // 移除 pointer-events-none
-          // 移除 transform 和 translate，因为它们可能会影响点击
-          zIndex: 9999,
-        }}
-        
-      />,
-      document.body
-    )}
+      <Transition
+        as={Fragment}
+        enter="transition ease-out duration-200"
+        enterFrom="transform opacity-0 translate-y-[-10px]"
+        enterTo="transform opacity-100 translate-y-0"
+        leave="transition ease-in duration-150"
+        leaveFrom="transform opacity-100 translate-y-0"
+        leaveTo="transform opacity-0 translate-y-[-10px]"
+      >
+        <Menu.Items className="absolute top-full mt-[16px] left-0 z-50">
+          <ul className='w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start'>
+            <Menu.Item>
+              {({ active }) => (
+                <li className='w-full'>
+                  <button 
+                    className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      fileInputRef.current?.click()
+                    }}
+                  >
+                    Import JSON
+                  </button>
+                </li>
+              )}
+            </Menu.Item>
+
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+
+            <Menu.Item>
+              {({ active }) => (
+                <li className='w-full'>
+                  <button 
+                    className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                    onClick={() => {
+                      const jsonData = constructWholeJsonWorkflow()
+                      console.log(jsonData)
+                      saveJsonToLocal(jsonData)
+                      clearTopRightToolBarMenu()
+                    }}
+                  >
+                    Export JSON
+                  </button>
+                </li>
+              )}
+            </Menu.Item>
+
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+
+            <Menu.Item>
+              {({ active }) => (
+                <li className='w-full'>
+                  <button className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'>
+                    Share Link
+                  </button>
+                </li>
+              )}
+            </Menu.Item>
+          </ul>
+        </Menu.Items>
+      </Transition>
+
+      {mounted && ReactDOM.createPortal(
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleInputChange}
+          onClick={(e) => e.stopPropagation()}
+          accept=".json"
+          className="opacity-0 absolute top-0 left-0 w-full h-full cursor-pointer"
+          style={{
+            position: 'fixed',
+            top: '-100%',
+            left: '-100%',
+            zIndex: 9999,
+          }}
+        />,
+        document.body
+      )}
     </>
-    
   )
 }
 
