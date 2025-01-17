@@ -3,7 +3,7 @@ import { NodeProps, Node, Handle, Position, useReactFlow } from '@xyflow/react'
 import React,{useRef, useEffect, useState, ReactElement} from 'react'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
-import NodeSettingsController from '../nodeToolbar/NodeSettingsController'
+import NodeSettingsController from '../nodeTopRightBar/NodeSettingsButton'
 
 export type VectorNodeData = {
   content: string,

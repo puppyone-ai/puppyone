@@ -1,7 +1,7 @@
 import React,{useEffect, useState, Fragment} from 'react'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useReactFlow , Position} from '@xyflow/react'
-import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
+import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import { Transition } from '@headlessui/react'
 
 type TextNodeSettingMenuProps = {

@@ -2,7 +2,7 @@
 import { NodeProps, Node, Handle, Position, NodeResizer } from '@xyflow/react'
 import React, {useState, useCallback, useEffect, useRef} from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
-import NodeToolBar from '../nodeToolbar/NodeToolBar'
+import NodeToolBar from '../nodeTopRightBar/NodeTopRightBar'
 import { useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
