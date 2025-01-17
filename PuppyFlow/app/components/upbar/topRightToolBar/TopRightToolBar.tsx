@@ -1,10 +1,11 @@
 import React from 'react'
 import MoreOptionsButton from './MoreOptionsButton'
-import UploadButton from './UploadButton'
-import ModeController from './ModeController'
-import StartCodeController from './StartCodeController'
+import ModeController from './ModeControllerButton'
+import TestRunBotton from './TestRunBotton'
 import { useState, useEffect } from 'react'
 import { useNodesPerFlowContext } from "../../states/NodesPerFlowContext"
+import SaveButton from './SaveButton'
+import DeployBotton from './DeployBotton'
 
 function TopRightToolBar() {
 
@@ -38,14 +39,13 @@ function TopRightToolBar() {
   }
 
   return (
-    <div className={`w-auto h-[36px] border-[1px] border-solid border-[#3E3E41] rounded-[8px] flex flex-row  justify-center items-center bg-[#252525] ${isOnGeneratingNewNode ? "pointer-events-none" : "pointer-events-auto"}`}>
-        
-        {/* <ModeController /> 
-        <div className='w-[1px] h-[100%] bg-[#3E3E41]'></div>*/}
-        
+    <div className='flex flex-row items-center justify-center gap-[16px] relative pointer-events-auto'>
+      <SaveButton />
+      <div className={`w-auto h-[36px] border-[1px] border-solid border-[#3E3E41] rounded-[8px] flex flex-row justify-center items-center bg-[#252525]`}>
         <MoreOptionsButton showMenu={showMenu} showMenuHandler={showMenuHandler} />
-        {/* <UploadButton showMenu={showMenu} showMenuHandler={showMenuHandler} /> */}
-        <StartCodeController />
+        <TestRunBotton />
+      </div>
+      <DeployBotton />
     </div>
   )
 }
