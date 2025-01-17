@@ -2,7 +2,7 @@
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
 import React,{useRef, useEffect, useState} from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
-import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
+import NodeToolBar from '../nodeTopRightBar/NodeTopRightBar'
 import TextEditor from '../../menu/tableComponent/TextEditor'
 import TextEditorTextArea from '../../menu/tableComponent/TextEditorTextArea'
 import TextEditorTipTap from '../../menu/tableComponent/TextEditorTipTap'

@@ -4,12 +4,12 @@ import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowCont
 import { Position } from '@xyflow/react'
 import React, {useState, useRef, useEffect} from 'react'
 import { useReactFlow } from '@xyflow/react'
-import TextNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/TextNodeSettingMenu' 
-import JsonNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/JsonNodeSettingMenu'
-import FileNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/FileNodeSettingMenu'
-import WebLinkNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/WebLinkNodeSettingMenu'
-import DatabaseNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/DatabaseNodeSettingMenu'
-import SwitchNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/SwitchNodeSettingMenu'
+import TextNodeSettingMenu from './nodeSettingMenu/TextNodeSettingMenu' 
+import JsonNodeSettingMenu from './nodeSettingMenu/JsonNodeSettingMenu'
+import FileNodeSettingMenu from './nodeSettingMenu/FileNodeSettingMenu'
+import WebLinkNodeSettingMenu from './nodeSettingMenu/WebLinkNodeSettingMenu'
+import DatabaseNodeSettingMenu from './nodeSettingMenu/DatabaseNodeSettingMenu'
+import SwitchNodeSettingMenu from './nodeSettingMenu/SwitchNodeSettingMenu'
 type settingControllerProps = {
     nodeid: string,
 }
@@ -102,12 +102,12 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
         }
     }
 
-    const fillColor = isHovered || showSettingMenu ? "#000000" : "#6D7177"
+    const fillColor = isHovered || showSettingMenu ? "#BEBEBE" : "#6D7177"
 
 
   return(
     <div ref={componentRef}>
-     <button ref={settingControllerRef} className={`flex items-center justify-center ${isHovered || showSettingMenu ? "bg-main-grey" : ""} w-[24px] h-[24px] rounded-[8px]`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={manageSettings}>
+     <button ref={settingControllerRef} className={`flex items-center justify-center ${isHovered || showSettingMenu ? "bg-[#3E3E41]" : ""} w-[24px] h-[24px] rounded-[8px]`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={manageSettings}>
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="2" viewBox="0 0 11 2" fill="none">
         <path d="M0 0H2V2H0V0Z" fill={fillColor}/>
         <path d="M9 0H11V2H9V0Z" fill={fillColor}/>

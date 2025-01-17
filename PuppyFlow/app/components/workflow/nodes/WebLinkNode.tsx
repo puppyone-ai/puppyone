@@ -2,7 +2,7 @@
 import { NodeProps, Node, Handle, Position, useReactFlow} from '@xyflow/react'
 import React, { useState, useCallback, useEffect, useRef} from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
-import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
+import NodeToolBar from '../nodeTopRightBar/NodeTopRightBar'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
 export type WebLinkNodeData = {
