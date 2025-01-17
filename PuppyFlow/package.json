@@ -20,6 +20,7 @@
     "@fortawesome/free-regular-svg-icons": "^6.6.0",
     "@fortawesome/free-solid-svg-icons": "^6.6.0",
     "@fortawesome/react-fontawesome": "^0.2.2",
+    "@headlessui/react": "^2.2.0",
     "@monaco-editor/react": "^4.6.0",
     "@rjsf/core": "^5.20.1",
     "@rjsf/utils": "^5.20.1",
