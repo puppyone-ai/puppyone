@@ -1,9 +1,9 @@
 import React,{useEffect, useState, Fragment} from 'react'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useReactFlow , Position, Node} from '@xyflow/react'
-import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
+import { PuppyStorage_IP_address_for_embedding } from '../../../hooks/useJsonConstructUtils'
+import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { Transition } from '@headlessui/react'
 
 type JsonNodeSettingMenuProps = {

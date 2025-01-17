@@ -1,9 +1,9 @@
 import React,{useEffect, useState, useRef, Fragment} from 'react'
 import ReactDOM from 'react-dom'
-import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
+import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import { useReactFlow , Position} from '@xyflow/react'
-import useFileNodeUploadUtils from '../../hooks/useFileNodeUploadUtils'
-import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonConstructUtils'
+import useFileNodeUploadUtils from '../../../hooks/useFileNodeUploadUtils'
+import { PuppyStorage_IP_address_for_uploadingFile } from '../../../hooks/useJsonConstructUtils'
 import { Transition } from '@headlessui/react'
 
 type FileNodeSettingMenuProps = {

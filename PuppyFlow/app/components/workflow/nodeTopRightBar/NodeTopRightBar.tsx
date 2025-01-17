@@ -1,6 +1,6 @@
 import React, {useState} from 'react'
-import NodeSettingsController from './NodeSettingsController'
-import FullScreenController from './FullScreenController'
+import NodeSettingsController from './NodeSettingsButton'
+import FullScreenController from './FullScreenButton'
 // import { useNodeContext } from '@/app/components/states/NodeContext'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { Menu } from '@headlessui/react'
-import MoreOptionsButtonMenu from "../../menu/topRightToolBarMenu/MoreOptionsButtonMenu"
+import MoreOptionsButtonMenu from "./MoreOptionsButtonMenu"
 
 type MoreOptionsButtonProps = {
   showMenu: number,

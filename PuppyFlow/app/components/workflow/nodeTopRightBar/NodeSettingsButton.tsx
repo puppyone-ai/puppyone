@@ -4,12 +4,12 @@ import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowCont
 import { Position } from '@xyflow/react'
 import React, {useState, useRef, useEffect} from 'react'
 import { useReactFlow } from '@xyflow/react'
-import TextNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/TextNodeSettingMenu' 
-import JsonNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/JsonNodeSettingMenu'
-import FileNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/FileNodeSettingMenu'
-import WebLinkNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/WebLinkNodeSettingMenu'
-import DatabaseNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/DatabaseNodeSettingMenu'
-import SwitchNodeSettingMenu from '@/app/components/menu/nodeSettingMenu/SwitchNodeSettingMenu'
+import TextNodeSettingMenu from './nodeSettingMenu/TextNodeSettingMenu' 
+import JsonNodeSettingMenu from './nodeSettingMenu/JsonNodeSettingMenu'
+import FileNodeSettingMenu from './nodeSettingMenu/FileNodeSettingMenu'
+import WebLinkNodeSettingMenu from './nodeSettingMenu/WebLinkNodeSettingMenu'
+import DatabaseNodeSettingMenu from './nodeSettingMenu/DatabaseNodeSettingMenu'
+import SwitchNodeSettingMenu from './nodeSettingMenu/SwitchNodeSettingMenu'
 type settingControllerProps = {
     nodeid: string,
 }
