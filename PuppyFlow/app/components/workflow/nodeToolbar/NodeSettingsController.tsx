@@ -102,12 +102,12 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
         }
     }
 
-    const fillColor = isHovered || showSettingMenu ? "#000000" : "#6D7177"
+    const fillColor = isHovered || showSettingMenu ? "#BEBEBE" : "#6D7177"
 
 
   return(
     <div ref={componentRef}>
-     <button ref={settingControllerRef} className={`flex items-center justify-center ${isHovered || showSettingMenu ? "bg-main-grey" : ""} w-[24px] h-[24px] rounded-[8px]`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={manageSettings}>
+     <button ref={settingControllerRef} className={`flex items-center justify-center ${isHovered || showSettingMenu ? "bg-[#3E3E41]" : ""} w-[24px] h-[24px] rounded-[8px]`} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} onClick={manageSettings}>
         <svg xmlns="http://www.w3.org/2000/svg" width="11" height="2" viewBox="0 0 11 2" fill="none">
         <path d="M0 0H2V2H0V0Z" fill={fillColor}/>
         <path d="M9 0H11V2H9V0Z" fill={fillColor}/>
