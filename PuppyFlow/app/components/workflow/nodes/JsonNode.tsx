@@ -9,11 +9,15 @@ import NodeToolBar from '../buttonControllers/nodeToolbar/NodeToolBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import { json } from 'stream/consumers'
 import { set } from 'lodash'
-
+import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
 type vdb_typeNames = "pgvector"
+
+const HEIGHT_STD = 500
+const WIDTH_STD = 300
 
 export type JsonNodeData = {
   content: string,
@@ -38,13 +42,13 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
-  const {getNode} = useReactFlow()
+  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll} = useNodesPerFlowContext()
+  const {setNodes, setEdges, getEdges,getNode} = useReactFlow()
   // for linking to handle bar, it will be highlighed.
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
+  const [contentSize, setContentSize] = useState({ width: 0, height: 0})
   const labelContainerRef = useRef<HTMLDivElement | null>(null)
   const labelRef = useRef<HTMLInputElement | null>(null)
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
@@ -54,6 +58,8 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [INPUT_VIEW_MODE, EMBED_VIEW_MODE] = ["input view", "embedding view"]
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
   const [isEmbedHidden, setIsEmbedHidden] = useState(true)
+  const {cleanJsonString} = useJsonConstructUtils()
+
 
 
   useEffect(() => {
@@ -73,10 +79,14 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     const resizeObserver = new ResizeObserver(entries => {
       // Prevent unnecessary updates by checking if size actually changed
       const { width, height } = entries[0].contentRect;
-      
+      const widthThreshold = 24; // Set a threshold of 10 pixels for width changes
+      const heightThreshold = 25; 
       // Only update if the size is different from current state
       setContentSize(prevSize => {
-        if (prevSize.width !== width || prevSize.height !== height) {
+        if (
+          Math.abs(prevSize.width - width) > widthThreshold || // Check if width change exceeds threshold
+          Math.abs(prevSize.height - height) > heightThreshold
+        ) {
           return { width, height };
         }
         return prevSize;
@@ -216,27 +226,35 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     // for rendering diffent logo of upper right tag
     const renderTagLogo = () => {
       if (locked) return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="9" viewBox="0 0 8 9" fill="none">
-        <rect y="4" width="8" height="5" fill="black"/>
-        <rect x="1.75" y="0.75" width="4.5" height="6.5" rx="2.25" stroke="black" strokeWidth="1.5"/>
-      </svg>
+        <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="12" width="12" height="7" fill="#3EDBC9"/>
+        <rect x="6" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2"/>
+        </svg>
       )
       else if (isInput) return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-        <path d="M2.5 1.5L5.5 4L2.5 6.5V1.5Z" fill="black"/>
-        <path d="M3 4H0" stroke="black" strokeWidth="1.5"/>
-        <path d="M4 0H8V8H4V6.5H6.5V1.5H4V0Z" fill="black"/>
-      </svg>
+        <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8.5 14V10L11.1667 12L8.5 14Z" fill="#6C98D5" stroke="#6C98D5"/>
+        <path d="M9 11.9961L4 12.001" stroke="#6C98D5" stroke-width="2"/>
+        <path d="M13.5 7H9.5V5.5H15.5V18.5H9.5V17H13.5H14V16.5V7.5V7H13.5Z" fill="#6C98D5" stroke="#6C98D5"/>
+        </svg>
+
       )
       else if (isOutput) return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-        <path d="M5.5 2L8 4L5.5 6V2Z" fill="black"/>
-        <path d="M6 4H3" stroke="black" strokeWidth="1.5"/>
-        <path d="M0 0H4V1.5H1.5V6.5H4V8H0V0Z" fill="black"/>
-      </svg>
+        <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12.5 14V10L15.1667 12L12.5 14Z" fill="#FF9267" stroke="#FF9267"/>
+        <path d="M13 11.9961L8 12.001" stroke="#FF9267" stroke-width="2"/>
+        <path d="M6.5 7H10.5V5.5H4.5V18.5H10.5V17H6.5H6V16.5V7.5V7H6.5Z" fill="#FF9267" stroke="#FF9267"/>
+        </svg>
       )
       else return (
-        <></>
+        <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+          <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+          <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+          <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+          <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+          <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+          <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+        </svg>
       )
     }
 
@@ -264,7 +282,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
 }
 
 
-  // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要减去32px, 因为有logo），否则，则需要拉到当前的label的宽度（拖住文体即可）
+  // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要拉到当前的label的宽度（拖住文体即可）
   const calculateInputWidth = () => {
     if (contentRef.current) {
       if (editable) {
@@ -287,6 +305,13 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     return '100%'
   }
 
+  const calculateMaxLabelContainerWidthN = () => {
+    if (contentRef.current) {
+      return `${contentRef.current.clientWidth-15.6}px`
+    }
+    return '100%'
+  }
+
   // height by default: 304px, inner-box: 240px, resize-control: 304px, without embedding
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
 
@@ -300,145 +325,458 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const handleEmbedViewClick = () => {
     setViewMode(EMBED_VIEW_MODE); // Toggle button text
   };
-  const handleAddTagPage = () => {
+
+  const [isEmbedded, setIsEmbedded] = useState(false)
+
+  const handleAddTagPage = async () => {
     setIsEmbedHidden(!isEmbedHidden)
+    await onEmbeddingClick()
+    await onEmbeddingClick()
+    setTimeout(() => {
+      const newnode = getNode(id)
+      if(newnode?.data.index_name){
+        setIsEmbedded(true)
+      }
+    }, 600);
+  }
+
+  interface EmbeddingItem {
+    content: string;
+    metadata: {
+      id?: string;
+      [key: string]: any;
+    }
+  }
+  function traverseJson(
+    data: any, 
+    result: EmbeddingItem[] = [], 
+    path: string[] = [], 
+    idCounter: { value: number } = { value: 0 }
+  ): EmbeddingItem[] {
+    if (typeof data === 'string') {
+      // We found a leaf string, create an embedding item
+      const metadata: Record<string, any> = {
+        id: String(idCounter.value++)
+      };
+  
+      // Convert path to metadata keys
+      path.forEach((step, index) => {
+        if (step.startsWith('key_')) {
+          metadata[`key_${index}`] = step.substring(4);
+        } else if (step.startsWith('list_')) {
+          metadata[`list_${index}`] = parseInt(step.substring(5));
+        }
+      });
+
+      path.forEach((step, _) => {
+        if (step.startsWith('key_')) {
+          if (!metadata.path){
+            metadata.path = []
+          }
+          metadata[`path`].push(step.substring(4));
+        } else if (step.startsWith('list_')) {
+          if (!metadata.path){
+            metadata.path = []
+          }
+          metadata[`path`].push(parseInt(step.substring(5)));
+        }
+      });
+  
+      result.push({
+        content: data,
+        metadata: metadata
+      });
+    } 
+    else if (Array.isArray(data)) {
+      // Traverse each array element
+      data.forEach((item, index) => {
+        traverseJson(item, result, [...path, `list_${index}`], idCounter);
+      });
+    } 
+    else if (data && typeof data === 'object') {
+      // Traverse each object property
+      Object.entries(data).forEach(([key, value]) => {
+        traverseJson(value, result, [...path, `key_${key}`], idCounter);
+      });
+    }
+  
+    return result;
+  }
+
+  function removeItemFromData(data: any, path: (string | number)[]) {
+    //remove the item content itself from data according to path
+    /**
+     * example:
+     * data:
+    {
+      "name": "John",
+      "details": {
+        "hobbies": [
+          "reading",
+          "gaming"
+        ],
+        "address": {
+          "street": "123 Main St",
+          "city": "Springfield"
+        }
+      }
+    }
+    path: ["details", "hobbies", "0"]
+    result:
+    {
+      "name": "John",
+      "details": {
+        "hobbies": [
+          "gaming"
+        ],
+        "address": {
+          "street": "123 Main St",
+          "city": "Springfield"
+        }
+      }
+    }
+      * 
+      */
+    if (!path) return data;
+    if (path.length === 0) return data;
+    
+    const clone = JSON.parse(JSON.stringify(data));
+    let current = clone;
+    
+    for (let i = 0; i < path.length - 1; i++) {
+        current = current[path[i]];
+    }
+    
+    const lastKey = path[path.length - 1];
+    if (Array.isArray(current)) {
+        current.splice(Number(lastKey), 1);
+    } else {
+        delete current[lastKey];
+    }
+    
+    return clone;
+}
+
+const constructMetadataInfo = (data:any, embeddingViewData: EmbeddingItem[]) => {
+    
+      embeddingViewData.forEach((item, index) => {
+        if (item.metadata.path){
+          // then append modified data to EmbeddingItem
+          const path = item.metadata.path
+          const result = removeItemFromData(data, path)
+          item.metadata.info = result
+          
+        }
+      })  
+
+    return embeddingViewData
+}
+
+const getNodePromise = (id: string):any => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const node = getNode(id);
+      resolve(node);
+    }, 0);
+  });
+};
+
+
+const constructStructuredNodeEmbeddingData = async() => {
+
+  const node = await getNodePromise(id);
+  
+  const nodeContent = (node?.type === "structured" || node?.type === "none" && node?.data?.subType === "structured") ? cleanJsonString(node?.data.content as string | any) : node?.data.content as string
+
+  if (nodeContent === "error") return "error"
+  const embeddingData = {
+      ...node?.data,
+      content: nodeContent,
+      vdb_type: "pgvector",
+      model: "text-embedding-ada-002",
+      method: "cosine",
+  }
+  const embeddingNode = {
+      ...node,
+      data: embeddingData,
+  }
+  return embeddingNode
+}
+
+  const onEmbeddingClick = async () => {
+    /**
+     * 1. clear menu
+     * 2. construct embeddingNodeData
+     * 3. construct embeddingViewData
+     * 4. setNodes
+     */
+
+
+    // 2. construct embeddingNodeData
+      try {
+
+          const embeddingNodeData = await constructStructuredNodeEmbeddingData()
+          console.log("embeddingnode data",embeddingNodeData)
+
+          if (embeddingNodeData === "error") {
+              throw new Error("Invalid node data")
+          }
+
+          
+          const embeddingViewData=traverseJson(embeddingNodeData.data.content)
+
+          const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+          console.log(embeddingViewData)
+          console.log(embeddingViewDataWithInfo)
+
+          setNodes(prevNodes => prevNodes.map(
+              (node) => {
+                if (node.id === id) {
+                  return {...node, data: {...node.data, chunks: embeddingViewDataWithInfo}}
+                }
+                return node
+              }
+            ))
+
+          const transformPayload = (originalPayload: any) => {
+              return {
+                  chunks: originalPayload.data.chunks,
+                  create_new: true, // Indicates that a new entry is being created
+                  vdb_type: originalPayload.data.vdb_type,
+                  model: originalPayload.data.model
+              };
+          };
+
+          const payloaddata = transformPayload(embeddingNodeData)
+
+          console.log("payload",payloaddata)
+
+          if(payloaddata.chunks==undefined){
+            return
+          }
+
+          // TODO: 需要修改为动态的user_id
+          const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/Rose123`, {
+              method:'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payloaddata)
+          })
+
+          if (!response.ok) {
+              throw new Error(`HTTP Error: ${response.status}`)
+          }
+
+          // // 5. updateNode
+          const index_name_response = await response.json()
+          if (typeof index_name_response === 'string') {
+              setNodes(prevNodes => prevNodes.map(node => node.id === id ? {
+                ...node,
+                data: {
+                    ...node.data,
+                    content: node.data.content,
+                    index_name: index_name_response
+                }
+            } : node))
+
+            
+            setTimeout(() => {
+              const newnode = getNode(id)
+              console.log("index_name",newnode)
+            }, 1200);
+            
+        }
+          
+      } catch (error) {
+          console.error("Error fetching embedding:", error);
+      } finally {
+          clearAll()
+      }
   }
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[300px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[400px] min-h-[560] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
     
-    <div ref={contentRef} id={id} style={{}} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[90px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
-        <div style={{
-                  width: calculateMaxLabelContainerWidth(),
-                  borderStyle: "solid",
-                  height:"50px",
-                  position:"absolute",
-                  borderWidth:"0px",
-                  top:"70px"
-                }}>
-          <div style={{
-              display: 'flex',
-              justifyContent: 'left',
-              width: '100%',
-              height: '100%',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
-              borderBottom: 'none',
-              paddingLeft:"5px"
-            }}>
-            {viewMode==INPUT_VIEW_MODE?
-            <button style={{
-                border: 'solid',
-                paddingTop: '1px',
-                cursor: 'pointer',
+    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[30px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
+      style={{
+        borderRadius: "8px",
+        border: "1px solid #6D7177",
+        background: "#1C1D1F",
+      }}
+    >
+      <div 
+              style={{
+                    width: "100%",
+                    height: "32px",
+                    top: "70px"
+                  }}>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'left',
+                width: '100%',
+                height: '100%',
                 borderTopLeftRadius: '8px',
                 borderTopRightRadius: '8px',
-                borderWidth:"0px",
-                borderBottomStyle: "none",
-                boxShadow:"0px -0.5px 1px 0.1px grey",
-                paddingLeft:"20px",
-                paddingRight:"20px",
+              }}>
+              {viewMode==INPUT_VIEW_MODE?
+              <button style={{
+                  paddingTop: '1px',
+                  cursor: 'pointer',
+                  paddingLeft:"8px",
+                  paddingRight:"8px",
+                }}
+                className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
+                onClick={handleInputViewClick}
+                >
+                JSON View
+              </button>:
+              <button style={{
+                paddingTop: '1px',
+                cursor: 'pointer',
+                paddingLeft:"8px",
+                paddingRight:"8px",
               }}
-              className={`${borderColor} bg-gray-600/20`}
+              className={`text-[10px] text-[#A4A4A4]`}
               onClick={handleInputViewClick}
               >
-              Input View
-            </button>:
-            <button style={{
-              border: 'solid',
-              paddingTop: '1px',
-              cursor: 'pointer',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
-              borderWidth:"0px",
-              borderBottomStyle: "none",
-              boxShadow:"0px -0.5px 1px 0.1px grey",
-              paddingLeft:"20px",
-              paddingRight:"20px",
-            }}
-            onClick={handleInputViewClick}
-            >
-            Input View
-          </button>
-          }
-          {viewMode==EMBED_VIEW_MODE?
-            <button style={{
-                border: 'solid',
+              JSON View
+            </button>
+            }
+            {viewMode==EMBED_VIEW_MODE?
+              <button style={{
                 paddingTop: '1px',
                 cursor: 'pointer',
-                borderTopLeftRadius: '8px',
-                borderTopRightRadius: '8px',
-                borderWidth:"0px",
-                borderBottomStyle: "none",
-                boxShadow:"0px -0.5px 1px 0.1px grey",
-                paddingLeft:"20px",
-                paddingRight:"20px",
+                paddingLeft:"8px",
+                paddingRight:"8px",
                 display:isEmbedHidden?"none":"inline"
               }}
-              className={`${borderColor} bg-gray-600/20`}
-              onClick={handleInputViewClick}
-              >
-              Embedding View
-            </button>:
-            <button style={{
-              border: 'solid',
-              paddingTop: '1px',
-              cursor: 'pointer',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
-              borderWidth:"0px",
-              borderBottomStyle: "none",
-              boxShadow:"0px -0.5px 1px 0.1px grey",
-              paddingLeft:"20px",
-              paddingRight:"20px",
-              display:isEmbedHidden?"none":"inline"
-            }}
-            onClick={handleEmbedViewClick}
-            >
-            Embedding View
-          </button>
-          }
-          {
-            isEmbedHidden?
-            <button style={{
-                border: 'solid',
-                paddingLeft:"15px",
-                paddingRight:"15px",
+              className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
+                onClick={handleEmbedViewClick}
+                >
+<svg 
+  style={{
+    display: isEmbedded ? "none" : "inline",
+    animation: "rotate 2s linear infinite", // Added inline animation
+  }}
+  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    {`
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `}
+  </style>
+  <path d="M5 0V3" stroke="#A4A4A4"/>
+  <path d="M5 7V10" stroke="#A4A4A4"/>
+  <path d="M10 5H7" stroke="#A4A4A4"/>
+  <path d="M3 5H0" stroke="#A4A4A4"/>
+  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+</svg>
+                Embedding View
+              </button>:
+              <button style={{
+                paddingTop: '1px',
                 cursor: 'pointer',
-                borderRadius: '8px',
-                borderWidth:"1px",
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+                borderWidth:"0px",
+                paddingLeft:"8px",
+                paddingRight:"8px",
+                display:isEmbedHidden?"none":"inline"
               }}
-              className={`hover:bg-gray-700`}
-              onClick={handleAddTagPage}
+              className={`text-[10px] text-[#A4A4A4] justify-center items-center`}
+              onClick={handleEmbedViewClick}
               >
-              +
-            </button>:
-            <></>
-          }
-
-          </div>
-        </div>
-          {
-            viewMode=="embedding view"?
-            <div style={{
-              width: 'fit-content',
-              maxWidth: calculateMaxLabelContainerWidth(),
-            }}>
-            {
-              getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):<></>
+<svg 
+  style={{
+    display: isEmbedded ? "none" : "inline",
+    animation: "rotate 2s linear infinite", // Added inline animation
+  }}
+  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    {`
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `}
+  </style>
+  <path d="M5 0V3" stroke="#A4A4A4"/>
+  <path d="M5 7V10" stroke="#A4A4A4"/>
+  <path d="M10 5H7" stroke="#A4A4A4"/>
+  <path d="M3 5H0" stroke="#A4A4A4"/>
+  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+</svg>
+              Embedding View
+            </button>
             }
+            {
+              isEmbedHidden?
+              <div
+              onClick={handleAddTagPage}
+              className='cursor-pointer flex justify-center items-center'
+              >
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
+              >
+              <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5"/>
+              <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5"/>
+            </svg>
+              </div>
+              :
+              <></>
+            }
+
             </div>
-            :
-          <div className='w-full h-full'>
-                {isLoading ? <SkeletonLoadingIcon /> : 
-                            <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width}
-                            placeholder='["JSON"]'
-                                    parentId={id}
-                                    heightStyle={contentSize.height-18} />
-                }
           </div>
-          }
+            {
+              viewMode=="embedding view"?
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow:"hidden"
+              }}>
+
+              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3}
+                              placeholder='["JSON"]'
+                                      parentId={id}
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
+                                      inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
+                                      readonly={true}
+                                      />
+              </div>
+              :
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow:"hidden"
+              }}>
+                  {isLoading ? <SkeletonLoadingIcon /> : 
+                              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
+                              placeholder='["JSON"]'
+                                      parentId={id}
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160} />
+                  }
+            </div>
+            }
+    </div>
           
 
 
@@ -449,43 +787,31 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             maxWidth: calculateMaxLabelContainerWidth(),
            }}
 
-            className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
-<svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-             <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-           </svg>
-            {renderTagLogo()}
-
-
-
-            <span
-            ref={measureSpanRef}
-            style={{
-              visibility: 'hidden',
-              position: 'absolute',
-              whiteSpace: 'pre',
-              fontSize: '12px',
-              lineHeight: '18px',
-              fontWeight: '700',
-              fontFamily: 'Plus Jakarta Sans'
-            }}
-            >
-            {nodeLabel}
-          </span>
-           
+        className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
+          {renderTagLogo()}
+          <span
+          ref={measureSpanRef}
+          style={{
+            visibility: 'hidden',
+            position: 'absolute',
+            whiteSpace: 'pre',
+            fontSize: '12px',
+            lineHeight: '18px',
+            fontWeight: '700',
+            fontFamily: 'Plus Jakarta Sans'
+          }}
+          >
+          {nodeLabel}
+        </span>
           <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
             style={{
               boxSizing: "content-box",
               width: calculateInputWidth(),
               maxWidth: '100%',
-              
-            }}
-            size={nodeLabel.length ?? 0}
-            value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
+      
+    }}
+    size={nodeLabel.length ?? 0}
+    value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
            
           
 
@@ -495,7 +821,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
       
         <NodeResizeControl 
           minWidth={240} 
-          minHeight={240}
+          minHeight={HEIGHT_STD}
           style={{ position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize', 
             background: 'transparent',
             border: 'none' }}

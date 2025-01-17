@@ -134,27 +134,35 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
     if (locked) return (
-      <svg xmlns="http://www.w3.org/2000/svg" width="8" height="9" viewBox="0 0 8 9" fill="none">
-      <rect y="4" width="8" height="5" fill="black"/>
-      <rect x="1.75" y="0.75" width="4.5" height="6.5" rx="2.25" stroke="black" strokeWidth="1.5"/>
-    </svg>
+      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="12" width="12" height="7" fill="#3EDBC9"/>
+      <rect x="6" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2"/>
+      </svg>
     )
     else if (isInput) return (
-      <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-      <path d="M2.5 1.5L5.5 4L2.5 6.5V1.5Z" fill="black"/>
-      <path d="M3 4H0" stroke="black" strokeWidth="1.5"/>
-      <path d="M4 0H8V8H4V6.5H6.5V1.5H4V0Z" fill="black"/>
-    </svg>
+      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M8.5 14V10L11.1667 12L8.5 14Z" fill="#6C98D5" stroke="#6C98D5"/>
+      <path d="M9 11.9961L4 12.001" stroke="#6C98D5" stroke-width="2"/>
+      <path d="M13.5 7H9.5V5.5H15.5V18.5H9.5V17H13.5H14V16.5V7.5V7H13.5Z" fill="#6C98D5" stroke="#6C98D5"/>
+      </svg>
+
     )
     else if (isOutput) return (
-      <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 8 8" fill="none">
-      <path d="M5.5 2L8 4L5.5 6V2Z" fill="black"/>
-      <path d="M6 4H3" stroke="black" strokeWidth="1.5"/>
-      <path d="M0 0H4V1.5H1.5V6.5H4V8H0V0Z" fill="black"/>
-    </svg>
+      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12.5 14V10L15.1667 12L12.5 14Z" fill="#FF9267" stroke="#FF9267"/>
+      <path d="M13 11.9961L8 12.001" stroke="#FF9267" stroke-width="2"/>
+      <path d="M6.5 7H10.5V5.5H4.5V18.5H10.5V17H6.5H6V16.5V7.5V7H6.5Z" fill="#FF9267" stroke="#FF9267"/>
+      </svg>
     )
     else return (
-      <></>
+      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+        <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+        <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+        <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+        <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+        <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+        <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+      </svg>
     )
   }
 
@@ -222,14 +230,6 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
             maxWidth: calculateMaxLabelContainerWidth(),
            }}
            className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
-           <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-             <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-             <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-           </svg>
            {renderTagLogo()}
 
             <span
@@ -238,7 +238,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               visibility: 'hidden',
               position: 'absolute',
               whiteSpace: 'pre',
-              fontSize: '10px',
+              fontSize: '12px',
               lineHeight: '18px',
               fontWeight: '700',
               fontFamily: 'Plus Jakarta Sans'
@@ -247,7 +247,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
             {nodeLabel}
           </span>
            
-            <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[700] text-[10px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
+            <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[700] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
             style={{
               boxSizing: "content-box",
               width: calculateInputWidth(),
