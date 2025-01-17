@@ -1,7 +1,8 @@
-import React,{useEffect, useState} from 'react'
+import React,{useEffect, useState, Fragment} from 'react'
 import { useReactFlow , Position} from '@xyflow/react'
 import { flushSync } from 'react-dom';
 import {useNodesPerFlowContext} from '../../states/NodesPerFlowContext'
+import { Transition } from '@headlessui/react'
 
 type WebLinkNodeSettingMenuProps = {
     showSettingMenu: number,
@@ -28,66 +29,76 @@ function WebLinkNodeSettingMenu({showSettingMenu, clearMenu, nodeid}:  WebLinkNo
     }
 
   return (
-    <ul className={`flex flex-col absolute top-[24px] py-[8px] w-[128px] bg-[#3E3E41] rounded-[4px] left-0 z-[20000] ${showSettingMenu ? "" : "hidden"}`}>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px] gap-[8px] w-full h-[24px] bg-[#3E3E41] border-none rounded-t-[4px]'>
-                <div className='flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                        <path fillRule="evenodd" clipRule="evenodd" d="M5.97054 5.39628C5.90535 5.2987 5.8305 5.20586 5.74599 5.11919C5.00688 4.36117 3.80854 4.36117 3.06942 5.11919L1.33828 6.8946C0.599166 7.65262 0.599166 8.8816 1.33828 9.63962C2.07739 10.3976 3.27573 10.3976 4.01485 9.63962L5.14305 8.48257L4.44493 7.76659L3.31672 8.92365C2.96317 9.28624 2.38996 9.28624 2.0364 8.92364C1.68285 8.56105 1.68285 7.97317 2.0364 7.61058L3.76755 5.83516C4.1211 5.47257 4.69431 5.47257 5.04787 5.83517C5.13556 5.9251 5.2015 6.02889 5.24569 6.13967L5.97054 5.39628Z" fill="#BEBEBE"/>
-                        <path fillRule="evenodd" clipRule="evenodd" d="M3.81025 6.60441C3.8754 6.70192 3.95021 6.79468 4.03467 6.8813C4.77378 7.63931 5.97212 7.63932 6.71123 6.8813L8.44238 5.10589C9.18149 4.34787 9.18149 3.11888 8.44237 2.36087C7.70326 1.60285 6.50492 1.60285 5.76581 2.36087L4.63745 3.51808L5.33557 4.23406L6.46393 3.07684C6.81748 2.71425 7.3907 2.71425 7.74425 3.07684C8.0978 3.43944 8.0978 4.02732 7.74425 4.38991L6.01311 6.16532C5.65956 6.52792 5.08634 6.52792 4.73279 6.16532C4.64516 6.07545 4.57925 5.97175 4.53506 5.86106L3.81025 6.60441Z" fill="#BEBEBE"/>
-                    </svg>
-                </div>
-                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                    Update Link
-                </div>
-            </button>
-        </li>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px] gap-[8px] w-full h-[24px] bg-[#3E3E41]'
-            onClick={()=> manageNodeasLocked(nodeid)}>
-                <div className='flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="9" viewBox="0 0 8 9" fill="none">
-                        <rect y="4" width="8" height="5" fill="#BEBEBE"/>
-                        <rect x="1.75" y="0.75" width="4.5" height="6.5" rx="2.25" stroke="#BEBEBE" strokeWidth="1.5"/>
-                    </svg>
-                </div>
-                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                    {getNode(nodeid)?.data?.locked ? "Unlock it" :"Lock it"}
-                </div>
-            </button>
-        </li>
-        <li>
-            <div className='h-[1px] w-full bg-[#181818] my-[8px]'></div>
-        </li>
-        <li>
-            <button className='renameButton flex flex-row items-center justify-start px-[16px] gap-[8px] w-full h-[24px] bg-[#3E3E41]'
-            onClick={manageEditLabel}>
-                <div className='renameButton flex items-center justify-center'>
-                    <svg className='renameButton' xmlns="http://www.w3.org/2000/svg" width="9" height="10" viewBox="0 0 9 10" fill="none">
-                        <path d="M7 0.5L9.00006 2.50006L4.5 7L2.5 5L7 0.5Z" fill="#BEBEBE"/>
-                        <path d="M2 5.5L4 7.5L1 8.5L2 5.5Z" fill="#BEBEBE"/>
-                    </svg>
-                </div>
-                <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                    rename
-                </div>
-            </button>
-        </li>
-        <li>
-            <button className='flex flex-row items-center justify-start px-[16px] gap-[8px] w-full h-[24px] bg-[#3E3E41] rounded-b-[4px]' 
-            onClick={deleteNode}>
-                <div className='flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10" fill="none">
-                        <path d="M9 1L1 9" stroke="#BEBEBE" strokeWidth="2"/>
-                        <path d="M9 9L1 1" stroke="#BEBEBE" strokeWidth="2"/>
-                    </svg>
-                </div>
-                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-                    Delete
-                </div>
-            </button>
-        </li>
-    </ul>
+    <Transition
+        show={!!showSettingMenu}
+        as={Fragment}
+        enter="transition ease-out duration-100"
+        enterFrom="transform opacity-0 translate-y-[-10px]"
+        enterTo="transform opacity-100 translate-y-0"
+        leave="transition ease-in duration-75"
+        leaveFrom="transform opacity-100 translate-y-0"
+        leaveTo="transform opacity-0 translate-y-[-10px]"
+    >
+        <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
+            <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'>
+                    <div className='flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path fillRule="evenodd" clipRule="evenodd" d="M14.9705 12.3963C14.9054 12.2987 14.8305 12.2059 14.746 12.1192C14.0069 11.3612 12.8085 11.3612 12.0694 12.1192L10.3383 13.8946C9.59917 14.6526 9.59917 15.8816 10.3383 16.6396C11.0774 17.3976 12.2757 17.3976 13.0148 16.6396L14.143 15.4826L13.4449 14.7666L12.3167 15.9236C11.9632 16.2862 11.39 16.2862 11.0364 15.9236C10.6829 15.5611 10.6829 14.9732 11.0364 14.6106L12.7675 12.8352C13.1211 12.4726 13.6943 12.4726 14.0479 12.8352C14.1356 12.9251 14.2015 13.0289 14.2457 13.1397L14.9705 12.3963Z" fill="currentColor"/>
+                            <path fillRule="evenodd" clipRule="evenodd" d="M12.8103 13.6044C12.8754 13.7019 12.9502 13.7947 13.0347 13.8813C13.7738 14.6393 14.9721 14.6393 15.7112 13.8813L17.4424 12.1059C18.1815 11.3479 18.1815 10.1189 17.4424 9.36087C16.7033 8.60285 15.5049 8.60285 14.7658 9.36087L13.6374 10.5181L14.3356 11.2341L15.4639 10.0768C15.8175 9.71425 16.3907 9.71425 16.7442 10.0768C17.0978 10.4394 17.0978 11.0273 16.7442 11.3899L15.0131 13.1653C14.6596 13.5279 14.0863 13.5279 13.7328 13.1653C13.6452 13.0754 13.5793 12.9717 13.5351 12.8611L12.8103 13.6044Z" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        Update Link
+                    </div>
+                </button>
+            </li>
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                onClick={()=> manageNodeasLocked(nodeid)}>
+                    <div className='flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="7" y="13" width="12" height="7" fill="currentColor"/>
+                            <rect x="9" y="7" width="8" height="11" rx="4" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        {getNode(nodeid)?.data?.locked ? "Unlock the Link" : "Lock the Link"}
+                    </div>
+                </button>
+            </li>
+            <li>
+                <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                onClick={manageEditLabel}>
+                    <div className='renameButton flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M16.8891 6L20.0003 9.11118L13.0002 16.111L9.88915 13L16.8891 6Z" fill="currentColor"/>
+                            <path d="M9.1109 13.7776L12.222 16.8887L7.55536 18.4442L9.1109 13.7776Z" fill="currentColor"/>
+                        </svg>
+                    </div>
+                    <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        Rename
+                    </div>
+                </button>
+            </li>
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
+                onClick={deleteNode}>
+                    <div className='flex items-center justify-center'>
+                        <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2"/>
+                        </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        Delete
+                    </div>
+                </button>
+            </li>
+        </ul>
+    </Transition>
   )
 }
 
