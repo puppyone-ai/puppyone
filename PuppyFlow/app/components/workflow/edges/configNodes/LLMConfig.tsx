@@ -3,7 +3,6 @@ import { Handle, Position, NodeProps, Node, useOnViewportChange, Viewport} from 
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, {useState, useEffect, useRef} from 'react'
 import LLMConfigMenu from '@/app/components/menu/configMenu/LLMConfigMenu'
-import { nodeSmallProps } from '@/app/components/menu/nodeMenu/NodeMenu'
 import { useReactFlow } from '@xyflow/react'
 export type LLMConfigNodeData = {
     looped: boolean | undefined,
@@ -64,10 +63,10 @@ function LLMConfig({isConnectable, id}: LLMConfigNodeProps) {
          <button className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`} onClick={onClickButton} >
                 LLM
                 {renderLoopIcon()}
-                <Handle id={`${id}-a`} className='edgeSrcHandle' type='source' position={Position.Top} />
-                <Handle id={`${id}-b`} className='edgeSrcHandle' type='source' position={Position.Right} />
-                <Handle id={`${id}-c`} className='edgeSrcHandle' type='source' position={Position.Bottom} />
-                <Handle id={`${id}-d`} className='edgeSrcHandle' type='source' position={Position.Left} />
+                <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
+                <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
+                <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
+                <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
                 <Handle
                 id={`${id}-a`}
                 type="target"
@@ -86,9 +85,9 @@ function LLMConfig({isConnectable, id}: LLMConfigNodeProps) {
                 zIndex: !isOnConnect ? "-1" : "1",
                 // maybe consider about using stored isActivated
                 }}
-            isConnectable={isConnectable}
-            onMouseEnter={() => setIsTargetHandleTouched(true)}
-            onMouseLeave={() => setIsTargetHandleTouched(false)}
+                isConnectable={isConnectable}
+                onMouseEnter={() => setIsTargetHandleTouched(true)}
+                onMouseLeave={() => setIsTargetHandleTouched(false)}
                 />
             <Handle
                 id={`${id}-b`}
