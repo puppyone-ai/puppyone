@@ -1,5 +1,5 @@
 import React from 'react'
-import AddNodeButton from './topLeftToolBar/addNodeButton'
+import AddNodeButton from './topLeftToolBar/AddNodeButton'
 import TopRightToolBar from './topRightToolBar/TopRightToolBar'
 import TopRightSaveHistoryButton from './topRightToolBar/SaveButton'
 function Upbar() {
