@@ -17,7 +17,7 @@ function NodeToolBar({Parentnodeid, ParentNodetype}: NodeToolBarProps) {
     const {activatedNode} = useNodesPerFlowContext()
     return (
 
-        <div className={`absolute top-[40px] right-[40px] flex gap-[6.5px] items-center justify-center ${activatedNode?.id === Parentnodeid ? "": "hidden"} p-[1px]`} >
+        <div className={`absolute top-[8px] right-[8px] flex gap-[6.5px] items-center justify-center ${activatedNode?.id === Parentnodeid ? "": "hidden"} p-[1px]`} >
             <NodeSettingsController nodeid={Parentnodeid}/>
             {/* {isDisplayFullScreenController ? <FullScreenController nodeid={Parentnodeid} /> : null} */}
         </div>

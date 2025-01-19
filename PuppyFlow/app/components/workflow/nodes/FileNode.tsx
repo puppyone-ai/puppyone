@@ -215,7 +215,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[208px] min-h-[208px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       <div id={id} ref={contentRef} 
         className={`w-full h-full ${
           content 
@@ -229,7 +229,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
             width: 'fit-content',
             maxWidth: calculateMaxLabelContainerWidth(),
            }}
-           className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
+           className={`absolute top-[8px] left-[8px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
            {renderTagLogo()}
 
             <span
@@ -260,7 +260,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           
         </div>
 
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[40px] right-[40px]'>
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] right-[8px]'>
           <path d="M0.5 0.5H8.87821L13.2838 12.5H0.5V0.5Z" stroke="#6D7177"/>
           <rect x="0.5" y="3.38916" width="13" height="9.11111"  stroke="#6D7177"/>
         </svg>

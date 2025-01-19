@@ -216,7 +216,7 @@ function WebLinkNode({data: {content, label, isLoading, locked, isInput, isOutpu
 
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[208px] min-h-[208px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       <div id={id} ref={contentRef} className={`w-full h-full min-h-[144px] min-w-[144px] border-[1.5px] rounded-[8px] px-[15px] py-[25px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-[16px] font-[400]`}  >
 
       <div ref={labelContainerRef} 
@@ -224,7 +224,7 @@ function WebLinkNode({data: {content, label, isLoading, locked, isInput, isOutpu
             width: 'fit-content',
             maxWidth: calculateMaxLabelContainerWidth(),
            }}
-           className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
+           className={`absolute top-[8px] left-[8px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
            {renderTagLogo()}
 
             <span
@@ -254,7 +254,7 @@ function WebLinkNode({data: {content, label, isLoading, locked, isInput, isOutpu
            
           
         </div>
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" className='fixed bottom-[40px] right-[40px]'>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" className='fixed bottom-[8px] right-[8px]'>
           <path fillRule="evenodd" clipRule="evenodd" d="M8.36816 6.12566C8.27388 5.98507 8.16393 5.85168 8.03831 5.72788C7.03122 4.73542 5.3984 4.73542 4.3913 5.72788L1.8234 8.25849C0.816308 9.25096 0.816308 10.8601 1.8234 11.8525C2.83049 12.845 4.46332 12.845 5.47041 11.8525L7.1442 10.203L6.43194 9.50113L4.75815 11.1506C4.14443 11.7554 3.14938 11.7554 2.53566 11.1506C1.92194 10.5458 1.92194 9.56522 2.53566 8.96041L5.10356 6.4298C5.71729 5.82499 6.71233 5.82499 7.32605 6.4298C7.45456 6.55644 7.55616 6.69956 7.63086 6.85226L8.36816 6.12566Z" fill="#6D7177"/>
           <path fillRule="evenodd" clipRule="evenodd" d="M5.49365 7.52376C5.58793 7.66435 5.69788 7.79774 5.8235 7.92153C6.8306 8.914 8.46342 8.914 9.47051 7.92153L12.0384 5.39092C13.0455 4.39846 13.0455 2.78935 12.0384 1.79688C11.0313 0.804417 9.3985 0.804418 8.39141 1.79688L6.71761 3.44637L7.42987 4.14829L9.10367 2.4988C9.71739 1.89399 10.7124 1.89399 11.3262 2.4988C11.9399 3.10361 11.9399 4.0842 11.3262 4.68901L8.75825 7.21962C8.14453 7.82443 7.14949 7.82443 6.53576 7.21962C6.40725 7.09297 6.30565 6.94985 6.23096 6.79716L5.49365 7.52376Z" fill="#6D7177"/>
           </svg>
