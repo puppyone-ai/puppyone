@@ -49,7 +49,6 @@ function WhiteBallHandle({sourceNodeId, ...props}: WhiteBallHandleProps) {
     }
 
 
-
     const onClickAction = (event: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
         event.preventDefault()
         event.stopPropagation()
@@ -92,28 +91,72 @@ function WhiteBallHandle({sourceNodeId, ...props}: WhiteBallHandleProps) {
     }
    
     
-    
-  return (
-    <>
-     <Handle 
-     id={props.id}
-     type={props.type} 
-     position={props.position}
-     onClick={(event) => onClickAction(event)}
-     onConnect={(connection: Connection) => console.log(connection.source, connection.sourceHandle)}
-     style={{
-       zIndex: 10000,
-     }}
-    //  onMouseDown={() => preventActivateNode()}
-     className={ `relative flex items-center justify-center pb-[5px] ${judgeDisplay()} ${showHandleColor()} transition-all duration-300`} > 
-     {showHandleColor() === "selected" && <div className={`text-main-orange transition-all duration-300`}>+</div> } 
-    </Handle>
-    <EdgeMenu1 nodeType={getNode(sourceNodeId)?.type || "text"} sourceNodeId={sourceNodeId}
-        handleId={props.id} position={props.position} />
-    </>
-    
-  )
-  
+    const getHandleStyle = () => {
+        switch (props.position) {
+            case Position.Top:
+                return {
+                    zIndex: 10000,
+                    top: '-16px',    // 向上偏移
+                    // left: '50%',   // 可以添加水平居中
+                };
+            case Position.Bottom:
+                return {
+                    zIndex: 10000,
+                    bottom: '-16px',  // 向下偏移
+                };
+            case Position.Left:
+                return {
+                    zIndex: 10000,
+                    left: '-16px',    // 向左偏移
+                };
+            case Position.Right:
+                return {
+                    zIndex: 10000,
+                    right: '-16px',   // 向右偏移
+                };
+            default:
+                return {
+                    zIndex: 10000,
+                };
+        }
+    };
+
+    return (
+        <>
+            <Handle 
+                id={props.id}
+                type={props.type} 
+                position={props.position}
+                onClick={(event) => onClickAction(event)}
+                onConnect={(connection: Connection) => console.log(connection.source, connection.sourceHandle)}
+                style={getHandleStyle()}
+                className={`relative flex items-center justify-center ${judgeDisplay()} ${showHandleColor()} transition-all duration-300  hover:!border-main-orange hover:!w-[20px] hover:!h-[20px] hover:!border-2 hover:!rounded-[10px] group`}
+            > 
+                <div className={`absolute inset-0 flex items-center justify-center text-main-orange transition-all duration-300 opacity-0 group-hover:opacity-100 ${showHandleColor() === "selected" ? "opacity-100" : ""} pointer-events-none`}>
+                    <svg 
+                        width="10" 
+                        height="10" 
+                        viewBox="0 0 10 10" 
+                        fill="none" 
+                        xmlns="http://www.w3.org/2000/svg"
+                    >
+                        <path 
+                            d="M5 0V10M0 5H10" 
+                            stroke="currentColor" 
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                        />
+                    </svg>
+                </div>
+            </Handle>
+            <EdgeMenu1 
+                nodeType={getNode(sourceNodeId)?.type || "text"} 
+                sourceNodeId={sourceNodeId}
+                handleId={props.id} 
+                position={props.position} 
+            />
+        </>
+    );
 }
 
 export default WhiteBallHandle
