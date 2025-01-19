@@ -95,28 +95,28 @@ function WhiteBallHandle({sourceNodeId, ...props}: WhiteBallHandleProps) {
         switch (props.position) {
             case Position.Top:
                 return {
-                    zIndex: 10000,
+                    zIndex: 0,
                     top: '-16px',    // 向上偏移
                     // left: '50%',   // 可以添加水平居中
                 };
             case Position.Bottom:
                 return {
-                    zIndex: 10000,
+                    zIndex: 0,
                     bottom: '-16px',  // 向下偏移
                 };
             case Position.Left:
                 return {
-                    zIndex: 10000,
+                    zIndex: 0,
                     left: '-16px',    // 向左偏移
                 };
             case Position.Right:
                 return {
-                    zIndex: 10000,
+                    zIndex: 0,
                     right: '-16px',   // 向右偏移
                 };
             default:
                 return {
-                    zIndex: 10000,
+                    zIndex: 0,
                 };
         }
     };
