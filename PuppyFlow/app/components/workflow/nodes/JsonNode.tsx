@@ -596,11 +596,11 @@ const constructStructuredNodeEmbeddingData = async() => {
   }
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[400px] min-h-[560] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
     
-    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[30px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
-    <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
+    <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[240px] border-[1.5px] rounded-[8px] px-[8px] pt-[38px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div className=' rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
       style={{
         borderRadius: "8px",
         border: "1px solid #6D7177",
@@ -608,174 +608,174 @@ const constructStructuredNodeEmbeddingData = async() => {
       }}
     >
       <div 
-              style={{
-                    width: "100%",
-                    height: "32px",
-                    top: "70px"
-                  }}>
-            <div style={{
-                display: 'flex',
-                justifyContent: 'left',
-                width: '100%',
-                height: '100%',
-                borderTopLeftRadius: '8px',
-                borderTopRightRadius: '8px',
-              }}>
-              {viewMode==INPUT_VIEW_MODE?
-              <button style={{
-                  paddingTop: '1px',
-                  cursor: 'pointer',
-                  paddingLeft:"8px",
-                  paddingRight:"8px",
-                }}
-                className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
-                onClick={handleInputViewClick}
-                >
-                JSON View
-              </button>:
-              <button style={{
-                paddingTop: '1px',
-                cursor: 'pointer',
-                paddingLeft:"8px",
-                paddingRight:"8px",
-              }}
-              className={`text-[10px] text-[#A4A4A4]`}
-              onClick={handleInputViewClick}
-              >
-              JSON View
-            </button>
-            }
-            {viewMode==EMBED_VIEW_MODE?
-              <button style={{
-                paddingTop: '1px',
-                cursor: 'pointer',
-                paddingLeft:"8px",
-                paddingRight:"8px",
-                display:isEmbedHidden?"none":"inline"
-              }}
-              className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
-                onClick={handleEmbedViewClick}
-                >
-<svg 
-  style={{
-    display: isEmbedded ? "none" : "inline",
-    animation: "rotate 2s linear infinite", // Added inline animation
-  }}
-  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    {`
-      @keyframes rotate {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
+        style={{
+              width: "100%",
+              height: "32px",
+              top: "70px"
+            }}>
+      <div style={{
+          display: 'flex',
+          justifyContent: 'left',
+          width: '100%',
+          height: '100%',
+          borderTopLeftRadius: '8px',
+          borderTopRightRadius: '8px',
+        }}>
+        {viewMode==INPUT_VIEW_MODE?
+        <button style={{
+            paddingTop: '1px',
+            cursor: 'pointer',
+            paddingLeft:"8px",
+            paddingRight:"8px",
+          }}
+          className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
+          onClick={handleInputViewClick}
+          >
+          JSON View
+        </button>:
+        <button style={{
+          paddingTop: '1px',
+          cursor: 'pointer',
+          paddingLeft:"8px",
+          paddingRight:"8px",
+        }}
+        className={`text-[10px] text-[#A4A4A4]`}
+        onClick={handleInputViewClick}
+        >
+        JSON View
+      </button>
       }
-    `}
-  </style>
-  <path d="M5 0V3" stroke="#A4A4A4"/>
-  <path d="M5 7V10" stroke="#A4A4A4"/>
-  <path d="M10 5H7" stroke="#A4A4A4"/>
-  <path d="M3 5H0" stroke="#A4A4A4"/>
-  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
-  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
-  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
-  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
-</svg>
-                Embedding View
-              </button>:
-              <button style={{
-                paddingTop: '1px',
-                cursor: 'pointer',
-                borderTopLeftRadius: '8px',
-                borderTopRightRadius: '8px',
-                borderWidth:"0px",
-                paddingLeft:"8px",
-                paddingRight:"8px",
-                display:isEmbedHidden?"none":"inline"
-              }}
-              className={`text-[10px] text-[#A4A4A4] justify-center items-center`}
-              onClick={handleEmbedViewClick}
-              >
-<svg 
-  style={{
-    display: isEmbedded ? "none" : "inline",
-    animation: "rotate 2s linear infinite", // Added inline animation
-  }}
-  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    {`
-      @keyframes rotate {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
+      {viewMode==EMBED_VIEW_MODE?
+        <button style={{
+          paddingTop: '1px',
+          cursor: 'pointer',
+          paddingLeft:"8px",
+          paddingRight:"8px",
+          display:isEmbedHidden?"none":"inline"
+        }}
+        className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
+          onClick={handleEmbedViewClick}
+          >
+      <svg 
+        style={{
+          display: isEmbedded ? "none" : "inline",
+          animation: "rotate 2s linear infinite", // Added inline animation
+        }}
+        width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          {`
+            @keyframes rotate {
+              from {
+                transform: rotate(0deg);
+              }
+              to {
+                transform: rotate(360deg);
+              }
+            }
+          `}
+        </style>
+        <path d="M5 0V3" stroke="#A4A4A4"/>
+        <path d="M5 7V10" stroke="#A4A4A4"/>
+        <path d="M10 5H7" stroke="#A4A4A4"/>
+        <path d="M3 5H0" stroke="#A4A4A4"/>
+        <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+        <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+        <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+        <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+      </svg>
+          Embedding View
+        </button>:
+        <button style={{
+          paddingTop: '1px',
+          cursor: 'pointer',
+          borderTopLeftRadius: '8px',
+          borderTopRightRadius: '8px',
+          borderWidth:"0px",
+          paddingLeft:"8px",
+          paddingRight:"8px",
+          display:isEmbedHidden?"none":"inline"
+        }}
+        className={`text-[10px] text-[#A4A4A4] justify-center items-center`}
+        onClick={handleEmbedViewClick}
+        >
+      <svg 
+        style={{
+          display: isEmbedded ? "none" : "inline",
+          animation: "rotate 2s linear infinite", // Added inline animation
+        }}
+        width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          {`
+            @keyframes rotate {
+              from {
+                transform: rotate(0deg);
+              }
+              to {
+                transform: rotate(360deg);
+              }
+            }
+          `}
+        </style>
+        <path d="M5 0V3" stroke="#A4A4A4"/>
+        <path d="M5 7V10" stroke="#A4A4A4"/>
+        <path d="M10 5H7" stroke="#A4A4A4"/>
+        <path d="M3 5H0" stroke="#A4A4A4"/>
+        <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+        <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+        <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+        <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+      </svg>
+        Embedding View
+      </button>
       }
-    `}
-  </style>
-  <path d="M5 0V3" stroke="#A4A4A4"/>
-  <path d="M5 7V10" stroke="#A4A4A4"/>
-  <path d="M10 5H7" stroke="#A4A4A4"/>
-  <path d="M3 5H0" stroke="#A4A4A4"/>
-  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
-  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
-  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
-  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
-</svg>
-              Embedding View
-            </button>
-            }
-            {
-              isEmbedHidden?
-              <div
-              onClick={handleAddTagPage}
-              className='cursor-pointer flex justify-center items-center'
-              >
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
-              >
-              <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5"/>
-              <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5"/>
-            </svg>
-              </div>
-              :
-              <></>
-            }
+      {
+        isEmbedHidden?
+        <div
+        onClick={handleAddTagPage}
+        className='cursor-pointer flex justify-center items-center'
+        >
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
+        >
+        <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5"/>
+        <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5"/>
+      </svg>
+        </div>
+        :
+        <></>
+      }
 
-            </div>
-          </div>
-            {
-              viewMode=="embedding view"?
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow:"hidden"
-              }}>
+      </div>
+    </div>
+      {
+        viewMode=="embedding view"?
+        <div style={{
+          width: 'fit-content',
+          maxWidth: calculateMaxLabelContainerWidth(),
+          overflow:"hidden"
+        }}>
 
-              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3}
-                              placeholder='["JSON"]'
-                                      parentId={id}
-                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
-                                      inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
-                                      readonly={true}
-                                      />
-              </div>
-              :
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow:"hidden"
-              }}>
-                  {isLoading ? <SkeletonLoadingIcon /> : 
-                              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
-                              placeholder='["JSON"]'
-                                      parentId={id}
-                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160} />
-                  }
-            </div>
+        <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3}
+                        placeholder='["JSON"]'
+                                parentId={id}
+                                heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
+                                inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
+                                readonly={true}
+                                />
+        </div>
+        :
+        <div style={{
+          width: 'fit-content',
+          maxWidth: calculateMaxLabelContainerWidth(),
+          overflow:"hidden"
+        }}>
+            {isLoading ? <SkeletonLoadingIcon /> : 
+                        <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
+                        placeholder='["JSON"]'
+                                parentId={id}
+                                heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160} />
             }
+      </div>
+      }
     </div>
           
 
@@ -787,7 +787,7 @@ const constructStructuredNodeEmbeddingData = async() => {
             maxWidth: calculateMaxLabelContainerWidth(),
            }}
 
-        className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
+        className={`absolute top-[8px] left-[8px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
           {renderTagLogo()}
           <span
           ref={measureSpanRef}
@@ -830,8 +830,8 @@ const constructStructuredNodeEmbeddingData = async() => {
             style={{
               position: "absolute",
               visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
-              right: "36px",
-              bottom: "36px",
+              right: "8px",
+              bottom: "8px",
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
