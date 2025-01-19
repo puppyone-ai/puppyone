@@ -95,7 +95,7 @@ function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSetti
             leaveFrom="transform opacity-100 translate-y-0"
             leaveTo="transform opacity-0 translate-y-[-10px]"
         >
-            <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
+            <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
 
                 <li>
                     <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'

@@ -208,7 +208,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
     const calculateMaxLabelContainerWidth = () => {
       if (contentRef.current) {
-        return `${contentRef.current.clientWidth - 32}px`
+        return `${contentRef.current.clientWidth - 48}px`
       }
       return '100%'
     }
@@ -221,43 +221,57 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           content 
             ? "border-solid border-[1.5px]" 
             : "border-dashed border-[1.5px]"
-        } min-w-[144px] min-h-[144px] rounded-[8px] flex justify-center ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
+        } min-w-[144px] min-h-[144px] p-[8px] rounded-[8px] flex justify-center ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
           
-           
-      <div ref={labelContainerRef} 
-           style={{
-            width: 'fit-content',
-            maxWidth: calculateMaxLabelContainerWidth(),
-           }}
-           className={`absolute top-[8px] left-[8px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
-           {renderTagLogo()}
+        {/* the top bar of a block */}
+        <div ref={labelContainerRef} 
+          className={` h-[24px] w-full rounded-[4px] px-[0px] flex items-center justify-between`}>
+          
+          {/* top-left wrapper */}
+          <div className="flex items-center gap-[8px]"
+            style={{
+              maxWidth: calculateMaxLabelContainerWidth(),
+            }}>
+            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+              {renderTagLogo()}
+            </div>
 
+            {/* measure label width span */}
             <span
-            ref={measureSpanRef}
-            style={{
-              visibility: 'hidden',
-              position: 'absolute',
-              whiteSpace: 'pre',
-              fontSize: '12px',
-              lineHeight: '18px',
-              fontWeight: '700',
-              fontFamily: 'Plus Jakarta Sans'
-            }}
-          >
-            {nodeLabel}
-          </span>
-           
-            <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[700] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
-            style={{
-              boxSizing: "content-box",
-              width: calculateInputWidth(),
-              maxWidth: '100%',
-              
-            }}
-            size={nodeLabel.length ?? 0}
-            value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
-           
-          
+              ref={measureSpanRef}
+              style={{
+                visibility: 'hidden',
+                position: 'absolute',
+                whiteSpace: 'pre',
+                fontSize: '12px',
+                lineHeight: '18px',
+                fontWeight: '700',
+                fontFamily: 'Plus Jakarta Sans',
+              }}>
+              {nodeLabel}
+            </span>
+            
+            <input ref={labelRef} 
+              autoFocus={editable} 
+              className={`flex items-center justify-start text-[#6D7177] font-[700] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
+              style={{
+                boxSizing: "content-box",
+                width: calculateInputWidth(),
+                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
+              }}
+              size={nodeLabel.length ?? 0}
+              value={`${nodeLabel}`} 
+              readOnly={!editable} 
+              onChange={EditLabel} 
+              onMouseDownCapture={onFocus} 
+              onBlur={onBlur} 
+            />
+          </div>
+
+          {/* top-right toolbar */}
+          <div className="min-w-[24px] min-h-[24px] flex items-center justify-center">
+            <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
+          </div>
         </div>
 
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] right-[8px]'>
@@ -265,8 +279,6 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           <rect x="0.5" y="3.38916" width="13" height="9.11111"  stroke="#6D7177"/>
         </svg>
 
-        <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
-        
         <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
             isConnectable={isConnectable} position={Position.Top}  />
             <WhiteBallHandle id={`${id}-b`} type="source" sourceNodeId={id}

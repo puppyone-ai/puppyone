@@ -598,9 +598,62 @@ const constructStructuredNodeEmbeddingData = async() => {
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
-    
-    <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[240px] border-[1.5px] rounded-[8px] px-[8px] pt-[38px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
-    <div className=' rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[240px] border-[1.5px] rounded-[8px] p-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+          
+          {/* the top bar of a block */}
+          <div ref={labelContainerRef} 
+            className={`h-[24px] w-full rounded-[4px] flex items-center justify-between mb-2`}>
+            
+            {/* top-left wrapper */}
+            <div className="flex items-center gap-[8px]"
+              style={{
+                maxWidth: calculateMaxLabelContainerWidth(),
+              }}>
+              <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+                {renderTagLogo()}
+              </div>
+
+              {/* measure label width span */}
+              <span
+                ref={measureSpanRef}
+                style={{
+                  visibility: 'hidden',
+                  position: 'absolute',
+                  whiteSpace: 'pre',
+                  fontSize: '12px',
+                  lineHeight: '18px',
+                  fontWeight: '700',
+                  fontFamily: 'Plus Jakarta Sans'
+                }}>
+                {nodeLabel}
+              </span>
+              
+              <input ref={labelRef}  
+                autoFocus={editable} 
+                className={`flex items-center justify-start font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none ${locked ? 'text-[#3EDBC9]' : 'text-[#6D7177]'}`}
+                style={{
+                  boxSizing: "content-box",
+                  width: calculateInputWidth(),
+                  maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
+                }}
+                size={nodeLabel.length ?? 0}
+                value={`${nodeLabel}`} 
+                readOnly={!editable} 
+                onChange={EditLabel} 
+                onMouseDownCapture={onFocus} 
+                onBlur={onBlur} 
+              />
+            </div>
+
+            {/* top-right toolbar */}
+            <div className="min-w-[24px] min-h-[24px] flex items-center justify-center">
+              <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
+            </div>
+          </div>
+        
+        {/* the view of the block */}
+        <div className=' rounded-[8px] ${borderColor} border-[1px]' 
+
       style={{
         borderRadius: "8px",
         border: "1px solid #6D7177",
@@ -613,14 +666,14 @@ const constructStructuredNodeEmbeddingData = async() => {
               height: "32px",
               top: "70px"
             }}>
-      <div style={{
-          display: 'flex',
-          justifyContent: 'left',
-          width: '100%',
-          height: '100%',
-          borderTopLeftRadius: '8px',
-          borderTopRightRadius: '8px',
-        }}>
+        <div style={{
+            display: 'flex',
+            justifyContent: 'left',
+            width: '100%',
+            height: '100%',
+            borderTopLeftRadius: '8px',
+            borderTopRightRadius: '8px',
+          }}>
         {viewMode==INPUT_VIEW_MODE?
         <button style={{
             paddingTop: '1px',
@@ -780,45 +833,8 @@ const constructStructuredNodeEmbeddingData = async() => {
           
 
 
-         
-         <div ref={labelContainerRef} 
-           style={{
-            width: 'fit-content',
-            maxWidth: calculateMaxLabelContainerWidth(),
-           }}
+        
 
-        className={`absolute top-[8px] left-[8px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
-          {renderTagLogo()}
-          <span
-          ref={measureSpanRef}
-          style={{
-            visibility: 'hidden',
-            position: 'absolute',
-            whiteSpace: 'pre',
-            fontSize: '12px',
-            lineHeight: '18px',
-            fontWeight: '700',
-            fontFamily: 'Plus Jakarta Sans'
-          }}
-          >
-          {nodeLabel}
-        </span>
-          <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
-            style={{
-              boxSizing: "content-box",
-              width: calculateInputWidth(),
-              maxWidth: '100%',
-      
-    }}
-    size={nodeLabel.length ?? 0}
-    value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
-           
-          
-
-        </div>
-
-        <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
-      
         <NodeResizeControl 
           minWidth={240} 
           minHeight={HEIGHT_STD}
