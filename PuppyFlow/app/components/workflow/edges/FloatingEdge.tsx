@@ -79,42 +79,37 @@ function FloatingEdge({ id,
               {/* 默认箭头 */}
              <marker
                 id="custom-arrow-default"
-                viewBox="0 0 10 10"
-                refX="5"
-                refY="5"
-                markerWidth="4"
-                markerHeight="4"
+                viewBox="0 0 14 22"
+                refX="11"
+                refY="11"
+                markerWidth="6"
+                markerHeight="6"
                 orient="auto-start-reverse"
               >
-                {/* 自定义箭头形状 */}
                 <path
-                  // d="M 0 0 L 10 5 L 0 10 L 3 5 Z"
-                  d="M 0 0 L 7 5 L 0 10 L 1 5 Z"
-                  fill="#CDCDCD"
-                  // stroke="#CDCDCD"
-                  // 或者使用三角形箭头
-                  // d="M 0 0 L 10 5 L 0 10 z"
+                  d="M2 2L11 11L2 20"
+                  fill="none"
+                  stroke="#CDCDCD"
+                  strokeWidth="4"
                 />
-          
               </marker>  
               {/* 选中箭头 */}
               <marker
-              id="custom-arrow-selected"
-              viewBox="0 0 10 10"
-              refX="5"
-              refY="5"
-              markerWidth="4"
-              markerHeight="4"
-              orient="auto-start-reverse"
-            >
-              <path
-                d="M 0 0 L 7 5 L 0 10 L 1 5 Z"
-                fill="#FFA73D"
-                stroke="#FFA73D"
-              />
-            </marker>
-    
-              
+                id="custom-arrow-selected"
+                viewBox="0 0 14 22"
+                refX="11"
+                refY="11"
+                markerWidth="6"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <path
+                  d="M2 2L11 11L2 20"
+                  fill="none"
+                  stroke="#FFA73D"
+                  strokeWidth="4"
+                />
+              </marker>
           </defs>  
           <BaseEdge id={id} path={edgePath} markerEnd={`url(#custom-arrow-${selected ? "selected" : "default"})`} style={style}  />
         </>

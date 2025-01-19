@@ -314,13 +314,6 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
         }
     }
 
-    // for rendering different background color of upper right tag
-    const renderTagStyle = () => {
-      if (locked) return "bg-[#3EDBC9] w-fit"
-      else if (isInput) return "bg-[#6C98D5] w-fit"
-      else if (isOutput) return "bg-[#FF9267] w-fit"
-      else return "border-[#6D7177] bg-[#6D7177] w-fit"
-    } 
 
     // for rendering diffent logo of upper right tag
     const renderTagLogo = () => {
@@ -406,8 +399,8 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
  
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[176px] min-h-[176px] rounded-[8px] px-[16px] pt-[40px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden `}  >
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[240px] min-h-[240px] rounded-[8px] px-[16px] pt-[40px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden `}  >
            {/* <TextEditor preventParentDrag={onFocus} allowParentDrag={onBlur}
           widthStyle={contentSize.width - 6} heightStyle={contentSize.height}
           placeholder='Text' parentId={id} /> */}
@@ -435,7 +428,7 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             width: 'fit-content',
             maxWidth: calculateMaxLabelContainerWidth(),
            }}
-           className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px] px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
+           className={`absolute top-[8px] left-[8px] h-[24px] rounded-[4px] px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
            {renderTagLogo()}
 
             {/* 测量label的宽度, 隐藏，若是更改input 字体样式，需要同步更改这里的样式！！不然得到的input width 会不准确，展现出省略号 */}
@@ -480,8 +473,8 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             style={{
               position: "absolute",
               visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
-              right: "32px",
-              bottom: "32px",
+              right: "0px",
+              bottom: "0px",
               display: "flex",
               justifyContent: 'center',
               alignItems: 'center',
