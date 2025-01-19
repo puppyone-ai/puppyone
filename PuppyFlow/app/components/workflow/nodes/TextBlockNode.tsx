@@ -454,13 +454,18 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
         </div>
 
           {/* the plain text editor */}
-
-          {isLoading ? <SkeletonLoadingIcon /> : 
-          <TextEditorTextArea preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
-          widthStyle={contentSize.width} heightStyle={contentSize.height - 32}
-          placeholder='Text' parentId={id} />
-          
-          }
+          <div className="px-[8px] flex-1">
+            {isLoading ? <SkeletonLoadingIcon /> : 
+            <TextEditorTextArea 
+              preventParentDrag={preventNodeDrag} 
+              allowParentDrag={allowNodeDrag}
+              widthStyle={contentSize.width - 16} // 减去左右padding (16px)
+              heightStyle={contentSize.height - 32}
+              placeholder='Text' 
+              parentId={id} 
+            />
+            }
+          </div>
 
 
           {/* <TextEditorTipTap preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
@@ -475,8 +480,7 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
 
 
 
-        
-
+      
         {/* the resizer in the bottom right corner */}
         <NodeResizeControl 
           minWidth={240} 
