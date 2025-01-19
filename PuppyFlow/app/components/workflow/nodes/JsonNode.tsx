@@ -8,7 +8,7 @@ import JSONForm from '../../menu/tableComponent/JSONForm'
 import NodeToolBar from '../nodeTopRightBar/NodeTopRightBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import { json } from 'stream/consumers'
-import { set } from 'lodash'
+import { get, set } from 'lodash'
 import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 
@@ -37,7 +37,7 @@ export type JsonNodeData = {
 
 type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
-function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoading, locked, isInput, isOutput, editable, index_name}}: JsonBlockNodeProps ) {
+function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoading, locked, isInput, isOutput, editable, index_name}}: JsonBlockNodeProps){
 
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
@@ -316,15 +316,33 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
 
 
+  const [userInput,setUserInput] =useState<string|undefined>(getNode(id)?.data?.content as string|undefined)
+
   // TODO Auto resize of content box
   // TODO dialogue selection of content atttribute(key onl y, no index) 
   // embeding view switch button
   const handleInputViewClick = () => {
+
     setViewMode(INPUT_VIEW_MODE); // Toggle button text
   };
   const handleEmbedViewClick = () => {
+    console.log(getNode(id)?.data?.content)
+
+
     setViewMode(EMBED_VIEW_MODE); // Toggle button text
   };
+
+  useEffect(
+    ()=>{
+      if(viewMode==INPUT_VIEW_MODE){
+        setUserInput(getNode(id)?.data?.content ? getNode(id)?.data?.content as string : undefined)
+      }else{
+        setUserInput(getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined)
+      }
+
+    },
+    [viewMode]
+  )
 
   const [isEmbedded, setIsEmbedded] = useState(false)
 
@@ -575,7 +593,6 @@ const constructStructuredNodeEmbeddingData = async() => {
                 ...node,
                 data: {
                     ...node.data,
-                    content: node.data.content,
                     index_name: index_name_response
                 }
             } : node))
@@ -747,7 +764,7 @@ const constructStructuredNodeEmbeddingData = async() => {
             </div>
           </div>
             {
-              viewMode=="embedding view"?
+              viewMode==EMBED_VIEW_MODE?
               <div style={{
                 width: 'fit-content',
                 maxWidth: calculateMaxLabelContainerWidth(),
@@ -758,8 +775,9 @@ const constructStructuredNodeEmbeddingData = async() => {
                               placeholder='["JSON"]'
                                       parentId={id}
                                       heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
-                                      inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
+                                      inputvalue={userInput}
                                       readonly={true}
+                                      synced={false}
                                       />
               </div>
               :
@@ -772,7 +790,10 @@ const constructStructuredNodeEmbeddingData = async() => {
                               <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
                               placeholder='["JSON"]'
                                       parentId={id}
-                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160} />
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
+                                      inputvalue={userInput}
+                                      synced={true}
+                                      />
                   }
             </div>
             }

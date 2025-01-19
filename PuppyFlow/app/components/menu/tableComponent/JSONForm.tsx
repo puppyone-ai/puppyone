@@ -22,7 +22,8 @@ type JSONEditorProps = {
     widthStyle?: number,
     heightStyle?: number,
     inputvalue?:string,
-    readonly?:boolean
+    readonly?:boolean,
+    synced?:boolean
 }
 
 
@@ -45,7 +46,8 @@ const JSONForm = ({preventParentDrag,
                     widthStyle = 0,
                     heightStyle=0,
                     inputvalue="",
-                    readonly=false
+                    readonly=false,
+                    synced=false
                   }:JSONEditorProps) => {
 
     // const [jsonValue, setJsonValue] = useState("");
@@ -157,10 +159,14 @@ const JSONForm = ({preventParentDrag,
   
 
     const updateNodeContent = (newValue: string) => {
-      setNodes(prevNodes => (prevNodes.map(node => node.id === parentId ? {
-        ...node,
-        data: {...node.data, content: newValue}
-      } : node)))
+      console.log("synced",synced,newValue)
+      if(synced===true){
+        console.log("update editor change")
+        setNodes(prevNodes => (prevNodes.map(node => node.id === parentId ? {
+          ...node,
+          data: {...node.data, content: newValue}
+        } : node)))
+      }
     }
 
 
