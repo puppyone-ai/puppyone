@@ -24,10 +24,10 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
 
   return (
     <li className={`
-      flex items-center justify-center pl-[16px] pr-[4px] h-[30px] w-full gap-[10px] rounded-[6px] relative
+      flex items-center justify-center pl-[16px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[6px] cursor-pointer relative
       ${FlowId === selectedFlowId || flowIdShowOperationMenu === FlowId 
-        ? 'bg-[#454545] hover:bg-[#454545]' 
-        : 'hover:bg-[#313131]'
+        ? 'bg-[#454545] hover:bg-[#454545] transition-colors duration-200' 
+        : 'hover:bg-[#313131] transition-colors duration-200'
       }
     `} 
       onMouseEnter={() => setIsHover(true)} 
@@ -39,14 +39,14 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
             handleFlowSwitch(FlowId)
         }
     }}>
-      <div className='flex items-center justify-start text-left text-[12px] tracking-[0.65px] rounded-[6px] w-full font-normal font-plus-jakarta-sans text-[#CDCDCD] 
-      FlowElementInput border-none outline-none bg-transparent cursor-pointer'  >
+      <div className='flex items-center justify-start text-left text-[14px]  rounded-[6px] w-full font-normal font-plus-jakarta-sans text-[#CDCDCD] 
+      FlowElementInput border-none outline-none bg-transparent'  >
         {FlowName}
       </div>
       <div className={`w-[24px] h-[24px] ${flowIdShowOperationMenu === FlowId || isHover ? 'flex' : 'hidden'}`}> {/* 添加固定宽度的容器 */}
         
           <button 
-            className='flex items-center justify-center w-[22px] h-[22px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-300' 
+            className='flex items-center justify-center w-[22px] h-[22px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-200' 
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
@@ -54,10 +54,10 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
               // removeFlow(FlowId)
             }}
           >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"  fill="none">
-              <path d="M7 11H9V13H7V11Z" fill="#CDCDCD"/>
-              <path d="M16 11H18V13H16V11Z" fill="#CDCDCD"/>
-              <path d="M11.5 11H13.5V13H11.5V11Z" fill="#CDCDCD"/>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"  fill="none" className="group transition-colors duration-200">
+              <path d="M7 11H9V13H7V11Z" className="fill-[#6D7177] group-hover:fill-white transition-colors duration-200"/>
+              <path d="M16 11H18V13H16V11Z" className="fill-[#6D7177] group-hover:fill-white transition-colors duration-200"/>
+              <path d="M11.5 11H13.5V13H11.5V11Z" className="fill-[#6D7177] group-hover:fill-white transition-colors duration-200"/>
             </svg>
           </button>
           <FlowElementOperationMenu flowId={FlowId} 
