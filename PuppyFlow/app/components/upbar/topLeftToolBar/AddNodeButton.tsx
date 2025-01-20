@@ -1,7 +1,7 @@
 'use client'
 import React, {useState, useEffect} from 'react'
 import {useReactFlow, Node} from '@xyflow/react'
-import NodeMenu from './addNodeMenu'
+import NodeMenu from './AddNodeMenu'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
