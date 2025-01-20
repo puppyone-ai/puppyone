@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import useJsonConstructUtils, {NodeJsonType} from '../../hooks/useJsonConstructUtils'
-import { nodeSmallProps } from '../../upbar/topLeftToolBar/addNodeMenu'
+import { nodeSmallProps } from '../../upbar/topLeftToolBar/AddNodeMenu'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 // import PythonConfigEditor from '../tableComponent/PythonConfigEditor'

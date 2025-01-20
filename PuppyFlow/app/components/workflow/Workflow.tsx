@@ -19,7 +19,7 @@ import TextBlockNode from './nodes/TextBlockNode'
 import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
 import WebLinkNode from './nodes/WebLinkNode'
-import AddNodeButton from '../upbar/topLeftToolBar/addNodeButton'
+import AddNodeButton from '../upbar/topLeftToolBar/AddNodeButton'
 import Upbar from '../upbar/Upbar'
 import ModeController from '../upbar/topRightToolBar/ModeControllerButton'
 import JsonBlockNode from './nodes/JsonNode'
