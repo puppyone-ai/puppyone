@@ -658,7 +658,7 @@ const constructStructuredNodeEmbeddingData = async() => {
                 className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
                 onClick={handleInputViewClick}
                 >
-                JSON View
+                JSON
               </button>:
               <button style={{
                 paddingTop: '1px',
@@ -669,7 +669,7 @@ const constructStructuredNodeEmbeddingData = async() => {
               className={`text-[10px] text-[#A4A4A4]`}
               onClick={handleInputViewClick}
               >
-              JSON View
+              JSON
             </button>
             }
             {viewMode==EMBED_VIEW_MODE?
@@ -710,7 +710,7 @@ const constructStructuredNodeEmbeddingData = async() => {
   <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
   <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
 </svg>
-                Embedding View
+                Embedding
                 <Transition
                       show={!!showSettingMenu}
                       as={Fragment}
@@ -760,6 +760,7 @@ const constructStructuredNodeEmbeddingData = async() => {
                                 onClick={
                                   ()=>{
                                     setIsEmbedHidden(true)
+                                    setIsEmbedded(false)
                                   }
                                 }
                               >
@@ -817,7 +818,7 @@ const constructStructuredNodeEmbeddingData = async() => {
   <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
   <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
 </svg>
-              Embedding View
+              Embedding
             </button>
             }
             {
@@ -949,10 +950,10 @@ const constructStructuredNodeEmbeddingData = async() => {
         </NodeResizeControl>
 
         
-        {index_name && 
+        {/* {index_name && 
         <div className='absolute bottom-[40px] left-[40px] h-[16px] font-plus-jakarta-sans px-[4px] py-[3px] flex items-center justify-center rounded-[4px] border-[0.5px] border-solid border-[#3E3E41] bg-gradient-to-r from-[#E55D87] to-[#5FC3E4]
          text-main-black-theme text-[8px] font-bold'>Embedded</div>
-        }
+        } */}
         
         <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
             isConnectable={isConnectable} position={Position.Top}  />
