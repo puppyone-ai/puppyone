@@ -35,7 +35,6 @@ import SwitchNode from './nodes/SwitchNode'
 import FileNode from './nodes/FileNode'
 import VectorNode from './nodes/VectorNode'
 import VectorDatabaseNode from './nodes/VectorDatabaseNode'
-import StructuredTextDatabaseNode from './nodes/StructuredTextDatabaseNode'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
 import ResultBlockNode from './nodes/ResultNode'
 import ConfigToTargetEdge from './edges/ConfigToTargetEdge'
@@ -56,7 +55,6 @@ const nodeTypes = {
     'structured': JsonBlockNode,
     'vector': VectorNode,
     'vector_database': VectorDatabaseNode,
-    'database': StructuredTextDatabaseNode,
     'load': LoadConfig,
     'chunk': ChunkingConfig,
     'code': CodeConfig,
