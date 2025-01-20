@@ -469,18 +469,40 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     
     const clone = JSON.parse(JSON.stringify(data));
     let current = clone;
+
+    if(Array.isArray(current) && path.length===1){
+      return []
+    }
+
+
+    if(path.length===1){
+      delete current[path[path.length - 1]];
+      return clone
+    }
     
-    for (let i = 0; i < path.length - 1; i++) {
+    for (let i = 0; i < path.length - 2; i++) {
         current = current[path[i]];
     }
+
+    console.log("current",current)
     
+    const secondLastKey = path[path.length - 2];
     const lastKey = path[path.length - 1];
-    if (Array.isArray(current)) {
-        current.splice(Number(lastKey), 1);
-    } else {
-        delete current[lastKey];
+    if (!isNaN(Number(lastKey))) {
+      if (Array.isArray(current)) {
+        current.splice(Number(secondLastKey), 1);
+      } else {
+        delete current[secondLastKey];
+      }
+      console.log("current1",current)
+    }else{
+      console.log(secondLastKey)
+      console.log("current2",current)
+      current =current[secondLastKey]
+      delete current[lastKey];
+      console.log("current3",current)
     }
-    
+    console.log(clone)
     return clone;
 }
 
@@ -750,6 +772,18 @@ const constructStructuredNodeEmbeddingData = async() => {
                               onClick={
                                 async()=>{
                                   setIsEmbedded(false)
+                                  const embeddingNodeData = await constructStructuredNodeEmbeddingData()
+                                  console.log("embeddingnode data",embeddingNodeData)
+                        
+                                  if (embeddingNodeData === "error") {
+                                      throw new Error("Invalid node data")
+                                  }
+                        
+                                  
+                                  const embeddingViewData=traverseJson(embeddingNodeData.data.content)
+                        
+                                  const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+                                  setUserInput(getNode(id)?.data?.chunks? JSON.stringify(embeddingViewDataWithInfo, null, 2):undefined)
                                   const response = await onEmbeddingClick()
                                   if(response == undefined){
                                     //retry
