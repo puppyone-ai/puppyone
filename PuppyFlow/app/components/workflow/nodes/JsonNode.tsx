@@ -1,6 +1,6 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React,{useRef, useEffect, useState, ReactElement} from 'react'
+import React,{useRef, useEffect, useState, ReactElement, Fragment} from 'react'
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
@@ -11,6 +11,7 @@ import { json } from 'stream/consumers'
 import { get, set } from 'lodash'
 import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import { Transition } from '@headlessui/react'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -321,21 +322,25 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   // TODO Auto resize of content box
   // TODO dialogue selection of content atttribute(key onl y, no index) 
   // embeding view switch button
+  const [showSettingMenu, setShowSettingMenu] = useState(false) 
   const handleInputViewClick = () => {
-
     setViewMode(INPUT_VIEW_MODE); // Toggle button text
   };
+
   const handleEmbedViewClick = () => {
     console.log(getNode(id)?.data?.content)
-
-
-    setViewMode(EMBED_VIEW_MODE); // Toggle button text
+    if(viewMode==EMBED_VIEW_MODE){
+      setShowSettingMenu((showSettingMenu)=>!showSettingMenu)
+    }else{
+      setViewMode(EMBED_VIEW_MODE); // Toggle button text
+    }
   };
 
   useEffect(
     ()=>{
       if(viewMode==INPUT_VIEW_MODE){
         setUserInput(getNode(id)?.data?.content ? getNode(id)?.data?.content as string : undefined)
+        setShowSettingMenu(false)
       }else{
         setUserInput(getNode(id)?.data?.chunks? JSON.stringify(getNode(id)?.data?.chunks, null, 2):undefined)
       }
@@ -348,8 +353,11 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
 
   const handleAddTagPage = async () => {
     setIsEmbedHidden(!isEmbedHidden)
-    await onEmbeddingClick()
-    await onEmbeddingClick()
+    const response = await onEmbeddingClick()
+    if(response == undefined){
+      //retry
+      await onEmbeddingClick()
+    }
     setTimeout(() => {
       const newnode = getNode(id)
       if(newnode?.data.index_name){
@@ -570,7 +578,7 @@ const constructStructuredNodeEmbeddingData = async() => {
           console.log("payload",payloaddata)
 
           if(payloaddata.chunks==undefined){
-            return
+            return undefined
           }
 
           // TODO: 需要修改为动态的user_id
@@ -672,7 +680,7 @@ const constructStructuredNodeEmbeddingData = async() => {
                 paddingRight:"8px",
                 display:isEmbedHidden?"none":"inline"
               }}
-              className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
+              className={`relative border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
                 onClick={handleEmbedViewClick}
                 >
 <svg 
@@ -703,6 +711,71 @@ const constructStructuredNodeEmbeddingData = async() => {
   <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
 </svg>
                 Embedding View
+                <Transition
+                      show={!!showSettingMenu}
+                      as={Fragment}
+                      enter="transition ease-out duration-100"
+                      enterFrom="transform opacity-0 translate-y-[-10px]"
+                      enterTo="transform opacity-100 translate-y-0"
+                      leave="transition ease-in duration-75"
+                      leaveFrom="transform opacity-100 translate-y-0"
+                      leaveTo="transform opacity-0 translate-y-[-10px]"
+                  >
+                      <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
+                          <li>
+                              <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                              onClick={
+                                async()=>{
+                                  setIsEmbedded(false)
+                                  const response = await onEmbeddingClick()
+                                  if(response == undefined){
+                                    //retry
+                                    await onEmbeddingClick()
+                                  }
+                                  setTimeout(() => {
+                                    const newnode = getNode(id)
+                                    if(newnode?.data.index_name){
+                                      setIsEmbedded(true)
+                                    }
+                                  }, 600);
+                                }
+                              }
+                              >
+                                  <div className='renameButton flex items-center justify-center'>
+                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5"/>
+                                    <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5"/>
+                                    <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5"/>
+                                    <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5"/>
+                                  </svg>
+                                  </div>
+                                  <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                                      Update
+                                  </div>
+                              </button>
+                          </li>
+                          <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+                          <li>
+                              <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]' 
+                                onClick={
+                                  ()=>{
+                                    setIsEmbedHidden(true)
+                                  }
+                                }
+                              >
+                                  <div className='flex items-center justify-center'>
+                                      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                          <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2"/>
+                                          <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2"/>
+                                      </svg>
+                                  </div>
+                                  <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                                      Delete
+                                  </div>
+                              </button>
+                          </li>
+                      </ul>
+                  </Transition>
               </button>:
               <button style={{
                 paddingTop: '1px',
