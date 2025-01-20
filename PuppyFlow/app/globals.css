@@ -196,17 +196,17 @@
 
 
 .react-flow .react-flow__handle {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
     background-color: transparent;
     border: 2px solid #42454A;
   }
 
   .react-flow .react-flow__handle:hover {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
     border: 2px solid #FFA73D;
     transition-duration: 0.3s;
     cursor: pointer;
@@ -244,9 +244,9 @@
   }
 
   .react-flow .react-flow__handle.selected {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
     border: 2px solid #FFA73D;
   }
   
@@ -292,19 +292,22 @@
     border: transparent;
   }
 
+/* 可选：添加hover效果 */
+.react-flow__edge:hover .react-flow__edge-path,
+.react-flow__edge:hover #custom-arrow-default path {  /* hover时的边颜色 */
+  stroke-dasharray: 8, 8;
+  animation: flow 6s linear infinite;
+  /* fill: #FFA73D !important; */
+}
+
   /* 修改选中边的样式 */
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: #FFA73D !important;  /* 选中时的边颜色 */
-  stroke-dasharray: 8, 4;
-  animation: flow 15s linear infinite;
+  stroke-dasharray: 8, 8;
+  animation: flow 6s linear infinite;
 }
 
-/* 可选：添加hover效果 */
-.react-flow__edge:hover .react-flow__edge-path,
-.react-flow__edge:hover #custom-arrow-default path {
-  stroke: #FFA73D !important;
-  /* fill: #FFA73D !important; */
-}
+
 
 /* 定义流动动画 */
 @keyframes flow {
@@ -786,7 +789,7 @@
   position: absolute;
   width: 16px;
   height: 16px;
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='16' viewBox='0 0 20 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M18 11L10 3L2 11' stroke='%23FFA73D' stroke-width='4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
   transition: opacity 0.2s;
@@ -802,7 +805,7 @@
   position: absolute;
   width: 16px;
   height: 16px;
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='16' viewBox='0 0 20 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M18 11L10 3L2 11' stroke='%23FFA73D' stroke-width='4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
   transition: opacity 0.2s;
@@ -818,7 +821,7 @@
   position: absolute;
   width: 16px;
   height: 16px;
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='16' viewBox='0 0 20 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M18 11L10 3L2 11' stroke='%23FFA73D' stroke-width='4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
   transition: opacity 0.2s;
@@ -834,7 +837,7 @@
   position: absolute;
   width: 16px;
   height: 16px;
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='16' viewBox='0 0 20 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M18 11L10 3L2 11' stroke='%23FFA73D' stroke-width='4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
   transition: opacity 0.2s;

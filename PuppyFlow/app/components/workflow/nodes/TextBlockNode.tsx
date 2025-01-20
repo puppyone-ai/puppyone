@@ -314,13 +314,6 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
         }
     }
 
-    // for rendering different background color of upper right tag
-    const renderTagStyle = () => {
-      if (locked) return "bg-[#3EDBC9] w-fit"
-      else if (isInput) return "bg-[#6C98D5] w-fit"
-      else if (isOutput) return "bg-[#FF9267] w-fit"
-      else return "border-[#6D7177] bg-[#6D7177] w-fit"
-    } 
 
     // for rendering diffent logo of upper right tag
     const renderTagLogo = () => {
@@ -399,26 +392,80 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
     const calculateMaxLabelContainerWidth = () => {
       if (contentRef.current) {
-        return `${contentRef.current.clientWidth - 32}px`
+        return `${contentRef.current.clientWidth - 48}px`
       }
       return '100%'
     }
  
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[176px] min-h-[176px] rounded-[8px] px-[16px] pt-[40px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden `}  >
-           {/* <TextEditor preventParentDrag={onFocus} allowParentDrag={onBlur}
-          widthStyle={contentSize.width - 6} heightStyle={contentSize.height}
-          placeholder='Text' parentId={id} /> */}
-
-          {/* plain text editor */}
-          {isLoading ? <SkeletonLoadingIcon /> : 
-          <TextEditorTextArea preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
-          widthStyle={contentSize.width} heightStyle={contentSize.height}
-          placeholder='Text' parentId={id} />
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[240px] min-h-[240px] rounded-[8px] px-[8px] pt-[8px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden flex flex-col`}>
+        
+        {/* the top bar of a block */}
+        <div ref={labelContainerRef} 
+          className={`h-[24px] w-full rounded-[4px]  flex items-center justify-between mb-2`}>
           
-          }
+          {/* top-left wrapper */}
+          <div className="flex items-center gap-[8px]"
+            style={{
+              maxWidth: calculateMaxLabelContainerWidth(),
+            }}>
+            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+              {renderTagLogo()}
+            </div>
+
+            {/* measure label width span */}
+            <span
+              ref={measureSpanRef}
+              style={{
+                visibility: 'hidden',
+                position: 'absolute',
+                whiteSpace: 'pre',
+                fontSize: '12px',
+                lineHeight: '18px',
+                fontWeight: '700',
+                fontFamily: 'Plus Jakarta Sans',
+              }}>
+              {nodeLabel}
+            </span>
+            
+            <input ref={labelRef} 
+              autoFocus={editable} 
+              className={`flex items-center justify-start font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none ${locked ? 'text-[#3EDBC9]' : 'text-[#6D7177]'}`}
+              style={{
+                boxSizing: "content-box",
+                width: calculateInputWidth(),
+                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
+              }}
+              size={nodeLabel.length ?? 0}
+              value={`${nodeLabel}`} 
+              readOnly={!editable} 
+              onChange={EditLabel} 
+              onMouseDownCapture={onFocus} 
+              onBlur={onBlur} 
+            />
+          </div>
+
+          {/* top-right toolbar */}
+          <div className="min-w-[24px] min-h-[24px] flex items-center justify-center">
+            <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
+          </div>
+        </div>
+
+          {/* the plain text editor */}
+          <div className="px-[8px] flex-1">
+            {isLoading ? <SkeletonLoadingIcon /> : 
+            <TextEditorTextArea 
+              preventParentDrag={preventNodeDrag} 
+              allowParentDrag={allowNodeDrag}
+              widthStyle={contentSize.width - 16} // 减去左右padding (16px)
+              heightStyle={contentSize.height - 32}
+              placeholder='Text' 
+              parentId={id} 
+            />
+            }
+          </div>
 
 
           {/* <TextEditorTipTap preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
@@ -430,45 +477,11 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
           widthStyle={contentSize.width} heightStyle={contentSize.height}
           placeholder='[{"type": "paragraph", "content": "Text"}]' parentId={id} /> */}
            
-           <div ref={labelContainerRef} 
-           style={{
-            width: 'fit-content',
-            maxWidth: calculateMaxLabelContainerWidth(),
-           }}
-           className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px] px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
-           {renderTagLogo()}
 
-            {/* 测量label的宽度, 隐藏，若是更改input 字体样式，需要同步更改这里的样式！！不然得到的input width 会不准确，展现出省略号 */}
-            <span
-            ref={measureSpanRef}
-            style={{
-              visibility: 'hidden',
-              position: 'absolute',
-              whiteSpace: 'pre',
-              fontSize: '12px',
-              lineHeight: '18px',
-              fontWeight: '700',
-              fontFamily: 'Plus Jakarta Sans',
-            }}
-          >
-            {nodeLabel}
-          </span>
-           
-            <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
-            style={{
-              boxSizing: "content-box",
-              width: calculateInputWidth(),
-              maxWidth: '100%',
-              
-            }}
-            size={nodeLabel.length ?? 0}
-            value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
-           
-          
-        </div>
 
-        <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
-        
+
+      
+        {/* the resizer in the bottom right corner */}
         <NodeResizeControl 
           minWidth={240} 
           minHeight={240}
@@ -480,8 +493,8 @@ function TextBlockNode({isConnectable, id, type, data: {content, label, isLoadin
             style={{
               position: "absolute",
               visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
-              right: "32px",
-              bottom: "32px",
+              right: "0px",
+              bottom: "0px",
               display: "flex",
               justifyContent: 'center',
               alignItems: 'center',
