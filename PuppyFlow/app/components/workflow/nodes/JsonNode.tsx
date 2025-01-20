@@ -337,7 +337,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
       if(viewMode==INPUT_VIEW_MODE){
         setUserInput(getNode(id)?.data?.content ? getNode(id)?.data?.content as string : undefined)
       }else{
-        setUserInput(getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined)
+        setUserInput(getNode(id)?.data?.chunks? JSON.stringify(getNode(id)?.data?.chunks, null, 2):undefined)
       }
 
     },
@@ -612,11 +612,13 @@ const constructStructuredNodeEmbeddingData = async() => {
       }
   }
 
+
+
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[400px] min-h-[560] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
     
-    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[30px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[45px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
     <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
       style={{
         borderRadius: "8px",
