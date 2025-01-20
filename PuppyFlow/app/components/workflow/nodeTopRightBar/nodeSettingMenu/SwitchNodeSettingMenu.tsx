@@ -1,5 +1,5 @@
 import React,{useEffect, useState} from 'react'
-import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
+import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import { useReactFlow , Position} from '@xyflow/react'
 import { flushSync } from 'react-dom';
 
@@ -25,7 +25,7 @@ function SwitchNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: SwitchNodeS
     }
 
     return (
-        <ul className={`flex flex-col absolute top-[24px] py-[8px] w-[128px] bg-[#3E3E41] rounded-[4px] left-0 z-[20000] ${showSettingMenu ? "" : "hidden"}`}>
+        <ul className={`flex flex-col absolute top-[8px] py-[8px] w-[128px] bg-[#3E3E41] rounded-[4px] left-0 z-[20000] ${showSettingMenu ? "" : "hidden"}`}>
             <li>
                 <button className='flex flex-row items-center justify-start px-[16px] gap-[8px] w-full h-[24px] bg-[#3E3E41] border-none rounded-t-[4px]'
                 onClick={() => manageNodeasInput(nodeid)}>

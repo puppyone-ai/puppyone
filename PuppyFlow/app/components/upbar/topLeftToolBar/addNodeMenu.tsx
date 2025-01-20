@@ -2,10 +2,8 @@ import React, {useEffect, useState, useCallback, useRef} from 'react'
 import { useReactFlow } from '@xyflow/react';
 // import { useNodeContext } from '../../states/NodeContext';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
-import DatabaseSubMenu from './DatabaseSubMenu';
-import OtherNodesSubMenu from './OtherNodesSubMenu';
-import TextBlockNode from '../../workflow/nodes/TextBlockNode';
 import { nanoid } from 'nanoid';
+import { Transition } from '@headlessui/react'
 
 type menuProps = {
     selectedMenu: number,
@@ -364,20 +362,29 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
 
   return (
         <>
-         <ul id="nodeMenu" className={`${selectedMenu === 1? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 hidden'} will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[37px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[10px] p-[10px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
-  
-  <li>
-      <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
-      onMouseEnter={() => {manageNodeMenuSubMenu("Textsub1")}}
-      onMouseLeave={() => {manageNodeMenuSubMenu(null)}}
-      onClick={(event)=> {
-        event.preventDefault()
-        event.stopPropagation()
-        handleMouseDown("text")
-      }}>
-      <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>Aa</div>
-      <div className='text-[12px] font-[500] pt-1'>Text</div>
-      </button> 
+          <Transition
+    show={selectedMenu === 1}
+    enter="transition duration-100 ease-out"
+    enterFrom="transform opacity-0 translate-y-[-10px]"
+    enterTo="transform opacity-100 translate-y-0"
+    leave="transition duration-75 ease-in"
+    leaveFrom="transform opacity-100 translate-y-0"
+    leaveTo="transform opacity-0 translate-y-[-10px]"
+  >
+    <ul id="nodeMenu" className={`will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[37px] z-[10000] text-white flex flex-col justify-evenly items-center gap-[10px] p-[10px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
+    
+      <li>
+          <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
+          onMouseEnter={() => {manageNodeMenuSubMenu("Textsub1")}}
+          onMouseLeave={() => {manageNodeMenuSubMenu(null)}}
+          onClick={(event)=> {
+            event.preventDefault()
+            event.stopPropagation()
+            handleMouseDown("text")
+          }}>
+          <div className='w-[44px] h-[44px] bg-[#1C1D1F] flex items-center justify-center  text-[18px] font-[400] rounded-[5px]'>Aa</div>
+          <div className='text-[12px] font-[500] pt-1'>Text</div>
+          </button> 
   </li> 
   <li>
       <button id="" className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[8px] flex flex-row items-start gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
@@ -549,7 +556,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
   </li> */}
 
       </ul>
-    
+      </Transition>
         {renderDragIndicator()}
         </>
   )

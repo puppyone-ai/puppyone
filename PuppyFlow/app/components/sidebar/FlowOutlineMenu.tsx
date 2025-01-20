@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, Fragment } from 'react'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { Transition } from '@headlessui/react'
 
 type FlowOutlineMenuProps = {
     showFlowMenu: boolean;
@@ -10,14 +11,25 @@ function FlowOutlineMenu({showFlowMenu}: FlowOutlineMenuProps) {
   const [hoveredFlowId, setHoveredFlowId] = useState<string | null>(null);
 
   return (
-    <ul className={`${showFlowMenu ? "flex z-[2000000000]" : "opacity-0 pointer-events-none z-[-1000000000]"} FlowOutlineMenuGroup absolute top-[110px] left-[60px] flex-col items-start justify-start w-[145px] flex-shrink-0 rounded-[8px] bg-[#3E3E41] gap-[4px] px-[8px] py-[16px]`}>
-        {workspaces.map((workspace) => (
-            <li key={workspace.flowId} 
+    <Transition
+      show={showFlowMenu}
+      as={Fragment}
+      enter="transition ease-out duration-200"
+      enterFrom="transform opacity-0 translate-y-[-10px]"
+      enterTo="transform opacity-100 translate-y-0"
+      leave="transition ease-in duration-150"
+      leaveFrom="transform opacity-100 translate-y-0"
+      leaveTo="transform opacity-0 translate-y-[-10px]"
+    >
+      <ul className="min-w-[128px] w-fit bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col absolute top-[110px] left-[60px] z-[2000000000]">
+        {workspaces.map((workspace, index) => (
+          <React.Fragment key={workspace.flowId}>
+            <li 
                 className={`w-full rounded-[4px] ${
                   workspace.flowId === selectedFlowId 
-                    ? 'bg-[#5C5D5E]' 
+                    ? 'bg-[#3E3E41]' 
                     : hoveredFlowId === workspace.flowId 
-                      ? 'bg-[#5C5D5E]' 
+                      ? 'bg-[#3E3E41]' 
                       : ''
                 }`}
                 onMouseEnter={() => setHoveredFlowId(workspace.flowId)}
@@ -31,15 +43,18 @@ function FlowOutlineMenu({showFlowMenu}: FlowOutlineMenuProps) {
                             handleFlowSwitch(workspace.flowId);
                         }
                     }}
-                    className="flex items-center justify-start font-plus-jakarta-sans w-full h-[24px] px-[8px] rounded-[4px] transition-colors cursor-pointer"
+                    className="px-[8px] rounded-[4px] bg-inherit w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-medium tracking-[0.5px] cursor-pointer whitespace-nowrap"
                 >
-                    <p className='whitespace-nowrap overflow-hidden text-ellipsis w-[115px] h-full text-[12px] text-[#CDCDCD] font-normal tracking-[0.5px] leading-normal text-start flex items-center justify-start'>
-                        {workspace.flowTitle}
-                    </p>    
+                    {workspace.flowTitle}
                 </button>
             </li>
+            {index < workspaces.length - 1 && (
+              <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            )}
+          </React.Fragment>
         ))}
-    </ul>
+      </ul>
+    </Transition>
   )
 }
 

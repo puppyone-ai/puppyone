@@ -279,36 +279,36 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
         if (activatedNode?.HandlePosition === Position.Top) {
             return node.measured?.width && node.measured.height ? 
             {   left: `${node.measured.width / 2 -29}px`,
-                top: `${- 20 - menuHeight }px`} :
+                top: `${- 40 - menuHeight }px`} :
             {
                 left: `${defaultNodeWidth / 2 - 29}px`,
-                top: `${- 20 - menuHeight}px`
+                top: `${- 40 - menuHeight}px`
             }
         }
         if (activatedNode?.HandlePosition === Position.Bottom) {
             return node.measured?.width && node.measured.height ? {
                 left: `${node.measured.width / 2 - 29}px`,
-                bottom: `${-20 - menuHeight}px`
+                bottom: `${-40 - menuHeight}px`
             } : {
                 left: `${defaultNodeWidth / 2 - 29}px`,
-                bottom: `${-20 - menuHeight}px`
+                bottom: `${-40 - menuHeight}px`
             } 
         }
         if (activatedNode?.HandlePosition === Position.Left) {
             return node.measured?.width && node.measured.height ? {
-                left: `${-20 - menuWidth}px`,
+                left: `${-32 - menuWidth}px`,
                 top: `${node.measured.height / 2 -51}px`
             } : {
-                left: `${-20 - menuWidth}px`,
+                left: `${-32 - menuWidth}px`,
                 top: `${defaultNodeHeight / 2  - 51}px`
             }
         }
         if (activatedNode?.HandlePosition === Position.Right) {
             return node.measured?.width && node.measured.height ? {
-                right: `${-20 - menuWidth}px`,
+                right: `${-32 - menuWidth}px`,
                 top: `${node.measured.height / 2 - 51}px`,
             } : {
-                right: `${-20 - menuWidth}px`,
+                right: `${-32 - menuWidth}px`,
                 top: `${defaultNodeHeight / 2 - 51}px`
             }
         }

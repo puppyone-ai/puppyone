@@ -1,6 +1,6 @@
 import React, {useState} from 'react'
-import NodeSettingsController from './NodeSettingsController'
-import FullScreenController from './FullScreenController'
+import NodeSettingsController from './NodeSettingsButton'
+import FullScreenController from './FullScreenButton'
 // import { useNodeContext } from '@/app/components/states/NodeContext'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 
@@ -17,7 +17,7 @@ function NodeToolBar({Parentnodeid, ParentNodetype}: NodeToolBarProps) {
     const {activatedNode} = useNodesPerFlowContext()
     return (
 
-        <div className={`absolute top-[40px] right-[40px] flex gap-[6.5px] items-center justify-center ${activatedNode?.id === Parentnodeid ? "": "hidden"} p-[1px]`} >
+        <div className={`flex gap-[6.5px] items-center justify-start ${activatedNode?.id === Parentnodeid ? "": "hidden"} p-[1px]`} >
             <NodeSettingsController nodeid={Parentnodeid}/>
             {/* {isDisplayFullScreenController ? <FullScreenController nodeid={Parentnodeid} /> : null} */}
         </div>
