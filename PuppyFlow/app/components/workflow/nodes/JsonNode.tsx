@@ -60,6 +60,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
   const [isEmbedHidden, setIsEmbedHidden] = useState(true)
   const {cleanJsonString} = useJsonConstructUtils()
+  const [isLooped, setIsLooped] = useState(false); // New state to track the position
 
 
 
@@ -620,6 +621,28 @@ const constructStructuredNodeEmbeddingData = async() => {
       }
   }
 
+  useEffect(
+    ()=>{
+      
+      setNodes(prevNodes => prevNodes.map(
+        (node) => {
+          if (node.id === id) {
+            return {...node, looped:isLooped}
+          }
+          return node
+        }
+      ))
+
+      setTimeout(
+        ()=>{
+          console.log("setislooped",getNode(id))
+        },
+        500
+      )
+
+    }
+    ,[isLooped]
+  )
 
 
   return (
@@ -912,6 +935,34 @@ const constructStructuredNodeEmbeddingData = async() => {
            
           
 
+        </div>
+
+        <div className={`absolute top-[40px] right-[70px] flex gap-[6.5px] items-center justify-center p-[1px]`} >
+          <div className='relative cursor-pointer'
+            onClick={() => {
+              setIsLooped(prev => !prev) // Set to true to move the SVG
+            }}
+          >
+            <svg 
+              className={`absolute top-[6px] right-[5px]`} 
+              width="22" height="12" viewBox="0 0 22 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0.5" y="0.5" width="21" height="11" rx="5.5" stroke={`${isLooped?'#39BC66':'#6D7177'}`}/>
+            </svg>
+            <svg className={`absolute top-[9px] right-[8px] transition-transform duration-300 ${!isLooped ? 'translate-x-[-10px]' : 'translate-x-[0px]'}`} width="6" height="6" viewBox="0 0 6 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="6" height="6" rx="3" fill={`${isLooped?'#39BC66':'#6D7177'}`}/>
+            </svg>
+            <p
+              className={`absolute top-[18px] right-[9px]`}
+              style={{
+                color: `${isLooped?'#39BC66':'#6D7177'}`,
+                fontFamily: "Plus Jakarta Sans",
+                fontSize: "6px",
+                fontStyle: "normal",
+                fontWeight: "700",
+                lineHeight: "normal"
+              }}  
+            >Loop</p>
+          </div>
         </div>
 
         <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
