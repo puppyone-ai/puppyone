@@ -2,11 +2,11 @@ import React, { useState, Fragment } from 'react'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 import { Transition } from '@headlessui/react'
 
-type FlowOutlineMenuProps = {
+type FlowThumbnailViewProps = {
     showFlowMenu: boolean;
 }
 
-function FlowOutlineMenu({showFlowMenu}: FlowOutlineMenuProps) {
+function FlowThumbnailView({showFlowMenu}: FlowThumbnailViewProps) {
   const {workspaces, handleFlowSwitch, selectedFlowId} = useFlowsPerUserContext()
   const [hoveredFlowId, setHoveredFlowId] = useState<string | null>(null);
 
@@ -58,4 +58,4 @@ function FlowOutlineMenu({showFlowMenu}: FlowOutlineMenuProps) {
   )
 }
 
-export default FlowOutlineMenu
+export default FlowThumbnailView
