@@ -668,11 +668,68 @@ const constructStructuredNodeEmbeddingData = async() => {
 
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[400px] min-h-[560] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[240px] border-[1.5px] rounded-[8px] p-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+          
+          {/* the top bar of a block */}
+          <div ref={labelContainerRef} 
+            className={`h-[24px] w-full rounded-[4px] flex items-center justify-between mb-2`}>
+            
+            {/* top-left wrapper */}
+            <div className="flex items-center gap-[8px]"
+              style={{
+                maxWidth: calculateMaxLabelContainerWidth(),
+              }}>
+              <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+                {renderTagLogo()}
+              </div>
+
+              {/* measure label width span */}
+              <span
+                ref={measureSpanRef}
+                style={{
+                  visibility: 'hidden',
+                  position: 'absolute',
+                  whiteSpace: 'pre',
+                  fontSize: '12px',
+                  lineHeight: '18px',
+                  fontWeight: '700',
+                  fontFamily: 'Plus Jakarta Sans'
+                }}>
+                {nodeLabel}
+              </span>
+              
+              <input ref={labelRef}  
+                autoFocus={editable} 
+                className={`flex items-center justify-start font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none ${locked ? 'text-[#3EDBC9]' : 'text-[#6D7177]'}`}
+                style={{
+                  boxSizing: "content-box",
+                  width: calculateInputWidth(),
+                  maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
+                }}
+                size={nodeLabel.length ?? 0}
+                value={`${nodeLabel}`} 
+                readOnly={!editable} 
+                onChange={EditLabel} 
+                onMouseDownCapture={onFocus} 
+                onBlur={onBlur} 
+              />
+            </div>
+
+            {/* top-right toolbar */}
+            <div className="min-w-[24px] min-h-[24px] flex items-center justify-center">
+              <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
+            </div>
+          </div>
+        
+        {/* the view of the block */}
+        <div className=' rounded-[8px] ${borderColor} border-[1px]' 
 
     
     <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[45px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
     <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
+
       style={{
         borderRadius: "8px",
         border: "1px solid #6D7177",
@@ -680,6 +737,7 @@ const constructStructuredNodeEmbeddingData = async() => {
       }}
     >
       <div 
+
               style={{
                     width: "100%",
                     height: "32px",
@@ -877,22 +935,80 @@ const constructStructuredNodeEmbeddingData = async() => {
 </svg>
               Embedding
             </button>
+
             }
-            {
-              isEmbedHidden?
-              <div
-              onClick={handleAddTagPage}
-              className='cursor-pointer flex justify-center items-center'
-              >
-              <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
-              >
-              <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5"/>
-              <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5"/>
-            </svg>
-              </div>
-              :
-              <></>
+          `}
+        </style>
+        <path d="M5 0V3" stroke="#A4A4A4"/>
+        <path d="M5 7V10" stroke="#A4A4A4"/>
+        <path d="M10 5H7" stroke="#A4A4A4"/>
+        <path d="M3 5H0" stroke="#A4A4A4"/>
+        <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+        <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+        <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+        <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+      </svg>
+          Embedding View
+        </button>:
+        <button style={{
+          paddingTop: '1px',
+          cursor: 'pointer',
+          borderTopLeftRadius: '8px',
+          borderTopRightRadius: '8px',
+          borderWidth:"0px",
+          paddingLeft:"8px",
+          paddingRight:"8px",
+          display:isEmbedHidden?"none":"inline"
+        }}
+        className={`text-[10px] text-[#A4A4A4] justify-center items-center`}
+        onClick={handleEmbedViewClick}
+        >
+      <svg 
+        style={{
+          display: isEmbedded ? "none" : "inline",
+          animation: "rotate 2s linear infinite", // Added inline animation
+        }}
+        width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          {`
+            @keyframes rotate {
+              from {
+                transform: rotate(0deg);
+              }
+              to {
+                transform: rotate(360deg);
+              }
             }
+          `}
+        </style>
+        <path d="M5 0V3" stroke="#A4A4A4"/>
+        <path d="M5 7V10" stroke="#A4A4A4"/>
+        <path d="M10 5H7" stroke="#A4A4A4"/>
+        <path d="M3 5H0" stroke="#A4A4A4"/>
+        <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+        <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+        <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+        <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+      </svg>
+        Embedding View
+      </button>
+      }
+      {
+        isEmbedHidden?
+        <div
+        onClick={handleAddTagPage}
+        className='cursor-pointer flex justify-center items-center'
+        >
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
+        >
+        <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5"/>
+        <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5"/>
+      </svg>
+        </div>
+        :
+        <></>
+      }
+
 
             </div>
           </div>
@@ -929,47 +1045,16 @@ const constructStructuredNodeEmbeddingData = async() => {
                                       />
                   }
             </div>
+
             }
+      </div>
+      }
     </div>
           
 
 
-         
-         <div ref={labelContainerRef} 
-           style={{
-            width: 'fit-content',
-            maxWidth: calculateMaxLabelContainerWidth(),
-           }}
+        
 
-        className={`absolute top-[40px] left-[40px] h-[24px] rounded-[4px]   px-[0px] flex items-center justify-center gap-[8px] z-[20000]`}>
-          {renderTagLogo()}
-          <span
-          ref={measureSpanRef}
-          style={{
-            visibility: 'hidden',
-            position: 'absolute',
-            whiteSpace: 'pre',
-            fontSize: '12px',
-            lineHeight: '18px',
-            fontWeight: '700',
-            fontFamily: 'Plus Jakarta Sans'
-          }}
-          >
-          {nodeLabel}
-        </span>
-          <input ref={labelRef}  autoFocus={editable} className={`flex items-center justify-start text-[#6D7177] font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
-            style={{
-              boxSizing: "content-box",
-              width: calculateInputWidth(),
-              maxWidth: '100%',
-      
-    }}
-    size={nodeLabel.length ?? 0}
-    value={`${nodeLabel}`} readOnly={!editable} onChange={EditLabel} onMouseDownCapture={onFocus} onBlur={onBlur} />
-           
-          
-
-        </div>
 
         <div className={`absolute top-[40px] right-[70px] flex gap-[6.5px] items-center justify-center p-[1px]`} >
           <div className='relative cursor-pointer'
@@ -1001,6 +1086,7 @@ const constructStructuredNodeEmbeddingData = async() => {
 
         <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
       
+
         <NodeResizeControl 
           minWidth={240} 
           minHeight={HEIGHT_STD}
@@ -1012,8 +1098,8 @@ const constructStructuredNodeEmbeddingData = async() => {
             style={{
               position: "absolute",
               visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
-              right: "36px",
-              bottom: "36px",
+              right: "8px",
+              bottom: "8px",
               display: 'flex',
               justifyContent: 'center',
               alignItems: 'center',
