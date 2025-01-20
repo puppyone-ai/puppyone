@@ -1,6 +1,6 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React,{useRef, useEffect, useState, ReactElement} from 'react'
+import React,{useRef, useEffect, useState, ReactElement, Fragment} from 'react'
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
@@ -8,9 +8,10 @@ import JSONForm from '../../menu/tableComponent/JSONForm'
 import NodeToolBar from '../nodeTopRightBar/NodeTopRightBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import { json } from 'stream/consumers'
-import { set } from 'lodash'
+import { get, set } from 'lodash'
 import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import { Transition } from '@headlessui/react'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -37,7 +38,7 @@ export type JsonNodeData = {
 
 type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
-function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoading, locked, isInput, isOutput, editable, index_name}}: JsonBlockNodeProps ) {
+function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoading, locked, isInput, isOutput, editable, index_name}}: JsonBlockNodeProps){
 
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
@@ -59,6 +60,7 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
   const [isEmbedHidden, setIsEmbedHidden] = useState(true)
   const {cleanJsonString} = useJsonConstructUtils()
+  const [isLooped, setIsLooped] = useState(false); // New state to track the position
 
 
 
@@ -316,22 +318,47 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
 
 
+  const [userInput,setUserInput] =useState<string|undefined>(getNode(id)?.data?.content as string|undefined)
+
   // TODO Auto resize of content box
   // TODO dialogue selection of content atttribute(key onl y, no index) 
   // embeding view switch button
+  const [showSettingMenu, setShowSettingMenu] = useState(false) 
   const handleInputViewClick = () => {
     setViewMode(INPUT_VIEW_MODE); // Toggle button text
   };
+
   const handleEmbedViewClick = () => {
-    setViewMode(EMBED_VIEW_MODE); // Toggle button text
+    console.log(getNode(id)?.data?.content)
+    if(viewMode==EMBED_VIEW_MODE){
+      setShowSettingMenu((showSettingMenu)=>!showSettingMenu)
+    }else{
+      setViewMode(EMBED_VIEW_MODE); // Toggle button text
+    }
   };
+
+  useEffect(
+    ()=>{
+      if(viewMode==INPUT_VIEW_MODE){
+        setUserInput(getNode(id)?.data?.content ? getNode(id)?.data?.content as string : undefined)
+        setShowSettingMenu(false)
+      }else{
+        setUserInput(getNode(id)?.data?.chunks? JSON.stringify(getNode(id)?.data?.chunks, null, 2):undefined)
+      }
+
+    },
+    [viewMode]
+  )
 
   const [isEmbedded, setIsEmbedded] = useState(false)
 
   const handleAddTagPage = async () => {
     setIsEmbedHidden(!isEmbedHidden)
-    await onEmbeddingClick()
-    await onEmbeddingClick()
+    const response = await onEmbeddingClick()
+    if(response == undefined){
+      //retry
+      await onEmbeddingClick()
+    }
     setTimeout(() => {
       const newnode = getNode(id)
       if(newnode?.data.index_name){
@@ -442,18 +469,40 @@ function JsonBlockNode({isConnectable, id, type, data: {content, label, isLoadin
     
     const clone = JSON.parse(JSON.stringify(data));
     let current = clone;
+
+    if(Array.isArray(current) && path.length===1){
+      return []
+    }
+
+
+    if(path.length===1){
+      delete current[path[path.length - 1]];
+      return clone
+    }
     
-    for (let i = 0; i < path.length - 1; i++) {
+    for (let i = 0; i < path.length - 2; i++) {
         current = current[path[i]];
     }
+
+    console.log("current",current)
     
+    const secondLastKey = path[path.length - 2];
     const lastKey = path[path.length - 1];
-    if (Array.isArray(current)) {
-        current.splice(Number(lastKey), 1);
-    } else {
-        delete current[lastKey];
+    if (!isNaN(Number(lastKey))) {
+      if (Array.isArray(current)) {
+        current.splice(Number(secondLastKey), 1);
+      } else {
+        delete current[secondLastKey];
+      }
+      console.log("current1",current)
+    }else{
+      console.log(secondLastKey)
+      console.log("current2",current)
+      current =current[secondLastKey]
+      delete current[lastKey];
+      console.log("current3",current)
     }
-    
+    console.log(clone)
     return clone;
 }
 
@@ -552,7 +601,7 @@ const constructStructuredNodeEmbeddingData = async() => {
           console.log("payload",payloaddata)
 
           if(payloaddata.chunks==undefined){
-            return
+            return undefined
           }
 
           // TODO: 需要修改为动态的user_id
@@ -575,7 +624,6 @@ const constructStructuredNodeEmbeddingData = async() => {
                 ...node,
                 data: {
                     ...node.data,
-                    content: node.data.content,
                     index_name: index_name_response
                 }
             } : node))
@@ -594,6 +642,30 @@ const constructStructuredNodeEmbeddingData = async() => {
           clearAll()
       }
   }
+
+  useEffect(
+    ()=>{
+      
+      setNodes(prevNodes => prevNodes.map(
+        (node) => {
+          if (node.id === id) {
+            return {...node, looped:isLooped}
+          }
+          return node
+        }
+      ))
+
+      setTimeout(
+        ()=>{
+          console.log("setislooped",getNode(id))
+        },
+        500
+      )
+
+    }
+    ,[isLooped]
+  )
+
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[240px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
@@ -654,6 +726,10 @@ const constructStructuredNodeEmbeddingData = async() => {
         {/* the view of the block */}
         <div className=' rounded-[8px] ${borderColor} border-[1px]' 
 
+    
+    <div ref={contentRef} id={id} className={`w-full h-full min-w-[176px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[45px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+    <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]' 
+
       style={{
         borderRadius: "8px",
         border: "1px solid #6D7177",
@@ -661,69 +737,205 @@ const constructStructuredNodeEmbeddingData = async() => {
       }}
     >
       <div 
-        style={{
-              width: "100%",
-              height: "32px",
-              top: "70px"
-            }}>
-        <div style={{
-            display: 'flex',
-            justifyContent: 'left',
-            width: '100%',
-            height: '100%',
-            borderTopLeftRadius: '8px',
-            borderTopRightRadius: '8px',
-          }}>
-        {viewMode==INPUT_VIEW_MODE?
-        <button style={{
-            paddingTop: '1px',
-            cursor: 'pointer',
-            paddingLeft:"8px",
-            paddingRight:"8px",
-          }}
-          className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
-          onClick={handleInputViewClick}
-          >
-          JSON View
-        </button>:
-        <button style={{
-          paddingTop: '1px',
-          cursor: 'pointer',
-          paddingLeft:"8px",
-          paddingRight:"8px",
-        }}
-        className={`text-[10px] text-[#A4A4A4]`}
-        onClick={handleInputViewClick}
-        >
-        JSON View
-      </button>
+
+              style={{
+                    width: "100%",
+                    height: "32px",
+                    top: "70px"
+                  }}>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'left',
+                width: '100%',
+                height: '100%',
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+              }}>
+              {viewMode==INPUT_VIEW_MODE?
+              <button style={{
+                  paddingTop: '1px',
+                  cursor: 'pointer',
+                  paddingLeft:"8px",
+                  paddingRight:"8px",
+                }}
+                className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4]`}
+                onClick={handleInputViewClick}
+                >
+                JSON
+              </button>:
+              <button style={{
+                paddingTop: '1px',
+                cursor: 'pointer',
+                paddingLeft:"8px",
+                paddingRight:"8px",
+              }}
+              className={`text-[10px] text-[#A4A4A4]`}
+              onClick={handleInputViewClick}
+              >
+              JSON
+            </button>
+            }
+            {viewMode==EMBED_VIEW_MODE?
+              <button style={{
+                paddingTop: '1px',
+                cursor: 'pointer',
+                paddingLeft:"8px",
+                paddingRight:"8px",
+                display:isEmbedHidden?"none":"inline"
+              }}
+              className={`relative border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
+                onClick={handleEmbedViewClick}
+                >
+<svg 
+  style={{
+    display: isEmbedded ? "none" : "inline",
+    animation: "rotate 2s linear infinite", // Added inline animation
+  }}
+  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    {`
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
       }
-      {viewMode==EMBED_VIEW_MODE?
-        <button style={{
-          paddingTop: '1px',
-          cursor: 'pointer',
-          paddingLeft:"8px",
-          paddingRight:"8px",
-          display:isEmbedHidden?"none":"inline"
-        }}
-        className={`border-white border-b-[2px] text-[10px] text-[#A4A4A4] justify-center items-center`}
-          onClick={handleEmbedViewClick}
-          >
-      <svg 
-        style={{
-          display: isEmbedded ? "none" : "inline",
-          animation: "rotate 2s linear infinite", // Added inline animation
-        }}
-        width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <style>
-          {`
-            @keyframes rotate {
-              from {
-                transform: rotate(0deg);
-              }
-              to {
-                transform: rotate(360deg);
-              }
+    `}
+  </style>
+  <path d="M5 0V3" stroke="#A4A4A4"/>
+  <path d="M5 7V10" stroke="#A4A4A4"/>
+  <path d="M10 5H7" stroke="#A4A4A4"/>
+  <path d="M3 5H0" stroke="#A4A4A4"/>
+  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+</svg>
+                Embedding
+                <Transition
+                      show={!!showSettingMenu}
+                      as={Fragment}
+                      enter="transition ease-out duration-100"
+                      enterFrom="transform opacity-0 translate-y-[-10px]"
+                      enterTo="transform opacity-100 translate-y-0"
+                      leave="transition ease-in duration-75"
+                      leaveFrom="transform opacity-100 translate-y-0"
+                      leaveTo="transform opacity-0 translate-y-[-10px]"
+                  >
+                      <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
+                          <li>
+                              <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                              onClick={
+                                async()=>{
+                                  setIsEmbedded(false)
+                                  const embeddingNodeData = await constructStructuredNodeEmbeddingData()
+                                  console.log("embeddingnode data",embeddingNodeData)
+                        
+                                  if (embeddingNodeData === "error") {
+                                      throw new Error("Invalid node data")
+                                  }
+                        
+                                  
+                                  const embeddingViewData=traverseJson(embeddingNodeData.data.content)
+                        
+                                  const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+                                  setUserInput(getNode(id)?.data?.chunks? JSON.stringify(embeddingViewDataWithInfo, null, 2):undefined)
+                                  const response = await onEmbeddingClick()
+                                  if(response == undefined){
+                                    //retry
+                                    await onEmbeddingClick()
+                                  }
+                                  setTimeout(() => {
+                                    const newnode = getNode(id)
+                                    if(newnode?.data.index_name){
+                                      setIsEmbedded(true)
+                                    }
+                                  }, 600);
+                                }
+                              }
+                              >
+                                  <div className='renameButton flex items-center justify-center'>
+                                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5"/>
+                                    <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5"/>
+                                    <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5"/>
+                                    <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5"/>
+                                  </svg>
+                                  </div>
+                                  <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                                      Update
+                                  </div>
+                              </button>
+                          </li>
+                          <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+                          <li>
+                              <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]' 
+                                onClick={
+                                  ()=>{
+                                    setIsEmbedHidden(true)
+                                    setIsEmbedded(false)
+                                  }
+                                }
+                              >
+                                  <div className='flex items-center justify-center'>
+                                      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                          <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2"/>
+                                          <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2"/>
+                                      </svg>
+                                  </div>
+                                  <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                                      Delete
+                                  </div>
+                              </button>
+                          </li>
+                      </ul>
+                  </Transition>
+              </button>:
+              <button style={{
+                paddingTop: '1px',
+                cursor: 'pointer',
+                borderTopLeftRadius: '8px',
+                borderTopRightRadius: '8px',
+                borderWidth:"0px",
+                paddingLeft:"8px",
+                paddingRight:"8px",
+                display:isEmbedHidden?"none":"inline"
+              }}
+              className={`text-[10px] text-[#A4A4A4] justify-center items-center`}
+              onClick={handleEmbedViewClick}
+              >
+<svg 
+  style={{
+    display: isEmbedded ? "none" : "inline",
+    animation: "rotate 2s linear infinite", // Added inline animation
+  }}
+  width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    {`
+      @keyframes rotate {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    `}
+  </style>
+  <path d="M5 0V3" stroke="#A4A4A4"/>
+  <path d="M5 7V10" stroke="#A4A4A4"/>
+  <path d="M10 5H7" stroke="#A4A4A4"/>
+  <path d="M3 5H0" stroke="#A4A4A4"/>
+  <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4"/>
+  <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4"/>
+  <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4"/>
+  <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4"/>
+</svg>
+              Embedding
+            </button>
+
             }
           `}
         </style>
@@ -797,35 +1009,43 @@ const constructStructuredNodeEmbeddingData = async() => {
         <></>
       }
 
-      </div>
-    </div>
-      {
-        viewMode=="embedding view"?
-        <div style={{
-          width: 'fit-content',
-          maxWidth: calculateMaxLabelContainerWidth(),
-          overflow:"hidden"
-        }}>
 
-        <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3}
-                        placeholder='["JSON"]'
-                                parentId={id}
-                                heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
-                                inputvalue={getNode(id)?.data?.chunks? JSON.stringify((getNode(id)?.data?.chunks)):undefined}
-                                readonly={true}
-                                />
-        </div>
-        :
-        <div style={{
-          width: 'fit-content',
-          maxWidth: calculateMaxLabelContainerWidth(),
-          overflow:"hidden"
-        }}>
-            {isLoading ? <SkeletonLoadingIcon /> : 
-                        <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
-                        placeholder='["JSON"]'
-                                parentId={id}
-                                heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160} />
+            </div>
+          </div>
+            {
+              viewMode==EMBED_VIEW_MODE?
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow:"hidden"
+              }}>
+
+              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3}
+                              placeholder='["JSON"]'
+                                      parentId={id}
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
+                                      inputvalue={userInput}
+                                      readonly={true}
+                                      synced={false}
+                                      />
+              </div>
+              :
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow:"hidden"
+              }}>
+                  {isLoading ? <SkeletonLoadingIcon /> : 
+                              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} widthStyle={contentSize.width-3>WIDTH_STD?contentSize.width-3:WIDTH_STD}
+                              placeholder='["JSON"]'
+                                      parentId={id}
+                                      heightStyle={(contentSize.height-18>HEIGHT_STD-160)?contentSize.height-58:HEIGHT_STD-160}
+                                      inputvalue={userInput}
+                                      synced={true}
+                                      />
+                  }
+            </div>
+
             }
       </div>
       }
@@ -834,6 +1054,38 @@ const constructStructuredNodeEmbeddingData = async() => {
 
 
         
+
+
+        <div className={`absolute top-[40px] right-[70px] flex gap-[6.5px] items-center justify-center p-[1px]`} >
+          <div className='relative cursor-pointer'
+            onClick={() => {
+              setIsLooped(prev => !prev) // Set to true to move the SVG
+            }}
+          >
+            <svg 
+              className={`absolute top-[6px] right-[5px]`} 
+              width="22" height="12" viewBox="0 0 22 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0.5" y="0.5" width="21" height="11" rx="5.5" stroke={`${isLooped?'#39BC66':'#6D7177'}`}/>
+            </svg>
+            <svg className={`absolute top-[9px] right-[8px] transition-transform duration-300 ${!isLooped ? 'translate-x-[-10px]' : 'translate-x-[0px]'}`} width="6" height="6" viewBox="0 0 6 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="6" height="6" rx="3" fill={`${isLooped?'#39BC66':'#6D7177'}`}/>
+            </svg>
+            <p
+              className={`absolute top-[18px] right-[9px]`}
+              style={{
+                color: `${isLooped?'#39BC66':'#6D7177'}`,
+                fontFamily: "Plus Jakarta Sans",
+                fontSize: "6px",
+                fontStyle: "normal",
+                fontWeight: "700",
+                lineHeight: "normal"
+              }}  
+            >Loop</p>
+          </div>
+        </div>
+
+        <NodeToolBar Parentnodeid={id} ParentNodetype={type}/>
+      
 
         <NodeResizeControl 
           minWidth={240} 
@@ -869,10 +1121,10 @@ const constructStructuredNodeEmbeddingData = async() => {
         </NodeResizeControl>
 
         
-        {index_name && 
+        {/* {index_name && 
         <div className='absolute bottom-[40px] left-[40px] h-[16px] font-plus-jakarta-sans px-[4px] py-[3px] flex items-center justify-center rounded-[4px] border-[0.5px] border-solid border-[#3E3E41] bg-gradient-to-r from-[#E55D87] to-[#5FC3E4]
          text-main-black-theme text-[8px] font-bold'>Embedded</div>
-        }
+        } */}
         
         <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
             isConnectable={isConnectable} position={Position.Top}  />
