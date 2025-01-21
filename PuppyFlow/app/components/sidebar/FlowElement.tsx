@@ -39,14 +39,15 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
             handleFlowSwitch(FlowId)
         }
     }}>
-      <div className='flex items-center justify-start text-left text-[14px]  rounded-[6px] w-full font-normal font-plus-jakarta-sans text-[#CDCDCD] 
-      FlowElementInput border-none outline-none bg-transparent'  >
+      <div className={`flex items-center justify-start text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
+      ${FlowId === selectedFlowId ? 'text-white' : 'text-[#CDCDCD]'}
+      FlowElementInput border-none outline-none bg-transparent`}>
         {FlowName}
       </div>
       <div className={`w-[24px] h-[24px] ${flowIdShowOperationMenu === FlowId || isHover ? 'flex' : 'hidden'}`}> {/* 添加固定宽度的容器 */}
         
           <button 
-            className='flex items-center justify-center w-[22px] h-[22px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-200' 
+            className='flex items-center justify-center w-[24px] h-[24px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-200' 
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
@@ -55,9 +56,9 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
             }}
           >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"  fill="none" className="group transition-colors duration-200">
-              <path d="M7 11H9V13H7V11Z" className="fill-[#6D7177] group-hover:fill-white transition-colors duration-200"/>
-              <path d="M16 11H18V13H16V11Z" className="fill-[#6D7177] group-hover:fill-white transition-colors duration-200"/>
-              <path d="M11.5 11H13.5V13H11.5V11Z" className="fill-[#6D7177] group-hover:fill-white transition-colors duration-200"/>
+              <path d="M7 11H9V13H7V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200"/>
+              <path d="M16 11H18V13H16V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200"/>
+              <path d="M11.5 11H13.5V13H11.5V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200"/>
             </svg>
           </button>
           <FlowElementOperationMenu flowId={FlowId} 

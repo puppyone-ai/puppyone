@@ -31,8 +31,8 @@ function Header({setFlowFullScreen}: HeaderProps) {
           <button className='w-[32px] h-[32px] flex items-center justify-center group' onClick={() => setFlowFullScreen(false)}>
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-hover:bg-[#313131] rounded-md">
               <rect width="32" height="32" rx="4" className="fill-transparent"/>
-              <rect x="8.75" y="10.75" width="14.5" height="10.5" rx="1.25" className="stroke-[#CDCDCD] group-hover:stroke-[#FFFFFF]" strokeWidth="1.5"/>
-              <path d="M14 11V21" className="stroke-[#CDCDCD] group-hover:stroke-[#FFFFFF]" strokeWidth="1.5"/>
+              <rect x="8.75" y="10.75" width="14.5" height="10.5" rx="1.25" className="stroke-[#5D6065] group-hover:stroke-[#FFFFFF]" strokeWidth="1.5"/>
+              <path d="M14 11V21" className="stroke-[#5D6065] group-hover:stroke-[#FFFFFF]" strokeWidth="1.5"/>
             </svg>
           </button>
           </div>
