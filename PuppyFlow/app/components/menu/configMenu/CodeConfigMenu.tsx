@@ -321,19 +321,6 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
                 </div>
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <div className='flex flex-col items-center justify-center'>
-                <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
-                    setIsLoop(!isLoop)
-                }}>
-                    <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
-                        ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
-                    </div>
-                </button>
-                <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
-                    ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
-                    Loop
-                </div>
-                </div>
                 <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
