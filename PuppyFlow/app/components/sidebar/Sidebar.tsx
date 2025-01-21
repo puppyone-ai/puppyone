@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import ReactDOM from 'react-dom'
 import Header from './Header'
 import AddNewWorkspaceButton from './AddNewWorkspaceButton'
 import FlowElement from './FlowElement'
 import FlowThumbnailView from './FlowThumbnailView'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import Dashboard from '../userDashBoard/Dashboard'
 
 type SidebarFullScreenProps = {
     setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
@@ -25,7 +27,6 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
     }
   }
 
-  {/* the sidebar full screen */}
   return (
     <div className="flex-col font-normal px-[8px] py-[16px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
       <Header setFlowFullScreen={setFlowFullScreen} />
@@ -55,6 +56,16 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
 
 function SidebarHidden({setFlowFullScreen}: SidebarHiddenProps) {
   const [showFlowMenu, setShowFlowMenu] = useState(false);
+  const settingsDialogRef = useRef<HTMLDialogElement>(null)
+  const [activeTab, setActiveTab] = useState<'settings' | 'billing'>('settings')
+
+  const handleCloseDialog = () => {
+    settingsDialogRef.current?.close()
+  }
+
+  const handleSettingsClick = () => {
+    settingsDialogRef.current?.showModal()
+  }
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -87,7 +98,7 @@ function SidebarHidden({setFlowFullScreen}: SidebarHiddenProps) {
           </svg>
         </button>
 
-        <button className='w-[32px] h-[32px] flex items-center justify-center group transition-all duration-200'>
+        <button className='w-[32px] h-[32px] flex items-center justify-center group transition-all duration-200' onClick={handleSettingsClick}>
             <button className='w-[32px] h-[32px] flex items-center justify-center group'>
               <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-hover:bg-[#313131] rounded-md">
                 <path fill-rule="evenodd" clip-rule="evenodd" d="M16 13.3333C14.5272 13.3333 13.3333 14.5272 13.3333 16C13.3333 17.4728 14.5272 18.6667 16 18.6667C17.4728 18.6667 18.6667 17.4728 18.6667 16C18.6667 14.5272 17.4728 13.3333 16 13.3333ZM14.6667 16C14.6667 15.2636 15.2636 14.6667 16 14.6667C16.7364 14.6667 17.3333 15.2636 17.3333 16C17.3333 16.7364 16.7364 17.3333 16 17.3333C15.2636 17.3333 14.6667 16.7364 14.6667 16Z" fill="#D9D9D9" className="group-hover:fill-[#FFFFFF]"/>
@@ -105,6 +116,20 @@ function SidebarHidden({setFlowFullScreen}: SidebarHiddenProps) {
         </button>
 
         <FlowThumbnailView showFlowMenu={showFlowMenu} />
+
+        {ReactDOM.createPortal(
+          <dialog
+            ref={settingsDialogRef}
+            className="bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+          >
+            <Dashboard 
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onClose={handleCloseDialog}
+            />
+          </dialog>,
+          document.body
+        )}
     </div>
   )
 }
