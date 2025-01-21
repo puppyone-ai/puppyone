@@ -706,7 +706,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
           {/* top-right toolbar */}
-          <div className="min-w-[56px] min-h-[24px] flex items-center justify-start gap-[8px]">
+          <div className="min-w-[56px] min-h-[24px] flex items-center justify-end gap-[8px]">
+            {/* NodeToolBar */}
+            <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
             {/* Loop Switch */}
             <div className='w-[24px] h-[24px] cursor-pointer flex items-center'
               onClick={() => {
@@ -727,9 +729,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                 </svg>
               )}
             </div>
-
-            {/* NodeToolBar */}
-            <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
+            
           </div>
         </div>
 
