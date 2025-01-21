@@ -7,7 +7,6 @@ import { useCallback, useRef } from "react";
 import {JsonNodeData} from "../workflow/nodes/JsonNode"
 import {FileNodeData} from "../workflow/nodes/FileNode"
 import {ResultNodeData} from "../workflow/nodes/ResultNode"
-import {StructuredTextDatabaseNodeData} from "../workflow/nodes/StructuredTextDatabaseNode"
 import {SwitchNodeData} from "../workflow/nodes/SwitchNode"
 import {TextBlockNodeData} from "../workflow/nodes/TextBlockNode"
 import {VectorDatabaseNodeData} from "../workflow/nodes/VectorDatabaseNode"
@@ -22,7 +21,7 @@ export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.
 export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/generate_presigned_url`
 export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`
 
-export type BasicNodeData = JsonNodeData | FileNodeData | ResultNodeData | StructuredTextDatabaseNodeData | SwitchNodeData | TextBlockNodeData | VectorDatabaseNodeData | VectorNodeData | WebLinkNodeData | {content: string | any, subtype?: string, model?: string, method?: string, vdb_type?: string, index_name?: string}
+export type BasicNodeData = JsonNodeData | FileNodeData | ResultNodeData |  SwitchNodeData | TextBlockNodeData | VectorDatabaseNodeData | VectorNodeData | WebLinkNodeData | {content: string | any, subtype?: string, model?: string, method?: string, vdb_type?: string, index_name?: string}
 
 export interface NodeJsonType {
     // id: string,
