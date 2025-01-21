@@ -260,76 +260,77 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     //     setOFF(prevOff => prevOff.filter(node => outputs.includes(node)))
     // }, [outputs])
     //TODO
+    const addNewNodesEdgesIntoFlow = async () => {
+        const parentEdgeNode = getNode(parentId)
+        if (!parentEdgeNode) return
+        // calculate rightside two ResultNodes x and y
+        const centerY = parentEdgeNode.position.y - 96;
+        const spacing = 288;
+        const totalHeight = spacing * (outputs.length - 1)
+        const startY = centerY - totalHeight / 2
+
+        // 准备所有新节点
+        const newNodes = outputs.map((output, index) => ({
+            id: output,
+            position: {
+                x: parentEdgeNode.position.x + 160,
+                y: startY + spacing * index
+            },
+            data: {  
+                content: "", 
+                label: output,
+                isLoading: false,
+                locked: false,
+                isInput: false,
+                isOutput: false,
+                editable: false,
+            },
+            type: 'text',
+        }));
+
+        console.log("newnodes",newNodes)
+
+        // 准备所有新边
+        const newEdges = outputs.map((output, index) => ({
+            id: `connection-${Date.now() + index}`,
+            source: parentId,
+            target: output,
+            // type: "CTT",
+            type: "floating",
+            data: {
+                connectionType: "CTT",
+            },
+            markerEnd: markerEnd,
+        }));
+
+        console.log("newedges",newEdges)
+        await Promise.all([
+            new Promise(resolve => {
+                setNodes(prevNodes => {
+                    resolve(null);
+                    return [...prevNodes, ...newNodes];
+                })
+            }),
+            new Promise(resolve => {
+                setEdges(prevEdges => {
+                    resolve(null);
+                    return [...prevEdges, ...newEdges];
+                })
+            }),
+        ]);
+
+        console.log("updated",getNode(parentId))
+
+        onResultNodesChange(outputs)
+        setIsAddFlow(true)
+    };
+
     useEffect(() => {
 
         if (!outputs.length) return
         if (isComplete) return
         console.log("send data useeffect")
     
-        const addNewNodesEdgesIntoFlow = async () => {
-            const parentEdgeNode = getNode(parentId)
-            if (!parentEdgeNode) return
-            // calculate rightside two ResultNodes x and y
-            const centerY = parentEdgeNode.position.y - 96;
-            const spacing = 288;
-            const totalHeight = spacing * (outputs.length - 1)
-            const startY = centerY - totalHeight / 2
-
-            // 准备所有新节点
-            const newNodes = outputs.map((output, index) => ({
-                id: output,
-                position: {
-                    x: parentEdgeNode.position.x + 160,
-                    y: startY + spacing * index
-                },
-                data: {  
-                    content: "", 
-                    label: output,
-                    isLoading: false,
-                    locked: false,
-                    isInput: false,
-                    isOutput: false,
-                    editable: false,
-                },
-                type: 'text',
-            }));
-
-            console.log("newnodes",newNodes)
-
-            // 准备所有新边
-            const newEdges = outputs.map((output, index) => ({
-                id: `connection-${Date.now() + index}`,
-                source: parentId,
-                target: output,
-                // type: "CTT",
-                type: "floating",
-                data: {
-                    connectionType: "CTT",
-                },
-                markerEnd: markerEnd,
-            }));
-
-            console.log("newedges",newEdges)
-            await Promise.all([
-                new Promise(resolve => {
-                    setNodes(prevNodes => {
-                        resolve(null);
-                        return [...prevNodes, ...newNodes];
-                    })
-                }),
-                new Promise(resolve => {
-                    setEdges(prevEdges => {
-                        resolve(null);
-                        return [...prevEdges, ...newEdges];
-                    })
-                }),
-            ]);
-
-            console.log("updated",getNode(parentId))
-
-            onResultNodesChange(outputs)
-            setIsAddFlow(true)
-        };
 
         const sendData = async  () => {
             console.log("senddata")
@@ -636,7 +637,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 ...transformCases(cases),
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string }) => {
                     const content = getNode(node.id)?.data.content;
-                    return [node.id, typeof content === "string" ? JSON.parse(content) : content || ""];
+                    console.log(getNode(node.id))
+                    return [node.id, ((typeof content === "string") && (content !== "") ) ? JSON.parse(content) : ""];
                 })),
                 outputs: Object.fromEntries(outputs.map((node: string) => {
                     let content = getNode(node)?.data.content;
@@ -988,6 +990,15 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             });
         };
 
+
+        useEffect(
+            ()=>{
+                console.log(outputs)
+                setIsAddFlow(false)
+                addNewNodesEdgesIntoFlow()
+            },
+            [outputs]
+        )
   
     
         return (
@@ -1034,7 +1045,20 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                      output
                     </div>
                     <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                        {displayOutputNodeLabels()}
+                        {displayOutputNodeLabels()} 
+                        <svg onClick={
+                            async()=>{
+                                // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
+                                const newResultNodeOneId = nanoid(6)
+                                // onResultNodeChange(newResultNodeId)
+                                setAutogenerated(true)
+                                setOutputs(prev=>[...prev,newResultNodeOneId])
+                            }
+                        } className='cursor-pointer' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
+                            <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                            <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                        </svg>
                     </div>
                 </li>
                 {
