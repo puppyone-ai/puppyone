@@ -729,7 +729,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                 </svg>
               )}
             </div>
-            
+
           </div>
         </div>
 
@@ -740,6 +740,47 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             background: "#1C1D1F",
           }}
         >
+
+          {/* JSON Editor */}
+          {
+            viewMode == EMBED_VIEW_MODE ?
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow: "hidden"
+              }}>
+
+                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+
+                  placeholder='["JSON"]'
+                  parentId={id}
+                  widthStyle={contentSize.width - 16}
+                  heightStyle={contentSize.height - 68}
+                  inputvalue={userInput}
+                  readonly={true}
+                  synced={false}
+                />
+              </div>
+              :
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow: "hidden"
+              }}>
+                {isLoading ? <SkeletonLoadingIcon /> :
+                  <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+                    placeholder='["JSON"]'
+                    parentId={id}
+                    widthStyle={contentSize.width - 16}
+                    heightStyle={contentSize.height - 68}
+                    inputvalue={userInput}
+                    synced={true}
+                  />
+                }
+              </div>
+          }
+
+          {/*View Mode Switching Bar at the bottom*/}
           <div
             style={{
               width: "100%",
@@ -751,8 +792,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
               justifyContent: 'left',
               width: '100%',
               height: '100%',
-              borderTopLeftRadius: '8px',
-              borderTopRightRadius: '8px',
+              borderBottomLeftRadius: '8px',
+              borderBottomRightRadius: '8px',
+              borderTop: '1px solid #323232',
             }}>
               {viewMode == INPUT_VIEW_MODE ?
                 <button style={{
@@ -760,8 +802,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   cursor: 'pointer',
                   paddingLeft: "8px",
                   paddingRight: "8px",
+                  position: 'relative', // 添加相对定位
                 }}
-                  className={`border-white border-b-[2px] text-[12px] text-[#A4A4A4]`}
+                  className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
                   onClick={handleInputViewClick}
                 >
                   JSON
@@ -772,7 +815,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   paddingLeft: "8px",
                   paddingRight: "8px",
                 }}
-                  className={`text-[12px] text-[#A4A4A4]`}
+                  className={`h-[32px] text-[12px] text-[#6D7177] font-semibold flex items-center gap-[8px]`}
                   onClick={handleInputViewClick}
                 >
                   JSON
@@ -784,15 +827,15 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   cursor: 'pointer',
                   paddingLeft: "8px",
                   paddingRight: "8px",
-                  display: isEmbedHidden ? "none" : "inline"
+                  position: 'relative', // 添加相对定位
                 }}
-                  className={`relative border-white border-b-[2px] text-[12px] text-[#A4A4A4] justify-center items-center`}
+                className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
                   onClick={handleEmbedViewClick}
                 >
                   <svg
                     style={{
                       display: isEmbedded ? "none" : "inline",
-                      animation: "rotate 2s linear infinite", // Added inline animation
+                      animation: "rotate 2s linear infinite",
                     }}
                     width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <style>
@@ -816,7 +859,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4" />
                     <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
                   </svg>
-                  Embedding
+                  <span>Embedding</span>
                   <Transition
                     show={!!showSettingMenu}
                     as={Fragment}
@@ -839,7 +882,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                               if (embeddingNodeData === "error") {
                                 throw new Error("Invalid node data")
                               }
-
 
                               const embeddingViewData = traverseJson(embeddingNodeData.data.content)
 
@@ -904,15 +946,16 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   borderWidth: "0px",
                   paddingLeft: "8px",
                   paddingRight: "8px",
-                  display: isEmbedHidden ? "none" : "inline"
+                  position: 'relative', // 添加相对定位
+                  display: isEmbedHidden ? "none" : "flex"
                 }}
-                  className={`text-[12px] text-[#A4A4A4] justify-center items-center`}
+                className={`text-[12px] text-[#6D7177] font-semibold flex items-center gap-[8px] h-[32px]`}
                   onClick={handleEmbedViewClick}
                 >
                   <svg
                     style={{
                       display: isEmbedded ? "none" : "inline",
-                      animation: "rotate 2s linear infinite", // Added inline animation
+                      animation: "rotate 2s linear infinite",
                     }}
                     width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <style>
@@ -936,7 +979,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4" />
                     <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
                   </svg>
-                  Embedding
+                  <span>Embedding</span>
                 </button>
               }
               {
@@ -957,43 +1000,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
             </div>
           </div>
-          {
-            viewMode == EMBED_VIEW_MODE ?
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
 
-                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-
-                  placeholder='["JSON"]'
-                  parentId={id}
-                  widthStyle={contentSize.width - 16}
-                  heightStyle={contentSize.height - 68}
-                  inputvalue={userInput}
-                  readonly={true}
-                  synced={false}
-                />
-              </div>
-              :
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
-                {isLoading ? <SkeletonLoadingIcon /> :
-                  <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur} 
-                    placeholder='["JSON"]'
-                    parentId={id}
-                    widthStyle={contentSize.width -16}
-                    heightStyle={contentSize.height - 68}
-                    inputvalue={userInput}
-                    synced={true}
-                  />
-                }
-              </div>
-          }
         </div>
 
 
