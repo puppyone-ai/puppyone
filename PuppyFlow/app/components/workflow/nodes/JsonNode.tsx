@@ -840,15 +840,15 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <style>
                       {`
-      @keyframes rotate {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    `}
+                        @keyframes rotate {
+                          from {
+                            transform: rotate(0deg);
+                          }
+                          to {
+                            transform: rotate(360deg);
+                          }
+                        }
+                      `}
                     </style>
                     <path d="M5 0V3" stroke="#A4A4A4" />
                     <path d="M5 7V10" stroke="#A4A4A4" />
@@ -870,72 +870,74 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     leaveFrom="transform opacity-100 translate-y-0"
                     leaveTo="transform opacity-0 translate-y-[-10px]"
                   >
-                    <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
-                      <li>
-                        <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
-                          onClick={
-                            async () => {
-                              setIsEmbedded(false)
-                              const embeddingNodeData = await constructStructuredNodeEmbeddingData()
-                              console.log("embeddingnode data", embeddingNodeData)
+                    <div style={{position: "fixed", zIndex: 20000}}>
+                      <ul className='flex flex-col absolute top-[16px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[-5px] z-[20000]'>
+                        <li>
+                          <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                            onClick={
+                              async () => {
+                                setIsEmbedded(false)
+                                const embeddingNodeData = await constructStructuredNodeEmbeddingData()
+                                console.log("embeddingnode data", embeddingNodeData)
 
-                              if (embeddingNodeData === "error") {
-                                throw new Error("Invalid node data")
-                              }
-
-                              const embeddingViewData = traverseJson(embeddingNodeData.data.content)
-
-                              const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
-                              setUserInput(getNode(id)?.data?.chunks ? JSON.stringify(embeddingViewDataWithInfo, null, 2) : undefined)
-                              const response = await onEmbeddingClick()
-                              if (response == undefined) {
-                                //retry
-                                await onEmbeddingClick()
-                              }
-                              setTimeout(() => {
-                                const newnode = getNode(id)
-                                if (newnode?.data.index_name) {
-                                  setIsEmbedded(true)
+                                if (embeddingNodeData === "error") {
+                                  throw new Error("Invalid node data")
                                 }
-                              }, 600);
+
+                                const embeddingViewData = traverseJson(embeddingNodeData.data.content)
+
+                                const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+                                setUserInput(getNode(id)?.data?.chunks ? JSON.stringify(embeddingViewDataWithInfo, null, 2) : undefined)
+                                const response = await onEmbeddingClick()
+                                if (response == undefined) {
+                                  //retry
+                                  await onEmbeddingClick()
+                                }
+                                setTimeout(() => {
+                                  const newnode = getNode(id)
+                                  if (newnode?.data.index_name) {
+                                    setIsEmbedded(true)
+                                  }
+                                }, 600);
+                              }
                             }
-                          }
-                        >
-                          <div className='renameButton flex items-center justify-center'>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5" />
-                              <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5" />
-                              <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5" />
-                              <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5" />
-                            </svg>
-                          </div>
-                          <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                            Update
-                          </div>
-                        </button>
-                      </li>
-                      <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
-                      <li>
-                        <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
-                          onClick={
-                            () => {
-                              setIsEmbedHidden(true)
-                              setIsEmbedded(false)
+                          >
+                            <div className='renameButton flex items-center justify-center'>
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5" />
+                                <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5" />
+                                <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5" />
+                                <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5" />
+                              </svg>
+                            </div>
+                            <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                              Update
+                            </div>
+                          </button>
+                        </li>
+                        <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+                        <li>
+                          <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
+                            onClick={
+                              () => {
+                                setIsEmbedHidden(true)
+                                setIsEmbedded(false)
+                              }
                             }
-                          }
-                        >
-                          <div className='flex items-center justify-center'>
-                            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2" />
-                              <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2" />
-                            </svg>
-                          </div>
-                          <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                            Delete
-                          </div>
-                        </button>
-                      </li>
-                    </ul>
+                          >
+                            <div className='flex items-center justify-center'>
+                              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2" />
+                                <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2" />
+                              </svg>
+                            </div>
+                            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                              Delete
+                            </div>
+                          </button>
+                        </li>
+                      </ul>
+                    </div>
                   </Transition>
                 </button> :
                 <button style={{
@@ -960,15 +962,15 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <style>
                       {`
-      @keyframes rotate {
-        from {
-          transform: rotate(0deg);
-        }
-        to {
-          transform: rotate(360deg);
-        }
-      }
-    `}
+                        @keyframes rotate {
+                          from {
+                            transform: rotate(0deg);
+                          }
+                          to {
+                            transform: rotate(360deg);
+                          }
+                        }
+                      `}
                     </style>
                     <path d="M5 0V3" stroke="#A4A4A4" />
                     <path d="M5 7V10" stroke="#A4A4A4" />
