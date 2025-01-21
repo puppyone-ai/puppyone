@@ -6,6 +6,7 @@ import FlowElement from './FlowElement'
 import FlowThumbnailView from './FlowThumbnailView'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 import Dashboard from '../userDashBoard/Dashboard'
+import dynamic from 'next/dynamic'
 
 type SidebarFullScreenProps = {
     setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
@@ -14,6 +15,13 @@ type SidebarFullScreenProps = {
 type SidebarHiddenProps = {
     setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
 }
+
+const DialogPortal = dynamic(() => 
+  Promise.resolve(({ children, ...props }: { children: React.ReactNode }) => {
+    return ReactDOM.createPortal(children, document.body)
+  }),
+  { ssr: false }
+)
 
 function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
   const {workspaces} = useFlowsPerUserContext()
@@ -117,7 +125,7 @@ function SidebarHidden({setFlowFullScreen}: SidebarHiddenProps) {
 
         <FlowThumbnailView showFlowMenu={showFlowMenu} />
 
-        {ReactDOM.createPortal(
+        <DialogPortal>
           <dialog
             ref={settingsDialogRef}
             className="bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
@@ -127,9 +135,8 @@ function SidebarHidden({setFlowFullScreen}: SidebarHiddenProps) {
               onTabChange={setActiveTab}
               onClose={handleCloseDialog}
             />
-          </dialog>,
-          document.body
-        )}
+          </dialog>
+        </DialogPortal>
     </div>
   )
 }
