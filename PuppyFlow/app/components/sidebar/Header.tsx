@@ -1,11 +1,21 @@
+'use client'
+
 import React, { useState, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 import Dashboard from '../userDashBoard/Dashboard'
+import dynamic from 'next/dynamic'
 
 type HeaderProps = {
   setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>;
 }
+
+const DialogPortal = dynamic(() => 
+  Promise.resolve(({ children, ...props }: { children: React.ReactNode }) => {
+    return ReactDOM.createPortal(children, document.body)
+  }),
+  { ssr: false }
+)
 
 function Header({ setFlowFullScreen }: HeaderProps) {
 
@@ -28,7 +38,7 @@ function Header({ setFlowFullScreen }: HeaderProps) {
 
         <input
           className="HeaderTitle relative flex items-center justify-start h-[29px] font-plus-jakarta-sans font-bold text-[#cccccc] text-[14px] tracking-[0px] leading-[normal] whitespace-nowrap bg-transparent w-auto max-w-[80px] overflow-hidden"
-          value={`${userName ?? 'Your'}P`}
+          value={`${userName ?? 'Your'}`}
           readOnly
         />
 
@@ -55,7 +65,7 @@ function Header({ setFlowFullScreen }: HeaderProps) {
           </button>
         </div>
 
-        {ReactDOM.createPortal(
+        <DialogPortal>
           <dialog
             ref={settingsDialogRef}
             className="bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
@@ -65,9 +75,8 @@ function Header({ setFlowFullScreen }: HeaderProps) {
               onTabChange={setActiveTab}
               onClose={handleCloseDialog}
             />
-          </dialog>,
-          document.body
-        )}
+          </dialog>
+        </DialogPortal>
       </div>
     </>
   );
