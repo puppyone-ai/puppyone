@@ -941,7 +941,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             // is Dict
             // length is greater than [N]
             // length is less than [N]
-                return ["is empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "list or dict"]
+                return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
             }else if(type === "switch"){
                 // (for Switch)
                 // is True
@@ -1184,8 +1184,15 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                                 )
                                                             }
                                                             </div>
+                
+                
+                                                                {/* ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
+
+                                                                return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
+
+                                                                return ["is True","is False"] */}
                                                             {
-                                                                getNode(cases[case_index].conditions[conditions_index].id)?.type !== "switch" && (
+                                                                ["is True","is False","is not empty","is list","is dict","is empty", "condition"].includes((getNode(parentId)?.data.cases as Case[])[case_index]?.conditions[conditions_index].cond_v)===true ?<></>:(
                                                                     <input 
                                                                     value={cases[case_index].conditions[conditions_index].cond_input?cases[case_index].conditions[conditions_index].cond_input:""}
                                                                     onChange={(e)=>{
@@ -1201,6 +1208,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                                     type="text"></input>
                                                                 )
                                                             }
+
                                                             
                                                         </li>
                                                     </ul>
