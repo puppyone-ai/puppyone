@@ -1,4 +1,5 @@
 import React from 'react';
+import { useFlowsPerUserContext } from '../states/FlowsPerUserContext';
 
 type DashboardProps = {
   activeTab: 'settings' | 'billing';
@@ -7,6 +8,8 @@ type DashboardProps = {
 };
 
 function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
+  const { userName } = useFlowsPerUserContext();
+
   return (
     <div className="flex flex-col h-[600px]">
       {/* Main Content with Sidebar */}
@@ -49,8 +52,8 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                   <span className="text-3xl text-[#888888]">🐶</span>
                 </div>
                 <div className="flex flex-col gap-1">
-                  <span className="text-white text-[16px] font-medium">John Puppy</span>
-                  <span className="text-[#888888] text-[14px] font-regular">@johnpuppy</span>
+                  <span className="text-white text-[16px] font-medium">{userName ?? 'User'}</span>
+                  <span className="text-[#888888] text-[14px] font-regular">@{userName?.toLowerCase() ?? 'user'}</span>
                 </div>
               </div>
 
