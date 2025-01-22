@@ -361,7 +361,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(jsonData.edges)
+                    body: JSON.stringify(jsonData)
                 })
 
                 if (!response.ok) {
