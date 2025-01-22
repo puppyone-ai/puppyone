@@ -129,7 +129,7 @@ const CustomDropdown = ({ options, onSelect, selectedValue }:any) => {
         border: '1px solid #6D7177', // Border color
         borderRadius: '4px', // Rounded corners
         zIndex: 1000, // Ensure dropdown is above other elements
-        maxHeight: '50px', // Max height for dropdown
+        height: 'auto', // Max height for dropdown
         width:'100px',
         overflowY: 'auto', // Scroll if too many items
         overflowX:'hidden',
@@ -855,6 +855,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         const onConditionAdd = (index: number) => () => {
             console.log("hello", index)
             setCases(prevCases => {
+                console.log(prevCases)
                 return prevCases.map((caseItem, caseIndex) => {
                     if (caseIndex === index) {
                         return {
@@ -862,8 +863,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                             conditions: [
                                 ...caseItem.conditions,
                                 {
-                                    id: `${caseItem.conditions.length + 1}`,
-                                    label: `${caseItem.conditions.length + 1}`,
+                                    id: "",
+                                    label: "",
                                     condition: `condition${caseItem.conditions.length + 1}`,
                                     cond_v:'condition',
                                     operation:AND
@@ -1117,7 +1118,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                                         setCases(cases_clone);
                                                                         console.log("selected node:", getNode(nodeId));
                                                                   }}
-                                                                    selectedValue={condition_value.label} // Assuming condition_value has a label property
+                                                                    selectedValue={condition_value.id} // Assuming condition_value has a label property
                                                                 />
                                                             </div>
                                                             <div className='text-[#6D7177] w-[190px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-l-[1px] border-[#6D7177] flex items-center justify-start'>
@@ -1215,8 +1216,9 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                                 return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
 
                                                                 return ["is True","is False"] */}
+                                            
                                                             {
-                                                                ["is True","is False","is not empty","is list","is dict","is empty", "condition"].includes((getNode(parentId)?.data.cases as Case[])[case_index]?.conditions[conditions_index].cond_v)===true ?<></>:(
+                                                                ["is True","is False","is not empty","is list","is dict","is empty", "condition"].includes((getNode(parentId)?.data.cases as Case[])[case_index]?.conditions[conditions_index]?.cond_v)===true ?<></>:(
                                                                     <input 
                                                                     value={cases[case_index].conditions[conditions_index].cond_input?cases[case_index].conditions[conditions_index].cond_input:""}
                                                                     onChange={(e)=>{
