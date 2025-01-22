@@ -629,6 +629,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   useEffect(
     () => {
+      console.log("setisloop step2 onchange",isLooped)
 
       setNodes(prevNodes => prevNodes.map(
         (node) => {
@@ -641,9 +642,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
       setTimeout(
         () => {
-          console.log("setislooped", getNode(id))
+          console.log("setislooped step3 finish", getNode(id))
         },
-        500
+        2000
       )
 
     }
@@ -712,7 +713,10 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             {/* Loop Switch */}
             <div className='w-[24px] h-[24px] cursor-pointer flex items-center'
               onClick={() => {
-                setIsLooped(prev => !prev)
+                setIsLooped(prev => {
+                  console.log("setislooped step1 click",!prev)
+                  return !prev
+                })
               }}
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
