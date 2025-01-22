@@ -27,7 +27,9 @@ export interface NodeJsonType {
     // id: string,
     type: string,
     label: string,
-    data: BasicNodeData
+    data: BasicNodeData,
+    looped?: string
+    
 }
 
 
@@ -231,6 +233,7 @@ function useJsonConstructUtils() {
                 // });
                 // console.log(data);
                 // const data = deepParseJSON(event.data)
+
                 const data = JSON.parse(event.data)
                 
                 

@@ -546,7 +546,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 resultNodeLabel = output;
             }
 
-            const nodejson: NodeJsonType = {
+            const nodejson: any = getNode(output)?getNode(output):{
                 label: resultNodeLabel,
                 type: "text",
                 data: { content: "" }
@@ -556,6 +556,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
 
         for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id);
+            console.log("nodeinfo",getNode(sourceNodeIdWithLabel.id))
             if (!nodeInfo) continue;
             const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string;
             if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
@@ -564,7 +565,8 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 type: nodeInfo.type!,
                 data: {
                     content: nodeContent,
-                }
+                },
+                looped: (nodeInfo as any).looped ? (nodeInfo as any).looped : false
             };
             blocks[nodeInfo.id] = nodejson;
         }
