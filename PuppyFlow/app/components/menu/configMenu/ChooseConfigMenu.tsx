@@ -269,24 +269,38 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         const totalHeight = spacing * (outputs.length - 1)
         const startY = centerY - totalHeight / 2
 
+        console.log("add nodes and edges to output",outputs)
+
         // 准备所有新节点
-        const newNodes = outputs.map((output, index) => ({
-            id: output,
-            position: {
-                x: parentEdgeNode.position.x + 160,
-                y: startY + spacing * index
-            },
-            data: {  
-                content: "", 
-                label: output,
-                isLoading: false,
-                locked: false,
-                isInput: false,
-                isOutput: false,
-                editable: false,
-            },
-            type: 'text',
-        }));
+        const newNodes = outputs.map((output, index) => {
+                
+            const currentnode = getNode(output)
+            console.log("add currentnode to output",currentnode)
+            
+            if(!currentnode){
+                return ({
+                    id: output,
+                    position: {
+                        x: parentEdgeNode.position.x + 160,
+                        y: startY + spacing * index
+                    },
+                    data: {  
+                        content: "", 
+                        label: output,
+                        isLoading: false,
+                        locked: false,
+                        isInput: false,
+                        isOutput: false,
+                        editable: false,
+                    },
+                    type: 'text',
+                })
+            } else{
+                return currentnode
+            }
+        }
+              
+    )
 
         console.log("newnodes",newNodes)
 
@@ -318,7 +332,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 })
             }),
         ]);
-
+        
         console.log("updated",getNode(parentId))
 
         onResultNodesChange(outputs)
