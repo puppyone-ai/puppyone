@@ -367,7 +367,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
   return (
 
     <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
-        <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
+        <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             <div className='flex flex-row gap-[12px]'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
                 <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
