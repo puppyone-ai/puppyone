@@ -290,7 +290,7 @@ function ModifyStructuredConfigMenu({show, parentId}: ModifyStructuredConfigProp
   return (
 
     <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
-        <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
+        <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
