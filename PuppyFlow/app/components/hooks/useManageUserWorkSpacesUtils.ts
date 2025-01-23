@@ -21,6 +21,14 @@ interface ManageUserWorkspacesUtils {
     updateWorkspaceNameInDatabase: (workspaceId: string, newWorkspaceName: string) => Promise<{ workspace_id: string; workspace_name: string; } | undefined>;
     addWorkspaceHistory: (workspaceId: string, historyData: any, timestep: string) => Promise<void>;
     fetchLatestWorkspaceHistory: (workspaceId: string) => Promise<any | undefined>;
+    initializeUserDataV2: () => Promise<{
+        user_name: string;
+        workspaces: {
+            workspace_id: string;
+            workspace_name: string;
+        }[];
+        workspace_history: any;
+    }>;
   }
 
 export default function useManageUserWorkspacesUtils(): ManageUserWorkspacesUtils {
@@ -354,6 +362,38 @@ export default function useManageUserWorkspacesUtils(): ManageUserWorkspacesUtil
         }
     }
 
+    const initializeUserDataV2 = async () => {
+        try {
+            const userAccessToken = getToken()
+
+            if (!userAccessToken) {
+                throw new Error('No user access token found')
+            }
+
+            const response = await fetch(`${UserSystem_Backend_Base_Url}/initialize_user_data_v2`, {
+                method: 'GET',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${userAccessToken}`
+                }
+            });
+
+            if (response.status !== 200) {
+                const error_data: {error: string} = await response.json()
+                throw new Error(`HTTP error! status: ${response.status}, error message: ${error_data.error}`);
+            }
+
+            const data = await response.json();
+            console.log('Initialize User Data V2:', data);
+            return data;
+
+        } catch (error) {
+            console.error('Error in initializeUserDataV2:', error);
+            throw error;
+        }
+    }
+
   return (
     {
         getToken,
@@ -364,7 +404,8 @@ export default function useManageUserWorkspacesUtils(): ManageUserWorkspacesUtil
         deleteWorkspaceInDatabase,
         updateWorkspaceNameInDatabase,
         addWorkspaceHistory,
-        fetchLatestWorkspaceHistory
+        fetchLatestWorkspaceHistory,
+        initializeUserDataV2
     }
   )
 }

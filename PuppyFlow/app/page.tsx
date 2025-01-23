@@ -22,10 +22,5 @@ export default function Home() {
         </ReactFlowProvider>
          
    </div>
-
-      
-        
-
-  
   );
 }
