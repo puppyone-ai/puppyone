@@ -1,7 +1,7 @@
 'use client'
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
-import JSONForm from '../../../portals/tableComponent/JSONForm'
+import JSONForm from '../../../tableComponent/JSONForm'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {faGoogle} from '@fortawesome/free-brands-svg-icons'
 import useJsonConstructUtils, {NodeJsonType, FileData} from '../../../hooks/useJsonConstructUtils'
