@@ -826,12 +826,17 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                 </button>
               }
               {viewMode == EMBED_VIEW_MODE ?
+
+              <div style={{
+                position: 'relative', // 添加相对定位
+                display: isEmbedHidden ? "none" : "flex"
+              }}
+              >
                 <button style={{
                   paddingTop: '1px',
                   cursor: 'pointer',
                   paddingLeft: "8px",
-                  paddingRight: "8px",
-                  position: 'relative', // 添加相对定位
+                  paddingRight: "8px"
                 }}
                 className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
                   onClick={handleEmbedViewClick}
@@ -864,6 +869,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
                   </svg>
                   <span>Embedding</span>
+                </button> 
                   <Transition
                     show={!!showSettingMenu}
                     as={Fragment}
@@ -875,12 +881,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     leaveTo="transform opacity-0 translate-y-[-10px]"
                   >
                     <div style={{position: "fixed", zIndex: 20000}}>
-                      <ul className='flex flex-col absolute top-[16px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[-5px] z-[20000]'>
+                      <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
                         <li>
                           <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                             onClick={
                               async () => {
                                 setIsEmbedded(false)
+                                setShowSettingMenu(false)
                                 const embeddingNodeData = await constructStructuredNodeEmbeddingData()
                                 console.log("embeddingnode data", embeddingNodeData)
 
@@ -924,7 +931,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                           <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
                             onClick={
                               () => {
+                                console.log("on embedding tab delete")
                                 setIsEmbedHidden(true)
+                                setViewMode(INPUT_VIEW_MODE)
                                 setIsEmbedded(false)
                               }
                             }
@@ -943,7 +952,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                       </ul>
                     </div>
                   </Transition>
-                </button> :
+              </div>
+                
+                :
                 <button style={{
                   paddingTop: '1px',
                   cursor: 'pointer',
