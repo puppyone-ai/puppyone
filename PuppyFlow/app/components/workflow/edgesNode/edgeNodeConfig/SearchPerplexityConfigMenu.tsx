@@ -1,7 +1,7 @@
 'use client'
 import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
-import JSONForm from '../../../portals/tableComponent/JSONForm'
+import JSONForm from '../../../tableComponent/JSONForm'
 import useJsonConstructUtils, {NodeJsonType, FileData} from '../../../hooks/useJsonConstructUtils'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
