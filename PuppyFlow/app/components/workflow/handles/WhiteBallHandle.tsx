@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import {HandleProps, Handle, Position, Connection, useReactFlow} from '@xyflow/react'
-import EdgeMenu1 from '../../menu/edgeMenu/EdgeMenu1'
+import EdgeMenu1 from '../edgesNode/edgeNodesSelectorMenu/EdgeSelectorMenu'
 import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 
