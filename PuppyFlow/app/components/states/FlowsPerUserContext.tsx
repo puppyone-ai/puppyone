@@ -290,22 +290,64 @@ const FlowsPerUserProps = () => {
     const [selectedFlowId, setSelectedFlowId] = useState<string | null>(null);
     const operationQueueRef = useRef<QueueOperation[]>([]);
     const isProcessingRef = useRef(false);
-    const {createWorkspaceInDatabase, deleteWorkspaceInDatabase, updateWorkspaceNameInDatabase, addWorkspaceHistory, fetchLatestWorkspaceHistory, fetchUserId, fetchUserWorkspacesInfo, fetchUserName} = useManageUserWorkspacesUtils()
+    const {createWorkspaceInDatabase, deleteWorkspaceInDatabase, updateWorkspaceNameInDatabase, addWorkspaceHistory, fetchLatestWorkspaceHistory, fetchUserId, fetchUserWorkspacesInfo, fetchUserName, initializeUserDataV2} = useManageUserWorkspacesUtils()
     const {constructWholeJsonWorkflow} = useJsonConstructUtils()
-    const {setNodes, setEdges} = useReactFlow()
+    const reactFlowInstance = useReactFlow()
     const workspacesRef = useRef<WorkspaceData[]>([]); // 用于存储最新的workspace数据 for useEffect quote
     const isForceSaveRef = useRef(false);
 
+    // 添加一个 ref 来存储未保存的状态
+    const unsavedStatesRef = useRef<Record<string, {
+        nodes: Node[];
+        edges: Edge[];
+        timestamp: number;
+    }>>({});
 
-    // 添加一个工具函数来比较JSON
-    const isJsonEqual = (json1: any, json2: any): boolean => {
-        if (!json1 || !json2) return json1 === json2;
-        return JSON.stringify(json1) === JSON.stringify(json2);
+    // 添加规范化工具函数
+    const normalizeWorkspaceJson = (json: any) => {
+        if (!json?.blocks || !json?.edges) return json;
+        
+        const normalizeNode = (node: any) => ({
+            id: node.id,
+            label: node.data?.label || "",
+            type: node.type,
+            data: {
+                content: node.data?.content || ""
+            }
+        });
+
+        const normalizeEdge = (edge: any) => ({
+            id: edge.id,
+            type: edge.type,
+            data: {
+                ...edge.data,
+                inputs: edge.data?.inputs?.sort((a: any, b: any) => a.id.localeCompare(b.id)) || [],
+                outputs: edge.data?.outputs?.sort((a: any, b: any) => a.id.localeCompare(b.id)) || []
+            }
+        });
+
+        return {
+            blocks: json.blocks
+                .map(normalizeNode)
+                .sort((a: any, b: any) => a.id.localeCompare(b.id)),
+            edges: json.edges
+                .map(normalizeEdge)
+                .sort((a: any, b: any) => a.id.localeCompare(b.id))
+        };
     };
 
+    // 添加比较函数
+    const isJsonEqual = (json1: any, json2: any): boolean => {
+        if (!json1 || !json2) return json1 === json2;
+        
+        const normalized1 = normalizeWorkspaceJson(json1);
+        const normalized2 = normalizeWorkspaceJson(json2);
+        
+        return JSON.stringify(normalized1) === JSON.stringify(normalized2);
+    };
 
-     // 处理操作队列
-     const processOperationQueue = async () => {
+    // 处理操作队列
+    const processOperationQueue = async () => {
         if (isProcessingRef.current || operationQueueRef.current.length === 0) return;
 
         try {
@@ -441,35 +483,60 @@ const FlowsPerUserProps = () => {
     useEffect(() => {
         const initializeWorkspaces = async () => {
             try {
+                console.log("Starting workspace initialization...");
+                
+                // 使用 v2 接口获取基础数据
+                const data = await initializeUserDataV2();
+                console.log("Received initial data:", data);
+                
+                if (!data) {
+                    console.log("No data received from initializeUserDataV2");
+                    return;
+                }
 
-                // setNodes([])
-                // setEdges([])
+                // 设置用户信息
+                setUserId(data.user_name);
+                setUserName(data.user_name);
+                console.log("Set user info:", data.user_name);
 
-                // 1. 初始化用户信息
-                const userId = await fetchUserId();
-                const userName = await fetchUserName(userId);
-                if (!userId) return;
-                setUserId(userId);
-                setUserName(userName as string);
+                // 先设置基础工作区数据（包含第一个工作区的历史记录）
+                const initialWorkspaces = data.workspaces.map((workspace, index) => ({
+                    flowId: workspace.workspace_id,
+                    flowTitle: workspace.workspace_name,
+                    latestJson: index === 0 ? data.workspace_history : null,
+                    isDirty: false
+                }));
+                
+                console.log("Setting initial workspaces:", initialWorkspaces);
+                // 先更新状态，显示基础数据
+                setWorkspaces(initialWorkspaces);
 
-                const workspacesInfo = await fetchUserWorkspacesInfo(userId);
-                if (!workspacesInfo) return;
-
-                // 并行加载所有workspace的最新数据
-                const workspacesWithData = await Promise.all(
-                    workspacesInfo.map(async (workspace) => {
+                // 然后并行获取其他工作区的历史记录
+                if (data.workspaces.length > 1) {
+                    console.log("Fetching history for other workspaces...");
+                    const historyPromises = data.workspaces.slice(1).map(async (workspace, index) => {
+                        console.log(`Fetching history for workspace ${workspace.workspace_id}`);
                         const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id);
                         
-                        return {
-                            flowId: workspace.workspace_id,
-                            flowTitle: workspace.workspace_name,
-                            latestJson: latestHistory || null,
-                            isDirty: false
-                        };
-                    })
-                );
+                        if (latestHistory) {
+                            // 更新对应工作区的历史记录
+                            setWorkspaces(prevWorkspaces => {
+                                const newWorkspaces = [...prevWorkspaces];
+                                // index + 1 因为跳过了第一个工作区
+                                newWorkspaces[index + 1] = {
+                                    ...newWorkspaces[index + 1],
+                                    latestJson: latestHistory
+                                };
+                                console.log(`Updated history for workspace ${workspace.workspace_id}`);
+                                return newWorkspaces;
+                            });
+                        }
+                    });
 
-                setWorkspaces(workspacesWithData);
+                    await Promise.all(historyPromises);
+                    console.log("All workspace histories fetched");
+                }
+
             } catch (error) {
                 console.error("Error initializing workspaces:", error);
             }
@@ -481,30 +548,74 @@ const FlowsPerUserProps = () => {
     // 切换workspace
     const handleFlowSwitch = async (newFlowId: string | null) => {
         try {
-            // 1. 如果当前有选中的flow，等待保存完成
-            // if (selectedFlowId) {
-            //     // await updateWorkspaceData(selectedFlowId);
-            //     await forceSaveHistory(selectedFlowId);
-            // } 
-    
-            // 2. 切换到新的flow
-            if (!newFlowId) {
-                setSelectedFlowId(null);
-                setNodes([]);
-                setEdges([]);
-                return;
+            const targetWorkspace = workspaces.find(w => w.flowId === newFlowId);
+            console.log("切换前的工作区状态:", {
+                flowTitle: targetWorkspace?.flowTitle,
+                isDirty: targetWorkspace?.isDirty,
+                hasLatestJson: !!targetWorkspace?.latestJson
+            });
+            
+            // 1. 自动缓存当前工作区的未保存状态
+            const prevFlowId = selectedFlowId;
+            const currentWorkspace = workspaces.find(w => w.flowId === prevFlowId);
+            console.log("当前工作区:", currentWorkspace?.flowTitle, "是否有未保存更改:", currentWorkspace?.isDirty);
+            
+            if (prevFlowId && currentWorkspace?.isDirty) {
+                unsavedStatesRef.current[prevFlowId] = {
+                    nodes: reactFlowInstance.getNodes(),
+                    edges: reactFlowInstance.getEdges(),
+                    timestamp: Date.now()
+                };
             }
-    
-            // 3. 加载新workspace数据
-            const workspace = workspaces.find(w => w.flowId === newFlowId);
-            if (workspace?.latestJson) {
-                setNodes(workspace.latestJson.blocks);
-                setEdges(workspace.latestJson.edges);
+
+            // 2. 加载新工作区的数据
+            if (newFlowId) {
+                console.log("准备加载新工作区数据");
+                const unsavedState = unsavedStatesRef.current[newFlowId];
+                if (unsavedState) {
+                    console.log("使用未保存的状态");
+                    reactFlowInstance.setNodes(unsavedState.nodes);
+                    reactFlowInstance.setEdges(unsavedState.edges);
+                } else {
+                    const targetWorkspace = workspaces.find(w => w.flowId === newFlowId);
+                    if (targetWorkspace?.latestJson) {
+                        console.log("使用预加载的状态");
+                        reactFlowInstance.setNodes(targetWorkspace.latestJson.blocks);
+                        reactFlowInstance.setEdges(targetWorkspace.latestJson.edges);
+                    } else {
+                        console.log("从服务器获取最新状态");
+                        const latestHistory = await fetchLatestWorkspaceHistory(newFlowId);
+                        if (latestHistory) {
+                            reactFlowInstance.setNodes(latestHistory.blocks);
+                            reactFlowInstance.setEdges(latestHistory.edges);
+                            setWorkspaces(prev => prev.map(w => 
+                                w.flowId === newFlowId 
+                                    ? { ...w, latestJson: latestHistory }
+                                    : w
+                            ));
+                        } else {
+                            console.log("没有历史记录，清空画布");
+                            reactFlowInstance.setNodes([]);
+                            reactFlowInstance.setEdges([]);
+                        }
+                    }
+                }
             } else {
-                setNodes([]);
-                setEdges([]);
+                console.log("切换到空工作区");
+                reactFlowInstance.setNodes([]);
+                reactFlowInstance.setEdges([]);
             }
+
+            // 3. 最后更新选中的工作区
+            console.log("更新选中的工作区");
             setSelectedFlowId(newFlowId);
+            
+            // 加载完成后再次检查状态
+            console.log("切换后的工作区状态:", {
+                flowTitle: targetWorkspace?.flowTitle,
+                isDirty: targetWorkspace?.isDirty,
+                hasLatestJson: !!targetWorkspace?.latestJson
+            });
         } catch (error) {
             console.error("Error switching workspace:", error);
         }
@@ -649,8 +760,8 @@ const FlowsPerUserProps = () => {
         if (selectedFlowId === flowId) {
             // 如果当前选中的flow被删除，则清空节点和边
             setSelectedFlowId(null);
-            setNodes([])
-            setEdges([])
+            reactFlowInstance.setNodes([]);
+            reactFlowInstance.setEdges([]);
         }
 
         if (removedWorkspace) {
