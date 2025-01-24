@@ -277,7 +277,6 @@ class JSONModifier:
         **kwargs
     ) -> Any:
         self.kwargs = kwargs
-        content_type = type(self.data).__name__
         match modify_type:
             case "copy":
                 return self._handle_copy()
@@ -288,7 +287,7 @@ class JSONModifier:
             case "edit_structured":
                 return self._handle_edit_structured(**kwargs)
             case _:
-                raise ValueError(f"Unsupported Modify Type: {content_type}!")
+                raise ValueError(f"Unsupported Modify Type: {modify_type}!")
 
     def _handle_copy(
         self,
@@ -328,7 +327,7 @@ class JSONModifier:
 
         plugin_pattern_compiled = re.compile(plugin_pattern)
         self.data = plugin_pattern_compiled.sub(replacer, self.data)
-        self.data = self.data[slice_range[0]:slice_range[1]]
+        self.data = self.data[slice_range[0]:slice_range[1] if slice_range[1] != -1 else None]
         if sort_type in {"ascending", "descending"}:
             self.data = sorted(self.data, reverse=(sort_type == "descending"))
 
