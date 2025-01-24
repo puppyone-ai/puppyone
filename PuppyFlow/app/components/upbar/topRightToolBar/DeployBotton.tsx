@@ -76,7 +76,9 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
 function DeployBotton() {
 
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
+  const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
   const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
+  const [isOutputOpen, setIsOutputOpen] = useState(false); // State to manage dropdown visibility
 
   const [hovered, setHovered] = useState(false)
   const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
@@ -143,7 +145,9 @@ function DeployBotton() {
                         <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center'
                           onClick={
                             ()=>{
-                              
+                              setSelectedInputs(prev=>{
+                                return prev.filter(el=>el.id!==item.id)
+                              })
                             }
                           }
                         >
@@ -183,13 +187,48 @@ function DeployBotton() {
               <div>
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">outputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Result</div>
-
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg">
+                {
+                      selectedOutputs
+                      .map(item => (
+                        <div key={item.id} className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center'
+                          onClick={
+                            ()=>{
+                              setSelectedOutputs(prev=>{
+                                return prev.filter(el=>el.id!==item.id)
+                              })
+                            }
+                          }
+                        >
+                          <svg width="12" height="2" viewBox="0 0 12 2" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0.5" y="0.5" width="11" height="1" fill="#252525" stroke="black"/>
+                          </svg>
+                        </div>
+                      </div>
+                      ))
+                    }
+                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg"
+                      onClick={
+                        ()=>{
+                          console.log("add node")
+                          setIsOutputOpen((prev)=>!prev)
+                        }
+                      }
+                  >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M7 1V13M1 7H13" stroke="#6D7177" strokeWidth="2"/>
                     </svg>
                   </button>
+                  <CustomDropdown
+                          isOpen={isOutputOpen}
+                          setIsOpen={setIsOutputOpen}
+                          options={getNodes().filter( (item) => (item.type === 'text' || item.type === 'structured') ).filter(item=>!(selectedOutputs.map(el=>el.id)).includes(item.id))}
+                          onSelect={(selectedItem:any)=>setSelectedOutputs(
+                            (prev)=>{
+                              return prev.length === 0 ? [selectedItem]:[...prev,selectedItem]
+                            }
+                          )}
+                  />
                 </div>
               </div>
             </div>
