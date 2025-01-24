@@ -6,6 +6,7 @@ import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJson
 import { Button } from 'antd'
 import { useReactFlow } from '@xyflow/react'
 import { set } from 'lodash'
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 
 const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:any) => {
 
@@ -75,6 +76,9 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
 
 function DeployBotton() {
 
+  const API_SERVER_URL ="https://dev.api.puppyagent.com"
+  const {constructWholeJsonWorkflow} = useJsonConstructUtils()
+
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
   const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
   const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
@@ -84,15 +88,34 @@ function DeployBotton() {
   const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
 
   const handleDeploy = async () => {
-    const nodes = getNodes(); // Get the current nodes from the React Flow store
-    
-    console.log("deploy",nodes)
-    // try {
-    //   await sendWholeWorkflowJsonDataToBackend()
-    //   // 可以添加成功提示
-    // } catch (error) {
-    //   console.error('Deploy failed:', error)
-    // }
+
+    try {
+      const res = await fetch(      
+        API_SERVER_URL +" /config_api",
+        {
+          method: "POST",
+          body:JSON.stringify({
+            workflow_json: constructWholeJsonWorkflow(),
+            inputs: selectedInputs.map(item=>item.id),
+            outputs: selectedOutputs.map(item=>item.id),
+          })
+        }
+      )
+
+      const content = await res.json();
+
+      const [api_id, api_key] = content
+
+      if (!res.ok) {
+        throw new Error(`Response status: ${res.status}`);
+      }
+      // ...
+    } catch (error) {
+      console.error(error);
+    }
+
+
+
   }
 
   const { getNodes } = useReactFlow(); // Destructure getNodes from useReactFlow
