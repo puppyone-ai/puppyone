@@ -2,12 +2,13 @@
     "blocks": {
         "2": {
             "type": "text",
+            "label": "b",
             "data": {
                 "content": "world"
             }
         },
         "1": {
-            "label":"1",
+            "label":"a",
             "type": "text",
             "data": {
                 "content": ""
@@ -15,24 +16,28 @@
         },
         "3": {
             "type": "text",
+            "label": "c",
             "data": {
                 "content": ""
             }
         },
         "4": {
             "type": "text",
+            "label": "d",
             "data": {
                 "content": ""
             }
         },
         "5": {
             "type": "text",
+            "label": "e",
             "data": {
                 "content": ""
             }
         },
         "6": {
             "type": "text",
+            "label": "f",
             "data": {
                 "content": ""
             }
@@ -84,30 +89,30 @@
                         }
                     }
                 },
-                "inputs":{"1": "", "2": ""},
-                "outputs":{"3": "", "4": ""}
+                "inputs":{"1": "a", "2": "b"},
+                "outputs":{"3": "c", "4": "d"}
             }
         },
         "edge-34567432132": {
             "type": "modify",
             "data": {
                 "content_type": "str",
-                "modify_type": "modify_text",
+                "modify_type": "edit_text",
                 "extra_config": {},
-                "content": "hello {{3}}",
-                "inputs": {"3": ""},
-                "outputs": {"5": ""}
+                "content": "hello {{c}}",
+                "inputs": {"3": "c"},
+                "outputs": {"5": "e"}
             }
         },
         "edge-65762984": {
             "type": "modify",
             "data": {
                 "content_type": "str",
-                "modify_type": "modify_text",
+                "modify_type": "edit_text",
                 "extra_config": {},
-                "content": "goodbye {{4}}",
-                "inputs": {"4": ""},
-                "outputs": {"6": ""}
+                "content": "goodbye {{d}}",
+                "inputs": {"4": "d"},
+                "outputs": {"6": "f"}
             }
         }
     },

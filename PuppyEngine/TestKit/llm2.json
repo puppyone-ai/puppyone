@@ -1,0 +1,45 @@
+{
+    "blocks": {
+        "RLxsEM": {
+            "label": "11",
+            "type": "text",
+            "data": {
+                "content": "文章里阐述了哪些概念？"
+            }
+        },
+        "og7Tek": {
+            "label":"111",
+            "type": "text",
+            "data": {
+                "content": "在前端设计一个单独的导出为API的界面，功能包括:\n- set input和output blocks（可以有多个inputs也可以有多个outputs）\n- 从run all这个功能传给后端的workflow json中解析出包含inputs和outputs的部分，剔除其余部分\n- 用户点击convert to API时，将inputs到outputs部分的workflow json发送给API server， API server会返回一个对应的API ID和API Secret Key，拿到后展示给用户，提供复制和保存成csv文件下载到本地的功能，以让用户妥善保管ID和SK，用户关掉这个复制和保存csv的弹窗后无法再次查看这个信息，除非重新配置一个新的API，之前的API删掉后会作废。"
+            }
+        },
+        "3": {
+            "label": "3",
+            "type": "text",
+            "data": {
+                "content": "puppy"
+            }
+        }
+    },
+    "edges": {
+        "llm-1727235281399": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {"role": "system", "content": "You are an AI"},
+                    {"role": "user", "content": "根据{{111}}，回复{{11}}"}
+                ],
+                "sys_prompt": "",
+                "model": "gpt-4o",
+                "base_url": "",
+                "max_tokens": 2048,
+                "temperature": 0.7,
+                "inputs": {"og7Tek": "111", "RLxsEM": "11"},
+                "outputs": {"3": "3"},
+                "structured_output":false
+            }
+        }
+    },
+    "version": "0.1"
+}

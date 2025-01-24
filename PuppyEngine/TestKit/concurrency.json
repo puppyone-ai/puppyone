@@ -2,18 +2,21 @@
     "blocks": {
         "1": {
             "type": "text",
+            "label": "a",
             "data": {
                 "content": "BYD as a leading new energy vehicle manufacturer in China has been accelerating its globalization efforts in recent years aiming to secure a position in the global electric vehicle market. The United States being the second-largest automotive market in the world offers a significant opportunity for BYD with its substantial demand for new energy vehicles. However BYD also faces numerous challenges having to navigate the multifaceted influences from policy economic social and technological factors."
             }
         },
         "2": {
             "type": "text",
+            "label": "b",
             "data": {
                 "content": ""
             }
         },
         "3": {
             "type": "structured",
+            "label": "c",
             "data": {
                 "content": [],
                 "embedding_view": []
@@ -21,6 +24,7 @@
         },
         "4": {
             "type": "structured",
+            "label": "d",
             "data": {
                 "content": [],
                 "embedding_view": []
@@ -31,19 +35,19 @@
         "modify-1727674646321": {
             "type": "modify",
             "data": {
-                "inputs": {"1": ""},
-                "outputs": {"2": ""},
-                "modify_type": "append",
+                "inputs": {"1": "a"},
+                "outputs": {"2": "b"},
+                "modify_type": "edit_text",
                 "extra_configs": {
-                    "string2": "{{1}}"
+                    "string2": "{{a}}"
                 }
             }
         },
         "chunk-1727406844633": {
             "type": "chunk",
             "data": {
-                "inputs": {"1":""},
-                "outputs": {"3":""},
+                "inputs": {"1":"a"},
+                "outputs": {"3":"c"},
                 "chunking_mode": "auto",
                 "extra_configs": {}
             }
@@ -51,8 +55,8 @@
         "modify-8306729527535": {
             "type": "modify",
             "data": {
-                "inputs": {"3": "3"},
-                "outputs": {"4": ""},
+                "inputs": {"3": "c"},
+                "outputs": {"4": "d"},
                 "modify_type": "get",
                 "extra_configs": {
                     "key": "0"
