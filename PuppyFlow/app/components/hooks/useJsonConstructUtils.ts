@@ -4,14 +4,14 @@
 import React, { Children } from "react";
 import { useReactFlow, Node } from "@xyflow/react";
 import { useCallback, useRef } from "react";
-import {JsonNodeData} from "../workflow/nodes/JsonNode"
-import {FileNodeData} from "../workflow/nodes/FileNode"
-import {ResultNodeData} from "../workflow/nodes/ResultNode"
-import {SwitchNodeData} from "../workflow/nodes/SwitchNode"
-import {TextBlockNodeData} from "../workflow/nodes/TextBlockNode"
-import {VectorDatabaseNodeData} from "../workflow/nodes/VectorDatabaseNode"
-import {VectorNodeData} from "../workflow/nodes/VectorNode"
-import {WebLinkNodeData} from "../workflow/nodes/WebLinkNode"
+import {JsonNodeData} from "../workflow/blockNode/JsonNode"
+import {FileNodeData} from "../workflow/blockNode/FileNode"
+import {ResultNodeData} from "../workflow/blockNode/ResultNode"
+import {SwitchNodeData} from "../workflow/blockNode/SwitchNode"
+import {TextBlockNodeData} from "../workflow/blockNode/TextBlockNode"
+import {VectorDatabaseNodeData} from "../workflow/blockNode/VectorDatabaseNode"
+import {VectorNodeData} from "../workflow/blockNode/VectorNode"
+import {WebLinkNodeData} from "../workflow/blockNode/WebLinkNode"
 import { SYSTEM_URLS } from "@/config/urls";
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
