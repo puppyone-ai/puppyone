@@ -1,21 +1,106 @@
 'use client'
 
 import { Menu, Transition } from '@headlessui/react'
-import React, { useState, Fragment } from 'react'
+import React, { useState, Fragment, useEffect } from 'react'
 import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJsonConstructUtils'
+import { Button } from 'antd'
+import { useReactFlow } from '@xyflow/react'
+import { set } from 'lodash'
+
+const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:any) => {
+
+  const handleSelect = (nodeId: string, label: string) => {
+      onSelect({id:nodeId, label:label});
+      setIsOpen(false); // Close dropdown after selection
+  };
+
+  // Inline styles
+  const dropdownContainerStyle: React.CSSProperties  = {
+      position: 'relative',
+      cursor: 'pointer',
+  };
+
+  const dropdownHeaderStyle = {
+      padding: '8px',
+      backgroundColor: '#333', // Background color
+      color: 'white', // Text color
+      border: '1px solid #6D7177', // Border color
+      borderRadius: '4px', // Rounded corners
+  };
+
+  const dropdownListStyle: React.CSSProperties = {
+      position: 'absolute',
+      top: '150%',
+      left: 0,
+      right: 0,
+      backgroundColor: 'black', // Background color for dropdown items
+      border: '1px solid #6D7177', // Border color
+      borderRadius: '4px', // Rounded corners
+      zIndex: 1000, // Ensure dropdown is above other elements
+      height: 'auto', // Max height for dropdown
+      width:'100px',
+      overflowY: 'auto', // Scroll if too many items
+      overflowX:'hidden',
+      color:'white'
+  };
+
+  const dropdownItemStyle = {
+      padding: '8px',
+      color: 'white', // Text color for items
+      cursor: 'pointer',
+  };
+
+  return (
+      <div style={dropdownContainerStyle}>
+          {isOpen ? (
+              <ul style={dropdownListStyle}>
+                  {console.log("options",options)}
+                  {options.map((node:any) => (
+                      <li
+                          key={node.id}
+                          style={dropdownItemStyle}
+                          onClick={() => handleSelect(node.id, node.label)}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
+                      >
+                          {node.label || node.id}
+                      </li>
+                  ))}
+              </ul>
+          ):<></>}
+      </div>
+  );
+};
+
 
 function DeployBotton() {
+
+  const [selectedInputs, setSelectedInputs] = useState<any[]>([])
+  const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
+  const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
+  const [isOutputOpen, setIsOutputOpen] = useState(false); // State to manage dropdown visibility
+
   const [hovered, setHovered] = useState(false)
   const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
 
   const handleDeploy = async () => {
-    try {
-      await sendWholeWorkflowJsonDataToBackend()
-      // 可以添加成功提示
-    } catch (error) {
-      console.error('Deploy failed:', error)
-    }
+    const nodes = getNodes(); // Get the current nodes from the React Flow store
+    
+    console.log("deploy",nodes)
+    // try {
+    //   await sendWholeWorkflowJsonDataToBackend()
+    //   // 可以添加成功提示
+    // } catch (error) {
+    //   console.error('Deploy failed:', error)
+    // }
   }
+
+  const { getNodes } = useReactFlow(); // Destructure getNodes from useReactFlow
+
+  useEffect(()=>{
+
+
+  },[])
 
   return (
     <Menu as="div" className="relative">
@@ -53,14 +138,48 @@ function DeployBotton() {
               <div>
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">inputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Query</div>
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Database</div>
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">FewShots</div>
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg">
+                    {
+                      selectedInputs
+                      .map(item => (
+                        <div key={item.id} className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center'
+                          onClick={
+                            ()=>{
+                              setSelectedInputs(prev=>{
+                                return prev.filter(el=>el.id!==item.id)
+                              })
+                            }
+                          }
+                        >
+                          <svg width="12" height="2" viewBox="0 0 12 2" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0.5" y="0.5" width="11" height="1" fill="#252525" stroke="black"/>
+                          </svg>
+                        </div>
+                      </div>
+                      ))
+                    }
+                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg"
+                    onClick={
+                      ()=>{
+                        console.log("add node")
+                        setIsOpen((prev)=>!prev)
+                      }
+                    }
+                  >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M7 1V13M1 7H13" stroke="#6D7177" strokeWidth="2"/>
                     </svg>
                   </button>
+                  <CustomDropdown
+                          isOpen={isOpen}
+                          setIsOpen={setIsOpen}
+                          options={getNodes().filter( (item) => (item.type === 'text' || item.type === 'structured') ).filter(item=>!(selectedInputs.map(el=>el.id)).includes(item.id))}
+                          onSelect={(selectedItem:any)=>setSelectedInputs(
+                            (prev)=>{
+                              return prev.length === 0 ? [selectedItem]:[...prev,selectedItem]
+                            }
+                          )}
+                      />
                 </div>
               </div>
 
@@ -68,20 +187,57 @@ function DeployBotton() {
               <div>
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">outputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Result</div>
-
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg">
+                {
+                      selectedOutputs
+                      .map(item => (
+                        <div key={item.id} className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center'
+                          onClick={
+                            ()=>{
+                              setSelectedOutputs(prev=>{
+                                return prev.filter(el=>el.id!==item.id)
+                              })
+                            }
+                          }
+                        >
+                          <svg width="12" height="2" viewBox="0 0 12 2" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0.5" y="0.5" width="11" height="1" fill="#252525" stroke="black"/>
+                          </svg>
+                        </div>
+                      </div>
+                      ))
+                    }
+                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg"
+                      onClick={
+                        ()=>{
+                          console.log("add node")
+                          setIsOutputOpen((prev)=>!prev)
+                        }
+                      }
+                  >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M7 1V13M1 7H13" stroke="#6D7177" strokeWidth="2"/>
                     </svg>
                   </button>
+                  <CustomDropdown
+                          isOpen={isOutputOpen}
+                          setIsOpen={setIsOutputOpen}
+                          options={getNodes().filter( (item) => (item.type === 'text' || item.type === 'structured') ).filter(item=>!(selectedOutputs.map(el=>el.id)).includes(item.id))}
+                          onSelect={(selectedItem:any)=>setSelectedOutputs(
+                            (prev)=>{
+                              return prev.length === 0 ? [selectedItem]:[...prev,selectedItem]
+                            }
+                          )}
+                  />
                 </div>
               </div>
             </div>
 
             {/* Export API 按钮 */}
             <div className="flex justify-center">
-              <button className="h-[36px] w-[100px] text-[14px] bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] text-[#CDCDCD] hover:bg-[#363636] transition duration-200 flex items-center justify-center">
+              <button className="h-[36px] w-[100px] text-[14px] bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] text-[#CDCDCD] hover:bg-[#363636] transition duration-200 flex items-center justify-center"
+                onClick={handleDeploy}
+              >
                 Export API
               </button>
             </div>
