@@ -2,13 +2,14 @@
     "blocks": {
         "5": {
             "type": "structured",
+            "label": "e",
             "data": {
                 "content": "",
                 "embedding_view": []
             }
         },
         "3": {
-            "label":"",
+            "label":"c",
             "type": "structured",
             "data": {
                 "content": [
@@ -74,6 +75,7 @@
         },
         "4": {
             "type": "text",
+            "label": "d",
             "data": {
                 "content": "economy"
             }
@@ -85,8 +87,8 @@
             "data": {
                 "search_type": "rag",
                 "sub_search_type": "vector",
-                "inputs": {"3": "", "4": ""},
-                "outputs": {"5":""},
+                "inputs": {"3": "c", "4": "d"},
+                "outputs": {"5":"e"},
                 "top_k": 10,
                 "threshold": 0.5,
                 "extra_configs": {
@@ -95,8 +97,8 @@
                     "db_type": "pgvector",
                     "collection_name": "pg_test_collection"
                 },
-                "query_id": {"4": ""},
-                "docs_id": {"3": ""}
+                "query_id": {"4": "d"},
+                "docs_id": {"3": "c"}
             }
         }
     },

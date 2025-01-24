@@ -133,10 +133,11 @@ class JsonParser:
         edge_key_name: str
     ) -> Dict[str, dict]:
         for block_id, label in edge_dict.get("data").get("inputs").items():
-            if label:
-                block_id = label
+            block_id_key = block_id
+            if block_id in edge_dict.get("data").get("inputs").values():
+                block_id_key = [key for key, value in edge_dict.get("data").get("inputs").items() if value == block_id][0]
 
-            block = self.block_data.get(block_id)
+            block = self.block_data.get(block_id_key)
 
             if block.get("type") == "structured" and block.get("looped", False):
                 edge_dict["data"]["looped"].append(block_id)
@@ -175,7 +176,8 @@ class JsonParser:
                     local_combinations = self._handle_loop_variable_replacement(content, block_id, local_combinations)
 
         # Second pass: generate nested messages for each combination
-        nested_message_list = self._handle_local_combinations(local_combinations, message_list, nested_message_list)
+        input_labels = edge_config.get("data", {}).get("inputs", {})
+        nested_message_list = self._handle_local_combinations(local_combinations, message_list, nested_message_list, input_labels)
 
         return nested_message_list
 
@@ -183,7 +185,8 @@ class JsonParser:
         self,
         local_combinations: List[Dict[str, Any]],
         message_list: List[Dict[str, Any]],
-        nested_message_list: List[List[Dict[str, Any]]]
+        nested_message_list: List[List[Dict[str, Any]]],
+        input_labels: Dict[str, str]
     ) -> List[Dict[str, Any]]:
         # Second pass: generate nested messages for each combination
         for combo in local_combinations:
@@ -191,7 +194,7 @@ class JsonParser:
             for message in message_list:
                 message_role = message.get("role", "user")
                 message_content = message.get("content")
-                message_content = self._handle_variable_replace(message_content, combo)
+                message_content = self._handle_variable_replace(message_content, combo, input_labels)
                 current_messages.append({"role": message_role, "content": message_content})
 
             nested_message_list.append(current_messages)
@@ -203,11 +206,16 @@ class JsonParser:
     def _handle_variable_replace(
         self,
         message_content: str,
-        combo: Dict[str, Any]
+        combo: Dict[str, Any],
+        input_labels: Dict[str, str]
     ) -> str:
         placeholders = re.findall(self.placeholder_pattern, message_content)
         for block_id in placeholders:
-            block = self.block_data.get(block_id, {})
+            block_id_key = block_id
+            if block_id in input_labels.values():
+                block_id_key = [key for key, value in input_labels.items() if value == block_id][0]
+
+            block = self.block_data.get(block_id_key, {})
             content = block.get("data", {}).get("content", "")
             is_looped = block.get("type") == "structured" and block.get("data", {}).get("looped", False)
 
@@ -244,21 +252,25 @@ class JsonParser:
     ) -> Dict[str, Any]:
         content = edge_dict.get("data", {}).get("content")
 
-        def replace_placeholders(text):
+        def replace_placeholders(text, input_labels):
             placeholders = re.findall(self.placeholder_pattern, text)
             for block_id in placeholders:
-                block = self.block_data.get(block_id, {})
+                block_id_key = block_id
+                if block_id in input_labels.values():
+                    block_id_key = [key for key, value in input_labels.items() if value == block_id][0]
+                block = self.block_data.get(block_id_key, {})
                 block_content = block.get("data", {}).get("content", "")
                 text = text.replace(f"{{{{{block_id}}}}}", str(block_content))
             return text
 
+        input_labels = edge_dict.get("data", {}).get("inputs", {})
         if isinstance(content, str):
-            content_parsed = replace_placeholders(content)
+            content_parsed = replace_placeholders(content, input_labels)
         elif isinstance(content, list):
-            content_parsed = [replace_placeholders(item) for item in content if isinstance(item, str)]
+            content_parsed = [replace_placeholders(item, input_labels) for item in content if isinstance(item, str)]
         elif isinstance(content, dict):
             content_parsed = {
-                key: replace_placeholders(value) if isinstance(value, str) else value
+                key: replace_placeholders(value, input_labels) if isinstance(value, str) else value
                 for key, value in content.items()
             }
         else:
@@ -282,7 +294,7 @@ class JsonParser:
     ) -> Dict[str, dict]:
         edge_dict = self._handle_modify_replacement(edge_dict)
         edge_data = edge_dict.get("data")
-        if edge_data.get("modify_type") in {"modify_text", "modify_structured"}:
+        if edge_data.get("modify_type") in {"edit_text", "edit_structured"}:
             if "extra_configs" not in edge_dict["data"]:
                 edge_dict["data"]["plugins"] = {}
                 edge_dict["data"]["extra_configs"] = {}

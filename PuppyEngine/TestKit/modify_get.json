@@ -2,12 +2,14 @@
     "blocks": {
         "3": {
             "type": "structured",
+            "label": "c",
             "data": {
                 "content": ""
             }
         },
         "2": {
             "type": "structured",
+            "label": "b",
             "data": {
                 "content": {
                     "subaru": "awa", "momoka": {"san":"daisuki"}
@@ -25,8 +27,8 @@
         "modify-1727674646321": {
             "type": "modify",
             "data": {
-                "inputs": {"2": "2"},
-                "outputs": {"3": ""},
+                "inputs": {"2": "b"},
+                "outputs": {"3": "c"},
                 "modify_type": "get",
                 "extra_configs": {
                     "key": "momoka"
