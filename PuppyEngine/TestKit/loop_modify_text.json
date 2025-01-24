@@ -1,7 +1,7 @@
 {
     "blocks": {
         "2": {
-            "label":"2",
+            "label":"b",
             "type": "structured",
             "data": {
                 "content": ["world", "senpai"],
@@ -19,7 +19,7 @@
             "looped": true
         },
         "1": {
-            "label":"1",
+            "label":"a",
             "type": "structured",
             "data": {
                 "content": ["hello", "ohaiyou"],
@@ -47,10 +47,10 @@
         "edge_14": {
             "type": "modify",
             "data": {
-                "modify_type": "modify_text",
+                "modify_type": "edit_text",
                 "extra_config": {},
-                "content": "{{1}},{{2}}",
-                "inputs": {"1": "1", "2": "2"},
+                "content": "{{a}},{{b}}",
+                "inputs": {"1": "a", "2": "b"},
                 "outputs": {"3": ""}
             }
         }
