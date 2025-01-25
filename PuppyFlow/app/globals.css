@@ -850,3 +850,75 @@
 .handle-with-icon:hover::before {
   opacity: 1;
 }
+
+
+/* This is the React Flow controller component styles */
+/* Contains zoom controls and fit view buttons */
+/* Located in the toolbar at the top right of the canvas */
+
+/* 设置 panel 的 margin */
+.react-flow__panel.react-flow__controls {
+  margin: 0 16px 0 0 !important;
+}
+
+.react-flow__controls-custom {
+  background: #252525;
+  border: 1px solid #3E3E41;
+  border-radius: 8px;
+  padding: 4px;
+  height: 36px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.react-flow__controls-custom {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 重新排序按钮 */
+.react-flow__controls-custom .react-flow__controls-fitview {
+  order: 1;
+}
+
+.react-flow__controls-custom .react-flow__controls-zoomout {
+  order: 2;
+}
+
+.react-flow__controls-custom .react-flow__controls-zoomin {
+  order: 3;
+}
+
+/* 按钮基础样式 */
+.react-flow__controls-custom button {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: #6D7177;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease;  /* 添加过渡效果 */
+}
+
+/* hover 样式 */
+.react-flow__controls-custom button:hover {
+  background: #3E3E41;
+  border-radius: 4px;
+  color: #CDCDCD;
+}
+
+/* 确保 SVG 图标颜色跟随按钮颜色变化 */
+.react-flow__controls-custom button svg {
+  fill: #6D7177;
+  transition: fill 200ms ease;  /* 添加过渡效果 */
+}
+
+.react-flow__controls-custom button:hover svg {
+  fill: #CDCDCD;
+}
