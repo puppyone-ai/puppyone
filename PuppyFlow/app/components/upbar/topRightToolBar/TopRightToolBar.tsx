@@ -6,12 +6,13 @@ import { useState, useEffect } from 'react'
 import { useNodesPerFlowContext } from "../../states/NodesPerFlowContext"
 import SaveButton from './SaveButton'
 import DeployBotton from './DeployBotton'
+import { Controls } from '@xyflow/react'
 
 function TopRightToolBar() {
 
   // as a menu controller, -1 means no menu is showing, 0 means MoreOptionsButtonMenu is showing, 1 means UploadButtonMenu is showing
   const [showMenu, setShowMenu] = useState(-1)
-  const {clearAll, isOnGeneratingNewNode} = useNodesPerFlowContext()
+  const { clearAll, isOnGeneratingNewNode } = useNodesPerFlowContext()
 
   useEffect(() => {
 
@@ -40,6 +41,16 @@ function TopRightToolBar() {
 
   return (
     <div className='flex flex-row items-center justify-center gap-[16px] relative pointer-events-auto'>
+      <div className='flex items-center '>
+        <Controls
+          className="react-flow__controls-custom"
+          showZoom={true}
+          showFitView={true}
+          showInteractive={false}
+          orientation="horizontal"
+          style={{ position: 'relative' }}
+        />
+      </div>
       <SaveButton />
       <div className={`w-auto h-[36px] border-[1px] border-solid border-[#3E3E41] rounded-[8px] flex flex-row justify-center items-center bg-[#252525]`}>
         <MoreOptionsButton showMenu={showMenu} showMenuHandler={showMenuHandler} />

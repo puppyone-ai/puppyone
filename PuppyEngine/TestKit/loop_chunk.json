@@ -1,7 +1,7 @@
 {
     "blocks": {
         "6": {
-            "label": "6",
+            "label": "f",
             "type": "structured",
             "data": {
                 "content": "",
@@ -9,7 +9,7 @@
             }
         },
         "7": {
-            "label": "7",
+            "label": "g",
             "type": "structured",
             "data": {
                 "content": "",
@@ -17,7 +17,7 @@
             }
         },
         "5": {
-            "label": "5",
+            "label": "e",
             "type": "structured",
             "data": {
                 "content": "",
@@ -25,7 +25,7 @@
             }
         },
         "4": {
-            "label": "4",
+            "label": "d",
             "type": "structured",
             "data": {
                 "content": "",
@@ -33,7 +33,7 @@
             }
         },
         "2": {
-            "label": "2",
+            "label": "b",
             "type": "structured",
             "data": {
                 "content": [
@@ -63,8 +63,8 @@
         "chunk-1730708380780": {
             "type": "chunk",
             "data": {
-                "inputs":{"2": "2"},
-                "outputs": {"6": ""},
+                "inputs":{"2": "b"},
+                "outputs": {"6": "f"},
                 "chunking_mode": "character",
                 "sub_chunking_mode": "character",
                 "extra_configs": {
@@ -79,8 +79,8 @@
         "chunk-1730708353346": {
             "type": "chunk",
             "data": {
-                "inputs": {"2": "2"},
-                "outputs": {"5": ""},
+                "inputs": {"2": "b"},
+                "outputs": {"5": "e"},
                 "chunking_mode": "length",
                 "sub_chunking_mode": "size",
                 "extra_configs": {
@@ -93,8 +93,8 @@
         "chunk-1730708132454": {
             "type": "chunk",
             "data": {
-                "inputs": {"2": "2"},
-                "outputs": {"4": ""},
+                "inputs": {"2": "b"},
+                "outputs": {"4": "d"},
                 "chunking_mode": "auto",
                 "extra_configs": {}
             }
@@ -102,8 +102,8 @@
         "chunk-1730708400498": {
             "type": "chunk",
             "data": {
-                "inputs": {"2": "2"},
-                "outputs": {"7": ""},
+                "inputs": {"2": "b"},
+                "outputs": {"7": "g"},
                 "chunking_mode": "llm",
                 "sub_chunking_mode": "llm",
                 "extra_configs": {
