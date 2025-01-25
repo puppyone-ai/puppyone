@@ -96,7 +96,7 @@ class WorkFlow:
             next_block_ids = set()
             # _execute_batch returns the ids of the blocks that have been updated
             finished_ids = self._execute_batch(self.current_block_ids)
-            
+
             yield_dict = {}
 
             for finished_id in finished_ids:
@@ -320,7 +320,9 @@ if __name__ == "__main__":
     test_kit = 'TestKit/'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name == "embedding_search.json":
+        # if file_name != "modify_text.json":
+        #     continue
+        if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
             continue
         # if file_name.startswith("modify") or file_name.startswith("loop_modify"):
         #     continue

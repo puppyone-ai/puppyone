@@ -58,20 +58,25 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
   };
 
   return (
-      <div style={dropdownContainerStyle}>
+      <div className="relative">
           {isOpen ? (
-              <ul style={dropdownListStyle}>
-                  {console.log("options",options)}
-                  {options.map((node:any) => (
-                      <li
-                          key={node.id}
-                          style={dropdownItemStyle}
-                          onClick={() => handleSelect(node.id, node.label)}
-                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
-                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
-                      >
-                          {node.label || node.id}
-                      </li>
+              <ul className='absolute top-full right-0 w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                  {options.map((node:any, index:number) => (
+                      <>
+                          <li
+                              key={node.id}
+                              className='w-full'
+                          >
+                              <button 
+                                  className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                  onClick={() => handleSelect(node.id, node.label)}
+                              >
+                                  <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                      {node.label || node.id}
+                                  </span>
+                              </button>
+                          </li>
+                      </>
                   ))}
               </ul>
           ):<></>}
@@ -228,24 +233,23 @@ else:
                     {
                       selectedInputs
                       .map(item => (
-                        <div key={item.id} className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
-                        <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center'
-                          onClick={
-                            ()=>{
+                        <div key={item.id} className="bg-[#6D7177] text-black text-[12px] text-semibold h-[26px] border-[1.5px] border-[#6D7177] pl-[16px] pr-[3px] rounded-lg flex items-center">
+                          <span className="flex-shrink-0">{item.data?.label as string || item.id}</span>
+                          <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
+                            onClick={()=>{
                               setSelectedInputs(prev=>{
                                 return prev.filter(el=>el.id!==item.id)
                               })
-                            }
-                          }
-                        >
-                          <svg width="12" height="2" viewBox="0 0 12 2" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="0.5" y="0.5" width="11" height="1" fill="#252525" stroke="black"/>
-                          </svg>
+                            }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1 1L9 9M9 1L1 9" stroke="#252525" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </div>
                         </div>
-                      </div>
                       ))
                     }
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg"
+                  <button className="w-[26px] h-[26px] flex items-center justify-center border border-[#6D7177] border-[2px] rounded-lg"
                     onClick={
                       ()=>{
                         console.log("add node")
@@ -277,8 +281,8 @@ else:
                 {
                       selectedOutputs
                       .map(item => (
-                        <div key={item.id} className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
-                        <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center'
+                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div className='flex bg-[#6D7177] border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                           onClick={
                             ()=>{
                               setSelectedOutputs(prev=>{
@@ -287,14 +291,14 @@ else:
                             }
                           }
                         >
-                          <svg width="12" height="2" viewBox="0 0 12 2" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="0.5" y="0.5" width="11" height="1" fill="#252525" stroke="black"/>
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1 1L9 9M9 1L1 9" stroke="#252525" strokeWidth="1.5" strokeLinecap="round"/>
                           </svg>
                         </div>
                       </div>
                       ))
                     }
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg"
+                  <button className="w-[26px] h-[26px] flex items-center justify-center border border-[#6D7177] border-[2px] rounded-lg"
                       onClick={
                         ()=>{
                           console.log("add node")
