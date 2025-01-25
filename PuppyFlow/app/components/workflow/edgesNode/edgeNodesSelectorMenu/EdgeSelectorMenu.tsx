@@ -506,7 +506,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
                 </svg>
                 </div>
-                <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>Choose</div>
+                <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>If/Else</div>
                 </button>
             </li>
             <li className="w-full">
@@ -683,7 +683,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
                     </svg>
                     </div>
-                    <div className='text-[14px]  flex items-center justify-center h-full'>Choose</div>
+                    <div className='text-[14px]  flex items-center justify-center h-full'>If/Else</div>
                     </button>
                 </li>
                 <li className="w-full">
@@ -793,7 +793,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                                     <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
                                 </svg>
                             </div>
-                            <div className='text-[14px] flex items-center justify-center h-full'>Choose</div>
+                            <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
                         </button>
                     </li>
                 </ul>
@@ -829,7 +829,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                                 <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
                             </svg>
                         </div>
-                        <div className='text-[14px] flex items-center justify-center h-full'>Choose</div>
+                        <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
                     </button>
                 </li>
                 </ul>
@@ -890,7 +890,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                                 <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
                             </svg>
                         </div>
-                        <div className='text-[14px] flex items-center justify-center h-full'>Choose</div>
+                        <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
                     </button>
                 </li>
                 </ul>
