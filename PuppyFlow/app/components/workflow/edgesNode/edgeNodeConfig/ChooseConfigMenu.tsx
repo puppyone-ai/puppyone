@@ -1032,7 +1032,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                             </svg>
                         </div>
                         <div className='flex items-center justify-center text-[12px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                        Choose
+                        If/Else
                         </div>
                     </div>
                     <div className='w-[57px] h-[26px]'>
