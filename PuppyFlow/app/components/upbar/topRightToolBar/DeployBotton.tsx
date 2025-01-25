@@ -8,6 +8,12 @@ import { useReactFlow } from '@xyflow/react'
 import { set } from 'lodash'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 
+import dynamic from 'next/dynamic';
+import type { EditorProps, OnMount, OnChange, } from "@monaco-editor/react";
+const Editor = dynamic(() => import("@monaco-editor/react"), {
+  ssr: false
+});
+
 const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:any) => {
 
   const handleSelect = (nodeId: string, label: string) => {
@@ -87,6 +93,14 @@ function DeployBotton() {
   const [hovered, setHovered] = useState(false)
   const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
 
+  interface ApiConfig {
+    id: string;
+    key: string;
+  }
+
+  // uncomment this to test const [apiConfig, setApiConfig] = useState<ApiConfig>({id:"hello",key:"world"})
+  const [apiConfig, setApiConfig] = useState<ApiConfig|undefined>(undefined)
+
   const handleDeploy = async () => {
 
     try {
@@ -106,6 +120,10 @@ function DeployBotton() {
 
       const [api_id, api_key] = content
 
+      setApiConfig({id:api_id,key:api_key})
+
+      console.log(api_id,api_key)
+
       if (!res.ok) {
         throw new Error(`Response status: ${res.status}`);
       }
@@ -124,6 +142,52 @@ function DeployBotton() {
 
 
   },[])
+
+  const PYTHON = "py"
+
+  const input_text_gen = (inputs:string[])=>{
+        const inputData = inputs.map((input, index) => (
+          `        input_block_id_${index + 1}: ${input}`
+      ));
+
+      return inputData.join('\n')
+  }
+
+  const populatetext = (api_id:string, api_key:string,language:string) =>{
+    
+    const py = 
+`import requests
+
+api_url = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>"
+
+api_key = "${api_key}"
+
+headers = {
+    "Authorization": f"Bearer ${api_key}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "inputs": {
+${input_text_gen(selectedInputs.map(item=>item.id))}
+    },
+    "outputs": {
+${input_text_gen(selectedOutputs.map(item=>item.id))}
+    }
+}
+
+response = requests.post(api_url, headers=headers, json=data)
+
+if response.status_code == 200:
+    print("Results:", response.json())
+else:
+    print("Error:", response.status_code, response.json())
+`
+    if(language===PYTHON){
+      return py
+    }    
+  }
+
 
   return (
     <Menu as="div" className="relative">
@@ -255,6 +319,56 @@ function DeployBotton() {
                 </div>
               </div>
             </div>
+
+            {
+              apiConfig?
+              <>
+                <div
+                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
+                >
+                  <div
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
+                  >Python</div>
+
+                  {/* <div className="bg-[#1E1E1E] mt-[5px] rounded-lg p-4 text-[#CDCDCD] text-sm">
+                      {populatetext(apiConfig.id,apiConfig.key,"py")}
+                  </div> */}
+                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
+                    <Editor
+                          className='json-form hideLineNumbers rounded-[200px]'
+                          defaultLanguage="json"
+                          // theme={themeManager.getCurrentTheme()}
+                          value={populatetext(apiConfig.id,apiConfig.key,PYTHON)}
+                          width={260}
+                          height={200}
+                          options={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontLigatures: true,
+                            minimap: { enabled: false },
+                            scrollbar: {
+                              useShadows: false,
+                              horizontal: 'hidden', // 隐藏水平滚动条
+                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
+                            },
+                            fontSize: 10,
+                            fontWeight: 'normal',
+                            lineHeight: 15,
+                            wordWrap: 'on',
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            fixedOverflowWidgets: true,
+                            acceptSuggestionOnEnter: "on",
+                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
+                            lineNumbersMinChars: 3,
+                            glyphMargin: false,
+                            lineDecorationsWidth: 0, // 控制行号和正文的间距
+                            readOnly: true
+                          }}
+                        />
+                  </div>
+                </div>
+              </>:<></>
+            }
 
             {/* Export API 按钮 */}
             <div className="flex justify-center">
