@@ -14,7 +14,8 @@ import {ReactFlow,
     Position, 
     useReactFlow,
     ConnectionLineType,
-    ConnectionMode} from '@xyflow/react'
+    ConnectionMode,
+    Controls} from '@xyflow/react'
 import TextBlockNode from './blockNode/TextBlockNode'
 import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
