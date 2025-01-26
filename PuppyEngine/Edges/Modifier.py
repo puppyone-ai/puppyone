@@ -58,9 +58,9 @@ class ListModifier:
     
     def get(
         self,
-        index: str
+        key: str
     ) -> Any:
-        return self.lst[int(index)]
+        return self.lst[int(key)]
 
     def slice_list(
         self,
@@ -177,7 +177,18 @@ class DictModifier:
         key: Any,
         default_value: Any = None
     ) -> Any:
-        return self.dct.get(key, default_value)
+        current_value = self.dct
+
+        if isinstance(key, (list, tuple)):
+            # Navigate the nested dictionary
+            for k in key:
+                if isinstance(current_value, dict) and k in current_value:
+                    current_value = current_value[k]
+                else:
+                    return default_value
+            return current_value
+
+        return current_value.get(key, default_value)
 
     def get_keys(
         self
@@ -266,14 +277,102 @@ class JSONModifier:
         **kwargs
     ) -> Any:
         self.kwargs = kwargs
+        match modify_type:
+            case "copy":
+                return self._handle_copy()
+            case "convert":
+                return self._handle_convert(**kwargs)
+            case "edit_text":
+                return self._handle_edit_text(**kwargs)
+            case "edit_structured":
+                return self._handle_edit_structured(**kwargs)
+            case _:
+                raise ValueError(f"Unsupported Modify Type: {modify_type}!")
+
+    def _handle_copy(
+        self,
+    ) -> Any:
+        return copy.deepcopy(self.data)
+
+    def _handle_convert(
+        self,
+        **kwargs
+    ) -> Any:
+        source_type = kwargs.get("source_type", "text")
+        target_type = kwargs.get("target_type", "structured")
+        if source_type == "structured" and target_type == "text":
+            return str(self.data)
+
+        if source_type == "text" and target_type == "structured":
+            target_structure = kwargs.get("target_structure", "list")
+            separator = kwargs.get("separator", " ")
+            if target_structure == "list":
+                return self.data.split(separator)
+            if target_structure == "dict":
+                return {separator: self.data}
+
+        return self.data
+   
+    def _handle_edit_text(
+        self,
+        **kwargs
+    ) -> str:
+        plugins = kwargs.get("plugins", {})
+        slice_range = kwargs.get("slice", [0, -1])
+        sort_type = kwargs.get("sort_type", "")
+
+        def replacer(match):
+            key = match.group(1)
+            return plugins.get(key, f"{{{{{key}}}}}")
+
+        plugin_pattern_compiled = re.compile(plugin_pattern)
+        self.data = plugin_pattern_compiled.sub(replacer, self.data)
+        self.data = self.data[slice_range[0]:slice_range[1] if slice_range[1] != -1 else None]
+        if sort_type in {"ascending", "descending"}:
+            self.data = sorted(self.data, reverse=(sort_type == "descending"))
+
+        return self.data
+
+    def _handle_edit_structured(
+        self,
+        **kwargs
+    ) -> Any:
+        plugins = kwargs.get("plugins", {})
+
+        def replace_value(value):
+            if isinstance(value, str):
+                return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), value)
+            return value
+
+        if isinstance(self.data, list):
+            self.data = [replace_value(item) for item in self.data]
+        elif isinstance(self.data, dict):
+            self.data = {key: replace_value(value) for key, value in self.data.items()}
+
+        return self.data
+
+    # For future development
+    def modify2(
+        self,
+        operations: List[Dict[str, Any]]
+    ) -> Any:
+        for operation in operations:
+            modify_type = operation.get("modify_type")
+            kwargs = {key: value for key, value in operation.items() if key != "modify_type"}
+            self.data = self._apply_modification(modify_type, **kwargs)
+        return self.data
+
+    def _apply_modification(
+        self,
+        modify_type: str,
+        **kwargs
+    ) -> Any:
         content_type = type(self.data).__name__
         match content_type:
-            case "str":
-                return self._handle_str_modifications(modify_type)
             case "list":
-                return self._handle_list_modifications(modify_type)
+                return self._handle_list_modifications(modify_type, **kwargs)
             case "dict":
-                return self._handle_dict_modifications(modify_type)
+                return self._handle_dict_modifications(modify_type, **kwargs)
             case _:
                 raise ValueError(f"Unsupported Content Type: {content_type}!")
 
@@ -301,7 +400,7 @@ class JSONModifier:
         modify_type: str
     ) -> Any:
         list_operations = {
-            "get": lambda: self.list_modifier.get(self.kwargs.get("index", 0)),
+            "get": lambda: self.list_modifier.get(self.kwargs.get("key", "0")),
             "slice": lambda: self.list_modifier.slice_list(self.kwargs.get("start", 0), self.kwargs.get("end", -1)),
             "append": lambda: self.list_modifier.append_element(self.kwargs.get("item")),
             "insert": lambda: self.list_modifier.insert_element(self.kwargs.get("index", 0), self.kwargs.get("item")),
@@ -366,7 +465,7 @@ if __name__ == "__main__":
     # Initialize a BlockModifier instance for list
     list_data = [1, 2, 3, 4, 5, "{{abc}}", "{{def}}"]
     block_modifier = JSONModifier(list_data)
-    print("Access element at index 1:", block_modifier.modify("get", index="1"))
+    print("Access element at index 1:", block_modifier.modify("get", key="1"))
     print("Slice the list from index 1 to 3:", block_modifier.modify("slice", start=1, end=3))
     block_modifier.modify("append", item=6)
     print("After appending 6:", block_modifier.data)

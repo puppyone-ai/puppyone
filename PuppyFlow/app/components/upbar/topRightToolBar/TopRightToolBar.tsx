@@ -1,16 +1,18 @@
 import React from 'react'
 import MoreOptionsButton from './MoreOptionsButton'
-import UploadButton from './UploadButton'
-import ModeController from './ModeController'
-import StartCodeController from './StartCodeController'
+import ModeController from './ModeControllerButton'
+import TestRunBotton from './TestRunBotton'
 import { useState, useEffect } from 'react'
-import { useNodeContext } from "../../states/NodeContext"
+import { useNodesPerFlowContext } from "../../states/NodesPerFlowContext"
+import SaveButton from './SaveButton'
+import DeployBotton from './DeployBotton'
+import { Controls } from '@xyflow/react'
 
 function TopRightToolBar() {
 
   // as a menu controller, -1 means no menu is showing, 0 means MoreOptionsButtonMenu is showing, 1 means UploadButtonMenu is showing
   const [showMenu, setShowMenu] = useState(-1)
-  const {clear, activateEdgeNode} = useNodeContext()
+  const { clearAll, isOnGeneratingNewNode } = useNodesPerFlowContext()
 
   useEffect(() => {
 
@@ -25,8 +27,7 @@ function TopRightToolBar() {
         setShowMenu(-1)
       }
       else {
-        clear()
-        activateEdgeNode("-1")
+        clearAll()
       }
     }
 
@@ -39,12 +40,23 @@ function TopRightToolBar() {
   }
 
   return (
-    <div className='w-auto pl-[10px] pr-[8px] h-[44px] border-[1.5px] border-solid border-[#3E3E41] rounded-[12px] flex flex-row gap-[8px] justify-center items-center bg-[#1C1D1F]'>
-        <ModeController />
-        <div className='w-[1px] h-[100%] bg-[#3E3E41]'></div>
+    <div className='flex flex-row items-center justify-center gap-[16px] relative pointer-events-auto'>
+      <div className='flex items-center '>
+        <Controls
+          className="react-flow__controls-custom"
+          showZoom={true}
+          showFitView={true}
+          showInteractive={false}
+          orientation="horizontal"
+          style={{ position: 'relative' }}
+        />
+      </div>
+      <SaveButton />
+      <div className={`w-auto h-[36px] border-[1px] border-solid border-[#3E3E41] rounded-[8px] flex flex-row justify-center items-center bg-[#252525]`}>
         <MoreOptionsButton showMenu={showMenu} showMenuHandler={showMenuHandler} />
-        <UploadButton showMenu={showMenu} showMenuHandler={showMenuHandler} />
-        <StartCodeController />
+        <TestRunBotton />
+      </div>
+      <DeployBotton />
     </div>
   )
 }

@@ -12,7 +12,6 @@ from bs4 import BeautifulSoup
 from markdown2 import markdown
 from pypandoc import convert_text
 from Blocks.Database import DatabaseFactory
-from Blocks.VectorDatabase import VectorDatabaseFactory
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
 
@@ -125,24 +124,6 @@ class DataSaver:
         return f"Data saved to database table {table_name}"
 
     @staticmethod
-    @global_exception_handler(2204, "Error Saving Data to Vector Database")
-    def save_to_vector_database(
-        data: Dict,
-        collection_name: str,
-        db_configs: Dict
-    ) -> str:
-        vector_db = VectorDatabaseFactory.get_database(db_configs.get("db_type"))
-        vector_db.connect(collection_name)
-        vector_db.save_embeddings(
-            collection_name=collection_name,
-            embeddings=data,
-            documents=db_configs.get("documents", []),
-            create_new=db_configs.get("create_new", False),
-            **db_configs.get("extra_configs", {})
-        )
-        return f"Data saved to Vector Database {collection_name}"
-
-    @staticmethod
     @global_exception_handler(2000, "Unexpected Error in Saving Data")
     def save_data(
         data: Any,
@@ -168,15 +149,14 @@ class DataSaver:
             "docx": DataSaver.save_to_docx,
             "pdf": DataSaver.save_to_pdf,
             "markdown": DataSaver.save_to_markdown,
-            "html": DataSaver.save_to_html,
+            "html": DataSaver.save_to_html
         }
 
         dict_savers = {
             "json": DataSaver.save_to_json,
             "csv": DataSaver.save_to_csv,
             "xlsx": DataSaver.save_to_xlsx,
-            "database": DataSaver.save_to_database,
-            "vector_database": DataSaver.save_to_vector_database,
+            "database": DataSaver.save_to_database
         }
 
         if isinstance(data, str):

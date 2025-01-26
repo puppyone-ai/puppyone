@@ -1,0 +1,31 @@
+{
+    "query": "What did the fox do?",
+    "chunks": [
+        {
+            "content": "The quick brown fox jumps over the lazy dog.",
+            "metadata": {"id": 0, "extra": "metadata"}
+        },
+        {
+            "content": "A fast brown animal jumps over a sleepy canine.",
+            "metadata": {"id": 1, "extra": "metadata"}
+        },
+        {
+            "content": "The sky is blue and the sun is bright.",
+            "metadata": {"id": 2, "extra": "metadata"}
+        },
+        {
+            "content": "Blue skies and bright sunshine are beautiful.",
+            "metadata": {"id": 3, "extra": "metadata"}
+        },
+        {
+            "content": "Blue skies and bright sunshine are beautiful.",
+            "metadata": {"id": 4, "extra": "metadata"}
+        }
+    ],
+    "create_new": true,
+    "vdb_type": "pgvector",
+    "user_id": "test_user",
+    "model": "text-embedding-ada-002",
+    "top_k": 3,
+    "threshold": 0.2
+}
