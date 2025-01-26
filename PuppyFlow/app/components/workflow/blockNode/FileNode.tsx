@@ -221,7 +221,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           content 
             ? "border-solid border-[1.5px]" 
             : "border-dashed border-[1.5px]"
-        } min-w-[144px] min-h-[144px] p-[8px] rounded-[8px] flex justify-center ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
+        } min-w-[144px] min-h-[144px] p-[8px] rounded-[16px] flex justify-center ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
           
         {/* the top bar of a block */}
         <div ref={labelContainerRef} 
