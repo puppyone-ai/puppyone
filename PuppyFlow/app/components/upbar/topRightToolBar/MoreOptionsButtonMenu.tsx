@@ -297,7 +297,7 @@ const saveJsonToLocal = async (jsonData: any) => {
               )}
             </Menu.Item>
 
-            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            {/* <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
 
             <Menu.Item>
               {({ active }) => (
@@ -307,7 +307,7 @@ const saveJsonToLocal = async (jsonData: any) => {
                   </button>
                 </li>
               )}
-            </Menu.Item>
+            </Menu.Item> */}
           </ul>
         </Menu.Items>
       </Transition>
