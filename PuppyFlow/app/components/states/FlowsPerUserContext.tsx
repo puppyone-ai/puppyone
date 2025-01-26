@@ -309,9 +309,10 @@ const FlowsPerUserProps = () => {
         
         const normalizeNode = (node: any) => ({
             id: node.id,
-            label: node.data?.label || "",
             type: node.type,
             data: {
+                ...node.data,  // 保留所有 data 字段
+                label: node.data?.label || "",
                 content: node.data?.content || ""
             }
         });
@@ -320,9 +321,16 @@ const FlowsPerUserProps = () => {
             id: edge.id,
             type: edge.type,
             data: {
-                ...edge.data,
+                ...edge.data,  // 保留所有 data 字段
                 inputs: edge.data?.inputs?.sort((a: any, b: any) => a.id.localeCompare(b.id)) || [],
-                outputs: edge.data?.outputs?.sort((a: any, b: any) => a.id.localeCompare(b.id)) || []
+                outputs: edge.data?.outputs?.sort((a: any, b: any) => a.id.localeCompare(b.id)) || [],
+                // 确保其他重要字段也被包含在比较中
+                code: edge.data?.code,
+                content_type: edge.data?.content_type,
+                modify_type: edge.data?.modify_type,
+                extra_configs: edge.data?.extra_configs,
+                messages: edge.data?.messages,
+                looped: edge.data?.looped
             }
         });
 
@@ -336,14 +344,80 @@ const FlowsPerUserProps = () => {
         };
     };
 
-    // 添加比较函数
+    // 添加调试日志
     const isJsonEqual = (json1: any, json2: any): boolean => {
+        // 1. 基础类型快速判定
         if (!json1 || !json2) return json1 === json2;
+        if (json1 === json2) return true;
         
+        // 2. 结构有效性判定（更灵活的方式）
+        const isValidWorkspaceJson = (json: any) => {
+            // 检查必要的数组字段是否存在且为数组
+            const hasValidBlocks = Array.isArray(json?.blocks);
+            const hasValidEdges = Array.isArray(json?.edges);
+            
+            // 允许空数组，但类型必须正确
+            return hasValidBlocks && hasValidEdges;
+        };
+        
+        if (!isValidWorkspaceJson(json1) || !isValidWorkspaceJson(json2)) {
+            console.log('Quick fail: invalid workspace structure', {
+                json1: {
+                    hasBlocks: Array.isArray(json1?.blocks),
+                    hasEdges: Array.isArray(json1?.edges)
+                },
+                json2: {
+                    hasBlocks: Array.isArray(json2?.blocks),
+                    hasEdges: Array.isArray(json2?.edges)
+                }
+            });
+            return false;
+        }
+        
+        // 3. 长度快速判定
+        if (json1.blocks.length !== json2.blocks.length || 
+            json1.edges.length !== json2.edges.length) {
+            console.log('Quick fail: length mismatch', {
+                blocks: { json1: json1.blocks.length, json2: json2.blocks.length },
+                edges: { json1: json1.edges.length, json2: json2.edges.length }
+            });
+            return false;
+        }
+        
+        // 4. ID集合快速判定
+        const getIds = (items: any[]) => new Set(items.map(item => item.id));
+        const blocks1Ids = getIds(json1.blocks);
+        const blocks2Ids = getIds(json2.blocks);
+        const edges1Ids = getIds(json1.edges);
+        const edges2Ids = getIds(json2.edges);
+        
+        if (blocks1Ids.size !== blocks2Ids.size || edges1Ids.size !== edges2Ids.size) {
+            console.log('Quick fail: ID set size mismatch');
+            return false;
+        }
+        
+        // 5. ID一致性快速判定
+        const areIdsSame = Array.from(blocks1Ids).every(id => blocks2Ids.has(id)) &&
+                          Array.from(edges1Ids).every(id => edges2Ids.has(id));
+        if (!areIdsSame) {
+            console.log('Quick fail: ID set mismatch');
+            return false;
+        }
+        
+        // 6. 如果快速判定都通过，再进行完整的标准化比较
         const normalized1 = normalizeWorkspaceJson(json1);
         const normalized2 = normalizeWorkspaceJson(json2);
         
-        return JSON.stringify(normalized1) === JSON.stringify(normalized2);
+        const result = JSON.stringify(normalized1) === JSON.stringify(normalized2);
+        
+        if (!result) {
+            console.log('Deep comparison failed:', {
+                normalized1,
+                normalized2
+            });
+        }
+        
+        return result;
     };
 
     // 处理操作队列
