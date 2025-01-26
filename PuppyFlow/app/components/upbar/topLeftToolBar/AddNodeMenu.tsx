@@ -497,7 +497,9 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
         
         </button> 
   </li> */}
-  <li>
+
+
+  {/* <li>
           <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start gap-2 p-[6px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-main-blue transition-colors`} 
           onClick={(event) => {
             event.preventDefault()
@@ -527,7 +529,9 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
             </div>
             <div className='text-[12px] font-[500] pt-1'>Weblink</div>
             </button> 
-        </li> 
+        </li> */}
+
+        
         
   {/* <li>
     <button className={`w-[180px] h-[57px] bg-[#3E3E41] rounded-[5px] flex flex-row items-start justify-between gap-[16px] p-[6px] font-plus-jakarta-sans text-[#CDCDCD] ${selectedNodeMenuSubMenu === 5 ? "bg-main-blue" : ""}`}

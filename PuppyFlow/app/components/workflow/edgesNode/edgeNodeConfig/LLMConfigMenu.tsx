@@ -272,7 +272,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     },
                     {
                         "role": "user",
-                        "content": "introduce yourself"
+                        "content": "answer the question by {{the input ID}}"
                     }
                 ],
                 model: model,
