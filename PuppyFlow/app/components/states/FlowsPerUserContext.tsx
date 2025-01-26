@@ -555,12 +555,12 @@ const FlowsPerUserProps = () => {
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
             
-            // 1. 自动缓存当前工作区的未保存状态
+            // 1. 自动缓存当前工作区状态
             const prevFlowId = selectedFlowId;
-            const currentWorkspace = workspaces.find(w => w.flowId === prevFlowId);
-            console.log("当前工作区:", currentWorkspace?.flowTitle, "是否有未保存更改:", currentWorkspace?.isDirty);
-            
-            if (prevFlowId && currentWorkspace?.isDirty) {
+            if (prevFlowId) {
+                const currentWorkspace = workspaces.find(w => w.flowId === prevFlowId);
+                console.log("缓存当前工作区状态:", currentWorkspace?.flowTitle);
+                
                 unsavedStatesRef.current[prevFlowId] = {
                     nodes: reactFlowInstance.getNodes(),
                     edges: reactFlowInstance.getEdges(),
