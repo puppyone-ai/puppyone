@@ -13,7 +13,7 @@ type SearchSubMenuProps = {
 function SearchSubMenu({nodeType, sourceNodeId, showMenu, createNewConnection}: SearchSubMenuProps) {
     
     const topPosition = nodeType === "text" ? "top-[217px]" :
-                        nodeType === "structured" ? "top-[262px]" :
+                        nodeType === "structured" ? "top-[217px]" :
                         nodeType === "database" ? "top-[0px]" :
                         nodeType === "vector_database" ? "top-[0px]" :
                         "top-[132px]"
