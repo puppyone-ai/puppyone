@@ -9,6 +9,16 @@ import { useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment-timezone';
 
+interface InitialUserData {
+    user_id: string;
+    user_name: string;
+    workspaces: {
+        workspace_id: string;
+        workspace_name: string;
+    }[];
+    workspace_history: any;
+}
+
 // type Flow = {
 //     // nodes: Node[],
 //     // edges: Edge[],
@@ -560,7 +570,7 @@ const FlowsPerUserProps = () => {
                 console.log("Starting workspace initialization...");
                 
                 // 使用 v2 接口获取基础数据
-                const data = await initializeUserDataV2();
+                const data = await initializeUserDataV2() as InitialUserData;
                 console.log("Received initial data:", data);
                 
                 if (!data) {
@@ -569,7 +579,7 @@ const FlowsPerUserProps = () => {
                 }
 
                 // 设置用户信息
-                setUserId(data.user_name);
+                setUserId(data.user_id);
                 setUserName(data.user_name);
                 console.log("Set user info:", data.user_name);
 
