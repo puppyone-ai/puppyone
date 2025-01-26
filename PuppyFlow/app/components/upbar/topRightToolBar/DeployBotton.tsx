@@ -1,21 +1,198 @@
 'use client'
 
 import { Menu, Transition } from '@headlessui/react'
-import React, { useState, Fragment } from 'react'
+import React, { useState, Fragment, useEffect } from 'react'
 import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJsonConstructUtils'
+import { Button } from 'antd'
+import { useReactFlow } from '@xyflow/react'
+import { set } from 'lodash'
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+
+import dynamic from 'next/dynamic';
+import type { EditorProps, OnMount, OnChange, } from "@monaco-editor/react";
+const Editor = dynamic(() => import("@monaco-editor/react"), {
+  ssr: false
+});
+
+const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:any) => {
+
+  const handleSelect = (nodeId: string, label: string) => {
+      onSelect({id:nodeId, label:label});
+      setIsOpen(false); // Close dropdown after selection
+  };
+
+  // Inline styles
+  const dropdownContainerStyle: React.CSSProperties  = {
+      position: 'relative',
+      cursor: 'pointer',
+  };
+
+  const dropdownHeaderStyle = {
+      padding: '8px',
+      backgroundColor: '#333', // Background color
+      color: 'white', // Text color
+      border: '1px solid #6D7177', // Border color
+      borderRadius: '4px', // Rounded corners
+  };
+
+  const dropdownListStyle: React.CSSProperties = {
+      position: 'absolute',
+      top: '150%',
+      left: 0,
+      right: 0,
+      backgroundColor: 'black', // Background color for dropdown items
+      border: '1px solid #6D7177', // Border color
+      borderRadius: '4px', // Rounded corners
+      zIndex: 1000, // Ensure dropdown is above other elements
+      height: 'auto', // Max height for dropdown
+      width:'100px',
+      overflowY: 'auto', // Scroll if too many items
+      overflowX:'hidden',
+      color:'white'
+  };
+
+  const dropdownItemStyle = {
+      padding: '8px',
+      color: 'white', // Text color for items
+      cursor: 'pointer',
+  };
+
+  return (
+      <div className="relative">
+          {isOpen ? (
+              <ul className='absolute top-full right-0 w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                  {options.map((node:any, index:number) => (
+                      <>
+                          <li
+                              key={node.id}
+                              className='w-full'
+                          >
+                              <button 
+                                  className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                  onClick={() => handleSelect(node.id, node.label)}
+                              >
+                                  <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                      {node.label || node.id}
+                                  </span>
+                              </button>
+                          </li>
+                      </>
+                  ))}
+              </ul>
+          ):<></>}
+      </div>
+  );
+};
+
 
 function DeployBotton() {
+
+  const API_SERVER_URL ="https://dev.api.puppyagent.com"
+  const {constructWholeJsonWorkflow} = useJsonConstructUtils()
+
+  const [selectedInputs, setSelectedInputs] = useState<any[]>([])
+  const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
+  const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
+  const [isOutputOpen, setIsOutputOpen] = useState(false); // State to manage dropdown visibility
+
   const [hovered, setHovered] = useState(false)
   const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
 
-  const handleDeploy = async () => {
-    try {
-      await sendWholeWorkflowJsonDataToBackend()
-      // 可以添加成功提示
-    } catch (error) {
-      console.error('Deploy failed:', error)
-    }
+  interface ApiConfig {
+    id: string;
+    key: string;
   }
+
+  // const [apiConfig, setApiConfig] = useState<ApiConfig>({id:"hello",key:"world"})   //uncomment this to test 
+  const [apiConfig, setApiConfig] = useState<ApiConfig|undefined>(undefined)
+
+  const handleDeploy = async () => {
+
+    try {
+      const res = await fetch(      
+        API_SERVER_URL +" /config_api",
+        {
+          method: "POST",
+          body:JSON.stringify({
+            workflow_json: constructWholeJsonWorkflow(),
+            inputs: selectedInputs.map(item=>item.id),
+            outputs: selectedOutputs.map(item=>item.id),
+          })
+        }
+      )
+
+      const content = await res.json();
+
+      const [api_id, api_key] = content
+
+      setApiConfig({id:api_id,key:api_key})
+
+      console.log(api_id,api_key)
+
+      if (!res.ok) {
+        throw new Error(`Response status: ${res.status}`);
+      }
+      // ...
+    } catch (error) {
+      console.error(error);
+    }
+
+
+
+  }
+
+  const { getNodes } = useReactFlow(); // Destructure getNodes from useReactFlow
+
+  useEffect(()=>{
+
+
+  },[])
+
+  const PYTHON = "py"
+
+  const input_text_gen = (inputs:string[])=>{
+        const inputData = inputs.map((input, index) => (
+          `        input_block_id_${index + 1}: ${input}`
+      ));
+
+      return inputData.join('\n')
+  }
+
+  const populatetext = (api_id:string, api_key:string,language:string) =>{
+    
+    const py = 
+`import requests
+
+api_url = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>"
+
+api_key = "${api_key}"
+
+headers = {
+    "Authorization": f"Bearer ${api_key}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "inputs": {
+${input_text_gen(selectedInputs.map(item=>item.id))}
+    },
+    "outputs": {
+${input_text_gen(selectedOutputs.map(item=>item.id))}
+    }
+}
+
+response = requests.post(api_url, headers=headers, json=data)
+
+if response.status_code == 200:
+    print("Results:", response.json())
+else:
+    print("Error:", response.status_code, response.json())
+`
+    if(language===PYTHON){
+      return py
+    }    
+  }
+
 
   return (
     <Menu as="div" className="relative">
@@ -53,14 +230,47 @@ function DeployBotton() {
               <div>
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">inputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Query</div>
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Database</div>
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">FewShots</div>
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg">
+                    {
+                      selectedInputs
+                      .map(item => (
+                        <div key={item.id} className="bg-[#6D7177] text-black text-[12px] text-semibold h-[26px] border-[1.5px] border-[#6D7177] pl-[16px] pr-[3px] rounded-lg flex items-center">
+                          <span className="flex-shrink-0">{item.data?.label as string || item.id}</span>
+                          <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
+                            onClick={()=>{
+                              setSelectedInputs(prev=>{
+                                return prev.filter(el=>el.id!==item.id)
+                              })
+                            }}
+                          >
+                            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1 1L9 9M9 1L1 9" stroke="#252525" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  <button className="w-[26px] h-[26px] flex items-center justify-center border border-[#6D7177] border-[2px] rounded-lg"
+                    onClick={
+                      ()=>{
+                        console.log("add node")
+                        setIsOpen((prev)=>!prev)
+                      }
+                    }
+                  >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M7 1V13M1 7H13" stroke="#6D7177" strokeWidth="2"/>
                     </svg>
                   </button>
+                  <CustomDropdown
+                          isOpen={isOpen}
+                          setIsOpen={setIsOpen}
+                          options={getNodes().filter( (item) => (item.type === 'text' || item.type === 'structured') ).filter(item=>!(selectedInputs.map(el=>el.id)).includes(item.id))}
+                          onSelect={(selectedItem:any)=>setSelectedInputs(
+                            (prev)=>{
+                              return prev.length === 0 ? [selectedItem]:[...prev,selectedItem]
+                            }
+                          )}
+                      />
                 </div>
               </div>
 
@@ -68,20 +278,107 @@ function DeployBotton() {
               <div>
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">outputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
-                  <div className="bg-[#6D7177] text-[#1E1E1E] h-[32px] border-[1.5px] border-[#6D7177] px-4 rounded-lg flex items-center">Result</div>
-
-                  <button className="w-8 h-8 flex items-center justify-center border border-[#404040] border-[2px] rounded-lg">
+                {
+                      selectedOutputs
+                      .map(item => (
+                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div className='flex bg-[#6D7177] border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
+                          onClick={
+                            ()=>{
+                              setSelectedOutputs(prev=>{
+                                return prev.filter(el=>el.id!==item.id)
+                              })
+                            }
+                          }
+                        >
+                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path d="M1 1L9 9M9 1L1 9" stroke="#252525" strokeWidth="1.5" strokeLinecap="round"/>
+                          </svg>
+                        </div>
+                      </div>
+                      ))
+                    }
+                  <button className="w-[26px] h-[26px] flex items-center justify-center border border-[#6D7177] border-[2px] rounded-lg"
+                      onClick={
+                        ()=>{
+                          console.log("add node")
+                          setIsOutputOpen((prev)=>!prev)
+                        }
+                      }
+                  >
                     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                       <path d="M7 1V13M1 7H13" stroke="#6D7177" strokeWidth="2"/>
                     </svg>
                   </button>
+                  <CustomDropdown
+                          isOpen={isOutputOpen}
+                          setIsOpen={setIsOutputOpen}
+                          options={getNodes().filter( (item) => (item.type === 'text' || item.type === 'structured') ).filter(item=>!(selectedOutputs.map(el=>el.id)).includes(item.id))}
+                          onSelect={(selectedItem:any)=>setSelectedOutputs(
+                            (prev)=>{
+                              return prev.length === 0 ? [selectedItem]:[...prev,selectedItem]
+                            }
+                          )}
+                  />
                 </div>
               </div>
             </div>
 
+            {
+              apiConfig?
+              <>
+                <div
+                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
+                >
+                  <div
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
+                  >Python</div>
+
+                  {/* <div className="bg-[#1E1E1E] mt-[5px] rounded-lg p-4 text-[#CDCDCD] text-sm">
+                      {populatetext(apiConfig.id,apiConfig.key,"py")}
+                  </div> */}
+                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
+                    <Editor
+                          className='json-form hideLineNumbers rounded-[200px]'
+                          defaultLanguage="json"
+                          // theme={themeManager.getCurrentTheme()}
+                          value={populatetext(apiConfig.id,apiConfig.key,PYTHON)}
+                          width={260}
+                          height={200}
+                          options={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontLigatures: true,
+                            minimap: { enabled: false },
+                            scrollbar: {
+                              useShadows: false,
+                              horizontal: 'hidden', // 隐藏水平滚动条
+                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
+                            },
+                            fontSize: 10,
+                            fontWeight: 'normal',
+                            lineHeight: 15,
+                            wordWrap: 'on',
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            fixedOverflowWidgets: true,
+                            acceptSuggestionOnEnter: "on",
+                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
+                            lineNumbersMinChars: 3,
+                            glyphMargin: false,
+                            lineDecorationsWidth: 0, // 控制行号和正文的间距
+                            readOnly: true
+                          }}
+                        />
+                  </div>
+                </div>
+              </>:<></>
+            }
+
             {/* Export API 按钮 */}
             <div className="flex justify-center">
-              <button className="h-[36px] w-[100px] text-[14px] bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] text-[#CDCDCD] hover:bg-[#363636] transition duration-200 flex items-center justify-center">
+              <button className="h-[36px] w-[100px] text-[14px] bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] text-[#CDCDCD] hover:bg-[#363636] transition duration-200 flex items-center justify-center"
+                onClick={handleDeploy}
+              >
                 Export API
               </button>
             </div>

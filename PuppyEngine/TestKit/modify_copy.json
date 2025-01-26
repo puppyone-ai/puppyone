@@ -1,14 +1,14 @@
 {
     "blocks": {
         "1": {
-            "label": "",
+            "label": "a",
             "type": "text",
             "data": {
                 "content": "ffuygfuygliugilugi"
             }
         },
         "2": {
-            "label": "",
+            "label": "b",
             "type": "text",
             "data": {
                 "content": ""
@@ -19,9 +19,9 @@
         "edge_14": {
             "type": "modify",
             "data": {
-                "modify_type": "deep_copy",
-                "inputs": {"1": ""},
-                "outputs": {"2": ""},
+                "modify_type": "copy",
+                "inputs": {"1": "a"},
+                "outputs": {"2": "b"},
                 "extra_config": {}
             }
         }

@@ -1,7 +1,7 @@
 {
     "blocks": {
         "2": {
-            "label": "bbb",
+            "label": "b",
             "type": "structured",
             "data": {
                 "content": {"world": 3},
@@ -14,7 +14,7 @@
             }
         },
         "1": {
-            "label": "aaa",
+            "label": "a",
             "type": "structured",
             "data": {
                 "content": ["222"],
@@ -27,7 +27,7 @@
             }
         },
         "3": {
-            "label": "",
+            "label": "c",
             "type": "structured",
             "data": {
                 "content": [],
@@ -39,14 +39,14 @@
         "edge_14": {
             "type": "modify",
             "data": {
-                "modify_type": "modify_structured",
+                "modify_type": "edit_structured",
                 "extra_config": {},
                 "content": [
-                    "{{1}}",
-                    "{{2}}"
+                    "{{a}}",
+                    "{{b}}"
                 ],
-                "inputs": {"1": "1", "2": "2"},
-                "outputs": {"3": ""}
+                "inputs": {"1": "a", "2": "b"},
+                "outputs": {"3": "c"}
             }
         }
     },

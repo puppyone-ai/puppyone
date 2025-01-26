@@ -9,6 +9,7 @@ type DashboardProps = {
 
 function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
   const { userName } = useFlowsPerUserContext();
+  const [emailNotifications, setEmailNotifications] = React.useState(true);
 
   return (
     <div className="flex flex-col h-[600px]">
@@ -60,16 +61,27 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               {/* Preferences Section */}
               <div className="space-y-6">
                 <div className="space-y-4">
+                  {/* Dark Mode - Temporarily disabled
                   <div className="flex items-center justify-between">
                     <span className="text-[#AAAAAA]">Dark Mode</span>
                     <div className="w-12 h-6 bg-[#2B5C9B] rounded-full p-1 cursor-pointer">
                       <div className="w-4 h-4 bg-white rounded-full ml-6"></div>
                     </div>
                   </div>
+                  */}
                   <div className="flex items-center justify-between">
                     <span className="text-[#AAAAAA]">Email Notifications</span>
-                    <div className="w-12 h-6 bg-[#404040] rounded-full p-1 cursor-pointer">
-                      <div className="w-4 h-4 bg-white rounded-full"></div>
+                    <div 
+                      onClick={() => setEmailNotifications(!emailNotifications)}
+                      className={`w-12 h-6 ${
+                        emailNotifications ? 'bg-[#2B5C9B]' : 'bg-[#404040]'
+                      } rounded-full p-1 cursor-pointer transition-colors duration-200`}
+                    >
+                      <div 
+                        className={`w-4 h-4 bg-white rounded-full transform transition-transform duration-200 ${
+                          emailNotifications ? 'translate-x-6' : 'translate-x-0'
+                        }`}
+                      />
                     </div>
                   </div>
                 </div>
@@ -78,7 +90,11 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
           ) : (
             <div className="space-y-6">
               <h3 className="text-lg font-medium text-white mb-4">Billing</h3>
-              {/* Current Plan */}
+              <div className="flex flex-col items-center justify-center p-8 bg-[#333333] rounded-lg">
+                <span className="text-[#888888] text-lg">🚧 Billing features coming soon</span>
+                <p className="text-[#666666] mt-2">This section is currently under development</p>
+              </div>
+              {/* Current Plan 
               <div className="bg-[#333333] rounded-lg p-4">
                 <div className="flex justify-between items-center mb-4">
                   <div>
@@ -94,8 +110,9 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                   <span>$15/month</span>
                 </div>
               </div>
+              */}
 
-              {/* Payment Method */}
+              {/* Payment Method 
               <div className="bg-[#333333] rounded-lg p-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-white font-medium">Payment Method</h4>
@@ -116,8 +133,9 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                   </div>
                 </div>
               </div>
+              */}
 
-              {/* Billing History */}
+              {/* Billing History 
               <div className="bg-[#333333] rounded-lg p-4">
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-white font-medium">Invoice History</h4>
@@ -126,6 +144,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                   </button>
                 </div>
               </div>
+              */}
             </div>
           )}
         </div>
@@ -135,7 +154,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
       <div className="flex justify-end gap-3 pt-6 border-t border-[#404040]">
         <button
           onClick={onClose}
-          className="px-4 py-2 text-[#AAAAAA] hover:text-white rounded-md transition duration-200"
+          className="px-4 py-2 text-[#CDCDCD] hover:text-white rounded-md transition duration-200"
         >
           Cancel
         </button>

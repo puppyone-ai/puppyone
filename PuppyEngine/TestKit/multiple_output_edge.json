@@ -2,6 +2,7 @@
     "blocks": {
         "4": {
             "type": "structured",
+            "label": "d",
             "data": {
                 "content": [],
                 "embedding_view": [
@@ -13,6 +14,7 @@
         },
         "3": {
             "type": "structured",
+            "label": "c",
             "data": {
                 "content": [],
                 "embedding_view": [
@@ -24,6 +26,7 @@
         },
         "2": {
             "type": "structured",
+            "label": "b",
             "data": {
                 "content": {
                     "subaru": "awa", "momoka": {"san":"daisuki"}
@@ -41,8 +44,8 @@
         "modify-1727674646321": {
             "type": "modify",
             "data": {
-                "inputs": {"2": "2"},
-                "outputs": {"3": "", "4": ""},
+                "inputs": {"2": "b"},
+                "outputs": {"3": "c", "4": "d"},
                 "content_type": "dict",
                 "modify_type": "get",
                 "extra_configs": {
