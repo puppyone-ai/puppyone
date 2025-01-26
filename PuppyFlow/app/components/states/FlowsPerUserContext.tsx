@@ -368,7 +368,7 @@ const FlowsPerUserProps = () => {
                     await addWorkspaceHistory(flowId, json, timestamp);
                     setWorkspaces(prev => prev.map(w => 
                         w.flowId === flowId 
-                            ? { ...w, isDirty: json !== w.latestJson }
+                            ? { ...w, latestJson: json, isDirty: false }
                             : w
                     ));
                     break;
@@ -623,7 +623,7 @@ const FlowsPerUserProps = () => {
 
    
 
-    // 若是当前有选中的flow，则定期保存修改（若是有修改)，就是每秒check一下
+    // 若当前有选中的flow，则每秒检查一次是否有内容变化，有则标记为未保存状态
     useEffect(() => {
         if (!selectedFlowId) return;
         const saveWorkspaceInterval = setInterval(() => {
@@ -663,22 +663,6 @@ const FlowsPerUserProps = () => {
 
      
 
-    // 定期保存修改
-    // useEffect(() => {
-    //     if (!selectedFlowId) return;
-
-    //     const saveInterval = setInterval(() => {
-    //         const workspace = workspaces.find(w => w.flowId === selectedFlowId);
-    //         if (workspace?.isDirty) {
-    //             updateWorkspaceData(selectedFlowId);
-    //         }
-    //     }, 5000);
-
-    //     return () => clearInterval(saveInterval);
-    // }, [selectedFlowId, workspaces]);
-
-
-
     // 更新workspace数据 to database (for 定期保存)
     const AutoUpdateWorkspaceData = async (flowId: string) => {
         // const currentJson = constructWholeJsonWorkflow();
@@ -705,8 +689,7 @@ const FlowsPerUserProps = () => {
         try {
             isForceSaveRef.current = true;
             const currentJson = constructWholeJsonWorkflow();
-            const targetWorkspace = workspaces.find(w => w.flowId === flowId);
-            if (!targetWorkspace || isJsonEqual(targetWorkspace.latestJson, currentJson) && targetWorkspace.isDirty === false) return;
+            // const targetWorkspace = workspaces.find(w => w.flowId === flowId);
 
             //使用当前时间作为时间戳，确保在队列中的任务时间戳更早
             const now = moment().tz('Asia/Shanghai'); 
