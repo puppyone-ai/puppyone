@@ -656,7 +656,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[8px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
 
 
         {/* the top bar of a block */}
