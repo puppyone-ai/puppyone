@@ -858,7 +858,7 @@
 
 /* 设置 panel 的 margin */
 .react-flow__panel.react-flow__controls {
-  margin: 0 16px 0 0 !important;
+  margin: 0 0 0 0 !important;
 }
 
 .react-flow__controls-custom {
