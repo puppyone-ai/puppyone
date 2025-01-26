@@ -30,7 +30,7 @@ class LLMBasedReranker(BaseReranker):
         self,
         model_name: str = None
     ):
-        self.model_name = model_name if model_name else "gpt-4o"
+        self.model_name = model_name if model_name else "gpt-4o-2024-08-06"
   
     @global_exception_handler(3302, "Error Parsing Reranked Content from LLM")
     def _safe_parse_response(
@@ -83,12 +83,14 @@ A list of strings, each on a new line, will be provided following the label "doc
 The output should be a ranked list of the strings along with their respective scores, from the most relevant and diverse to the least.
 Provide the output in the following format:
 
-[
-    {"doc": "Most relevant and diverse string", "score": 0.95},
-    {"doc": "Second most relevant and diverse string", "score": 0.85},
-    ...
-    {"doc": "Least relevant and diverse string", "score": 0.70}
-]
+{
+    "docs": [
+        {"doc": "Most relevant and diverse string", "score": 0.95},
+        {"doc": "Second most relevant and diverse string", "score": 0.85},
+        ...
+        {"doc": "Least relevant and diverse string", "score": 0.70}
+    ]
+}
 
 Here is an example you can use as a reference:
 Example input:
@@ -100,23 +102,52 @@ docs:
 "Innovations in biodegradable plastics."
 
 Example output:
-[
-    {"doc": "Plastic waste contributes to marine pollution.", "score": 0.95},
-    {"doc": "Innovations in biodegradable plastics.", "score": 0.85},
-    {"doc": "Plastic can take hundreds of years to decompose.", "score": 0.80},
-    {"doc": "Plastic waste management practices vary globally.", "score": 0.75}
-]
+{
+    "docs": [
+        {"doc": "Plastic waste contributes to marine pollution.", "score": 0.95},
+        {"doc": "Innovations in biodegradable plastics.", "score": 0.85},
+        {"doc": "Plastic can take hundreds of years to decompose.", "score": 0.80},
+        {"doc": "Plastic waste management practices vary globally.", "score": 0.75}
+    ]
+}
 """
         prompt = [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": f"query: {query}\ndocs: {retrieval_chunks}"}
         ]
 
+        structure = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "rank_json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "docs": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "doc": {"type": "string"},
+                                    "score": {"type": "number"}
+                                },
+                                "required": ["doc", "score"]
+                            }
+                        }
+                    },
+                    "required": ["docs"]
+                }
+            }
+        }
+
         response = lite_llm_chat(
             messages=prompt,
             model=self.model_name,
-            temperature=0.3,
+            temperature=0.9,
             max_tokens=4096,
+            printing=False,
+            stream=False,
+            response_format=structure,
         )
 
         final_response = self._safe_parse_response(response)

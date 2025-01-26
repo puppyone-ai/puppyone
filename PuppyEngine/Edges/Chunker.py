@@ -68,8 +68,18 @@ class AutoChunking:
         """
         Chunk a text string, split by newlines.
         """
+        
+        # Define multilingual sentence-ending delimiters
+        delimiters = (
+            r"[.!?]"                # English and similar
+            r"|[。！？]"             # Chinese, Japanese, Korean (CJK)
+            r"|[۔؟]"                # Arabic, Persian
+            r"|[।]"                 # Hindi, Indic languages
+            r"|[።၊။།]"             # Ethiopic, Myanmar, Tibetan
+            r"|(?:\r?\n)+"          # Newlines
+        )
 
-        return self._create_chunks(self.doc.split("\n"))
+        return self._create_chunks(re.split(delimiters, self.doc))
 
     def _chunk_list(
         self
@@ -673,7 +683,7 @@ class LLMChunking:
     def llm_chunk(
         self,
         prompt: str = None,
-        model: str = "gpt-4o"
+        model: str = "gpt-4o-2024-08-06"
     ):
         # System prompt guiding the LLM to understand the task
         sys_prompt = """
@@ -685,46 +695,68 @@ Important Guidelines:
 - Ensure that no sentence is split between chunks; keep all sentences intact within the same chunk.
 - The chunks should preserve the natural flow of the content but break the text down into digestible parts.
 - The chunks should not exceed a length where meaning might be lost but should also not be too short, avoid one-liner chunks unless necessary.
-- Return the chunks in a json list, where each element is a string representing a chunk.
+- Return the chunks in a valid json object, where contains one `chunks` field only and the value is a list of string each represent a chunk.
 
-Example:
+## Examples:
 The original document: "Artificial Intelligence is rapidly evolving. It can now perform complex tasks. Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
-
-Desired Output in json list:
-[
-    "Artificial Intelligence is rapidly evolving. It can now perform complex tasks.",
-    "Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
-]
+Desired Output in json format:
+{
+    "chunks": [
+        "Artificial Intelligence is rapidly evolving. It can now perform complex tasks.",
+        "Some believe AI will surpass human intelligence. Others argue that AI can only assist in specific tasks."
+    ]
+}
 
 The original document: "The quick brown fox jumps over the lazy dog. The dog barks at the fox."
-Desired Output in json list:
-[
-    "The quick brown fox jumps over the lazy dog.",
-    "The dog barks at the fox."
-]
+Desired Output in json:
+{
+    "chunks": [
+        "The quick brown fox jumps over the lazy dog.",
+        "The dog barks at the fox."
+    ]
+}
 
-**Note**: Always output with a list.
+**Note**: Always output with a valid json with the `chunks` field as the key and a list of chunks in sequence.
         """
 
         # Use sys_prompt if no user-supplied prompt is provided
         prompt = prompt if prompt else sys_prompt
-        
+
         messages = [
             {"role": "system", "content": prompt},
             {"role": "user", "content": f"The original document: {self.doc}"}
         ]
 
+        structure = {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "chunk_json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "chunks": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "required": ["chunks"]
+                }
+            }
+        }
+
         # Call to the LLM chat function
         response = lite_llm_chat(
             messages=messages,
             model=model,
-            temperature=0.7,
+            temperature=0.9,
             max_tokens=4096,
             printing=False,
             stream=False,
-            response_format={"type": "json_object"},
+            response_format=structure,
         )
-        
+
         return self._parse_chunks(response)
 
     @global_exception_handler(3110, "Error Parsing Chunks from LLM Response")
@@ -747,9 +779,9 @@ Desired Output in json list:
             if isinstance(chunks, list) and all(isinstance(item, str) for item in chunks):
                 return chunks
             else:
-                raise ValueError("Extracted content is not a list of strings")
+                raise ValueError(f"Extracted content is not a list of strings: {chunks}")
         else:
-            raise ValueError("No list found in LLM response")
+            raise ValueError(f"No list found in LLM response: {response}")
 
 
 class ChunkingFactory:

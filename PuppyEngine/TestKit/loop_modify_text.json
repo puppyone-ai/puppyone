@@ -1,18 +1,40 @@
 {
     "blocks": {
         "2": {
-            "label":"2",
+            "label":"b",
             "type": "structured",
             "data": {
-                "content": ["world","senpai"]
-            }
+                "content": ["world", "senpai"],
+                "embedding_view": [
+                    {
+                        "content": "world",
+                        "metadata": {"id": "1"}
+                    },
+                    {
+                        "content": "senpai",
+                        "metadata": {"id": "2"}
+                    }
+                ]
+            },
+            "looped": true
         },
         "1": {
-            "label":"1",
+            "label":"a",
             "type": "structured",
             "data": {
-                "content": ["hello","ohaiyou"]
-            }
+                "content": ["hello", "ohaiyou"],
+                "embedding_view": [
+                    {
+                        "content": "hello",
+                        "metadata": {"id": "1"}
+                    },
+                    {
+                        "content": "ohaiyou",
+                        "metadata": {"id": "2"}
+                    }
+                ]
+            },
+            "looped": true
         },
         "3": {
             "type": "text",
@@ -25,12 +47,11 @@
         "edge_14": {
             "type": "modify",
             "data": {
-                "modify_type": "modify_text",
+                "modify_type": "edit_text",
                 "extra_config": {},
-                "content": "{{1}},{{2}}",
-                "inputs": {"1": "1", "2": "2"},
-                "outputs": {"3": ""},
-                "looped": true
+                "content": "{{a}},{{b}}",
+                "inputs": {"1": "a", "2": "b"},
+                "outputs": {"3": ""}
             }
         }
     },

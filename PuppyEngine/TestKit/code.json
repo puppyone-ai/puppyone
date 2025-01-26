@@ -2,12 +2,13 @@
     "blocks": {
         "2": {
             "type": "text",
+            "label": "b",
             "data": {
                 "content": ""
             }
         },
         "1": {
-            "label":"1",
+            "label":"a",
             "type": "text",
             "data": {
                 "content": "hello world"
@@ -18,8 +19,8 @@
         "code-1727595538664": {
             "type": "code",
             "data": {
-                "inputs": {"1":"1"},
-                "outputs": {"2":"2"},
+                "inputs": {"1":"a"},
+                "outputs": {"2":"b"},
                 "code": "def func(arg_1):\n    return(arg_1)\n    \n"
             }
         }

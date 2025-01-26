@@ -178,16 +178,36 @@
 }
 
 
+.react-flow {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 确保画布区域正确定位 */
+.react-flow__pane {
+  position: absolute !important;
+  width: 100% !important;
+  height: 100% !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 1;
+}
+
+
 .react-flow .react-flow__handle {
-    width: 12px;
-    height: 12px;
-    border-radius: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
     background-color: transparent;
     border: 2px solid #42454A;
   }
 
   .react-flow .react-flow__handle:hover {
-    border: 3px solid #FFA73D;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    border: 2px solid #FFA73D;
     transition-duration: 0.3s;
     cursor: pointer;
   }
@@ -197,41 +217,41 @@
 .react-flow__draggable {
   transform: none !important;
   transition: none !important;
-  position: fixed !important;
+  position: absolute !important;
   top: 0 !important;
   left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  height: 100vh !important;
-  width: 100vw !important;
+  /* right: 0 !important;
+  bottom: 0 !important; */
+  height: 100% !important;
+  width: 100% !important;
 }
 
   .react-flow .react-flow__handle.active {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
     border-radius: 8px;
     background-color: transparent;
     border: 2px solid #42454A;
   }
 
   .react-flow .react-flow__handle.transparent {
-    width: 12px;
-    height: 12px;
-    border-radius: 6px;
+    width: 16px;
+    height: 16px;
+    border-radius: 8px;
     background-color: transparent;
     border: 2px solid transparent;
     z-index: 3;
   }
 
   .react-flow .react-flow__handle.selected {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
+    width: 20px;
+    height: 20px;
+    border-radius: 10px;
     border: 2px solid #FFA73D;
   }
-
+  
   .react-flow .react-flow__handle.connectingfrom {
-    border: 3px solid #FFA73D;
+    border: 2px solid #FFA73D;
   }
 
 /* custom react flow handle position */
@@ -252,10 +272,52 @@
   }
 
   .react-flow .react-flow__handle-bottom.edgeSrcHandle {
-    bottom: -10px;
+    bottom: -8px;
     border: transparent;
     
   }
+
+  .react-flow .react-flow__handle-left.edgeSrcHandle {
+    left: -8px;
+    border: transparent;
+  }
+
+  .react-flow .react-flow__handle-right.edgeSrcHandle {
+    right: -8px;
+    border: transparent;
+  }
+
+  .react-flow .react-flow__handle-top.edgeSrcHandle {
+    top: -8px;
+    border: transparent;
+  }
+
+/* 可选：添加hover效果 */
+.react-flow__edge:hover .react-flow__edge-path,
+.react-flow__edge:hover #custom-arrow-default path {  /* hover时的边颜色 */
+  stroke-dasharray: 8, 8;
+  animation: flow 6s linear infinite;
+  /* fill: #FFA73D !important; */
+}
+
+  /* 修改选中边的样式 */
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #FFA73D !important;  /* 选中时的边颜色 */
+  stroke-dasharray: 8, 8;
+  animation: flow 6s linear infinite;
+}
+
+
+
+/* 定义流动动画 */
+@keyframes flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -200;
+  }
+}
 
   select {
     -webkit-appearance: none;
@@ -298,6 +360,15 @@
   input[type="number"]::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+
+  /* 修改HeaderTitle的placeholder样式 */
+
+  .HeaderTitle:focus,
+  .FlowElementInput:focus {
+    caret-color: #CDCDCD !important;
+    caret-shape: block !important;
+    outline: none !important;
   }
   
 
@@ -681,3 +752,173 @@
   caret-color: #CDCDCD !important;
 }
 
+/* 修改 loading图标样式 */
+/* Skeleton Loading */
+.skeleton-container {
+  width: 100%;
+}
+
+.skeleton-line {
+  height: 12px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  margin: 10px 0;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+
+@keyframes skeleton-loading {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.handle-with-icon {
+  position: relative;
+}
+
+/* 上箭头 */
+.handle-top::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
+  background-size: contain;
+  opacity: 0;
+  transition: opacity 0.2s;
+  top: 0px;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+/* 右箭头 */
+.handle-right::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
+  background-size: contain;
+  opacity: 0;
+  transition: opacity 0.2s;
+  top: 50%;
+  left: 0px;
+  transform: translateY(-50%) rotate(90deg);
+  pointer-events: none;
+}
+
+/* 下箭头 */
+.handle-bottom::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
+  background-size: contain;
+  opacity: 0;
+  transition: opacity 0.2s;
+  top: 0px;
+  left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+  pointer-events: none;
+}
+
+/* 左箭头 */
+.handle-left::before {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
+  background-size: contain;
+  opacity: 0;
+  transition: opacity 0.2s;
+  top: 50%;
+  left: 0px;
+  transform: translateY(-50%) rotate(-90deg);
+  pointer-events: none;
+}
+
+.handle-with-icon:hover::before {
+  opacity: 1;
+}
+
+
+/* This is the React Flow controller component styles */
+/* Contains zoom controls and fit view buttons */
+/* Located in the toolbar at the top right of the canvas */
+
+/* 设置 panel 的 margin */
+.react-flow__panel.react-flow__controls {
+  margin: 0 16px 0 0 !important;
+}
+
+.react-flow__controls-custom {
+  background: #252525;
+  border: 1px solid #3E3E41;
+  border-radius: 8px;
+  padding: 4px;
+  height: 36px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.react-flow__controls-custom {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 重新排序按钮 */
+.react-flow__controls-custom .react-flow__controls-fitview {
+  order: 1;
+}
+
+.react-flow__controls-custom .react-flow__controls-zoomout {
+  order: 2;
+}
+
+.react-flow__controls-custom .react-flow__controls-zoomin {
+  order: 3;
+}
+
+/* 按钮基础样式 */
+.react-flow__controls-custom button {
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  color: #6D7177;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease;  /* 添加过渡效果 */
+}
+
+/* hover 样式 */
+.react-flow__controls-custom button:hover {
+  background: #3E3E41;
+  border-radius: 4px;
+  color: #CDCDCD;
+}
+
+/* 确保 SVG 图标颜色跟随按钮颜色变化 */
+.react-flow__controls-custom button svg {
+  fill: #6D7177;
+  transition: fill 200ms ease;  /* 添加过渡效果 */
+}
+
+.react-flow__controls-custom button:hover svg {
+  fill: #CDCDCD;
+}

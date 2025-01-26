@@ -1,14 +1,14 @@
 {
     "blocks": {
         "3": {
-            "label": "3",
+            "label": "c",
             "type": "structured",
             "data": {
                 "content": ""
             }
         },
         "2": {
-            "label": "2",
+            "label": "b",
             "type": "structured",
             "data": {
                 "content": [
@@ -20,8 +20,43 @@
                         "asdsada",
                         "eqwe"
                     ]
+                ],
+                "embedding_view": [
+                    {
+                        "content": "hello",
+                        "metadata": {
+                            "id": "0",
+                            "list_index_1": 0,
+                            "list_index_2": 0
+                        }
+                    },
+                    {
+                        "content": "world",
+                        "metadata": {
+                            "id": "1",
+                            "list_index_1": 0,
+                            "list_index_2": 1
+                        }
+                    },
+                    {
+                        "content": "asdsada",
+                        "metadata": {
+                            "id": "2",
+                            "list_index_1": 1,
+                            "list_index_2": 0
+                        }
+                    },
+                    {
+                        "content": "eqwe",
+                        "metadata": {
+                            "id": "3",
+                            "list_index_1": 1,
+                            "list_index_2": 1
+                        }
+                    }
                 ]
-            }
+            },
+            "looped": false
         }
     },
     "edges": {
@@ -32,9 +67,8 @@
                 "extra_configs": {
                     "index": 0
                 },
-                "inputs": {"2": "2"},
-                "outputs": {"3": ""},
-                "looped": true
+                "inputs": {"2": "b"},
+                "outputs": {"3": "c"}
             }
         }
     },

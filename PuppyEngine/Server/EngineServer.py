@@ -4,19 +4,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
 import uuid
-import logging
 from threading import Lock
 from axiom_py import Client
 from collections import defaultdict
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from Server.WorkFlow import WorkFlow
-from Utils.PuppyEngineExceptions import PuppyEngineException
-
-from boto3 import client
 from botocore.config import Config
 from botocore.exceptions import NoCredentialsError
+from boto3 import client
+from Server.WorkFlow import WorkFlow
+from Utils.PuppyEngineExceptions import PuppyEngineException
 
 from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
@@ -187,9 +185,8 @@ async def get_data(
                     json.dump(json_data, file, indent=4)
                 workflow.config_workflow_json(json_data)
 
-                for intermediate_data in workflow.process_all():
-                    intermediate_data = [intermediate_data]
-                    yield f"data: {json.dumps({'data': intermediate_data, 'is_complete': False})}\n\n"
+                for yield_dict in workflow.process_all():
+                    yield f"data: {json.dumps({'data': yield_dict, 'is_complete': False})}\n\n"
 
                 log_info("data: Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"

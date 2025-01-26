@@ -1,17 +1,23 @@
 {
     "blocks": {
         "2": {
-            "label":"hhh",
+            "label":"b",
             "type": "text",
             "data": {
                 "content": "world"
             }
         },
         "1": {
-            "label":"aaa",
+            "label":"a",
             "type": "structured",
             "data": {
-                "content": "[\"222\"]"
+                "content": ["222"],
+                "embedding_view": [
+                    {
+                        "content": "222",
+                        "metadata": {"id": "1"}
+                    }
+                ]
             }
         },
         "3": {
@@ -25,11 +31,11 @@
         "edge_14": {
             "type": "modify",
             "data": {
-                "modify_type": "modify_text",
+                "modify_type": "edit_text",
                 "extra_config": {},
-                "content": "111,{{1}}, 222,{{2}}",
-                "inputs": {"1": "1", "2": "2"},
-                "outputs": {"3": ""}
+                "content": "111,{{a}}, 222,{{b}}",
+                "inputs": {"1": "a", "2": "b"},
+                "outputs": {"3": "c"}
             }
         }
     },

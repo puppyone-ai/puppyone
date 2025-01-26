@@ -1,0 +1,66 @@
+{
+    "blocks": {
+        "fY7TWt": {
+            "label": "a",
+            "type": "structured",
+            "data": {
+                "content": [],
+                "embedding_view": []
+            }
+        },
+        "bMtAZs": {
+            "label": "b",
+            "type": "text",
+            "data": {
+                "content": "住在 17-19 Macarthur st Ultimo 如何？"
+            }
+        },
+        "8CjIrB": {
+            "label": "c",
+            "type": "structured",
+            "data": {
+                "content": [],
+                "embedding_view": []
+            }
+        }
+    },
+    "edges": {
+        "search-1735464345049": {
+            "type": "search",
+            "data": {
+                "search_type": "web",
+                "sub_search_type": "google",
+                "top_k": 2,
+                "inputs": {
+                    "bMtAZs": "b"
+                },
+                "query_id": {
+                    "bMtAZs": "b"
+                },
+                "extra_configs": {},
+                "outputs": {
+                    "fY7TWt": "a"
+                }
+            }
+        },
+        "search-1735464340718": {
+            "type": "search",
+            "data": {
+                "search_type": "llm",
+                "sub_search_type": "perplexity",
+                "inputs": {
+                    "bMtAZs": "b"
+                },
+                "query_id": {
+                    "bMtAZs": "b"
+                },
+                "extra_configs": {
+                    "model": "llama-3.1-sonar-small-128k-online"
+                },
+                "outputs": {
+                    "8CjIrB": "c"
+                }
+            }
+        }
+    }
+}

@@ -2,45 +2,55 @@
     用于处理局部 workflow 的json 数据 (every step)
 */
 import React, { Children } from "react";
-import { useReactFlow } from "@xyflow/react";
+import { useReactFlow, Node } from "@xyflow/react";
 import { useCallback, useRef } from "react";
-import { nodeSmallProps } from "../menu/nodeMenu/NodeMenu";
-import { useNodeContext } from "../states/NodeContext";
+import {JsonNodeData} from "../workflow/blockNode/JsonNode"
+import {FileNodeData} from "../workflow/blockNode/FileNode"
+import {ResultNodeData} from "../workflow/blockNode/ResultNode"
+import {SwitchNodeData} from "../workflow/blockNode/SwitchNode"
+import {TextBlockNodeData} from "../workflow/blockNode/TextBlockNode"
+import {VectorDatabaseNodeData} from "../workflow/blockNode/VectorDatabaseNode"
+import {VectorNodeData} from "../workflow/blockNode/VectorNode"
+import {WebLinkNodeData} from "../workflow/blockNode/WebLinkNode"
+import { SYSTEM_URLS } from "@/config/urls";
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
 
-const base_url = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000"
-export const backend_IP_address_for_sendingData = `${base_url}/send_data`
-export const backend_IP_address_for_receivingData = `${base_url}/get_data`
+export const backend_IP_address_for_sendingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/send_data`
+export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/get_data`
+export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/generate_presigned_url`
+export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`
+
+export type BasicNodeData = JsonNodeData | FileNodeData | ResultNodeData |  SwitchNodeData | TextBlockNodeData | VectorDatabaseNodeData | VectorNodeData | WebLinkNodeData | {content: string | any, subtype?: string, model?: string, method?: string, vdb_type?: string, index_name?: string}
 
 export interface NodeJsonType {
-    id: string,
+    // id: string,
     type: string,
     label: string,
-    data: {
-        content: string,
-        subType?: string
-    }
+    data: BasicNodeData,
+    looped?: string
+    
 }
 
 
 export interface FileData {
-    id: string;
-    type: "text" | "structured";
+    // id: string;
+    type: "text" | "structured" | "switch" | "vector" | "vector_database" | "database" | "file" | "weblink";
     data: {
         content: string | any;
     };
 }
 
 export type ProcessingData = {
-    data: FileData[],
+    // data: FileData[],
+    data: { [key: string]: FileData },
     is_complete: boolean,
 };
 
 
 function useJsonConstructUtils() {
     const {getEdges, getNode, setNodes, getNodes} = useReactFlow()
-    const {searchNode, totalCount} = useNodeContext()
+    // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // const getSourceNodeIds = useCallback((parentId: string): string[] =>  {
@@ -223,6 +233,7 @@ function useJsonConstructUtils() {
                 // });
                 // console.log(data);
                 // const data = deepParseJSON(event.data)
+
                 const data = JSON.parse(event.data)
                 
                 
@@ -284,61 +295,100 @@ function useJsonConstructUtils() {
        获取新的结果需要更新前端content
     */
        const updateUI = useCallback(async (jsonResult: ProcessingData, resultNode: string | null) => {
-        const data = jsonResult.data;
+        // 将jsonResult.data 转换为 Map
+        const data = new Map(Object.entries(jsonResult.data));
         // console.log(`Received ${data.length} file(s)`);
         // console.log(getNodes(), "current nodes in reactflow")
         if (!resultNode) return
         const target = getNode(resultNode)
         if (!target) return
-        for (let item of data) {
-            if (item.id !== resultNode) {
-                continue
-            }
-            // console.log(item.id,item.data.content, typeof item.data.content, "check the content type !!")
-            setNodes(prevNodes => (prevNodes.map(node => node.id === resultNode ? {
-                ...node,
-                type: item.type ?? node.type,
-                data: {
-                    ...node.data,
-                    // content: item.type === "structured" || (!item.type && node.type === "structured") ? JSON.stringify(item.data.content) : typeof item.data.content === "string" ? item.data.content : JSON.stringify(item.data.content),
-                    content: item.data.content,
-                    ...(node.type === "none" ? {subtype: item.type} : {})
-                }
-            }: node)))
-           
-            
-            // console.log("Attempting to fetch: !!", item.data.content);
-        }
-    }, []);
-
-
-        const updateUIForMultipleNodes = useCallback(async (jsonResult: ProcessingData, resultNodes: string[]) => {
-
-            const data = jsonResult.data;
-            // console.log(`Received ${data.length} file(s)`);
-            // console.log(getNodes(), "current nodes in reactflow")
-            if (!resultNodes.length) return
-            const targets = resultNodes.filter(resultNode => getNode(resultNode))
-            if (!targets.length) return
-            for (let item of data) {
-                if (!resultNodes.includes(item.id)) {
-                    continue
-                }
-                // console.log(item.id,item.data.content, typeof item.data.content, "check the content type !!")
-                setNodes(prevNodes => (prevNodes.map(node => node.id === item.id ? {
+        if (data.has(resultNode)) {
+            const item = data.get(resultNode)
+            if (item) {
+                setNodes(prevNodes => (prevNodes.map(node => node.id === resultNode ? {
                     ...node,
                     type: item.type ?? node.type,
                     data: {
                         ...node.data,
-                        // content: item.type === "structured" || (!item.type && node.type === "structured") ? JSON.stringify(item.data.content) : typeof item.data.content === "string" ? item.data.content : JSON.stringify(item.data.content),
                         content: item.data.content,
-                        ...(node.type === "none" ? {subtype: item.type} : {})
+                        isLoading: false
                     }
                 }: node)))
+            }
+        }
+        // for (let item of data) {
+        //     if (item.id !== resultNode) {
+        //         continue
+        //     }
+        //     // console.log(item.id,item.data.content, typeof item.data.content, "check the content type !!")
+        //     setNodes(prevNodes => (prevNodes.map(node => node.id === resultNode ? {
+        //         ...node,
+        //         type: item.type ?? node.type,
+        //         data: {
+        //             ...node.data,
+        //             // content: item.type === "structured" || (!item.type && node.type === "structured") ? JSON.stringify(item.data.content) : typeof item.data.content === "string" ? item.data.content : JSON.stringify(item.data.content),
+        //             content: item.data.content,
+        //             ...(node.type === "none" ? {subtype: item.type} : {}),
+        //             isLoading: false
+        //         }
+        //     }: node)))
+           
+            
+        //     console.log("Attempting to fetch: !!", item.data.content);
+        // }
+    }, []);
+
+
+        const updateUIForMultipleNodes = useCallback(async (jsonResult: ProcessingData, resultNodes: string[]) => {
+            // 将jsonResult.data 转换为 Map
+            console.log(jsonResult, "jsonResult from backend")
+            const data = new Map(Object.entries(jsonResult.data));
+            // console.log(`Received ${data.length} file(s)`);
+            // console.log(getNodes(), "current nodes in reactflow")
+            
+            if (!resultNodes.length) return
+            const targets = resultNodes.filter(resultNode => getNode(resultNode))
+            if (!targets.length) return
+            for (let resultNode of resultNodes) {
+                console.log(data.has(resultNode), data, resultNode, "if resultNode in data")
+                if (!data.has(resultNode)) {
+                    continue
+                }
+                console.log(resultNode, "resultNode found in data from backend")
+                const item = data.get(resultNode)
+                console.log(item, "item found in data from backend")
+                if (item) {
+                    setNodes(prevNodes => (prevNodes.map(node => node.id === resultNode ? {
+                        ...node,
+                        type: item.type ?? node.type,
+                        data: {
+                            ...node.data,
+                            content: item.data.content,
+                            isLoading: false
+                        }
+                    }: node)))
+                }
+            }
+            // for (let item of data) {
+            //     if (!resultNodes.includes(item.id)) {
+            //         continue
+            //     }
+            //     // console.log(item.id,item.data.content, typeof item.data.content, "check the content type !!")
+            //     setNodes(prevNodes => (prevNodes.map(node => node.id === item.id ? {
+            //         ...node,
+            //         type: item.type ?? node.type,
+            //         data: {
+            //             ...node.data,
+            //             // content: item.type === "structured" || (!item.type && node.type === "structured") ? JSON.stringify(item.data.content) : typeof item.data.content === "string" ? item.data.content : JSON.stringify(item.data.content),
+            //             content: item.data.content,
+            //             ...(node.type === "none" ? {subtype: item.type} : {}),
+            //             isLoading: false
+            //         }
+            //     }: node)))
                
                 
-                // console.log("Attempting to fetch: !!", item.data.content);
-            }
+            //     // console.log("Attempting to fetch: !!", item.data.content);
+            // }
     }, [])
 
 
@@ -370,28 +420,34 @@ function useJsonConstructUtils() {
     // }, []);
 
 
- 
+    const resetLoadingUI = useCallback((nodeId: string) => {
+        setNodes(prevNodes => (prevNodes.map(node => node.id === nodeId ? {...node, data: {...node.data, isLoading: false}} : node)))
+    }, [])
+
+    const resetLoadingUIForMultipleNodes = useCallback((nodeIds: string[]) => {
+        setNodes(prevNodes => (prevNodes.map(node => nodeIds.includes(node.id) ? {...node, data: {...node.data, isLoading: false}} : node)))
+    }, [])
 
 
     // for saving to local json file , not for passing to backend
     const constructWholeJsonWorkflow = useCallback(() => {
         const nodes = getNodes()
         const edges = getEdges()
-        for (let node of nodes) {
-            const myContructNode = searchNode(node.id)
-            if (myContructNode) {
-                node.data.locked = myContructNode.locked
-                node.data.isInput = myContructNode.isInput
-                node.data.isOutput = myContructNode.isOutput
-            }
-            else {
-                node.data.locked = false
-                node.data.isInput = false
-                node.data.isOutput = false
-            }
-            node.data.label = node.data.label ?? node.id
-        }
-        return {blocks:nodes, edges:edges, totalCount: totalCount}
+        // for (let node of nodes) {
+        //     const myContructNode = searchNode(node.id)
+        //     if (myContructNode) {
+        //         node.data.locked = myContructNode.locked
+        //         node.data.isInput = myContructNode.isInput
+        //         node.data.isOutput = myContructNode.isOutput
+        //     }
+        //     else {
+        //         node.data.locked = false
+        //         node.data.isInput = false
+        //         node.data.isOutput = false
+        //     }
+        //     node.data.label = node.data.label ?? node.id
+        // }
+        return {blocks:nodes, edges:edges}
 
     }, [])
 
@@ -471,7 +527,7 @@ function useJsonConstructUtils() {
       }, []);
     
 
-    return {getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
+    return {getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
 
 
 }

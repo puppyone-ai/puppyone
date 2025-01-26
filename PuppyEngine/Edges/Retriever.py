@@ -7,9 +7,12 @@ import json
 import math
 from typing import List, Dict, Tuple
 from transformers import AutoTokenizer
-from Blocks.VectorDatabase import VectorDatabaseFactory
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Edges.ExecuteStorage import StorageServerClient
+from Utils.PuppyEngineExceptions import global_exception_handler
 from Edges.Generator import lite_llm_chat
+
+# Global Storage Client
+StorageClient = StorageServerClient()
 
 
 class Retriever:
@@ -293,26 +296,22 @@ Output:
         self,
         top_k: int = 10,
         threshold: float = None,
-        query_embedding: List[List[float]] = None,
-        db_type: str = "pinecone",
+        query: str = "",
+        model: str = "text-embedding-ada-002",
+        db_type: str = "pgvector",
         collection_name: str = ""
     ) -> List[Tuple[str, float]]:
-        if not isinstance(query_embedding, list):
-            raise PuppyEngineException(3502, "Unsupported Embedding Data Type", "Embeddings have to be a list of lists of floats!")
-
-        db = VectorDatabaseFactory.get_database(db_type=db_type)
-        db.connect(collection_name=collection_name)
-        vector_results = db.search_embeddings(
+        search_configs = {
+            "query": query,
+            "model": model,
+            "vdb_type": db_type,
+            "top_k": top_k,
+            "threshold": threshold,
+        }
+        vector_results = StorageClient.search_embedded_vector(
             collection_name=collection_name,
-            query_embedding=query_embedding,
-            top_k=top_k,
+            search_configs=search_configs
         )
-
-        if threshold:
-            vector_results = [
-                match for match in vector_results
-                if match["score"] >= threshold
-            ]
 
         return vector_results
 

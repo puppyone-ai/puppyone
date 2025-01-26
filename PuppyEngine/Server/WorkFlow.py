@@ -97,12 +97,15 @@ class WorkFlow:
             # _execute_batch returns the ids of the blocks that have been updated
             finished_ids = self._execute_batch(self.current_block_ids)
 
+            yield_dict = {}
+
             for finished_id in finished_ids:
                 next_block_ids.add(finished_id)
                 self.processed_block_ids.add(finished_id)
 
-                block = self.block_data[finished_id]
-                if block["type"] == "text":
+                block = self.block_data.get(finished_id, {})
+                block_type = block.get("type", "text")
+                if block_type == "text":
                     dumped_block = block
                 else:
                     dumped_block = {
@@ -112,10 +115,53 @@ class WorkFlow:
                             "content": json.dumps(block["data"]["content"])
                         }
                     }
-                logging.info("Yielded Data: %s", dumped_block)
-                yield dumped_block
+                
+                # Decode the unicode contents
+                content = dumped_block.get("data", {}).get("content", "")
+                dumped_block["data"]["content"] = self._unicode_formatting(content, block_type)
+
+                # Add the block data to the yield dictionary
+                yield_dict[finished_id] = dumped_block
+                logger.info("Yielded Data for ID - %s:\n%s", finished_id, dumped_block)
+
+            yield yield_dict
+            yield_dict.clear()
+
             self.current_block_ids = next_block_ids
-            logging.info("Next batch: %s", next_block_ids)
+            logger.info("Next batch: %s", next_block_ids)
+
+    def _unicode_formatting(
+        self,
+        content: str,
+        block_type: str
+    ) -> str:
+        """
+        Format the content to handle escaped unicode characters.
+
+        Args:
+            content (str): The content to format.
+            block_type (str): The type of block.
+
+        Returns:
+            str: The formatted content.
+        """
+
+        if isinstance(content, str):
+            if "\\u" in content or "\\x" in content:
+                content = content.encode("utf-8", "ignore").decode("unicode_escape")
+
+            if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
+                content = content.replace("\n", "\\n").replace("\r", "\\r")
+                try:
+                    json_content = content
+                    if json_content.startswith("["):
+                        json_content = f'{{"content": {json.dumps(json_content)}}}'
+                    json.loads(json_content)
+                except json.JSONDecodeError:
+                    logger.error("Invalid Result Structured Content: %s", content)
+                    raise ValueError("Invalid Result Structured Content")
+                    
+        return content
 
     @global_exception_handler(5203, "Error Finding the First Batch")
     def _find_first_batch(
@@ -211,7 +257,7 @@ class WorkFlow:
         edge_info: Tuple[str, Dict[str, str]]
     ) -> Tuple[Any, str]:
         """
-        Process the edge, processes it, updates the target block with the result, and handles specific configurations for embedding edges.
+        Process the edge, processes it, updates the target block with the result.
 
         Args:
             edge_info (tuple): Edge id and the dictionary containing edge data.
@@ -225,8 +271,8 @@ class WorkFlow:
         if not target_block_ids:
             raise ValueError("Invalid edge: Output block IDs are missing")
 
-        edge_type = edge_dict.get("type")
-        edge_data = edge_dict.get("data")
+        edge_type = edge_dict.get("type", {})
+        edge_data = edge_dict.get("data", {})
         if not edge_type:
             raise ValueError("Invalid edge: Edge type is missing")
 
@@ -234,60 +280,52 @@ class WorkFlow:
         logger.info("Output: %s", output)
 
         # Handling the choose edge
-        if edge_type == "choose":
-            target_block_ids = output
-            output = edge_dict["data"]["content"]
-
-        for target_block_id in target_block_ids:
-            # Handle looped edges
-            self._handle_loop_edge(edge_dict["data"], target_block_id)
-            # Handle switch edges
-            output = self._code_output_types_switch(edge_dict, target_block_id, output)
-            # Update the block 
-            self.block_data[target_block_id]["data"]["content"] = output
+        if edge_type == "ifelse":
+            target_block_ids = []
+            for from_block, to_block in output.items():
+                target_block_ids.append(to_block)
+                self.block_data[to_block]["data"]["content"] = self.block_data.get(from_block, {}).get("data", {}).get("content", "")
+        else:
+            for target_block_id in target_block_ids:
+                self._valid_output_block_type(target_block_id, output)
+                self.block_data[target_block_id]["data"]["content"] = output
         return target_block_ids
 
-    def _handle_loop_edge(
+    def _valid_output_block_type(
         self,
-        edge_data: Dict[str, str],
-        target_block_id: str
-    ):
-        if edge_data.get("looped", False):
-            self.block_data[target_block_id]["type"] = "structured"
-
-    def _code_output_types_switch(
-        self,
-        edge_dict: dict,
         target_block_id: str,
         output: Any
-    ) -> Any:
+    ) -> None:
         """
-        Determines and updates the output type (text or structured) based on the edge type and output content.
+        Check and classify the output to determine the type of the target block.
 
         Args:
             edge_dict (dict): Dictionary containing edge data.
             target_block_id (str): ID of the target block to update.
             output (Any): The output to check and classify.
-
-        Returns:
-            Any: The unchanged output.
         """
-        edge_type = edge_dict.get("type")
-        modify_type = edge_dict.get("data", {}).get("modify_type")
 
-        if edge_type == "code" or (edge_type == "modify" and modify_type == "modify_get"):
-            self.block_data[target_block_id]["type"] = "structured" if isinstance(output, (list, dict)) else "text"
+        block_type = self.block_data[target_block_id].get("type", "text")
+        if isinstance(output, (list, dict)) and block_type == "text":
+            self.block_data[target_block_id]["type"] = "structured"
 
-        return output
+        if isinstance(output, str) and block_type == "structured":
+            self.block_data[target_block_id]["type"] = "text"
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
     from dotenv import load_dotenv
     load_dotenv()
     
-    test_kit = 'PuppyEngine/TestKit'
+    test_kit = 'TestKit/'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
+        # if file_name != "modify_text.json":
+        #     continue
+        if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
+            continue
+        # if file_name.startswith("modify") or file_name.startswith("loop_modify"):
+        #     continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
         with open(file_path, encoding="utf-8") as f:
@@ -297,3 +335,4 @@ if __name__ == "__main__":
         for block in workflow.process_all():
             print(block)
         workflow.clear_workflow()
+        

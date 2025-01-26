@@ -2,26 +2,41 @@
     "blocks": {
         "2": {
             "type": "text",
+            "label": "b",
             "data": {
                 "content": ""
             }
         },
         "1": {
-            "label":"1",
+            "label":"a",
             "type": "structured",
             "data": {
-                "content": ["hello world", "你好，世界", "こんにちは、世界"]
-            }
+                "content": ["hello world", "你好，世界", "こんにちは、世界"],
+                "embedding_view": [
+                    {
+                        "content": "hello world",
+                        "metadata": {"id": "1", "lang": "en"}
+                    },
+                    {
+                        "content": "你好，世界",
+                        "metadata": {"id": "2", "lang": "zh"}
+                    },
+                    {
+                        "content": "こんにちは、世界",
+                        "metadata": {"id": "3", "lang": "jp"}
+                    }
+                ]
+            },
+            "looped": true
         }
     },
     "edges": {
         "code-1727595538664": {
             "type": "code",
             "data": {
-                "inputs": {"1": "1"},
-                "outputs": {"2": ""},
-                "code": "def func(arg_1):\n    return(arg_1)\n    \n",
-                "looped": true
+                "inputs": {"1": "a"},
+                "outputs": {"2": "b"},
+                "code": "def func(arg_1):\n    return(arg_1)\n    \n"
             }
         }
     },

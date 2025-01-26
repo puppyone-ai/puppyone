@@ -1,22 +1,37 @@
 {
     "blocks": {
         "4": {
-            "label": "4",
+            "label": "d",
             "type": "text",
             "data": {
                 "content": ""
             }
         },
         "2": {
-            "label": "2",
+            "label": "b",
             "type": "structured",
             "data": {
                 "content": [
                     "happy",
                     "subaru",
                     "yan"
+                ],
+                "embedding_view": [
+                    {
+                        "content": "happy",
+                        "metadata": {"id": "1"}
+                    },
+                    {
+                        "content": "subaru",
+                        "metadata": {"id": "2"}
+                    },
+                    {
+                        "content": "yan",
+                        "metadata": {"id": "3"}
+                    }
                 ]
-            }
+            },
+            "looped": true
         },
         "3": {
             "label": "3",
@@ -27,7 +42,8 @@
                     "Say hi, and your name",
                     "Say Apple, and your name"
                 ]
-            }
+            },
+            "looped": true
         }
     },
     "edges": {
@@ -37,11 +53,11 @@
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are an AI called {{2}}"
+                        "content": "You are an AI called {{b}}"
                     },
                     {
                         "role": "user",
-                        "content": "{{3}}"
+                        "content": "{{c}}"
                     }
                 ],
                 "model": "gpt-4o",
@@ -49,9 +65,8 @@
                 "max_tokens": 4096,
                 "temperature": 0.7,
                 "structured_output": false,
-                "inputs": {"2": "2", "3": "3"},
-                "outputs": {"4": ""},
-                "looped": true
+                "inputs": {"2": "b", "3": "c"},
+                "outputs": {"4": ""}
             }
         }
     },
