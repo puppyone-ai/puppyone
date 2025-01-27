@@ -656,9 +656,15 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             data: {
                 ...transformCases(cases),
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string }) => {
-                    const content = getNode(node.id)?.data.content;
+                    const currentNode = getNode(node.id)
+                    const content = currentNode?.data.content;
+                    const nodeType= currentNode?.type
                     console.log(getNode(node.id))
-                    return [node.id, ((typeof content === "string") && (content !== "") ) ? JSON.parse(content) : ""];
+                    if(nodeType=="structured"){
+                        return [node.id, ((typeof content === "string") && (content !== "") ) ? JSON.parse(content) : ""];
+                    }else{
+                        return [node.id, ((typeof content === "string") && (content !== "") ) ? content : ""];
+                    }
                 })),
                 outputs: Object.fromEntries(outputs.map((node: string) => {
                     let content = getNode(node)?.data.content;
