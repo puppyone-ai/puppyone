@@ -443,7 +443,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             {"role": "system", 
             "content": "You are an AI"},
             {"role": "user", 
-            "content": "{{1}}"}
+            "content": "answer the question by {{input_ID}}"}
             ]' parentId={parentId} widthStyle={432} heightStyle={208} />
             </li>
 
