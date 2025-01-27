@@ -651,6 +651,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     , [isLooped]
   )
 
+  useEffect(
+    () => {
+      console.log("jsonndoe isloading",isLoading)
+    }
+    , []
+  )
+
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
@@ -746,42 +753,44 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         >
 
           {/* JSON Editor */}
-          {
-            viewMode == EMBED_VIEW_MODE ?
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
+          {isLoading ? <SkeletonLoadingIcon /> :
+            (
+              viewMode == EMBED_VIEW_MODE ?
+                <div style={{
+                  width: 'fit-content',
+                  maxWidth: calculateMaxLabelContainerWidth(),
+                  overflow: "hidden"
+                }}>
 
-                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-
-                  placeholder='["JSON"]'
-                  parentId={id}
-                  widthStyle={contentSize.width - 16}
-                  heightStyle={contentSize.height - 68}
-                  inputvalue={userInput}
-                  readonly={true}
-                  synced={false}
-                />
-              </div>
-              :
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
-                {isLoading ? <SkeletonLoadingIcon /> :
                   <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+
                     placeholder='["JSON"]'
                     parentId={id}
                     widthStyle={contentSize.width - 16}
                     heightStyle={contentSize.height - 68}
                     inputvalue={userInput}
-                    synced={true}
+                    readonly={true}
+                    synced={false}
                   />
-                }
-              </div>
+                </div>
+                :
+                <div style={{
+                  width: 'fit-content',
+                  maxWidth: calculateMaxLabelContainerWidth(),
+                  overflow: "hidden"
+                }}>
+                  
+                    <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+                      placeholder='["JSON"]'
+                      parentId={id}
+                      widthStyle={contentSize.width - 16}
+                      heightStyle={contentSize.height - 68}
+                      inputvalue={userInput}
+                      synced={true}
+                    />
+                  
+                </div>
+              )
           }
 
           {/*View Mode Switching Bar at the bottom*/}
