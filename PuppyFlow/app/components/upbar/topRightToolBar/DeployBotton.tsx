@@ -110,7 +110,7 @@ function DeployBotton() {
 
     try {
       const res = await fetch(      
-        API_SERVER_URL +" /config_api",
+        API_SERVER_URL +"/config_api",
         {
           method: "POST",
           body:JSON.stringify({

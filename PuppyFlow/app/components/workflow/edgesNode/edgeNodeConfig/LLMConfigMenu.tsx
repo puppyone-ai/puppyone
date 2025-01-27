@@ -233,16 +233,19 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         else {
             resultNodeLabel = resultNode as string
         }
+        console.log("constructJsonData LLM", getNode(resultNode as string))
         let blocks: { [key: string]: NodeJsonType } = {
             [resultNode as string]: {
                 label: resultNodeLabel as string,
                 type: isStructured_output ? "structured" : "text",
-                data: { content: "" }
+                data: { content: "" },
+                looped: (getNode(resultNode as string) as any)?.looped ? true : false,
             }
         }
 
         for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id)
+            console.log("constructJsonData LLM",nodeInfo)
             if (!nodeInfo) continue
             const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
             if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
@@ -253,7 +256,8 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 data: {
                     content: nodeContent,
                     // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                }
+                },
+                looped: (nodeInfo as any)?.looped ? true : false,
             }
             blocks[nodeInfo.id] = nodejson
         }
