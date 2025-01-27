@@ -121,7 +121,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
   {"role": "system",
    "content": "You are an AI"},
   {"role": "user",
-   "content": "Introduce yourself"}
+   "content": "Answer the question by {{input_ID}}"}
 ]`):
         edgeType === "chunk" && subMenuType === "chunk-Bycharacter" ? 
         (`[",",";","\\n"]`):
