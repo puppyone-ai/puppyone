@@ -103,8 +103,8 @@ function DeployBotton() {
     key: string;
   }
 
-  const [apiConfig, setApiConfig] = useState<ApiConfig>({id:"hello",key:"world"})   //uncomment this to test 
-  // const [apiConfig, setApiConfig] = useState<ApiConfig|undefined>(undefined)
+  // const [apiConfig, setApiConfig] = useState<ApiConfig>({id:"hello",key:"world"})   //uncomment this to test 
+  const [apiConfig, setApiConfig] = useState<ApiConfig|undefined>(undefined)
 
   const handleDeploy = async () => {
 
