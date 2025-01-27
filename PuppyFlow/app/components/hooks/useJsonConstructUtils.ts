@@ -28,8 +28,7 @@ export interface NodeJsonType {
     type: string,
     label: string,
     data: BasicNodeData,
-    looped?: string
-    
+    looped?: string|boolean   
 }
 
 
