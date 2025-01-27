@@ -52,7 +52,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const labelRef = useRef<HTMLInputElement | null>(null)
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
-  const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
+  const [isEditing, setIsEditing] = useState(false)
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   const [INPUT_VIEW_MODE, EMBED_VIEW_MODE] = ["input view", "embedding view"]
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
@@ -173,9 +173,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     if (currentLabel !== undefined && currentLabel !== nodeLabel && !isLocalEdit) {
 
       setNodeLabel(currentLabel)
-      if (measureSpanRef.current) {
-        measureSpanRef.current.textContent = currentLabel
-      }
     }
   }, [label, id, isLocalEdit])
 
@@ -253,38 +250,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       setIsLocalEdit(true)
       setNodeLabel(labelRef.current.value)
     }
-  }
-
-  // 计算 measureSpanRef 的宽度，这个就是在计算input element内部内容的真实宽度，记得+4px不然所有内容无法完全的展现在input中，另外若是存在isInput, isOutput, locked，则需要考虑当整体的内容+icon width 溢出最大值时，我们必须设定 inputbox 的width = maxWidth - 21px，不然因为我们设置了 input 的 maxWidth = '100%', 他会把icon 给覆盖掉的，若是没有icon，则不需要担心，因为就算是设计他的宽度=文本宽度，但是一旦整体宽度 > maxWidth, css 会自动把文本宽度给压缩到 maxWidth 的，所以不用担心
-  const calculateLabelWidth = () => {
-    if (measureSpanRef.current) {
-      if (isInput || isOutput || locked) {
-        if (contentRef.current) {
-          if (measureSpanRef.current.offsetWidth + 21 > contentRef.current.clientWidth - 32) {
-            // console.log("hello")
-            return `${contentRef.current.clientWidth - 53}px`
-          }
-        }
-      }
-      return `${measureSpanRef.current.offsetWidth + 4}px`;
-    }
-    return 'auto'
-  }
-
-
-  // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要拉到当前的label的宽度（拖住文体即可）
-  const calculateInputWidth = () => {
-    if (contentRef.current) {
-      if (editable) {
-        if (isInput || isOutput || locked) {
-          return `${contentRef.current.clientWidth - 53}px`
-        }
-        else {
-          return `${contentRef.current.clientWidth - 32}px`
-        }
-      }
-    }
-    return calculateLabelWidth()
   }
 
   // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
@@ -668,47 +633,58 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}
-          className={`h-[24px] w-full rounded-[4px]  flex items-center justify-between mb-2`}>
+          className={`h-[24px] w-full max-w-full rounded-[4px]  flex items-center justify-between mb-2`}>
 
           {/* top-left wrapper */}
-          <div className="flex items-center gap-[8px]"
-            style={{
-              maxWidth: calculateMaxLabelContainerWidth(),
-            }}>
-            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+          <div className="flex items-center gap-[8px] hover:cursor-grab active:cursor-grabbing group" 
+               style={{
+                 maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 44px)`,
+               }}>
+            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center group-hover:text-[#CDCDCD] group-active:text-[#4599DF]">
               {renderTagLogo()}
             </div>
-
-            {/* measure label width span */}
-            <span
-              ref={measureSpanRef}
-              style={{
-                visibility: 'hidden',
-                position: 'absolute',
-                whiteSpace: 'pre',
-                fontSize: '12px',
-                lineHeight: '18px',
-                fontWeight: '700',
-                fontFamily: 'Plus Jakarta Sans',
-              }}>
-              {nodeLabel}
-            </span>
-
-            <input ref={labelRef}
-              autoFocus={editable}
-              className={`flex items-center justify-start font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none ${locked ? 'text-[#3EDBC9]' : 'text-[#6D7177]'}`}
-              style={{
-                boxSizing: "content-box",
-                width: calculateInputWidth(),
-                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
-              }}
-              size={nodeLabel.length ?? 0}
-              value={`${nodeLabel}`}
-              readOnly={!editable}
-              onChange={EditLabel}
-              onMouseDownCapture={onFocus}
-              onBlur={onBlur}
-            />
+            
+            {editable ? (
+              <input
+                ref={labelRef}
+                className={`
+                  flex items-center justify-start 
+                  font-[600] text-[12px] leading-[18px] 
+                  font-plus-jakarta-sans bg-transparent h-[18px] 
+                  focus:outline-none truncate
+                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]'}
+                  w-full
+                `}
+                value={nodeLabel}
+                onChange={(e) => {
+                  setIsLocalEdit(true);
+                  setNodeLabel(e.target.value);
+                }}
+                onFocus={() => {
+                  setIsEditing(true);
+                  onFocus();
+                }}
+                onBlur={() => {
+                  setIsEditing(false);
+                  if (isLocalEdit) {
+                    editNodeLabel(id, nodeLabel);
+                    setIsLocalEdit(false);
+                  }
+                  onBlur();
+                }}
+              />
+            ) : (
+              <span 
+                className={`
+                  flex items-center justify-start 
+                  font-[600] text-[12px] leading-[18px] 
+                  font-plus-jakarta-sans truncate
+                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]'}
+                `}
+              >
+                {nodeLabel}
+              </span>
+            )}
           </div>
 
 
