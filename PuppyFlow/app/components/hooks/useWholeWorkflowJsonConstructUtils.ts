@@ -269,7 +269,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                         {"role": "system", 
                          "content": "You are an AI"},
                         {"role": "user", 
-                        "content": "introduce yourself"}
+                        "content": "Answer the question by {{input_ID}}"}
                        ],
                     model: (nodeInfo.data as LLMConfigNodeData)?.model ?? "gpt-4o",
                     base_url: (nodeInfo.data as LLMConfigNodeData)?.base_url ?? "",
