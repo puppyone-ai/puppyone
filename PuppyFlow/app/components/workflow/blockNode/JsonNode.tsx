@@ -668,12 +668,12 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}
-          className={`h-[24px] w-full rounded-[4px]  flex items-center justify-between mb-2`}>
+          className={`h-[24px] w-full max-w-full rounded-[4px]  flex items-center justify-between mb-2`}>
 
           {/* top-left wrapper */}
           <div className="flex items-center gap-[8px]"
             style={{
-              maxWidth: calculateMaxLabelContainerWidth(),
+              maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 44px)`,
             }}>
             <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
               {renderTagLogo()}
@@ -700,7 +700,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
               style={{
                 boxSizing: "content-box",
                 width: calculateInputWidth(),
-                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
+                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 40px)`,
               }}
               size={nodeLabel.length ?? 0}
               value={`${nodeLabel}`}
