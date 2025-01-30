@@ -14,7 +14,7 @@ export type SearchConfigNodeData = {
     query_id: {id: string, label: string} | undefined,
     vector_db: {id: string, label: string} | undefined,
     extra_configs: {
-        model: "llama-3.1-sonar-small-128k-online" | "llama-3.1-sonar-large-128k-online" | "llama-3.1-sonar-huge-128k-online" | undefined,
+        model: "sonar" | "sonar-pro" | "sonar-reasoning" | undefined,
         threshold: number | undefined
     },
     resultNode: string | null

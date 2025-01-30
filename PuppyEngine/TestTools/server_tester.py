@@ -70,7 +70,7 @@ if __name__ == "__main__":
     import os
     import time
     base_url = "http://127.0.0.1:8001"
-    test_kit = '../TestKit'
+    test_kit = '../TestKit/realTestKit'
     directory = os.path.join(os.path.dirname(__file__), test_kit)
 
     server_health_check(base_url)

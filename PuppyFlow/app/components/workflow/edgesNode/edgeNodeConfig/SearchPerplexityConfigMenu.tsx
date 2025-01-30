@@ -18,7 +18,7 @@ export type SearchPerplexityEdgeJsonType = {
     // id: string,
     type: "search",
     data: {
-        search_type: "llm",
+        search_type: "web",
         sub_search_type: "perplexity",
         inputs: { [key: string]: string },
         query_id: {[key: string]: string},
@@ -35,7 +35,7 @@ type ConstructedSearchPerplexityJsonData = {
     edges: { [key: string]: SearchPerplexityEdgeJsonType }
 }
 
-type perplexityModelNames = "llama-3.1-sonar-small-128k-online" | "llama-3.1-sonar-large-128k-online" | "llama-3.1-sonar-huge-128k-online"
+type perplexityModelNames = "sonar" | "sonar-pro" | "sonar-reasoning"
 function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
@@ -49,7 +49,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     const [model, setModel] = useState<perplexityModelNames>(
-        (getNode(parentId)?.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"
+        (getNode(parentId)?.data as SearchConfigNodeData)?.extra_configs?.model ?? "sonar"
     )
     const modelRef = useRef<HTMLSelectElement>(null)
 
@@ -218,7 +218,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
             // id: parentId,
             type: "search",
             data: { 
-                search_type:"llm", 
+                search_type:"web", 
                 sub_search_type:"perplexity",
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
@@ -344,14 +344,14 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                     setModel(modelRef.current.value as perplexityModelNames)
                 }
             }}  id='model' className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none h-full w-full font-plus-jakarta-sans'>
-                <option value={"llama-3.1-sonar-small-128k-online"}>
-                llama-3.1-sonar-small-128k-online
+                <option value={"sonar"}>
+                sonar
                 </option>
-                <option value={"llama-3.1-sonar-large-128k-online"}>
-                llama-3.1-sonar-large-128k-online
+                <option value={"sonar-pro"}>
+                sonar-pro
                 </option>
-                <option value={"llama-3.1-sonar-huge-128k-online"}>
-                llama-3.1-sonar-huge-128k-online
+                <option value={"sonar-reasoning"}>
+                sonar-reasoning
                 </option>
             </select>
         </li>

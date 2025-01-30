@@ -172,36 +172,7 @@ async def health_check():
         log_error(f"Health check error: {str(e)}!")
         return JSONResponse(content={"status": "unhealthy", "error": str(e)}, status_code=500)
 
-@app.get("/get_data/{task_id}")
-async def get_data(
-    task_id: str
-):
-    try:
-        def stream_data():
-            try:
-                workflow.clear_workflow()
-                json_data = data_store.get_data(task_id)
-                with open("./json_received.json", "w") as file:
-                    json.dump(json_data, file, indent=4)
-                workflow.config_workflow_json(json_data)
-
-                for yield_dict in workflow.process_all():
-                    yield f"data: {json.dumps({'data': yield_dict, 'is_complete': False})}\n\n"
-
-                log_info("data: Execution complete")
-                yield f"data: {json.dumps({'is_complete': True})}\n\n"
-            except Exception as e:
-                log_error(f"Error during streaming: {str(e)}")
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-        return StreamingResponse(stream_data(), media_type="text/event-stream")
-    except PuppyEngineException as e:
-        log_error(f"Error Getting Data from Server: {str(e)}")
-        raise PuppyEngineException(6100, "Error Getting Data from Server", str(e))
-    except Exception as e:
-        log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyEngineException(6300, "Server Internal Error", str(e))
-
+# send data from frontend client to backend server
 @app.post("/send_data")
 async def send_data(
     request: Request
@@ -223,6 +194,42 @@ async def send_data(
         log_error(f"Server Internal Error: {str(e)}")
         raise PuppyEngineException(6300, "Server Internal Error", str(e))
     
+
+# get data from backend server to frontend client
+@app.get("/get_data/{task_id}")
+async def get_data(
+    task_id: str
+):
+    try:
+        def stream_data():
+            try:
+                workflow.clear_workflow()
+                json_data = data_store.get_data(task_id)
+                with open("./json_received.json", "w") as file:
+                    json.dump(json_data, file, indent=4)
+                workflow.config_workflow_json(json_data)
+
+                for yield_dict in workflow.process_all():
+                    yield f"data: {json.dumps({'data': yield_dict, 'is_complete': False})}\n\n"
+
+                # if execution is complete
+                log_info("data: Execution complete")
+                yield f"data: {json.dumps({'is_complete': True})}\n\n"
+            
+            # if error occurs during streaming
+            except Exception as e:
+                log_error(f"Error during streaming: {str(e)}")
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+        return StreamingResponse(stream_data(), media_type="text/event-stream")
+    except PuppyEngineException as e:
+        log_error(f"Error Getting Data from Server: {str(e)}")
+        raise PuppyEngineException(6100, "Error Getting Data from Server", str(e))
+    except Exception as e:
+        log_error(f"Server Internal Error: {str(e)}")
+        raise PuppyEngineException(6300, "Server Internal Error", str(e))
+    
+
 @app.get("/generate_presigned_url")
 async def generate_presigned_url():
     try:

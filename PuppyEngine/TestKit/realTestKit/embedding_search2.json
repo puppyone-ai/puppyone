@@ -1,0 +1,60 @@
+{
+  "blocks": {
+    "3ECltH": {
+      "label": "3ECltH",
+      "type": "structured",
+      "data": {
+        "content": ""
+      }
+    },
+    "bwQqPe": {
+      "label": "bwQqPe",
+      "type": "text",
+      "data": {
+        "content": "你好"
+      }
+    },
+    "5TuivV": {
+      "label": "5TuivV",
+      "type": "structured",
+      "data": {
+        "content": [
+          "你好",
+          "去你妈的"
+        ],
+        "index_name": "Rose123_4956315d-b757-4885-a6c1-9872eb80894d"
+      }
+    }
+  },
+  "edges": {
+    "search-1738241716848": {
+      "type": "search",
+      "data": {
+        "search_type": "rag",
+        "sub_search_type": "vector",
+        "top_k": 5,
+        "inputs": {
+          "bwQqPe": "bwQqPe",
+          "5TuivV": "5TuivV"
+        },
+        "threshold": 0.7,
+        "extra_configs": {
+          "provider": "openai",
+          "model": "text-embedding-ada-002",
+          "db_type": "pinecone",
+          "collection_name": "test_collection"
+        },
+        "docs_id": {
+          "5TuivV": "5TuivV"
+        },
+        "query_id": {
+          "bwQqPe": "bwQqPe"
+        },
+        "looped": false,
+        "outputs": {
+          "3ECltH": "3ECltH"
+        }
+      }
+    }
+  }
+}

@@ -46,9 +46,14 @@ class WebSearchClient(BaseSearchClient):
                     max_results=extra_configs.get("ddg_max_results", 10),
                     extra_configs=extra_configs.get("ddg_extra_configs", {})
                 )
+            case "perplexity":
+                return [self.perplexity_search(
+                    model=extra_configs.get("model", "sonar")
+                )]
             case _:
                 raise ValueError(f"{sub_search_type} is unsupported for Web Search!")
 
+    
     @global_exception_handler(3501, "Error Searching Using Google Search")
     def google_search(
         self
@@ -68,6 +73,45 @@ class WebSearchClient(BaseSearchClient):
         if response.status_code != 200:
             raise ValueError(f"Failed to get the search result from Google, status code: {response.status_code}")
         return response.json()["items"]
+
+
+    @global_exception_handler(3503, "Error Searching Using Perplexity Search")
+    def perplexity_search(
+        self,
+        model: str 
+    ) -> str:
+        """
+        Perform a search using the Perplexity API.
+
+        Supported Models:
+        - sonar-reasoning
+        - sonar-pro
+        - sonar
+        """
+
+        messages = [
+            {
+                "role": "system",
+                "content": """
+You are an artificial intelligence assistant and you need to engage in a helpful, detailed, polite conversation with a user.
+"""
+            },
+            {
+                "role": "user",
+                "content": f"{self.query}"
+            },
+        ]
+
+        response = lite_llm_chat(
+            messages=messages,
+            api_key=os.environ.get("PERPLEXITY_API_KEY"),
+            base_url="https://api.perplexity.ai",
+            model=model
+        )
+
+        return response
+
+
 
     @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
     def duckduckgo_search(
@@ -110,87 +154,6 @@ class WebSearchClient(BaseSearchClient):
             case _:
                 raise ValueError(f"Unsupported Duck Duck Go Search Type: {search_type}")
 
-        return results
-
-
-class LLMSearchClient(BaseSearchClient):
-    def __init__(
-        self,
-        query: str
-    ):
-        self.query = query
-
-    def search(
-        self,
-        sub_search_type: str,
-        extra_configs: dict
-    ) -> List[str]:
-        search_methods = {
-            "perplexity": self.perplexity_search,
-            "ddg": self.ddg_search
-        }
-
-        search_method = search_methods.get(sub_search_type)
-        if not search_method:
-            raise ValueError(f"{sub_search_type} is unsupported for LLM Search!")
-
-        return [search_method(extra_configs.get("model", ""))]
-
-    @global_exception_handler(3503, "Error Searching Using Perplexity Search")
-    def perplexity_search(
-        self,
-        model: str = "mixtral-7b-instruct"
-    ) -> str:
-        """
-        Perform a search using the Perplexity API.
-
-        Supported Models:
-        - llama-3.1-sonar-small-128k-chat
-        - llama-3.1-sonar-large-128k-chat
-        - lllama-3.1-8b-instruct
-        - llama-3.1-70b-instruct
-        - mixtral-8x7b-instruct
-        - mixtral-7b-instruct
-        """
-
-        messages = [
-            {
-                "role": "system",
-                "content": """
-You are an artificial intelligence assistant and you need to engage in a helpful, detailed, polite conversation with a user.
-"""
-            },
-            {
-                "role": "user",
-                "content": f"{self.query}"
-            },
-        ]
-
-        response = lite_llm_chat(
-            messages=messages,
-            api_key=os.environ.get("PERPLEXITY_API_KEY"),
-            base_url="https://api.perplexity.ai",
-            model=model
-        )
-
-        return response
-
-    @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
-    def ddg_search(
-        self,
-        model: str = "gpt-4o-mini"
-    ) -> str:
-        """
-        Perform a search using the DuckDuckGo API.
-
-        Supported Models:
-        - claude-3-haiku
-        - gpt-4o-mini
-        - llama-3.1-70b
-        - mixtral-8x7b
-        """
-
-        results = DDGS().chat(self.query, model)
         return results
 
 
@@ -342,7 +305,6 @@ class SearchClientFactory:
     ) -> list:
         search_clients = {
             "web": WebSearchClient,
-            "llm": LLMSearchClient,
             "elastic": ElasticsearchClient,
             "rag": lambda q, t, th: RAGSearchClient(q, t, th)
         }
@@ -406,12 +368,8 @@ if __name__ == "__main__":
     print(search_engine.google_search())
     print("\nDuckDuckGo Search Results:")
     print(search_engine.duckduckgo_search())
-
-    # LLM Search
-    search_engine = LLMSearchClient(query)
-    print("Perplexity Search Results:")
-    print(search_engine.llm_search(search_type="perplexity", model="mixtral-7b-instruct"))
-    print(search_engine.llm_search(search_type="chat", model="gpt-4o-mini"))
+    print("\nPerplexity Search Results:")
+    print(search_engine.perplexity_search(model="sonar"))
 
     # RAG-based Search
     print("\nRAG-based Search Results:")
