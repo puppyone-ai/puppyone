@@ -569,7 +569,6 @@ const FlowsPerUserProps = () => {
             try {
                 console.log("Starting workspace initialization...");
                 
-                // 使用 v2 接口获取基础数据
                 const data = await initializeUserDataV2() as InitialUserData;
                 console.log("Received initial data:", data);
                 
@@ -583,45 +582,45 @@ const FlowsPerUserProps = () => {
                 setUserName(data.user_name);
                 console.log("Set user info:", data.user_name);
 
-                // 先设置基础工作区数据（包含第一个工作区的历史记录）
-                const initialWorkspaces = data.workspaces.map((workspace) => {
-                    console.log(`Processing workspace:`, workspace.workspace_id);
-                    return {
-                        flowId: workspace.workspace_id,
-                        flowTitle: workspace.workspace_name,
-                        latestJson: workspace.workspace_id === data.workspaces[0].workspace_id ? data.workspace_history : null,
-                        isDirty: false
-                    };
-                });
+                // 检查工作区是否为空
+                if (!data.workspaces || data.workspaces.length === 0) {
+                    console.log("No workspaces found for user");
+                    setWorkspaces([]);  // 设置空数组
+                    setSelectedFlowId(null);  // 清除选中的工作区
+                    return;  // 直接返回，不进行后续处理
+                }
+
+                // 原有的工作区初始化逻辑...
+                const initialWorkspaces = data.workspaces.map((workspace) => ({
+                    flowId: workspace.workspace_id,
+                    flowTitle: workspace.workspace_name,
+                    latestJson: null,
+                    isDirty: false
+                }));
                 
-                console.log("Final workspaces data:", initialWorkspaces);
                 setWorkspaces(initialWorkspaces);
 
-                // 然后并行获取其他工作区的历史记录
-                if (data.workspaces.length > 1) {
-                    console.log("Fetching history for other workspaces...");
-                    const historyPromises = data.workspaces.slice(1).map(async (workspace, index) => {
-                        console.log(`Fetching history for workspace ${workspace.workspace_id}`);
-                        const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id);
-                        
-                        if (latestHistory) {
-                            // 更新对应工作区的历史记录
-                            setWorkspaces(prevWorkspaces => {
-                                const newWorkspaces = [...prevWorkspaces];
-                                // index + 1 因为跳过了第一个工作区
-                                newWorkspaces[index + 1] = {
-                                    ...newWorkspaces[index + 1],
-                                    latestJson: latestHistory
-                                };
-                                console.log(`Updated history for workspace ${workspace.workspace_id}`);
-                                return newWorkspaces;
-                            });
-                        }
-                    });
+                // 并行获取所有工作区的历史记录
+                console.log("Fetching history for all workspaces...");
+                const historyPromises = data.workspaces.map(async (workspace, index) => {
+                    console.log(`Fetching history for workspace ${workspace.workspace_id}`);
+                    const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id);
+                    
+                    if (latestHistory) {
+                        setWorkspaces(prevWorkspaces => {
+                            const newWorkspaces = [...prevWorkspaces];
+                            newWorkspaces[index] = {
+                                ...newWorkspaces[index],
+                                latestJson: latestHistory
+                            };
+                            console.log(`Updated history for workspace ${workspace.workspace_id}`);
+                            return newWorkspaces;
+                        });
+                    }
+                });
 
-                    await Promise.all(historyPromises);
-                    console.log("All workspace histories fetched");
-                }
+                await Promise.all(historyPromises);
+                console.log("All workspace histories fetched");
 
             } catch (error) {
                 console.error("Error initializing workspaces:", error);
