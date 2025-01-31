@@ -14,8 +14,7 @@ import {ReactFlow,
     Position, 
     useReactFlow,
     ConnectionLineType,
-    ConnectionMode,
-    Controls} from '@xyflow/react'
+    ConnectionMode,} from '@xyflow/react'
 import TextBlockNode from './blockNode/TextBlockNode'
 import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
@@ -481,60 +480,70 @@ function Workflow() {
     
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
         <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
-        <ReactFlow id="flowChart"
-        style={{
-          width: "100%",
-          height: "100%",
-        }}
-        connectionLineComponent={CustomConnectionLine}
-        //  connectionLineStyle={connectionLineStyle}
-        //  connectionRadius={100}
-         nodes={nodes}
-         edges={edges}
-         nodeTypes={nodeTypes}
-         edgeTypes={edgeTypes}
-         fitViewOptions={fitViewOptions}
-         onNodesChange={onNodesChange}
-         onEdgesChange={onEdgesChange}
-         onConnect={onConnect}
-         nodesDraggable={!isOnGeneratingNewNode}
-         nodesConnectable={!isOnGeneratingNewNode}
-         elementsSelectable={!isOnGeneratingNewNode}
-         onNodeMouseEnter={(event, node) => {
-          bringToFront(event, node.id)
-          // if (node.type === "text") {
-          //   lockZoom()
-          // }
-         }}
-         onNodeMouseLeave={(event, node) => {
-          onNodeMouseLeave(node.id)
-          // if (node.type === "text") {
-          //   freeZoom()
-          // }
-         }}
-         onNodeClick={(event, node) => onNodeClick(node.id)}
-        //  onDelete={onDelete}
-         onConnectStart={onConnectStart}
-         onConnectEnd={onConnectEnd}
-         onPaneClick={onPaneClick}
-         snapToGrid={true}
-         snapGrid={[16, 16]}
-         fitView
-        
-         minZoom={0.2}           // 最小缩放级别
-         maxZoom={1.5} 
-         zoomOnScroll={canZoom}
-         zoomOnPinch={true}
-         panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
-         panOnScroll={true}          // 重新启用默认的滚动行为
-         panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
-         selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
-         className="nocursor"             // 可选：添加自定义样式
-         
-         >
-          <Upbar />
-          <Background color="#646464" variant={BackgroundVariant.Dots} gap={16}/>
-        </ReactFlow>
+            <style jsx global>{`
+                .react-flow__attribution {
+                    color: #646464 !important;
+                    opacity: 0.7;
+                    background-color: transparent !important;
+                }
+                .react-flow__attribution a {
+                    color: #646464 !important;
+                }
+            `}</style>
+            <ReactFlow id="flowChart"
+            style={{
+              width: "100%",
+              height: "100%",
+            }}
+            connectionLineComponent={CustomConnectionLine}
+            //  connectionLineStyle={connectionLineStyle}
+            //  connectionRadius={100}
+             nodes={nodes}
+             edges={edges}
+             nodeTypes={nodeTypes}
+             edgeTypes={edgeTypes}
+             fitViewOptions={fitViewOptions}
+             onNodesChange={onNodesChange}
+             onEdgesChange={onEdgesChange}
+             onConnect={onConnect}
+             nodesDraggable={!isOnGeneratingNewNode}
+             nodesConnectable={!isOnGeneratingNewNode}
+             elementsSelectable={!isOnGeneratingNewNode}
+             onNodeMouseEnter={(event, node) => {
+              bringToFront(event, node.id)
+              // if (node.type === "text") {
+              //   lockZoom()
+              // }
+             }}
+             onNodeMouseLeave={(event, node) => {
+              onNodeMouseLeave(node.id)
+              // if (node.type === "text") {
+              //   freeZoom()
+              // }
+             }}
+             onNodeClick={(event, node) => onNodeClick(node.id)}
+            //  onDelete={onDelete}
+             onConnectStart={onConnectStart}
+             onConnectEnd={onConnectEnd}
+             onPaneClick={onPaneClick}
+             snapToGrid={true}
+             snapGrid={[16, 16]}
+             fitView
+            
+             minZoom={0.2}           // 最小缩放级别
+             maxZoom={1.5} 
+             zoomOnScroll={canZoom}
+             zoomOnPinch={true}
+             panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
+             panOnScroll={true}          // 重新启用默认的滚动行为
+             panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
+             selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
+             className="nocursor"             // 可选：添加自定义样式
+             
+             >
+              <Upbar />
+              <Background color="#646464" variant={BackgroundVariant.Dots} gap={16}/>
+            </ReactFlow>
         </div>
     </div>
 
