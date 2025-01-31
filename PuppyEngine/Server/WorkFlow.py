@@ -47,8 +47,46 @@ class WorkFlow:
         """
         Reconfigure the WorkFlow object with block and edge data from JSON.
 
-        Args:
-            json_data (dict): Dictionary containing block and edge data.
+        Example Input JSON:
+        {
+            "blocks": {
+                "2": {
+                    "label": "b",
+                    "type": "structured",
+                    "data": {
+                        "content": "",
+                        "embedding_view": []
+                    }
+                },
+                "3": {
+                    "label": "c",
+                    "type": "text",
+                    "data": {
+                        "content": "puppy"
+                    }
+                }
+            },
+            "edges": {
+                "llm-1727235281399": {
+                    "type": "llm",
+                    "data": {
+                        "messages": [
+                            {"role": "system", "content": "You are a helpful AI assistant that called {{c}}"},
+                            {"role": "user", "content": "introduce your self"}
+                        ],
+                        "inputs": {"3": "c"},
+                        "outputs": {"2": "b"}
+                    }
+                }
+            },
+            "version": "0.1"
+        }
+
+        After processing:
+        - self.block_data will contain the blocks dictionary above
+        - self.edge_data will contain the edges dictionary above
+        - self.edge_inputs will be: {"llm-1727235281399": ["3"]}
+        - self.edge_outputs will be: {"llm-1727235281399": ["2"]}
         """
 
         # Convert the JSON data to the latest version
@@ -79,6 +117,8 @@ class WorkFlow:
         self.processed_block_ids = set()
         self.current_block_ids = set()
 
+    # process the workflow
+    # TODO： this part requires changing the logic
     @global_exception_handler(5202, "Error Processing All Blocks", True)
     def process_all(
         self
@@ -90,21 +130,36 @@ class WorkFlow:
             dict: The data of each processed block.
         """
 
-        # Start processing with the first batch of blocks
+        # Initialize the workflow by finding blocks that have no incoming edges
+        # These blocks will be our starting points for processing
         self.current_block_ids = self._find_first_batch()
+
+        # Continue processing as long as there are blocks in the current batch
         while self.current_block_ids:
+            # Initialize set to store the next batch of block IDs to process
             next_block_ids = set()
-            # _execute_batch returns the ids of the blocks that have been updated
+            
+            # Process thecurrent batch of blocks and get IDs of completed blocks
+            # finished_ids contains block IDs that were output targets of processed edges
             finished_ids = self._execute_batch(self.current_block_ids)
 
+            # Temporary dictionary to collect processed blocks before yielding
             yield_dict = {}
 
+            # Process each completed block
             for finished_id in finished_ids:
+                # Add this block to the next batch for further processing
                 next_block_ids.add(finished_id)
+                # Mark this block as processed to avoid reprocessing
                 self.processed_block_ids.add(finished_id)
 
+                # Retrieve the block data and determine its type
                 block = self.block_data.get(finished_id, {})
                 block_type = block.get("type", "text")
+                
+                # Handle different block types:
+                # - For text blocks: use as is
+                # - For structured blocks: JSON stringify the content
                 if block_type == "text":
                     dumped_block = block
                 else:
@@ -116,17 +171,22 @@ class WorkFlow:
                         }
                     }
                 
-                # Decode the unicode contents
+                # Process any unicode characters in the content
+                # This ensures proper encoding of special characters
                 content = dumped_block.get("data", {}).get("content", "")
                 dumped_block["data"]["content"] = self._unicode_formatting(content, block_type)
 
-                # Add the block data to the yield dictionary
+                # Store the processed block in the yield dictionary
                 yield_dict[finished_id] = dumped_block
                 logger.info("Yielded Data for ID - %s:\n%s", finished_id, dumped_block)
 
+            # Yield the batch of processed blocks
             yield yield_dict
+            # Clear the dictionary for the next iteration
             yield_dict.clear()
 
+            # Update current_block_ids for the next iteration
+            # This will contain blocks that were output targets in this iteration
             self.current_block_ids = next_block_ids
             logger.info("Next batch: %s", next_block_ids)
 
@@ -170,8 +230,37 @@ class WorkFlow:
         """
         Finds blocks that are not targets of any edges, marking them as the starting point for processing.
 
-        Returns:
-            Set[str]: A set of block IDs that are the starting points.
+        Example:
+        Given this configuration:
+        {
+            "blocks": {
+                "2": {
+                    "type": "structured",
+                    "data": {"content": ""}
+                },
+                "3": {
+                    "type": "text",
+                    "data": {"content": "puppy"}
+                }
+            },
+            "edges": {
+                "llm-1727235281399": {
+                    "type": "llm",
+                    "data": {
+                        "inputs": {"3": "c"},
+                        "outputs": {"2": "b"}
+                    }
+                }
+            }
+        }
+
+        This method will return:
+        {"3"}
+        
+        Because:
+        1. Block "3" is only used as input (in edge_inputs) but never as output
+        2. Block "2" is a target (appears in edge_outputs) so it's not included
+        3. Therefore, block "3" is our starting point
         """
 
         outputs = {value for values in self.edge_outputs.values() for value in values}
@@ -220,6 +309,7 @@ class WorkFlow:
 
         return valid_edge_dicts
 
+    # execute for each batch step
     @global_exception_handler(5205, "Error Executing Batch")
     def _execute_batch(
         self,
@@ -237,20 +327,37 @@ class WorkFlow:
 
         # Find all the connected edges and parse them
         valid_edges = self._find_valid_edges(block_ids)
-        parsed_edges = [
-            (edge[0], parsed_edge)
-            for edge, parsed_edge in zip(valid_edges, self.parser.parse([edge[1] for edge in valid_edges]))
-        ]
+        
+        # Extract edge data for parsing
+        edge_data_list = [edge[1] for edge in valid_edges]
+        
+        # Parse the edge data
+        parsed_edge_results = self.parser.parse(edge_data_list)
+        
+        # Combine original edge IDs with parsed results
+        parsed_edges = []
+        for edge, parsed_edge in zip(valid_edges, parsed_edge_results):
+            edge_id = edge[0]
+            parsed_edges.append((edge_id, parsed_edge))
+            
         logger.info("Parsed Edges: %s", parsed_edges)
 
         # Process each valid edge concurrently
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            futures = [executor.submit(self._process_edge, parsed_edge) for parsed_edge in parsed_edges]
+            # Create futures list
+            futures = []
+            for parsed_edge in parsed_edges:
+                future = executor.submit(self._process_edge, parsed_edge)
+                futures.append(future)
+            
+            # Process completed futures
             for future in concurrent.futures.as_completed(futures):
                 results = future.result()
                 for result in results:
                     yield result
 
+
+    # process each edge logic
     @global_exception_handler(5206, "Error Processing Edge")
     def _process_edge(
         self,
@@ -265,30 +372,52 @@ class WorkFlow:
         Returns:
             Tuple[Any, str]: The ID of the target block.
         """
-
+        
+        # Unpack the edge_info tuple into edge_id and edge_dict
         edge_id, edge_dict = edge_info
+        
+        # Get the target block IDs that this edge should output to
         target_block_ids = self.edge_outputs[edge_id]
         if not target_block_ids:
             raise ValueError("Invalid edge: Output block IDs are missing")
 
+        # Extract edge type and data from the edge dictionary
+        # edge_type could be: 'llm', 'ifelse', 'modify', etc.
         edge_type = edge_dict.get("type", {})
+        # edge_data contains the specific configuration for this edge
         edge_data = edge_dict.get("data", {})
         if not edge_type:
             raise ValueError("Invalid edge: Edge type is missing")
 
+        # Process the edge using the Edge class and get the output
+        # The output format depends on the edge type:
+        # - 'llm' edge: returns a string (the LLM response)
+        # - 'ifelse' edge: returns a dict mapping {source_block_id: target_block_id}
+        # - 'modify' edge: returns either string or structured data (list/dict)
+        # - ...
+        # IMPORTANT: Different edge types produce different output formats
         output = Edge(edge_type, edge_data).process()
         logger.info("Output: %s", output)
 
-        # Handling the choose edge
+        # Special handling for 'ifelse' edge type
         if edge_type == "ifelse":
+            # Reset target_block_ids as it will be populated based on conditions
             target_block_ids = []
+            # output here is a dictionary mapping source blocks to target blocks
             for from_block, to_block in output.items():
+                # Add the selected target block to the list
                 target_block_ids.append(to_block)
+                # Copy the content from source block to target block
                 self.block_data[to_block]["data"]["content"] = self.block_data.get(from_block, {}).get("data", {}).get("content", "")
         else:
+            # For all other edge types (llm, modify, etc.)
             for target_block_id in target_block_ids:
+                # Validate and potentially update the block type based on output
                 self._valid_output_block_type(target_block_id, output)
+                # Update the target block's content with the processed output
                 self.block_data[target_block_id]["data"]["content"] = output
+
+        # Return the list of target block IDs that were updated
         return target_block_ids
 
     def _valid_output_block_type(
