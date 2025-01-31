@@ -584,16 +584,12 @@ const FlowsPerUserProps = () => {
                 console.log("Set user info:", data.user_name);
 
                 // 先设置基础工作区数据（包含第一个工作区的历史记录）
-                const initialWorkspaces = data.workspaces.map((workspace, index) => {
-                    console.log(`Processing workspace ${index}:`, {
-                        id: workspace.workspace_id,
-                        history: index === 0 ? data.workspace_history : null
-                    });
-                    
+                const initialWorkspaces = data.workspaces.map((workspace) => {
+                    console.log(`Processing workspace:`, workspace.workspace_id);
                     return {
                         flowId: workspace.workspace_id,
                         flowTitle: workspace.workspace_name,
-                        latestJson: index === 0 ? data.workspace_history : null,
+                        latestJson: workspace.workspace_id === data.workspaces[0].workspace_id ? data.workspace_history : null,
                         isDirty: false
                     };
                 });
