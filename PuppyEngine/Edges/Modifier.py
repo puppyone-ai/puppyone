@@ -4,8 +4,9 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
+import json
 import copy
-from typing import Any, List, Dict, Optional, Callable
+from typing import Any, List, Dict, Union, Optional, Callable
 from Utils.PuppyEngineExceptions import PuppyEngineException
 
 plugin_pattern = r'\{\{(.*?)\}\}'
@@ -305,14 +306,106 @@ class JSONModifier:
 
         if source_type == "text" and target_type == "structured":
             target_structure = kwargs.get("target_structure", "list")
-            separator = kwargs.get("separator", " ")
-            if target_structure == "list":
-                return self.data.split(separator)
-            if target_structure == "dict":
-                return {separator: self.data}
+            action_type = kwargs.get("action_type", "default")
+            list_separator = kwargs.get("list_separator", [])
+            dict_key = kwargs.get("dict_key", "value")
+            if action_type == "default":
+                if list_separator:
+                    self.data = self.split_string_by_multiple_delimiters(self.data, list_separator)
+                return [self.data] if target_structure == "list" else {dict_key: self.data}
+            else:
+                return self.parse_json_from_string(self.data)
 
         return self.data
-   
+
+    def split_string_by_multiple_delimiters(
+        self,
+        string: str,
+        delimiters: List[str]
+    ) -> List[str]:
+        pattern = '|'.join(map(re.escape, delimiters))
+        return re.split(pattern, string)
+
+    def parse_json_from_string(
+        self,
+        input_str: str
+    ) -> Union[Dict[str, Any], List[Any]]:
+        """
+        Parses all valid lists and dicts from a string.
+        
+        - If there is only one list, return that list.
+        - If there is only one dict, return that dict.
+        - If multiple lists are found, merge them into a nested dictionary (e.g., {"list_1": [...], "list_2": [...]}).
+        - If multiple dicts are found, merge them into a nested dictionary (e.g., {"dict_1": {...}, "dict_2": {...}}).
+        - If both lists and dicts are found, combine them into a single dictionary.
+        - If no valid JSON structures are found, return `{"original": input_str}`.
+
+        Args:
+            input_str (str): The input string containing potential JSON structures.
+
+        Returns:
+            Union[Dict[str, Any], List[Any]]: A structured representation of extracted JSON elements.
+        """
+
+        list_pattern = re.compile(r'\[[^\]]*\]')
+        dict_pattern = re.compile(r'\{[^\}]*\}')
+
+        parsed_lists = []
+        parsed_dicts = []
+
+        # Extract valid dictionaries
+        for match in dict_pattern.findall(input_str):
+            try:
+                parsed_dict = json.loads(match)
+                if isinstance(parsed_dict, dict):
+                    parsed_dicts.append(parsed_dict)
+            except json.JSONDecodeError:
+                continue
+
+        # Extract valid lists
+        for match in list_pattern.findall(input_str):
+            try:
+                parsed_list = json.loads(match)
+                if isinstance(parsed_list, list):
+                    parsed_lists.append(parsed_list)
+            except json.JSONDecodeError:
+                continue
+
+        merged_data = self.match_structured_cases(parsed_lists, parsed_dicts)
+
+        # If unmatched, return original input in a default dict
+        return merged_data if merged_data else {"original": input_str}
+    
+    def match_structured_cases(
+        self,
+        parsed_lists: List[Any],
+        parsed_dicts: List[Any]
+    ) -> Union[Dict[str, Any], List[Any]]:
+        # If only one list, return it
+        if len(parsed_lists) == 1 and not parsed_dicts:
+            return parsed_lists[0]
+
+        # If only one dict, return it
+        if len(parsed_dicts) == 1 and not parsed_lists:
+            return parsed_dicts[0]
+
+        # If multiple lists, merge into a nested dictionary
+        merged_data = {}
+        if len(parsed_lists) > 1:
+            for i, lst in enumerate(parsed_lists, start=1):
+                merged_data[f"list_{i}"] = lst
+        elif len(parsed_lists) == 1:
+            merged_data["list_1"] = parsed_lists[0]
+
+        # If multiple dicts, merge into a nested dictionary
+        if len(parsed_dicts) > 1:
+            for i, dct in enumerate(parsed_dicts, start=1):
+                merged_data[f"dict_{i}"] = dct
+        elif len(parsed_dicts) == 1:
+            merged_data.update(parsed_dicts[0])
+
+        return merged_data
+    
     def _handle_edit_text(
         self,
         **kwargs

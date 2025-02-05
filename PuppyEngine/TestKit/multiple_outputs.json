@@ -1,0 +1,114 @@
+{
+    "blocks": {
+      "1": {
+        "label": "InitialInput",
+        "type": "text",
+        "data": {
+          "content": "This is the starting input for the workflow."
+        }
+      },
+      "2": {
+        "label": "MainBranch",
+        "type": "text",
+        "data": {
+          "content": ""
+        }
+      },
+      "3": {
+        "label": "SideBranch",
+        "type": "structured",
+        "data": {
+          "content": "",
+          "embedding_view": []
+        }
+      },
+      "4": {
+        "label": "MergedResult",
+        "type": "structured",
+        "data": {
+          "content": "",
+          "embedding_view": []
+        }
+      },
+      "5": {
+        "label": "FinalOutput",
+        "type": "text",
+        "data": {
+          "content": ""
+        }
+      }
+    },
+    "edges": {
+      "edge1": {
+        "type": "llm",
+        "data": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "Extend the given content to have one more sentence"
+            },
+            {
+              "role": "user",
+              "content": "Content:\n{{InitialInput}}."
+            }
+          ],
+          "sys_prompt": "",
+          "model": "gpt-4o",
+          "base_url": "",
+          "max_tokens": 2048,
+          "temperature": 0.7,
+          "inputs": { "1": "InitialInput" },
+          "outputs": { "2": "MainBranch", "3": "SideBranch" },
+          "structured_output": false
+        }
+      },
+      "edge2": {
+        "type": "llm",
+        "data": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "Merge the two contents together in json format."
+            },
+            {
+              "role": "user",
+              "content": "Content 1:\n{{MainBranch}}.\nContent 2:\n{{SideBranch}}."
+            }
+          ],
+          "sys_prompt": "",
+          "model": "gpt-4o",
+          "base_url": "",
+          "max_tokens": 2048,
+          "temperature": 0.7,
+          "inputs": { "2": "MainBranch", "3": "SideBranch" },
+          "outputs": { "4": "MergedResult" },
+          "structured_output": true
+        }
+      },
+      "edge3": {
+        "type": "llm",
+        "data": {
+          "messages": [
+            {
+              "role": "system",
+              "content": "Clean the given json content."
+            },
+            {
+              "role": "user",
+              "content": "Content: {{MergedResult}}."
+            }
+          ],
+          "sys_prompt": "",
+          "model": "gpt-4o",
+          "base_url": "",
+          "max_tokens": 2048,
+          "temperature": 0.7,
+          "inputs": { "4": "MergedResult" },
+          "outputs": { "5": "FinalOutput" },
+          "structured_output": false
+        }
+      }
+    },
+    "version": "0.1"
+  }
+  
