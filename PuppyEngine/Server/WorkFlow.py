@@ -233,7 +233,7 @@ class WorkFlow:
         block_ids: Set[str]
     ):
         """
-        Uses a thread pool to execute a batch of blocks concurrently., yielding results as they complete.
+        Uses a thread pool to execute a batch of blocks concurrently, yielding results as they complete.
 
         Args:
             block_ids (Set[str]): A set of block IDs to be processed.

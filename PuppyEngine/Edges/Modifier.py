@@ -6,271 +6,230 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import re
 import json
 import copy
-from typing import Any, List, Dict, Union, Optional, Callable
+from typing import Any, List, Dict, Tuple, Union, Optional, Callable
 from Utils.PuppyEngineExceptions import PuppyEngineException
 
 plugin_pattern = r'\{\{(.*?)\}\}'
 
 
-class StringModifier:
-    def __init__(
-        self,
-        string: str
-    ):
-        self.string = string
-    
-    def append_string(
-        self,
-        string2: str
-    ) -> Any:
-        return self.string + string2
-
-    def slice_string(
-        self,
-        start: int,
-        end: int
-    ) -> str:
-        return self.string[start:end]
-
-    def deep_copy_string(
-        self,
-    ) -> Any:
-        return copy.deepcopy(self.string)
-
-    def plugin_replace_string(
-        self,
-        plugins: Dict[str, str],
-    ) -> str:
-        def replacer(match):
-            key = match.group(1)
-            return plugins.get(key, f"{{{{{key}}}}}")
-
-        plugin_pattern_compiled = re.compile(plugin_pattern)
-        self.string = plugin_pattern_compiled.sub(replacer, self.string)
-        return self.string
-
-
-class ListModifier:
-    def __init__(
-        self,
-        lst: List[Any]
-    ):
-        self.lst = lst
-    
-    def get(
-        self,
-        key: str
-    ) -> Any:
-        return self.lst[int(key)]
-
-    def slice_list(
-        self,
-        start: int,
-        end: int
-    ) -> List[Any]:
-        return self.lst[start:end]
-
-    def append_element(
-        self,
-        item: Any
-    ) -> list:
-        self.lst.append(item)
-        return self.lst
-
-    def insert_element(
-        self,
-        index: int,
-        item: Any
-    ) -> list:
-        self.lst.insert(index, item)
-        return self.lst
-
-    def list_concatenation(
-        self,
-        lst2: List[Any]
-    ) -> List[Any]:
-        return self.lst + lst2
-
-    def list_repetition(
-        self,
-        n: int
-    ) -> List[Any]:
-        return self.lst * n
-
-    def modify_element(
-        self,
-        index: int,
-        value: Any
-    ) -> list:
-        self.lst[index] = value
-        return self.lst
-
-    def pop_element(
-        self,
-        index: int
-    ) -> Any:
-        return self.lst.pop(index)
-
-    def sort_list(
-        self,
-        key: Optional[Callable] = None,
-        reverse: bool = False
-    ) -> list:
-        def default_key(item: Any) -> Any:
-            try:
-                return key(item) if key else (str(type(item)), str(item))
-            except Exception as e:
-                return str(item) + str(e)
-
-        self.lst.sort(key=default_key, reverse=reverse)
-        return self.lst
-
-    def reversed_copy(
-        self
-    ) -> list:
-        return list(reversed(self.lst))
-
-    def deep_copy_list(
-        self
-    ) -> list:
-        return copy.deepcopy(self.lst)
-
-    def set_intersection(
-        self,
-        lst2: list
-    ) -> list:
-        return list(set(self.lst) & set(lst2))
-
-    def set_union(
-        self,
-        lst2: list
-    ) -> list:
-        return list(set(self.lst) | set(lst2))
-
-    def set_difference(
-        self,
-        lst2: list
-    ) -> list:
-        return list(set(self.lst) - set(lst2))
-
-    def plugin_replace_list(
-        self,
-        plugins: Dict[str, str],
-    ) -> List[Any]:
-        def replace_item(item):
-            if isinstance(item, str):
-                return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), item)
-            return item
-
-        self.lst = [replace_item(item) for item in self.lst]
-        return self.lst
-
-
-class DictModifier:
-    def __init__(
-        self,
-        dct: Dict[str, Any]
-    ):
-        self.dct = dct
-    
-    def get(
-        self,
-        key: Any,
-        default_value: Any = None
-    ) -> Any:
-        current_value = self.dct
-
-        if isinstance(key, (list, tuple)):
-            # Navigate the nested dictionary
-            for k in key:
-                if isinstance(current_value, dict) and k in current_value:
-                    current_value = current_value[k]
-                else:
-                    return default_value
-            return current_value
-
-        return current_value.get(key, default_value)
-
-    def get_keys(
-        self
-    ) -> List[Any]:
-        return list(self.dct.keys())
-
-    def get_values(
-        self
-    ) -> List[Any]:
-        return list(self.dct.values())
-
-    def pop_element_dict(
-        self,
-        key: Any,
-        default_value: Any = None
-    ) -> Any:
-        return self.dct.pop(key, default_value)
-
-    def merge_dicts(
-        self,
-        dct2: Dict[Any, Any]
-    ) -> Dict[Any, Any]:
-        return self.dct | dct2
-
-    def deep_copy_dict(
-        self
-    ) -> Dict[Any, Any]:
-        return copy.deepcopy(self.dct)
-
-    def find_key_with_value(
-        self,
-        desired_value: Any
-    ) -> Any:
-        return next((key for key, value in self.dct.items() if value == desired_value), None)
-
-    def intersection_of_keys(
-        self,
-        dct2: Dict[Any, Any]
-    ) -> List[Any]:
-        return list(self.dct.keys() & dct2.keys())
-
-    def union_of_keys(
-        self,
-        dct2: Dict[Any, Any]
-    ) -> List[Any]:
-        return list(self.dct.keys() | dct2.keys())
-
-    def difference_of_keys(
-        self,
-        dct2: Dict[Any, Any]
-    ) -> List[Any]:
-        return list(self.dct.keys() - dct2.keys())
-
-    def symmetric_difference_of_keys(
-        self,
-        dct2: Dict[Any, Any]
-    ) -> List[Any]:
-        return list(self.dct.keys() ^ dct2.keys())
-
-    def plugin_replace_dict(
-        self,
-        plugins: Dict[str, str],
-    ) -> Dict[Any, Any]:
-        def replace_value(value):
-            if isinstance(value, str):
-                return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), value)
-            return value
-
-        self.dct = {key: replace_value(value) for key, value in self.dct.items()}
-        return self.dct
-
-
-class JSONModifier:
+class StructuredNestedOperations:
     def __init__(
         self,
         data: Any
     ):
         self.data = data
-        self.str_modifier = StringModifier(self.data)
-        self.list_modifier = ListModifier(self.data)
-        self.dict_modifier = DictModifier(self.data)
+
+    def navigate_to_parent(
+        self,
+        path: List[Union[str, int]]
+    ) -> Tuple[Any, Any, bool]:
+        if not path:
+            return self.data, None, False
+
+        current = self.data
+        *parent_path, last_key = path
+
+        try:
+            for key in parent_path:
+                current = current[key] if isinstance(current, dict) else current[int(key)]
+            return current, last_key, True
+        except (KeyError, IndexError, ValueError, TypeError):
+            return self.data, None, False
+
+    def nested_get(
+        self,
+        path: List[Union[str, int]],
+        default: Any = None
+    ) -> Any:
+        current = self.data
+        try:
+            for key in path:
+                current = current[key] if isinstance(current, dict) else current[int(key)]
+            return current
+        except (KeyError, IndexError, ValueError, TypeError):
+            return default
+
+    def nested_delete(
+        self,
+        path: List[Union[str, int]]
+    ) -> Any:
+        parent, last_key, success = self.navigate_to_parent(path)
+        if not success:
+            return self.data
+
+        try:
+            if isinstance(parent, dict):
+                parent.pop(last_key, None)
+            elif isinstance(parent, list):
+                parent.pop(int(last_key))
+        except (KeyError, IndexError, ValueError, TypeError):
+            return self.data
+
+        return self.data
+
+    def nested_set_value(
+        self,
+        path: List[Union[str, int]],
+        value: Any
+    ) -> Any:
+        if not path:
+            return self.data
+
+        self._ensure_path_exists(path[:-1])
+        parent, last_key, success = self.navigate_to_parent(path)
+
+        if success:
+            try:
+                if isinstance(parent, dict):
+                    parent[last_key] = value
+                elif isinstance(parent, list):
+                    parent[int(last_key)] = value
+            except (IndexError, ValueError, TypeError):
+                return self.data
+
+        return self.data
+
+    def _ensure_path_exists(
+        self,
+        path: List[Union[str, int]]
+    ) -> None:
+        current = self.data
+        for key in path:
+            if isinstance(current, dict):
+                current = current.setdefault(key, {})
+            elif isinstance(current, list):
+                index = int(key)
+                while len(current) <= index:
+                    current.append({})
+                current = current[index]
+
+    def nested_keys(
+        self,
+        max_depth: int = -1
+    ) -> List[List[Union[str, int]]]:
+        return self._collect_paths(self.data, [], max_depth)
+
+    def _collect_paths(
+        self,
+        data: Any,
+        current_path: List[Union[str, int]],
+        max_depth: int,
+        current_depth: int = 0
+    ) -> List[List[Union[str, int]]]:
+        if max_depth != -1 and current_depth >= max_depth:
+            return [current_path] if current_path else []
+
+        paths = []
+        if isinstance(data, dict):
+            for key, value in data.items():
+                paths.extend(self._collect_paths(value, current_path + [key], max_depth, current_depth + 1))
+        elif isinstance(data, list):
+            for index, value in enumerate(data):
+                paths.extend(self._collect_paths(value, current_path + [index], max_depth, current_depth + 1))
+        else:
+            paths.append(current_path)
+
+        return paths
+
+    def nested_values(
+        self,
+        max_depth: int = -1
+    ) -> List[Any]:
+        return [self.nested_get(path) for path in self.nested_keys(max_depth)]
+
+    def nested_append(
+        self,
+        path: List[Union[str, int]],
+        value: Any
+    ) -> Any:
+        target = self.nested_get(path)
+        if isinstance(target, list):
+            target.append(value)
+        return self.data
+
+    def nested_insert(
+        self,
+        path: List[Union[str, int]],
+        index: int,
+        value: Any
+    ) -> Any:
+        target = self.nested_get(path)
+        if isinstance(target, list):
+            try:
+                target.insert(index, value)
+            except IndexError:
+                return self.data
+        return self.data
+
+    def nested_sort(
+        self,
+        path: List[Union[str, int]],
+        key: Optional[Callable] = None,
+        reverse: bool = False
+    ) -> Any:
+        target = self.nested_get(path)
+        if isinstance(target, list):
+            try:
+                target.sort(key=key, reverse=reverse)
+            except TypeError:
+                return self.data
+        return self.data
+
+    def nested_set_operation(
+        self,
+        path1: List[Union[str, int]],
+        path2: List[Union[str, int]],
+        operation: str
+    ) -> List[Any]:
+        list1 = self.nested_get(path1)
+        list2 = self.nested_get(path2)
+
+        if not isinstance(list1, list) or not isinstance(list2, list):
+            return []
+
+        # Filter out unhashable elements (e.g., dicts, lists) before set operations
+        def filter_hashable(lst):
+            return {item for item in lst if isinstance(item, (int, float, str, tuple))}
+
+        list1 = filter_hashable(list1)
+        list2 = filter_hashable(list2)
+
+        operations = {
+            'union': set(list1) | set(list2),
+            'intersection': set(list1) & set(list2),
+            'difference': set(list1) - set(list2),
+            'symmetric_difference': set(list1) ^ set(list2)
+        }
+
+        return list(operations.get(operation, set()))
+
+    def replace_structured_variable_values(
+        self,
+        **kwargs
+    ) -> Any:
+        plugins = kwargs.get("plugins", {})
+
+        def replace_value(value: Any) -> Any:
+            if isinstance(value, str):
+                return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), value)
+            elif isinstance(value, dict):
+                return {k: replace_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [replace_value(item) for item in value]
+            return value
+
+        # Start the recursive replacement from the root
+        self.data = replace_value(self.data)
+        return self.data
+
+
+class JSONModifier(StructuredNestedOperations):
+    def __init__(
+        self,
+        data: Any
+    ):
+        super().__init__(data)
+        self.data = data
 
     def modify(
         self,
@@ -333,11 +292,11 @@ class JSONModifier:
         """
         Parses all valid lists and dicts from a string.
         
-        - If there is only one list, return that list.
+        - If there is only one list without context, return that list.
         - If there is only one dict, return that dict.
-        - If multiple lists are found, merge them into a nested dictionary (e.g., {"list_1": [...], "list_2": [...]}).
-        - If multiple dicts are found, merge them into a nested dictionary (e.g., {"dict_1": {...}, "dict_2": {...}}).
-        - If both lists and dicts are found, combine them into a single dictionary.
+        - If multiple standalone lists are found, merge them into a nested dictionary with auto-generated keys.
+        - If lists are found within a dict context, preserve their original keys.
+        - If multiple dicts are found, merge them.
         - If no valid JSON structures are found, return `{"original": input_str}`.
 
         Args:
@@ -346,14 +305,32 @@ class JSONModifier:
         Returns:
             Union[Dict[str, Any], List[Any]]: A structured representation of extracted JSON elements.
         """
+        try:
+            # First try to parse the entire string as a valid JSON
+            return json.loads(input_str)
+        except json.JSONDecodeError:
+            # If that fails, try to extract individual JSON structures
+            parsed_lists = []
+            parsed_dicts = []
 
-        list_pattern = re.compile(r'\[[^\]]*\]')
+            # Extract valid dictionaries
+            parsed_dicts = self._extract_valid_dicts(input_str, parsed_dicts)
+
+            # Extract valid standalone lists (not within dicts)
+            parsed_lists = self._extract_valid_lists(input_str, parsed_dicts, parsed_lists)
+
+            # Match the extracted structures
+            merged_data = self.match_structured_cases(parsed_lists, parsed_dicts)
+
+            # If unmatched, return original input in a default dict
+            return merged_data if merged_data else {"original": input_str}
+
+    def _extract_valid_dicts(
+        self,
+        input_str: str,
+        parsed_dicts: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         dict_pattern = re.compile(r'\{[^\}]*\}')
-
-        parsed_lists = []
-        parsed_dicts = []
-
-        # Extract valid dictionaries
         for match in dict_pattern.findall(input_str):
             try:
                 parsed_dict = json.loads(match)
@@ -361,51 +338,54 @@ class JSONModifier:
                     parsed_dicts.append(parsed_dict)
             except json.JSONDecodeError:
                 continue
+        return parsed_dicts
 
-        # Extract valid lists
+    def _extract_valid_lists(
+        self,
+        input_str: str,
+        parsed_dicts: List[Dict[str, Any]],
+        parsed_lists: List[Any]
+    ) -> List[Any]:
+        list_pattern = re.compile(r'\[[^\]]*\]')
         for match in list_pattern.findall(input_str):
             try:
-                parsed_list = json.loads(match)
-                if isinstance(parsed_list, list):
-                    parsed_lists.append(parsed_list)
+                # Check if this list is not already part of a parsed dict
+                is_standalone = True
+                for d in parsed_dicts:
+                    if match in str(d.values()):
+                        is_standalone = False
+                        break
+
+                if is_standalone:
+                    parsed_list = json.loads(match)
+                    if isinstance(parsed_list, list):
+                        parsed_lists.append(parsed_list)
             except json.JSONDecodeError:
                 continue
+        return parsed_lists
 
-        merged_data = self.match_structured_cases(parsed_lists, parsed_dicts)
-
-        # If unmatched, return original input in a default dict
-        return merged_data if merged_data else {"original": input_str}
-    
     def match_structured_cases(
         self,
         parsed_lists: List[Any],
         parsed_dicts: List[Any]
     ) -> Union[Dict[str, Any], List[Any]]:
-        # If only one list, return it
+        # If only one standalone list, return it
         if len(parsed_lists) == 1 and not parsed_dicts:
             return parsed_lists[0]
 
-        # If only one dict, return it
-        if len(parsed_dicts) == 1 and not parsed_lists:
-            return parsed_dicts[0]
-
-        # If multiple lists, merge into a nested dictionary
+        # Start with an empty result dict
         merged_data = {}
-        if len(parsed_lists) > 1:
-            for i, lst in enumerate(parsed_lists, start=1):
-                merged_data[f"list_{i}"] = lst
-        elif len(parsed_lists) == 1:
-            merged_data["list_1"] = parsed_lists[0]
 
-        # If multiple dicts, merge into a nested dictionary
-        if len(parsed_dicts) > 1:
-            for i, dct in enumerate(parsed_dicts, start=1):
-                merged_data[f"dict_{i}"] = dct
-        elif len(parsed_dicts) == 1:
-            merged_data.update(parsed_dicts[0])
+        # If we have dicts, merge them first
+        for dct in parsed_dicts:
+            merged_data.update(dct)
+
+        # Add any standalone lists with auto-generated keys
+        for i, lst in enumerate(parsed_lists, start=1):
+            merged_data[f"list_{i}"] = lst
 
         return merged_data
-    
+
     def _handle_edit_text(
         self,
         **kwargs
@@ -430,184 +410,280 @@ class JSONModifier:
         self,
         **kwargs
     ) -> Any:
-        plugins = kwargs.get("plugins", {})
+        operations = kwargs.get("operations", [])
+        result = self.data
 
-        def replace_value(value):
-            if isinstance(value, str):
-                return re.sub(plugin_pattern, lambda match: plugins.get(match.group(1), match.group(0)), value)
-            return value
+        # If no operations specified, return original data
+        if not operations:
+            return result
 
-        if isinstance(self.data, list):
-            self.data = [replace_value(item) for item in self.data]
-        elif isinstance(self.data, dict):
-            self.data = {key: replace_value(value) for key, value in self.data.items()}
-
-        return self.data
-
-    # For future development
-    def modify2(
-        self,
-        operations: List[Dict[str, Any]]
-    ) -> Any:
         for operation in operations:
-            modify_type = operation.get("modify_type")
-            kwargs = {key: value for key, value in operation.items() if key != "modify_type"}
-            self.data = self._apply_modification(modify_type, **kwargs)
+            op_type = operation.get("type", "")
+            op_params = operation.get("params", {})
+
+            try:
+                match op_type:
+                    case "get":
+                        path = op_params.get("path", [])
+                        default = op_params.get("default")
+                        result = self.nested_get(path, default)
+
+                    case "delete":
+                        path = op_params.get("path", [])
+                        result = self.nested_delete(path)
+
+                    case "append":
+                        path = op_params.get("path", [])
+                        value = op_params.get("value")
+                        result = self.nested_append(path, value)
+
+                    case "insert":
+                        path = op_params.get("path", [])
+                        index = op_params.get("index", 0)
+                        value = op_params.get("value")
+                        result = self.nested_insert(path, index, value)
+
+                    case "sort":
+                        path = op_params.get("path", [])
+                        reverse = op_params.get("reverse", False)
+                        result = self.nested_sort(path, reverse=reverse)
+
+                    case "set_value":
+                        path = op_params.get("path", [])
+                        value = op_params.get("value")
+                        result = self.nested_set_value(path, value)
+
+                    case "get_keys":
+                        max_depth = op_params.get("max_depth", -1)
+                        result = self.nested_keys(max_depth)
+
+                    case "get_values":
+                        max_depth = op_params.get("max_depth", -1)
+                        result = self.nested_values(max_depth)
+
+                    case "variable_replace":
+                        plugins = op_params.get("plugins", {})
+                        result = self.replace_structured_variable_values(plugins=plugins)
+
+                    case "set_operation":
+                        path1 = op_params.get("path1", [])
+                        path2 = op_params.get("path2", [])
+                        operation_type = op_params.get("operation", "union")
+                        result = self.nested_set_operation(path1, path2, operation_type)
+
+                    case _:
+                        raise ValueError(f"Unsupported operation type: {op_type}")
+
+            except Exception as e:
+                raise PuppyEngineException(3802, f"Error executing structured operation '{op_type}'", str(e))
+
+            finally:
+                self.data = result
+
         return self.data
-
-    def _apply_modification(
-        self,
-        modify_type: str,
-        **kwargs
-    ) -> Any:
-        content_type = type(self.data).__name__
-        match content_type:
-            case "list":
-                return self._handle_list_modifications(modify_type, **kwargs)
-            case "dict":
-                return self._handle_dict_modifications(modify_type, **kwargs)
-            case _:
-                raise ValueError(f"Unsupported Content Type: {content_type}!")
-
-    def _handle_str_modifications(
-        self,
-        modify_type: str
-    ) -> Any:
-        str_operations = {
-            "append": lambda: self.str_modifier.append_string(self.kwargs.get("string2", "")),
-            "slice": lambda: self.str_modifier.slice_string(self.kwargs.get("start", 0), self.kwargs.get("end", -1)),
-            "deep_copy": lambda: self.str_modifier.deep_copy_string(),
-            "modify_text": lambda: self.str_modifier.plugin_replace_string(self.kwargs.get("plugins", {}))
-        }
-
-        if modify_type in str_operations:
-            try:
-                return str_operations[modify_type]()
-            except Exception as e:
-                raise ValueError(3800, "Error Executing String Operation", str(e))
-        else:
-            raise ValueError(f"Unsupported String Operation: {modify_type}!")
-
-    def _handle_list_modifications(
-        self,
-        modify_type: str
-    ) -> Any:
-        list_operations = {
-            "get": lambda: self.list_modifier.get(self.kwargs.get("key", "0")),
-            "slice": lambda: self.list_modifier.slice_list(self.kwargs.get("start", 0), self.kwargs.get("end", -1)),
-            "append": lambda: self.list_modifier.append_element(self.kwargs.get("item")),
-            "insert": lambda: self.list_modifier.insert_element(self.kwargs.get("index", 0), self.kwargs.get("item")),
-            "concatenation": lambda: self.list_modifier.list_concatenation(self.kwargs.get("lst2")),
-            "repetition": lambda: self.list_modifier.list_repetition(self.kwargs.get("n", 1)),
-            "modify_element": lambda: self.list_modifier.modify_element(self.kwargs.get("index", 0), self.kwargs.get("value")),
-            "pop_element": lambda: self.list_modifier.pop_element(self.kwargs.get("index", 0)),
-            "sort": lambda: self.list_modifier.sort_list(self.kwargs.get("key"), self.kwargs.get("reverse", False)),
-            "reversed_copy": self.list_modifier.reversed_copy,
-            "deep_copy": self.list_modifier.deep_copy_list,
-            "intersection": lambda: self.list_modifier.set_intersection(self.kwargs.get("lst2")),
-            "union": lambda: self.list_modifier.set_union(self.kwargs.get("lst2")),
-            "difference": lambda: self.list_modifier.set_difference(self.kwargs.get("lst2")),
-            "modify_structured": lambda: self.list_modifier.plugin_replace_list(self.kwargs.get("plugins", {}))
-        }
-
-        if modify_type in list_operations:
-            try:
-                return list_operations[modify_type]()
-            except Exception as e:
-                raise PuppyEngineException(3801, "Error Executing List Operation", str(e))
-        else:
-            raise ValueError(f"Unsupported List Operation: {modify_type}!")
-
-    def _handle_dict_modifications(
-        self,
-        modify_type: str
-    ) -> Any:
-        dict_operations = {
-            "get": lambda: self.dict_modifier.get(self.kwargs.get("key"), self.kwargs.get("default_value")),
-            "get_keys": self.dict_modifier.get_keys,
-            "get_values": self.dict_modifier.get_values,
-            "pop_element": lambda: self.dict_modifier.pop_element_dict(self.kwargs.get("key"), self.kwargs.get("default_value")),
-            "merge": lambda: self.dict_modifier.merge_dicts(self.kwargs.get("dct2")),
-            "deep_copy": self.dict_modifier.deep_copy_dict,
-            "find_key_with_value": lambda: self.dict_modifier.find_key_with_value(self.kwargs.get("desired_value")),
-            "intersection": lambda: self.dict_modifier.intersection_of_keys(self.kwargs.get("dct2")),
-            "union": lambda: self.dict_modifier.union_of_keys(self.kwargs.get("dct2")),
-            "difference": lambda: self.dict_modifier.difference_of_keys(self.kwargs.get("dct2")),
-            "symmetric_difference": lambda: self.dict_modifier.symmetric_difference_of_keys(self.kwargs.get("dct2")),
-            "modify_structured": lambda: self.dict_modifier.plugin_replace_dict(self.kwargs.get("plugins", {}))
-        }
-
-        if modify_type in dict_operations:
-            try:
-                return dict_operations[modify_type]()
-            except Exception as e:
-                raise PuppyEngineException(3802, "Error Executing Dict Operation", str(e))
-        else:
-            raise ValueError(f"Unsupported Dict Operation: {modify_type}!")
 
 
 if __name__ == "__main__":
-    # Initialize a BlockModifier instance for str
-    str_data = "Hello, world!{{abc}}"
-    block_modifier = JSONModifier(str_data)
-    print("Appended string:", block_modifier.modify("append", string2=" How are you?"))
-    print("Sliced string:", block_modifier.modify("slice", start=7, end=12))
-    print("Deep copy of the string:", block_modifier.modify("deep_copy"))
-    print("After string plugin replacement:", block_modifier.modify("modify_text", plugins={"abc": "cba"}))
-    
-    # Initialize a BlockModifier instance for list
-    list_data = [1, 2, 3, 4, 5, "{{abc}}", "{{def}}"]
-    block_modifier = JSONModifier(list_data)
-    print("Access element at index 1:", block_modifier.modify("get", key="1"))
-    print("Slice the list from index 1 to 3:", block_modifier.modify("slice", start=1, end=3))
-    block_modifier.modify("append", item=6)
-    print("After appending 6:", block_modifier.data)
-    block_modifier.modify("insert", index=2, item=7)
-    print("After inserting 7 at index 2:", block_modifier.data)
-    concatenated_list = block_modifier.modify("concatenation", lst2=[10, 11])
-    print("Concatenated list:", concatenated_list)
-    repeated_list = block_modifier.modify("repetition", n=2)
-    print("Repeated list:", repeated_list)
-    block_modifier.modify("modify_element", index=1, value=20)
-    print("After modifying element at index 1:", block_modifier.data)
-    popped_element = block_modifier.modify("pop_element", index=0)
-    print("Popped element at index 0:", popped_element)
-    print("After popping element:", block_modifier.data)
-    block_modifier.modify("sort", reverse=False)
-    print("After sorting:", block_modifier.data)
-    block_modifier.modify("reversed_copy")
-    print("After reversing:", block_modifier.data)
-    deep_copy = block_modifier.modify("deep_copy")
-    print("Deep copy of the list:", deep_copy)
-    set_intersection = block_modifier.modify("intersection", lst2=[5, 6, 7])
-    print("Set intersection:", set_intersection)
-    set_union = block_modifier.modify("union", lst2=[5, 6, 7])
-    print("Set union:", set_union)
-    set_difference = block_modifier.modify("difference", lst2=[5, 6, 7])
-    print("Set difference:", set_difference)
-    print("After list plugin replacement:", block_modifier.modify("modify_structured", plugins={"abc": "cba"}))
+    # Test data setup
+    nested_data = {
+        "users": [
+            {"id": 1, "name": "Alice", "scores": [85, 90, 78]},
+            {"id": 2, "name": "Bob", "scores": [92, 88, 95]},
+            {"id": 3, "name": "Charlie", "scores": [75, 80, 85]}
+        ],
+        "settings": {
+            "theme": "dark",
+            "notifications": True,
+            "template": "{{template_name}}"
+        },
+        "lists": {
+            "list1": [1, 2, 3, 4, 5],
+            "list2": [4, 5, 6, 7, 8]
+        }
+    }
 
-    # Initialize a BlockModifier instance for dict
-    dict_data = {"a": 1, "b": 2, "c": 3, "replaced": "{{abc}}"}
-    block_modifier = JSONModifier(dict_data)
-    print("\nOriginal dict:", block_modifier.data)
-    print("Get value for key b:", block_modifier.modify("get", key="b"))
-    print("Keys in dict:", block_modifier.modify("get_keys"))
-    print("Values in dict:", block_modifier.modify("get_values"))
-    popped_value = block_modifier.modify("pop_element", key="b")
-    print("Popped value for key b:", popped_value)
-    print("After popping b:", block_modifier.data)
-    merged_dict = block_modifier.modify("merge", dct2={"d": 4, "e": 5})
-    print("Merged dict:", merged_dict)
-    deep_copy_dict = block_modifier.modify("deep_copy")
-    print("Deep copy of the dict:", deep_copy_dict)
-    key_with_value = block_modifier.modify("find_key_with_value", desired_value=7)
-    print("Key with value 7:", key_with_value)
-    set_intersection_keys = block_modifier.modify("intersection", dct2={"f": 10, "a": 11})
-    print("Intersection of keys:", set_intersection_keys)
-    set_union_keys = block_modifier.modify("union", dct2={"f": 10, "a": 11})
-    print("Union of keys:", set_union_keys)
-    set_difference_keys = block_modifier.modify("difference", dct2={"f": 10, "a": 11})
-    print("Difference of keys:", set_difference_keys)
-    print("After dict plugin replacement:", block_modifier.modify("modify_structured", plugins={"abc": "cba"}))
- 
+    print("\n=== Testing JSONModifier Operations ===\n")
+    
+    # Initialize modifier
+    modifier = JSONModifier(nested_data)
+
+    print("1. Testing Copy Operation")
+    print("-" * 50)
+    copied_data = modifier.modify("copy")
+    print("Deep copy created:", copied_data == nested_data and copied_data is not nested_data)
+
+    print("\n2. Testing Convert Operations")
+    print("-" * 50)
+    # Test text to structured conversion
+    text_data = '{"name": "Test", "values": [1, 2, 3]}'
+    text_modifier = JSONModifier(text_data)
+    structured_result = text_modifier.modify("convert", 
+                                          source_type="text", 
+                                          target_type="structured",
+                                          action_type="json")
+    print("Text to structured:", structured_result)
+
+    # Test structured to text conversion
+    structured_to_text = modifier.modify("convert", 
+                                       source_type="structured", 
+                                       target_type="text")
+    print("Structured to text:", structured_to_text)
+
+    print("\n3. Testing Edit Text Operations")
+    print("-" * 50)
+    text_with_vars = "Hello {{name}}! Your score is {{score}}"
+    text_modifier = JSONModifier(text_with_vars)
+    replaced_text = text_modifier.modify("edit_text", plugins={"name": "Alice", "score": "95"})
+    print("Variable replacement:", replaced_text)
+
+    print("\n4. Testing Edit Structured Operations")
+    print("-" * 50)
+
+    # Test nested get
+    operations = [
+        {
+            "type": "get",
+            "params": {
+                "path": ["users", 0, "name"]
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=operations)
+    print("Get operation result:", result)
+
+    # Test nested set_value
+    operations = [
+        {
+            "type": "set_value",
+            "params": {
+                "path": ["settings", "theme"],
+                "value": "light"
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=operations)
+    print("After set_value:", result)
+
+    # Test nested append
+    operations = [
+        {
+            "type": "append",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "value": 100
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=operations)
+    print("After append:", result)
+
+    # Test nested sort
+    operations = [
+        {
+            "type": "sort",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "reverse": True
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=operations)
+    print("After sort:", result)
+
+    # Test set operations
+    operations = [
+        {
+            "type": "set_operation",
+            "params": {
+                "path1": ["lists", "list1"],
+                "path2": ["lists", "list2"],
+                "operation": "union"
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=operations)
+    print("Set union result:", result)
+
+    # Test variable replacement in structured data
+    operations = [
+        {
+            "type": "variable_replace",
+            "params": {
+                "plugins": {"template_name": "custom_template"}
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=operations)
+    print("After variable replacement:", result)
+
+    # Test chained operations
+    print("\n5. Testing Chained Operations")
+    print("-" * 50)
+    chained_operations = [
+        {
+            "type": "sort",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "reverse": True
+            }
+        },
+        {
+            "type": "get",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "default": []
+            }
+        }
+    ]
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=chained_operations)
+    print("Chained operations result:", result)
+
+    # Test error handling
+    print("\n6. Testing Error Handling")
+    print("-" * 50)
+    modifier = JSONModifier(nested_data)
+    try:
+        invalid_operations = [
+            {
+                "type": "invalid_operation",
+                "params": {}
+            }
+        ]
+        modifier.modify("edit_structured", operations=invalid_operations)
+    except Exception as e:
+        print("Expected error caught:", str(e))
+
+    try:
+        invalid_path = [
+            {
+                "type": "get",
+                "params": {
+                    "path": ["nonexistent", "path"]
+                }
+            }
+        ]
+        result = modifier.modify("edit_structured", operations=invalid_path)
+        print("Get with invalid path returns default:", result)
+    except Exception as e:
+        print("Error with invalid path:", str(e))
+
+    # Test variable replacement
+    print("\n7. Testing variable replacement")
+    print("-" * 50)
+    modifier = JSONModifier(nested_data)
+    result = modifier.modify("edit_structured", operations=[
+        {
+            "type": "variable_replace",
+            "params": {
+                "plugins": {"template_name": "custom_template"}
+            }
+        }
+    ])
+    print("After variable replacement:", result)
