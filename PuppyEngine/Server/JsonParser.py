@@ -157,27 +157,35 @@ class JsonParser:
         self,
         edge_config: Dict[str, Any]
     ) -> List[List[Dict[str, Any]]]:
-        nested_message_list = []
-
-        message_list = edge_config.get("data", {}).get("messages", [])
+        is_looped_edge = False
         local_combinations = [{}]
+        inputs = edge_config.get("data", {}).get("inputs", {})
+        message_list = edge_config.get("data", {}).get("messages", [])
 
         # First pass: collect all looped combinations
         for message in message_list:
             message_content = message.get("content")
             placeholders = re.findall(self.placeholder_pattern, message_content)
 
-            for block_id in placeholders:
+            for label in placeholders:
+                block_id = label
+                if label in inputs.values():
+                    block_id = [key for key, value in inputs.items() if value == label][0]
                 block = self.block_data.get(block_id, {})
                 content = block.get("data", {}).get("content", "")
-                is_looped = block.get("type") == "structured" and block.get("data", {}).get("looped", False)
+                is_looped = block.get("type") == "structured" and block.get("looped", False)
 
                 if is_looped:
                     local_combinations = self._handle_loop_variable_replacement(content, block_id, local_combinations)
+                    is_looped_edge = True
+
+        # If the edge is looped, add the "messages" field key to the looped list
+        if is_looped_edge:
+            edge_config["data"]["looped"].append("messages")
 
         # Second pass: generate nested messages for each combination
         input_labels = edge_config.get("data", {}).get("inputs", {})
-        nested_message_list = self._handle_local_combinations(local_combinations, message_list, nested_message_list, input_labels)
+        nested_message_list = self._handle_local_combinations(local_combinations, message_list, input_labels)
 
         return nested_message_list
 
@@ -185,9 +193,9 @@ class JsonParser:
         self,
         local_combinations: List[Dict[str, Any]],
         message_list: List[Dict[str, Any]],
-        nested_message_list: List[List[Dict[str, Any]]],
         input_labels: Dict[str, str]
     ) -> List[Dict[str, Any]]:
+        nested_message_list = []
         # Second pass: generate nested messages for each combination
         for combo in local_combinations:
             current_messages = []
@@ -210,21 +218,21 @@ class JsonParser:
         input_labels: Dict[str, str]
     ) -> str:
         placeholders = re.findall(self.placeholder_pattern, message_content)
-        for block_id in placeholders:
-            block_id_key = block_id
-            if block_id in input_labels.values():
-                block_id_key = [key for key, value in input_labels.items() if value == block_id][0]
+        for label in placeholders:
+            block_id = label
+            if label in input_labels.values():
+                block_id = [key for key, value in input_labels.items() if value == label][0]
 
-            block = self.block_data.get(block_id_key, {})
+            block = self.block_data.get(block_id, {})
             content = block.get("data", {}).get("content", "")
-            is_looped = block.get("type") == "structured" and block.get("data", {}).get("looped", False)
+            is_looped = block.get("type") == "structured" and block.get("looped", False)
 
             if is_looped:
                 content = combo.get(block_id, "")
             else:
                 content = content if isinstance(content, str) else str(content)
 
-            message_content = message_content.replace(f"{{{{{block_id}}}}}", content)
+            message_content = message_content.replace(f"{{{{{label}}}}}", content)
         return message_content
 
     def _handle_loop_variable_replacement(
@@ -346,7 +354,7 @@ class JsonParser:
 
 if __name__ == "__main__":
     import json
-    with open("PuppyEngine/TestKit/ifelse.json", "r") as file:
+    with open("TestKit/loop_llm.json", "r") as file:
         flow_json = json.load(file)
 
     block_data = flow_json.get("blocks", {})
