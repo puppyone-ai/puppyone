@@ -659,23 +659,16 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     const currentNode = getNode(node.id)
                     const content = currentNode?.data.content;
                     const nodeType= currentNode?.type
-                    console.log(getNode(node.id))
-                    if(nodeType=="structured"){
-                        return [node.id, ((typeof content === "string") && (content !== "") ) ? JSON.parse(content) : ""];
-                    }else{
-                        return [node.id, ((typeof content === "string") && (content !== "") ) ? content : ""];
-                    }
+                    console.log("node used for constructuring new request body",getNode(node.id))
+                    const nodeLabel = currentNode?.data.label
+
+                    return [node.id, ((typeof nodeLabel === "string") && (nodeLabel !== "") ) ? nodeLabel : ""];
+
                 })),
                 outputs: Object.fromEntries(outputs.map((node: string) => {
-                    let content = getNode(node)?.data.content;
-                    if(typeof content === "string" ){
-                        try {
-                            content = JSON.parse(content);
-                        } catch (error) {
-                            // Handle the error appropriately, e.g., set content to a default value or log it
-                        }
-                    }
-                    return ([node, typeof content === "string" ? content: JSON.stringify(content)|| ""])
+                    let label = getNode(node)?.data.label;
+
+                    return ([node, typeof label === "string" ? label: ""])
                 })) // Adjust outputs as needed
             }
         };
