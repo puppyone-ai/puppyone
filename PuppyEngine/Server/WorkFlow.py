@@ -38,6 +38,8 @@ class WorkFlow:
         self.latest_version = latest_version
         self.processed_block_ids = set()
         self.current_block_ids = set()
+        self.updated_blocks = {}
+        self.processed_edges = set()
 
     @global_exception_handler(5200, "Error Configuring Workflow JSON")
     def config_workflow_json(
@@ -78,6 +80,8 @@ class WorkFlow:
         self.edge_outputs = {}
         self.processed_block_ids = set()
         self.current_block_ids = set()
+        self.updated_blocks = {}
+        self.processed_edges = set()
 
     @global_exception_handler(5202, "Error Processing All Blocks", True)
     def process_all(
@@ -180,6 +184,9 @@ class WorkFlow:
             for block_id in self.block_data.keys()
             if block_id not in outputs
         }
+
+        self.updated_blocks.update({block_id: True for block_id in self.processed_block_ids})
+
         logger.info("Beginning Blocks: %s", self.processed_block_ids)
 
         return self.processed_block_ids
@@ -226,7 +233,7 @@ class WorkFlow:
         block_ids: Set[str]
     ):
         """
-        Uses a thread pool to execute a batch of blocks concurrently., yielding results as they complete.
+        Uses a thread pool to execute a batch of blocks concurrently, yielding results as they complete.
 
         Args:
             block_ids (Set[str]): A set of block IDs to be processed.
@@ -237,10 +244,27 @@ class WorkFlow:
 
         # Find all the connected edges and parse them
         valid_edges = self._find_valid_edges(block_ids)
-        parsed_edges = [
-            (edge[0], parsed_edge)
-            for edge, parsed_edge in zip(valid_edges, self.parser.parse([edge[1] for edge in valid_edges]))
+        
+        # Filter edges where all input blocks are updated
+        valid_edges_with_processed_blocks = [
+            (edge_id, edge_dict)
+            for edge_id, edge_dict in valid_edges
+            if set(self.edge_inputs[edge_id]).issubset(self.updated_blocks)
         ]
+
+        if not valid_edges_with_processed_blocks:
+            logger.info("No valid edges ready for execution, waiting for more inputs.")
+            return
+
+        # Parse only valid edges
+        parsed_edges = [
+            (edge_id, parsed_edge)
+            for (edge_id, _), parsed_edge in zip(
+                valid_edges_with_processed_blocks, 
+                self.parser.parse([edge_dict for _, edge_dict in valid_edges_with_processed_blocks])
+            )
+        ]
+
         logger.info("Parsed Edges: %s", parsed_edges)
 
         # Process each valid edge concurrently
@@ -277,7 +301,7 @@ class WorkFlow:
             raise ValueError("Invalid edge: Edge type is missing")
 
         output = Edge(edge_type, edge_data).process()
-        logger.info("Output: %s", output)
+        logger.info(f"Output from Edge {edge_id}: {output}")
 
         # Handling the choose edge
         if edge_type == "ifelse":
@@ -285,10 +309,14 @@ class WorkFlow:
             for from_block, to_block in output.items():
                 target_block_ids.append(to_block)
                 self.block_data[to_block]["data"]["content"] = self.block_data.get(from_block, {}).get("data", {}).get("content", "")
+                self.updated_blocks[to_block] = True
         else:
             for target_block_id in target_block_ids:
                 self._valid_output_block_type(target_block_id, output)
                 self.block_data[target_block_id]["data"]["content"] = output
+                self.updated_blocks[target_block_id] = True
+
+        self.processed_edges.add(edge_id)
         return target_block_ids
 
     def _valid_output_block_type(
@@ -320,10 +348,10 @@ if __name__ == "__main__":
     test_kit = 'TestKit/'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        # if file_name != "modify_text.json":
-        #     continue
-        if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
+        if file_name != "loop_llm.json":
             continue
+        # if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
+        #     continue
         # if file_name.startswith("modify") or file_name.startswith("loop_modify"):
         #     continue
         file_path = os.path.join(test_kit, file_name)
