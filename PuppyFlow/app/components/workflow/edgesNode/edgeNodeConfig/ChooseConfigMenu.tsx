@@ -562,7 +562,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id);
             console.log("nodeinfo",getNode(sourceNodeIdWithLabel.id))
             if (!nodeInfo) continue;
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string;
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
             if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
             const nodejson: NodeJsonType = {
                 label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
