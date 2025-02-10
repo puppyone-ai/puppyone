@@ -50,7 +50,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
     // const {totalCount, addCount, addNode, allowActivateNode, clear} = useNodeContext()
     const { allowActivateOtherNodesWhenConnectEnd, clearAll } = useNodesPerFlowContext()
-    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
@@ -242,25 +242,8 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 looped: (getNode(resultNode as string) as any)?.looped ? true : false,
             }
         }
-
-        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            console.log("constructJsonData LLM",nodeInfo)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
-            const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
-                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
-                type: nodeInfo.type!,
-                data: {
-                    content: nodeContent,
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                },
-                looped: (nodeInfo as any)?.looped ? true : false,
-            }
-            blocks[nodeInfo.id] = nodejson
-        }
+        
+        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
         let edges: { [key: string]: LLMEdgeJsonType } = {}
 
