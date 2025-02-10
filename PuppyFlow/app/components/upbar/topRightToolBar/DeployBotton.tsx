@@ -87,7 +87,7 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
 
 function DeployBotton() {
 
-  const API_SERVER_URL ="https://dev.api.puppyagent.com"
+  const API_SERVER_URL ="https://dev.api.puppyagent.com" //"http://localhost:8000"
   const {constructWholeJsonWorkflow} = useJsonConstructUtils()
 
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
@@ -123,7 +123,7 @@ function DeployBotton() {
 
       const content = await res.json();
 
-      const [api_id, api_key] = content
+      const {api_id:api_id, api_key:api_key} = content
 
       setApiConfig({id:api_id,key:api_key})
 
