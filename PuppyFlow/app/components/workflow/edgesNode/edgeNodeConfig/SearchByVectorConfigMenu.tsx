@@ -50,7 +50,7 @@ type ConstructedSearchByVectorJsonData = {
 function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges, getNodes} = useReactFlow()
-    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
+    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
     const [resultNode, setResultNode] = useState<string | null>(
@@ -291,29 +291,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 data: {content: ""}
             }
         }
-        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
-            const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
-                label: nodeInfo.data.label as string | undefined ?? nodeInfo.id,
-                type: nodeInfo.type!,
-                data: {
-                    content: nodeContent,
-                    ...(nodeInfo.id === vectorDB.id ? {
-                        model: nodeInfo.data.model as string,
-                        method: nodeInfo.data.method as string,
-                        vdb_type: nodeInfo.data.vdb_type as string,
-                        index_name: nodeInfo.data.index_name as string
-                    }: {})
-                        
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                }
-            }
-            blocks[nodeInfo.id] = nodejson
-        }
+        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
         let edges: { [key: string]: SearchByVectorEdgeJsonType } = {}
 

@@ -39,7 +39,7 @@ type perplexityModelNames = "llama-3.1-sonar-small-128k-online" | "llama-3.1-son
 function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
-    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
+    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
     const [resultNode, setResultNode] = useState<string | null>(
@@ -195,22 +195,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
             }
         }
     
-        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
-            const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
-                label: nodeInfo.data.label as string | undefined ?? nodeInfo.id,
-                type: nodeInfo.type!,
-                data: {
-                    content: nodeContent,
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                }
-            }
-            blocks[nodeInfo.id] = nodejson
-        }
+        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
         let edges: { [key: string]: SearchPerplexityEdgeJsonType } = {}
 
