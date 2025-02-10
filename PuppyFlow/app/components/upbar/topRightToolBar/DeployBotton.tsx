@@ -87,7 +87,7 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
 
 function DeployBotton() {
 
-  const API_SERVER_URL ="https://dev.api.puppyagent.com"
+  const API_SERVER_URL ="https://dev.api.puppyagent.com" //"http://localhost:8000"
   const {constructWholeJsonWorkflow} = useJsonConstructUtils()
 
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
@@ -123,7 +123,7 @@ function DeployBotton() {
 
       const content = await res.json();
 
-      const [api_id, api_key] = content
+      const {api_id:api_id, api_key:api_key} = content
 
       setApiConfig({id:api_id,key:api_key})
 
@@ -149,10 +149,12 @@ function DeployBotton() {
   },[])
 
   const PYTHON = "py"
+  const SHELL = "Shell"
+  const JAVASCRIPT = "Javascript"
 
   const input_text_gen = (inputs:string[])=>{
         const inputData = inputs.map((input, index) => (
-          `        input_block_id_${index + 1}: ${input}`
+          `        "input_block_id_${index + 1}": "${input}",`
       ));
 
       return inputData.join('\n')
@@ -191,7 +193,61 @@ else:
     if(language===PYTHON){
       return py
     }    
-  }
+
+    const sh = 
+`curl -X POST "<http://your-api-server.com/execute_workflow/${api_id}>" \\
+-H "Authorization: Bearer ${api_key}" \\
+-H "Content-Type: application/json" \\
+-d '{
+    "inputs": {
+${input_text_gen(selectedInputs.map(item=>item.id))}
+    },
+    "outputs"{
+${input_text_gen(selectedOutputs.map(item=>item.id))}   
+    }
+}'
+`
+
+    if(language===SHELL){
+      return sh
+    }
+
+    const js = `const axios = require('axios');
+
+const apiUrl = "<http://your-api-server.com/execute_workflow/${api_id}>";
+
+const data = {
+    "inputs": {
+${input_text_gen(selectedInputs.map(item=>item.id))}
+    },
+    "outputs"{
+${input_text_gen(selectedOutputs.map(item=>item.id))}   
+    }
+};
+
+axios.post(apiUrl, data, {
+    headers: {
+        "Authorization": "Bearer ${api_key}",
+        "Content-Type": "application/json"
+    }
+})
+.then(response => {
+    console.log("Results:", response.data);
+})
+.catch(error => {
+    if (error.response) {
+        console.error("Error:", error.response.status, error.response.data);
+    } else {
+        console.error("Error:", error.message);
+    }
+});
+`
+      if(language===JAVASCRIPT){
+        return js
+      }
+
+  
+}
 
 
   return (
@@ -327,6 +383,50 @@ else:
             {
               apiConfig?
               <>
+                {/* new codeblock */}
+                <div
+                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
+                >
+                  <div
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
+                  >Shell</div>
+
+                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
+                    <Editor
+                          className='json-form hideLineNumbers rounded-[200px]'
+                          defaultLanguage="json"
+                          // theme={themeManager.getCurrentTheme()}
+                          value={populatetext(apiConfig.id,apiConfig.key,SHELL)}
+                          width={260}
+                          height={200}
+                          options={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontLigatures: true,
+                            minimap: { enabled: false },
+                            scrollbar: {
+                              useShadows: false,
+                              horizontal: 'hidden', // 隐藏水平滚动条
+                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
+                            },
+                            fontSize: 10,
+                            fontWeight: 'normal',
+                            lineHeight: 15,
+                            wordWrap: 'on',
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            fixedOverflowWidgets: true,
+                            acceptSuggestionOnEnter: "on",
+                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
+                            lineNumbersMinChars: 3,
+                            glyphMargin: false,
+                            lineDecorationsWidth: 0, // 控制行号和正文的间距
+                            readOnly: true
+                          }}
+                        />
+                  </div>
+                </div>
+                
+                {/* new codeblock */}
                 <div
                   className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
                 >
@@ -343,6 +443,50 @@ else:
                           defaultLanguage="json"
                           // theme={themeManager.getCurrentTheme()}
                           value={populatetext(apiConfig.id,apiConfig.key,PYTHON)}
+                          width={260}
+                          height={200}
+                          options={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontLigatures: true,
+                            minimap: { enabled: false },
+                            scrollbar: {
+                              useShadows: false,
+                              horizontal: 'hidden', // 隐藏水平滚动条
+                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
+                            },
+                            fontSize: 10,
+                            fontWeight: 'normal',
+                            lineHeight: 15,
+                            wordWrap: 'on',
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            fixedOverflowWidgets: true,
+                            acceptSuggestionOnEnter: "on",
+                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
+                            lineNumbersMinChars: 3,
+                            glyphMargin: false,
+                            lineDecorationsWidth: 0, // 控制行号和正文的间距
+                            readOnly: true
+                          }}
+                        />
+                  </div>
+
+                </div>
+
+                {/* new codeblock */}
+                <div
+                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
+                >
+                  <div
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
+                  >Javascript</div>
+
+                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
+                    <Editor
+                          className='json-form hideLineNumbers rounded-[200px]'
+                          defaultLanguage="json"
+                          // theme={themeManager.getCurrentTheme()}
+                          value={populatetext(apiConfig.id,apiConfig.key,JAVASCRIPT)}
                           width={260}
                           height={200}
                           options={{

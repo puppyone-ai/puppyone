@@ -76,17 +76,23 @@ function useJsonConstructUtils() {
     /* 
         Editor 中获取的JSONString 有空格和空行符号，为了传输给后端没有这些符号，通过这个公式处理
     */
-    const cleanJsonString = useCallback((jsonString: string) => {
-        try {
-          // 解析 JSON 字符串为 JavaScript 对象
-          const jsonObject = JSON.parse(jsonString);
-          // 将对象转换回 JSON 字符串，不包含额外的空白字符
-          return jsonObject
-        //   return JSON.stringify(jsonObject);
-        } catch (error) {
-          console.error("Invalid JSON:", error);
-          return []; // 或者返回原始字符串，取决于你的错误处理策略
+    const cleanJsonString = useCallback((jsonString: string, nodeType?: string) => {
+        const type = nodeType?nodeType:"structured"
+        
+        if(type=="structured"){
+            try {
+              // 解析 JSON 字符串为 JavaScript 对象
+              const jsonObject = JSON.parse(jsonString);
+              // 将对象转换回 JSON 字符串，不包含额外的空白字符
+              return jsonObject
+            //   return JSON.stringify(jsonObject);
+            } catch (error) {
+              console.error("Invalid JSON:", error);
+              return []; // 或者返回原始字符串，取决于你的错误处理策略
+            }
         }
+
+        return JSON.parse(`${jsonString}`);
       }, [])
 
     
