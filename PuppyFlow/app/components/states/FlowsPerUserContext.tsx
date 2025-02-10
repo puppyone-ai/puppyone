@@ -569,57 +569,53 @@ const FlowsPerUserProps = () => {
             try {
                 console.log("Starting workspace initialization...");
                 
-                // 使用 v2 接口获取基础数据
                 const data = await initializeUserDataV2() as InitialUserData;
                 console.log("Received initial data:", data);
                 
-                if (!data) {
-                    console.log("No data received from initializeUserDataV2");
+                if (!data || !data.workspaces.length) {
+                    console.log("No workspaces found");
                     return;
                 }
 
                 // 设置用户信息
                 setUserId(data.user_id);
                 setUserName(data.user_name);
-                console.log("Set user info:", data.user_name);
 
-                // 先设置基础工作区数据（包含第一个工作区的历史记录）
-                const initialWorkspaces = data.workspaces.map((workspace, index) => ({
+                // 先设置基础工作区数据
+                const initialWorkspaces = data.workspaces.map((workspace) => ({
                     flowId: workspace.workspace_id,
                     flowTitle: workspace.workspace_name,
-                    latestJson: index === 0 ? data.workspace_history : null,
+                    latestJson: null,
                     isDirty: false
                 }));
                 
-                console.log("Setting initial workspaces:", initialWorkspaces);
-                // 先更新状态，显示基础数据
                 setWorkspaces(initialWorkspaces);
 
-                // 然后并行获取其他工作区的历史记录
-                if (data.workspaces.length > 1) {
-                    console.log("Fetching history for other workspaces...");
-                    const historyPromises = data.workspaces.slice(1).map(async (workspace, index) => {
-                        console.log(`Fetching history for workspace ${workspace.workspace_id}`);
-                        const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id);
-                        
-                        if (latestHistory) {
-                            // 更新对应工作区的历史记录
-                            setWorkspaces(prevWorkspaces => {
-                                const newWorkspaces = [...prevWorkspaces];
-                                // index + 1 因为跳过了第一个工作区
-                                newWorkspaces[index + 1] = {
-                                    ...newWorkspaces[index + 1],
-                                    latestJson: latestHistory
-                                };
-                                console.log(`Updated history for workspace ${workspace.workspace_id}`);
-                                return newWorkspaces;
-                            });
-                        }
-                    });
+                // 设置第一个工作区为选中状态
+                setSelectedFlowId(data.workspaces[0].workspace_id);
 
-                    await Promise.all(historyPromises);
-                    console.log("All workspace histories fetched");
-                }
+                // 并行获取所有工作区的历史记录
+                const historyPromises = data.workspaces.map(async (workspace, index) => {
+                    const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id);
+                    
+                    if (latestHistory) {
+                        setWorkspaces(prevWorkspaces => {
+                            const newWorkspaces = [...prevWorkspaces];
+                            newWorkspaces[index] = {
+                                ...newWorkspaces[index],
+                                latestJson: latestHistory
+                            };
+                            // 如果是当前选中的工作区，立即更新显示
+                            if (workspace.workspace_id === data.workspaces[0].workspace_id) {
+                                updateFlowDisplay(latestHistory);
+                            }
+                            return newWorkspaces;
+                        });
+                    }
+                });
+
+                await Promise.all(historyPromises);
+                console.log("All workspace histories fetched");
 
             } catch (error) {
                 console.error("Error initializing workspaces:", error);
@@ -628,6 +624,14 @@ const FlowsPerUserProps = () => {
 
         initializeWorkspaces();
     }, []);
+
+    // 添加一个更新显示的辅助函数
+    const updateFlowDisplay = (history: any) => {
+        if (history && history.blocks && history.edges) {
+            reactFlowInstance.setNodes(history.blocks);
+            reactFlowInstance.setEdges(history.edges);
+        }
+    };
 
     // 切换workspace
     const handleFlowSwitch = async (newFlowId: string | null) => {
