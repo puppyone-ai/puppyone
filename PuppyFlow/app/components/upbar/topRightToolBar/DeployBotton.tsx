@@ -165,7 +165,7 @@ function DeployBotton() {
     const py = 
 `import requests
 
-api_url = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>"
+api_url = "<${API_SERVER_URL}/execute_workflow/${api_id}>"
 
 api_key = "${api_key}"
 
@@ -195,7 +195,7 @@ else:
     }    
 
     const sh = 
-`curl -X POST "<http://${API_SERVER_URL}/execute_workflow/${api_id}>" \\
+`curl -X POST "<${API_SERVER_URL}/execute_workflow/${api_id}>" \\
 -H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
@@ -214,7 +214,7 @@ ${input_text_gen(selectedOutputs.map(item=>item.id))}
 
     const js = `const axios = require('axios');
 
-const apiUrl = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>";
+const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
 
 const data = {
     "inputs": {
