@@ -84,6 +84,39 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
   );
 };
 
+const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }:any) => {
+
+  const handleSelect = (item: string) => {
+      onSelect(item)
+      setIsOpen(false); // Close dropdown after selection
+  };
+
+  return (
+      <div className="relative">
+          {isOpen ? (
+              <ul className='absolute top-[5px] right-[140px] w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                  {options.map((item:string) => (
+                      <>
+                          <li
+                              key={item}
+                              className='w-full'
+                          >
+                              <button 
+                                  className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                  onClick={() => handleSelect(item)}
+                              >
+                                  <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                      {item}
+                                  </span>
+                              </button>
+                          </li>
+                      </>
+                  ))}
+              </ul>
+          ):<></>}
+      </div>
+  );
+};
 
 function DeployBotton() {
 
@@ -148,7 +181,7 @@ function DeployBotton() {
 
   },[])
 
-  const PYTHON = "py"
+  const PYTHON = "Python"
   const SHELL = "Shell"
   const JAVASCRIPT = "Javascript"
 
@@ -248,6 +281,10 @@ axios.post(apiUrl, data, {
 
   
 }
+
+const [selectedLang,setSelectedLang] = useState(SHELL)
+
+const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
 
 
   return (
@@ -388,51 +425,19 @@ axios.post(apiUrl, data, {
                   className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
                 >
                   <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Shell</div>
-
-                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
-                    <Editor
-                          className='json-form hideLineNumbers rounded-[200px]'
-                          defaultLanguage="json"
-                          // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,SHELL)}
-                          width={260}
-                          height={200}
-                          options={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontLigatures: true,
-                            minimap: { enabled: false },
-                            scrollbar: {
-                              useShadows: false,
-                              horizontal: 'hidden', // 隐藏水平滚动条
-                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
-                            },
-                            fontSize: 10,
-                            fontWeight: 'normal',
-                            lineHeight: 15,
-                            wordWrap: 'on',
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            fixedOverflowWidgets: true,
-                            acceptSuggestionOnEnter: "on",
-                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
-                            lineNumbersMinChars: 3,
-                            glyphMargin: false,
-                            lineDecorationsWidth: 0, // 控制行号和正文的间距
-                            readOnly: true
-                          }}
-                        />
-                  </div>
-                </div>
-                
-                {/* new codeblock */}
-                <div
-                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
-                >
-                  <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Python</div>
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px] cursor-pointer'
+                    onClick={()=>{
+                      setIsLangSelectorOpen(
+                        prev=>!prev
+                      )
+                    }}
+                  >{selectedLang}</div>
+                  <LanguageDropdown
+                    isOpen={isLangSelectorOpen}
+                    setIsOpen={setIsLangSelectorOpen}
+                    options={[SHELL,PYTHON,JAVASCRIPT]}
+                    onSelect={setSelectedLang}
+                  />
 
                   {/* <div className="bg-[#1E1E1E] mt-[5px] rounded-lg p-4 text-[#CDCDCD] text-sm">
                       {populatetext(apiConfig.id,apiConfig.key,"py")}
@@ -442,7 +447,7 @@ axios.post(apiUrl, data, {
                           className='json-form hideLineNumbers rounded-[200px]'
                           defaultLanguage="json"
                           // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,PYTHON)}
+                          value={populatetext(apiConfig.id,apiConfig.key,selectedLang)}
                           width={260}
                           height={200}
                           options={{
@@ -471,49 +476,6 @@ axios.post(apiUrl, data, {
                         />
                   </div>
 
-                </div>
-
-                {/* new codeblock */}
-                <div
-                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
-                >
-                  <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Javascript</div>
-
-                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
-                    <Editor
-                          className='json-form hideLineNumbers rounded-[200px]'
-                          defaultLanguage="json"
-                          // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,JAVASCRIPT)}
-                          width={260}
-                          height={200}
-                          options={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontLigatures: true,
-                            minimap: { enabled: false },
-                            scrollbar: {
-                              useShadows: false,
-                              horizontal: 'hidden', // 隐藏水平滚动条
-                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
-                            },
-                            fontSize: 10,
-                            fontWeight: 'normal',
-                            lineHeight: 15,
-                            wordWrap: 'on',
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            fixedOverflowWidgets: true,
-                            acceptSuggestionOnEnter: "on",
-                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
-                            lineNumbersMinChars: 3,
-                            glyphMargin: false,
-                            lineDecorationsWidth: 0, // 控制行号和正文的间距
-                            readOnly: true
-                          }}
-                        />
-                  </div>
                 </div>
               </>:<></>
             }
