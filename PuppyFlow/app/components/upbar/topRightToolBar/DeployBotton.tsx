@@ -69,10 +69,10 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
                           >
                               <button 
                                   className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
-                                  onClick={() => handleSelect(node.id, node.label)}
+                                  onClick={() => handleSelect(node.id, node.data.label)}
                               >
                                   <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
-                                      {node.label || node.id}
+                                      {node.data.label || node.id}
                                   </span>
                               </button>
                           </li>
@@ -195,7 +195,7 @@ else:
     }    
 
     const sh = 
-`curl -X POST "<http://your-api-server.com/execute_workflow/${api_id}>" \\
+`curl -X POST "<http://${API_SERVER_URL}/execute_workflow/${api_id}>" \\
 -H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
@@ -214,7 +214,7 @@ ${input_text_gen(selectedOutputs.map(item=>item.id))}
 
     const js = `const axios = require('axios');
 
-const apiUrl = "<http://your-api-server.com/execute_workflow/${api_id}>";
+const apiUrl = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>";
 
 const data = {
     "inputs": {
@@ -290,7 +290,7 @@ axios.post(apiUrl, data, {
                       selectedInputs
                       .map(item => (
                         <div key={item.id} className="bg-[#6D7177] text-black text-[12px] text-semibold h-[26px] border-[1.5px] border-[#6D7177] pl-[16px] pr-[3px] rounded-lg flex items-center">
-                          <span className="flex-shrink-0">{item.data?.label as string || item.id}</span>
+                          <span className="flex-shrink-0">{item.label as string || item.id}</span>
                           <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                             onClick={()=>{
                               setSelectedInputs(prev=>{
@@ -337,7 +337,7 @@ axios.post(apiUrl, data, {
                 {
                       selectedOutputs
                       .map(item => (
-                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.label as string || item.id} 
                         <div className='flex bg-[#6D7177] border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                           onClick={
                             ()=>{
