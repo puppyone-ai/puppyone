@@ -69,6 +69,27 @@ function useJsonConstructUtils() {
     //     return getEdges().filter(edge => edge.target === parentId).map(edge => edge.source).map(childnodeid => (getNode(childnodeid)?.data?.label as string | undefined) ?? `no.${childnodeid}`).sort((a, b) => a.localeCompare(b));
     // }, [getEdges])
 
+    const transformBlocksFromSourceNodeIdWithLabelGroup = ( blocks: { [key: string]: NodeJsonType }, sourceNodeIdWithLabelGroup: any) => {
+        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
+            const nodeInfo = getNode(sourceNodeIdWithLabel.id);
+            console.log("nodeinfo",getNode(sourceNodeIdWithLabel.id))
+            if (!nodeInfo) continue;
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
+            const nodejson: NodeJsonType = {
+                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                type: nodeInfo.type!,
+                data: {
+                    content: nodeContent,
+                },
+                looped: (nodeInfo as any).looped ? (nodeInfo as any).looped : false
+            };
+            blocks[nodeInfo.id] = nodejson;
+        }
+        return blocks
+    }
+    
+
     const getSourceNodeIdWithLabel = useCallback((parentId: string) => {
         return getEdges().filter(edge => edge.target === parentId).map(edge => edge.source).map(childnodeid => ({id: childnodeid, label: (getNode(childnodeid)?.data?.label as string | undefined) ?? childnodeid})).sort((a, b) => Number(a.id) - Number(b.id));
     }, [getEdges])
@@ -532,7 +553,7 @@ function useJsonConstructUtils() {
       }, []);
     
 
-    return {getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
+    return {transformBlocksFromSourceNodeIdWithLabelGroup, getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
 
 
 }
