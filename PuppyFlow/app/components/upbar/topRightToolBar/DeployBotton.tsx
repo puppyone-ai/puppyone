@@ -69,10 +69,10 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
                           >
                               <button 
                                   className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
-                                  onClick={() => handleSelect(node.id, node.label)}
+                                  onClick={() => handleSelect(node.id, node.data.label)}
                               >
                                   <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
-                                      {node.label || node.id}
+                                      {node.data.label || node.id}
                                   </span>
                               </button>
                           </li>
@@ -84,6 +84,39 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
   );
 };
 
+const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }:any) => {
+
+  const handleSelect = (item: string) => {
+      onSelect(item)
+      setIsOpen(false); // Close dropdown after selection
+  };
+
+  return (
+      <div className="relative">
+          {isOpen ? (
+              <ul className='absolute top-[5px] right-[140px] w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                  {options.map((item:string) => (
+                      <>
+                          <li
+                              key={item}
+                              className='w-full'
+                          >
+                              <button 
+                                  className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                  onClick={() => handleSelect(item)}
+                              >
+                                  <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                      {item}
+                                  </span>
+                              </button>
+                          </li>
+                      </>
+                  ))}
+              </ul>
+          ):<></>}
+      </div>
+  );
+};
 
 function DeployBotton() {
 
@@ -148,7 +181,7 @@ function DeployBotton() {
 
   },[])
 
-  const PYTHON = "py"
+  const PYTHON = "Python"
   const SHELL = "Shell"
   const JAVASCRIPT = "Javascript"
 
@@ -165,7 +198,7 @@ function DeployBotton() {
     const py = 
 `import requests
 
-api_url = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>"
+api_url = "<${API_SERVER_URL}/execute_workflow/${api_id}>"
 
 api_key = "${api_key}"
 
@@ -195,7 +228,7 @@ else:
     }    
 
     const sh = 
-`curl -X POST "<http://your-api-server.com/execute_workflow/${api_id}>" \\
+`curl -X POST "<${API_SERVER_URL}/execute_workflow/${api_id}>" \\
 -H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
@@ -214,7 +247,7 @@ ${input_text_gen(selectedOutputs.map(item=>item.id))}
 
     const js = `const axios = require('axios');
 
-const apiUrl = "<http://your-api-server.com/execute_workflow/${api_id}>";
+const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
 
 const data = {
     "inputs": {
@@ -248,6 +281,10 @@ axios.post(apiUrl, data, {
 
   
 }
+
+const [selectedLang,setSelectedLang] = useState(SHELL)
+
+const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
 
 
   return (
@@ -290,7 +327,7 @@ axios.post(apiUrl, data, {
                       selectedInputs
                       .map(item => (
                         <div key={item.id} className="bg-[#6D7177] text-black text-[12px] text-semibold h-[26px] border-[1.5px] border-[#6D7177] pl-[16px] pr-[3px] rounded-lg flex items-center">
-                          <span className="flex-shrink-0">{item.data?.label as string || item.id}</span>
+                          <span className="flex-shrink-0">{item.label as string || item.id}</span>
                           <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                             onClick={()=>{
                               setSelectedInputs(prev=>{
@@ -337,7 +374,7 @@ axios.post(apiUrl, data, {
                 {
                       selectedOutputs
                       .map(item => (
-                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.label as string || item.id} 
                         <div className='flex bg-[#6D7177] border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                           onClick={
                             ()=>{
@@ -388,51 +425,19 @@ axios.post(apiUrl, data, {
                   className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
                 >
                   <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Shell</div>
-
-                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
-                    <Editor
-                          className='json-form hideLineNumbers rounded-[200px]'
-                          defaultLanguage="json"
-                          // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,SHELL)}
-                          width={260}
-                          height={200}
-                          options={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontLigatures: true,
-                            minimap: { enabled: false },
-                            scrollbar: {
-                              useShadows: false,
-                              horizontal: 'hidden', // 隐藏水平滚动条
-                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
-                            },
-                            fontSize: 10,
-                            fontWeight: 'normal',
-                            lineHeight: 15,
-                            wordWrap: 'on',
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            fixedOverflowWidgets: true,
-                            acceptSuggestionOnEnter: "on",
-                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
-                            lineNumbersMinChars: 3,
-                            glyphMargin: false,
-                            lineDecorationsWidth: 0, // 控制行号和正文的间距
-                            readOnly: true
-                          }}
-                        />
-                  </div>
-                </div>
-                
-                {/* new codeblock */}
-                <div
-                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
-                >
-                  <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Python</div>
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px] cursor-pointer'
+                    onClick={()=>{
+                      setIsLangSelectorOpen(
+                        prev=>!prev
+                      )
+                    }}
+                  >{selectedLang}</div>
+                  <LanguageDropdown
+                    isOpen={isLangSelectorOpen}
+                    setIsOpen={setIsLangSelectorOpen}
+                    options={[SHELL,PYTHON,JAVASCRIPT]}
+                    onSelect={setSelectedLang}
+                  />
 
                   {/* <div className="bg-[#1E1E1E] mt-[5px] rounded-lg p-4 text-[#CDCDCD] text-sm">
                       {populatetext(apiConfig.id,apiConfig.key,"py")}
@@ -442,7 +447,7 @@ axios.post(apiUrl, data, {
                           className='json-form hideLineNumbers rounded-[200px]'
                           defaultLanguage="json"
                           // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,PYTHON)}
+                          value={populatetext(apiConfig.id,apiConfig.key,selectedLang)}
                           width={260}
                           height={200}
                           options={{
@@ -471,49 +476,6 @@ axios.post(apiUrl, data, {
                         />
                   </div>
 
-                </div>
-
-                {/* new codeblock */}
-                <div
-                  className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
-                >
-                  <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Javascript</div>
-
-                  <div className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]`}>
-                    <Editor
-                          className='json-form hideLineNumbers rounded-[200px]'
-                          defaultLanguage="json"
-                          // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,JAVASCRIPT)}
-                          width={260}
-                          height={200}
-                          options={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontLigatures: true,
-                            minimap: { enabled: false },
-                            scrollbar: {
-                              useShadows: false,
-                              horizontal: 'hidden', // 隐藏水平滚动条
-                              horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
-                            },
-                            fontSize: 10,
-                            fontWeight: 'normal',
-                            lineHeight: 15,
-                            wordWrap: 'on',
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            fixedOverflowWidgets: true,
-                            acceptSuggestionOnEnter: "on",
-                            overviewRulerLanes: 0,  // 隐藏右侧的预览框
-                            lineNumbersMinChars: 3,
-                            glyphMargin: false,
-                            lineDecorationsWidth: 0, // 控制行号和正文的间距
-                            readOnly: true
-                          }}
-                        />
-                  </div>
                 </div>
               </>:<></>
             }
