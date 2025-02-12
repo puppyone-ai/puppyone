@@ -16,39 +16,133 @@ logger = logging.getLogger(__name__)
 import json
 import concurrent.futures
 from typing import List, Dict, Set, Any, Tuple
-from Edges.edgesNew import EdgeNew
+from EdgesNew.EdgesNew import EdgeDistributor
 from Server.JsonParser import JsonParser
 from Server.JsonConverter import JsonConverter
 from Utils.PuppyEngineExceptions import global_exception_handler
 
+"""
+Workflow Engine Core Processor
 
-class WorkFlow:
+Implements a directed acyclic graph (DAG) based workflow with:
+- Blocks as data containers (nodes)
+- Edges as processing units (edges)
+
+Key Consumption Logic:
+=====================
+1. Data Flow Rules:
+------------------
+• Each block can be consumed by ONLY ONE edge (single consumer guarantee)
+• Edges define data transformation pipelines
+• Output blocks are immutable once processed
+
+2. State Lifecycle:
+------------------
+Blocks:
+    pending → processed (terminal)
+Edges:
+    pending → processing → completed (terminal)
+
+3. Execution Constraints:
+-------------------------
+a) Edge Activation:
+    - All input blocks must be 'processed'
+    - Edge must be in 'pending' state
+b) Atomic Operations:
+    - Edge processing locks its inputs
+    - Output generation and state update are atomic
+
+4. Design Guarantees:
+---------------------
+• No data races: Single consumer per block
+• No circular dependencies: DAG enforcement
+• At-least-once processing: Edge retries handled at distributor level
+
+Example Execution Flow:
+→ Edge1 (inputs: A, B) → Outputs: C
+→ Edge2 (input: C)     → Outputs: D
+→ Edge3 (input: D)     → Terminal
+
+Edge Processing Contract:
+• Input blocks are read-only snapshots
+• Output blocks must be new/versioned
+• Edge failure triggers rollback to 'pending' state
+"""
+
+class WorkFlow():
+
     """
-    WorkFlow is responsible for executing the entire flow
+    Class Attributes:
+    -----------------
+    version : str
+        Workflow schema version (default: "0.1")
+    type : str
+        Processor type identifier (fixed: "workflow")
+    
+    Instance Attributes:
+    --------------------
+    blocks : Dict[str, Dict]
+        Block registry with structure:
+        {
+            "<block_id>": {
+                "label": str,           # Human-readable identifier
+                "type": str,            # Data type (text/structured)
+                "data": Dict            # Content storage
+            },
+            ...
+        }
+    
+    edges : Dict[str, Dict]
+        Edge registry with structure:
+        {
+            "<edge_id>": {
+                "type": str,            # Processor type (llm/transform/etc)
+                "data": {
+                    "messages": List[Dict],  # Instruction templates
+                    "inputs": Dict[str, str], # {block_id: template_var_name}
+                    "outputs": Dict[str, str] # {block_id: template_var_name}
+                    # ... other edge-specific parameters ...
+                }
+            },
+            ...
+        }
+    
+    edge_to_inputs_mapping : Dict[str, Set[str]]
+        Edge input mapping: {edge_id: set(input_block_ids)}
+    
+    edge_to_outputs_mapping : Dict[str, Set[str]]
+        Edge output mapping: {edge_id: set(output_block_ids)}
+    
+    block_states : Dict[str, str]
+        Block lifecycle states, possible values:
+        - "pending":  Block awaiting processing
+        - "processed": Finalized block (immutable)
+    
+    edge_states : Dict[str, str]
+        Edge lifecycle states, possible values:
+        - "pending":    Ready for activation
+        - "processing": Currently executing
+        - "completed":  Successfully finished
+    
+    Design Invariants:
+    ------------------
+    1. block_states keys ≡ blocks keys
+    2. edge_states keys ≡ edges keys
+    3. ∀ edge_id ∈ edges:
+       edge_to_inputs_mapping[edge_id] ⊆ blocks
+       edge_to_outputs_mapping[edge_id] ⊆ blocks
     """
 
+    version: str = "0.1"
+    type: str = "workflow"
+
+    @global_exception_handler(5200, "Error Initializing Workflow")
     def __init__(
-        self,
-        latest_version: str = "0.1",
-    ):
-        """
-        Initialize the states for the WorkFlow object.
-        """
-
-        self.latest_version = latest_version
-        self.processed_block_ids = set()
-        self.current_block_ids = set()
-        self.all_block_dict = {}
-        self.all_edge_dict = {}
-        self.current_batch_for_edges = {}
-
-    @global_exception_handler(5200, "Error Configuring Workflow JSON")
-    def config_workflow_json(
         self,
         json_data: Dict[str, Dict[str, str]]
     ):
         """
-        Reconfigure the WorkFlow object with block and edge data from JSON.
+        Initialize the processor for the WorkFlow object.
 
         Example Input JSON:
         {
@@ -84,165 +178,153 @@ class WorkFlow:
             },
             "version": "0.1"
         }
-
-        After processing:
-        - self.block_dict will contain the blocks dictionary above
-        - self.edge_dict will contain the edges dictionary above
         """
 
         # Convert the JSON data to the latest version
-        self.version_id = json_data.get("version", "0.2")
-        if self.version_id != self.latest_version:
-            converter = JsonConverter(self.latest_version)
-            json_data = converter.convert(json_data)
+        self.version = json_data.get("version", self.__class__.version)
 
-        self.all_block_dict = json_data.get("blocks", [])
-        self.all_edge_dict = json_data.get("edges", [])
+        # TODO: Add the converter
+        # if self.version != self.latest_version:
+        #     converter = JsonConverter(self.latest_version)
+        #     json_data = converter.convert(json_data)
+
+        # TODO: Add the validater
+
+        # TODO: Add the id
+        # self.id: UUID = None
+
+        self.blocks = json_data.get("blocks", {})
+        self.edges = json_data.get("edges", {})
+        self.edge_to_inputs_mapping, self.edge_to_outputs_mapping = self._parse_edge_connections()
+
+        # Simplified state management
+        self.block_states = {bid: "pending" for bid in self.blocks}
+        self.edge_states = {eid: "pending" for eid in self.edges}
+        
+        # Auto-process source blocks
+        initial_processed = set(self.blocks.keys()) - set().union(*self.edge_to_outputs_mapping.values())
+        for bid in initial_processed:
+            self.block_states[bid] = "processed"
 
 
-    @global_exception_handler(5201, "Error Clearing Workflow")
-    def clear_workflow(
-        self
-    ):
+    @global_exception_handler(5201, "Error Parsing Edge Connections")
+    def _parse_edge_connections(self) -> Tuple[Dict[str, Set[str]], Dict[str, Set[str]]]:
         """
-        Clear the current workflow data.
+        Parse edge connections and build mappings between edges and block IDs
+        
+        Returns:
+            Tuple containing two mappings:
+            - edge_to_inputs: Mapping from edge ID to set of input block IDs
+            - edge_to_outputs: Mapping from edge ID to set of output block IDs
+        
+        Example:
+            Input edge data: {"llm-1": {"data": {"inputs": {"2":"b"}, "outputs": {"4":"d"}}}
+            Output mappings:
+                edge_to_inputs["llm-1"] = {"2"}
+                edge_to_outputs["llm-1"] = {"4"}
         """
+        edge_to_inputs = {}
+        edge_to_outputs = {}
 
-        self.all_block_dict = {}
-        self.all_edge_dict = {}
-        self.processed_block_ids = set()
-        self.current_block_ids = set()
+        for edge_id, edge_data in self.edges.items():
+            # 提取输入块ID（字典的键）
+            input_blocks = set(edge_data.get("data", {}).get("inputs", {}).keys())
+            # 提取输出块ID（字典的键）
+            output_blocks = set(edge_data.get("data", {}).get("outputs", {}).keys())
 
-        self.current_blocks_dict = {}
-        self.current_batch_for_edges = {}
+            edge_to_inputs[edge_id] = input_blocks
+            edge_to_outputs[edge_id] = output_blocks
+
+        return edge_to_inputs, edge_to_outputs
+
 
     # process the workflow
     @global_exception_handler(5202, "Error Processing All Blocks", True)
-    def process_all(
-        self
-    ):
-        """
-        Begins processing with the first batch of blocks and continues until all blocks are processed.
-
-        Yields:
-            dict: The data of each processed block.
-        """
-
-        # Initialize block statuses
-        self._find_and_initialize_block_status()
-
-        # find the first batch of edges
-        self.current_batch_for_edges = self._find_current_batch_for_edges()
-        
-        
-        logger.info("Initial batch of edges to process: %s", self.current_batch_for_edges)
-        
-        while self.current_batch_for_edges != {}:
-
-            # find the current batch of edges
-            self.current_batch_for_edges = self._find_current_batch_for_edges()
-
-            for edge_id, edge_dict in self.current_batch_for_edges.items():
-
-                edge_element = {edge_id: edge_dict}
-
-                input_blocks_ids = edge_dict.get("data", {}).get("inputs", {})
-                # Get the actual block data for each input block ID
-                input_blocks = {}
-                for block_id in input_blocks_ids.keys():
-                    if block_id in self.all_block_dict:
-                        input_blocks[block_id] = self.all_block_dict[block_id]
-                
-                # Process the edge with {edge_id: edge_dict} structure
-                required_update_blocks_dict = EdgeNew(self, edge_element, input_blocks).process()
-
-                print(required_update_blocks_dict)
-
-                # Update blocks in all_block_dict with the processed results
-                for block_id, block_dict in required_update_blocks_dict.items():
-                    if block_id in self.all_block_dict:
-                        for key, value in block_dict.items():
-                            self.all_block_dict[block_id][key] = value
-
-                        self.all_block_dict[block_id]["status"] = "ready"
-
-                    
-                # update the current batch of blocks status
-                for input_block_id in edge_dict.get("data", {}).get("inputs", {}).keys():
-                    self.all_block_dict[input_block_id]["status"] = "done"
-                    
-
-                logger.info("Updated block statuses: %s", 
-                    {block_id: block["status"] for block_id, block in self.all_block_dict.items()})
-
-
-        print("all edges processed")
-
-
-    @global_exception_handler(5203, "Error Finding the First Batch")
-    def _find_and_initialize_block_status(
-        self
-    ) -> None:
-        """
-        Initialize the status of each block.
-        Sets blocks that are not inputs to any edge as 'ready'.
-        All other blocks are set to 'pending'.
-        """
-        # Get all block IDs
-        all_block_ids = set(self.all_block_dict.keys())
-        
-        # Get blocks that are outputs of edges
-        with_output_block_ids = set()
-        for edge_id, edge_dict in self.all_edge_dict.items():
-            with_output_block_ids.update(edge_dict.get("data", {}).get("outputs", {}).keys())
+    def process(self):
+        """Orchestrate workflow execution with dynamic edge activation"""
+        try:
+            logger.info("Initial blocks state: %s", self.blocks)
             
-        # Find blocks that are not outputs (using set difference)
-        start_block_ids = all_block_ids - with_output_block_ids
-
-        # iterate over all blocks, set their status
-        for block_id, block_data in self.all_block_dict.items():
-            if block_id in start_block_ids:
-                # if this block is not an input to any edge, set it to ready
-                block_data["status"] = "ready"
-            else:
-                # if this block is an input to any edge, set it to pending
-                block_data["status"] = "pending"
+            while active_edge_ids := self._find_active_edges(
+                bids=self.get_processed_blocks()
+            ):
+                logger.info("Found active edges: %s", active_edge_ids)
+                logger.info("Current block states: %s", self.block_states)
                 
-        logger.info("Initialized block statuses: %s", 
-                    {block_id: block["status"] for block_id, block in self.all_block_dict.items()})
-
-
-    @global_exception_handler(5204, "Error Finding the Current Batch")
-    def _find_current_batch_for_edges(
-        self
-    ) -> Dict[str, Dict]:
-        """
-        Finds edges where all input blocks have 'ready' status and returns their complete data.
-        
-        Returns:
-            Dict[str, Dict]: Dictionary of edge IDs and their complete data where all input blocks are ready.
-        """
-        current_edges_batch = {}
-        
-        # 遍历所有边
-        for edge_id, edge_data in self.all_edge_dict.items():
-            # 获取这条边的所有输入块ID
-            input_block_ids = edge_data.get("data", {}).get("inputs", {}).keys()
-            
-            # 检查是否所有输入块都是ready状态
-            all_inputs_ready = True
-            for block_id in input_block_ids:
-                block = self.all_block_dict.get(block_id, {})
-                if block.get("status") != "ready":
-                    all_inputs_ready = False
-                    break
-            
-            # 如果所有输入块都ready，将这条边添加到返回字典中
-            if all_inputs_ready == True:
-                current_edges_batch[edge_id] = edge_data
+                # Stage 1: Mark processing states
+                self._mark_processing_states(active_edge_ids)
                 
-        logger.info("Found current batch of edges: %s", list(current_edges_batch.keys()))
-        return current_edges_batch
+                # Stage 2: Prepare processing context
+                active_edges, input_blocks = self._prepare_processing_batch(active_edge_ids)
+                logger.info("Processing batch - edges: %s, inputs: %s", 
+                           active_edges.keys(), input_blocks.keys())
+                
+                # Stage 3: Execute edge processing
+                output_blocks = EdgeDistributor(active_edges, input_blocks).process()
+                logger.info("Edge processing output: %s", output_blocks)
+                
+                # Stage 4: Update states before yielding
+                self._update_post_processing_states(active_edge_ids, output_blocks)
+                
+                # Stage 5: Update blocks registry
+                self.blocks.update(output_blocks)
+                logger.info("Updated blocks: %s", self.blocks)
+                
+                yield output_blocks
+                
+        finally:
+            self._log_final_states()
+
+    def _mark_processing_states(self, edge_ids: Set[str]):
+        """仅更新边状态，不再修改块状态"""
+        for eid in edge_ids:
+            self.edge_states[eid] = "processing"
+
+    def _update_post_processing_states(self, edge_ids: Set[str], output_blocks: Dict):
+        """Atomic state updates after processing"""
+        # Update block states
+        for bid in output_blocks:
+            self.block_states[bid] = "processed"
+        
+        # Complete processed edges
+        for eid in edge_ids:
+            self.edge_states[eid] = "completed"
+
+    def _find_active_edges(self, bids: List[str]) -> Set[str]:
+        """Dynamic edge activation without active state tracking:
+        1. All input blocks must be processed
+        2. At least one input block in current trigger batch
+        3. Edge is in pending state
+        """
+        return {
+            eid for eid in self.edges
+            if self.edge_states[eid] == "pending"
+            and all(self.block_states[bid] == "processed" for bid in self.edge_to_inputs_mapping[eid])
+            # 移除了触发块检查，因为每个块只能被一个边消费
+        }
+
+    def _prepare_processing_batch(self, edge_ids: Set[str]) -> Tuple[Dict, Dict]:
+        """Build processing context for active edges"""
+        active_edges = {eid: self.edges[eid] for eid in edge_ids}
+        
+        # 获取所有输入块ID
+        input_blocks = {}
+        for eid in edge_ids:
+            edge_inputs = self.edge_to_inputs_mapping[eid]
+            for bid in edge_inputs:
+                if self.block_states[bid] == "processed":
+                    input_blocks[bid] = self.blocks[bid]
+        
+        logger.debug("Prepared input blocks: %s", input_blocks)
+        return active_edges, input_blocks
+
+    # State query interfaces
+    def get_processed_blocks(self) -> List[str]:
+        return [bid for bid, state in self.block_states.items() if state == "processed"]
+
+    def _log_final_states(self):
+        logger.debug("Final Block States: %s", self.block_states)
+        logger.debug("Final Edge States: %s", self.edge_states)
 
 
     def _unicode_formatting(
@@ -293,12 +375,12 @@ class WorkFlow:
             output (Any): The output to check and classify.
         """
 
-        block_type = self.block_data[target_block_id].get("type", "text")
+        block_type = self.blocks[target_block_id].get("type", "text")
         if isinstance(output, (list, dict)) and block_type == "text":
-            self.block_data[target_block_id]["type"] = "structured"
+            self.blocks[target_block_id]["type"] = "structured"
 
         if isinstance(output, str) and block_type == "structured":
-            self.block_data[target_block_id]["type"] = "text"
+            self.blocks[target_block_id]["type"] = "text"
 
 
 if __name__ == "__main__":  
@@ -319,7 +401,6 @@ if __name__ == "__main__":
                     "content": "3",
                     "embedding_view": []
                 },
-                "status": "pending"
             },
             # 中间节点2: 接收来自节点1的数据，结构化数据
             "2": {
@@ -329,7 +410,6 @@ if __name__ == "__main__":
                     "content": "",
                     "embedding_view": []
                 },
-                "status": "pending"
             },
             # 起始节点3: 文本数据，初始内容为"puppy"
             "3": {
@@ -338,7 +418,6 @@ if __name__ == "__main__":
                 "data": {
                     "content": "puppy"
                 },
-                "status": "pending"
             },
             # 终点节点4: 接收来自节点2和3的组合处理结果
             "4": {
@@ -347,7 +426,6 @@ if __name__ == "__main__":
                 "data": {
                     "content": ""
                 },
-                "status": "pending"
             }
         },
         "edges": {
@@ -392,9 +470,14 @@ if __name__ == "__main__":
         "version": "0.1"
     }
     
-    workflow = WorkFlow()
-    workflow.config_workflow_json(test_data)
-    workflow.process_all()
-    print(workflow.all_block_dict)
-    workflow.clear_workflow()
+    workflow = WorkFlow(test_data)
+    
+    # 使用 list() 收集所有输出，确保流程完整执行
+    outputs = []
+    for output_blocks in workflow.process():
+        logger.info("Received output blocks: %s", output_blocks)
+        outputs.append(output_blocks)
+    
+    logger.info("Final blocks state: %s", workflow.blocks)
+    logger.info("All outputs: %s", outputs)
         

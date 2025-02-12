@@ -21,6 +21,9 @@ from PuppyEngine.EdgesNew.SearchEdge import SearchPerplexity, SearchGoogle
 
 
 class EdgeProcessor(ABC):
+    type: str
+    version: str
+
     @abstractmethod
     def process(self, edge: Dict[str, Any], input_blocks: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         pass
@@ -70,19 +73,19 @@ class EdgeProcessorFactory:
         raise ValueError(f"Unsupported type path: {edge_type}")
     
 
-class EdgeNew:
+class EdgeDistributor:
     def __init__(
         self,
-        edge: Dict[str, Dict[str, Any]],
+        edges: Dict[str, Dict[str, Any]],
         input_blocks: Dict[str, Dict[str, Any]]
-
     ):
-        self.edge = edge
+
+        self.edges = edges
         self.input_blocks = input_blocks
-        self.edge_id = list(edge.keys())[0]  # Get the first (and only) key
+        self.edge_id = list(edges.keys())[0]  # Get the first (and only) key
         # Extract edge_id and edge_dict from the input dictionary
 
-        edge_data = edge[self.edge_id]
+        edge_data = edges[self.edge_id]
         self.edge_type = edge_data.get("type", "")
         self.edge_data = edge_data.get("data", {})
     
@@ -90,7 +93,7 @@ class EdgeNew:
     @global_exception_handler(3000, "Unexpected Error in Executing Edge")
     def process(self) -> Dict[str, Dict[str, Any]]:
         processor = EdgeProcessorFactory.get_processor(self.edge_type)
-        return processor.process(self.edge, self.input_blocks)
+        return processor.process(self.edges, self.input_blocks)
 
     # TODO: Implement Load and Save Edge Execution
     # @global_exception_handler(3002, "Unexpected Error in Load Edge Execution")
@@ -322,7 +325,7 @@ if __name__ == "__main__":
     }
     
     # Initialize and process the edge
-    edge = EdgeNew(test_edge, input_blocks)
+    edge = EdgeDistributor(test_edge, input_blocks)
     result = edge.process()
     
     # Print the result
