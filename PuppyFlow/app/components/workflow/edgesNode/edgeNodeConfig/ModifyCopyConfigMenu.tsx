@@ -21,7 +21,7 @@ export type ModifyCopyEdgeJsonType = {
     type: "modify",
     data: {
         //   content_type: "str",
-        modify_type: "deep_copy",
+        modify_type: "deep_copy"|"copy",
         extra_configs: {},
         inputs: { [key: string]: string },
         looped: boolean,
@@ -182,7 +182,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
             type: "modify",
             data: {
                 // content_type: "str",
-                modify_type: "deep_copy",
+                modify_type: "copy",
                 extra_configs: {},
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
                 looped: false,
