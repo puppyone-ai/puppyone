@@ -247,6 +247,9 @@ interface InitialUserData {
 //     }
 
 // }
+type deployItem={
+     id: string; label?: string 
+}
 
 type WorkspaceData = {
     flowId: string;
@@ -255,7 +258,11 @@ type WorkspaceData = {
         blocks: Node[];
         edges: Edge[];
     } | null;
-    deploy?:any;
+    deploy:{
+        selectedInputs:Array<deployItem>;
+        selectedOutputs:Array<deployItem>;
+        apiConfig?:any
+    }
     zoomState?:any;
     isDirty: boolean; // 标记是否有未保存的更改
 }
@@ -590,6 +597,11 @@ const FlowsPerUserProps = () => {
                     flowId: workspace.workspace_id,
                     flowTitle: workspace.workspace_name,
                     latestJson: null,
+                    deploy:{
+                        selectedInputs:[],
+                        selectedOutputs:[],
+                        apiConfig:undefined
+                    },
                     isDirty: false
                 }));
                 
