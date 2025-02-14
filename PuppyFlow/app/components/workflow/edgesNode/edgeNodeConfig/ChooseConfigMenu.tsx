@@ -504,6 +504,45 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     //     ))
     // }
 
+    // const transformCondV = () => {
+        // // for text
+        //     "is_empty"
+        //     "is_not_empty"
+        //     "contain"
+        //     "not_contain"
+        //     "greater_than_n_chars"
+        //     "less_than_n_chars"
+        //     "is"
+        //     "is_not"
+        //     // for structured 1text
+        //     "is_empty"
+        //     "is_not_empty"
+        //     "is_list"
+        //     "is_dict"
+        //     "greater_than_n"
+        //     "less_than_n"
+        // {"contains":"contain", "doesn’t contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars"}
+        // {"is empty":"is_empty", "is not empty":"is_not_empty", "contains":"contain", "doesn’t contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars", "is list":"is_list", "is dict":"is_dict"}
+        // {"is True":"is","is False":"is_not"}
+    // }
+
+    const conditionMappings: { [key: string]: string } = {
+        "contains": "contain",
+        "doesn’t contain": "not_contain",
+        "is greater than [N] characters": "greater_than_n_chars",
+        "is less than [N] characters": "less_than_n_chars",
+        "is empty": "is_empty",
+        "is not empty": "is_not_empty",
+        "is list": "is_list",
+        "is dict": "is_dict",
+        "is True": "is",
+        "is False": "is_not"
+    };
+    
+    const getConditionValue = (key: string): string | any => {
+        return conditionMappings[key];
+    };
+
     const transformCases = (inputCases: CaseItem[]): { cases: TransformedCases } => {
         const transformedCases: TransformedCases = {};
     
@@ -512,9 +551,9 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             transformedCases[caseKey] = {
                 conditions: caseItem.conditions.map(condition => ({
                     block: condition.id, // Assuming 'id' is the block identifier
-                    condition: condition.cond_v,
+                    condition: getConditionValue(condition.cond_v),
                     parameters: { 
-                        [condition.cond_v]: condition.cond_input || "" // Ensure this is a string
+                        [getConditionValue(condition.cond_v)]: condition.cond_input || "" // Ensure this is a string
                     },
                     operation: condition.operation || "and" // Default to "and" if not provided
                 })),
