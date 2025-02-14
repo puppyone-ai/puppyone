@@ -255,6 +255,8 @@ type WorkspaceData = {
         blocks: Node[];
         edges: Edge[];
     } | null;
+    deploy?:any;
+    zoomState?:any;
     isDirty: boolean; // 标记是否有未保存的更改
 }
 
@@ -268,6 +270,7 @@ export type FlowsPerUserContextType = {
     removeFlow: (flowId: string) => Promise<void>;
     editFlowName: (flowId: string, newName: string) => Promise<void>;
     forceSaveHistory: (flowId: string) => Promise<void>;
+    setWorkspaces: React.Dispatch<React.SetStateAction<WorkspaceData[]>>; // Added type for setWorkspaces
 }
 
 type QueueOperation = {
@@ -288,6 +291,7 @@ const initialFlowsPerUserContext: FlowsPerUserContextType = {
     removeFlow: () => Promise.resolve(),
     editFlowName: () => Promise.resolve(),
     forceSaveHistory: () => Promise.resolve(),
+    setWorkspaces:()=>{},
 }
 
 const FlowsPerUserContext = createContext<FlowsPerUserContextType>(initialFlowsPerUserContext);
@@ -815,6 +819,10 @@ const FlowsPerUserProps = () => {
             flowId: newWorkspaceId,
             flowTitle: newWorkspaceName,
             latestJson: null,
+            deploy:{
+                selectedInputs:[],
+                selectedOutputs:[]
+            },
             isDirty: false
         }]);
 
@@ -869,6 +877,7 @@ const FlowsPerUserProps = () => {
         removeFlow,
         editFlowName,
         forceSaveHistory,
+        setWorkspaces
         // ... 其他方法
     };
 };

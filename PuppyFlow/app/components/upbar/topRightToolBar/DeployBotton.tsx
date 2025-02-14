@@ -1,12 +1,13 @@
 'use client'
 
 import { Menu, Transition } from '@headlessui/react'
-import React, { useState, Fragment, useEffect } from 'react'
+import React, { useState, Fragment, useEffect, useRef } from 'react'
 import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJsonConstructUtils'
 import { Button } from 'antd'
 import { useReactFlow } from '@xyflow/react'
 import { set } from 'lodash'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
 
 import dynamic from 'next/dynamic';
 import type { EditorProps, OnMount, OnChange, } from "@monaco-editor/react";
@@ -120,6 +121,8 @@ const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }:any) => {
 
 function DeployBotton() {
 
+  const {setWorkspaces, selectedFlowId, workspaces} = useFlowsPerUserContext()
+
   const API_SERVER_URL ="https://dev.api.puppyagent.com" //"http://localhost:8000"
   const {constructWholeJsonWorkflow} = useJsonConstructUtils()
 
@@ -129,7 +132,6 @@ function DeployBotton() {
   const [isOutputOpen, setIsOutputOpen] = useState(false); // State to manage dropdown visibility
 
   const [hovered, setHovered] = useState(false)
-  const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
 
   interface ApiConfig {
     id: string;
@@ -138,6 +140,27 @@ function DeployBotton() {
 
   // const [apiConfig, setApiConfig] = useState<ApiConfig>({id:"hello",key:"world"})   //uncomment this to test 
   const [apiConfig, setApiConfig] = useState<ApiConfig|undefined>(undefined)
+  
+    useEffect(()=>{
+      setWorkspaces(prev => prev.map(w => 
+        w.flowId === selectedFlowId ? { ...w, deploy:{selectedInputs,selectedOutputs,apiConfig} } : w
+      ))
+      console.log(workspaces)
+    }
+      ,[selectedInputs,selectedOutputs,apiConfig]
+    )
+
+    const lastSelectedFlowIdRef = useRef<string | null>(null); // Ref to track last selected flowId
+
+    useEffect(() => {
+      if (lastSelectedFlowIdRef.current !== selectedFlowId) {
+        console.log("Workflow has changed");
+        lastSelectedFlowIdRef.current = selectedFlowId; // Update the ref with the current flowId
+        setSelectedInputs(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.selectedInputs)
+        setSelectedOutputs(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.selectedOutputs)
+        setApiConfig(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.apiConfig)
+      }
+    }, [selectedFlowId]);
 
   const handleDeploy = async () => {
 
@@ -324,8 +347,8 @@ const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">inputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
                     {
-                      selectedInputs
-                      .map(item => (
+                      workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.selectedInputs
+                      .map((item: { id: string; label?: string }) => (
                         <div key={item.id} className="bg-[#6D7177] text-black text-[12px] text-semibold h-[26px] border-[1.5px] border-[#6D7177] pl-[16px] pr-[3px] rounded-lg flex items-center">
                           <span className="flex-shrink-0">{item.label as string || item.id}</span>
                           <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
@@ -372,8 +395,8 @@ const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">outputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
                 {
-                      selectedOutputs
-                      .map(item => (
+                      workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.selectedOutputs
+                      .map((item: { id: string; label?: string })=> (
                         <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.label as string || item.id} 
                         <div className='flex bg-[#6D7177] border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                           onClick={
@@ -418,7 +441,7 @@ const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
             </div>
 
             {
-              apiConfig?
+              workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.apiConfig?.id?
               <>
                 {/* new codeblock */}
                 <div
@@ -447,7 +470,7 @@ const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
                           className='json-form hideLineNumbers rounded-[200px]'
                           defaultLanguage="json"
                           // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,selectedLang)}
+                          value={populatetext(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.id,workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.key,selectedLang)}
                           width={260}
                           height={200}
                           options={{
