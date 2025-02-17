@@ -198,7 +198,7 @@ function DeployBotton() {
 
   }
 
-  const { getNodes } = useReactFlow(); // Destructure getNodes from useReactFlow
+  const { getNodes,getNode } = useReactFlow(); // Destructure getNodes from useReactFlow
 
   useEffect(()=>{
 
@@ -209,12 +209,18 @@ function DeployBotton() {
   const SHELL = "Shell"
   const JAVASCRIPT = "Javascript"
 
-  const input_text_gen = (inputs:string[])=>{
-        const inputData = inputs.map((input, index) => (
-          `        "input_block_id_${index + 1}": "${input}",`
+  const input_text_gen = (inputs:string[],lang:string)=>{
+    if(lang == JAVASCRIPT){
+      const inputData = inputs.map((input, index) => (
+        `        "${input}": "${getNode(input)?.data.content}", //${getNode(input)?.data.label}`
       ));
-
       return inputData.join('\n')
+    }else{
+      const inputData = inputs.map((input, index) => (
+        `        "${input}": "${getNode(input)?.data.content}", #${getNode(input)?.data.label}`
+      ));
+      return inputData.join('\n')
+    }
   }
 
   const populatetext = (api_id:string, api_key:string,language:string) =>{
@@ -233,10 +239,10 @@ headers = {
 
 data = {
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),PYTHON)}
     },
     "outputs": {
-${input_text_gen(selectedOutputs.map(item=>item.id))}
+${input_text_gen(selectedOutputs.map(item=>item.id),PYTHON)}
     }
 }
 
@@ -257,10 +263,10 @@ else:
 -H "Content-Type: application/json" \\
 -d '{
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),SHELL)}
     },
     "outputs"{
-${input_text_gen(selectedOutputs.map(item=>item.id))}   
+${input_text_gen(selectedOutputs.map(item=>item.id),SHELL)}   
     }
 }'
 `
@@ -275,10 +281,10 @@ const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
 
 const data = {
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),JAVASCRIPT)}
     },
     "outputs"{
-${input_text_gen(selectedOutputs.map(item=>item.id))}   
+${input_text_gen(selectedOutputs.map(item=>item.id),JAVASCRIPT)}   
     }
 };
 
