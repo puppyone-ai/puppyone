@@ -11,7 +11,7 @@ from typing import List, Dict, Any
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 
-class StorageServerClient:
+class StoragerFactory:
     def __init__(
         self,
         base_url: str = "http://127.0.0.1:8002"
@@ -57,7 +57,7 @@ class StorageServerClient:
         logging.info(f"Deleted Vector Collection: {collection_name}")
 
     @global_exception_handler(3409, "Error Retrieving Similar Vectors")
-    def search_embedded_vector(
+    def _search_embedded_vector(
         self,
         collection_name: str,
         search_configs: dict
@@ -72,6 +72,13 @@ class StorageServerClient:
         results = response.json()
         logging.info(f"Embedding Search Results: {results}")
         return results
+
+    def execute(
+        self,
+        collection_name: str,
+        search_configs: dict
+    ) -> List[Dict[str, Any]]:
+        return self._search_embedded_vector(collection_name, search_configs)
 
 
 if __name__ == "__main__":
@@ -114,7 +121,7 @@ if __name__ == "__main__":
         "vdb_type": "pgvector",
     }
 
-    storage_client = StorageServerClient()
+    storage_client = StoragerFactory()
     collection_name = storage_client.embed_and_save_vector(embed_configs, user_id)
     storage_client.search_embedded_vector(collection_name, search_configs)
     storage_client.delete_vector_collection(collection_name, vdb_configs)

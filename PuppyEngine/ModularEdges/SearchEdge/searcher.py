@@ -5,6 +5,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import os
 import sys
+from typing import Dict, Any
+from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from Utils.PuppyEngineExceptions import global_exception_handler
 from ModularEdges.SearchEdge.web_search import WebSearchStrategy
 from ModularEdges.SearchEdge.qa_search import LLMQASearchStrategy
@@ -15,16 +17,14 @@ from ModularEdges.SearchEdge.vector_search import VectorRetrievalStrategy
 from ModularEdges.SearchEdge.keyword_search import KeywordRetrievalStrategy
 
 
-class SearchClient:
+class SearcherFactory(EdgeFactoryBase):
     """Factory class for dynamically selecting the appropriate search strategy."""
 
     @staticmethod
     @global_exception_handler(3500, "Error Executing Search Edge")
     def execute(
-        search_type: str,
-        query: str,
-        extra_configs: dict = None,
-        **kwargs
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None
     ) -> SearchStrategy:
         # search strategies
         search_strategies = {
@@ -40,15 +40,17 @@ class SearchClient:
             "llm": LLMRetrievalStrategy,
         }
 
-        search_type = search_type.lower()
+        search_type = init_configs.get("search_type").lower()
+        query = init_configs.get("query")
+        extra_configs["sub_search_type"] = init_configs.get("sub_search_type").lower()
 
         # Handle search strategies
         if search_type in search_strategies:
-            return search_strategies[search_type](query, extra_configs).search(**kwargs)
+            return search_strategies[search_type](query, extra_configs).search()
         elif search_type in retrieval_strategies:
-            documents = kwargs.pop("documents", None)
-            top_k = kwargs.pop("top_k", 10)
-            threshold = kwargs.pop("threshold", None)
+            documents = extra_configs.pop("documents", None)
+            top_k = extra_configs.pop("top_k", 10)
+            threshold = extra_configs.pop("threshold", None)
 
             return retrieval_strategies[search_type](
                 query=query,
@@ -56,7 +58,7 @@ class SearchClient:
                 documents=documents,
                 top_k=top_k,
                 threshold=threshold
-            ).search(**kwargs)
+            ).search()
 
         raise ValueError(f"Unsupported Search Type: {search_type}!")
 
@@ -67,16 +69,16 @@ if __name__ == "__main__":
 
     # Web Search Example
     query = "What is the impact of climate change?"
-    print(SearchClient.execute("web", query, extra_configs={}, sub_search_type="google"))
+    print(SearcherFactory.execute(init_configs={"query": query, "search_type": "web"}, extra_configs={"sub_search_type": "google"}))
     extra_configs = {
         "ddg_search_type": "text",
         "max_results": 10
     }
-    print(SearchClient.execute("web", query, extra_configs, sub_search_type="ddg"))
+    print(SearcherFactory.execute(init_configs={"query": query, "search_type": "web"}, extra_configs={"sub_search_type": "ddg"}))
 
     # LLM Search Example
-    print(SearchClient.execute("qa", query, {"model": "sonar"}, sub_search_type="perplexity"))
-    print(SearchClient.execute("qa", query, {"model": "gpt-4o-mini"}, sub_search_type="ddg"))
+    print(SearcherFactory.execute(init_configs={"query": query, "search_type": "qa"}, extra_configs={"model": "sonar", "sub_search_type": "perplexity"}))
+    print(SearcherFactory.execute(init_configs={"query": query, "search_type": "qa"}, extra_configs={"model": "gpt-4o-mini", "sub_search_type": "ddg"}))
 
     # Elasticsearch Example
     documents = [
@@ -106,7 +108,7 @@ if __name__ == "__main__":
         "index": "my_index",
         "documents": documents
     }
-    print(SearchClient.execute("elastic", query, extra_configs))
+    print(SearcherFactory.execute(init_configs={"query": query, "search_type": "elastic"}, extra_configs=extra_configs))
 
     # Keyword Retrieval Example
     query = "What did the fox do?"
@@ -126,19 +128,28 @@ if __name__ == "__main__":
     ]
     extra_configs = {
         "model_name": "bert-base-multilingual-cased",
+        "documents": documents,
+        "top_k": 2,
+        "threshold": 0.5
     }
-    print("\nKeyword Search Results:", SearchClient.execute("keyword", query, extra_configs, documents=documents, top_k=2, threshold=0.5))
+    print("\nKeyword Search Results:", SearcherFactory.execute(init_configs={"query": query, "search_type": "keyword"}, extra_configs=extra_configs))
 
     # Vector Retrieval Example
     extra_configs = {
         "collection_name": "test_collection",
         "model": "text-embedding-ada-002",
         "db_type": "pgvector",
+        "documents": documents,
+        "top_k": 2,
+        "threshold": 0.5
     }
-    print("\nVector Search Results:", SearchClient.execute("vector", query, extra_configs, documents=documents, top_k=2, threshold=0.5))
+    print("\nVector Search Results:", SearcherFactory.execute(init_configs={"query": query, "search_type": "vector"}, extra_configs=extra_configs))
 
     # LLM Retrieval Example
     extra_configs = {
-        "llm_prompt_template": None
+        "llm_prompt_template": None,
+        "documents": documents,
+        "top_k": 2,
+        "threshold": 0.5
     }
-    print("\nLLM Search Results:", SearchClient.execute("llm", query, extra_configs, documents=documents, top_k=2, threshold=0.5))
+    print("\nLLM Search Results:", SearcherFactory.execute(init_configs={"query": query, "search_type": "llm"}, extra_configs=extra_configs))

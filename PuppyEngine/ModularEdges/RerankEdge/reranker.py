@@ -4,6 +4,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import os
+from typing import List, Dict, Any
+from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from ModularEdges.RerankEdge.rrf_reranker import RRFReranker
 from ModularEdges.RerankEdge.base_reranker import BaseReranker
 from Utils.PuppyEngineExceptions import global_exception_handler
@@ -12,13 +14,13 @@ from ModularEdges.RerankEdge.cohere_reranker import CohereReranker
 from ModularEdges.RerankEdge.hf_reranker import HuggingFaceReranker
 
 
-class RerankerFactory:
+class RerankerFactory(EdgeFactoryBase):
     @staticmethod
     @global_exception_handler(3300, "Error Creating Reranker")
     def execute(
-        reranker_type: str,
-        model_name: str = None
-    ) -> BaseReranker:
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None
+    ) -> List[Dict[str, float]]:
         reranker_classes = {
             "llm": LLMBasedReranker,
             "huggingface": HuggingFaceReranker,
@@ -26,11 +28,17 @@ class RerankerFactory:
             "rrf": RRFReranker
         }
 
+        reranker_type = init_configs.get("reranker_type")
+        model_name = init_configs.get("model_name", "")
         reranker_class = reranker_classes.get(reranker_type.lower())
         if not reranker_class:
             raise ValueError(f"Unsupported Reranking Type: {reranker_type}!")
 
-        return reranker_class(model_name) if model_name else reranker_class()
+        return reranker_class(model_name).rerank(
+            query=init_configs.get("query", ""),
+            retrieval_chunks=init_configs.get("retrieval_chunks", []),
+            top_k=init_configs.get("top_k", 5)
+        )
 
 
 if __name__ == "__main__":
@@ -40,18 +48,18 @@ if __name__ == "__main__":
     query = "What is your name?"
     retrieval_chunks=["I am developer", "I am a human", "I am Jack", "Hello", "Working"]
     
-    reranker = RerankerFactory.execute(reranker_type="llm")
+    reranker = RerankerFactory.execute(init_configs={"reranker_type": "llm"})
     result = reranker.rerank(query=query, retrieval_chunks=retrieval_chunks, top_k=3)
     print("LLM-Based Reranker Results:", result)
 
-    reranker = RerankerFactory.execute(reranker_type="huggingface", model_name="BAAI/bge-reranker-base")
+    reranker = RerankerFactory.execute(init_configs={"reranker_type": "huggingface", "model_name": "BAAI/bge-reranker-base"})
     result = reranker.rerank(query=query, retrieval_chunks=retrieval_chunks, top_k=3)
     print("Hugging Face Reranker Results:", result)
 
-    reranker = RerankerFactory.execute(reranker_type="cohere")
+    reranker = RerankerFactory.execute(init_configs={"reranker_type": "cohere"})
     result = reranker.rerank(query=query, retrieval_chunks=retrieval_chunks, top_k=3)
     print("Cohere Reranker Results:", result)
 
-    reranker = RerankerFactory.execute(reranker_type="rrf")
+    reranker = RerankerFactory.execute(init_configs={"reranker_type": "rrf"})
     result = reranker.rerank(query=query, retrieval_chunks=retrieval_chunks, top_k=3)
     print("RRF Reranker Results:", result)

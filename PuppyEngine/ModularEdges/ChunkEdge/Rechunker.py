@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 import uuid
 from typing import List, Dict, Optional
-from ModularEdges.LLMEdge.generate import lite_llm_chat
+from PuppyEngine.ModularEdges.LLMEdge.generater import lite_llm_chat
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
 from Utils.PuppyEngineExceptions import global_exception_handler
 

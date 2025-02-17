@@ -202,7 +202,7 @@ class StructuredNestedOperations:
         }
 
         return list(operations.get(operation, set()))
-
+    
     def replace_structured_variable_values(
         self,
         **kwargs
@@ -265,16 +265,16 @@ class JSONModifier(StructuredNestedOperations):
         self,
         **kwargs
     ) -> Any:
-        target_structure = kwargs.get("target_structure", "list")
-        action_type = kwargs.get("action_type", "default")
-        list_separator = kwargs.get("list_separator", [])
-        dict_key = kwargs.get("dict_key", "value")
-        if action_type == "default":
-            if list_separator:
-                self.data = self.split_string_by_multiple_delimiters(self.data, list_separator)
-            return [self.data] if target_structure == "list" else {dict_key: self.data}
+            target_structure = kwargs.get("target_structure", "list")
+            action_type = kwargs.get("action_type", "default")
+            list_separator = kwargs.get("list_separator", [])
+            dict_key = kwargs.get("dict_key", "value")
+            if action_type == "default":
+                if list_separator:
+                    self.data = self.split_string_by_multiple_delimiters(self.data, list_separator)
+                return [self.data] if target_structure == "list" else {dict_key: self.data}
 
-        return self.parse_json_from_string(self.data)
+                return self.parse_json_from_string(self.data)
 
     def split_string_by_multiple_delimiters(
         self,
@@ -362,7 +362,7 @@ class JSONModifier(StructuredNestedOperations):
             except json.JSONDecodeError:
                 continue
         return parsed_lists
-
+    
     def match_structured_cases(
         self,
         parsed_lists: List[Any],
@@ -380,11 +380,11 @@ class JSONModifier(StructuredNestedOperations):
             merged_data.update(dct)
 
         # Add any standalone lists with auto-generated keys
-        for i, lst in enumerate(parsed_lists, start=1):
-            merged_data[f"list_{i}"] = lst
+            for i, lst in enumerate(parsed_lists, start=1):
+                merged_data[f"list_{i}"] = lst
 
         return merged_data
-
+    
     def _handle_edit_text(
         self,
         **kwargs
@@ -681,3 +681,4 @@ if __name__ == "__main__":
         }
     ])
     print("After variable replacement:", result)
+ 

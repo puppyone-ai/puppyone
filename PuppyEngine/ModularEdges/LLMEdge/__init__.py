@@ -1,6 +1,6 @@
-from .generate import lite_llm_chat
+from .generater import LLMFactory
 
-__all__ = ["lite_llm_chat"]
+__all__ = ["LLMFactory"]
 __version__ = "0.1.0"
 __author__ = "PuppyAgent"
 __email__ = "info@puppyagent.com"

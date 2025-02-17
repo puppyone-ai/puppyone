@@ -23,7 +23,6 @@ class SearchStrategy(ABC):
     @abstractmethod
     def search(
         self,
-        **kwargs
     ) -> List[Any]:
         pass
 
