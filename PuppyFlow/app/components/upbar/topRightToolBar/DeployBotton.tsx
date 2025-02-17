@@ -124,7 +124,8 @@ function DeployBotton() {
   const {setWorkspaces, selectedFlowId, workspaces} = useFlowsPerUserContext()
 
   const API_SERVER_URL ="https://dev.api.puppyagent.com" //"http://localhost:8000"
-  const {constructWholeJsonWorkflow} = useJsonConstructUtils()
+  const {constructWholeWorkflowJsonData} = useWholeWorkflowJsonConstructUtils()
+
 
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
   const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
@@ -170,7 +171,7 @@ function DeployBotton() {
         {
           method: "POST",
           body:JSON.stringify({
-            workflow_json: constructWholeJsonWorkflow(),
+            workflow_json: constructWholeWorkflowJsonData(),
             inputs: selectedInputs.map(item=>item.id),
             outputs: selectedOutputs.map(item=>item.id),
           })
