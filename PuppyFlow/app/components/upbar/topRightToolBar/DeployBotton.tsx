@@ -124,7 +124,8 @@ function DeployBotton() {
   const {setWorkspaces, selectedFlowId, workspaces} = useFlowsPerUserContext()
 
   const API_SERVER_URL ="https://dev.api.puppyagent.com" //"http://localhost:8000"
-  const {constructWholeJsonWorkflow} = useJsonConstructUtils()
+  const {constructWholeWorkflowJsonData} = useWholeWorkflowJsonConstructUtils()
+
 
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
   const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
@@ -170,7 +171,7 @@ function DeployBotton() {
         {
           method: "POST",
           body:JSON.stringify({
-            workflow_json: constructWholeJsonWorkflow(),
+            workflow_json: constructWholeWorkflowJsonData(),
             inputs: selectedInputs.map(item=>item.id),
             outputs: selectedOutputs.map(item=>item.id),
           })
@@ -197,23 +198,29 @@ function DeployBotton() {
 
   }
 
-  const { getNodes } = useReactFlow(); // Destructure getNodes from useReactFlow
+  const { getNodes,getNode } = useReactFlow(); // Destructure getNodes from useReactFlow
 
   useEffect(()=>{
 
 
   },[])
 
-  const PYTHON = "Python"
-  const SHELL = "Shell"
-  const JAVASCRIPT = "Javascript"
+  const PYTHON = "python"
+  const SHELL = "shell"
+  const JAVASCRIPT = "javascript"
 
-  const input_text_gen = (inputs:string[])=>{
-        const inputData = inputs.map((input, index) => (
-          `        "input_block_id_${index + 1}": "${input}",`
+  const input_text_gen = (inputs:string[],lang:string)=>{
+    if(lang == JAVASCRIPT){
+      const inputData = inputs.map((input, index) => (
+        `        "${input}": "${getNode(input)?.data.content}", //${getNode(input)?.data.label}`
       ));
-
       return inputData.join('\n')
+    }else{
+      const inputData = inputs.map((input, index) => (
+        `        "${input}": "${getNode(input)?.data.content}", #${getNode(input)?.data.label}`
+      ));
+      return inputData.join('\n')
+    }
   }
 
   const populatetext = (api_id:string, api_key:string,language:string) =>{
@@ -232,10 +239,10 @@ headers = {
 
 data = {
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),PYTHON)}
     },
     "outputs": {
-${input_text_gen(selectedOutputs.map(item=>item.id))}
+${input_text_gen(selectedOutputs.map(item=>item.id),PYTHON)}
     }
 }
 
@@ -256,10 +263,10 @@ else:
 -H "Content-Type: application/json" \\
 -d '{
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),SHELL)}
     },
     "outputs"{
-${input_text_gen(selectedOutputs.map(item=>item.id))}   
+${input_text_gen(selectedOutputs.map(item=>item.id),SHELL)}   
     }
 }'
 `
@@ -274,10 +281,10 @@ const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
 
 const data = {
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),JAVASCRIPT)}
     },
     "outputs"{
-${input_text_gen(selectedOutputs.map(item=>item.id))}   
+${input_text_gen(selectedOutputs.map(item=>item.id),JAVASCRIPT)}   
     }
 };
 
@@ -469,6 +476,7 @@ const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
                     <Editor
                           className='json-form hideLineNumbers rounded-[200px]'
                           defaultLanguage="json"
+                          language={selectedLang}
                           // theme={themeManager.getCurrentTheme()}
                           value={populatetext(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.id,workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.key,selectedLang)}
                           width={260}
