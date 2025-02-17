@@ -5,14 +5,16 @@ import ast
 import json
 import logging
 import subprocess
+from typing import Dict, Any
 from operator import getitem
 from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_builtins
+from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from RestrictedPython.PrintCollector import PrintCollector
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 
-class CustomCode:
+class CoderFactory(EdgeFactoryBase):
     @global_exception_handler(3900, "Error Preprocessing Code")
     def preprocess_code(
         self,
@@ -50,10 +52,10 @@ class CustomCode:
         return code_string
 
     @global_exception_handler(3901, "Error Executing Restricted Code")
-    def execute_restricted_code(
+    def execute(
         self,
-        code_string: str,
-        variables: dict = {}
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None
     ) -> str:
         """
         Executes the restricted code with predefined variables in a sandboxed environment.
@@ -68,6 +70,8 @@ class CustomCode:
 
         try:
             # Preprocess the code string
+            code_string = init_configs.get("code_string")
+            variables = init_configs.get("variables", {})
             code_string = self.preprocess_code(code_string, variables)
 
             # Set up restricted globals with PrintCollector
@@ -140,7 +144,7 @@ def add_two_numbers(arg_a, arg_b):
     return arg_a + arg_b
 """
 
-    results = CustomCode().execute_restricted_code(sample_code, variables)
+    results = CoderFactory.execute(init_configs={"code_string": sample_code, "variables": variables})
     print("\nExecution Results:")
     print("------------------")
     print("results: ", results)

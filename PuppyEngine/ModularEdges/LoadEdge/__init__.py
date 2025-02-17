@@ -1,6 +1,6 @@
-from .load import DataLoader
+from .loader import LoaderFactory
 
-__all__ = ["DataLoader"]
+__all__ = ["LoaderFactory"]
 __version__ = "0.1.0"
 __author__ = "PuppyAgent"
 __email__ = "info@puppyagent.com"

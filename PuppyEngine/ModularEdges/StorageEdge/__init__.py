@@ -1,6 +1,6 @@
-from .storage import StorageServerClient
+from .storager import StoragerFactory
 
-__all__ = ["StorageServerClient"]
+__all__ = ["StoragerFactory"]
 __version__ = "0.1.0"
 __author__ = "PuppyAgent"
 __email__ = "info@puppyagent.com"

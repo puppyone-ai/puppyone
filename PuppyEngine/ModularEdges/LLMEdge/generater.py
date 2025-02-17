@@ -6,6 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 from typing import Any, List, Dict
 from litellm import completion
+from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
 
@@ -184,6 +185,14 @@ def lite_llm_chat(
 
     # Return the result from the chat service
     return result
+
+class LLMFactory(EdgeFactoryBase):
+    @staticmethod
+    def execute(
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None
+    ) -> str:
+        return lite_llm_chat(**init_configs)
 
 
 if __name__ == "__main__":

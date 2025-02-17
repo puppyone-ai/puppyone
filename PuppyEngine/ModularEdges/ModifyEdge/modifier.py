@@ -7,6 +7,7 @@ import re
 import json
 import copy
 from typing import Any, List, Dict, Union
+from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from ModifyEdge.edit_structured import StructuredNestedOperations
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
@@ -14,31 +15,27 @@ from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_h
 plugin_pattern = r'\{\{(.*?)\}\}'
 
 
-class JSONModifier(StructuredNestedOperations):
-    def __init__(
+class ModifierFactory(EdgeFactoryBase):
+    def execute(
         self,
-        data: Any
-    ):
-        super().__init__(data)
-        self.data = data
-
-    def modify(
-        self,
-        modify_type: str,
-        **kwargs
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None,
     ) -> Any:
-        self.kwargs = kwargs
+        self.data = init_configs.get("data")
+        self.structured_operator = StructuredNestedOperations(self.data)
+
+        modify_type = init_configs.get("modify_type")
         match modify_type:
             case "copy":
                 return self._handle_copy()
             case "convert":
-                return self._handle_convert(**kwargs)
+                return self._handle_convert(**extra_configs)
             case "edit_text":
-                return self._handle_edit_text(**kwargs)
+                return self._handle_edit_text(**extra_configs)
             case "edit_structured":
-                return self._handle_edit_structured(**kwargs)
+                return self._handle_edit_structured(**extra_configs)
             case _:
-                raise ValueError(f"Unsupported Modify Type: {modify_type}!")
+                raise ValueError(f"Unsupported execute Type: {modify_type}!")
 
     @global_exception_handler(4210, "Error Copying Data")
     def _handle_copy(
@@ -84,7 +81,7 @@ class JSONModifier(StructuredNestedOperations):
     ) -> Union[Dict[str, Any], List[Any]]:
         """
         Parses all valid lists and dicts from a string.
-        
+
         - If there is only one list without context, return that list.
         - If there is only one dict, return that dict.
         - If multiple standalone lists are found, merge them into a nested dictionary with auto-generated keys.
@@ -221,50 +218,50 @@ class JSONModifier(StructuredNestedOperations):
                     case "get":
                         path = op_params.get("path", [])
                         default = op_params.get("default")
-                        result = self.nested_get(path, default)
+                        result = self.structured_operator.nested_get(path, default)
 
                     case "delete":
                         path = op_params.get("path", [])
-                        result = self.nested_delete(path)
+                        result = self.structured_operator.nested_delete(path)
 
                     case "append":
                         path = op_params.get("path", [])
                         value = op_params.get("value")
-                        result = self.nested_append(path, value)
+                        result = self.structured_operator.nested_append(path, value)
 
                     case "insert":
                         path = op_params.get("path", [])
                         index = op_params.get("index", 0)
                         value = op_params.get("value")
-                        result = self.nested_insert(path, index, value)
+                        result = self.structured_operator.nested_insert(path, index, value)
 
                     case "sort":
                         path = op_params.get("path", [])
                         reverse = op_params.get("reverse", False)
-                        result = self.nested_sort(path, reverse=reverse)
+                        result = self.structured_operator.nested_sort(path, reverse=reverse)
 
                     case "set_value":
                         path = op_params.get("path", [])
                         value = op_params.get("value")
-                        result = self.nested_set_value(path, value)
+                        result = self.structured_operator.nested_set_value(path, value)
 
                     case "get_keys":
                         max_depth = op_params.get("max_depth", -1)
-                        result = self.nested_keys(max_depth)
+                        result = self.structured_operator.nested_keys(max_depth)
 
                     case "get_values":
                         max_depth = op_params.get("max_depth", -1)
-                        result = self.nested_values(max_depth)
+                        result = self.structured_operator.nested_values(max_depth)
 
                     case "variable_replace":
                         plugins = op_params.get("plugins", {})
-                        result = self.replace_structured_variable_values(plugins=plugins)
+                        result = self.structured_operator.replace_structured_variable_values(plugins=plugins)
 
                     case "set_operation":
                         path1 = op_params.get("path1", [])
                         path2 = op_params.get("path2", [])
                         operation_type = op_params.get("operation", "union")
-                        result = self.nested_set_operation(path1, path2, operation_type)
+                        result = self.structured_operator.nested_set_operation(path1, path2, operation_type)
 
                     case _:
                         raise ValueError(f"Unsupported operation type: {op_type}")
@@ -297,38 +294,36 @@ if __name__ == "__main__":
         }
     }
 
-    print("\n=== Testing JSONModifier Operations ===\n")
-    
-    # Initialize modifier
-    modifier = JSONModifier(nested_data)
-
+    print("\n=== Testing ModifierFactory Operations ===\n")
     print("1. Testing Copy Operation")
     print("-" * 50)
-    copied_data = modifier.modify("copy")
+    copied_data = ModifierFactory.execute(init_configs={"modify_type": "copy"})
     print("Deep copy created:", copied_data == nested_data and copied_data is not nested_data)
 
     print("\n2. Testing Convert Operations")
     print("-" * 50)
     # Test text to structured conversion
     text_data = '{"name": "Test", "values": [1, 2, 3]}'
-    text_modifier = JSONModifier(text_data)
-    structured_result = text_modifier.modify("convert", 
-                                          source_type="text", 
-                                          target_type="structured",
-                                          action_type="json")
+    structured_result = ModifierFactory.execute(
+        init_configs={"data": text_data, "modify_type": "convert"}, 
+        extra_configs={"source_type": "text", 
+                        "target_type": "structured",
+                        "action_type": "json"})
     print("Text to structured:", structured_result)
 
     # Test structured to text conversion
-    structured_to_text = modifier.modify("convert", 
-                                       source_type="structured", 
-                                       target_type="text")
+    structured_to_text = ModifierFactory.execute(
+        init_configs={"data": structured_result, "modify_type": "convert"}, 
+        extra_configs={"source_type": "structured", 
+                        "target_type": "text"})
     print("Structured to text:", structured_to_text)
 
     print("\n3. Testing Edit Text Operations")
     print("-" * 50)
     text_with_vars = "Hello {{name}}! Your score is {{score}}"
-    text_modifier = JSONModifier(text_with_vars)
-    replaced_text = text_modifier.modify("edit_text", plugins={"name": "Alice", "score": "95"})
+    replaced_text = ModifierFactory.execute(
+        init_configs={"data": text_with_vars, "modify_type": "edit_text"}, 
+        extra_configs={"plugins": {"name": "Alice", "score": "95"}})
     print("Variable replacement:", replaced_text)
 
     print("\n4. Testing Edit Structured Operations")
@@ -343,8 +338,9 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": operations})
     print("Get operation result:", result)
 
     # Test nested set_value
@@ -357,8 +353,9 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": operations})
     print("After set_value:", result)
 
     # Test nested append
@@ -371,8 +368,9 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": operations})
     print("After append:", result)
 
     # Test nested sort
@@ -385,8 +383,9 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": operations})
     print("After sort:", result)
 
     # Test set operations
@@ -400,8 +399,9 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": operations})
     print("Set union result:", result)
 
     # Test variable replacement in structured data
@@ -413,8 +413,9 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": operations})
     print("After variable replacement:", result)
 
     # Test chained operations
@@ -436,14 +437,15 @@ if __name__ == "__main__":
             }
         }
     ]
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=chained_operations)
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": chained_operations})
     print("Chained operations result:", result)
 
     # Test error handling
     print("\n6. Testing Error Handling")
     print("-" * 50)
-    modifier = JSONModifier(nested_data)
+    ModifierFactory = ModifierFactory(nested_data)
     try:
         invalid_operations = [
             {
@@ -451,7 +453,9 @@ if __name__ == "__main__":
                 "params": {}
             }
         ]
-        modifier.modify("edit_structured", operations=invalid_operations)
+        result = ModifierFactory.execute(
+            init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+            extra_configs={"operations": invalid_operations})
     except Exception as e:
         print("Expected error caught:", str(e))
 
@@ -464,7 +468,9 @@ if __name__ == "__main__":
                 }
             }
         ]
-        result = modifier.modify("edit_structured", operations=invalid_path)
+        result = ModifierFactory.execute(
+            init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+            extra_configs={"operations": invalid_path})
         print("Get with invalid path returns default:", result)
     except Exception as e:
         print("Error with invalid path:", str(e))
@@ -472,13 +478,14 @@ if __name__ == "__main__":
     # Test variable replacement
     print("\n7. Testing variable replacement")
     print("-" * 50)
-    modifier = JSONModifier(nested_data)
-    result = modifier.modify("edit_structured", operations=[
-        {
-            "type": "variable_replace",
-            "params": {
-                "plugins": {"template_name": "custom_template"}
+    result = ModifierFactory.execute(
+        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        extra_configs={"operations": [
+            {
+                "type": "variable_replace",
+                "params": {
+                    "plugins": {"template_name": "custom_template"}
+                }
             }
-        }
-    ])
+        ]})
     print("After variable replacement:", result)

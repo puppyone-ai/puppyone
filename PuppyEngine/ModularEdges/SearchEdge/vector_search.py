@@ -6,13 +6,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 import sys
 from typing import List, Tuple
-from Edges.ExecuteStorage import StorageServerClient
+from ModularEdges.StorageEdge import StoragerFactory
 from Utils.PuppyEngineExceptions import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 
 
 # Global Storage Client
-StorageClient = StorageServerClient()
+StorageClient = StoragerFactory()
 
 
 class VectorRetrievalStrategy(BaseRetriever):

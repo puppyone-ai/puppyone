@@ -7,7 +7,7 @@ import re
 import ast
 from typing import List
 from DataClass.Chunk import Chunk
-from ModularEdges.LLMEdge.generate import lite_llm_chat
+from PuppyEngine.ModularEdges.LLMEdge.generater import lite_llm_chat
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
 from Utils.PuppyEngineExceptions import global_exception_handler
 

@@ -17,15 +17,14 @@ class LLMQASearchStrategy(SearchStrategy):
 
     def search(
         self,
-        sub_search_type: str,
     ) -> List[str]:
         """
         Perform a search using the Perplexity API or DuckDuckGo Chat.
 
-        :param sub_search_type: The type of search to perform.
         :return: A list of strings.
         """
 
+        sub_search_type = self.extra_configs.get("sub_search_type", "perplexity")
         if sub_search_type == "perplexity":
             return [self.perplexity_search()]
         elif sub_search_type == "ddg":
@@ -89,12 +88,14 @@ if __name__ == "__main__":
 
     query = "What is the capital of France?"
     extra_configs = {
-        "model": "sonar"
+        "model": "sonar",
+        "sub_search_type": "perplexity"
     }
     llm_search = LLMQASearchStrategy(query, extra_configs)
-    print(llm_search.search("perplexity"))
+    print(llm_search.search())
     extra_configs = {
-        "model": "gpt-4o-mini"
+        "model": "gpt-4o-mini",
+        "sub_search_type": "ddg"
     }
     llm_search = LLMQASearchStrategy(query, extra_configs)
-    print(llm_search.search("ddg"))
+    print(llm_search.search())

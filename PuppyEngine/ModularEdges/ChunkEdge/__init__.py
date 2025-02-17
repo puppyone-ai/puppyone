@@ -1,6 +1,6 @@
-from .chunker import ChunkingFactory
+from .chunker import ChunkerFactory
 
-__all__ = ["ChunkingFactory"]
+__all__ = ["ChunkerFactory"]
 __version__ = "0.1.0"
 __author__ = "PuppyAgent"
 __email__ = "info@puppyagent.com"

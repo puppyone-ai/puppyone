@@ -3,151 +3,19 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from typing import Any, Dict, List, Callable
+from typing import Any, Dict, List
+from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from Utils.PuppyEngineExceptions import global_exception_handler
+from ModularEdges.ConditionEdge.condition_evaluation import ConditionEvaluator
 
 
-class ConditionEvaluator:
-    def __init__(
-        self,
-        content: Any
-    ):
-        self.content = content
-        # Mapping conditions to their corresponding methods
-        self.condition_methods: Dict[str, Callable[[Dict[str, Any]], bool]] = {
-            "is_empty": self._is_empty,
-            "is_not_empty": self._is_not_empty,
-            "contain": self._contains,
-            "not_contain": self._does_not_contain,
-            "greater_than_n_chars": self._is_greater_than_characters,
-            "less_than_n_chars": self._is_less_than_characters,
-            "is": self._is,
-            "is_not": self._is_not,
-            "is_list": self._is_list,
-            "is_dict": self._is_dict,
-            "greater_than_n": self._length_is_greater_than,
-            "less_than_n": self._length_is_less_than
-        }
-
-    @global_exception_handler(4100, "Error Evaluating Condition")
-    def evaluate(
-        self,
-        condition: str,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        """
-        Evaluate a single condition based on the content and parameters.
-
-        Args:
-            condition (str): The condition to evaluate.
-            parameters (Dict[str, Any]): The parameters for the condition.
-
-        Returns:
-            bool: The result of the evaluation.
-        """
-
-        if condition not in self.condition_methods:
-            raise ValueError(f"Unsupported condition: {condition}")
-
-        # Call the appropriate method for the condition
-        return self.condition_methods[condition](parameters)
-
-    def _is_empty(
-        self,
-        _: Dict[str, Any]
-    ) -> bool:
-        return not bool(self.content)
-
-    def _is_not_empty(
-        self,
-        _: Dict[str, Any]
-    ) -> bool:
-        return bool(self.content)
-
-    def _contains(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        value = parameters.get("value")
-        if isinstance(self.content, dict):
-            return value in self.content.keys() or value in self.content.values()
-        return value in self.content
-
-    def _does_not_contain(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        return not self._contains(parameters)
-
-    def _is_greater_than_characters(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        if isinstance(self.content, str):
-            return len(self.content) > parameters.get("value", 0)
-        return False
-
-    def _is_less_than_characters(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        if isinstance(self.content, str):
-            return len(self.content) < parameters.get("value", 0)
-        return False
-
-    def _is(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        return self.content == parameters.get("value")
-
-    def _is_not(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        return not self._is(parameters)
-
-    def _is_list(
-        self,
-        _: Dict[str, Any]
-    ) -> bool:
-        return isinstance(self.content, list)
-
-    def _is_dict(
-        self,
-        _: Dict[str, Any]
-    ) -> bool:
-        return isinstance(self.content, dict)
-
-    def _length_is_greater_than(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        if isinstance(self.content, (list, dict)):
-            return len(self.content) > parameters.get("value", 0)
-        return False
-
-    def _length_is_less_than(
-        self,
-        parameters: Dict[str, Any]
-    ) -> bool:
-        if isinstance(self.content, (list, dict)):
-            return len(self.content) < parameters.get("value", 0)
-        return False
-
-
-class Conditioner:
-    def __init__(
-        self,
-        content_blocks: Dict[str, Any],
-        cases: Dict[str, Any]
-    ):
-        self.content_blocks = content_blocks
-        self.cases = cases
+class ConditionerFactory(EdgeFactoryBase):
 
     @global_exception_handler(4101, "Error Evaluating Cases")
-    def evaluate_cases(
-        self
+    def execute(
+        self,
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None
     ) -> Dict[str,Any]:
         """
         Evaluate all cases and return the results.
@@ -156,13 +24,16 @@ class Conditioner:
             Dict[str, Any]: A dictionary of case names with results.
         """
 
+        content_blocks = init_configs.get("content_blocks", {})
+        cases = init_configs.get("cases", {})
+
         results = {}
 
-        for _, case_data in self.cases.items():
+        for _, case_data in cases.items():
             conditions = case_data["conditions"]
             then_clause = case_data.get("then", {})
 
-            satisfied = self._evaluate_conditions(conditions)
+            satisfied = self._evaluate_conditions(conditions, content_blocks)
             if satisfied:
                 results[then_clause.get("from")] = then_clause.get("to")
 
@@ -171,7 +42,8 @@ class Conditioner:
     @global_exception_handler(4102, "Error Evaluating Case Conditions")
     def _evaluate_conditions(
         self,
-        conditions: List[Dict[str, Any]]
+        conditions: List[Dict[str, Any]],
+        content_blocks: Dict[str, Any]
     ) -> bool:
         """
         Evaluate a sequence of conditions with operations.
@@ -189,7 +61,7 @@ class Conditioner:
 
         for condition in conditions:
             block_id = condition["block"]
-            evaluator = ConditionEvaluator(self.content_blocks.get(block_id))
+            evaluator = ConditionEvaluator(content_blocks.get(block_id))
 
             condition_result = evaluator.evaluate(
                 condition["condition"],
@@ -294,6 +166,4 @@ if __name__ == "__main__":
         }
     }
 
-    conditioner = Conditioner(content_blocks, cases)
-    results = conditioner.evaluate_cases()
-    print(results)
+    print(ConditionerFactory.execute(init_configs={"content_blocks": content_blocks, "cases": cases}))

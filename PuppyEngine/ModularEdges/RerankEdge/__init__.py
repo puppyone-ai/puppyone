@@ -1,4 +1,4 @@
-from .rerank import RerankerFactory
+from .reranker import RerankerFactory
 
 __all__ = ["RerankerFactory"]
 __version__ = "0.1.0"

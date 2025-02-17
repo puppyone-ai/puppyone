@@ -1,6 +1,6 @@
-from .rewrite import QueryRewrite
+from .rewriter import QueryRewriterFactory
 
-__all__ = ["QueryRewrite"]
+__all__ = ["QueryRewriterFactory"]
 __version__ = "0.1.0"
 __author__ = "PuppyAgent"
 __email__ = "info@puppyagent.com"

@@ -17,15 +17,14 @@ class WebSearchStrategy(SearchStrategy):
 
     def search(
         self,
-        sub_search_type: str,
     ) -> List[dict]:
         """
         Perform a search using the Google or DuckDuckGo API.
 
-        :param sub_search_type: The type of search to perform.
         :return: A list of dictionaries.
         """
 
+        sub_search_type = self.extra_configs.get("sub_search_type", "google")
         if sub_search_type == "google":
             return self.google_search()
         elif sub_search_type == "ddg":
@@ -101,11 +100,12 @@ if __name__ == "__main__":
     load_dotenv()
 
     query = "What is the impact of climate change?"
-    web_search = WebSearchStrategy(query, extra_configs={})
-    print(web_search.search("google"))
+    web_search = WebSearchStrategy(query, extra_configs={"sub_search_type": "google"})
+    print(web_search.search())
     extra_configs = {
         "ddg_search_type": "text",
-        "max_results": 10
+        "max_results": 10,
+        "sub_search_type": "ddg"
     }
     web_search = WebSearchStrategy(query, extra_configs)
-    print(web_search.search("ddg"))
+    print(web_search.search())
