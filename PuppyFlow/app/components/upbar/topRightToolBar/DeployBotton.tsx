@@ -205,9 +205,9 @@ function DeployBotton() {
 
   },[])
 
-  const PYTHON = "Python"
-  const SHELL = "Shell"
-  const JAVASCRIPT = "Javascript"
+  const PYTHON = "python"
+  const SHELL = "shell"
+  const JAVASCRIPT = "javascript"
 
   const input_text_gen = (inputs:string[],lang:string)=>{
     if(lang == JAVASCRIPT){
@@ -476,6 +476,7 @@ const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
                     <Editor
                           className='json-form hideLineNumbers rounded-[200px]'
                           defaultLanguage="json"
+                          language={selectedLang}
                           // theme={themeManager.getCurrentTheme()}
                           value={populatetext(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.id,workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.key,selectedLang)}
                           width={260}
