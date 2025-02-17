@@ -292,7 +292,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   // id: nodeInfo.id,
                   type: "modify",
                   data: { 
-                      modify_type: "deep_copy",
+                      modify_type: "copy",
                       extra_configs: {}, 
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
@@ -555,5 +555,5 @@ export default function useWholeWorkflowJsonConstructUtils() {
     }, []);
 
 
-    return {sendWholeWorkflowJsonDataToBackend, isComplete, setIsComplete}
+    return {sendWholeWorkflowJsonDataToBackend, isComplete, setIsComplete, constructWholeWorkflowJsonData}
 }
