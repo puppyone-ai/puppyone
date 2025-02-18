@@ -38,6 +38,8 @@ type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
 function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name } }: JsonBlockNodeProps) {
 
+
+  type ExtendedNode = Node<JsonNodeData> & { looped?: boolean };
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
@@ -58,7 +60,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
   const [isEmbedHidden, setIsEmbedHidden] = useState(true)
   const { cleanJsonString } = useJsonConstructUtils()
-  const [isLooped, setIsLooped] = useState(false); // New state to track the position
+  const [isLooped, setIsLooped] = useState<boolean>((getNode(id) as ExtendedNode)?.looped || false); // New state to track the position
 
 
 
