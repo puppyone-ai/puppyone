@@ -53,7 +53,7 @@ class FileToTextParser:
         
         Args:
             file_name (str): The name of the file to be parsed.
-            file_type (str): The type of the file (e.g., 'json', 'txt', 'markdown').
+            file_type (str): The type of the file (e.g., json, txt, markdown).
             **kwargs: Additional keyword arguments for specific parsing methods.
 
         Returns:

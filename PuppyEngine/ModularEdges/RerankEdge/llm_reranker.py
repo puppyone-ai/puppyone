@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 import json
 from typing import List, Dict
-from PuppyEngine.ModularEdges.LLMEdge.generater import lite_llm_chat
+from ModularEdges.LLMEdge.generater import lite_llm_chat
 from ModularEdges.RerankEdge.base_reranker import BaseReranker
 from Utils.PuppyEngineExceptions import global_exception_handler
 

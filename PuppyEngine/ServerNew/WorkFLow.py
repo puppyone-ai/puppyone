@@ -14,14 +14,15 @@ logging.getLogger("httpx").setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 import json
+import threading
 import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonParser import JsonParser
 from Server.JsonConverter import JsonConverter
-from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
 from ModularEdges.EdgeExecutor import EdgeExecutor
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import threading
+from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
+
 
 """
 Workflow Engine Core Processor
@@ -48,8 +49,8 @@ Edges:
 3. Execution Constraints:
 -------------------------
 a) Edge Activation:
-    - All input blocks must be 'processed'
-    - Edge must be in 'pending' state
+    - All input blocks must be "processed"
+    - Edge must be in "pending" state
 b) Atomic Operations:
     - Edge processing locks its inputs
     - Output generation and state update are atomic
@@ -68,7 +69,7 @@ Example Execution Flow:
 Edge Processing Contract:
 • Input blocks are read-only snapshots
 • Output blocks must be new/versioned
-• Edge failure triggers rollback to 'pending' state
+• Edge failure triggers rollback to "pending" state
 """
 
 class WorkFlow():
@@ -141,7 +142,8 @@ class WorkFlow():
     @global_exception_handler(5200, "Error Initializing Workflow")
     def __init__(
         self,
-        json_data: Dict[str, Dict[str, str]]
+        json_data: Dict[str, Dict[str, str]],
+        latest_version: str = "0.1"
     ):
         """
         Initialize the processor for the WorkFlow object.
@@ -186,8 +188,8 @@ class WorkFlow():
         self.version = json_data.get("version", self.__class__.version)
 
         # Convert the JSON data to the latest version
-        if self.version != self.latest_version:
-            converter = JsonConverter(self.latest_version)
+        if self.version != latest_version:
+            converter = JsonConverter(latest_version)
             json_data = converter.convert(json_data)
 
         self.blocks = json_data.get("blocks", {})
@@ -261,11 +263,11 @@ class WorkFlow():
             block = self.blocks.get(block_id)
             if block:
                 block_configs[block_id] = {
-                    'label': block.get('label'),
-                    'content': block.get('data', {}).get('content'),
-                    'looped': block.get('looped', False)
+                    "label": block.get("label"),
+                    "content": block.get("data", {}).get("content"),
+                    "looped": block.get("looped", False)
                 }
-        
+
         return block_configs
 
     def _execute_edge_batch(self, edge_batch: Set[str]) -> Dict[str, Any]:
@@ -352,7 +354,7 @@ class WorkFlow():
         """Process the workflow with concurrent edge execution"""
         try:
             logger.info("Starting workflow processing")
-            
+
             while True:
                 # Find all edge batches that can run in parallel
                 parallel_batches = self._find_parallel_batches()
@@ -360,7 +362,7 @@ class WorkFlow():
                     break
 
                 logger.info("Found parallel batches: %s", parallel_batches)
-                
+
                 for batch in parallel_batches:
                     yield self._process_batch_results(batch)
 
@@ -436,7 +438,7 @@ class WorkFlow():
                 try:
                     json_content = content
                     if json_content.startswith("["):
-                        json_content = f'{{"content": {json.dumps(json_content)}}}'
+                        json_content = f"{{'content': {json.dumps(json_content)}}}"
                     json.loads(json_content)
                 except json.JSONDecodeError:
                     logger.error("Invalid Result Structured Content: %s", content)
@@ -468,11 +470,10 @@ class WorkFlow():
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
-    
-    test_kit = 'TestKit/'
-    workflow = WorkFlow()
+
+    test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_llm.json":
+        if file_name != "chunking.json":
             continue
         # if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
         #     continue
@@ -485,6 +486,7 @@ if __name__ == "__main__":
 
         # Use list() to collect all outputs, ensure the workflow is complete
         outputs = []
+        workflow = WorkFlow(data)
         for output_blocks in workflow.process():
             logger.info("Received output blocks: %s", output_blocks)
             outputs.append(output_blocks)

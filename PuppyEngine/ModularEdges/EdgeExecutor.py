@@ -7,8 +7,8 @@ import os
 import threading
 import concurrent.futures
 from datetime import datetime
-from typing import Dict, Any, Tuple
 from dataclasses import dataclass
+from typing import Dict, Any, Tuple
 from concurrent.futures import ThreadPoolExecutor
 from ModularEdges.LLMEdge import LLMFactory
 from ModularEdges.CodeEdge import CoderFactory
@@ -71,8 +71,13 @@ class EdgeExecutor:
         self,
     ) -> EdgeTask:
         """Execute an edge operation with potential loop handling"""
+
         try:
-            parser = ConfigParserFactory.get_parser(self.edge_type)(self.edge_configs, self.block_configs)
+            parser = ConfigParserFactory.get_parser(
+                self.edge_type,
+                self.edge_configs,
+                self.block_configs
+            )
             parsed_params = parser.parse()
             init_configs = parsed_params.init_configs
             extra_configs = parsed_params.extra_configs
@@ -145,28 +150,4 @@ class EdgeExecutor:
             raise
 
         return result, status, error
-
-    def get_edge_status(
-        self,
-        edge_id: str
-    ) -> Dict[str, Any]:
-        """Get the current status of an edge"""
-        with self.lock:
-            task = self._tasks.get(edge_id)
-            if not task:
-                return {"status": "unknown"}
-            return {
-                "status": task.status,
-                "error": str(task.error) if task.error else None
-            }
-
-    def get_all_statuses(
-        self
-    ) -> Dict[str, Dict[str, Any]]:
-        """Get status of all edges"""
-        with self.lock:
-            return {
-                edge_id: self.get_edge_status(edge_id)
-                for edge_id in self._tasks
-            }
 

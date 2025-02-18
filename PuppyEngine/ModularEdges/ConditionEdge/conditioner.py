@@ -30,7 +30,7 @@ class ConditionerFactory(EdgeFactoryBase):
         results = {}
 
         for _, case_data in cases.items():
-            conditions = case_data["conditions"]
+            conditions = case_data.get("conditions", [])
             then_clause = case_data.get("then", {})
 
             satisfied = self._evaluate_conditions(conditions, content_blocks)
@@ -60,15 +60,15 @@ class ConditionerFactory(EdgeFactoryBase):
         operations = []
 
         for condition in conditions:
-            block_id = condition["block"]
+            block_id = condition.get("block")
             evaluator = ConditionEvaluator(content_blocks.get(block_id))
 
             condition_result = evaluator.evaluate(
-                condition["condition"],
+                condition.get("condition"),
                 condition.get("parameters", {})
             )
             evaluations.append(condition_result)
-            operations.append(condition["operation"])
+            operations.append(condition.get("operation"))
 
         result = self.evaluate_with_operations(evaluations, operations)
 
@@ -113,6 +113,8 @@ class ConditionerFactory(EdgeFactoryBase):
                     raise ValueError("None operation not supported in between conditions")
                 else:
                     raise ValueError(f"Unsupported operation: {operation}")
+            elif operation != "/":
+                    raise ValueError("AND, OR only supported in between conditions, use `/` instead")
 
         return result
 
