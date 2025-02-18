@@ -48,7 +48,7 @@ export type ProcessingData = {
 
 
 function useJsonConstructUtils() {
-    const {getEdges, getNode, setNodes, getNodes} = useReactFlow()
+    const {getEdges, getNode, setNodes, getNodes, getViewport} = useReactFlow()
     // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -260,7 +260,15 @@ function useJsonConstructUtils() {
                 // console.log(data);
                 // const data = deepParseJSON(event.data)
 
-                const data = JSON.parse(event.data)
+                let data
+                try{
+                    console.log("event",event)
+                    //event.data ="{\"error\": \"[PE_ERROR_4101]: Error Evaluating Cases!\\nCause: 'conditions'\"}" ERROR
+                    data = JSON.parse(event.data)
+                }catch(error){
+                    console.error('Error convert event data json to object by json parse:', error);
+                    reject(error)
+                }
                 
                 
     
@@ -459,6 +467,8 @@ function useJsonConstructUtils() {
     const constructWholeJsonWorkflow = useCallback(() => {
         const nodes = getNodes()
         const edges = getEdges()
+        const viewport = getViewport()
+
         // for (let node of nodes) {
         //     const myContructNode = searchNode(node.id)
         //     if (myContructNode) {
@@ -473,7 +483,7 @@ function useJsonConstructUtils() {
         //     }
         //     node.data.label = node.data.label ?? node.id
         // }
-        return {blocks:nodes, edges:edges}
+        return {blocks:nodes, edges:edges, viewport:viewport}
 
     }, [])
 
