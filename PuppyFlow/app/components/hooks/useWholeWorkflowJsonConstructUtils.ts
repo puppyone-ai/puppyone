@@ -115,7 +115,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       method: nodeInfo.data.method as string | undefined,
                       vdb_type: nodeInfo.data.vdb_type as string | undefined,
                       index_name: nodeInfo.data.index_name as string | undefined
-                  }
+                  },
+                  looped: (nodeInfo as { looped?: boolean }).looped ?? false
               }
               blocks[nodeInfo.id] = nodejson
               break
@@ -133,7 +134,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   type: nodeInfo.type!,
                   data: {
                       content: nodeContent
-                  }
+                  },
+                  looped: (nodeInfo as { looped?: boolean }).looped ?? false
               }
               blocks[nodeInfo.id] = nodejson
               break

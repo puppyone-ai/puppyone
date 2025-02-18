@@ -703,6 +703,11 @@ const FlowsPerUserProps = () => {
                         console.log("使用预加载的状态");
                         reactFlowInstance.setNodes(targetWorkspace.latestJson.blocks);
                         reactFlowInstance.setEdges(targetWorkspace.latestJson.edges);
+                        if(targetWorkspace?.viewport !== undefined){
+                            reactFlowInstance.setViewport(
+                                targetWorkspace?.viewport
+                            )
+                        }
                     } else {
                         console.log("从服务器获取最新状态");
                         const latestHistory = await fetchLatestWorkspaceHistory(newFlowId);
