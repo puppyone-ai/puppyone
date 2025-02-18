@@ -265,6 +265,11 @@ type WorkspaceData = {
     }
     zoomState?:any;
     isDirty: boolean; // 标记是否有未保存的更改
+    viewport?:{
+        x:number,
+        y:number,
+        zoom:number
+    }
 }
 
 export type FlowsPerUserContextType = {
@@ -321,6 +326,11 @@ const FlowsPerUserProps = () => {
     const unsavedStatesRef = useRef<Record<string, {
         nodes: Node[];
         edges: Edge[];
+        viewport:{
+            x:number,
+            y:number,
+            zoom:number
+        };
         timestamp: number;
     }>>({});
 
@@ -656,6 +666,7 @@ const FlowsPerUserProps = () => {
             console.log("切换前的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
                 isDirty: targetWorkspace?.isDirty,
+                viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
             
@@ -668,6 +679,7 @@ const FlowsPerUserProps = () => {
                 unsavedStatesRef.current[prevFlowId] = {
                     nodes: reactFlowInstance.getNodes(),
                     edges: reactFlowInstance.getEdges(),
+                    viewport: reactFlowInstance.getViewport(),
                     timestamp: Date.now()
                 };
             }
@@ -680,6 +692,11 @@ const FlowsPerUserProps = () => {
                     console.log("使用未保存的状态");
                     reactFlowInstance.setNodes(unsavedState.nodes);
                     reactFlowInstance.setEdges(unsavedState.edges);
+                    if(unsavedState?.viewport !== undefined){
+                        reactFlowInstance.setViewport(
+                            unsavedState?.viewport
+                        )
+                    }
                 } else {
                     const targetWorkspace = workspaces.find(w => w.flowId === newFlowId);
                     if (targetWorkspace?.latestJson) {
@@ -692,6 +709,11 @@ const FlowsPerUserProps = () => {
                         if (latestHistory) {
                             reactFlowInstance.setNodes(latestHistory.blocks);
                             reactFlowInstance.setEdges(latestHistory.edges);
+                            if(latestHistory?.viewport !== undefined){
+                                reactFlowInstance.setViewport(
+                                    latestHistory?.viewport
+                                )
+                            }
                             setWorkspaces(prev => prev.map(w => 
                                 w.flowId === newFlowId 
                                     ? { ...w, latestJson: latestHistory }
@@ -718,6 +740,7 @@ const FlowsPerUserProps = () => {
             console.log("切换后的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
                 isDirty: targetWorkspace?.isDirty,
+                viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
         } catch (error) {
