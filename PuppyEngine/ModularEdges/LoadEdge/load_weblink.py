@@ -26,8 +26,8 @@ class WeblinkLoadStrategy(LoadStrategy):
 
         if mode not in mode_dict:
             raise PuppyEngineException(1201, "Invalid Mode", 
-                                     f"Invalid mode '{mode}'. Supported: {list(mode_dict.keys())}")
+                                     f"Invalid mode `{mode}`. Supported: {list(mode_dict.keys())}")
 
         scraper = WebScraper()
-        logging.info(f"Fetching web content using mode '{mode}' for URL: {self.content}")
+        logging.info(f"Fetching web content using mode `{mode}` for URL: {self.content}")
         return getattr(scraper, mode_dict[mode])(self.content, **self.extra_configs)

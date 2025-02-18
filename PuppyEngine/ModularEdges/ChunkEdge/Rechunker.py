@@ -6,8 +6,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 import uuid
 from typing import List, Dict, Optional
-from PuppyEngine.ModularEdges.LLMEdge.generater import lite_llm_chat
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
+from ModularEdges.LLMEdge.generater import lite_llm_chat
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 
@@ -195,7 +195,7 @@ Output:
         as_list: bool = False
     ) -> List[str]:
         if as_list:
-            return [" ".join(chunk['propositions']) for chunk in self.chunks.values()]
+            return [" ".join(chunk["propositions"]) for chunk in self.chunks.values()]
         return self.chunks
 
 
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         "The year is 2023.",
         "One of the most important things that I didn't understand about the world as a child was the degree to which the returns for performance are superlinear.",
         "Teachers and coaches implicitly told us that the returns were linear.",
-        "I heard a thousand times that 'You get out what you put in'.",
+        "I heard a thousand times that 'You get out what you put in.",
     ]
     ac = ReChunker(propositions)
     ac.add_propositions(propositions)

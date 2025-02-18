@@ -23,5 +23,5 @@ class DatabaseLoadStrategy(LoadStrategy):
 
         db_loader = DatabaseFactory(self.content)
         metadata = db_loader.get_metadata(client_name)
-        logging.info(f"Metadata for client '{client_name}': {metadata}")
+        logging.info(f"Metadata for client `{client_name}`: {metadata}")
         return db_loader.query(client_name, table_name, columns, rows)

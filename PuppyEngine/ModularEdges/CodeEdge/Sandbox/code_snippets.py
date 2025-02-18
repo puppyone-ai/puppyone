@@ -89,7 +89,7 @@ class CodeSnippets:
         self
     ) -> str:
         try:
-            response = requests.get('https://ipapi.co/country/')
+            response = requests.get("https://ipapi.co/country/")
             return response.text if response.status_code == 200 else "Unknown"
         except Exception as e:
             return f"Error: {e}"
@@ -98,7 +98,7 @@ class CodeSnippets:
         self
     ) -> str:
         try:
-            response = requests.get('https://ipapi.co/continent_code/')
+            response = requests.get("https://ipapi.co/continent_code/")
             return response.text if response.status_code == 200 else "Unknown"
         except Exception as e:
             return f"Error: {e}"
@@ -107,7 +107,7 @@ class CodeSnippets:
         self
     ) -> str:
         try:
-            response = requests.get('https://ipapi.co/languages/')
+            response = requests.get("https://ipapi.co/languages/")
             if response.status_code == 200:
                 languages = response.text.split(",")[0]
                 return languages if languages else "Unknown"

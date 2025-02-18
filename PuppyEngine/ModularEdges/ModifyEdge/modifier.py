@@ -12,7 +12,7 @@ from ModifyEdge.edit_structured import StructuredNestedOperations
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
 
-plugin_pattern = r'\{\{(.*?)\}\}'
+plugin_pattern = r"\{\{(.*?)\}\}"
 
 
 class ModifierFactory(EdgeFactoryBase):
@@ -21,8 +21,8 @@ class ModifierFactory(EdgeFactoryBase):
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None,
     ) -> Any:
-        self.data = init_configs.get("data")
-        self.structured_operator = StructuredNestedOperations(self.data)
+        self.content = init_configs.get("content")
+        self.structured_operator = StructuredNestedOperations(self.content)
 
         modify_type = init_configs.get("modify_type")
         match modify_type:
@@ -37,13 +37,13 @@ class ModifierFactory(EdgeFactoryBase):
             case _:
                 raise ValueError(f"Unsupported execute Type: {modify_type}!")
 
-    @global_exception_handler(4210, "Error Copying Data")
+    @global_exception_handler(4210, "Error Copying Block Content")
     def _handle_copy(
         self,
     ) -> Any:
-        return copy.deepcopy(self.data)
+        return copy.deepcopy(self.content)
 
-    @global_exception_handler(4211, "Error Converting Data")
+    @global_exception_handler(4211, "Error Converting Block Content")
     def _handle_convert(
         self,
         **kwargs
@@ -51,7 +51,7 @@ class ModifierFactory(EdgeFactoryBase):
         source_type = kwargs.get("source_type", "text")
         target_type = kwargs.get("target_type", "structured")
         if source_type == "structured" and target_type == "text":
-            return str(self.data)
+            return str(self.content)
 
         if source_type == "text" and target_type == "structured":
             target_structure = kwargs.get("target_structure", "list")
@@ -60,19 +60,19 @@ class ModifierFactory(EdgeFactoryBase):
             dict_key = kwargs.get("dict_key", "value")
             if action_type == "default":
                 if list_separator:
-                    self.data = self.split_string_by_multiple_delimiters(self.data, list_separator)
-                return [self.data] if target_structure == "list" else {dict_key: self.data}
+                    self.content = self.split_string_by_multiple_delimiters(self.content, list_separator)
+                return [self.content] if target_structure == "list" else {dict_key: self.content}
             else:
-                return self.parse_json_from_string(self.data)
+                return self.parse_json_from_string(self.content)
 
-        return self.data
+        return self.content
 
     def split_string_by_multiple_delimiters(
         self,
         string: str,
         delimiters: List[str]
     ) -> List[str]:
-        pattern = '|'.join(map(re.escape, delimiters))
+        pattern = "|".join(map(re.escape, delimiters))
         return re.split(pattern, string)
 
     def parse_json_from_string(
@@ -120,7 +120,7 @@ class ModifierFactory(EdgeFactoryBase):
         input_str: str,
         parsed_dicts: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        dict_pattern = re.compile(r'\{[^\}]*\}')
+        dict_pattern = re.compile(r"\{[^\}]*\}")
         for match in dict_pattern.findall(input_str):
             try:
                 parsed_dict = json.loads(match)
@@ -136,7 +136,7 @@ class ModifierFactory(EdgeFactoryBase):
         parsed_dicts: List[Dict[str, Any]],
         parsed_lists: List[Any]
     ) -> List[Any]:
-        list_pattern = re.compile(r'\[[^\]]*\]')
+        list_pattern = re.compile(r"\[[^\]]*\]")
         for match in list_pattern.findall(input_str):
             try:
                 # Check if this list is not already part of a parsed dict
@@ -190,22 +190,22 @@ class ModifierFactory(EdgeFactoryBase):
             return plugins.get(key, f"{{{{{key}}}}}")
 
         plugin_pattern_compiled = re.compile(plugin_pattern)
-        self.data = plugin_pattern_compiled.sub(replacer, self.data)
-        self.data = self.data[slice_range[0]:slice_range[1] if slice_range[1] != -1 else None]
+        self.content = plugin_pattern_compiled.sub(replacer, self.content)
+        self.content = self.content[slice_range[0]:slice_range[1] if slice_range[1] != -1 else None]
         if sort_type in {"ascending", "descending"}:
-            self.data = sorted(self.data, reverse=(sort_type == "descending"))
+            self.content = sorted(self.content, reverse=(sort_type == "descending"))
 
-        return self.data
+        return self.content
 
-    @global_exception_handler(4213, "Error Editing Structured Data")
+    @global_exception_handler(4213, "Error Editing Structured Content")
     def _handle_edit_structured(
         self,
         **kwargs
     ) -> Any:
         operations = kwargs.get("operations", [])
-        result = self.data
+        result = self.content
 
-        # If no operations specified, return original data
+        # If no operations specified, return original content
         if not operations:
             return result
 
@@ -267,16 +267,16 @@ class ModifierFactory(EdgeFactoryBase):
                         raise ValueError(f"Unsupported operation type: {op_type}")
 
             except Exception as e:
-                raise PuppyEngineException(3802, f"Error executing structured operation '{op_type}'", str(e))
+                raise PuppyEngineException(3802, f"Error executing structured operation `{op_type}`", str(e))
 
             finally:
-                self.data = result
+                self.content = result
 
-        return self.data
+        return self.content
 
 
 if __name__ == "__main__":
-    # Test data setup
+    # Test Content setup
     nested_data = {
         "users": [
             {"id": 1, "name": "Alice", "scores": [85, 90, 78]},
@@ -303,9 +303,9 @@ if __name__ == "__main__":
     print("\n2. Testing Convert Operations")
     print("-" * 50)
     # Test text to structured conversion
-    text_data = '{"name": "Test", "values": [1, 2, 3]}'
+    text_data = "{'name': 'Test', 'values': [1, 2, 3]}"
     structured_result = ModifierFactory.execute(
-        init_configs={"data": text_data, "modify_type": "convert"}, 
+        init_configs={"content": text_data, "modify_type": "convert"}, 
         extra_configs={"source_type": "text", 
                         "target_type": "structured",
                         "action_type": "json"})
@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
     # Test structured to text conversion
     structured_to_text = ModifierFactory.execute(
-        init_configs={"data": structured_result, "modify_type": "convert"}, 
+        init_configs={"content": structured_result, "modify_type": "convert"}, 
         extra_configs={"source_type": "structured", 
                         "target_type": "text"})
     print("Structured to text:", structured_to_text)
@@ -322,7 +322,7 @@ if __name__ == "__main__":
     print("-" * 50)
     text_with_vars = "Hello {{name}}! Your score is {{score}}"
     replaced_text = ModifierFactory.execute(
-        init_configs={"data": text_with_vars, "modify_type": "edit_text"}, 
+        init_configs={"content": text_with_vars, "modify_type": "edit_text"}, 
         extra_configs={"plugins": {"name": "Alice", "score": "95"}})
     print("Variable replacement:", replaced_text)
 
@@ -339,7 +339,7 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": operations})
     print("Get operation result:", result)
 
@@ -354,7 +354,7 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": operations})
     print("After set_value:", result)
 
@@ -369,7 +369,7 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": operations})
     print("After append:", result)
 
@@ -384,7 +384,7 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": operations})
     print("After sort:", result)
 
@@ -400,11 +400,11 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": operations})
     print("Set union result:", result)
 
-    # Test variable replacement in structured data
+    # Test variable replacement in structured content
     operations = [
         {
             "type": "variable_replace",
@@ -414,7 +414,7 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": operations})
     print("After variable replacement:", result)
 
@@ -438,7 +438,7 @@ if __name__ == "__main__":
         }
     ]
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": chained_operations})
     print("Chained operations result:", result)
 
@@ -454,7 +454,7 @@ if __name__ == "__main__":
             }
         ]
         result = ModifierFactory.execute(
-            init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+            init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
             extra_configs={"operations": invalid_operations})
     except Exception as e:
         print("Expected error caught:", str(e))
@@ -469,7 +469,7 @@ if __name__ == "__main__":
             }
         ]
         result = ModifierFactory.execute(
-            init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+            init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
             extra_configs={"operations": invalid_path})
         print("Get with invalid path returns default:", result)
     except Exception as e:
@@ -479,7 +479,7 @@ if __name__ == "__main__":
     print("\n7. Testing variable replacement")
     print("-" * 50)
     result = ModifierFactory.execute(
-        init_configs={"data": nested_data, "modify_type": "edit_structured"}, 
+        init_configs={"content": nested_data, "modify_type": "edit_structured"}, 
         extra_configs={"operations": [
             {
                 "type": "variable_replace",

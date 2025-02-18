@@ -6,8 +6,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 import sys
 import math
-from typing import List, Dict, Optional
 from transformers import AutoTokenizer
+from typing import List, Dict, Optional
 from Utils.PuppyEngineExceptions import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 

@@ -8,7 +8,7 @@ from typing import Any, List, Tuple, Union, Optional, Callable
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 
-plugin_pattern = r'\{\{(.*?)\}\}'
+plugin_pattern = r"\{\{(.*?)\}\}"
 
 
 class StructuredNestedOperations:
@@ -203,10 +203,10 @@ class StructuredNestedOperations:
         list2 = filter_hashable(list2)
 
         operations = {
-            'union': set(list1) | set(list2),
-            'intersection': set(list1) & set(list2),
-            'difference': set(list1) - set(list2),
-            'symmetric_difference': set(list1) ^ set(list2)
+            "union": set(list1) | set(list2),
+            "intersection": set(list1) & set(list2),
+            "difference": set(list1) - set(list2),
+            "symmetric_difference": set(list1) ^ set(list2)
         }
 
         return list(operations.get(operation, set()))

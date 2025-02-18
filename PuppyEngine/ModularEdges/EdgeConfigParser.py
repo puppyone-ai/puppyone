@@ -3,6 +3,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import re
 from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
@@ -25,26 +26,9 @@ class EdgeConfigParser(ABC):
         edge_configs: Dict[str, Any],
         block_configs: List[Dict[str, Any]]
     ):
-        """
-        edge_configs: {
-            "inputs": {},
-            "outputs": {},
-            "...",
-            "extra_configs": {}
-        }
-        block_configs: {
-            <id>: {
-                "label": <label>,
-                "content": <content>,
-                "looped": <bool>
-            }
-        }
-        """
-
         self.edge_configs = edge_configs
         self.block_configs = block_configs
         self.placeholder_pattern = r"\{\{(.*?)\}\}"
-        self.unsupported_structure_error = "Unsupported Structure Error"
 
     @abstractmethod
     def parse(
@@ -53,6 +37,53 @@ class EdgeConfigParser(ABC):
     ) -> ParsedEdgeParams:
         """Parse edge and block configs into parameters for edge execution"""
         pass
+
+    def _get_base_configs(
+        self,
+        base_fields: Dict[str, str]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Get base configurations for init and extra configs"""
+
+        base_init = {
+            field: self.edge_configs.get(config_key, "")
+            for field, config_key in base_fields.items()
+        }
+        return base_init, self.edge_configs.get("extra_configs", {})
+
+    def _handle_loop_content(
+        self,
+        content: Any
+    ) -> List[str]:
+        """Convert content to list of strings for loop processing"""
+
+        if isinstance(content, list):
+            return [str(item) for item in content]
+        elif isinstance(content, dict):
+            return [str({k: v}) for k, v in content.items()]
+        return [str(content)]
+
+    def _prase_single_block_content(
+        self,
+        variable_field: str,
+        base_fields: Dict[str, str]
+    ) -> Tuple[bool, List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Parse single block content and generate configs for both single and loop cases"""
+
+        base_init, base_extra = self._get_base_configs(base_fields)
+
+        original_block_info = list(self.block_configs.values())[0]
+        is_loop = original_block_info.get("looped")
+        block_content = original_block_info.get("content")
+
+        if is_loop and isinstance(block_content, (list, dict)):
+            contents = self._handle_loop_content(block_content)
+            init_configs = [{**base_init, variable_field: content} for content in contents]
+            extra_configs = [base_extra] * len(contents)
+        else:
+            init_configs = [{**base_init, variable_field: str(block_content)}]
+            extra_configs = [base_extra]
+
+        return is_loop, init_configs, extra_configs
 
     def get_looped_configs(
         self
@@ -86,33 +117,34 @@ class EdgeConfigParser(ABC):
 
         return result
 
+    def replace_placeholders(
+        self,
+        text_content: str,
+        variable_values: Dict[str, Any]
+    ) -> str:
+        placeholders = re.findall(self.placeholder_pattern, text_content)
+        for content_block_label in placeholders:
+            replace_block_id = [
+                block_id for block_id, block_info in self.block_configs.items() 
+                if block_info.get("label") == content_block_label
+            ][0]
+            replaced_content = variable_values.get(replace_block_id, "")
+            text_content = text_content.replace(f"{{{{{content_block_label}}}}}", str(replaced_content))
+        return text_content
+
 
 class LoadConfigParser(EdgeConfigParser):
     def parse(
         self,
         variable_replace_field: str = "content"
     ) -> ParsedEdgeParams:
-        init_configs = []
-        extra_configs = []
-        base_init_configs = {
-            "block_type": self.edge_configs.get('block_type', ''),
+        base_fields = {
+            "block_type": "block_type",
         }
-        base_extra_configs = self.edge_configs.get('extra_configs', {})
-
-        original_block_info = list(self.block_configs.values())[0]
-        is_loop = original_block_info.get('looped')
-        block_content = original_block_info.get('content')
-        if is_loop and isinstance(block_content, (list, dict)):
-            loop_contents = (
-                [str(item) for item in block_content]
-                if isinstance(block_content, list)
-                else [str({key: val}) for key, val in block_content.items()]
-            )
-            init_configs = [{**base_init_configs, variable_replace_field: content} for content in loop_contents]
-            extra_configs = [base_extra_configs] * len(loop_contents)
-        else:
-            init_configs = [{**base_init_configs, variable_replace_field: str(block_content)}]
-            extra_configs = [base_extra_configs]
+        is_loop, init_configs, extra_configs = self._prase_single_block_content(
+            variable_replace_field,
+            base_fields
+        )
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -126,28 +158,14 @@ class SaveConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "data"
     ) -> ParsedEdgeParams:
-        init_configs = []
-        extra_configs = []
-        base_init_configs = {
-            "file_type": self.edge_configs.get('file_type', ''),
-            "file_name": self.edge_configs.get('file_name', ''),
+        base_fields = {
+            "file_type": "file_type",
+            "file_name": "file_name",
         }
-        base_extra_configs = self.edge_configs.get('extra_configs', {})
-
-        original_block_info = list(self.block_configs.values())[0]
-        is_loop = original_block_info.get('looped')
-        block_content = original_block_info.get('content')
-        if is_loop and isinstance(block_content, (list, dict)):
-            loop_contents = (
-                [str(item) for item in block_content]
-                if isinstance(block_content, list)
-                else [str({key: val}) for key, val in block_content.items()]
-            )
-            init_configs = [{**base_init_configs, variable_replace_field: content} for content in loop_contents]
-            extra_configs = [base_extra_configs] * len(loop_contents)
-        else:
-            init_configs = [{**base_init_configs, variable_replace_field: str(block_content)}]
-            extra_configs = [base_extra_configs]
+        is_loop, init_configs, extra_configs = self._prase_single_block_content(
+            variable_replace_field,
+            base_fields
+        )
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -159,12 +177,32 @@ class SaveConfigParser(EdgeConfigParser):
 class LLMConfigParser(EdgeConfigParser):
     def parse(
         self,
-        variable_replace_field: str = None
+        variable_replace_field: str = "messages"
     ) -> ParsedEdgeParams:
+        variable_replace_content = self.edge_configs.get(variable_replace_field, [])
+        self.edge_configs.pop("inputs")
+        self.edge_configs.pop("outputs")
+        self.edge_configs.pop(variable_replace_field)
+        variables = self.get_looped_configs()
+
+        init_configs = [{
+            **self.edge_configs,
+            variable_replace_field: [{
+                "role": message.get("role", "user"),
+                "content": self.replace_placeholders(message.get("content", ""), variable)
+            } for message in variable_replace_content]
+        } for variable in variables]
+
+        is_loop = len(variables) > 1
+        if is_loop:
+            extra_configs = [{}] * len(variables)
+        else:
+            extra_configs = [{}]
+
         return ParsedEdgeParams(
-            init_configs=self.edge_configs.get('init_configs', {}),
-            extra_configs=self.edge_configs.get('extra_configs', {}),
-            is_loop=False
+            init_configs=init_configs,
+            extra_configs=extra_configs,
+            is_loop=is_loop
         )
 
 
@@ -173,28 +211,14 @@ class ChunkConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "doc",
     ) -> ParsedEdgeParams:
-        init_configs = []
-        extra_configs = []
-        base_init_configs = {
-            "chunking_mode": self.edge_configs.get('chunking_mode', ''),
-            "sub_chunking_mode": self.edge_configs.get('sub_chunking_mode', ''),
+        base_fields = {
+            "chunking_mode": "chunking_mode",
+            "sub_chunking_mode": "sub_chunking_mode",
         }
-        base_extra_configs = self.edge_configs.get('extra_configs', {})
-
-        original_block_info = list(self.block_configs.values())[0]
-        is_loop = original_block_info.get('looped')
-        block_content = original_block_info.get('content')
-        if is_loop and isinstance(block_content, (list, dict)):
-            loop_contents = (
-                [str(item) for item in block_content]
-                if isinstance(block_content, list)
-                else [str({key: val}) for key, val in block_content.items()]
-            )
-            init_configs = [{**base_init_configs, variable_replace_field: content} for content in loop_contents]
-            extra_configs = [base_extra_configs] * len(loop_contents)
-        else:
-            init_configs = [{**base_init_configs, variable_replace_field: str(block_content)}]
-            extra_configs = [base_extra_configs]
+        is_loop, init_configs, extra_configs = self._prase_single_block_content(
+            variable_replace_field,
+            base_fields
+        )
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -211,16 +235,16 @@ class SearchConfigParser(EdgeConfigParser):
         variables = self.get_looped_configs()
         
         init_configs = [{
-            "search_type": self.edge_configs.get('search_type', ''),
-            variable_replace_field: variable.get(self.edge_configs.get('query_id', ''))
+            "search_type": self.edge_configs.get("search_type", ""),
+            variable_replace_field: variable.get(self.edge_configs.get("query_id", ""))
         } for variable in variables]
-        
-        original_extra_configs = self.edge_configs.get('extra_configs', {})
+
+        original_extra_configs = self.edge_configs.get("extra_configs", {})
         is_loop = len(variables) > 1
         if is_loop:
-            extra_configs = [{**original_extra_configs, "documents": variable.get(self.edge_configs.get('docs_id', ''))} for variable in variables]
+            extra_configs = [{**original_extra_configs, "documents": variable.get(self.edge_configs.get("docs_id", ""))} for variable in variables]
         else:
-            extra_configs = [{**original_extra_configs, "documents": self.block_configs.get(self.edge_configs.get('docs_id', '')).get('content', '')}]
+            extra_configs = [{**original_extra_configs, "documents": self.block_configs.get(self.edge_configs.get("docs_id", "")).get("content", "")}]
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -237,17 +261,17 @@ class RerankConfigParser(EdgeConfigParser):
         variables = self.get_looped_configs()
 
         init_configs = [{
-            "reranker_type": self.edge_configs.get('reranker_type', ''),
-            "model_name": self.edge_configs.get('model_name', ''),
-            "top_k": self.edge_configs.get('top_k', ''),
-            "query": variable.get(self.edge_configs.get('query', '')),
-            variable_replace_field: variable.get(self.edge_configs.get('retrieval_chunks', ''))
+            "reranker_type": self.edge_configs.get("reranker_type", ""),
+            "model_name": self.edge_configs.get("model_name", ""),
+            "top_k": self.edge_configs.get("top_k", ""),
+            "query": variable.get(self.edge_configs.get("query", "")),
+            variable_replace_field: variable.get(self.edge_configs.get("retrieval_chunks", ""))
         } for variable in variables]
         is_loop = len(variables) > 1
         if is_loop:
-            extra_configs = [self.edge_configs.get('extra_configs', {})] * len(variables)
+            extra_configs = [self.edge_configs.get("extra_configs", {})] * len(variables)
         else:
-            extra_configs = [self.edge_configs.get('extra_configs', {})]
+            extra_configs = [self.edge_configs.get("extra_configs", {})]
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -261,30 +285,16 @@ class QueryRewriteConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "query"
     ) -> ParsedEdgeParams:
-        init_configs = []
-        extra_configs = []
-        base_init_configs = {
-            "strategy_type": self.edge_configs.get('strategy_type', ''),
-            "model": self.edge_configs.get('model', ''),
+        base_fields = {
+            "strategy_type": "strategy_type",
+            "model": "model",
         }
-        base_extra_configs = self.edge_configs.get('extra_configs', {})
+        is_loop, init_configs, extra_configs = self._prase_single_block_content(
+            variable_replace_field,
+            base_fields
+        )
 
-        original_block_info = list(self.block_configs.values())[0]
-        is_loop = original_block_info.get('looped')
-        block_content = original_block_info.get('content')
-        if is_loop and isinstance(block_content, (list, dict)):
-            loop_contents = (
-                [str(item) for item in block_content]
-                if isinstance(block_content, list)
-                else [str({key: val}) for key, val in block_content.items()]
-            )
-            init_configs = [{**base_init_configs, variable_replace_field: content} for content in loop_contents]
-            extra_configs = [base_extra_configs] * len(loop_contents)
-        else:
-            init_configs = [{**base_init_configs, variable_replace_field: str(block_content)}]
-            extra_configs = [base_extra_configs]
-
-        return ParsedEdgeParams(
+        return ParsedEdgeParams(    
             init_configs=init_configs,
             extra_configs=extra_configs,
             is_loop=is_loop
@@ -299,14 +309,14 @@ class CodeConfigParser(EdgeConfigParser):
         variables = self.get_looped_configs()
         
         init_configs = [{
-            "code_string": self.edge_configs.get('code_string', ''),
+            "code_string": self.edge_configs.get("code_string", ""),
             variable_replace_field: variable
         } for variable in variables]
         is_loop = len(variables) > 1
         if is_loop:
-            extra_configs = [self.edge_configs.get('extra_configs', {})] * len(variables)
+            extra_configs = [self.edge_configs.get("extra_configs", {})] * len(variables)
         else:
-            extra_configs = [self.edge_configs.get('extra_configs', {})]
+            extra_configs = [self.edge_configs.get("extra_configs", {})]
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -323,14 +333,14 @@ class ConditionConfigParser(EdgeConfigParser):
         variables = self.get_looped_configs()
 
         init_configs = [{
-            "cases": self.edge_configs.get('cases', {}),
+            "cases": self.edge_configs.get("cases", {}),
             variable_replace_field: variable
         } for variable in variables]
         is_loop = len(variables) > 1
         if is_loop:
-            extra_configs = [self.edge_configs.get('extra_configs', {})] * len(variables)
+            extra_configs = [self.edge_configs.get("extra_configs", {})] * len(variables)
         else:
-            extra_configs = [self.edge_configs.get('extra_configs', {})]
+            extra_configs = [self.edge_configs.get("extra_configs", {})]
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -342,12 +352,25 @@ class ConditionConfigParser(EdgeConfigParser):
 class ModifyConfigParser(EdgeConfigParser):
     def parse(
         self,
-        variable_replace_field: str = None
+        variable_replace_field: str = "content"
     ) -> ParsedEdgeParams:
+        variables = self.get_looped_configs()
+
+        init_configs = [{
+            "modify_type": self.edge_configs.get("modify_type", ""),
+            variable_replace_field: self.replace_placeholders(self.edge_configs.get(variable_replace_field), variable)
+        } for variable in variables]
+
+        is_loop = len(variables) > 1
+        if is_loop:
+            extra_configs = [self.edge_configs.get("extra_configs", {})] * len(variables)
+        else:
+            extra_configs = [self.edge_configs.get("extra_configs", {})]
+
         return ParsedEdgeParams(
-            init_configs=self.edge_configs.get('init_configs', {}),
-            extra_configs=self.edge_configs.get('extra_configs', {}),
-            is_loop=False
+            init_configs=init_configs,
+            extra_configs=extra_configs,
+            is_loop=is_loop
         )
 
 
@@ -355,21 +378,29 @@ class ConfigParserFactory:
     """Factory for creating edge config parsers"""
 
     _parsers = {
-        'load': LoadConfigParser(),
-        'save': SaveConfigParser(),
-        'llm': LLMConfigParser(),
-        'chunk': ChunkConfigParser(),
-        'search': SearchConfigParser(),
-        'rerank': RerankConfigParser(),
-        'rewrite': QueryRewriteConfigParser(),
-        'code': CodeConfigParser(),
-        'condition': ConditionConfigParser(),
-        'modify': ModifyConfigParser()
+        "load": LoadConfigParser,
+        "save": SaveConfigParser,
+        "llm": LLMConfigParser,
+        "chunk": ChunkConfigParser,
+        "search": SearchConfigParser,
+        "rerank": RerankConfigParser,
+        "rewrite": QueryRewriteConfigParser,
+        "code": CodeConfigParser,
+        "condition": ConditionConfigParser,
+        "modify": ModifyConfigParser
     }
 
     @classmethod
-    def get_parser(cls, edge_type: str) -> EdgeConfigParser:
-        parser = cls._parsers.get(edge_type.lower())
+    def get_parser(
+        cls,
+        edge_type: str,
+        edge_configs: Dict[str, Any],
+        block_configs: List[Dict[str, Any]]
+    ) -> EdgeConfigParser:
+        parser = cls._parsers.get(edge_type.lower())(
+            edge_configs=edge_configs,
+            block_configs=block_configs
+        )
         if not parser:
             raise ValueError(f"No parser found for edge type: {edge_type}")
         return parser

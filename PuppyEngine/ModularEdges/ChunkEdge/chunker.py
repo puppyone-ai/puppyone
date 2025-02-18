@@ -5,12 +5,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 from typing import List, Dict, Any
-from ChunkEdge.llm_chunk import LLMChunking
-from ChunkEdge.auto_chunk import AutoChunking
-from ChunkEdge.length_chunk import LengthChunking
-from ChunkEdge.special_chunk import SpecialChunking
-from ChunkEdge.advanced_chunk import AdvancedChunking
-from ChunkEdge.character_chunk import CharacterChunking
+from ModularEdges.ChunkEdge.llm_chunk import LLMChunking
+from ModularEdges.ChunkEdge.auto_chunk import AutoChunking
+from ModularEdges.ChunkEdge.length_chunk import LengthChunking
+from ModularEdges.ChunkEdge.special_chunk import SpecialChunking
+from ModularEdges.ChunkEdge.advanced_chunk import AdvancedChunking
+from ModularEdges.ChunkEdge.character_chunk import CharacterChunking
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from Utils.PuppyEngineExceptions import global_exception_handler
 

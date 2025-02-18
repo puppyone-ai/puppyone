@@ -1,0 +1,47 @@
+{
+    "blocks": {
+        "cwn6fp": {
+            "id": "cwn6fp",
+            "position": { "x": 208, "y": -128 },
+            "data": {
+                "content": "",
+                "label": "cwn6fp",
+                "isLoading": false,
+                "locked": false,
+                "isInput": false,
+                "isOutput": false,
+                "editable": false
+            },
+            "type": "text",
+            "measured": { "width": 240, "height": 176 }
+      },
+      "XdXpde": {
+            "label": "XdXpde",
+            "type": "text",
+            "data": { "content": "hello" },
+            "looped": false
+      }
+    },
+    "edges": {
+        "IFELSE-1739778144972": {
+            "type": "ifelse",
+            "data": {
+                "cases": {
+                    "case1": {
+                        "conditions": [
+                            {
+                                "block": "XdXpde",
+                                "condition": "contain",
+                                "parameters": { "value": "he" },
+                                "operation": "/"
+                            }
+                        ],
+                        "then": { "from": "XdXpde", "to": "cwn6fp" }
+                    }
+                },
+                "inputs": { "XdXpde": "XdXpde" },
+                "outputs": { "cwn6fp": "cwn6fp" }
+            }
+        }
+    }
+}

@@ -241,6 +241,8 @@ class Conditioner:
                     raise ValueError("None operation not supported in between conditions")
                 else:
                     raise ValueError(f"Unsupported operation: {operation}")
+            elif operation != "/":
+                    raise ValueError("AND, OR only supported in between conditions, use `/` instead")
 
         return result
 

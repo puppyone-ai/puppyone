@@ -76,27 +76,27 @@ class CoderFactory(EdgeFactoryBase):
 
             # Set up restricted globals with PrintCollector
             restricted_globals = {
-                '__builtins__': safe_builtins,
-                '_print_': PrintCollector,
-                '_getattr_': getattr,
-                '_getiter_': iter,
-                '_getitem_': getitem,
-                'json': json,
-                '_apply_': lambda func, *args: func(*args),
+                "__builtins__": safe_builtins,
+                "_print_": PrintCollector,
+                "_getattr_": getattr,
+                "_getiter_": iter,
+                "_getitem_": getitem,
+                "json": json,
+                "_apply_": lambda func, *args: func(*args),
             }
 
-            restricted_globals['_print'] = PrintCollector()
+            restricted_globals["_print"] = PrintCollector()
 
             byte_code = compile_restricted(
                 code_string,
-                filename='<inline>',
-                mode='exec'
+                filename="<inline>",
+                mode="exec"
             )
 
             exec(byte_code, restricted_globals)
 
-            output = restricted_globals['_print']()
-            output_lines = output.strip().split('\n') if output.strip() else []
+            output = restricted_globals["_print"]()
+            output_lines = output.strip().split("\n") if output.strip() else []
 
             # Return string if single line, otherwise return list
             output = output_lines[0] if len(output_lines) == 1 else output_lines
@@ -136,8 +136,8 @@ class CoderFactory(EdgeFactoryBase):
 
 if __name__ == "__main__":
     variables = {
-        'arg_a': 3,
-        'arg_b': 4
+        "arg_a": 3,
+        "arg_b": 4
     }
     sample_code = """
 def add_two_numbers(arg_a, arg_b):
