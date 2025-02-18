@@ -1106,7 +1106,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 )
             }
 
-          lastNodesRef.current = currentNodes; // Save the current nodes to the ref
+          lastNodesRef.current = Array.from(new Set(currentNodes)); // Save the current nodes to the ref
           // You can also perform other side effects here if needed
         }, [getEdges()]); // Dependency array includes getNodes
 
@@ -1169,19 +1169,19 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     </div>
                 </li>
                 <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
-                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] flex items-center justify-start'>
                      input
                     </div>
-                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  border-l-[1px] border-[#6D7177]'>
                         {displaySourceNodeLabels()}
                     </div>
                     
                 </li>
                 <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
-                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] flex items-center justify-start'>
                      output
                     </div>
-                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  border-l-[1px] border-[#6D7177]'>
                         {displayOutputNodeLabels()} 
                         <svg onClick={
                             async()=>{
