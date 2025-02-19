@@ -257,6 +257,11 @@ type WorkspaceData = {
     latestJson: {
         blocks: Node[];
         edges: Edge[];
+        viewport?:{
+            x:number,
+            y:number,
+            zoom:number
+        };
     } | null;
     deploy:{
         selectedInputs:Array<deployItem>;
@@ -703,9 +708,9 @@ const FlowsPerUserProps = () => {
                         console.log("使用预加载的状态");
                         reactFlowInstance.setNodes(targetWorkspace.latestJson.blocks);
                         reactFlowInstance.setEdges(targetWorkspace.latestJson.edges);
-                        if(targetWorkspace?.viewport !== undefined){
+                        if(targetWorkspace?.latestJson?.viewport !== undefined){
                             reactFlowInstance.setViewport(
-                                targetWorkspace?.viewport
+                                targetWorkspace?.latestJson?.viewport
                             )
                         }
                     } else {
