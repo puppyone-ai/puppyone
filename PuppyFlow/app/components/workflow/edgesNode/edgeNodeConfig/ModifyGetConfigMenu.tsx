@@ -10,6 +10,10 @@ import { nanoid } from 'nanoid'
 type ModifyGetConfigProps = {
     show: boolean,
     parentId: string,
+    type:string,
+    MODIFY_GET_TYPE:string,
+    MODIFY_DEL_TYPE:string,
+    MODIFY_REPL_TYPE:string
 }
 
 
@@ -18,11 +22,11 @@ export type ModifyGetEdgeJsonType = {
     type: "modify",
     data: {
     //   content_type: modeNames, // or dict
-      modify_type: "get",
+      modify_type: string,
       extra_configs: {
         params: {
             path: (string|number)[],  // Get the first user's name
-            default: string      // Default value if key doesn't exist
+            default?: string      // Default value if key doesn't exist
         }
       },
       inputs: { [key: string]: string },
@@ -113,7 +117,7 @@ const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) =
     );
 };
 
-function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
+function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
@@ -298,14 +302,14 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             type: "modify",
             data: {  
                 // content_type: mode,
-                modify_type: "get",
+                modify_type: type,
                 extra_configs: {
                     params: {
                         path: [...getConfigDataa().map(({_,value})=>{
                             const num = Number(value);
                             return isNaN(num) ? value : num;
                         })],  // Get the first user's name
-                        default: "Get Failed, value not exist"      // Default value if key doesn't exist
+                        ...(type===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
                     }
                 },
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
@@ -460,7 +464,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 </svg>
                 </div>
                 <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
-                Get
+                {type.charAt(0).toUpperCase() + type.slice(1)}
                 </div>
             </div>
             </div>

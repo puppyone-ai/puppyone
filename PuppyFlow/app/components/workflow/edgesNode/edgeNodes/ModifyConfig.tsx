@@ -32,6 +32,10 @@ function ModifyConfig({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
         console.log(getInternalNode(id))
     }, [])
 
+    const MODIFY_GET_TYPE="get"
+    const MODIFY_DEL_TYPE="delete"
+    const MODIFY_REPL_TYPE="replace"
+
     const selectModifyMenuType = () => {
         switch (subMenuType) {
             case 'modify-copy':
@@ -41,7 +45,33 @@ function ModifyConfig({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
             case 'modify-structured':
                 return (<ModifyStructuredConfigMenu show={activatedEdge === id} parentId={id} />)
             case 'modify-get':
-                return (<ModifyGetConfigMenu show={activatedEdge === id} parentId={id} />)
+                return (<ModifyGetConfigMenu 
+                        show={activatedEdge === id} 
+                        parentId={id} 
+                        type={MODIFY_GET_TYPE} 
+                        MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
+                        MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
+                        MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
+            case 'modify-delete':
+                return (<ModifyGetConfigMenu 
+                        show={activatedEdge === id} 
+                        parentId={id} 
+                        type={MODIFY_DEL_TYPE} 
+                        MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
+                        MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
+                        MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
+            case 'modify-replace':
+                return (<ModifyGetConfigMenu 
+                        show={activatedEdge === id} 
+                        parentId={id} 
+                        type={MODIFY_REPL_TYPE} 
+                        MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
+                        MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
+                        MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
+            // case 'modify-convert2text':
+            //     return (<ModifyGetConfigMenu show={activatedEdge === id} parentId={id} />)
+            // case 'modify-convert2structured':
+            //     return (<ModifyGetConfigMenu show={activatedEdge === id} parentId={id} />)
             default:
                 return (<></>)
         }
