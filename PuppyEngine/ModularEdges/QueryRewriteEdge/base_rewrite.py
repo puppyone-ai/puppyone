@@ -1,8 +1,13 @@
+# If you are a VS Code users:
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import re
 import json
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
-from Edges.Generator import lite_llm_chat
+from ModularEdges.LLMEdge.generater import lite_llm_chat
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 

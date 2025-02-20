@@ -285,7 +285,7 @@ if __name__ == "__main__":
                 {
                     "block": "2",
                     "condition": "contain",
-                    "parameters": {"value": "h"},
+                    "parameters": {"value": "w"},
                     "operation": "/"
                 }
             ],

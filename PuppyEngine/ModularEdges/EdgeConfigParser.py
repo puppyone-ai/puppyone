@@ -4,6 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
+import json
 from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
@@ -120,16 +121,20 @@ class EdgeConfigParser(ABC):
     def replace_placeholders(
         self,
         text_content: str,
-        variable_values: Dict[str, Any]
-    ) -> str:
+        variable_values: Dict[str, Any],
+        keep_new_content_type: bool = False
+    ) -> Any:
         placeholders = re.findall(self.placeholder_pattern, text_content)
         for content_block_label in placeholders:
             replace_block_id = [
                 block_id for block_id, block_info in self.block_configs.items() 
                 if block_info.get("label") == content_block_label
-            ][0]
-            replaced_content = variable_values.get(replace_block_id, "")
-            text_content = text_content.replace(f"{{{{{content_block_label}}}}}", str(replaced_content))
+            ]
+            if replace_block_id:
+                replaced_content = variable_values.get(replace_block_id[0], "")
+                text_content = replaced_content if keep_new_content_type else text_content.replace(f"{{{{{content_block_label}}}}}", str(replaced_content))
+            else:
+                raise ValueError(f"Block {content_block_label} not found")
         return text_content
 
 
@@ -233,18 +238,22 @@ class SearchConfigParser(EdgeConfigParser):
         variable_replace_field: str = "query"
     ) -> ParsedEdgeParams:
         variables = self.get_looped_configs()
-        
+        query_id = list(self.edge_configs.get("query_id", {}).keys())[0]
+        docs_id = None
+
         init_configs = [{
             "search_type": self.edge_configs.get("search_type", ""),
-            variable_replace_field: variable.get(self.edge_configs.get("query_id", ""))
+            variable_replace_field: variable.get(query_id)
         } for variable in variables]
 
         original_extra_configs = self.edge_configs.get("extra_configs", {})
         is_loop = len(variables) > 1
+        if self.edge_configs.get("search_type") in {"vector", "keyword", "llm"}:
+            docs_id = list(self.edge_configs.get("docs_id", {}).keys())[0]
         if is_loop:
-            extra_configs = [{**original_extra_configs, "documents": variable.get(self.edge_configs.get("docs_id", ""))} for variable in variables]
+            extra_configs = [{**original_extra_configs, "documents": variable.get(docs_id, "")} for variable in variables]
         else:
-            extra_configs = [{**original_extra_configs, "documents": self.block_configs.get(self.edge_configs.get("docs_id", "")).get("content", "")}]
+            extra_configs = [{**original_extra_configs, "documents": self.block_configs.get(docs_id, {}).get("content", "")}]
 
         return ParsedEdgeParams(
             init_configs=init_configs,
@@ -355,23 +364,47 @@ class ModifyConfigParser(EdgeConfigParser):
         variable_replace_field: str = "content"
     ) -> ParsedEdgeParams:
         variables = self.get_looped_configs()
+        modify_type = self.edge_configs.get("modify_type", "")
 
         init_configs = [{
-            "modify_type": self.edge_configs.get("modify_type", ""),
-            variable_replace_field: self.replace_placeholders(self.edge_configs.get(variable_replace_field), variable)
+            "modify_type": modify_type,
+            variable_replace_field: self.replace_placeholders(
+                text_content=self.edge_configs.get(variable_replace_field),
+                variable_values=variable,
+                keep_new_content_type=True if modify_type == "edit_structured" else False
+            )
         } for variable in variables]
 
         is_loop = len(variables) > 1
-        if is_loop:
-            extra_configs = [self.edge_configs.get("extra_configs", {})] * len(variables)
-        else:
-            extra_configs = [self.edge_configs.get("extra_configs", {})]
+        extra_configs = self._handle_edit_structured_extra_configs(is_loop, variables)
 
         return ParsedEdgeParams(
             init_configs=init_configs,
             extra_configs=extra_configs,
             is_loop=is_loop
         )
+    
+    def _handle_edit_structured_extra_configs(
+        self,
+        is_loop: bool,
+        variables: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """Handle edit structured extra configs"""
+        if is_loop:
+            extra_configs = [self.edge_configs.get("extra_configs", {})] * len(variables)
+        else:
+            extra_configs = [self.edge_configs.get("extra_configs", {})]
+
+        for i, extra in enumerate(extra_configs):
+            operations = extra.get("operations", [])
+            for operation in operations:
+                params = operation.get("params", {})
+                for key, value in params.items():
+                    if key.startswith("value"):
+                        params[key] = self.replace_placeholders(value, variables[i], True)
+                operation["params"] = params
+            extra_configs[i] = extra
+        return extra_configs
 
 
 class ConfigParserFactory:
@@ -386,7 +419,7 @@ class ConfigParserFactory:
         "rerank": RerankConfigParser,
         "rewrite": QueryRewriteConfigParser,
         "code": CodeConfigParser,
-        "condition": ConditionConfigParser,
+        "ifelse": ConditionConfigParser,
         "modify": ModifyConfigParser
     }
 
@@ -397,11 +430,12 @@ class ConfigParserFactory:
         edge_configs: Dict[str, Any],
         block_configs: List[Dict[str, Any]]
     ) -> EdgeConfigParser:
-        parser = cls._parsers.get(edge_type.lower())(
+        parser = cls._parsers.get(edge_type.lower())
+        if not parser:
+            raise ValueError(f"No parser found for edge type: {edge_type}")
+
+        return parser(
             edge_configs=edge_configs,
             block_configs=block_configs
         )
-        if not parser:
-            raise ValueError(f"No parser found for edge type: {edge_type}")
-        return parser
 

@@ -1,7 +1,7 @@
 # If you are a VS Code users:
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import re
 from typing import Any, List, Tuple, Union, Optional, Callable
@@ -43,6 +43,8 @@ class StructuredNestedOperations:
     ) -> Any:
         current = self.data
         try:
+            if path == ["*"]:
+                return current
             for key in path:
                 current = current[key] if isinstance(current, dict) else current[int(key)]
             return current
@@ -185,15 +187,21 @@ class StructuredNestedOperations:
     @global_exception_handler(4208, "Error Setting Nested Operation")
     def nested_set_operation(
         self,
+        operation: str,
         path1: List[Union[str, int]],
         path2: List[Union[str, int]],
-        operation: str
+        value1: Any = None,
+        value2: Any = None
     ) -> List[Any]:
-        list1 = self.nested_get(path1)
-        list2 = self.nested_get(path2)
+        if value1 and value2 and isinstance(value1, list) and isinstance(value2, list):
+            list1 = value1
+            list2 = value2
+        else:
+            list1 = self.nested_get(path1)
+            list2 = self.nested_get(path2)
 
-        if not isinstance(list1, list) or not isinstance(list2, list):
-            return []
+            if not isinstance(list1, list) or not isinstance(list2, list):
+                return []
 
         # Filter out unhashable elements (e.g., dicts, lists) before set operations
         def filter_hashable(lst):

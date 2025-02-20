@@ -12,7 +12,7 @@
             "label":"b",
             "type": "structured",
             "data": {
-                "content": "",
+                "content": "la",
                 "embedding_view": []
             }
         },
@@ -45,7 +45,7 @@
                 "max_tokens": 2048,
                 "temperature": 0.7,
                 "inputs": {"2": "b", "3": "c"},
-                "outputs": {"4": "b"},
+                "outputs": {"4": "d"},
                 "structured_output": false
             }
         },
@@ -53,7 +53,7 @@
             "type": "llm",
             "data": {
                 "messages": [
-                    {"role": "system", "content": "You are a helpful AI assistant that called {{1}}"},
+                    {"role": "system", "content": "You are a helpful AI assistant that called {{c}}"},
                     {"role": "user", "content": "return {{a}} apples"}
                 ],
                 "sys_prompt": "",
@@ -61,7 +61,7 @@
                 "base_url": "",
                 "max_tokens": 2048,
                 "temperature": 0.7,
-                "inputs": {"1": "a"},
+                "inputs": {"1": "a", "3": "c"},
                 "outputs": {"2": "b"},
                 "structured_output": true
             }
