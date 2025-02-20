@@ -36,6 +36,81 @@ type ConstructedModifyGetJsonData = {
 }
 
 type modeNames = "list" | "dict"
+
+const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) => {
+    const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
+
+    const handleSelect = (keytype: string) => {
+        onSelect(keytype);
+        setIsOpen(false); // Close dropdown after selection
+    };
+
+    // Inline styles
+    const dropdownContainerStyle: React.CSSProperties  = {
+        position: 'relative',
+        cursor: 'pointer',
+    };
+
+    const dropdownHeaderStyle = {
+        padding: '8px',
+        backgroundColor: '#333', // Background color
+        color: 'white', // Text color
+        border: '1px solid #6D7177', // Border color
+        borderRadius: '4px', // Rounded corners
+    };
+
+    const dropdownListStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: '150%',
+        left: 0,
+        right: 0,
+        backgroundColor: 'black', // Background color for dropdown items
+        border: '1px solid #6D7177', // Border color
+        borderRadius: '4px', // Rounded corners
+        zIndex: 1000, // Ensure dropdown is above other elements
+        height: 'auto', // Max height for dropdown
+        width:'100px',
+        overflowY: 'auto', // Scroll if too many items
+        overflowX:'hidden',
+        color:'white'
+    };
+
+    const dropdownItemStyle = {
+        padding: '8px',
+        color: 'white', // Text color for items
+        cursor: 'pointer',
+    };
+
+    return (
+        <div style={dropdownContainerStyle}>
+            <div  className={`overflow-hidden text-[12px] text-nowrap font-[700] ${getConfigData[configIndex]?.key ?"text-[#000] ":"text-white"} leading-normal tracking-[0.84px] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] ${getConfigData[configIndex]?.key ?"border-[3px]":"border-[0px]"} ${getConfigData[configIndex]?.key ?"bg-[#6D7177]":""}`} onClick={() => {
+                
+                setIsOpen(prev => {
+                    console.log("open",prev)
+                    return !prev})
+                }}>
+                {getConfigData[configIndex]?.key  || "Select key type"} {/* Display selected label or placeholder */}
+            </div>
+            {isOpen ? (
+                <ul style={dropdownListStyle}>
+                    {console.log("options",options)}
+                    {options.map((keytype:string) => (
+                        <li
+                            key={keytype}
+                            style={dropdownItemStyle}
+                            onClick={() => handleSelect(keytype)}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
+                        >
+                            {keytype}
+                        </li>
+                    ))}
+                </ul>
+            ):<></>}
+        </div>
+    );
+};
+
 function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
@@ -311,6 +386,13 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             return node
         }))
     }
+
+  const[getConfigData, setGetConfigData ]=useState([
+    {
+        key:"key",
+        value:""
+    },
+  ])
     
   return (
 
@@ -371,7 +453,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[293px]'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
@@ -380,40 +462,163 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             </div>
             
         </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             mode
-            </div>
-            <select ref={modeRef} value={mode} onChange={() => {
-                if (modeRef.current){
-                    setMode(modeRef.current.value as modeNames)
-                    if (numKeyRef.current) {
-                        setNumKeyValue("")
-                    }
-                }
-            }} id='mode' className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                <option value={"list"}>
-                    list
-                </option>
-                <option value={"dict"}>
-                    dict
-                </option>
-            </select>
-            
-        </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[4px] w-[280px] h-[36px]'>
-            <div className='text-[#6D7177] w-[100px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
-             num / key
-            </div>
-            <input ref={numKeyRef} value={numKeyValue} onChange={() => {
-                if (numKeyRef.current) {
-                    setNumKeyValue(numKeyRef.current.value === "" ? "" : mode === "list" ? Number(numKeyRef.current.value) : numKeyRef.current.value)
-                }
-            }} id="model" type={mode === "list" ? "number" : "text"} className='px-[10px] py-[5px] rounded-r-[4px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
+
+            <li className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
+
+                <div className='border-[#6D7177] border-[1px] rounded-[8px]'>
+                    
+                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-[290px] p-3'>
+                        {
+                            getConfigData.map(
+                                ({key,value},index)=>(
+                                    <>
+                                    <label className='h-[16px] mb-[15px]'>  Step {index+1} </label>
+                                        <div className='inline-flex space-x-[12px] items-center justify-start'>
+                                        <svg onClick={
+                                            ()=>{
+                                                setGetConfigData(
+                                                    (prev)=>{
+                                                        return prev.filter(
+                                                            (_,curindex)=>index!==curindex
+                                                        )
+
+                                                    }
+                                                )
+                                            }
+                                        } className={`cursor-pointer ${getConfigData.length <= 1 ? 'invisible' : ''}`}  width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
+                                            <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
+                                        </svg>
+                                        <ul key={index} className='flex-col border-[#6D7177] rounded-[4px] w-fit bg-black'>
+                                            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[200px]'>
+                                                <div className='flex flex-row flex-wrap gap-[0px] items-center justify-start py-[8px] px-[10px] w-fit'>
+
+                                                <CustomDropdown
+                                                    options={["key","num"]}
+                                                    onSelect={(keytype:string) => {
+                                                            console.log("selected keytype:", keytype);
+                                                            setGetConfigData(
+                                                                (prev)=>{
+                                                                    return prev.map(
+                                                                        ({key:curkey,value:curvalue},curindex)=>{
+                                                                            if(curindex==index){
+                                                                                return {
+                                                                                    key:keytype,
+                                                                                    value:curvalue
+                                                                                }
+                                                                            }else{
+                                                                                return {
+                                                                                    key:curkey,
+                                                                                    value:curvalue
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    )
+
+                                                                }
+                                                            )
+                                                        }}
+                                                    configIndex={index}
+                                                    getConfigData={getConfigData}
+                                                    />
+                                                </div>
+                                                    {/* ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
+
+                                                    return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
+
+                                                    return ["is True","is False"] */}
+                                                <input 
+                                                        value={value}
+                                                        onChange={(e)=>{
+                                                            setGetConfigData(
+                                                                (prev)=>{
+                                                                    return prev.map(
+                                                                        ({key:curkey,value:curvalue},curindex)=>{
+                                                                            if(curindex==index){
+                                                                                return {
+                                                                                    key:curkey,
+                                                                                    value:e.target.value
+                                                                                }
+                                                                            }else{
+                                                                                return {
+                                                                                    key:curkey,
+                                                                                    value:curvalue
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    )
+
+                                                                }
+                                                            )
+                                                        }} 
+                                                        className="w-[125px] text-white bg-black caret-white border-l-[1px] pl-[5px]"
+                                                        type="text"></input>
+
+                                                
+                                            </li>
+                                        </ul>
+                                        {getConfigData.length - 1 === index ? (
+                                            <div
+                                            onClick={
+                                                ()=>{
+                                                    setGetConfigData(
+                                                        (prev)=>{
+                                                            return [
+                                                                ...prev,
+                                                                {
+                                                                    key:"key",
+                                                                    value:""
+                                                                }
+                                                            ]
+                                                        }
+                                                    )
+                                                }
+                                            } className='cursor-pointer'>
+                                            <span> </span>
+                                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
+                                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                                            </svg>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                            <span> </span>
+                                            <svg onClick={
+                                                ()=>{
+                                                    
+                                                }
+                                            } className='invisible' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
+                                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                                            </svg>
+                                            </div>
+                                        )}
+                                        </div>
+                                    </>
+                                )
+                            )
+                        }
+
+                    </div>
+
+                </div>
+            {/* <div className='flex flex-col gap-0 items-start justify-center '>
+                <button onClick={()=>{
+
+                }} className='flex rounded-[8px] bg-black text-[#6D7177] w-[52px] mt-1 font-plus-jakarta-sans text-[10px] font-[700] border-[1px] border-[#6D7177] items-center'>
+                            <svg className="flex-inline" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
+                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
+                            </svg> Case
+                </button>
+            </div> */}
             </li>
 
         
     </ul>
+    
   )
 }
 
