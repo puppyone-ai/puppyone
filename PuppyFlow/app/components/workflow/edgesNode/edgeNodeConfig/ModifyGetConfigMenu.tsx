@@ -387,13 +387,44 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
         }))
     }
 
-  const[getConfigData, setGetConfigData ]=useState([
+//   const[getConfigData, setGetConfigData ]=useState<{ key: string, value: string }[]>(getNode(parentId)?.data.getConfigData as [] || [
+//     {
+//         key:"key",
+//         value:""
+//     },
+//   ])
+
+  const setGetConfigDataa = (resolveData: (data:{ key: string; value: string; }[]) => { key: string; value: string; }[])=>{
+    setNodes(prevNodes => prevNodes.map(node => {
+        if (node.id === parentId) {
+            return { ...node, data: { ...node.data, getConfigData:resolveData(getConfigDataa()) } }; // Update the cases in the node's data
+        }
+        return node;
+    }))
+  }
+
+  const getConfigDataa = ()=> getNode(parentId)?.data.getConfigData as [] || [
     {
         key:"key",
         value:""
     },
-  ])
+  ]
+  
     
+
+//   useEffect(() => {
+//     setNodes(prevNodes => prevNodes.map(node => {
+//         if (node.id === parentId) {
+//             return { ...node, data: { ...node.data, getConfigData:getConfigData } }; // Update the cases in the node's data
+//         }
+//         return node;
+//     }));
+    
+//     setTimeout(() => {
+//         console.log("getconfigdata state track",getConfigData,getNode(parentId))
+//     }, 2000) // Log after 2 seconds
+// }, [getConfigData]); // Dependency array includes cases
+
   return (
 
     <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
@@ -469,14 +500,14 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                     
                     <div className='flex flex-col border-[#6D7177] border-b-[1px] w-[290px] p-3'>
                         {
-                            getConfigData.map(
+                            getConfigDataa().map(
                                 ({key,value},index)=>(
                                     <>
                                     <label className='h-[16px] mb-[15px]'>  Step {index+1} </label>
                                         <div className='inline-flex space-x-[12px] items-center justify-start'>
                                         <svg onClick={
                                             ()=>{
-                                                setGetConfigData(
+                                                setGetConfigDataa(
                                                     (prev)=>{
                                                         return prev.filter(
                                                             (_,curindex)=>index!==curindex
@@ -485,7 +516,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                                                     }
                                                 )
                                             }
-                                        } className={`cursor-pointer ${getConfigData.length <= 1 ? 'invisible' : ''}`}  width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        } className={`cursor-pointer ${getConfigDataa().length <= 1 ? 'invisible' : ''}`}  width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                                             <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
                                             <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
                                         </svg>
@@ -497,7 +528,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                                                     options={["key","num"]}
                                                     onSelect={(keytype:string) => {
                                                             console.log("selected keytype:", keytype);
-                                                            setGetConfigData(
+                                                            setGetConfigDataa(
                                                                 (prev)=>{
                                                                     return prev.map(
                                                                         ({key:curkey,value:curvalue},curindex)=>{
@@ -519,7 +550,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                                                             )
                                                         }}
                                                     configIndex={index}
-                                                    getConfigData={getConfigData}
+                                                    getConfigData={getConfigDataa()}
                                                     />
                                                 </div>
                                                     {/* ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
@@ -530,7 +561,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                                                 <input 
                                                         value={value}
                                                         onChange={(e)=>{
-                                                            setGetConfigData(
+                                                            setGetConfigDataa(
                                                                 (prev)=>{
                                                                     return prev.map(
                                                                         ({key:curkey,value:curvalue},curindex)=>{
@@ -557,11 +588,11 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                                                 
                                             </li>
                                         </ul>
-                                        {getConfigData.length - 1 === index ? (
+                                        {getConfigDataa().length - 1 === index ? (
                                             <div
                                             onClick={
                                                 ()=>{
-                                                    setGetConfigData(
+                                                    setGetConfigDataa(
                                                         (prev)=>{
                                                             return [
                                                                 ...prev,
