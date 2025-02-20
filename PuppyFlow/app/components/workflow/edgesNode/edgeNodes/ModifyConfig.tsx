@@ -4,6 +4,8 @@ import React, {useState, useEffect, useMemo, useCallback} from 'react'
 import ModifyCopyConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyCopyConfigMenu'
 import ModifyTextConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyTextConfigMenu'
 import ModifyStructuredConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyStructuredConfigMenu'
+import Modify2StructuredConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/Modify2StructuredConfigMenu'
+import Modify2TextConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/Modify2TextConfigMenu'
 import ModifyGetConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyGetConfigMenu'
 import { useReactFlow } from '@xyflow/react'
 
@@ -68,10 +70,10 @@ function ModifyConfig({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
                         MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
                         MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
                         MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
-            // case 'modify-convert2text':
-            //     return (<ModifyGetConfigMenu show={activatedEdge === id} parentId={id} />)
-            // case 'modify-convert2structured':
-            //     return (<ModifyGetConfigMenu show={activatedEdge === id} parentId={id} />)
+            case 'modify-convert2text':
+                return (<Modify2TextConfigMenu show={activatedEdge === id} parentId={id} />)
+            case 'modify-convert2structured':
+                return (<Modify2StructuredConfigMenu show={activatedEdge === id} parentId={id} />)
             default:
                 return (<></>)
         }
