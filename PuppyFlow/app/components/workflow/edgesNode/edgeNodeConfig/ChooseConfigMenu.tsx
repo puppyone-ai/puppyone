@@ -589,10 +589,18 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 resultNodeLabel = output;
             }
 
-            const nodejson: any = getNode(output)?getNode(output):{
-                label: resultNodeLabel,
-                type: "text",
-                data: { content: "" }
+            const nodeInfo = getNode(output);
+            if (!nodeInfo) continue;
+
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
+            const nodejson: NodeJsonType = {
+                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                type: nodeInfo.type!,
+                data: {
+                    content: nodeContent,
+                },
+                looped: (nodeInfo as any).looped ? (nodeInfo as any).looped : false
             };
             blocks[output] = nodejson;
         }
