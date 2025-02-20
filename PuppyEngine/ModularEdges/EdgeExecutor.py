@@ -62,7 +62,7 @@ class EdgeExecutor:
             "search": SearcherFactory,
             "modify": ModifierFactory,
             "rerank": RerankerFactory,
-            "condition": ConditionerFactory,
+            "ifelse": ConditionerFactory,
             "query_rewrite": QueryRewriterFactory
         }
 
@@ -71,6 +71,11 @@ class EdgeExecutor:
         self,
     ) -> EdgeTask:
         """Execute an edge operation with potential loop handling"""
+
+        start_time = datetime.now()
+        results = []
+        statuses = []
+        error = None
 
         try:
             parser = ConfigParserFactory.get_parser(
@@ -82,46 +87,46 @@ class EdgeExecutor:
             init_configs = parsed_params.init_configs
             extra_configs = parsed_params.extra_configs
             is_loop = parsed_params.is_loop
-            start_time = datetime.now()
 
-            if not is_loop:
+            if is_loop:
+                # Loop execution
+                futures = []
+                for i, init_param in enumerate(init_configs):
+                    futures.append(
+                        self.executor.submit(self._execute_single, init_param, extra_configs[i])
+                    )
+
+                # Wait for all loop iterations
+                for future in concurrent.futures.as_completed(futures):
+                    result, status, error = future.result()
+                    results.append(result)
+                    statuses.append(status)
+                    if error:
+                        break
+            else:
                 # Single execution
-                return self._execute_single(init_configs[0], extra_configs[0])
-
-            # Loop execution
-            futures = []
-            for i, init_param in enumerate(init_configs):
-                futures.append(
-                    self.executor.submit(self._execute_single, init_param, extra_configs[i])
-                )
-
-            # Wait for all loop iterations
-            results = []
-            errors = []
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    results.append(future.result())
-                except Exception as e:
-                    errors.append(str(e))
-
-            if errors:
-                raise ValueError("\n".join(errors))
-
+                result, status, error = self._execute_single(init_configs[0], extra_configs[0])
+                results.append(result)
+                statuses.append(status)
+            
             # Combine loop results
-            combined_task = EdgeTask(
+            status = "completed" if error is None and all(status == "completed" for status in statuses) else "failed"
+            combined_taskes = EdgeTask(
                 edge_type=self.edge_type,
                 start_time=start_time,
                 end_time=datetime.now(),
-                status="completed",
-                result=[task.result for task in results]
+                status=status,
+                result=results if is_loop else results[0],
+                error=error
             )
-            return combined_task
-            
+            return combined_taskes
+
         except Exception as e:
             return EdgeTask(
                 edge_type=self.edge_type,
                 start_time=start_time,
                 end_time=datetime.now(),
+                result=None,
                 status="failed",
                 error=e
             )

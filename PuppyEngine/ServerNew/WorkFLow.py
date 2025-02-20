@@ -209,6 +209,11 @@ class WorkFlow():
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
 
+    def get_processed_blocks(
+        self
+    ) -> List[str]:
+        return [bid for bid, state in self.block_states.items() if state == "processed"]
+
     def clear_workflow(
         self
     ) -> None:
@@ -220,6 +225,189 @@ class WorkFlow():
         self.edge_states = {}
         self.edge_to_inputs_mapping = {}
         self.edge_to_outputs_mapping = {}
+
+    @global_exception_handler(5202, "Error Processing Workflow", True)
+    def process(
+        self
+    ) -> Generator[Dict[str, Any], None, None]:
+        """Process the workflow with concurrent edge execution"""
+        try:
+            logger.info("Starting workflow processing")
+
+            # while there is still edges to process
+            parallel_batch = self._find_parallel_batches()
+            while parallel_batch:
+                logger.info("Found parallel batches: %s", parallel_batch)
+                processed_block_ids = self._process_batch_results(parallel_batch)
+                processed_blocks = {
+                    block_id: self.blocks.get(block_id, {}) 
+                    for block_id in processed_block_ids
+                }
+                yield processed_blocks
+                parallel_batch = self._find_parallel_batches()
+
+        finally:
+            self._log_final_states()
+            self.thread_executor.shutdown(wait=True)
+            logger.info("Workflow processing completed")
+
+    def _find_parallel_batches(
+        self
+    ) -> Set[str]:
+        """Find sets of edges that can be executed in parallel"""
+
+        processed_blocks = set(bid for bid, state in self.block_states.items() 
+                             if state == "processed")
+
+        # Find all edges whose input blocks are all processed
+        ready_edges = {
+            eid for eid, state in self.edge_states.items()
+            if state == "pending"
+            and all(bid in processed_blocks 
+                    for bid in self.edge_to_inputs_mapping[eid])
+        }
+
+        # Add output blocks to processed set for next batch
+        for edge_id in ready_edges:
+            processed_blocks.update(self.edge_to_outputs_mapping[edge_id])
+
+        return ready_edges
+
+    def _process_batch_results(
+        self,
+        batch: Set[str]
+    ) -> Set[str]:
+        # Stage 1: Mark processing states
+        with self.state_lock:
+            for edge_id in batch:
+                self.edge_states[edge_id] = "processing"
+
+        try:
+            # Stage 2: Process batch concurrently
+            outputs = self._execute_edge_batch(batch)
+            logger.info("Batch processing output: %s", outputs)
+
+            # Stage 3: Update states atomically
+            with self.state_lock:
+                # Update block states
+                for bid, content in outputs.items():
+                    self.block_states[bid] = "processed"
+                    block_type = self.blocks.get(bid, {}).get("type", "text")
+                    content = self._unicode_formatting(content, block_type)
+                    self.blocks[bid]["data"]["content"] = content
+                    self._valid_output_block_type(bid, content)
+
+                # Complete processed edges
+                for eid in batch:
+                    self.edge_states[eid] = "completed"
+
+            return outputs.keys()
+        except Exception as e:
+            logger.error(f"Batch processing failed: {str(e)}")
+            raise
+
+    def _execute_edge_batch(
+        self,
+        edge_batch: Set[str]
+    ) -> Dict[str, Any]:
+        """Execute a batch of edges concurrently"""
+        futures = {}
+        results = {}
+
+        try:
+            # Submit all edges in batch for concurrent execution
+            for edge_id in edge_batch:
+                edge_info = self.edges.get(edge_id)
+
+                # Prepare block configs for this edge
+                block_configs = self._prepare_block_configs(edge_id)
+                logger.debug(f"Edge {edge_id} block configs: {block_configs}")
+
+                # Submit edge execution
+                logger.info(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
+                futures[self.thread_executor.submit(
+                    EdgeExecutor(
+                        edge_type=edge_info.get("type"),
+                        edge_configs=edge_info.get("data", {}),
+                        block_configs=block_configs
+                    ).execute
+                )] = edge_id
+
+            # Wait for all edges in batch to complete
+            for future in concurrent.futures.as_completed(futures):
+                edge_id = futures[future]
+                try:
+                    results = self._process_edge_result(edge_id, results, future)
+                except Exception as e:
+                    logger.error(f"Edge {edge_id} execution failed with error: {str(e)}", exc_info=True)
+                    raise
+
+            return results
+
+        except Exception as e:
+            # Revert states on failure
+            with self.state_lock:
+                for edge_id in edge_batch:
+                    self.edge_states[edge_id] = "pending"
+                    logger.info(f"Reverted edge {edge_id} to pending state")
+
+            logger.error(f"Batch execution failed: {str(e)}", exc_info=True)
+            raise PuppyEngineException(5203, "Edge Batch Execution Failed", str(e))
+
+    def _prepare_block_configs(
+        self,
+        edge_id: str
+    ) -> Dict[str, Any]:
+        """Prepare block configs for edge execution"""
+        input_block_ids = self.edge_to_inputs_mapping.get(edge_id, [])
+        block_configs = {}
+        
+        for block_id in input_block_ids:
+            block = self.blocks.get(block_id)
+            if block:
+                block_configs[block_id] = {
+                    "label": block.get("label"),
+                    "content": block.get("data", {}).get("content"),
+                    "looped": block.get("looped", False)
+                }
+
+        return block_configs
+
+    def _process_edge_result(
+        self,
+        edge_id: str,
+        results: Dict[str, Any],
+        future: concurrent.futures.Future
+    ) -> None:
+        """Process the result of an edge execution"""
+
+        edge_result = future.result()
+
+        # Detailed execution result logging
+        log_msg = (
+            f"\nEdge Execution Summary:"
+            f"\n------------------------"
+            f"\nEdge ID: {edge_id}"
+            f"\nStatus: {edge_result.status}"
+            f"\nExecution Time: {edge_result.end_time - edge_result.start_time}"
+        )
+
+        if edge_result.error:
+            log_msg += f"\nError: {str(edge_result.error)}"
+            logger.error(log_msg)
+            raise edge_result.error
+        else:
+            log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
+            logger.info(log_msg)
+            if edge_result.status == "completed":
+                # Map results to output blocks
+                for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
+                    results[block_id] = edge_result.result
+                    logger.debug(f"Block {block_id} updated with result type: {type(edge_result.result)}")
+            else:
+                logger.warning(f"Edge {edge_id} completed but status is {edge_result.status}")
+
+        return results
 
     @global_exception_handler(5201, "Error Parsing Edge Connections")
     def _parse_edge_connections(
@@ -253,159 +441,6 @@ class WorkFlow():
             edge_to_outputs[edge_id] = output_blocks
 
         return edge_to_inputs, edge_to_outputs
-
-    def _prepare_block_configs(self, edge_id: str) -> Dict[str, Any]:
-        """Prepare block configs for edge execution"""
-        input_block_ids = self.edge_to_inputs_mapping.get(edge_id, [])
-        block_configs = {}
-        
-        for block_id in input_block_ids:
-            block = self.blocks.get(block_id)
-            if block:
-                block_configs[block_id] = {
-                    "label": block.get("label"),
-                    "content": block.get("data", {}).get("content"),
-                    "looped": block.get("looped", False)
-                }
-
-        return block_configs
-
-    def _execute_edge_batch(self, edge_batch: Set[str]) -> Dict[str, Any]:
-        """Execute a batch of edges concurrently"""
-        futures = {}
-        results = {}
-
-        try:
-            # Submit all edges in batch for concurrent execution
-            for edge_id in edge_batch:
-                edge_info = self.edges.get(edge_id)
-                if not edge_info:
-                    continue
-
-                # Prepare block configs for this edge
-                block_configs = self._prepare_block_configs(edge_id)
-
-                # Submit edge execution
-                futures[self.thread_executor.submit(
-                    EdgeExecutor(
-                        edge_type=edge_info.get("type"),
-                        edge_configs=edge_info.get("data", {}),
-                        block_configs=block_configs
-                    ).execute
-                )] = edge_id
-
-            # Wait for all edges in batch to complete
-            for future in concurrent.futures.as_completed(futures):
-                edge_id = futures[future]
-                try:
-                    edge_result = future.result()
-                    if edge_result.status == "completed":
-                        results[edge_id] = edge_result.result
-                    else:
-                        logger.error(f"Edge {edge_id} failed: {edge_result.error}")
-                        raise edge_result.error
-                except Exception as e:
-                    logger.error(f"Edge {edge_id} execution failed: {str(e)}")
-                    raise
-
-            return results
-
-        except Exception as e:
-            # Revert states on failure
-            with self.state_lock:
-                for edge_id in edge_batch:
-                    self.edge_states[edge_id] = "pending"
-            raise PuppyEngineException(5203, "Edge Batch Execution Failed", str(e))
-
-    def _find_parallel_batches(
-        self
-    ) -> List[Set[str]]:
-        """Find sets of edges that can be executed in parallel"""
-        batches = []
-        remaining = set(self.edges.keys())
-        processed_blocks = set(bid for bid, state in self.block_states.items() 
-                             if state == "processed")
-
-        while remaining:
-            # Find all edges whose input blocks are all processed
-            ready_edges = {
-                eid for eid in remaining
-                if self.edge_states[eid] == "pending"
-                and all(bid in processed_blocks 
-                       for bid in self.edge_to_inputs_mapping[eid])
-            }
-
-            if not ready_edges:
-                break
-
-            batches.append(ready_edges)
-            remaining -= ready_edges
-            
-            # Add output blocks to processed set for next batch
-            for edge_id in ready_edges:
-                processed_blocks.update(self.edge_to_outputs_mapping[edge_id])
-
-        return batches
-
-    @global_exception_handler(5202, "Error Processing Workflow", True)
-    def process(
-        self
-    ) -> Generator[Dict[str, Any], None, None]:
-        """Process the workflow with concurrent edge execution"""
-        try:
-            logger.info("Starting workflow processing")
-
-            while True:
-                # Find all edge batches that can run in parallel
-                parallel_batches = self._find_parallel_batches()
-                if not parallel_batches:
-                    break
-
-                logger.info("Found parallel batches: %s", parallel_batches)
-
-                for batch in parallel_batches:
-                    yield self._process_batch_results(batch)
-
-            return self.blocks
-
-        finally:
-            self.thread_executor.shutdown(wait=True)
-            logger.info("Workflow processing completed")
-
-    def _process_batch_results(
-        self,
-        batch: Set[str]
-    ) -> Generator[Dict[str, Any], None, None]:
-        # Stage 1: Mark processing states
-        with self.state_lock:
-            for edge_id in batch:
-                self.edge_states[edge_id] = "processing"
-        
-        try:
-            # Stage 2: Process batch concurrently
-            output_blocks = self._execute_edge_batch(batch)
-            logger.info("Batch processing output: %s", output_blocks)
-
-            # Stage 3: Update states atomically
-            with self.state_lock:
-                # Update block states
-                for bid in output_blocks:
-                    self.block_states[bid] = "processed"
-                # Complete processed edges
-                for eid in batch:
-                    self.edge_states[eid] = "completed"
-                # Update blocks registry
-                self.blocks.update(output_blocks)
-
-            yield output_blocks
-        except Exception as e:
-            logger.error(f"Batch processing failed: {str(e)}")
-            raise
-
-    def get_processed_blocks(
-        self
-    ) -> List[str]:
-        return [bid for bid, state in self.block_states.items() if state == "processed"]
 
     def _log_final_states(
         self
@@ -467,18 +502,17 @@ class WorkFlow():
         if isinstance(output, str) and block_type == "structured":
             self.blocks[target_block_id]["type"] = "text"
 
+
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "chunking.json":
+        # if file_name != "multiple_output_edge.json":
+        #     continue
+        if file_name == "embedding_search.json":
             continue
-        # if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
-        #     continue
-        # if file_name.startswith("modify") or file_name.startswith("loop_modify"):
-        #     continue
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
         with open(file_path, encoding="utf-8") as f:

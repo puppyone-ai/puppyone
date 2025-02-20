@@ -1,39 +1,44 @@
 # If you are a VS Code users:
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import re
 import json
 import copy
 from typing import Any, List, Dict, Union
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from ModifyEdge.edit_structured import StructuredNestedOperations
+from ModularEdges.ModifyEdge.edit_structured import StructuredNestedOperations
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
 
 plugin_pattern = r"\{\{(.*?)\}\}"
 
 
-class ModifierFactory(EdgeFactoryBase):
-    def execute(
+class Modifier(StructuredNestedOperations):
+    def __init__(
         self,
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None,
-    ) -> Any:
+    ):
+        super().__init__(init_configs.get("content"))
+        self.init_configs = init_configs
+        self.extra_configs = extra_configs
         self.content = init_configs.get("content")
-        self.structured_operator = StructuredNestedOperations(self.content)
 
-        modify_type = init_configs.get("modify_type")
+    def modify(
+        self
+    ) -> Any:
+        modify_type = self.init_configs.get("modify_type")
         match modify_type:
             case "copy":
                 return self._handle_copy()
             case "convert":
-                return self._handle_convert(**extra_configs)
+                return self._handle_convert()
             case "edit_text":
-                return self._handle_edit_text(**extra_configs)
+                return self._handle_edit_text()
             case "edit_structured":
-                return self._handle_edit_structured(**extra_configs)
+                return self._handle_edit_structured()
             case _:
                 raise ValueError(f"Unsupported execute Type: {modify_type}!")
 
@@ -46,18 +51,17 @@ class ModifierFactory(EdgeFactoryBase):
     @global_exception_handler(4211, "Error Converting Block Content")
     def _handle_convert(
         self,
-        **kwargs
     ) -> Any:
-        source_type = kwargs.get("source_type", "text")
-        target_type = kwargs.get("target_type", "structured")
+        source_type = self.extra_configs.get("source_type", "text")
+        target_type = self.extra_configs.get("target_type", "structured")
         if source_type == "structured" and target_type == "text":
             return str(self.content)
 
         if source_type == "text" and target_type == "structured":
-            target_structure = kwargs.get("target_structure", "list")
-            action_type = kwargs.get("action_type", "default")
-            list_separator = kwargs.get("list_separator", [])
-            dict_key = kwargs.get("dict_key", "value")
+            target_structure = self.extra_configs.get("target_structure", "list")
+            action_type = self.extra_configs.get("action_type", "default")
+            list_separator = self.extra_configs.get("list_separator", [])
+            dict_key = self.extra_configs.get("dict_key", "value")
             if action_type == "default":
                 if list_separator:
                     self.content = self.split_string_by_multiple_delimiters(self.content, list_separator)
@@ -179,11 +183,10 @@ class ModifierFactory(EdgeFactoryBase):
     @global_exception_handler(4212, "Error Editing Text")
     def _handle_edit_text(
         self,
-        **kwargs
     ) -> str:
-        plugins = kwargs.get("plugins", {})
-        slice_range = kwargs.get("slice", [0, -1])
-        sort_type = kwargs.get("sort_type", "")
+        plugins = self.extra_configs.get("plugins", {})
+        slice_range = self.extra_configs.get("slice", [0, -1])
+        sort_type = self.extra_configs.get("sort_type", "")
 
         def replacer(match):
             key = match.group(1)
@@ -193,16 +196,14 @@ class ModifierFactory(EdgeFactoryBase):
         self.content = plugin_pattern_compiled.sub(replacer, self.content)
         self.content = self.content[slice_range[0]:slice_range[1] if slice_range[1] != -1 else None]
         if sort_type in {"ascending", "descending"}:
-            self.content = sorted(self.content, reverse=(sort_type == "descending"))
-
+            self.content = "".join(sorted(self.content, reverse=(sort_type == "descending")))
         return self.content
 
     @global_exception_handler(4213, "Error Editing Structured Content")
     def _handle_edit_structured(
         self,
-        **kwargs
     ) -> Any:
-        operations = kwargs.get("operations", [])
+        operations = self.extra_configs.get("operations", [])
         result = self.content
 
         # If no operations specified, return original content
@@ -218,50 +219,52 @@ class ModifierFactory(EdgeFactoryBase):
                     case "get":
                         path = op_params.get("path", [])
                         default = op_params.get("default")
-                        result = self.structured_operator.nested_get(path, default)
+                        result = self.nested_get(path, default)
 
                     case "delete":
                         path = op_params.get("path", [])
-                        result = self.structured_operator.nested_delete(path)
+                        result = self.nested_delete(path)
 
                     case "append":
                         path = op_params.get("path", [])
                         value = op_params.get("value")
-                        result = self.structured_operator.nested_append(path, value)
+                        result = self.nested_append(path, value)
 
                     case "insert":
                         path = op_params.get("path", [])
                         index = op_params.get("index", 0)
                         value = op_params.get("value")
-                        result = self.structured_operator.nested_insert(path, index, value)
+                        result = self.nested_insert(path, index, value)
 
                     case "sort":
                         path = op_params.get("path", [])
                         reverse = op_params.get("reverse", False)
-                        result = self.structured_operator.nested_sort(path, reverse=reverse)
+                        result = self.nested_sort(path, reverse=reverse)
 
                     case "set_value":
                         path = op_params.get("path", [])
                         value = op_params.get("value")
-                        result = self.structured_operator.nested_set_value(path, value)
+                        result = self.nested_set_value(path, value)
 
                     case "get_keys":
                         max_depth = op_params.get("max_depth", -1)
-                        result = self.structured_operator.nested_keys(max_depth)
+                        result = self.nested_keys(max_depth)
 
                     case "get_values":
                         max_depth = op_params.get("max_depth", -1)
-                        result = self.structured_operator.nested_values(max_depth)
+                        result = self.nested_values(max_depth)
 
                     case "variable_replace":
                         plugins = op_params.get("plugins", {})
-                        result = self.structured_operator.replace_structured_variable_values(plugins=plugins)
+                        result = self.replace_structured_variable_values(plugins=plugins)
 
                     case "set_operation":
                         path1 = op_params.get("path1", [])
                         path2 = op_params.get("path2", [])
+                        value1 = op_params.get("value1", None)
+                        value2 = op_params.get("value2", None)
                         operation_type = op_params.get("operation", "union")
-                        result = self.structured_operator.nested_set_operation(path1, path2, operation_type)
+                        result = self.nested_set_operation(operation_type, path1, path2, value1, value2)
 
                     case _:
                         raise ValueError(f"Unsupported operation type: {op_type}")
@@ -274,6 +277,15 @@ class ModifierFactory(EdgeFactoryBase):
 
         return self.content
 
+
+class ModifierFactory(EdgeFactoryBase):
+    @classmethod
+    def execute(
+        cls,
+        init_configs: Dict[str, Any] = None,
+        extra_configs: Dict[str, Any] = None
+    ) -> Any:
+        return Modifier(init_configs, extra_configs).modify()
 
 if __name__ == "__main__":
     # Test Content setup
@@ -445,7 +457,6 @@ if __name__ == "__main__":
     # Test error handling
     print("\n6. Testing Error Handling")
     print("-" * 50)
-    ModifierFactory = ModifierFactory(nested_data)
     try:
         invalid_operations = [
             {

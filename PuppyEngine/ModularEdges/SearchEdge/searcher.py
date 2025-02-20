@@ -1,7 +1,7 @@
 # If you are a VS Code users:
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import os
 import sys
@@ -42,7 +42,6 @@ class SearcherFactory(EdgeFactoryBase):
 
         search_type = init_configs.get("search_type").lower()
         query = init_configs.get("query")
-        extra_configs["sub_search_type"] = init_configs.get("sub_search_type").lower()
 
         # Handle search strategies
         if search_type in search_strategies:
