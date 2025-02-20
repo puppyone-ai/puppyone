@@ -31,6 +31,21 @@ function ModifySubMenu({nodeType, sourceNodeId, showMenu, createNewConnection}: 
                     </li> 
                     <li className='w-full'>
                         <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            createNewConnection('modify', 'modify-convert2structured')
+                        }}>
+                        <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
+                        <rect x="3.75" y="0.75" width="7.5" height="7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <rect x="0.75" y="4.75" width="7.5" height="7.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
+                        </div>
+                        <div className='text-[14px] flex items-center justify-center h-full'>To structured</div>
+                        </button>
+                    </li> 
+                    <li className='w-full'>
+                        <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' onClick={(event) => {
                         
                             event.preventDefault()
                             event.stopPropagation()
@@ -58,6 +73,21 @@ function ModifySubMenu({nodeType, sourceNodeId, showMenu, createNewConnection}: 
                         </svg>
                         </div>
                         <div className='text-[14px] flex items-center justify-center h-full'>copy</div>
+                        </button>
+                    </li> 
+                    <li className='w-full'>
+                        <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' onClick={(event) => {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            createNewConnection('modify', 'modify-convert2text')
+                        }}>
+                        <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
+                        <rect x="3.75" y="0.75" width="7.5" height="7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <rect x="0.75" y="4.75" width="7.5" height="7.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
+                        </div>
+                        <div className='text-[14px] flex items-center justify-center h-full'>To text</div>
                         </button>
                     </li> 
                     <li className='w-full'>
