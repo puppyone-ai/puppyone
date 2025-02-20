@@ -17,11 +17,13 @@ export type ModifyGetEdgeJsonType = {
     // id: string,
     type: "modify",
     data: {
-      content_type: modeNames, // or dict
+    //   content_type: modeNames, // or dict
       modify_type: "get",
       extra_configs: {
-        index?: number,
-        key?: string // omit if not needed
+        params: {
+            path: (string|number)[],  // Get the first user's name
+            default: string      // Default value if key doesn't exist
+        }
       },
       inputs: { [key: string]: string },
       looped: boolean,
@@ -295,11 +297,16 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             // id: parentId,
             type: "modify",
             data: {  
-                content_type: mode,
+                // content_type: mode,
                 modify_type: "get",
                 extra_configs: {
-                    index: mode === "list" && typeof numKeyValue === "number" ? numKeyValue : undefined,
-                    key: mode === "dict" && typeof numKeyValue === "string" ?   numKeyValue : undefined
+                    params: {
+                        path: [...getConfigDataa().map(({_,value})=>{
+                            const num = Number(value);
+                            return isNaN(num) ? value : num;
+                        })],  // Get the first user's name
+                        default: "Get Failed, value not exist"      // Default value if key doesn't exist
+                    }
                 },
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 looped: isLoop,
