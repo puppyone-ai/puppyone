@@ -549,13 +549,13 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         inputCases.forEach((caseItem, index) => {
             const caseKey = `case${index + 1}`; // Create case keys like "case1", "case2", etc.
             transformedCases[caseKey] = {
-                conditions: caseItem.conditions.map(condition => ({
+                conditions: caseItem.conditions.map((condition,condition_id) => ({
                     block: condition.id, // Assuming 'id' is the block identifier
                     condition: getConditionValue(condition.cond_v),
                     parameters: { 
-                        [getConditionValue(condition.cond_v)]: condition.cond_input || "" // Ensure this is a string
+                        value: condition.cond_input || "" // Ensure this is a string
                     },
-                    operation: condition.operation || "and" // Default to "and" if not provided
+                    operation: condition_id === caseItem.conditions.length - 1? "/" : (condition.operation || "and") // Default to "and" if not provided
                 })),
                 then: {
                     from: caseItem.actions[0]?.from_id || "", // Get the from_id from actions
