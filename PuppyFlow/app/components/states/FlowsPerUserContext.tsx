@@ -663,7 +663,10 @@ const FlowsPerUserProps = () => {
             reactFlowInstance.setEdges(history.edges);
         }
         if(history.viewport){
-            reactFlowInstance.setViewport(history.viewport)
+            console.log("set viewport", history.viewport)
+            setTimeout(()=>{
+                    reactFlowInstance.setViewport(history.viewport)
+            },0)
         }
     };
 
