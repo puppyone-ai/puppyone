@@ -549,13 +549,13 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         inputCases.forEach((caseItem, index) => {
             const caseKey = `case${index + 1}`; // Create case keys like "case1", "case2", etc.
             transformedCases[caseKey] = {
-                conditions: caseItem.conditions.map(condition => ({
+                conditions: caseItem.conditions.map((condition,condition_id) => ({
                     block: condition.id, // Assuming 'id' is the block identifier
                     condition: getConditionValue(condition.cond_v),
                     parameters: { 
-                        [getConditionValue(condition.cond_v)]: condition.cond_input || "" // Ensure this is a string
+                        value: condition.cond_input || "" // Ensure this is a string
                     },
-                    operation: condition.operation || "and" // Default to "and" if not provided
+                    operation: condition_id === caseItem.conditions.length - 1? "/" : (condition.operation || "and") // Default to "and" if not provided
                 })),
                 then: {
                     from: caseItem.actions[0]?.from_id || "", // Get the from_id from actions
@@ -589,10 +589,18 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 resultNodeLabel = output;
             }
 
-            const nodejson: any = getNode(output)?getNode(output):{
-                label: resultNodeLabel,
-                type: "text",
-                data: { content: "" }
+            const nodeInfo = getNode(output);
+            if (!nodeInfo) continue;
+
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
+            const nodejson: NodeJsonType = {
+                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                type: nodeInfo.type!,
+                data: {
+                    content: nodeContent,
+                },
+                looped: (nodeInfo as any).looped ? (nodeInfo as any).looped : false
             };
             blocks[output] = nodejson;
         }

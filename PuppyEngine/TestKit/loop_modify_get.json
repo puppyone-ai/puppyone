@@ -63,9 +63,18 @@
         "modify-1730439189986": {
             "type": "modify",
             "data": {
-                "modify_type": "get",
+                "modify_type": "edit_structured",
+                "content": "{{b}}",
                 "extra_configs": {
-                    "index": 0
+                    "operations": [
+                        {
+                            "type": "get",
+                            "params": {
+                                "path": [0, 1],
+                                "default": "Unknown"
+                            }
+                        }
+                    ]
                 },
                 "inputs": {"2": "b"},
                 "outputs": {"3": "c"}

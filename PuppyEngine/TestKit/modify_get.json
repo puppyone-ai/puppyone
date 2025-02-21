@@ -29,9 +29,15 @@
             "data": {
                 "inputs": {"2": "b"},
                 "outputs": {"3": "c"},
-                "modify_type": "get",
+                "modify_type": "edit_structured",
+                "content": "{{b}}",
                 "extra_configs": {
-                    "key": "momoka"
+                    "operations": [
+                        {
+                            "type": "get",
+                            "params": {"path": ["momoka", "san"]}
+                        }
+                    ]
                 }
             }
         }

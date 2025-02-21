@@ -20,13 +20,13 @@
         "search-1728381295016": {
             "type": "search",
             "data": {
-              "search_type": "llm",
-              "sub_search_type": "perplexity",
+              "search_type": "qa",
               "inputs": {"1": "a"},
               "outputs": {"2": "b"},
               "query_id": {"1": "a"},
               "extra_configs": {
-                "model": "llama-3.1-sonar-small-128k-online"
+                "model": "llama-3.1-sonar-small-128k-online",
+                "sub_search_type": "perplexity"
               }
             }
           }
