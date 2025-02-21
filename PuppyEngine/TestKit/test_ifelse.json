@@ -1,0 +1,126 @@
+{
+    "blocks": {
+        "FqbFsH": {
+            "id": "FqbFsH",
+            "position": {
+
+                "x": 3856,
+
+                "y": 240
+
+            },
+            "data": {
+                "content": "",
+                "label": "FqbFsH",
+                "isLoading": false,
+                "locked": false,
+                "isInput": false,
+                "isOutput": false,
+                "editable": false
+            },
+            "type": "text",
+            "measured": {
+                "width": 240,
+                "height": 176
+            },
+            "selected": false,
+            "dragging": false
+        },
+        "iv-ilB": {
+            "id": "iv-ilB",
+            "position": {
+                "x": 3856,
+                "y": 480
+            },
+            "data": {
+                "content": "lskfl;kasl;fl;ask",
+                "label": "iv-ilB",
+                "isLoading": false,
+                "locked": false,
+                "isInput": false,
+                "isOutput": false,
+                "editable": false
+            },
+            "type": "text",
+            "measured": {
+                "width": 240,
+                "height": 176
+            },
+            "selected": false,
+            "dragging": false
+        },
+        "nnPISg": {
+            "label": "nnPISg",
+            "type": "text",
+            "data": {
+                "content": "lskfl;kasl;fl;ask"
+            },
+            "looped": false
+        },
+        "1Bd411": {
+            "label": "1Bd411",
+            "type": "text",
+            "data": {
+                "content": "123"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "IFELSE-1739952825557": {
+            "type": "ifelse",
+            "data": {
+                "cases": {
+                    "case1": {
+                        "conditions": [
+                            {
+                                "block": "nnPISg",
+                                "condition": "less_than_n_chars",
+                                "parameters": {
+                                    "value": 300
+                                },
+                                "operation": "and"
+                            },
+                            {
+                                "block": "1Bd411",
+                                "condition": "less_than_n_chars",
+                                "parameters": {
+                                    "value": 300
+                                },
+                                "operation": "/"
+                            }
+                        ],
+                        "then": {
+                            "from": "1Bd411",
+                            "to": "iv-ilB"
+                        }
+                    },
+                    "case2": {
+                        "conditions": [
+                            {
+                                "block": "nnPISg",
+                                "condition": "less_than_n_chars",
+                                "parameters": {
+                                    "value": 300
+                                },
+                                "operation": "/"
+                            }
+                        ],
+                        "then": {
+                            "from": "nnPISg",
+                            "to": "FqbFsH"
+                        }
+                    }
+                },
+                "inputs": {
+                    "nnPISg": "nnPISg",
+                    "1Bd411": "1Bd411"
+                },
+                "outputs": {
+                    "FqbFsH": "FqbFsH",
+                    "iv-ilB": "iv-ilB"
+                }
+            }
+        }
+    }
+}

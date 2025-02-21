@@ -40,11 +40,15 @@
             "type": "modify",
             "data": {
                 "modify_type": "edit_structured",
-                "extra_config": {},
-                "content": [
-                    "{{a}}",
-                    "{{b}}"
-                ],
+                "extra_config": {
+                    "operations": [
+                        {
+                            "type": "append",
+                            "params": {"path": ["*"], "value": "{{b}}"}
+                        }
+                    ]
+                },
+                "content": "{{a}}",
                 "inputs": {"1": "a", "2": "b"},
                 "outputs": {"3": "c"}
             }
