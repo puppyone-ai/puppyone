@@ -662,6 +662,9 @@ const FlowsPerUserProps = () => {
             reactFlowInstance.setNodes(history.blocks);
             reactFlowInstance.setEdges(history.edges);
         }
+        if(history.viewport){
+            reactFlowInstance.setViewport(history.viewport)
+        }
     };
 
     // 切换workspace
