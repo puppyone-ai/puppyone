@@ -16,7 +16,10 @@ export type ModifyConfigNodeData = {
     content_type: "list" | "dict" | null,
     extra_configs: {
         index: number | undefined,   
-        key: string | undefined
+        key: string | undefined,
+        params:{
+            path:(string|number)[]
+        }
     },
     resultNode: string | null
 }

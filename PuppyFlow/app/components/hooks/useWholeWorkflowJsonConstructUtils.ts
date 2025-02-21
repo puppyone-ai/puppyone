@@ -313,7 +313,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       modify_type: "get",
                       extra_configs: {
                           index: mode === "list" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.index as number : undefined,
-                          key: mode === "dict" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.key as string : undefined
+                          key: mode === "dict" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.key as string : undefined,
+                          params: (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.params // Add this line to match the expected type
                       },
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
