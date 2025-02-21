@@ -218,7 +218,7 @@ function DeployBotton() {
     }else{
       const inputData = inputs.map(
         (input, index) => (
-        `     #${getNode(input)?.data.label} \n` + `     "${input}":` + (getNode(input)?.data.content as string).trim() + `,`
+        `     #${getNode(input)?.data.label} \n` + `     "${input}":` + ((getNode(input)?.data.content as string)?.trim() || "\"\"") + `,`
         )
       );
       return inputData.join('\n')

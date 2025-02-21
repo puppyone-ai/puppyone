@@ -38,8 +38,10 @@
                 "inputs": {"1": "a"},
                 "outputs": {"2": "b"},
                 "modify_type": "edit_text",
+                "content": "Start\n{{a}}\nEnd.",
                 "extra_configs": {
-                    "string2": "{{a}}"
+                    "slice": [0, -1],
+                    "sort_type": "ascending"
                 }
             }
         },
@@ -57,9 +59,18 @@
             "data": {
                 "inputs": {"3": "c"},
                 "outputs": {"4": "d"},
-                "modify_type": "get",
+                "modify_type": "edit_structured",
+                "content": "{{c}}",
                 "extra_configs": {
-                    "key": "0"
+                    "operations": [
+                        {
+                            "type": "get",
+                            "params": {
+                                "path": [0],
+                                "default": "Unknown"
+                            }
+                        }
+                    ]
                 }
             }
         }

@@ -202,7 +202,7 @@ class StructuredNestedOperations:
         }
 
         return list(operations.get(operation, set()))
-
+    
     def replace_structured_variable_values(
         self,
         **kwargs
@@ -240,8 +240,10 @@ class JSONModifier(StructuredNestedOperations):
         match modify_type:
             case "copy":
                 return self._handle_copy()
-            case "convert":
-                return self._handle_convert(**kwargs)
+            case "convert2text":
+                return self._handle_convert_to_text(**kwargs)
+            case "convert2structured":
+                return self._handle_convert_to_structured(**kwargs)
             case "edit_text":
                 return self._handle_edit_text(**kwargs)
             case "edit_structured":
@@ -254,16 +256,15 @@ class JSONModifier(StructuredNestedOperations):
     ) -> Any:
         return copy.deepcopy(self.data)
 
-    def _handle_convert(
+    def _handle_convert_to_text(
+        self,
+    ) -> Any:
+        return str(self.data)
+
+    def _handle_convert_to_structured(
         self,
         **kwargs
     ) -> Any:
-        source_type = kwargs.get("source_type", "text")
-        target_type = kwargs.get("target_type", "structured")
-        if source_type == "structured" and target_type == "text":
-            return str(self.data)
-
-        if source_type == "text" and target_type == "structured":
             target_structure = kwargs.get("target_structure", "list")
             action_type = kwargs.get("action_type", "default")
             list_separator = kwargs.get("list_separator", [])
@@ -272,10 +273,8 @@ class JSONModifier(StructuredNestedOperations):
                 if list_separator:
                     self.data = self.split_string_by_multiple_delimiters(self.data, list_separator)
                 return [self.data] if target_structure == "list" else {dict_key: self.data}
-            else:
-                return self.parse_json_from_string(self.data)
 
-        return self.data
+                return self.parse_json_from_string(self.data)
 
     def split_string_by_multiple_delimiters(
         self,
@@ -363,7 +362,7 @@ class JSONModifier(StructuredNestedOperations):
             except json.JSONDecodeError:
                 continue
         return parsed_lists
-
+    
     def match_structured_cases(
         self,
         parsed_lists: List[Any],
@@ -381,11 +380,11 @@ class JSONModifier(StructuredNestedOperations):
             merged_data.update(dct)
 
         # Add any standalone lists with auto-generated keys
-        for i, lst in enumerate(parsed_lists, start=1):
-            merged_data[f"list_{i}"] = lst
+            for i, lst in enumerate(parsed_lists, start=1):
+                merged_data[f"list_{i}"] = lst
 
         return merged_data
-
+    
     def _handle_edit_text(
         self,
         **kwargs
@@ -503,7 +502,7 @@ if __name__ == "__main__":
     }
 
     print("\n=== Testing JSONModifier Operations ===\n")
-    
+
     # Initialize modifier
     modifier = JSONModifier(nested_data)
 
@@ -517,16 +516,11 @@ if __name__ == "__main__":
     # Test text to structured conversion
     text_data = '{"name": "Test", "values": [1, 2, 3]}'
     text_modifier = JSONModifier(text_data)
-    structured_result = text_modifier.modify("convert", 
-                                          source_type="text", 
-                                          target_type="structured",
-                                          action_type="json")
+    structured_result = text_modifier.modify("convert2structured", action_type="json")
     print("Text to structured:", structured_result)
 
     # Test structured to text conversion
-    structured_to_text = modifier.modify("convert", 
-                                       source_type="structured", 
-                                       target_type="text")
+    structured_to_text = modifier.modify("convert2text")
     print("Structured to text:", structured_to_text)
 
     print("\n3. Testing Edit Text Operations")
@@ -687,3 +681,4 @@ if __name__ == "__main__":
         }
     ])
     print("After variable replacement:", result)
+ 
