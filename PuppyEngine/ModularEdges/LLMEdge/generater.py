@@ -186,6 +186,55 @@ def lite_llm_chat(
     # Return the result from the chat service
     return result
 
+@global_exception_handler(3701, "Error Generating Response Using Huggingface LLM")
+def huggingface_llm_chat(
+    messages: List[Dict[str, str]],
+    model: str = None,
+    api_key: str = None,
+    api_base: str = None,
+    max_tokens: int = 4096,
+    temperature: float = 0.7,
+    stream: bool = False,
+    **kwargs
+) -> str:
+    """
+    Chat with Huggingface hosted models using litellm
+    
+    Args:
+        messages: List of message dicts with 'role' and 'content'
+        model: Huggingface model name (e.g. "meta-llama/Meta-Llama-3.1-8B-Instruct")
+        api_key: Huggingface API key
+        api_base: API base URL for dedicated endpoints
+        max_tokens: Maximum tokens to generate
+        temperature: Sampling temperature
+        stream: Whether to stream the response
+        **kwargs: Additional parameters for litellm
+        
+    Returns:
+        Generated response text
+    """
+    # Set API key if provided
+    if api_key:
+        os.environ["HUGGINGFACE_API_KEY"] = api_key
+
+    # Prepare model name with huggingface prefix
+    model_name = f"huggingface/{model}" if model else "huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+    # Initialize ChatService with Huggingface configs
+    chat_service = ChatService(
+        api_key=api_key,
+        base_url=api_base,
+        model=model_name,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stream=stream,
+        **kwargs
+    )
+
+    # Get response using the chat service
+    return chat_service.chat_completion()
+
 class LLMFactory(EdgeFactoryBase):
     @staticmethod
     def execute(
