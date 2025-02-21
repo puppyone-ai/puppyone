@@ -46,10 +46,17 @@
             "data": {
                 "inputs": {"2": "b"},
                 "outputs": {"3": "c", "4": "d"},
-                "content_type": "dict",
-                "modify_type": "get",
+                "content": "{{b}}",
+                "modify_type": "edit_structured",
                 "extra_configs": {
-                    "key": "momoka"
+                    "operations": [
+                        {
+                            "type": "get",
+                            "params": {
+                                "key": "momoka"
+                            }
+                        }
+                    ]
                 }
             }
         }

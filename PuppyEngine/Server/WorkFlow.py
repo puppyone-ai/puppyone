@@ -348,7 +348,7 @@ if __name__ == "__main__":
     test_kit = 'TestKit/'
     workflow = WorkFlow()
     for file_name in os.listdir(test_kit):
-        if file_name != "loop_llm.json":
+        if file_name != "test_ifelse.json":
             continue
         # if file_name in {"embedding_search.json", "concurrency.json", "loop_modify_get.json", "loop_modify_structured.json", "modify_get.json", "modify_structured.json", "multiple_output_edge.json"}:
         #     continue

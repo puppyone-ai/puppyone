@@ -21,12 +21,13 @@
             "type": "search",
             "data": {
               "search_type": "web",
-              "sub_search_type": "google",
               "top_k": 5,
               "inputs": {"1": "a"},
               "outputs": {"2": "b"},
               "query_id": {"1": "a"},
-              "extra_configs": {}
+              "extra_configs": {
+                "sub_search_type": "google"
+              }
             }
           }
     },
