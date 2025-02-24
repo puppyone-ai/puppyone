@@ -326,13 +326,29 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             new Promise(resolve => {
                 setNodes(prevNodes => {
                     resolve(null);
-                    return [...prevNodes, ...newNodes];
+                    return Array.from(new Set([...prevNodes, ...newNodes]));
                 })
             }),
             new Promise(resolve => {
                 setEdges(prevEdges => {
                     resolve(null);
-                    return [...prevEdges, ...newEdges];
+                        // Sort newEdges by output.id in ascending order
+                    const sortedNewEdges = [...prevEdges, ...newEdges].sort((a, b) => a.id.localeCompare(b.id));
+
+                    // Create a Set to track unique source-target combinations
+                    const uniqueEdges = new Set<string>();
+                    
+                    // Filter to keep only the first edge for each unique source-target combination
+                    const filteredEdges = sortedNewEdges.filter(edge => {
+                        const key = `${edge.source}-${edge.target}`;
+                        if (!uniqueEdges.has(key)) {
+                            uniqueEdges.add(key);
+                            return true; // Keep this edge
+                        }
+                        return false; // Skip this edge
+                    });
+
+                    return [...filteredEdges];
                 })
             }),
         ]);
