@@ -21,13 +21,17 @@ export type ModifyGetEdgeJsonType = {
     // id: string,
     type: "modify",
     data: {
-    //   content_type: modeNames, // or dict
-      modify_type: string,
+      content: string, // or dict
+      modify_type: "edit_structured",
       extra_configs: {
-        params: {
-            path: (string|number)[],  // Get the first user's name
-            default?: string      // Default value if key doesn't exist
+        "operations": [{
+            type:string,
+            params: {
+                path: (string|number)[],  // Get the first user's name
+                default?: string      // Default value if key doesn't exist
+            }
         }
+    ]
       },
       inputs: { [key: string]: string },
       looped: boolean,
@@ -297,22 +301,31 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
 
         let edges: { [key: string]: ModifyGetEdgeJsonType } = {}
 
+        const inputs = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label])))
+
+        const input_label = sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (node.label?node.label:node.id))[0]
+
         const edgejson: ModifyGetEdgeJsonType = {
             // id: parentId,
             type: "modify",
             data: {  
-                // content_type: mode,
-                modify_type: type,
+                content: `{{${input_label}}}`,
+                modify_type: "edit_structured",
                 extra_configs: {
-                    params: {
-                        path: [...getConfigDataa().map(({_,value})=>{
-                            const num = Number(value);
-                            return isNaN(num) ? value : num;
-                        })],  // Get the first user's name
-                        ...(type===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
-                    }
+                    operations:[
+                        {
+                            type:type,
+                            params: {
+                                path: [...getConfigDataa().map(({_,value})=>{
+                                    const num = Number(value);
+                                    return isNaN(num) ? value : num;
+                                })],  // Get the first user's name
+                                ...(type===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
+                            }
+                        }
+                    ]
                 },
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                inputs: inputs,
                 looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },

@@ -305,16 +305,27 @@ export default function useWholeWorkflowJsonConstructUtils() {
               } 
               else if (subMenuType === "modify-get") {
                 const mode = (nodeInfo.data as ModifyConfigNodeData).content_type as string ?? "list"
+
+                console.log("modify-get-node-data", nodeInfo)
                 edgejson = {
                   // id: nodeInfo.id,
                   type: "modify",
                   data: {  
-                      content_type: mode,
-                      modify_type: "get",
+                      content: `{{${sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (node.label?node.label:node.id))[0]}}}`,
+                      modify_type: "edit_structured",
                       extra_configs: {
-                          index: mode === "list" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.index as number : undefined,
-                          key: mode === "dict" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.key as string : undefined,
-                          params: (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.params // Add this line to match the expected type
+                        operations:[
+                                      {
+                                          type:"get",
+                                          params: {
+                                              path: [...(nodeInfo as any).data.getConfigData.map((el:{value:(string|number)})=>{
+                                                  const num = Number(el.value);
+                                                  return isNaN(num) ? el.value : num;
+                                              })],  // Get the first user's name
+                                              default: "Get Failed, value not exist"   // Default value if key doesn't exist
+                                          }
+                                      }
+                                    ]
                       },
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
@@ -322,6 +333,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   },
                 } as ModifyGetEdgeJsonType
                 edges[nodeInfo.id] = edgejson
+                console.log("modify-get-node-data", edgejson)
               }   
               else if (subMenuType === "modify-structured") {
                 edgejson = {
