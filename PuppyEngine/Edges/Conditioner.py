@@ -241,6 +241,8 @@ class Conditioner:
                     raise ValueError("None operation not supported in between conditions")
                 else:
                     raise ValueError(f"Unsupported operation: {operation}")
+            elif operation != "/":
+                    raise ValueError("AND, OR only supported in between conditions, use `/` instead")
 
         return result
 
@@ -283,7 +285,7 @@ if __name__ == "__main__":
                 {
                     "block": "2",
                     "condition": "contain",
-                    "parameters": {"value": "h"},
+                    "parameters": {"value": "w"},
                     "operation": "/"
                 }
             ],

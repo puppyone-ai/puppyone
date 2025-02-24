@@ -22,15 +22,19 @@
             "label": "a",
             "type": "structured",
             "data": {
-                "content": ["[\"222\"]","[\"333\"]"],
+                "content": ["[\"555\"]","[\"333\"]", "[\"444\"]"],
                 "embedding_view": [
                     {
-                        "content": "[\"222\"]",
+                        "content": "[\"555\"]",
                         "metadata": {"id": "1"}
                     },
                     {
                         "content": "[\"333\"]",
                         "metadata": {"id": "2"}
+                    },
+                    {
+                        "content": "[\"444\"]",
+                        "metadata": {"id": "3"}
                     }
                 ]
             },
@@ -50,13 +54,20 @@
             "type": "modify",
             "data": {
                 "modify_type": "edit_structured",
-                "extra_config": {},
-                "content": [
-                    "{{a}}",
-                    "{{b}}"
-                ],
+                "extra_config": {
+                    "operations": [
+                        {
+                            "type": "sort",
+                            "params": {
+                                "path": ["*"],
+                                "reverse": true
+                            }
+                        }
+                    ]
+                },
+                "content": "{{a}}",
                 "inputs": {"1": "a", "2": "b"},
-                "outputs": {"3": ""}
+                "outputs": {"3": "c"}
             }
         }
     },

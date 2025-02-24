@@ -1,32 +1,71 @@
 {
-      "blocks": {
-        "Qbp_1Y": {
+    "blocks": {
+        "1": {
+            "label":"a",
+            "type": "structured",
             "data": {
-                "content": "Rosebery 区居住如何?"
-            },
-            "label": "a",
-            "type": "text"
+                "content": "3",
+                "embedding_view": []
+            }
         },
-        "fv7x8J": {
+        "2": {
+            "label":"b",
+            "type": "structured",
+            "data": {
+                "content": "la",
+                "embedding_view": []
+            }
+        },
+        "3": {
+            "label": "c",
+            "type": "text",
+            "data": {
+                "content": "puppy"
+            }
+        },
+        "4": {
+            "label": "d",
+            "type": "text",
             "data": {
                 "content": ""
-            },
-            "label": "b",
-            "type": "text"
+            }
         }
-      },
+    },
     "edges": {
-        "code-1735285036365": {
+        "llm-1727235281399": {
+            "type": "llm",
             "data": {
-                "code": "def func(arg_Qbp_1Y):\n    return arg_Qbp_1Y",
-                "inputs": {
-                    "Qbp_1Y": "a"
-                },
-                "outputs": {
-                    "fv7x8J": "b"
-                }
-            },
-          "type": "code"
+                "messages": [
+                    {"role": "system", "content": "You are a helpful AI assistant"},
+                    {"role": "user", "content": "change the name in {{b}} into {{c}}"}
+                ],
+                "sys_prompt": "",
+                "model": "gpt-4o",
+                "base_url": "",
+                "max_tokens": 2048,
+                "temperature": 0.7,
+                "inputs": {"2": "b", "3": "c"},
+                "outputs": {"4": "d"},
+                "structured_output": false
+            }
+        },
+        "llm-2850284766678": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {"role": "system", "content": "You are a helpful AI assistant that called {{c}}"},
+                    {"role": "user", "content": "return {{a}} apples"}
+                ],
+                "sys_prompt": "",
+                "model": "gpt-4o",
+                "base_url": "",
+                "max_tokens": 2048,
+                "temperature": 0.7,
+                "inputs": {"1": "a", "3": "c"},
+                "outputs": {"2": "b"},
+                "structured_output": true
+            }
         }
-    }
+    },
+    "version": "0.1"
 }

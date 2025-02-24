@@ -9,15 +9,9 @@
         },
         "1": {
             "label":"a",
-            "type": "structured",
+            "type": "text",
             "data": {
-                "content": ["222"],
-                "embedding_view": [
-                    {
-                        "content": "222",
-                        "metadata": {"id": "1"}
-                    }
-                ]
+                "content": "hahaha"
             }
         },
         "3": {
@@ -32,7 +26,10 @@
             "type": "modify",
             "data": {
                 "modify_type": "edit_text",
-                "extra_config": {},
+                "extra_config": {
+                    "slice": [0, -2],
+                    "sort_type": "/"
+                },
                 "content": "111,{{a}}, 222,{{b}}",
                 "inputs": {"1": "a", "2": "b"},
                 "outputs": {"3": "c"}
