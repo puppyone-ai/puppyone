@@ -1,0 +1,40 @@
+{
+    "blocks": {
+        "1": {
+            "label": "structured_input",
+            "type": "structured",
+            "data": {
+                "content": {
+                    "name": "Alice",
+                    "scores": [85, 90, 78],
+                    "details": {
+                        "age": 25,
+                        "city": "New York"
+                    }
+                }
+            }
+        },
+        "2": {
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "convert-1": {
+            "type": "modify",
+            "data": {
+                "modify_type": "convert",
+                "content": "{{structured_input}}",
+                "extra_configs": {
+                    "source_type": "structured",
+                    "target_type": "text"
+                },
+                "inputs": {"1": "structured_input"},
+                "outputs": {"2": "text_output"}
+            }
+        }
+    },
+    "version": "0.1"
+} 
