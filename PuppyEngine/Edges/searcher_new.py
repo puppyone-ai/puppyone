@@ -564,7 +564,7 @@ class SearchClient:
 
         # Handle search strategies
         if search_type in search_strategies:
-            return search_strategies[search_type](query, extra_configs).search(**kwargs)
+            return search_strategies[search_type](query, extra_configs)
         elif search_type in retrieval_strategies:
             documents = kwargs.pop("documents", None)
             top_k = kwargs.pop("top_k", 10)
@@ -576,7 +576,7 @@ class SearchClient:
                 documents=documents,
                 top_k=top_k,
                 threshold=threshold
-            ).search(**kwargs)
+            )
 
         raise ValueError(f"Unsupported Search Type: {search_type}!")
 
@@ -587,16 +587,16 @@ if __name__ == "__main__":
 
     # Web Search Example
     query = "What is the impact of climate change?"
-    print(SearchClient.create("web", query, extra_configs={}, sub_search_type="google"))
+    print(SearchClient.create("web", query, extra_configs={}).search(sub_search_type="google"))
     extra_configs = {
         "ddg_search_type": "text",
         "max_results": 10
     }
-    print(SearchClient.create("web", query, extra_configs, sub_search_type="ddg"))
+    print(SearchClient.create("web", query, extra_configs).search(sub_search_type="ddg"))
 
     # LLM Search Example
-    print(SearchClient.create("qa", query, {"model": "sonar"}, sub_search_type="perplexity"))
-    print(SearchClient.create("qa", query, {"model": "gpt-4o-mini"}, sub_search_type="ddg"))
+    print(SearchClient.create("qa", query, {"model": "sonar"}).search(sub_search_type="perplexity"))
+    print(SearchClient.create("qa", query, {"model": "gpt-4o-mini"}).search(sub_search_type="ddg"))
 
     # Elasticsearch Example
     documents = [
@@ -626,7 +626,10 @@ if __name__ == "__main__":
         "index": "my_index",
         "documents": documents
     }
-    print( SearchClient.create("elastic", query, extra_configs))
+    client = SearchClient.create("elastic", query, extra_configs)
+    client.bulk_insert_data()
+    client.refresh_index()
+    print(client.search())
 
     # Keyword Retrieval Example
     query = "What did the fox do?"
@@ -651,6 +654,7 @@ if __name__ == "__main__":
         "keyword",
         query,
         extra_configs,
+    ).search(
         documents=documents,
         top_k=2,
         threshold=0.5
@@ -667,6 +671,7 @@ if __name__ == "__main__":
         "vector",
         query,
         extra_configs,
+    ).search(
         documents=documents,
         top_k=2,
         threshold=0.5
@@ -681,6 +686,7 @@ if __name__ == "__main__":
         "llm",
         query,
         extra_configs,
+    ).search(
         documents=documents,
         top_k=2,
         threshold=0.5

@@ -1,0 +1,8 @@
+# Block配置参数
+## Text
+* pure text
+* No CONFIGS!!!
+
+## Json
+* type: pure text/json
+* content: text content

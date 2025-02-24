@@ -48,7 +48,10 @@
             "type": "modify",
             "data": {
                 "modify_type": "edit_text",
-                "extra_config": {},
+                "extra_config": {
+                    "slice": [0, 3],
+                    "sort_type": "descending"
+                },
                 "content": "{{a}},{{b}}",
                 "inputs": {"1": "a", "2": "b"},
                 "outputs": {"3": ""}
