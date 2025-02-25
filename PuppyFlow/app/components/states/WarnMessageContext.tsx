@@ -14,6 +14,6 @@ export function WarnsProvider({ children }: {children:React.ReactNode}) {
 }
 
 
-const initialWarns = [
-  { time: Math.floor(Date.now() / 1000), text: `Example Error Message`}
+const initialWarns:{time:number, text:string}[] = [
+  // { time: Math.floor(Date.now() / 1000), text: `Example Error Message`}
 ];
