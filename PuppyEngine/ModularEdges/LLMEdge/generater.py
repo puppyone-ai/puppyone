@@ -186,7 +186,7 @@ def lite_llm_chat(
     # Return the result from the chat service
     return result
 
-@global_exception_handler(3701, "Error Generating Response Using Huggingface LLM")
+@global_exception_handler(3602, "Error Generating Response Using Hugging Face Models")
 def huggingface_llm_chat(
     messages: List[Dict[str, str]],
     model: str = None,
@@ -237,6 +237,7 @@ def huggingface_llm_chat(
 
 class LLMFactory(EdgeFactoryBase):
     @staticmethod
+    @global_exception_handler(3014, "Error Executing LLM Edge")
     def execute(
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None

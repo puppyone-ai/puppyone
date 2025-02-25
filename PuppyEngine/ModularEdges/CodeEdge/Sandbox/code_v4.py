@@ -56,7 +56,7 @@ class CoderFactory(EdgeFactoryBase):
         code_string += f"\nprint({func_name}({formatted_args}))"
         return code_string
 
-    @global_exception_handler(3901, "Error Executing Restricted Code")
+    @global_exception_handler(3020, "Error Executing Code Edge")
     def execute(
         self,
         init_configs: Dict[str, Any] = None,
