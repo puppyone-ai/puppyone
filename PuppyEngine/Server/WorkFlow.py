@@ -312,7 +312,6 @@ class WorkFlow():
 
         finally:
             self._log_final_states()
-            self.thread_executor.shutdown(wait=True)
             logger.info("Workflow processing completed")
 
     def _find_parallel_batches(
