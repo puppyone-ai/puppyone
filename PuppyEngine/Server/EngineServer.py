@@ -207,14 +207,14 @@ async def get_data(
                         "Workflow Not Found",
                         f"Workflow with task_id {task_id} not found"
                     )
-                workflow.clear_workflow()
-                json_data = data_store.get_data(task_id)
-                with open("./json_received.json", "w") as file:
-                    json.dump(json_data, file, indent=4)
-                workflow.config_workflow_json(json_data)
+                # workflow.clear_workflow()
+                # json_data = data_store.get_data(task_id)
+                # with open("./json_received.json", "w") as file:
+                #     json.dump(json_data, file, indent=4)
+                # workflow.config_workflow_json(json_data)
 
-                for yield_dict in workflow.process_all():
-                    yield f"data: {json.dumps({'data': yield_dict, 'is_complete': False})}\n\n"
+                for yielded_blocks in workflow.process():
+                    yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
                 log_info("data: Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"
@@ -241,7 +241,7 @@ async def send_data(
             blocks = data.get("blocks", {})
             edges = data.get("edges", {})
             data_store.set_data(task_id, blocks, edges)
-            data_store.set_workflow(task_id, WorkFlow())  # Store workflow in DataStore
+            data_store.set_workflow(task_id, WorkFlow(data))  # Store workflow in DataStore
             return JSONResponse(content={"data": data, "task_id": task_id}, status_code=200)
 
         return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
