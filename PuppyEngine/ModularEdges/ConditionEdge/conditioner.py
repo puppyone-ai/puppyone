@@ -11,7 +11,7 @@ from ModularEdges.ConditionEdge.condition_evaluation import ConditionEvaluator
 
 class ConditionerFactory(EdgeFactoryBase):
 
-    @global_exception_handler(4101, "Error Evaluating Cases")
+    @global_exception_handler(3021, "Error Executing Condition Edge")
     def execute(
         self,
         init_configs: Dict[str, Any] = None,
