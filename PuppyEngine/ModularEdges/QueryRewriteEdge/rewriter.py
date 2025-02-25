@@ -37,7 +37,7 @@ class QueryRewriterFactory(EdgeFactoryBase):
     }
 
     @classmethod
-    @global_exception_handler(3700, "Error Executing Query Rewrite")
+    @global_exception_handler(3019, "Error Executing Query Rewrite Edge")
     def execute(
         cls,
         init_configs: Dict[str, Any] = None,
