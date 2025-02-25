@@ -10,31 +10,30 @@ import { ModifyConfigNodeData } from '../edgeNodes/ModifyConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+import { get } from 'lodash'
 
 type ModifyCopyConfigProps = {
     show: boolean,
     parentId: string,
 }
 
-export type ModifyCopyEdgeJsonType = {
+export type Modify2TextJsonType = {
     // id: string,
     type: "modify",
     data: {
-        //   content_type: "str",
-        modify_type: "deep_copy"|"copy",
-        extra_configs: {},
+        content: string,
+        modify_type: "convert2text",
         inputs: { [key: string]: string },
-        looped: boolean,
         outputs: { [key: string]: string }
     },
 }
 
 type ConstructedModifyCopyJsonData = {
     blocks: { [key: string]: NodeJsonType },
-    edges: { [key: string]: ModifyCopyEdgeJsonType }
+    edges: { [key: string]: Modify2TextJsonType }
 }
 
-function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
+function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode, setNodes, setEdges } = useReactFlow()
     const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
@@ -175,17 +174,17 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
         transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
-        let edges: { [key: string]: ModifyCopyEdgeJsonType } = {}
+        let edges: { [key: string]: Modify2TextJsonType } = {}
 
-        const edgejson: ModifyCopyEdgeJsonType = {
+        const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
+
+        const edgejson: Modify2TextJsonType = {
             // id: parentId,
             type: "modify",
             data: {
-                // content_type: "str",
-                modify_type: "copy",
-                extra_configs: {},
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                looped: false,
+                content: getNode(input_ids[0])?.data.content as string,
+                modify_type: "convert2text",
+                inputs: input_ids,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
@@ -264,7 +263,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                             </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                            Copy
+                            Convert to Text
                         </div>
                     </div>
                 </div>
@@ -296,4 +295,4 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
     )
 }
 
-export default ModifyCopyConfigMenu
+export default Modify2TextConfigMenu
