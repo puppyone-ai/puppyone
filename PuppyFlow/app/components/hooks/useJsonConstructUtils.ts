@@ -3,7 +3,7 @@
 */
 import React, { Children } from "react";
 import { useReactFlow, Node } from "@xyflow/react";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useContext } from "react";
 import {JsonNodeData} from "../workflow/blockNode/JsonNode"
 import {FileNodeData} from "../workflow/blockNode/FileNode"
 import {ResultNodeData} from "../workflow/blockNode/ResultNode"
@@ -13,6 +13,7 @@ import {VectorDatabaseNodeData} from "../workflow/blockNode/VectorDatabaseNode"
 import {VectorNodeData} from "../workflow/blockNode/VectorNode"
 import {WebLinkNodeData} from "../workflow/blockNode/WebLinkNode"
 import { SYSTEM_URLS } from "@/config/urls";
+import { WarnsContext } from '../states/WarnMessageContext';
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
 
@@ -28,8 +29,7 @@ export interface NodeJsonType {
     type: string,
     label: string,
     data: BasicNodeData,
-    looped?: string
-    
+    looped?: string|boolean   
 }
 
 
@@ -49,7 +49,8 @@ export type ProcessingData = {
 
 
 function useJsonConstructUtils() {
-    const {getEdges, getNode, setNodes, getNodes} = useReactFlow()
+    const {getEdges, getNode, setNodes, getNodes, getViewport} = useReactFlow()
+    const {warns,setWarns} = useContext(WarnsContext);
     // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -70,6 +71,27 @@ function useJsonConstructUtils() {
     //     return getEdges().filter(edge => edge.target === parentId).map(edge => edge.source).map(childnodeid => (getNode(childnodeid)?.data?.label as string | undefined) ?? `no.${childnodeid}`).sort((a, b) => a.localeCompare(b));
     // }, [getEdges])
 
+    const transformBlocksFromSourceNodeIdWithLabelGroup = ( blocks: { [key: string]: NodeJsonType }, sourceNodeIdWithLabelGroup: any) => {
+        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
+            const nodeInfo = getNode(sourceNodeIdWithLabel.id);
+            console.log("nodeinfo",getNode(sourceNodeIdWithLabel.id))
+            if (!nodeInfo) continue;
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
+            const nodejson: NodeJsonType = {
+                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                type: nodeInfo.type!,
+                data: {
+                    content: nodeContent,
+                },
+                looped: (nodeInfo as any).looped ? (nodeInfo as any).looped : false
+            };
+            blocks[nodeInfo.id] = nodejson;
+        }
+        return blocks
+    }
+    
+
     const getSourceNodeIdWithLabel = useCallback((parentId: string) => {
         return getEdges().filter(edge => edge.target === parentId).map(edge => edge.source).map(childnodeid => ({id: childnodeid, label: (getNode(childnodeid)?.data?.label as string | undefined) ?? childnodeid})).sort((a, b) => Number(a.id) - Number(b.id));
     }, [getEdges])
@@ -77,17 +99,23 @@ function useJsonConstructUtils() {
     /* 
         Editor 中获取的JSONString 有空格和空行符号，为了传输给后端没有这些符号，通过这个公式处理
     */
-    const cleanJsonString = useCallback((jsonString: string) => {
-        try {
-          // 解析 JSON 字符串为 JavaScript 对象
-          const jsonObject = JSON.parse(jsonString);
-          // 将对象转换回 JSON 字符串，不包含额外的空白字符
-          return jsonObject
-        //   return JSON.stringify(jsonObject);
-        } catch (error) {
-          console.error("Invalid JSON:", error);
-          return []; // 或者返回原始字符串，取决于你的错误处理策略
+    const cleanJsonString = useCallback((jsonString: string, nodeType?: string) => {
+        const type = nodeType?nodeType:"structured"
+        
+        if(type=="structured"){
+            try {
+              // 解析 JSON 字符串为 JavaScript 对象
+              const jsonObject = JSON.parse(jsonString);
+              // 将对象转换回 JSON 字符串，不包含额外的空白字符
+              return jsonObject
+            //   return JSON.stringify(jsonObject);
+            } catch (error) {
+              console.error("Invalid JSON:", error);
+              return []; // 或者返回原始字符串，取决于你的错误处理策略
+            }
         }
+
+        return JSON.parse(`${jsonString}`);
       }, [])
 
     
@@ -234,7 +262,26 @@ function useJsonConstructUtils() {
                 // console.log(data);
                 // const data = deepParseJSON(event.data)
 
-                const data = JSON.parse(event.data)
+                let data: any
+                try{
+                    console.log("event",event)
+                    //event.data ="{\"error\": \"[PE_ERROR_4101]: Error Evaluating Cases!\\nCause: 'conditions'\"}" ERROR
+                    data = JSON.parse(event.data)
+                    if(data.error){
+                        setWarns(
+                            (prev:{time:number, text:string}[])=>[
+                                ...prev,
+                                {
+                                    time:Math.floor(Date.now() / 1000),
+                                    text:`${data.error}`        
+                                } 
+                            ]
+                        )
+                    }
+                }catch(error){
+                    console.error('Error convert event data json to object by json parse:', error);
+                    reject(error)
+                }
                 
                 
     
@@ -433,6 +480,8 @@ function useJsonConstructUtils() {
     const constructWholeJsonWorkflow = useCallback(() => {
         const nodes = getNodes()
         const edges = getEdges()
+        const viewport = getViewport()
+
         // for (let node of nodes) {
         //     const myContructNode = searchNode(node.id)
         //     if (myContructNode) {
@@ -447,7 +496,7 @@ function useJsonConstructUtils() {
         //     }
         //     node.data.label = node.data.label ?? node.id
         // }
-        return {blocks:nodes, edges:edges}
+        return {blocks:nodes, edges:edges, viewport:viewport}
 
     }, [])
 
@@ -527,7 +576,7 @@ function useJsonConstructUtils() {
       }, []);
     
 
-    return {getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
+    return {transformBlocksFromSourceNodeIdWithLabelGroup, getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
 
 
 }

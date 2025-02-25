@@ -108,7 +108,7 @@ if __name__ == "__main__":
         for i in range(len(documents))
     ]
     user_id = "test_user"
-    vdb_type = "pgvector"
+    vdb_type = "pinecone"
     model = "text-embedding-ada-002"
 
     collection_name = embedding(

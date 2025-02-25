@@ -21,7 +21,7 @@ export type ModifyCopyEdgeJsonType = {
     type: "modify",
     data: {
         //   content_type: "str",
-        modify_type: "deep_copy",
+        modify_type: "deep_copy"|"copy",
         extra_configs: {},
         inputs: { [key: string]: string },
         looped: boolean,
@@ -37,7 +37,7 @@ type ConstructedModifyCopyJsonData = {
 function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode, setNodes, setEdges } = useReactFlow()
-    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const { allowActivateOtherNodesWhenConnectEnd, clearAll } = useNodesPerFlowContext()
     const [resultNode, setResultNode] = useState<string | null>((getNode(parentId)?.data as ModifyConfigNodeData)?.resultNode ?? null)
@@ -173,22 +173,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
             }
         }
 
-        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
-            const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
-                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
-                type: nodeInfo.type!,
-                data: {
-                    content: nodeContent,
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                }
-            }
-            blocks[nodeInfo.id] = nodejson
-        }
+        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
         let edges: { [key: string]: ModifyCopyEdgeJsonType } = {}
 
@@ -197,7 +182,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
             type: "modify",
             data: {
                 // content_type: "str",
-                modify_type: "deep_copy",
+                modify_type: "copy",
                 extra_configs: {},
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
                 looped: false,

@@ -115,7 +115,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       method: nodeInfo.data.method as string | undefined,
                       vdb_type: nodeInfo.data.vdb_type as string | undefined,
                       index_name: nodeInfo.data.index_name as string | undefined
-                  }
+                  },
+                  looped: (nodeInfo as { looped?: boolean }).looped ?? false
               }
               blocks[nodeInfo.id] = nodejson
               break
@@ -133,7 +134,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   type: nodeInfo.type!,
                   data: {
                       content: nodeContent
-                  }
+                  },
+                  looped: (nodeInfo as { looped?: boolean }).looped ?? false
               }
               blocks[nodeInfo.id] = nodejson
               break
@@ -269,7 +271,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                         {"role": "system", 
                          "content": "You are an AI"},
                         {"role": "user", 
-                        "content": "introduce yourself"}
+                        "content": "Answer the question by {{input_ID}}"}
                        ],
                     model: (nodeInfo.data as LLMConfigNodeData)?.model ?? "gpt-4o",
                     base_url: (nodeInfo.data as LLMConfigNodeData)?.base_url ?? "",
@@ -292,7 +294,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   // id: nodeInfo.id,
                   type: "modify",
                   data: { 
-                      modify_type: "deep_copy",
+                      modify_type: "copy",
                       extra_configs: {}, 
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
@@ -303,15 +305,27 @@ export default function useWholeWorkflowJsonConstructUtils() {
               } 
               else if (subMenuType === "modify-get") {
                 const mode = (nodeInfo.data as ModifyConfigNodeData).content_type as string ?? "list"
+
+                console.log("modify-get-node-data", nodeInfo)
                 edgejson = {
                   // id: nodeInfo.id,
                   type: "modify",
                   data: {  
-                      content_type: mode,
-                      modify_type: "get",
+                      content: `{{${sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (node.label?node.label:node.id))[0]}}}`,
+                      modify_type: "edit_structured",
                       extra_configs: {
-                          index: mode === "list" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.index as number : undefined,
-                          key: mode === "dict" ? (nodeInfo.data as ModifyConfigNodeData)?.extra_configs?.key as string : undefined
+                        operations:[
+                                      {
+                                          type:"get",
+                                          params: {
+                                              path: [...(nodeInfo as any).data.getConfigData.map((el:{value:(string|number)})=>{
+                                                  const num = Number(el.value);
+                                                  return isNaN(num) ? el.value : num;
+                                              })],  // Get the first user's name
+                                              default: "Get Failed, value not exist"   // Default value if key doesn't exist
+                                          }
+                                      }
+                                    ]
                       },
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
@@ -319,6 +333,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   },
                 } as ModifyGetEdgeJsonType
                 edges[nodeInfo.id] = edgejson
+                console.log("modify-get-node-data", edgejson)
               }   
               else if (subMenuType === "modify-structured") {
                 edgejson = {
@@ -359,14 +374,36 @@ export default function useWholeWorkflowJsonConstructUtils() {
                 const vectorDB_label = vectorDB_id ? getNode(vectorDB_id)?.data?.label as string | undefined ?? vectorDB_id : undefined
                 const query_id = (nodeInfo.data as SearchConfigNodeData)?.query_id?.id
                 const query_label = query_id ? getNode(query_id)?.data?.label as string | undefined ?? query_id : undefined
+              // "search-1728709343180": {
+              // "type": "search",
+              // "data": {
+              //     "search_type": "vector",
+              //     "inputs": {
+              //         "3": "",
+              //         "4": ""
+              //     },
+              //     "outputs": { "5": "" },
+              //     "top_k": 10,
+              //     "threshold": 0.5,
+              //     "extra_configs": {
+              //     "model": "text-embedding-ada-002",
+              //     "db_type": "pgvector",
+              //     "collection_name": "test_collection",
+              //     },
+              //     "docs_id": {"3": ""},
+              //     "query_id": {"4": ""}
+              // }
+              // }
+              // id: parentId,
                 edgejson = {
                   // id: nodeInfo.id,
                   type: "search",
                   data: {  
-                      search_type: "rag",
-                      sub_search_type: "vector",
-                      top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
+                      search_type: "vector", //vector?
+                      // sub_search_type: "vector",
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string},
+                      top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
                       threshold: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7,
                       extra_configs: {
                         provider: "openai",
@@ -377,8 +414,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       docs_id: {[vectorDB_id as string]: vectorDB_label as string},
                       query_id: {[query_id as string]: query_label as string},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
-                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
+                  id:nodeInfo.id
                 } as SearchByVectorEdgeJsonType
                 edges[nodeInfo.id] = edgejson
               }
@@ -555,5 +592,5 @@ export default function useWholeWorkflowJsonConstructUtils() {
     }, []);
 
 
-    return {sendWholeWorkflowJsonDataToBackend, isComplete, setIsComplete}
+    return {sendWholeWorkflowJsonDataToBackend, isComplete, setIsComplete, constructWholeWorkflowJsonData}
 }

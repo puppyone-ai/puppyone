@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
+import { useReactFlow } from '@xyflow/react'
 
 function SaveButton() {
 
-  const { selectedFlowId, forceSaveHistory } = useFlowsPerUserContext()
+  const { selectedFlowId, forceSaveHistory,setWorkspaces, workspaces } = useFlowsPerUserContext()
   const [saveState, setSaveState] = useState<"error" | "success" | "idle">("idle")
   const [isHovering, setIsHovering] = useState(false)
   const { isOnGeneratingNewNode } = useNodesPerFlowContext()
+  const {getViewport} = useReactFlow();
 
   const handleSave = async () => {
     try {
@@ -21,6 +23,26 @@ function SaveButton() {
       setSaveState("error")
     }
   }
+
+  const [saveRequestState, setSaveRequestState] = useState<any>(undefined)
+  const handleSaveButton = async ()=>{
+    setSaveRequestState("start")
+    setWorkspaces(prev => prev.map(w => 
+      w.flowId === selectedFlowId ? { ...w, viewport:getViewport() } : w
+    ))
+  }
+  
+  useEffect(() => {
+    if(saveRequestState=="start"){
+      const saveData = async () => {
+        console.log("handle save effect", workspaces)
+        setSaveRequestState("end")
+        await handleSave();
+      };
+      saveData();
+    }
+  }, [saveRequestState]);
+
 
   useEffect(() => {
       const timer = setTimeout(() => {
@@ -49,7 +71,7 @@ function SaveButton() {
     onClick={(e) => {
       e.preventDefault()  
       e.stopPropagation()
-      handleSave()
+      handleSaveButton()
     }}>
         <div className='group-hover:text-main-grey fill-main-grey'>
             {saveButtonLogo}

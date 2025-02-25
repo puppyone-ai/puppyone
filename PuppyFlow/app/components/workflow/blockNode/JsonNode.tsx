@@ -38,6 +38,8 @@ type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
 function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name } }: JsonBlockNodeProps) {
 
+
+  type ExtendedNode = Node<JsonNodeData> & { looped?: boolean };
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
@@ -52,13 +54,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const labelRef = useRef<HTMLInputElement | null>(null)
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
-  const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
+  const [isEditing, setIsEditing] = useState(false)
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   const [INPUT_VIEW_MODE, EMBED_VIEW_MODE] = ["input view", "embedding view"]
   const [viewMode, setViewMode] = useState(INPUT_VIEW_MODE); // State for button text
   const [isEmbedHidden, setIsEmbedHidden] = useState(true)
   const { cleanJsonString } = useJsonConstructUtils()
-  const [isLooped, setIsLooped] = useState(false); // New state to track the position
+  const [isLooped, setIsLooped] = useState<boolean>((getNode(id) as ExtendedNode)?.looped || false); // New state to track the position
 
 
 
@@ -173,9 +175,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     if (currentLabel !== undefined && currentLabel !== nodeLabel && !isLocalEdit) {
 
       setNodeLabel(currentLabel)
-      if (measureSpanRef.current) {
-        measureSpanRef.current.textContent = currentLabel
-      }
     }
   }, [label, id, isLocalEdit])
 
@@ -253,38 +252,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       setIsLocalEdit(true)
       setNodeLabel(labelRef.current.value)
     }
-  }
-
-  // 计算 measureSpanRef 的宽度，这个就是在计算input element内部内容的真实宽度，记得+4px不然所有内容无法完全的展现在input中，另外若是存在isInput, isOutput, locked，则需要考虑当整体的内容+icon width 溢出最大值时，我们必须设定 inputbox 的width = maxWidth - 21px，不然因为我们设置了 input 的 maxWidth = '100%', 他会把icon 给覆盖掉的，若是没有icon，则不需要担心，因为就算是设计他的宽度=文本宽度，但是一旦整体宽度 > maxWidth, css 会自动把文本宽度给压缩到 maxWidth 的，所以不用担心
-  const calculateLabelWidth = () => {
-    if (measureSpanRef.current) {
-      if (isInput || isOutput || locked) {
-        if (contentRef.current) {
-          if (measureSpanRef.current.offsetWidth + 21 > contentRef.current.clientWidth - 32) {
-            // console.log("hello")
-            return `${contentRef.current.clientWidth - 53}px`
-          }
-        }
-      }
-      return `${measureSpanRef.current.offsetWidth + 4}px`;
-    }
-    return 'auto'
-  }
-
-
-  // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要拉到当前的label的宽度（拖住文体即可）
-  const calculateInputWidth = () => {
-    if (contentRef.current) {
-      if (editable) {
-        if (isInput || isOutput || locked) {
-          return `${contentRef.current.clientWidth - 53}px`
-        }
-        else {
-          return `${contentRef.current.clientWidth - 32}px`
-        }
-      }
-    }
-    return calculateLabelWidth()
   }
 
   // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
@@ -651,57 +618,75 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     , [isLooped]
   )
 
+  useEffect(
+    () => {
+      console.log("jsonndoe isloading",isLoading)
+    }
+    , []
+  )
+
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
 
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[8px] px-[8px] pt-[8px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
 
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}
-          className={`h-[24px] w-full rounded-[4px]  flex items-center justify-between mb-2`}>
+          className={`h-[24px] w-full max-w-full rounded-[4px]  flex items-center justify-between mb-2`}>
 
           {/* top-left wrapper */}
-          <div className="flex items-center gap-[8px]"
-            style={{
-              maxWidth: calculateMaxLabelContainerWidth(),
-            }}>
-            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+          <div className="flex items-center gap-[8px] hover:cursor-grab active:cursor-grabbing group" 
+               style={{
+                 maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 44px)`,
+               }}>
+            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center group-hover:text-[#CDCDCD] group-active:text-[#4599DF]">
               {renderTagLogo()}
             </div>
-
-            {/* measure label width span */}
-            <span
-              ref={measureSpanRef}
-              style={{
-                visibility: 'hidden',
-                position: 'absolute',
-                whiteSpace: 'pre',
-                fontSize: '12px',
-                lineHeight: '18px',
-                fontWeight: '700',
-                fontFamily: 'Plus Jakarta Sans',
-              }}>
-              {nodeLabel}
-            </span>
-
-            <input ref={labelRef}
-              autoFocus={editable}
-              className={`flex items-center justify-start font-[600] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none ${locked ? 'text-[#3EDBC9]' : 'text-[#6D7177]'}`}
-              style={{
-                boxSizing: "content-box",
-                width: calculateInputWidth(),
-                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
-              }}
-              size={nodeLabel.length ?? 0}
-              value={`${nodeLabel}`}
-              readOnly={!editable}
-              onChange={EditLabel}
-              onMouseDownCapture={onFocus}
-              onBlur={onBlur}
-            />
+            
+            {editable ? (
+              <input
+                ref={labelRef}
+                className={`
+                  flex items-center justify-start 
+                  font-[600] text-[12px] leading-[18px] 
+                  font-plus-jakarta-sans bg-transparent h-[18px] 
+                  focus:outline-none truncate
+                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]'}
+                  w-full
+                `}
+                value={nodeLabel}
+                onChange={(e) => {
+                  setIsLocalEdit(true);
+                  setNodeLabel(e.target.value);
+                }}
+                onFocus={() => {
+                  setIsEditing(true);
+                  onFocus();
+                }}
+                onBlur={() => {
+                  setIsEditing(false);
+                  if (isLocalEdit) {
+                    editNodeLabel(id, nodeLabel);
+                    setIsLocalEdit(false);
+                  }
+                  onBlur();
+                }}
+              />
+            ) : (
+              <span 
+                className={`
+                  flex items-center justify-start 
+                  font-[600] text-[12px] leading-[18px] 
+                  font-plus-jakarta-sans truncate
+                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]'}
+                `}
+              >
+                {nodeLabel}
+              </span>
+            )}
           </div>
 
 
@@ -737,288 +722,291 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           </div>
         </div>
 
-        <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]'
-          style={{
-            borderRadius: "8px",
-            border: "1px solid #6D7177",
-            background: "#1C1D1F",
-          }}
-        >
-
-          {/* JSON Editor */}
-          {
-            viewMode == EMBED_VIEW_MODE ?
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
-
-                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-
-                  placeholder='["JSON"]'
-                  parentId={id}
-                  widthStyle={contentSize.width - 16}
-                  heightStyle={contentSize.height - 68}
-                  inputvalue={userInput}
-                  readonly={true}
-                  synced={false}
-                />
-              </div>
-              :
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
-                {isLoading ? <SkeletonLoadingIcon /> :
-                  <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-                    placeholder='["JSON"]'
-                    parentId={id}
-                    widthStyle={contentSize.width - 16}
-                    heightStyle={contentSize.height - 68}
-                    inputvalue={userInput}
-                    synced={true}
-                  />
-                }
-              </div>
-          }
-
-          {/*View Mode Switching Bar at the bottom*/}
-          <div
+        {/* JSON Editor */}
+        {isLoading ? <SkeletonLoadingIcon /> :
+          <div className='rounded-tl-[8px] rounded-tr-[8px] ${borderColor} border-[1px]'
             style={{
-              width: "100%",
-              height: "32px",
-              top: "70px"
-            }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'left',
-              width: '100%',
-              height: '100%',
-              borderBottomLeftRadius: '8px',
-              borderBottomRightRadius: '8px',
-              borderTop: '1px solid #323232',
-            }}>
-              {viewMode == INPUT_VIEW_MODE ?
-                <button style={{
-                  paddingTop: '1px',
-                  cursor: 'pointer',
-                  paddingLeft: "8px",
-                  paddingRight: "8px",
-                  position: 'relative', // 添加相对定位
-                }}
-                  className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
-                  onClick={handleInputViewClick}
-                >
-                  JSON
-                </button> :
-                <button style={{
-                  paddingTop: '1px',
-                  cursor: 'pointer',
-                  paddingLeft: "8px",
-                  paddingRight: "8px",
-                }}
-                  className={`h-[32px] text-[12px] text-[#6D7177] font-semibold flex items-center gap-[8px]`}
-                  onClick={handleInputViewClick}
-                >
-                  JSON
-                </button>
+              borderRadius: "8px",
+              border: "1px solid #6D7177",
+              background: "#1C1D1F",
+            }}
+          >
+              {
+                viewMode == EMBED_VIEW_MODE ?
+                  <div style={{
+                    width: 'fit-content',
+                    maxWidth: calculateMaxLabelContainerWidth(),
+                    overflow: "hidden"
+                  }}>
+
+                    <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+
+                      placeholder='["JSON"]'
+                      parentId={id}
+                      widthStyle={contentSize.width - 16}
+                      heightStyle={contentSize.height - 68}
+                      inputvalue={userInput}
+                      readonly={true}
+                      synced={false}
+                    />
+                  </div>
+                  :
+                  <div style={{
+                    width: 'fit-content',
+                    maxWidth: calculateMaxLabelContainerWidth(),
+                    overflow: "hidden"
+                  }}>
+                    
+                      <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+                        placeholder='["JSON"]'
+                        parentId={id}
+                        widthStyle={contentSize.width - 16}
+                        heightStyle={contentSize.height - 68}
+                        inputvalue={userInput}
+                        synced={true}
+                      />
+                    
+                  </div>
               }
-              {viewMode == EMBED_VIEW_MODE ?
 
+            {/*View Mode Switching Bar at the bottom*/}
+            <div
+              style={{
+                width: "100%",
+                height: "32px",
+                top: "70px",
+                display:isLoading?"none":"flex"
+              }}>
               <div style={{
-                position: 'relative', // 添加相对定位
-                display: isEmbedHidden ? "none" : "flex"
-              }}
-              >
-                <button style={{
-                  paddingTop: '1px',
-                  cursor: 'pointer',
-                  paddingLeft: "8px",
-                  paddingRight: "8px"
-                }}
-                className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
-                  onClick={handleEmbedViewClick}
-                >
-                  <svg
-                    style={{
-                      display: isEmbedded ? "none" : "inline",
-                      animation: "rotate 2s linear infinite",
-                    }}
-                    width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <style>
-                      {`
-                        @keyframes rotate {
-                          from {
-                            transform: rotate(0deg);
-                          }
-                          to {
-                            transform: rotate(360deg);
-                          }
-                        }
-                      `}
-                    </style>
-                    <path d="M5 0V3" stroke="#A4A4A4" />
-                    <path d="M5 7V10" stroke="#A4A4A4" />
-                    <path d="M10 5H7" stroke="#A4A4A4" />
-                    <path d="M3 5H0" stroke="#A4A4A4" />
-                    <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4" />
-                    <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4" />
-                    <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4" />
-                    <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
-                  </svg>
-                  <span>Embedding</span>
-                </button> 
-                  <Transition
-                    show={!!showSettingMenu}
-                    as={Fragment}
-                    enter="transition ease-out duration-100"
-                    enterFrom="transform opacity-0 translate-y-[-10px]"
-                    enterTo="transform opacity-100 translate-y-0"
-                    leave="transition ease-in duration-75"
-                    leaveFrom="transform opacity-100 translate-y-0"
-                    leaveTo="transform opacity-0 translate-y-[-10px]"
+                display: 'flex',
+                justifyContent: 'left',
+                width: '100%',
+                height: '100%',
+                borderBottomLeftRadius: '8px',
+                borderBottomRightRadius: '8px',
+                borderTop: '1px solid #323232',
+              }}>
+                {viewMode == INPUT_VIEW_MODE ?
+                  <button style={{
+                    paddingTop: '1px',
+                    cursor: 'pointer',
+                    paddingLeft: "8px",
+                    paddingRight: "8px",
+                    position: 'relative', // 添加相对定位
+                  }}
+                    className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
+                    onClick={handleInputViewClick}
                   >
-                    <div style={{position: "fixed", zIndex: 20000}}>
-                      <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
-                        <li>
-                          <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
-                            onClick={
-                              async () => {
-                                setIsEmbedded(false)
-                                setShowSettingMenu(false)
-                                const embeddingNodeData = await constructStructuredNodeEmbeddingData()
-                                console.log("embeddingnode data", embeddingNodeData)
+                    JSON
+                  </button> :
+                  <button style={{
+                    paddingTop: '1px',
+                    cursor: 'pointer',
+                    paddingLeft: "8px",
+                    paddingRight: "8px",
+                  }}
+                    className={`h-[32px] text-[12px] text-[#6D7177] font-semibold flex items-center gap-[8px]`}
+                    onClick={handleInputViewClick}
+                  >
+                    JSON
+                  </button>
+                }
+                {viewMode == EMBED_VIEW_MODE ?
 
-                                if (embeddingNodeData === "error") {
-                                  throw new Error("Invalid node data")
-                                }
-
-                                const embeddingViewData = traverseJson(embeddingNodeData.data.content)
-
-                                const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
-                                setUserInput(getNode(id)?.data?.chunks ? JSON.stringify(embeddingViewDataWithInfo, null, 2) : undefined)
-                                const response = await onEmbeddingClick()
-                                if (response == undefined) {
-                                  //retry
-                                  await onEmbeddingClick()
-                                }
-                                setTimeout(() => {
-                                  const newnode = getNode(id)
-                                  if (newnode?.data.index_name) {
-                                    setIsEmbedded(true)
-                                  }
-                                }, 600);
-                              }
-                            }
-                          >
-                            <div className='renameButton flex items-center justify-center'>
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5" />
-                                <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5" />
-                                <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5" />
-                                <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5" />
-                              </svg>
-                            </div>
-                            <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                              Update
-                            </div>
-                          </button>
-                        </li>
-                        <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
-                        <li>
-                          <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
-                            onClick={
-                              () => {
-                                console.log("on embedding tab delete")
-                                setIsEmbedHidden(true)
-                                setViewMode(INPUT_VIEW_MODE)
-                                setIsEmbedded(false)
-                              }
-                            }
-                          >
-                            <div className='flex items-center justify-center'>
-                              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2" />
-                                <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2" />
-                              </svg>
-                            </div>
-                            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                              Delete
-                            </div>
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  </Transition>
-              </div>
-                
-                :
-                <button style={{
-                  paddingTop: '1px',
-                  cursor: 'pointer',
-                  borderTopLeftRadius: '8px',
-                  borderTopRightRadius: '8px',
-                  borderWidth: "0px",
-                  paddingLeft: "8px",
-                  paddingRight: "8px",
+                <div style={{
                   position: 'relative', // 添加相对定位
                   display: isEmbedHidden ? "none" : "flex"
                 }}
-                className={`text-[12px] text-[#6D7177] font-semibold flex items-center gap-[8px] h-[32px]`}
-                  onClick={handleEmbedViewClick}
                 >
-                  <svg
-                    style={{
-                      display: isEmbedded ? "none" : "inline",
-                      animation: "rotate 2s linear infinite",
-                    }}
-                    width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <style>
-                      {`
-                        @keyframes rotate {
-                          from {
-                            transform: rotate(0deg);
-                          }
-                          to {
-                            transform: rotate(360deg);
-                          }
-                        }
-                      `}
-                    </style>
-                    <path d="M5 0V3" stroke="#A4A4A4" />
-                    <path d="M5 7V10" stroke="#A4A4A4" />
-                    <path d="M10 5H7" stroke="#A4A4A4" />
-                    <path d="M3 5H0" stroke="#A4A4A4" />
-                    <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4" />
-                    <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4" />
-                    <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4" />
-                    <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
-                  </svg>
-                  <span>Embedding</span>
-                </button>
-              }
-              {
-                isEmbedHidden ?
-                  <div
-                    onClick={handleAddTagPage}
-                    className='cursor-pointer flex justify-center items-center'
+                  <button style={{
+                    paddingTop: '1px',
+                    cursor: 'pointer',
+                    paddingLeft: "8px",
+                    paddingRight: "8px"
+                  }}
+                  className={`h-[32px] text-[12px] text-[#A4A4A4] before:content-[''] before:absolute before:top-[-2px] before:left-0 before:w-full before:h-[2px] before:bg-[#A4A4A4] font-semibold flex items-center gap-[8px]`}
+                    onClick={handleEmbedViewClick}
                   >
-                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5" />
-                      <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5" />
+                    <svg
+                      style={{
+                        display: isEmbedded ? "none" : "inline",
+                        animation: "rotate 2s linear infinite",
+                      }}
+                      width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <style>
+                        {`
+                          @keyframes rotate {
+                            from {
+                              transform: rotate(0deg);
+                            }
+                            to {
+                              transform: rotate(360deg);
+                            }
+                          }
+                        `}
+                      </style>
+                      <path d="M5 0V3" stroke="#A4A4A4" />
+                      <path d="M5 7V10" stroke="#A4A4A4" />
+                      <path d="M10 5H7" stroke="#A4A4A4" />
+                      <path d="M3 5H0" stroke="#A4A4A4" />
+                      <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4" />
+                      <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4" />
+                      <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4" />
+                      <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
                     </svg>
-                  </div>
+                    <span>Embedding</span>
+                  </button> 
+                    <Transition
+                      show={!!showSettingMenu}
+                      as={Fragment}
+                      enter="transition ease-out duration-100"
+                      enterFrom="transform opacity-0 translate-y-[-10px]"
+                      enterTo="transform opacity-100 translate-y-0"
+                      leave="transition ease-in duration-75"
+                      leaveFrom="transform opacity-100 translate-y-0"
+                      leaveTo="transform opacity-0 translate-y-[-10px]"
+                    >
+                      <div style={{position: "fixed", zIndex: 20000}}>
+                        <ul className='flex flex-col absolute top-[32px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
+                          <li>
+                            <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                              onClick={
+                                async () => {
+                                  setIsEmbedded(false)
+                                  setShowSettingMenu(false)
+                                  const embeddingNodeData = await constructStructuredNodeEmbeddingData()
+                                  console.log("embeddingnode data", embeddingNodeData)
+
+                                  if (embeddingNodeData === "error") {
+                                    throw new Error("Invalid node data")
+                                  }
+
+                                  const embeddingViewData = traverseJson(embeddingNodeData.data.content)
+
+                                  const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
+                                  setUserInput(getNode(id)?.data?.chunks ? JSON.stringify(embeddingViewDataWithInfo, null, 2) : undefined)
+                                  const response = await onEmbeddingClick()
+                                  if (response == undefined) {
+                                    //retry
+                                    await onEmbeddingClick()
+                                  }
+                                  setTimeout(() => {
+                                    const newnode = getNode(id)
+                                    if (newnode?.data.index_name) {
+                                      setIsEmbedded(true)
+                                    }
+                                  }, 600);
+                                }
+                              }
+                            >
+                              <div className='renameButton flex items-center justify-center'>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5" />
+                                  <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5" />
+                                  <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5" />
+                                  <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5" />
+                                </svg>
+                              </div>
+                              <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                                Update
+                              </div>
+                            </button>
+                          </li>
+                          <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+                          <li>
+                            <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
+                              onClick={
+                                () => {
+                                  console.log("on embedding tab delete")
+                                  setIsEmbedHidden(true)
+                                  setViewMode(INPUT_VIEW_MODE)
+                                  setIsEmbedded(false)
+                                }
+                              }
+                            >
+                              <div className='flex items-center justify-center'>
+                                <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2" />
+                                  <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2" />
+                                </svg>
+                              </div>
+                              <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                                Delete
+                              </div>
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </Transition>
+                </div>
+                  
                   :
-                  <></>
-              }
+                  <button style={{
+                    paddingTop: '1px',
+                    cursor: 'pointer',
+                    borderTopLeftRadius: '8px',
+                    borderTopRightRadius: '8px',
+                    borderWidth: "0px",
+                    paddingLeft: "8px",
+                    paddingRight: "8px",
+                    position: 'relative', // 添加相对定位
+                    display: isEmbedHidden ? "none" : "flex"
+                  }}
+                  className={`text-[12px] text-[#6D7177] font-semibold flex items-center gap-[8px] h-[32px]`}
+                    onClick={handleEmbedViewClick}
+                  >
+                    <svg
+                      style={{
+                        display: isEmbedded ? "none" : "inline",
+                        animation: "rotate 2s linear infinite",
+                      }}
+                      width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <style>
+                        {`
+                          @keyframes rotate {
+                            from {
+                              transform: rotate(0deg);
+                            }
+                            to {
+                              transform: rotate(360deg);
+                            }
+                          }
+                        `}
+                      </style>
+                      <path d="M5 0V3" stroke="#A4A4A4" />
+                      <path d="M5 7V10" stroke="#A4A4A4" />
+                      <path d="M10 5H7" stroke="#A4A4A4" />
+                      <path d="M3 5H0" stroke="#A4A4A4" />
+                      <path d="M8.5 1.5L6.5 3.5" stroke="#A4A4A4" />
+                      <path d="M8.5 8.5L6.5 6.5" stroke="#A4A4A4" />
+                      <path d="M3.5 6.5L1.5 8.5" stroke="#A4A4A4" />
+                      <path d="M3.5 3.5L1.5 1.5" stroke="#A4A4A4" />
+                    </svg>
+                    <span>Embedding</span>
+                  </button>
+                }
+                {
+                  isEmbedHidden ?
+                    <div
+                      onClick={handleAddTagPage}
+                      className='cursor-pointer flex justify-center items-center'
+                    >
+                      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5" />
+                        <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5" />
+                      </svg>
+                    </div>
+                    :
+                    <></>
+                }
 
+              </div>
             </div>
-          </div>
 
-        </div>
+          </div>
+        }
+
 
 
 
@@ -1034,7 +1022,8 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           style={{
             position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize',
             background: 'transparent',
-            border: 'none'
+            border: 'none',
+            display:isLoading?"none":"flex"
           }}
         >
           <div

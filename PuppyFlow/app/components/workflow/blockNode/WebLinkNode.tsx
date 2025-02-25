@@ -217,7 +217,7 @@ function WebLinkNode({data: {content, label, isLoading, locked, isInput, isOutpu
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div id={id} ref={contentRef} className={`w-full h-full min-h-[144px] min-w-[144px] border-[1.5px] rounded-[8px] p-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-[16px] font-[400]`}>
+      <div id={id} ref={contentRef} className={`w-full h-full min-h-[144px] min-w-[144px] border-[1.5px] rounded-[16px] p-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-[16px] font-[400]`}>
         
         {/*  the top bar of a block */}
         <div ref={labelContainerRef} 

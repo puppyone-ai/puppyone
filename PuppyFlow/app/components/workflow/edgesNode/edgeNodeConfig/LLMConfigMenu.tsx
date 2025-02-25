@@ -50,7 +50,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
     // const {totalCount, addCount, addNode, allowActivateNode, clear} = useNodeContext()
     const { allowActivateOtherNodesWhenConnectEnd, clearAll } = useNodesPerFlowContext()
-    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
@@ -233,30 +233,17 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         else {
             resultNodeLabel = resultNode as string
         }
+        console.log("constructJsonData LLM", getNode(resultNode as string))
         let blocks: { [key: string]: NodeJsonType } = {
             [resultNode as string]: {
                 label: resultNodeLabel as string,
                 type: isStructured_output ? "structured" : "text",
-                data: { content: "" }
+                data: { content: "" },
+                looped: (getNode(resultNode as string) as any)?.looped ? true : false,
             }
         }
-
-        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
-            const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
-                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
-                type: nodeInfo.type!,
-                data: {
-                    content: nodeContent,
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                }
-            }
-            blocks[nodeInfo.id] = nodejson
-        }
+        
+        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
         let edges: { [key: string]: LLMEdgeJsonType } = {}
 
@@ -272,7 +259,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     },
                     {
                         "role": "user",
-                        "content": "introduce yourself"
+                        "content": "answer the question by {{the input ID}}"
                     }
                 ],
                 model: model,
@@ -439,7 +426,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             {"role": "system", 
             "content": "You are an AI"},
             {"role": "user", 
-            "content": "{{1}}"}
+            "content": "answer the question by {{input_ID}}"}
             ]' parentId={parentId} widthStyle={432} heightStyle={208} />
             </li>
 
