@@ -5,6 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import os
 import json
+import logging
 from typing import Any, List, Dict
 from litellm import completion
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
@@ -192,8 +193,14 @@ def lite_llm_chat(
     result = chat_service.chat_completion()
 
     # Return the result from the chat service
-    # return result
-    return (json.loads(result) or result) if structured_output else result
+    if structured_output:
+        try:
+            return json.loads(result)
+        except json.JSONDecodeError:
+            logging.error(f"Error parsing structured output: {result}")
+            return result
+
+    return result
 
 @global_exception_handler(3602, "Error Generating Response Using Hugging Face Models")
 def huggingface_llm_chat(

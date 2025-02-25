@@ -91,7 +91,7 @@ class DataStore:
     ) -> WorkFlow:
         """Get workflow object for task"""
         with self.lock:
-            return self.data_store[task_id]["workflow"]
+            return self.data_store.get(task_id, {}).get("workflow")
 
     def set_workflow(
         self,
@@ -125,10 +125,11 @@ class DataStore:
         blocks: dict
     ) -> None:
         with self.lock:
+            stored_blocks = self.data_store.get(task_id, {}).get("blocks", {})
             # Get existing input blocks
             input_blocks = {
                 block_id: block
-                for block_id, block in self.data_store[task_id]["blocks"].items()
+                for block_id, block in stored_blocks.items()
                 if block.get("isInput")
             }
             input_block_ids = set(input_blocks.keys())
@@ -143,7 +144,7 @@ class DataStore:
                 )
 
             # Update only the input blocks while preserving other blocks
-            for block_id, block in self.data_store[task_id]["blocks"].items():
+            for block_id, block in stored_blocks.items():
                 if block_id in input_block_ids:
                     # Find and replace with the matching incoming block
                     new_block = blocks.get(block_id)
@@ -155,7 +156,7 @@ class DataStore:
         blocks: dict
     ) -> None:
         with self.lock:
-            block_map = self.data_store[task_id]["blocks"]
+            block_map = self.data_store.get(task_id, {}).get("blocks", {})
             for new_block_id, new_block in blocks.items():
                 if new_block_id in block_map:
                     block_map[new_block_id] = new_block
@@ -214,11 +215,11 @@ async def get_data(
                 log_info("data: Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"
 
-                # 在删除资源前确保线程池已安全关闭
+                # Ensure the thread executor is shutdown before deleting the data store
                 if hasattr(workflow, 'thread_executor'):
                     workflow.thread_executor.shutdown(wait=True)
-                
-                # 然后再删除数据存储中的资源
+
+                # Delete the data store resource
                 with data_store.lock:
                     if task_id in data_store.data_store:
                         del data_store.data_store[task_id]
@@ -255,7 +256,7 @@ async def send_data(
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
         raise PuppyEngineException(6300, "Server Internal Error", str(e))
-    
+
 @app.get("/generate_presigned_url")
 async def generate_presigned_url():
     try:
