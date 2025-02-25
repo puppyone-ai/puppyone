@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useContext } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import useJsonConstructUtils, {NodeJsonType} from '../../../hooks/useJsonConstructUtils'
 import { nodeSmallProps } from '../../../upbar/topLeftToolBar/AddNodeMenu'
@@ -62,7 +62,7 @@ interface CaseItem {
 interface TransformedCondition {
     block: string;
     condition: string;
-    parameters: { [key: string]: string }; // Key-value pairs for parameters
+    parameters: { [key: string]: string|number }; // Key-value pairs for parameters
     operation: string;
 }
 
@@ -569,7 +569,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     block: condition.id, // Assuming 'id' is the block identifier
                     condition: getConditionValue(condition.cond_v),
                     parameters: { 
-                        value: condition.cond_input || "" // Ensure this is a string
+                        value: !isNaN(parseInt(condition.cond_input??"")) ? parseInt(condition.cond_input??"")||"" : condition.cond_input||"" // Transform to number if possible || "" // Ensure this is a string
                     },
                     operation: condition_id === caseItem.conditions.length - 1? "/" : (condition.operation || "and") // Default to "and" if not provided
                 })),
