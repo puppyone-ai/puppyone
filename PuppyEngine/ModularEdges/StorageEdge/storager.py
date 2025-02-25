@@ -14,8 +14,7 @@ from Utils.PuppyEngineExceptions import global_exception_handler
 class StoragerFactory:
     def __init__(
         self,
-        # base_url: str = "http://127.0.0.1:8002",
-        base_url: str = "https://dev.storage.puppyagent.com"
+        base_url: str = os.getenv("STORAGE_SERVER_URL", "http://127.0.0.1:8002")
     ):
         self.base_url = base_url
         self.headers = {
