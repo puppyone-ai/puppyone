@@ -170,6 +170,14 @@ def lite_llm_chat(
     Returns:
         str: The response content.
     """
+    
+    # Handle structured output
+    structured_output = kwargs.get("structured_output", False)
+    if structured_output:
+        kwargs["response_format"] = {"type": "json_object"}
+        kwargs["messages"].append({"role":"user", "content":"in json format"})
+    else:
+        kwargs["response_format"] = None
 
     # Construct the prompt
     messages = kwargs.get("messages", None)
