@@ -4,6 +4,8 @@ import React, {useState, useEffect, useMemo, useCallback} from 'react'
 import ModifyCopyConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyCopyConfigMenu'
 import ModifyTextConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyTextConfigMenu'
 import ModifyStructuredConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyStructuredConfigMenu'
+import Modify2StructuredConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/Modify2StructuredConfigMenu'
+import Modify2TextConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/Modify2TextConfigMenu'
 import ModifyGetConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/ModifyGetConfigMenu'
 import { useReactFlow } from '@xyflow/react'
 
@@ -14,7 +16,10 @@ export type ModifyConfigNodeData = {
     content_type: "list" | "dict" | null,
     extra_configs: {
         index: number | undefined,   
-        key: string | undefined
+        key: string | undefined,
+        params:{
+            path:(string|number)[]
+        }
     },
     resultNode: string | null
 }
@@ -32,6 +37,10 @@ function ModifyConfig({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
         console.log(getInternalNode(id))
     }, [])
 
+    const MODIFY_GET_TYPE="get"
+    const MODIFY_DEL_TYPE="delete"
+    const MODIFY_REPL_TYPE="replace"
+
     const selectModifyMenuType = () => {
         switch (subMenuType) {
             case 'modify-copy':
@@ -41,7 +50,33 @@ function ModifyConfig({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
             case 'modify-structured':
                 return (<ModifyStructuredConfigMenu show={activatedEdge === id} parentId={id} />)
             case 'modify-get':
-                return (<ModifyGetConfigMenu show={activatedEdge === id} parentId={id} />)
+                return (<ModifyGetConfigMenu 
+                        show={activatedEdge === id} 
+                        parentId={id} 
+                        type={MODIFY_GET_TYPE} 
+                        MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
+                        MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
+                        MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
+            case 'modify-delete':
+                return (<ModifyGetConfigMenu 
+                        show={activatedEdge === id} 
+                        parentId={id} 
+                        type={MODIFY_DEL_TYPE} 
+                        MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
+                        MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
+                        MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
+            case 'modify-replace':
+                return (<ModifyGetConfigMenu 
+                        show={activatedEdge === id} 
+                        parentId={id} 
+                        type={MODIFY_REPL_TYPE} 
+                        MODIFY_GET_TYPE={MODIFY_GET_TYPE} 
+                        MODIFY_DEL_TYPE={MODIFY_DEL_TYPE} 
+                        MODIFY_REPL_TYPE={MODIFY_REPL_TYPE}/>)
+            case 'modify-convert2text':
+                return (<Modify2TextConfigMenu show={activatedEdge === id} parentId={id} />)
+            case 'modify-convert2structured':
+                return (<Modify2StructuredConfigMenu show={activatedEdge === id} parentId={id} />)
             default:
                 return (<></>)
         }

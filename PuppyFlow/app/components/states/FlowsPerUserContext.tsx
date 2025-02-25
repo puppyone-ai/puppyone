@@ -247,6 +247,9 @@ interface InitialUserData {
 //     }
 
 // }
+type deployItem={
+     id: string; label?: string 
+}
 
 type WorkspaceData = {
     flowId: string;
@@ -254,8 +257,24 @@ type WorkspaceData = {
     latestJson: {
         blocks: Node[];
         edges: Edge[];
+        viewport?:{
+            x:number,
+            y:number,
+            zoom:number
+        };
     } | null;
+    deploy:{
+        selectedInputs:Array<deployItem>;
+        selectedOutputs:Array<deployItem>;
+        apiConfig?:any
+    }
+    zoomState?:any;
     isDirty: boolean; // 标记是否有未保存的更改
+    viewport?:{
+        x:number,
+        y:number,
+        zoom:number
+    }
 }
 
 export type FlowsPerUserContextType = {
@@ -268,6 +287,7 @@ export type FlowsPerUserContextType = {
     removeFlow: (flowId: string) => Promise<void>;
     editFlowName: (flowId: string, newName: string) => Promise<void>;
     forceSaveHistory: (flowId: string) => Promise<void>;
+    setWorkspaces: React.Dispatch<React.SetStateAction<WorkspaceData[]>>; // Added type for setWorkspaces
 }
 
 type QueueOperation = {
@@ -288,6 +308,7 @@ const initialFlowsPerUserContext: FlowsPerUserContextType = {
     removeFlow: () => Promise.resolve(),
     editFlowName: () => Promise.resolve(),
     forceSaveHistory: () => Promise.resolve(),
+    setWorkspaces:()=>{},
 }
 
 const FlowsPerUserContext = createContext<FlowsPerUserContextType>(initialFlowsPerUserContext);
@@ -310,6 +331,11 @@ const FlowsPerUserProps = () => {
     const unsavedStatesRef = useRef<Record<string, {
         nodes: Node[];
         edges: Edge[];
+        viewport:{
+            x:number,
+            y:number,
+            zoom:number
+        };
         timestamp: number;
     }>>({});
 
@@ -586,6 +612,11 @@ const FlowsPerUserProps = () => {
                     flowId: workspace.workspace_id,
                     flowTitle: workspace.workspace_name,
                     latestJson: null,
+                    deploy:{
+                        selectedInputs:[],
+                        selectedOutputs:[],
+                        apiConfig:undefined
+                    },
                     isDirty: false
                 }));
                 
@@ -631,6 +662,12 @@ const FlowsPerUserProps = () => {
             reactFlowInstance.setNodes(history.blocks);
             reactFlowInstance.setEdges(history.edges);
         }
+        if(history.viewport){
+            console.log("set viewport", history.viewport)
+            setTimeout(()=>{
+                    reactFlowInstance.setViewport(history.viewport)
+            },0)
+        }
     };
 
     // 切换workspace
@@ -640,6 +677,7 @@ const FlowsPerUserProps = () => {
             console.log("切换前的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
                 isDirty: targetWorkspace?.isDirty,
+                viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
             
@@ -652,6 +690,7 @@ const FlowsPerUserProps = () => {
                 unsavedStatesRef.current[prevFlowId] = {
                     nodes: reactFlowInstance.getNodes(),
                     edges: reactFlowInstance.getEdges(),
+                    viewport: reactFlowInstance.getViewport(),
                     timestamp: Date.now()
                 };
             }
@@ -664,18 +703,33 @@ const FlowsPerUserProps = () => {
                     console.log("使用未保存的状态");
                     reactFlowInstance.setNodes(unsavedState.nodes);
                     reactFlowInstance.setEdges(unsavedState.edges);
+                    if(unsavedState?.viewport !== undefined){
+                        reactFlowInstance.setViewport(
+                            unsavedState?.viewport
+                        )
+                    }
                 } else {
                     const targetWorkspace = workspaces.find(w => w.flowId === newFlowId);
                     if (targetWorkspace?.latestJson) {
                         console.log("使用预加载的状态");
                         reactFlowInstance.setNodes(targetWorkspace.latestJson.blocks);
                         reactFlowInstance.setEdges(targetWorkspace.latestJson.edges);
+                        if(targetWorkspace?.latestJson?.viewport !== undefined){
+                            reactFlowInstance.setViewport(
+                                targetWorkspace?.latestJson?.viewport
+                            )
+                        }
                     } else {
                         console.log("从服务器获取最新状态");
                         const latestHistory = await fetchLatestWorkspaceHistory(newFlowId);
                         if (latestHistory) {
                             reactFlowInstance.setNodes(latestHistory.blocks);
                             reactFlowInstance.setEdges(latestHistory.edges);
+                            if(latestHistory?.viewport !== undefined){
+                                reactFlowInstance.setViewport(
+                                    latestHistory?.viewport
+                                )
+                            }
                             setWorkspaces(prev => prev.map(w => 
                                 w.flowId === newFlowId 
                                     ? { ...w, latestJson: latestHistory }
@@ -702,6 +756,7 @@ const FlowsPerUserProps = () => {
             console.log("切换后的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
                 isDirty: targetWorkspace?.isDirty,
+                viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
         } catch (error) {
@@ -815,6 +870,10 @@ const FlowsPerUserProps = () => {
             flowId: newWorkspaceId,
             flowTitle: newWorkspaceName,
             latestJson: null,
+            deploy:{
+                selectedInputs:[],
+                selectedOutputs:[]
+            },
             isDirty: false
         }]);
 
@@ -869,6 +928,7 @@ const FlowsPerUserProps = () => {
         removeFlow,
         editFlowName,
         forceSaveHistory,
+        setWorkspaces
         // ... 其他方法
     };
 };

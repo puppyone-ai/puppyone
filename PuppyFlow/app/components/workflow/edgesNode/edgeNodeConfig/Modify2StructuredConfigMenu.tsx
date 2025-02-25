@@ -16,25 +16,45 @@ type ModifyCopyConfigProps = {
     parentId: string,
 }
 
-export type ModifyCopyEdgeJsonType = {
+
+// "<edge_id>": {
+//   "type": "modify",
+//   "data": {
+// 		"modify_type": "convert2structured",
+// 		"content": "111,{{a}}, 222,{{b}}",
+// 		"extra_configs": {
+// 			"target_structure": "list/dict",
+// 	    "action_type": "default/json",
+// 	    "list_separator": [], // could be , ; etc. or a string
+// 	    "dict_key": "key_here", // the key to store the original text as its value
+// 		}
+//     "inputs": {"2": "2/label_2"},
+//     "outputs": { "3": "3/label_3" },
+//   }
+// }
+export type Modify2SturcturedJsonType = {
     // id: string,
     type: "modify",
     data: {
-        //   content_type: "str",
-        modify_type: "deep_copy"|"copy",
-        extra_configs: {},
+        content: string,
+        modify_type: "convert2structured",
+		extra_configs: {
+			target_structure: ("list"|"dict"),
+            action_type: "json",
+            list_separator?: any[], // could be , ; etc. or a string
+            dict_key?: string, // the key to store the original text as its value
+		}
         inputs: { [key: string]: string },
-        looped: boolean,
         outputs: { [key: string]: string }
     },
 }
 
 type ConstructedModifyCopyJsonData = {
     blocks: { [key: string]: NodeJsonType },
-    edges: { [key: string]: ModifyCopyEdgeJsonType }
+    edges: { [key: string]: Modify2SturcturedJsonType }
 }
 
-function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
+function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode, setNodes, setEdges } = useReactFlow()
     const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
@@ -175,17 +195,27 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
         transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
-        let edges: { [key: string]: ModifyCopyEdgeJsonType } = {}
+        let edges: { [key: string]: Modify2SturcturedJsonType } = {}
 
-        const edgejson: ModifyCopyEdgeJsonType = {
+        const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
+
+        const config = JSON.parse(wrapInto)
+        const targetStructure = Array.isArray(config) ? "list" : "dict"; // Check if config is a list or object
+        const firstKey = !Array.isArray(config) && typeof config === 'object' ? Object.keys(config)[0] : undefined; 
+
+        const edgejson: Modify2SturcturedJsonType = {
             // id: parentId,
             type: "modify",
             data: {
-                // content_type: "str",
-                modify_type: "copy",
-                extra_configs: {},
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                looped: false,
+                content: getNode(input_ids[0])?.data.content as string,
+                modify_type: "convert2structured",
+                extra_configs: {
+                    target_structure: targetStructure,
+                    action_type: "json",
+                    list_separator: [], // could be , ; etc. or a string
+                    dict_key: firstKey, // the key to store the original text as its value
+                },
+                inputs: input_ids,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
@@ -239,6 +269,8 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
         }))
     }
 
+    const [wrapInto, setWrapInto] = useState("")
+
 
     return (
 
@@ -289,6 +321,16 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                     {displaySourceNodeLabels()}
                 </div>
             </li>
+            <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[8px] w-full h-[36px]'>
+                <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                Wrap Into
+                </div>
+                <input value={wrapInto} onChange={(e) => {
+                    setWrapInto(
+                        e.target.value
+                    )
+                }} id="wrap_into" type='string' className='px-[10px] py-[5px] rounded-r-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
+            </li>
 
 
 
@@ -296,4 +338,4 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
     )
 }
 
-export default ModifyCopyConfigMenu
+export default Modify2StructuredConfigMenu
