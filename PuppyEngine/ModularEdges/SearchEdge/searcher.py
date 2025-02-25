@@ -21,7 +21,7 @@ class SearcherFactory(EdgeFactoryBase):
     """Factory class for dynamically selecting the appropriate search strategy."""
 
     @staticmethod
-    @global_exception_handler(3500, "Error Executing Search Edge")
+    @global_exception_handler(3017, "Error Executing Search Edge")
     def execute(
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
@@ -109,7 +109,7 @@ if __name__ == "__main__":
     }
     print(SearcherFactory.execute(init_configs={"query": query, "search_type": "elastic"}, extra_configs=extra_configs))
 
-    # Keyword Retrieval Example
+    # # Keyword Retrieval Example
     query = "What did the fox do?"
     documents = [
         "The quick brown fox jumps over the lazy dog.",
