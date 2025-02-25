@@ -1,12 +1,14 @@
 'use client'
 
 import { Menu, Transition } from '@headlessui/react'
-import React, { useState, Fragment, useEffect } from 'react'
+import React, { useState, Fragment, useEffect, useRef } from 'react'
 import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJsonConstructUtils'
 import { Button } from 'antd'
 import { useReactFlow } from '@xyflow/react'
 import { set } from 'lodash'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
+import { SYSTEM_URLS } from '@/config/urls'
 
 import dynamic from 'next/dynamic';
 import type { EditorProps, OnMount, OnChange, } from "@monaco-editor/react";
@@ -69,10 +71,10 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
                           >
                               <button 
                                   className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
-                                  onClick={() => handleSelect(node.id, node.label)}
+                                  onClick={() => handleSelect(node.id, node.data.label)}
                               >
                                   <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
-                                      {node.label || node.id}
+                                      {node.data.label || node.id}
                                   </span>
                               </button>
                           </li>
@@ -84,11 +86,47 @@ const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:
   );
 };
 
+const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }:any) => {
+
+  const handleSelect = (item: string) => {
+      onSelect(item)
+      setIsOpen(false); // Close dropdown after selection
+  };
+
+  return (
+      <div className="relative">
+          {isOpen ? (
+              <ul className='absolute top-[5px] right-[140px] w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                  {options.map((item:string) => (
+                      <>
+                          <li
+                              key={item}
+                              className='w-full'
+                          >
+                              <button 
+                                  className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                  onClick={() => handleSelect(item)}
+                              >
+                                  <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                      {item}
+                                  </span>
+                              </button>
+                          </li>
+                      </>
+                  ))}
+              </ul>
+          ):<></>}
+      </div>
+  );
+};
 
 function DeployBotton() {
 
-  const API_SERVER_URL ="https://dev.api.puppyagent.com"
-  const {constructWholeJsonWorkflow} = useJsonConstructUtils()
+  const {setWorkspaces, selectedFlowId, workspaces} = useFlowsPerUserContext()
+
+  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
+  const {constructWholeWorkflowJsonData} = useWholeWorkflowJsonConstructUtils()
+
 
   const [selectedInputs, setSelectedInputs] = useState<any[]>([])
   const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
@@ -96,7 +134,6 @@ function DeployBotton() {
   const [isOutputOpen, setIsOutputOpen] = useState(false); // State to manage dropdown visibility
 
   const [hovered, setHovered] = useState(false)
-  const {sendWholeWorkflowJsonDataToBackend} = useWholeWorkflowJsonConstructUtils()
 
   interface ApiConfig {
     id: string;
@@ -105,16 +142,37 @@ function DeployBotton() {
 
   // const [apiConfig, setApiConfig] = useState<ApiConfig>({id:"hello",key:"world"})   //uncomment this to test 
   const [apiConfig, setApiConfig] = useState<ApiConfig|undefined>(undefined)
+  
+    useEffect(()=>{
+      setWorkspaces(prev => prev.map(w => 
+        w.flowId === selectedFlowId ? { ...w, deploy:{selectedInputs,selectedOutputs,apiConfig} } : w
+      ))
+      console.log(workspaces)
+    }
+      ,[selectedInputs,selectedOutputs,apiConfig]
+    )
+
+    const lastSelectedFlowIdRef = useRef<string | null>(null); // Ref to track last selected flowId
+
+    useEffect(() => {
+      if (lastSelectedFlowIdRef.current !== selectedFlowId) {
+        console.log("Workflow has changed");
+        lastSelectedFlowIdRef.current = selectedFlowId; // Update the ref with the current flowId
+        setSelectedInputs(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.selectedInputs)
+        setSelectedOutputs(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.selectedOutputs)
+        setApiConfig(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.apiConfig)
+      }
+    }, [selectedFlowId]);
 
   const handleDeploy = async () => {
 
     try {
       const res = await fetch(      
-        API_SERVER_URL +" /config_api",
+        API_SERVER_URL +"/config_api",
         {
           method: "POST",
           body:JSON.stringify({
-            workflow_json: constructWholeJsonWorkflow(),
+            workflow_json: constructWholeWorkflowJsonData(),
             inputs: selectedInputs.map(item=>item.id),
             outputs: selectedOutputs.map(item=>item.id),
           })
@@ -123,7 +181,7 @@ function DeployBotton() {
 
       const content = await res.json();
 
-      const [api_id, api_key] = content
+      const {api_id:api_id, api_key:api_key} = content
 
       setApiConfig({id:api_id,key:api_key})
 
@@ -141,21 +199,31 @@ function DeployBotton() {
 
   }
 
-  const { getNodes } = useReactFlow(); // Destructure getNodes from useReactFlow
+  const { getNodes,getNode } = useReactFlow(); // Destructure getNodes from useReactFlow
 
   useEffect(()=>{
 
 
   },[])
 
-  const PYTHON = "py"
+  const PYTHON = "python"
+  const SHELL = "shell"
+  const JAVASCRIPT = "javascript"
 
-  const input_text_gen = (inputs:string[])=>{
-        const inputData = inputs.map((input, index) => (
-          `        input_block_id_${index + 1}: ${input}`
+  const input_text_gen = (inputs:string[],lang:string)=>{
+    if(lang == JAVASCRIPT){
+      const inputData = inputs.map((input, index) => (
+        `        "${input}": "${getNode(input)?.data.content}", //${getNode(input)?.data.label}`
       ));
-
       return inputData.join('\n')
+    }else{
+      const inputData = inputs.map(
+        (input, index) => (
+        `     #${getNode(input)?.data.label} \n` + `     "${input}":` + ((getNode(input)?.data.content as string)?.trim() || "\"\"") + `,`
+        )
+      );
+      return inputData.join('\n')
+    }
   }
 
   const populatetext = (api_id:string, api_key:string,language:string) =>{
@@ -163,7 +231,7 @@ function DeployBotton() {
     const py = 
 `import requests
 
-api_url = "<http://${API_SERVER_URL}/execute_workflow/${api_id}>"
+api_url = "<${API_SERVER_URL}/execute_workflow/${api_id}>"
 
 api_key = "${api_key}"
 
@@ -174,10 +242,10 @@ headers = {
 
 data = {
     "inputs": {
-${input_text_gen(selectedInputs.map(item=>item.id))}
+${input_text_gen(selectedInputs.map(item=>item.id),PYTHON)}
     },
     "outputs": {
-${input_text_gen(selectedOutputs.map(item=>item.id))}
+${input_text_gen(selectedOutputs.map(item=>item.id),PYTHON)}
     }
 }
 
@@ -191,7 +259,65 @@ else:
     if(language===PYTHON){
       return py
     }    
-  }
+
+    const sh = 
+`curl -X POST "<${API_SERVER_URL}/execute_workflow/${api_id}>" \\
+-H "Authorization: Bearer ${api_key}" \\
+-H "Content-Type: application/json" \\
+-d '{
+    "inputs": {
+${input_text_gen(selectedInputs.map(item=>item.id),SHELL)}
+    },
+    "outputs"{
+${input_text_gen(selectedOutputs.map(item=>item.id),SHELL)}   
+    }
+}'
+`
+
+    if(language===SHELL){
+      return sh
+    }
+
+    const js = `const axios = require('axios');
+
+const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
+
+const data = {
+    "inputs": {
+${input_text_gen(selectedInputs.map(item=>item.id),JAVASCRIPT)}
+    },
+    "outputs"{
+${input_text_gen(selectedOutputs.map(item=>item.id),JAVASCRIPT)}   
+    }
+};
+
+axios.post(apiUrl, data, {
+    headers: {
+        "Authorization": "Bearer ${api_key}",
+        "Content-Type": "application/json"
+    }
+})
+.then(response => {
+    console.log("Results:", response.data);
+})
+.catch(error => {
+    if (error.response) {
+        console.error("Error:", error.response.status, error.response.data);
+    } else {
+        console.error("Error:", error.message);
+    }
+});
+`
+      if(language===JAVASCRIPT){
+        return js
+      }
+
+  
+}
+
+const [selectedLang,setSelectedLang] = useState(SHELL)
+
+const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
 
 
   return (
@@ -231,10 +357,10 @@ else:
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">inputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
                     {
-                      selectedInputs
-                      .map(item => (
+                      workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.selectedInputs
+                      .map((item: { id: string; label?: string }) => (
                         <div key={item.id} className="bg-[#6D7177] text-black text-[12px] text-semibold h-[26px] border-[1.5px] border-[#6D7177] pl-[16px] pr-[3px] rounded-lg flex items-center">
-                          <span className="flex-shrink-0">{item.data?.label as string || item.id}</span>
+                          <span className="flex-shrink-0">{item.label as string || item.id}</span>
                           <div className='flex bg-transparent border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                             onClick={()=>{
                               setSelectedInputs(prev=>{
@@ -279,9 +405,9 @@ else:
                 <h3 className="text-[#CDCDCD] text-[14px] mb-4">outputs</h3>
                 <div className="space-y-3 text-[14px] font-medium">
                 {
-                      selectedOutputs
-                      .map(item => (
-                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.data?.label as string || item.id} 
+                      workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.selectedOutputs
+                      .map((item: { id: string; label?: string })=> (
+                        <div key={item.id} className="bg-[#6D7177] text-[12px] text-black h-[26px] border-[1.5px] border-[#6D7177] px-[16px] pr-[3px] rounded-lg flex items-center justify-between">{item.label as string || item.id} 
                         <div className='flex bg-[#6D7177] border-none ml-auto cursor-pointer h-[20px] w-[20px] justify-center items-center hover:bg-white/20 rounded-[6px]'
                           onClick={
                             ()=>{
@@ -325,14 +451,26 @@ else:
             </div>
 
             {
-              apiConfig?
+              workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy?.apiConfig?.id?
               <>
+                {/* new codeblock */}
                 <div
                   className='bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]'
                 >
                   <div
-                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px]'
-                  >Python</div>
+                    className='border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px] cursor-pointer'
+                    onClick={()=>{
+                      setIsLangSelectorOpen(
+                        prev=>!prev
+                      )
+                    }}
+                  >{selectedLang}</div>
+                  <LanguageDropdown
+                    isOpen={isLangSelectorOpen}
+                    setIsOpen={setIsLangSelectorOpen}
+                    options={[SHELL,PYTHON,JAVASCRIPT]}
+                    onSelect={setSelectedLang}
+                  />
 
                   {/* <div className="bg-[#1E1E1E] mt-[5px] rounded-lg p-4 text-[#CDCDCD] text-sm">
                       {populatetext(apiConfig.id,apiConfig.key,"py")}
@@ -341,8 +479,9 @@ else:
                     <Editor
                           className='json-form hideLineNumbers rounded-[200px]'
                           defaultLanguage="json"
+                          language={selectedLang}
                           // theme={themeManager.getCurrentTheme()}
-                          value={populatetext(apiConfig.id,apiConfig.key,PYTHON)}
+                          value={populatetext(workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.id,workspaces.filter((w)=>w.flowId === selectedFlowId)[0].deploy.apiConfig.key,selectedLang)}
                           width={260}
                           height={200}
                           options={{
@@ -370,6 +509,7 @@ else:
                           }}
                         />
                   </div>
+
                 </div>
               </>:<></>
             }

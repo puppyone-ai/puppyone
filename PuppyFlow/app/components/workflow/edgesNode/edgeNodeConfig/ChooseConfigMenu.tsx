@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useContext } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import useJsonConstructUtils, {NodeJsonType} from '../../../hooks/useJsonConstructUtils'
 import { nodeSmallProps } from '../../../upbar/topLeftToolBar/AddNodeMenu'
@@ -15,8 +15,8 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { Select } from 'antd'
 import useManageReactFlowUtils from '../../../hooks/useManageReactFlowUtils'
 import { nanoid } from 'nanoid'
-import { json } from 'stream/consumers'
-import { Console } from 'console'
+
+
 type ChooseConfigProps = {
     show: boolean,
     parentId: string,
@@ -62,7 +62,7 @@ interface CaseItem {
 interface TransformedCondition {
     block: string;
     condition: string;
-    parameters: { [key: string]: string }; // Key-value pairs for parameters
+    parameters: { [key: string]: string|number }; // Key-value pairs for parameters
     operation: string;
 }
 
@@ -237,7 +237,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         if (isEqual(outputs, newOutputs)) return
         if(outputs.length ===5)return
         if(outputs.length < getResultNodes(parentId).length) return
-        setOutputs(newOutputs)
+        setOutputs(Array.from(new Set(newOutputs)))
         console.log("add resultnodes", newOutputs)
         onResultNodesChange(newOutputs)
         // console.log(ON.filter(node => newOutputs.includes(node)))
@@ -326,13 +326,29 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             new Promise(resolve => {
                 setNodes(prevNodes => {
                     resolve(null);
-                    return [...prevNodes, ...newNodes];
+                    return Array.from(new Set([...prevNodes, ...newNodes]));
                 })
             }),
             new Promise(resolve => {
                 setEdges(prevEdges => {
                     resolve(null);
-                    return [...prevEdges, ...newEdges];
+                        // Sort newEdges by output.id in ascending order
+                    const sortedNewEdges = [...prevEdges, ...newEdges].sort((a, b) => a.id.localeCompare(b.id));
+
+                    // Create a Set to track unique source-target combinations
+                    const uniqueEdges = new Set<string>();
+                    
+                    // Filter to keep only the first edge for each unique source-target combination
+                    const filteredEdges = sortedNewEdges.filter(edge => {
+                        const key = `${edge.source}-${edge.target}`;
+                        if (!uniqueEdges.has(key)) {
+                            uniqueEdges.add(key);
+                            return true; // Keep this edge
+                        }
+                        return false; // Skip this edge
+                    });
+
+                    return [...filteredEdges];
                 })
             }),
         ]);
@@ -504,19 +520,58 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     //     ))
     // }
 
+    // const transformCondV = () => {
+        // // for text
+        //     "is_empty"
+        //     "is_not_empty"
+        //     "contain"
+        //     "not_contain"
+        //     "greater_than_n_chars"
+        //     "less_than_n_chars"
+        //     "is"
+        //     "is_not"
+        //     // for structured 1text
+        //     "is_empty"
+        //     "is_not_empty"
+        //     "is_list"
+        //     "is_dict"
+        //     "greater_than_n"
+        //     "less_than_n"
+        // {"contains":"contain", "doesn’t contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars"}
+        // {"is empty":"is_empty", "is not empty":"is_not_empty", "contains":"contain", "doesn’t contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars", "is list":"is_list", "is dict":"is_dict"}
+        // {"is True":"is","is False":"is_not"}
+    // }
+
+    const conditionMappings: { [key: string]: string } = {
+        "contains": "contain",
+        "doesn’t contain": "not_contain",
+        "is greater than [N] characters": "greater_than_n_chars",
+        "is less than [N] characters": "less_than_n_chars",
+        "is empty": "is_empty",
+        "is not empty": "is_not_empty",
+        "is list": "is_list",
+        "is dict": "is_dict",
+        "is True": "is",
+        "is False": "is_not"
+    };
+    
+    const getConditionValue = (key: string): string | any => {
+        return conditionMappings[key];
+    };
+
     const transformCases = (inputCases: CaseItem[]): { cases: TransformedCases } => {
         const transformedCases: TransformedCases = {};
     
         inputCases.forEach((caseItem, index) => {
             const caseKey = `case${index + 1}`; // Create case keys like "case1", "case2", etc.
             transformedCases[caseKey] = {
-                conditions: caseItem.conditions.map(condition => ({
+                conditions: caseItem.conditions.map((condition,condition_id) => ({
                     block: condition.id, // Assuming 'id' is the block identifier
-                    condition: condition.cond_v,
+                    condition: getConditionValue(condition.cond_v),
                     parameters: { 
-                        [condition.cond_v]: condition.cond_input || "" // Ensure this is a string
+                        value: !isNaN(parseInt(condition.cond_input??"")) ? parseInt(condition.cond_input??"")||"" : condition.cond_input||"" // Transform to number if possible || "" // Ensure this is a string
                     },
-                    operation: condition.operation || "and" // Default to "and" if not provided
+                    operation: condition_id === caseItem.conditions.length - 1? "/" : (condition.operation || "and") // Default to "and" if not provided
                 })),
                 then: {
                     from: caseItem.actions[0]?.from_id || "", // Get the from_id from actions
@@ -550,10 +605,18 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                 resultNodeLabel = output;
             }
 
-            const nodejson: any = getNode(output)?getNode(output):{
-                label: resultNodeLabel,
-                type: "text",
-                data: { content: "" }
+            const nodeInfo = getNode(output);
+            if (!nodeInfo) continue;
+
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
+            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
+            const nodejson: NodeJsonType = {
+                label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
+                type: nodeInfo.type!,
+                data: {
+                    content: nodeContent,
+                },
+                looped: (nodeInfo as any).looped ? (nodeInfo as any).looped : false
             };
             blocks[output] = nodejson;
         }
@@ -562,7 +625,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             const nodeInfo = getNode(sourceNodeIdWithLabel.id);
             console.log("nodeinfo",getNode(sourceNodeIdWithLabel.id))
             if (!nodeInfo) continue;
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string;
+            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any, nodeInfo.type) : nodeInfo.data.content as string;
             if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format");
             const nodejson: NodeJsonType = {
                 label: (nodeInfo.data.label as string | undefined) ?? nodeInfo.id,
@@ -656,20 +719,19 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             data: {
                 ...transformCases(cases),
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string }) => {
-                    const content = getNode(node.id)?.data.content;
-                    console.log(getNode(node.id))
-                    return [node.id, ((typeof content === "string") && (content !== "") ) ? JSON.parse(content) : ""];
+                    const currentNode = getNode(node.id)
+                    const content = currentNode?.data.content;
+                    const nodeType= currentNode?.type
+                    console.log("node used for constructuring new request body",getNode(node.id))
+                    const nodeLabel = currentNode?.data.label
+
+                    return [node.id, ((typeof nodeLabel === "string") && (nodeLabel !== "") ) ? nodeLabel : ""];
+
                 })),
                 outputs: Object.fromEntries(outputs.map((node: string) => {
-                    let content = getNode(node)?.data.content;
-                    if(typeof content === "string" ){
-                        try {
-                            content = JSON.parse(content);
-                        } catch (error) {
-                            // Handle the error appropriately, e.g., set content to a default value or log it
-                        }
-                    }
-                    return ([node, typeof content === "string" ? content: JSON.stringify(content)|| ""])
+                    let label = getNode(node)?.data.label;
+
+                    return ([node, typeof label === "string" ? label: ""])
                 })) // Adjust outputs as needed
             }
         };
@@ -727,7 +789,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             const newResultNodeOneId = nanoid(6)
             // onResultNodeChange(newResultNodeId)
             setAutogenerated(true)
-            setOutputs([newResultNodeOneId])
+            setOutputs(Array.from(new Set([newResultNodeOneId])))
             console.log(outputs)
             
             // setIsAddContext(false)
@@ -1014,7 +1076,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
 
         useEffect(
             ()=>{
-                console.log(outputs)
+                console.log("outputs effect",outputs)
                 if(autogenerated){
                     setIsAddFlow(false)
                     setAutogenerated(false)
@@ -1044,21 +1106,33 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         
       
         useEffect(() => {
-          const currentNodes = getNodes().map(
-            (node)=>node.id
+          const currentNodes = getEdges().filter(
+            edge=>edge.source==parentId
+          ).map(
+            edge=>edge.target
           )
+          console.log("currentnode effect",currentNodes)
+          console.log("currentnode effect lastnodes",lastNodesRef.current)
+          
 
-        // console.log(lastNodesRef.current,currentNodes)
-            if(array1HasExtraElements(lastNodesRef.current,currentNodes)){
-                setOutputs(prev => prev.filter(
-                        output=>currentNodes.includes(output)
-                    )
+        console.log(lastNodesRef.current,currentNodes)
+            if(array1HasExtraElements(currentNodes,lastNodesRef.current)){
+                console.log("new edge effect",outputs)
+                setOutputs(
+                    Array.from(new Set(currentNodes))
                 )
             }
 
-          lastNodesRef.current = currentNodes; // Save the current nodes to the ref
+            if(array1HasExtraElements(lastNodesRef.current,currentNodes)){
+                console.log("new edge effect",outputs)
+                setOutputs(
+                    Array.from(new Set(currentNodes))
+                )
+            }
+
+          lastNodesRef.current = Array.from(new Set(currentNodes)); // Save the current nodes to the ref
           // You can also perform other side effects here if needed
-        }, [getNodes()]); // Dependency array includes getNodes
+        }, [getEdges()]); // Dependency array includes getNodes
 
         // useEffect(
         //     ()=>{
@@ -1119,19 +1193,19 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                     </div>
                 </li>
                 <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
-                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] flex items-center justify-start'>
                      input
                     </div>
-                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  border-l-[1px] border-[#6D7177]'>
                         {displaySourceNodeLabels()}
                     </div>
                     
                 </li>
                 <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
-                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] flex items-center justify-start'>
                      output
                     </div>
-                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  border-l-[1px] border-[#6D7177]'>
                         {displayOutputNodeLabels()} 
                         <svg onClick={
                             async()=>{
@@ -1139,7 +1213,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                 const newResultNodeOneId = nanoid(6)
                                 // onResultNodeChange(newResultNodeId)
                                 setAutogenerated(true)
-                                setOutputs(prev=>[...prev,newResultNodeOneId])
+                                setOutputs(prev => Array.from(new Set([...prev, newResultNodeOneId])))
                             }
                         } className='cursor-pointer' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>

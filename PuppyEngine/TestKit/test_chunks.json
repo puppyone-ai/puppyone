@@ -1,0 +1,54 @@
+{
+    "blocks": {
+        "s6m77K": {
+            "label": "s6m77K",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "Q4oyq3": {
+            "label": "Q4oyq3",
+            "type": "text",
+            "data": {
+                "content": "    Agent, the term became a hot topic in 2023—you've probably heard of AutoGPT, Stanford Town, BabyAGI, and countless other \"LLM-based agents.\"These are not just concepts; they are real agents that can sense their environment, plan their next steps, and carry out tasks."
+            },
+            "looped": false
+        },
+        "Q4oyq4": {
+            "label": "Q4oyq4",
+            "type": "structured",
+            "data": {
+                "content": []
+            }
+        }
+    },
+    "edges": {
+        "chunk-1740389573504": {
+            "type": "chunk",
+            "data": {
+                "inputs": {
+                    "Q4oyq3": "Q4oyq3"
+                },
+                "chunking_mode": "auto",
+                "extra_configs": {},
+                "outputs": {
+                    "s6m77K": "s6m77K"
+                }
+            }
+        },
+        "chunk-1740389573505": {
+            "type": "chunk",
+            "data": {
+                "inputs": {
+                    "s6m77K": "s6m77K"
+                },
+                "chunking_mode": "auto",
+                "extra_configs": {},
+                "outputs": {
+                    "Q4oyq4": "Q4oyq4"
+                }
+            }
+        }
+    }
+}

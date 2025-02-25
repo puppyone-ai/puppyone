@@ -23,8 +23,8 @@ export type SearchByVectorEdgeJsonType = {
     data: {
         // search_type: "vector",
         // sub_search_type: "embedding",
-        search_type: "rag",
-        sub_search_type: "vector",
+        search_type: "vector",
+        // sub_search_type: "vector",
         top_k: number,
         inputs: { [key: string]: string },
         threshold: number,
@@ -40,6 +40,7 @@ export type SearchByVectorEdgeJsonType = {
         looped: boolean,
         outputs: { [key: string]: string }
     },
+    id:string
 }
 
 type ConstructedSearchByVectorJsonData = {
@@ -50,7 +51,7 @@ type ConstructedSearchByVectorJsonData = {
 function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges, getNodes} = useReactFlow()
-    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
+    const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
     const [resultNode, setResultNode] = useState<string | null>(
@@ -291,29 +292,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 data: {content: ""}
             }
         }
-        for (let sourceNodeIdWithLabel of sourceNodeIdWithLabelGroup) {
-            const nodeInfo = getNode(sourceNodeIdWithLabel.id)
-            if (!nodeInfo) continue
-            const nodeContent = (nodeInfo.type === "structured" || nodeInfo.type === "none" && nodeInfo.data?.subType === "structured") ? cleanJsonString(nodeInfo.data.content as string | any) : nodeInfo.data.content as string
-            if (nodeContent === "error") return new Error("JSON Parsing Error, please check JSON format")
-            const nodejson: NodeJsonType = {
-                // id: nodeInfo.id,
-                label: nodeInfo.data.label as string | undefined ?? nodeInfo.id,
-                type: nodeInfo.type!,
-                data: {
-                    content: nodeContent,
-                    ...(nodeInfo.id === vectorDB.id ? {
-                        model: nodeInfo.data.model as string,
-                        method: nodeInfo.data.method as string,
-                        vdb_type: nodeInfo.data.vdb_type as string,
-                        index_name: nodeInfo.data.index_name as string
-                    }: {})
-                        
-                    // ...(nodeInfo.type === "none" ? {subType: nodeInfo.data?.subType as string ?? "text"}: {})
-                }
-            }
-            blocks[nodeInfo.id] = nodejson
-        }
+        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
         let edges: { [key: string]: SearchByVectorEdgeJsonType } = {}
 
@@ -322,13 +301,33 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         const vectorDB_label = getNode(vectorDB.id)?.data?.label as string | undefined ?? vectorDB.label
        
         const edgejson: SearchByVectorEdgeJsonType = {
+            // "search-1728709343180": {
+            // "type": "search",
+            // "data": {
+            //     "search_type": "vector",
+            //     "inputs": {
+            //         "3": "",
+            //         "4": ""
+            //     },
+            //     "outputs": { "5": "" },
+            //     "top_k": 10,
+            //     "threshold": 0.5,
+            //     "extra_configs": {
+            //     "model": "text-embedding-ada-002",
+            //     "db_type": "pgvector",
+            //     "collection_name": "test_collection",
+            //     },
+            //     "docs_id": {"3": ""},
+            //     "query_id": {"4": ""}
+            // }
+            // }
             // id: parentId,
             type: "search",
             data: {  
-                search_type: "rag",
-                sub_search_type: "vector",
-                top_k: top_k ?? 5,
+                search_type: "vector", // 改成vector？
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                outputs: {[resultNode as string]: resultNodeLabel as string},
+                top_k: top_k ?? 5,
                 threshold: threshold ?? 0.7,
                 extra_configs: {
                     provider: "openai",
@@ -339,8 +338,8 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 docs_id: {[vectorDB.id]: vectorDB_label},
                 query_id: {[query.id]: query_label},
                 looped: false,
-                outputs: {[resultNode as string]: resultNodeLabel as string}
             },
+            id: parentId
         }
 
         if (query_label !== query.label) setQuery({id: query.id, label: query_label})

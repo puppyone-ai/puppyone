@@ -121,7 +121,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
   {"role": "system",
    "content": "You are an AI"},
   {"role": "user",
-   "content": "Introduce yourself"}
+   "content": "Answer the question by {{input_ID}}"}
 ]`):
         edgeType === "chunk" && subMenuType === "chunk-Bycharacter" ? 
         (`[",",";","\\n"]`):
@@ -384,8 +384,8 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
             onMouseLeave={() => manageTextNodeSubMenu(null)}>
 
 
-            <li>
-                <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold">
+<li className="w-full">
+                <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                     AI Action
                 </div>
             </li>
@@ -407,7 +407,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
             </li> 
 
             <li className="w-full">
-                <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
+                <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                     Processing
                 </div>
             </li>
@@ -460,7 +460,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
             </li>   
 
             <li className="w-full">
-                <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
+                <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                     Search
                 </div>
             </li>
@@ -486,7 +486,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 <SearchSubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 4 ? 1 : 0} createNewConnection={createNewConnection}/>
             </li> 
             <li className="w-full">
-                <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
+                <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                     Others
                 </div>
             </li>
@@ -543,7 +543,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 onMouseLeave={() => manageTextNodeSubMenu(null)}>
                 
                 <li>
-                    <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold">
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                         AI Action
                     </div>
                 </li>
@@ -564,7 +564,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 </li>
 
                 <li className="w-full">
-                    <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                         Processing
                     </div>
                 </li>
@@ -616,7 +616,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 </li> 
 
                 <li className="w-full">
-                    <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                         Search
                     </div>
                 </li>
@@ -663,8 +663,8 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     <SearchSubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 4 ? 1 : 0} createNewConnection={createNewConnection}/>
                 </li> 
                 <li className="w-full">
-                    <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
-                        Search
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
+                        Others
                     </div>
                 </li>
                 <li className="w-full">
@@ -808,7 +808,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 onMouseLeave={() => manageTextNodeSubMenu(null)}>
                   
                 <li>
-                    <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold">
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                         Others
                     </div>
                 </li>
@@ -844,7 +844,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 onMouseLeave={() => manageTextNodeSubMenu(null)}>
                 
                 <li>
-                    <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold">
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
                         Load
                     </div>
                 </li>

@@ -1,0 +1,65 @@
+{
+    "blocks": {
+        "1": {
+            "label": "text_input",
+            "type": "text",
+            "data": {
+                "content": "name: Alice, scores: [85, 90, 78], city: New York"
+            }
+        },
+        "2": {
+            "label": "list_input",
+            "type": "text",
+            "data": {
+                "content": "item1, item2, item3"
+            }
+        },
+        "3": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "4": {
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "convert-1": {
+            "type": "modify",
+            "data": {
+                "modify_type": "convert",
+                "content": "{{text_input}}",
+                "extra_configs": {
+                    "source_type": "text",
+                    "target_type": "structured",
+                    "action_type": "json",
+                    "target_structure": "dict",
+                    "dict_key": "value"
+                },
+                "inputs": {"1": "text_input"},
+                "outputs": {"3": "structured_output"}
+            }
+        },
+        "convert-2": {
+            "type": "modify",
+            "data": {
+                "modify_type": "convert",
+                "content": "{{list_input}}",
+                "extra_configs": {
+                    "source_type": "text",
+                    "target_type": "structured",
+                    "target_structure": "list",
+                    "list_separator": [","],
+                    "action_type": "default"
+                },
+                "inputs": {"2": "list_input"},
+                "outputs": {"4": "list_output"}
+            }
+        }
+    },
+    "version": "0.1"
+} 
