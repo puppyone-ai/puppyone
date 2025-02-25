@@ -15,6 +15,7 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList
 )
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 @dataclass
@@ -123,6 +124,7 @@ class LocalLLMChat:
             eos_token_id=self.tokenizer.eos_token_id,
         )
 
+    @global_exception_handler(3603, "Error Generating Response Using Local Models")
     def chat(
         self,
         messages: List[Dict[str, str]],

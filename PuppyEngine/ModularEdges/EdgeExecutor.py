@@ -108,7 +108,7 @@ class EdgeExecutor:
                 result, status, error = self._execute_single(init_configs[0], extra_configs[0])
                 results.append(result)
                 statuses.append(status)
-            
+
             # Combine loop results
             status = "completed" if error is None and all(status == "completed" for status in statuses) else "failed"
             combined_taskes = EdgeTask(

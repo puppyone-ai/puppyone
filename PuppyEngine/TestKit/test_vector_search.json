@@ -1,0 +1,71 @@
+{
+    "blocks": {
+        "d_B-1Y": {
+            "label": "d_B-1Y",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "OlVqOq": {
+            "label": "OlVqOq",
+            "type": "structured",
+            "data": {
+            "content": {
+                "family": {
+                    "father": "阿强",
+                    "sons": [
+                        {
+                            "name": "熊大",
+                            "trait": "聪明"
+                        },
+                        {
+                            "name": "熊二",
+                            "trait": "傻"
+                        }
+                    ]
+                }
+            }
+        },
+        "looped": false
+        },
+        "IkJXNd": {
+            "label": "IkJXNd",
+            "type": "text",
+            "data": {
+                "content": "who is dummy"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "search-1738445447197": {
+            "type": "search",
+            "data": {
+                "search_type": "vector",
+                "top_k": 5,
+                "inputs": {
+                    "OlVqOq": "OlVqOq",
+                    "IkJXNd": "IkJXNd"
+                },
+                "threshold": 0.7,
+                "extra_configs": {
+                    "provider": "openai",
+                    "model": "text-embedding-ada-002",
+                    "db_type": "pgvector",
+                    "collection_name": "test_collection"
+                },
+                "docs_id": {
+                    "OlVqOq": "OlVqOq"
+                },
+                "query_id": {
+                    "IkJXNd": "IkJXNd"
+                },
+                "looped": false,
+                "outputs": {
+                    "d_B-1Y": "d_B-1Y"
+                }
+            }
+        }
+    }
+}
