@@ -8,5 +8,8 @@ export const SYSTEM_URLS = {
     },
     PUPPY_STORAGE: {
         BASE: process.env.NEXT_PUBLIC_PUPPYSTORAGE_URL || "http://localhost:8002"
+    },
+    API_SERVER: {
+        BASE: process.env.NEXT_PUBLIC_API_SERVER_URL || "http://localhost:8004"
     }
 } 
