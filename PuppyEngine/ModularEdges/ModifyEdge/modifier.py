@@ -26,6 +26,7 @@ class Modifier(StructuredNestedOperations):
         self.extra_configs = extra_configs
         self.content = init_configs.get("content")
 
+    @global_exception_handler(3800, "Error Modifying Block Content")
     def modify(
         self
     ) -> Any:
@@ -42,13 +43,13 @@ class Modifier(StructuredNestedOperations):
             case _:
                 raise ValueError(f"Unsupported execute Type: {modify_type}!")
 
-    @global_exception_handler(4210, "Error Copying Block Content")
+    @global_exception_handler(3801, "Error Copying Block Content")
     def _handle_copy(
         self,
     ) -> Any:
         return copy.deepcopy(self.content)
 
-    @global_exception_handler(4211, "Error Converting Block Content")
+    @global_exception_handler(3802, "Error Converting Block Content")
     def _handle_convert(
         self,
     ) -> Any:
@@ -180,7 +181,7 @@ class Modifier(StructuredNestedOperations):
 
         return merged_data
 
-    @global_exception_handler(4212, "Error Editing Text")
+    @global_exception_handler(3803, "Error Editing Text")
     def _handle_edit_text(
         self,
     ) -> str:
@@ -199,7 +200,7 @@ class Modifier(StructuredNestedOperations):
             self.content = "".join(sorted(self.content, reverse=(sort_type == "descending")))
         return self.content
 
-    @global_exception_handler(4213, "Error Editing Structured Content")
+    @global_exception_handler(3804, "Error Editing Structured Content")
     def _handle_edit_structured(
         self,
     ) -> Any:
@@ -280,6 +281,7 @@ class Modifier(StructuredNestedOperations):
 
 class ModifierFactory(EdgeFactoryBase):
     @classmethod
+    @global_exception_handler(3013, "Error Executing Modify Edge")
     def execute(
         cls,
         init_configs: Dict[str, Any] = None,

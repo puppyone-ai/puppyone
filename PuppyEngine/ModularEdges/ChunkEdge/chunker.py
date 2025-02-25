@@ -7,6 +7,8 @@ import numpy as np
 from typing import List, Dict, Any
 from ModularEdges.ChunkEdge.llm_chunk import LLMChunking
 from ModularEdges.ChunkEdge.auto_chunk import AutoChunking
+from ModularEdges.ChunkEdge.Rechunker import ReChunker
+from ModularEdges.ChunkEdge.simple_chunk import SimpleChunking
 from ModularEdges.ChunkEdge.length_chunk import LengthChunking
 from ModularEdges.ChunkEdge.special_chunk import SpecialChunking
 from ModularEdges.ChunkEdge.advanced_chunk import AdvancedChunking
@@ -17,18 +19,20 @@ from Utils.PuppyEngineExceptions import global_exception_handler
 
 class ChunkerFactory(EdgeFactoryBase):
     @staticmethod
-    @global_exception_handler(3100, "Error Initializing Chunking Method")
+    @global_exception_handler(3015, "Error Executing Chunk Edge")
     def execute(
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> List[Dict[str, Any]]:
         chunking_classes = {
-            "auto": AutoChunking,
-            "length": LengthChunking,
+            "rechunk": ReChunker,
             "llm": LLMChunking,
-            "character": CharacterChunking,
+            "auto": AutoChunking,
+            "simple": SimpleChunking,
+            "length": LengthChunking,
+            "special": SpecialChunking,
             "advanced": AdvancedChunking,
-            "special": SpecialChunking
+            "character": CharacterChunking,
         }
         chunking_mode = init_configs.get("chunking_mode", "auto")
         sub_chunking_mode = init_configs.get("sub_chunking_mode")
@@ -53,8 +57,8 @@ There are two types of AI: narrow AI and general AI.
 Narrow AI is designed to perform a narrow task like facial recognition.
 General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
 """
-    print("LLM Chunking: ", ChunkerFactory.execute(init_configs={"chunking_mode": "llm", "doc": doc}))
-    print("Auto Chunking -- Text: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": doc}))
+    print("LLM Chunking: ", ChunkerFactory.execute(init_configs={"chunking_mode": "llm", "doc": doc, "sub_chunking_mode": "llm"}))
+    print("Auto Chunking -- Text: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": doc, "sub_chunking_mode": "auto"}))
 
     json_input = """
 {
@@ -67,7 +71,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     "phones": ["123-4567", "234-5678"]
 }
     """
-    print("Auto Chunking -- JSON 1: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input}))
+    print("Auto Chunking -- JSON 1: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input, "sub_chunking_mode": "auto"}))
     json_input = """
 [{
     "name": "John",
@@ -79,7 +83,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     "phones": ["123-4567", "234-5678"]
 }]
     """
-    print("Auto Chunking -- JSON 2: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input}))
+    print("Auto Chunking -- JSON 2: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input, "sub_chunking_mode": "auto"}))
     json_input = [{
     "name": "John",
     "age": 30,
@@ -89,7 +93,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     },
     "phones": ["123-4567", "234-5678"]
 }]
-    print("Auto Chunking -- JSON list: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input}))
+    print("Auto Chunking -- JSON list: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input, "sub_chunking_mode": "auto"}))
 
     documents = "The quick brown fox jumps over the lazy dog. The dog barks at the fox."
     
