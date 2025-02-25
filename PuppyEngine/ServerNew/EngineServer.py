@@ -68,7 +68,11 @@ class DataStore:
     def __init__(
         self
     ):
-        self.data_store = defaultdict(lambda: {"blocks": {}, "edges": {}})
+        self.data_store = defaultdict(lambda: {
+            "blocks": {}, 
+            "edges": {},
+            "workflow": None  # Add workflow storage
+        })
         self.lock = Lock()
 
     def get_data(
@@ -76,7 +80,27 @@ class DataStore:
         task_id: str
     ) -> dict:
         with self.lock:
-            return self.data_store[task_id]
+            return {
+                "blocks": self.data_store[task_id]["blocks"],
+                "edges": self.data_store[task_id]["edges"]
+            }
+
+    def get_workflow(
+        self,
+        task_id: str
+    ) -> WorkFlow:
+        """Get workflow object for task"""
+        with self.lock:
+            return self.data_store[task_id]["workflow"]
+
+    def set_workflow(
+        self,
+        task_id: str,
+        workflow: WorkFlow
+    ) -> None:
+        """Set workflow object for task"""
+        with self.lock:
+            self.data_store[task_id]["workflow"] = workflow
 
     def set_data(
         self,
@@ -153,9 +177,6 @@ try:
     )
 
     data_store = DataStore()
-    
-    # Initialize the workflow
-    all_workflows = {}
 except PuppyEngineException as e:
     raise
 except Exception as e:
@@ -179,7 +200,7 @@ async def get_data(
     try:
         def stream_data():
             try:
-                workflow = all_workflows.get(task_id)
+                workflow = data_store.get_workflow(task_id)
                 if not workflow:
                     raise PuppyEngineException(
                         7303,
@@ -220,7 +241,7 @@ async def send_data(
             blocks = data.get("blocks", {})
             edges = data.get("edges", {})
             data_store.set_data(task_id, blocks, edges)
-            all_workflows[task_id] = WorkFlow()
+            data_store.set_workflow(task_id, WorkFlow())  # Store workflow in DataStore
             return JSONResponse(content={"data": data, "task_id": task_id}, status_code=200)
 
         return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
