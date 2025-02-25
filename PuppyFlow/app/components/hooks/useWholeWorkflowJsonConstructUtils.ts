@@ -374,14 +374,36 @@ export default function useWholeWorkflowJsonConstructUtils() {
                 const vectorDB_label = vectorDB_id ? getNode(vectorDB_id)?.data?.label as string | undefined ?? vectorDB_id : undefined
                 const query_id = (nodeInfo.data as SearchConfigNodeData)?.query_id?.id
                 const query_label = query_id ? getNode(query_id)?.data?.label as string | undefined ?? query_id : undefined
+              // "search-1728709343180": {
+              // "type": "search",
+              // "data": {
+              //     "search_type": "vector",
+              //     "inputs": {
+              //         "3": "",
+              //         "4": ""
+              //     },
+              //     "outputs": { "5": "" },
+              //     "top_k": 10,
+              //     "threshold": 0.5,
+              //     "extra_configs": {
+              //     "model": "text-embedding-ada-002",
+              //     "db_type": "pgvector",
+              //     "collection_name": "test_collection",
+              //     },
+              //     "docs_id": {"3": ""},
+              //     "query_id": {"4": ""}
+              // }
+              // }
+              // id: parentId,
                 edgejson = {
                   // id: nodeInfo.id,
                   type: "search",
                   data: {  
-                      search_type: "rag",
-                      sub_search_type: "vector",
-                      top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
+                      search_type: "vector", //vector?
+                      // sub_search_type: "vector",
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string},
+                      top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
                       threshold: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7,
                       extra_configs: {
                         provider: "openai",
@@ -392,8 +414,8 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       docs_id: {[vectorDB_id as string]: vectorDB_label as string},
                       query_id: {[query_id as string]: query_label as string},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
-                      outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
+                  id:nodeInfo.id
                 } as SearchByVectorEdgeJsonType
                 edges[nodeInfo.id] = edgejson
               }
