@@ -23,8 +23,8 @@ export type SearchByVectorEdgeJsonType = {
     data: {
         // search_type: "vector",
         // sub_search_type: "embedding",
-        search_type: "rag",
-        sub_search_type: "vector",
+        search_type: "vector",
+        // sub_search_type: "vector",
         top_k: number,
         inputs: { [key: string]: string },
         threshold: number,
@@ -40,6 +40,7 @@ export type SearchByVectorEdgeJsonType = {
         looped: boolean,
         outputs: { [key: string]: string }
     },
+    id:string
 }
 
 type ConstructedSearchByVectorJsonData = {
@@ -300,13 +301,33 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         const vectorDB_label = getNode(vectorDB.id)?.data?.label as string | undefined ?? vectorDB.label
        
         const edgejson: SearchByVectorEdgeJsonType = {
+            // "search-1728709343180": {
+            // "type": "search",
+            // "data": {
+            //     "search_type": "vector",
+            //     "inputs": {
+            //         "3": "",
+            //         "4": ""
+            //     },
+            //     "outputs": { "5": "" },
+            //     "top_k": 10,
+            //     "threshold": 0.5,
+            //     "extra_configs": {
+            //     "model": "text-embedding-ada-002",
+            //     "db_type": "pgvector",
+            //     "collection_name": "test_collection",
+            //     },
+            //     "docs_id": {"3": ""},
+            //     "query_id": {"4": ""}
+            // }
+            // }
             // id: parentId,
             type: "search",
             data: {  
-                search_type: "rag",
-                sub_search_type: "vector",
-                top_k: top_k ?? 5,
+                search_type: "vector", // 改成vector？
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                outputs: {[resultNode as string]: resultNodeLabel as string},
+                top_k: top_k ?? 5,
                 threshold: threshold ?? 0.7,
                 extra_configs: {
                     provider: "openai",
@@ -317,8 +338,8 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 docs_id: {[vectorDB.id]: vectorDB_label},
                 query_id: {[query.id]: query_label},
                 looped: false,
-                outputs: {[resultNode as string]: resultNodeLabel as string}
             },
+            id: parentId
         }
 
         if (query_label !== query.label) setQuery({id: query.id, label: query_label})
