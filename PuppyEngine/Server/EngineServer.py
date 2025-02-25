@@ -218,6 +218,11 @@ async def get_data(
 
                 log_info("data: Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"
+
+                # Delete the workflow and taskid from the DataStore
+                with data_store.lock:
+                    if task_id in data_store.data_store:
+                        del data_store.data_store[task_id]
             except Exception as e:
                 log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
