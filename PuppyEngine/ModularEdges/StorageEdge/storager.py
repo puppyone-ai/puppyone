@@ -14,7 +14,7 @@ from Utils.PuppyEngineExceptions import global_exception_handler
 class StoragerFactory:
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:8002"
+        base_url: str = os.getenv("STORAGE_SERVER_URL", "http://127.0.0.1:8002")
     ):
         self.base_url = base_url
         self.headers = {
@@ -73,6 +73,7 @@ class StoragerFactory:
         logging.info(f"Embedding Search Results: {results}")
         return results
 
+    @global_exception_handler(3016, "Error Executing Storage Server Edge")
     def execute(
         self,
         collection_name: str,
@@ -123,5 +124,5 @@ if __name__ == "__main__":
 
     storage_client = StoragerFactory()
     collection_name = storage_client.embed_and_save_vector(embed_configs, user_id)
-    storage_client.search_embedded_vector(collection_name, search_configs)
+    print("Search Results: ", storage_client.execute(collection_name, search_configs))
     storage_client.delete_vector_collection(collection_name, vdb_configs)

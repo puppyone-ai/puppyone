@@ -26,7 +26,7 @@ class LoaderFactory(EdgeFactoryBase):
     }
 
     @classmethod
-    @global_exception_handler(1005, "Unexpected Error in Loading Block")
+    @global_exception_handler(3011, "Error Executing Load Edge")
     def execute(
         cls,
         init_configs: Dict[str, Any] = None,

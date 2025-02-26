@@ -3,7 +3,6 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import re
 from typing import List
 from DataClass.Chunk import Chunk
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
@@ -20,94 +19,83 @@ class AutoChunking(BaseChunk):
     @global_exception_handler(3101, "Error Executing Auto-Chunk")
     def chunk(
         self,
-        sub_mode: str,
-        extra_configs: dict
+        sub_mode: str = "",
+        extra_configs: dict = {}
     ) -> List[Chunk]:
         """
-        Automatically chunk the input text based on the specified text type.
-        Supports plain text, JSON, and Markdown.
-        """
-        
-        if isinstance(self.documents, str):
-            return self.contents_to_chunks(self._chunk_text())
-        elif isinstance(self.documents, list):
-            return self.contents_to_chunks(self._chunk_list())
-        elif isinstance(self.documents, dict):
-            return self.contents_to_chunks(self._chunk_json())
-        else:
-            raise ValueError(f"Unsupported Input Type for Auto Chunk: Type {type(self.documents)}")
-
-    def _chunk_text(
-        self
-    ) -> List[str]:
-        """
-        Chunk a text string, split by newlines.
+        Automatically chunk the input text based on the size and separators.
         """
 
-        # Define multilingual sentence-ending delimiters
-        delimiters = (
-            r"[.!?]"                # English and similar
-            r"|[。！？]"             # Chinese, Japanese, Korean (CJK)
-            r"|[۔؟]"                # Arabic, Persian
-            r"|[।]"                 # Hindi, Indic languages
-            r"|[።၊။།]"             # Ethiopic, Myanmar, Tibetan
-            r"|(?:\r?\n)+"          # Newlines
-        )
+        self.chunk_size = extra_configs.get("chunk_size", 1000)
+        self.chunk_overlap = extra_configs.get("chunk_overlap", 200)
+        self.separators = extra_configs.get("separators", ["\n\n", "\n", ". ", ", ", " "])
+        chunks = self._split_recursive(self.documents, self.separators.copy())
+        return self.contents_to_chunks(chunks)
 
-        return re.split(delimiters, self.documents)
-
-    def _chunk_list(
-        self
-    ) -> List[str]:
-        """
-        Chunk a list, convert each list element to string and split by element.
-        """
-
-        return [str(element) for element in self.documents]
-
-    def _chunk_json(
-        self
-    ) -> List[str]:
-        """
-        Chunk JSON data, preserving the structure.
-        """
-
-        flattened_content = []
-        if isinstance(self.documents, dict):
-            flattened_content = self._flatten_json(self.documents)
-        elif isinstance(self.documents, list):
-            for data in self.documents:
-                flattened_content.extend(self._flatten_json(data))
-        return flattened_content
-
-    def _flatten_json(
+    def _split_recursive(
         self,
-        y: dict,
-        parent_key="",
-        sep="."
+        text: str,
+        separators: List[str]
     ) -> List[str]:
-        """
-        Flatten a nested JSON object into a list of strings.
-        """
+        if len(text) <= self.chunk_size:
+            return [text]
+        if not separators:
+            return self._split_fixed(text)
 
-        items = []
-        for k, v in y.items():
-            new_key = f"{parent_key}{sep}{k}" if parent_key else k
-            if isinstance(v, dict):
-                items.extend(self._flatten_json(v, new_key, sep=sep))
-            elif isinstance(v, list):
-                for i, item in enumerate(v):
-                    items.extend(self._flatten_json({f"{new_key}[{i}]": item}, sep=sep))
+        current_sep = separators.pop(0)
+        parts = self._split_on_sep(text, current_sep)
+        new_parts = []
+        for part in parts:
+            if len(part) > self.chunk_size:
+                subparts = self._split_recursive(part, separators.copy())
+                new_parts.extend(subparts)
             else:
-                items.append(f"{new_key}: {v}")
-        return items
+                new_parts.append(part)
+        return new_parts
 
-    
+    def _split_on_sep(
+        self,
+        text: str,
+        sep: str
+    ) -> List[str]:
+        parts = []
+        start = 0
+        sep_len = len(sep)
+        while True:
+            idx = text.find(sep, start)
+            if idx == -1:
+                if start <= len(text):
+                    parts.append(text[start:])
+                break
+            end = idx + sep_len
+            parts.append(text[start:end])
+            start = end
+
+        # Remove the last part if it's empty (when text ends with the separator)
+        if parts and parts[-1] == '':
+            parts.pop()
+        return parts
+
+    def _split_fixed(
+        self,
+        text: str
+    ) -> List[str]:
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + self.chunk_size
+            chunks.append(text[start:end])
+            start += (self.chunk_size - self.chunk_overlap)
+        return chunks
 
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
+
+    doc = "    Agent, the term became a hot topic in 2023—you've probably heard of AutoGPT, Stanford Town, BabyAGI, and countless other \"LLM-based agents.\"These are not just concepts; they are real agents that can sense their environment, plan their next steps, and carry out tasks."
+    chunker = AutoChunking(doc)
+    print(chunker.chunk("", {}))
 
     doc = """
 Artificial Intelligence (AI) is the simulation of human intelligence in machines.
@@ -117,8 +105,12 @@ Narrow AI is designed to perform a narrow task like facial recognition.
 General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
 """
     chunker = AutoChunking(doc)
-    
-    print("Auto Chunking -- Text: ", chunker.chunk("text", {}))
+    extra_configs = {
+        "chunk_size": 100,
+        "chunk_overlap": 80,
+        "separators": ["\n\n", "\n", ". ", ", ", " "]
+    }
+    print("Auto Chunking -- Text: ", chunker.chunk("", extra_configs))
 
     json_input = """
 {
@@ -131,26 +123,10 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     "phones": ["123-4567", "234-5678"]
 }
     """
-    print("Auto Chunking -- JSON 1: ", chunker.chunk("json", {}))
-    json_input = """
-[{
-    "name": "John",
-    "age": 30,
-    "address": {
-        "street": "123 Main St",
-        "city": "New York"
-    },
-    "phones": ["123-4567", "234-5678"]
-}]
-    """
-    print("Auto Chunking -- JSON 2: ", chunker.chunk("json", {}))
-    json_input = [{
-    "name": "John",
-    "age": 30,
-    "address": {
-        "street": "123 Main St",
-        "city": "New York"
-    },
-    "phones": ["123-4567", "234-5678"]
-}]
-    print("Auto Chunking -- JSON list: ", chunker.chunk("json", {}))
+    chunker = AutoChunking(json_input)
+    extra_configs = {
+        "chunk_size": 100,
+        "chunk_overlap": 10,
+        "separators": ["\n\n", "\n", "{", "}", '"', ", ", ":"]
+    }
+    print("Auto Chunking -- JSON: ", chunker.chunk("", extra_configs))

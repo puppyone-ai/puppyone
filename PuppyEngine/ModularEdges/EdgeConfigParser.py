@@ -4,11 +4,11 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import re
-import json
 from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Union, Tuple
+from Utils.PuppyEngineExceptions import global_exception_handler
 
 
 @dataclass
@@ -81,7 +81,7 @@ class EdgeConfigParser(ABC):
             init_configs = [{**base_init, variable_field: content} for content in contents]
             extra_configs = [base_extra] * len(contents)
         else:
-            init_configs = [{**base_init, variable_field: str(block_content)}]
+            init_configs = [{**base_init, variable_field: block_content}]
             extra_configs = [base_extra]
 
         return is_loop, init_configs, extra_configs
@@ -139,6 +139,7 @@ class EdgeConfigParser(ABC):
 
 
 class LoadConfigParser(EdgeConfigParser):
+    @global_exception_handler(3001, "Error Parsing Load Edge")
     def parse(
         self,
         variable_replace_field: str = "content"
@@ -159,6 +160,7 @@ class LoadConfigParser(EdgeConfigParser):
 
 
 class SaveConfigParser(EdgeConfigParser):
+    @global_exception_handler(3002, "Error Parsing Save Edge")
     def parse(
         self,
         variable_replace_field: str = "data"
@@ -180,6 +182,7 @@ class SaveConfigParser(EdgeConfigParser):
 
 
 class LLMConfigParser(EdgeConfigParser):
+    @global_exception_handler(3003, "Error Parsing LLM Edge")
     def parse(
         self,
         variable_replace_field: str = "messages"
@@ -212,6 +215,7 @@ class LLMConfigParser(EdgeConfigParser):
 
 
 class ChunkConfigParser(EdgeConfigParser):
+    @global_exception_handler(3004, "Error Parsing Chunk Edge")
     def parse(
         self,
         variable_replace_field: str = "doc",
@@ -233,6 +237,7 @@ class ChunkConfigParser(EdgeConfigParser):
 
 
 class SearchConfigParser(EdgeConfigParser):
+    @global_exception_handler(3005, "Error Parsing Search Edge")
     def parse(
         self,
         variable_replace_field: str = "query"
@@ -263,6 +268,7 @@ class SearchConfigParser(EdgeConfigParser):
 
 
 class RerankConfigParser(EdgeConfigParser):
+    @global_exception_handler(3006, "Error Parsing Rerank Edge")
     def parse(
         self,
         variable_replace_field: str = "retrieval_chunks"
@@ -290,6 +296,7 @@ class RerankConfigParser(EdgeConfigParser):
 
 
 class QueryRewriteConfigParser(EdgeConfigParser):
+    @global_exception_handler(3007, "Error Parsing Query Rewrite Edge")
     def parse(
         self,
         variable_replace_field: str = "query"
@@ -311,6 +318,7 @@ class QueryRewriteConfigParser(EdgeConfigParser):
 
 
 class CodeConfigParser(EdgeConfigParser):
+    @global_exception_handler(3008, "Error Parsing Code Edge")
     def parse(
         self,
         variable_replace_field: str = "variables"
@@ -335,6 +343,7 @@ class CodeConfigParser(EdgeConfigParser):
 
 
 class ConditionConfigParser(EdgeConfigParser):
+    @global_exception_handler(3009, "Error Parsing Condition Edge")
     def parse(
         self,
         variable_replace_field: str = "content_blocks"
@@ -359,6 +368,7 @@ class ConditionConfigParser(EdgeConfigParser):
 
 
 class ModifyConfigParser(EdgeConfigParser):
+    @global_exception_handler(3010, "Error Parsing Modify Edge")
     def parse(
         self,
         variable_replace_field: str = "content"

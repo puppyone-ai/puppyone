@@ -8,6 +8,7 @@ import { useReactFlow } from '@xyflow/react'
 import { set } from 'lodash'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
+import { SYSTEM_URLS } from '@/config/urls'
 
 import dynamic from 'next/dynamic';
 import type { EditorProps, OnMount, OnChange, } from "@monaco-editor/react";
@@ -123,7 +124,7 @@ function DeployBotton() {
 
   const {setWorkspaces, selectedFlowId, workspaces} = useFlowsPerUserContext()
 
-  const API_SERVER_URL ="https://dev.api.puppyagent.com" //"http://localhost:8000"
+  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
   const {constructWholeWorkflowJsonData} = useWholeWorkflowJsonConstructUtils()
 
 
