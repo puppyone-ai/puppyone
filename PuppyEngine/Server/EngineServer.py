@@ -210,10 +210,10 @@ async def get_data(
                     )
 
                 for yielded_blocks in workflow.process():
-                    yield {'data': {json.dumps({'data': yielded_blocks, 'is_complete': False})}}
+                    yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
-                log_info("data: Execution complete")
-                yield {'data': {json.dumps({'is_complete': True})}}
+                log_info("Execution complete")
+                yield f"data: {json.dumps({'is_complete': True})}\n\n"
 
                 # Ensure the thread executor is shutdown before deleting the data store
                 if hasattr(workflow, 'thread_executor'):
