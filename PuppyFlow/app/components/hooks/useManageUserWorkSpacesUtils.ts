@@ -350,7 +350,7 @@ export default function useManageUserWorkspacesUtils(): ManageUserWorkspacesUtil
             else if (response.status === 200) {
                 // return history
                 const data: {history: any} = await response.json();
-                console.log('latest workspace history:', data);
+                console.log('latest workspace history for workspace:', workspaceId, data);
                 return data.history
             }
             else {
@@ -358,7 +358,7 @@ export default function useManageUserWorkspacesUtils(): ManageUserWorkspacesUtil
             }
 
         } catch (error) {
-            console.error('Error fetching latest workspace history:', error);
+            console.error('Error fetching latest workspace history for workspace:', workspaceId, error);
         }
     }
 
