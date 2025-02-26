@@ -11,9 +11,10 @@ from ModularEdges.ConditionEdge.condition_evaluation import ConditionEvaluator
 
 class ConditionerFactory(EdgeFactoryBase):
 
+    @classmethod
     @global_exception_handler(3021, "Error Executing Condition Edge")
     def execute(
-        self,
+        cls,
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> Dict[str,Any]:
@@ -23,21 +24,30 @@ class ConditionerFactory(EdgeFactoryBase):
         Returns:
             Dict[str, Any]: A dictionary of case names with results.
         """
+        print("here: ", init_configs, extra_configs)
 
         content_blocks = init_configs.get("content_blocks", {})
         cases = init_configs.get("cases", {})
 
         results = {}
+        
+        # Create instance for instance methods
+        instance = cls()
 
         for _, case_data in cases.items():
             conditions = case_data.get("conditions", [])
             then_clause = case_data.get("then", {})
 
-            satisfied = self._evaluate_conditions(conditions, content_blocks)
+            satisfied = instance._evaluate_conditions(conditions, content_blocks)
             if satisfied:
                 results[then_clause.get("from")] = then_clause.get("to")
+        
+        # Rearrange the results to contains the actual content
+        rearranged_results = {}
+        for from_block, to_block in results.items():
+            rearranged_results[to_block] = content_blocks.get(from_block)
 
-        return results
+        return rearranged_results
 
     @global_exception_handler(4102, "Error Evaluating Case Conditions")
     def _evaluate_conditions(
