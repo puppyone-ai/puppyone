@@ -188,6 +188,18 @@ function useJsonConstructUtils() {
                 // });
                 // console.log(data);
                 const data = JSON.parse(event.data)
+                if(data.error){
+                    setWarns(
+                        (prev:{time:number, text:string}[])=>[
+                            ...prev,
+                            {
+                                time:Math.floor(Date.now() / 1000),
+                                text:`${data.error}`        
+                            } 
+                        ]
+                    )
+                }
+                
                 
                 
     
@@ -215,6 +227,15 @@ function useJsonConstructUtils() {
                 updateUI(data, resultNode);
 
             } catch (error) {
+                setWarns(
+                    (prev:{time:number, text:string}[])=>[
+                        ...prev,
+                        {
+                            time:Math.floor(Date.now() / 1000),
+                            text:`Error processing event data::${error}`      
+                        } 
+                    ]
+                )
                 console.error('Error processing event data:', error);
                 reject(error)
             }
@@ -282,6 +303,15 @@ function useJsonConstructUtils() {
                     }
                 }catch(error){
                     console.error('Error convert event data json to object by json parse:', error);
+                    setWarns(
+                        (prev:{time:number, text:string}[])=>[
+                            ...prev,
+                            {
+                                time:Math.floor(Date.now() / 1000),
+                                text:`Error convert event data json to object by json parse:${error}`      
+                            } 
+                        ]
+                    )
                     reject(error)
                 }
                 
@@ -317,6 +347,15 @@ function useJsonConstructUtils() {
         };
     
         eventSource.onerror = (error) => {
+            setWarns(
+                (prev:{time:number, text:string}[])=>[
+                    ...prev,
+                    {
+                        time:Math.floor(Date.now() / 1000),
+                        text:`EventSource failed:${error}`        
+                    } 
+                ]
+            )
             console.error('EventSource failed:', error);
             eventSource.close();
             reject(error)
@@ -326,6 +365,15 @@ function useJsonConstructUtils() {
         const timeout = setTimeout(() => {
             console.log('Connection timed out');
             eventSource.close();
+            setWarns(
+                (prev:{time:number, text:string}[])=>[
+                    ...prev,
+                    {
+                        time:Math.floor(Date.now() / 1000),
+                        text:"Connection timed out"       
+                    } 
+                ]
+            )
             reject(new Error("Connection timed out"))
         }, 300000); // 5分钟超时
     
@@ -535,6 +583,15 @@ function useJsonConstructUtils() {
 
     const reportError = useCallback((resultNode: string | null, errorMessage: string) => {
         if (!resultNode) {
+            setWarns(
+                (prev:{time:number, text:string}[])=>[
+                    ...prev,
+                    {
+                        time:Math.floor(Date.now() / 1000),
+                        text:`${errorMessage}`        
+                    } 
+                ]
+            )
             throw new Error(errorMessage)
         }
         const resultNodeid = getNode(resultNode)
