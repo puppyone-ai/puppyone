@@ -14,7 +14,7 @@ class JsonConverter:
     ) -> Dict[str, dict]:
         # Update the version field
         old_json['version'] = self.latest_version
-        
+
         # Assuming the inner structure of blocks and edges should remain unchanged
         # If there are specific changes needed, they should be implemented here
 

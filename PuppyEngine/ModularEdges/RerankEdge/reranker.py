@@ -15,7 +15,7 @@ from ModularEdges.RerankEdge.hf_reranker import HuggingFaceReranker
 
 class RerankerFactory(EdgeFactoryBase):
     @staticmethod
-    @global_exception_handler(3300, "Error Creating Reranker")
+    @global_exception_handler(3018, "Error Executing Rerank Edge")
     def execute(
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None

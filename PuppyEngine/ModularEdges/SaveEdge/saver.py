@@ -35,7 +35,7 @@ class SaverFactory(EdgeFactoryBase):
         "database": DatabaseSaveStrategy()
     }
 
-    @global_exception_handler(2300, "Error Saving Data")
+    @global_exception_handler(3012, "Error Executing Save Edge")
     @classmethod
     def execute(
         cls,

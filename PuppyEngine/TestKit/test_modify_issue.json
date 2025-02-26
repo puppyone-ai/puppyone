@@ -1,0 +1,51 @@
+{ 
+ "blocks": {
+        "ErK76e": {
+            "label": "ErK76e",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "wjl2U9": {
+            "label": "wjl2U9",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "apple",
+                    "juice"
+                ]
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "modify-1740474994785": {
+            "type": "modify",
+            "data": {
+                "content": "{{wjl2U9}}",
+                "modify_type": "edit_structured",
+                "extra_configs": {
+                    "operations": [
+                        {
+                            "type": "get",
+                            "params": {
+                                "path": [
+                                    0
+                                ],
+                                "default": "Get Failed, value not exist"
+                            }
+                        }
+                    ]
+                },
+                "inputs": {
+                    "wjl2U9": "wjl2U9"
+                },
+                "looped": false,
+                "outputs": {
+                    "ErK76e": "ErK76e"
+                }
+            }
+        }
+    }
+}

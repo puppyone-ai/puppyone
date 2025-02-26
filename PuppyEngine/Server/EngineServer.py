@@ -68,7 +68,11 @@ class DataStore:
     def __init__(
         self
     ):
-        self.data_store = defaultdict(lambda: {"blocks": {}, "edges": {}})
+        self.data_store = defaultdict(lambda: {
+            "blocks": {}, 
+            "edges": {},
+            "workflow": None  # Add workflow storage
+        })
         self.lock = Lock()
 
     def get_data(
@@ -76,7 +80,27 @@ class DataStore:
         task_id: str
     ) -> dict:
         with self.lock:
-            return self.data_store[task_id]
+            return {
+                "blocks": self.data_store[task_id]["blocks"],
+                "edges": self.data_store[task_id]["edges"]
+            }
+
+    def get_workflow(
+        self,
+        task_id: str
+    ) -> WorkFlow:
+        """Get workflow object for task"""
+        with self.lock:
+            return self.data_store.get(task_id, {}).get("workflow")
+
+    def set_workflow(
+        self,
+        task_id: str,
+        workflow: WorkFlow
+    ) -> None:
+        """Set workflow object for task"""
+        with self.lock:
+            self.data_store[task_id]["workflow"] = workflow
 
     def set_data(
         self,
@@ -101,10 +125,11 @@ class DataStore:
         blocks: dict
     ) -> None:
         with self.lock:
+            stored_blocks = self.data_store.get(task_id, {}).get("blocks", {})
             # Get existing input blocks
             input_blocks = {
                 block_id: block
-                for block_id, block in self.data_store[task_id]["blocks"].items()
+                for block_id, block in stored_blocks.items()
                 if block.get("isInput")
             }
             input_block_ids = set(input_blocks.keys())
@@ -119,7 +144,7 @@ class DataStore:
                 )
 
             # Update only the input blocks while preserving other blocks
-            for block_id, block in self.data_store[task_id]["blocks"].items():
+            for block_id, block in stored_blocks.items():
                 if block_id in input_block_ids:
                     # Find and replace with the matching incoming block
                     new_block = blocks.get(block_id)
@@ -131,7 +156,7 @@ class DataStore:
         blocks: dict
     ) -> None:
         with self.lock:
-            block_map = self.data_store[task_id]["blocks"]
+            block_map = self.data_store.get(task_id, {}).get("blocks", {})
             for new_block_id, new_block in blocks.items():
                 if new_block_id in block_map:
                     block_map[new_block_id] = new_block
@@ -153,9 +178,6 @@ try:
     )
 
     data_store = DataStore()
-    
-    # Initialize the workflow
-    workflow = WorkFlow()
 except PuppyEngineException as e:
     raise
 except Exception as e:
@@ -179,17 +201,28 @@ async def get_data(
     try:
         def stream_data():
             try:
-                workflow.clear_workflow()
-                json_data = data_store.get_data(task_id)
-                with open("./json_received.json", "w") as file:
-                    json.dump(json_data, file, indent=4)
-                workflow.config_workflow_json(json_data)
+                workflow = data_store.get_workflow(task_id)
+                if not workflow:
+                    raise PuppyEngineException(
+                        7303,
+                        "Workflow Not Found",
+                        f"Workflow with task_id {task_id} not found"
+                    )
 
-                for yield_dict in workflow.process_all():
-                    yield f"data: {json.dumps({'data': yield_dict, 'is_complete': False})}\n\n"
+                for yielded_blocks in workflow.process():
+                    yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
                 log_info("data: Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"
+
+                # Ensure the thread executor is shutdown before deleting the data store
+                if hasattr(workflow, 'thread_executor'):
+                    workflow.thread_executor.shutdown(wait=True)
+
+                # Delete the data store resource
+                with data_store.lock:
+                    if task_id in data_store.data_store:
+                        del data_store.data_store[task_id]
             except Exception as e:
                 log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -213,6 +246,7 @@ async def send_data(
             blocks = data.get("blocks", {})
             edges = data.get("edges", {})
             data_store.set_data(task_id, blocks, edges)
+            data_store.set_workflow(task_id, WorkFlow(data))  # Store workflow in DataStore
             return JSONResponse(content={"data": data, "task_id": task_id}, status_code=200)
 
         return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
@@ -222,7 +256,7 @@ async def send_data(
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
         raise PuppyEngineException(6300, "Server Internal Error", str(e))
-    
+
 @app.get("/generate_presigned_url")
 async def generate_presigned_url():
     try:
@@ -247,13 +281,9 @@ async def generate_presigned_url():
 
 if __name__ == "__main__":
     try:
-        # Use Uvicorn for ASGI server
-        # import uvicorn
-        # uvicorn.run(app, host="127.0.0.1", port=8000)
-
         # Use Hypercorn for ASGI server
-        import hypercorn.asyncio
         import asyncio
+        import hypercorn.asyncio
         config = hypercorn.Config()
         config.bind = ["127.0.0.1:8001"]
         asyncio.run(hypercorn.asyncio.serve(app, config))
