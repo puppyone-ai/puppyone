@@ -7,6 +7,10 @@ import { ModifyConfigNodeData } from '../edgeNodes/ModifyConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+
+import {PuppyDropdown} from "../../../misc/PuppyDropDown"
+import { exec } from 'child_process'
+
 type ModifyGetConfigProps = {
     show: boolean,
     parentId: string,
@@ -27,7 +31,8 @@ export type ModifyGetEdgeJsonType = {
         "operations": [{
             type:string,
             params: {
-                path: (string|number)[],  // Get the first user's name
+                max_depth?:number,
+                path?: (string|number)[],  // Get the first user's name
                 default?: string      // Default value if key doesn't exist
             }
         }
@@ -121,7 +126,7 @@ const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) =
     );
 };
 
-function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetConfigProps) {
+function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
@@ -143,6 +148,26 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
+
+
+    const MODIFY_GET_TYPE="get"
+    const MODIFY_DEL_TYPE="delete"
+    const MODIFY_REPL_TYPE="replace"
+    const MODIFY_GET_ALL_KEYS="get_keys"
+    const MODIFY_GET_ALL_VAL="get_values"
+  
+    const [execMode,setExecMode] = useState(getNode(parentId)?.data.type as string||MODIFY_GET_TYPE) 
+
+    useEffect(
+        ()=>{
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId) {
+                    return { ...node, data: { ...node.data, type:execMode } }; // Update the cases in the node's data
+                }
+                return node;
+            }))
+        },[execMode]
+    )
 
     const onFocus: () => void = () => {
         const curRef = menuRef.current
@@ -305,6 +330,22 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
 
         const input_label = sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (node.label?node.label:node.id))[0]
 
+
+            // 7. Get Keys operation (Retrieve all keys from a nested structure)
+            // {
+            //     "type": "get_keys",
+            //     "params": {
+            //         "max_depth": 2  // Get all keys up to depth level 2
+            //     }
+            // },
+            // // 8. Get Values operation (Retrieve all values from a nested structure)
+            // {
+            //     "type": "get_values",
+            //     "params": {
+            //         "max_depth": 2  // Get all values up to depth level 2
+            //     }
+            // },
+
         const edgejson: ModifyGetEdgeJsonType = {
             // id: parentId,
             type: "modify",
@@ -314,13 +355,16 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
                 extra_configs: {
                     operations:[
                         {
-                            type:type,
-                            params: {
+                            type:execMode,
+                            params: (execMode===MODIFY_GET_ALL_KEYS||execMode===MODIFY_GET_ALL_VAL)?{
+                                "max_depth": 10
+                            }:
+                            {
                                 path: [...getConfigDataa().map(({_,value})=>{
                                     const num = Number(value);
                                     return isNaN(num) ? value : num;
                                 })],  // Get the first user's name
-                                ...(type===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
+                                ...(execMode===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
                             }
                         }
                     ]
@@ -434,20 +478,6 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
     },
   ]
   
-    
-
-//   useEffect(() => {
-//     setNodes(prevNodes => prevNodes.map(node => {
-//         if (node.id === parentId) {
-//             return { ...node, data: { ...node.data, getConfigData:getConfigData } }; // Update the cases in the node's data
-//         }
-//         return node;
-//     }));
-    
-//     setTimeout(() => {
-//         console.log("getconfigdata state track",getConfigData,getNode(parentId))
-//     }, 2000) // Log after 2 seconds
-// }, [getConfigData]); // Dependency array includes cases
 
   return (
 
@@ -477,7 +507,7 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
                 </svg>
                 </div>
                 <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                Edit
                 </div>
             </div>
             </div>
@@ -517,11 +547,47 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
             </div>
             
         </li>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[2px] border-[#6D7177] rounded-[4px] w-[293px] bg-black'>
+            <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[2px] border-[#6D7177] flex items-center justify-start'>
+             Mode
+            </div>
+            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  bg-black'>
+                <PuppyDropdown
+                    options= {
+                        [
+                            MODIFY_GET_TYPE,
+                            MODIFY_DEL_TYPE,
+                            MODIFY_REPL_TYPE,
+                            MODIFY_GET_ALL_KEYS,
+                            MODIFY_GET_ALL_VAL,
+                        ]
+                    }
+                    onSelect= {(option:string)=>{
+                        setExecMode(option)
+                    }}
+                    selectedValue={execMode}
+                    listWidth={"200px"}
+                    mapValueTodisplay={
+                        (v:string)=>{
+                            if(v===MODIFY_GET_ALL_KEYS){
+                                return "get all keys"
+                            }else if(v===MODIFY_GET_ALL_VAL){
+                                return "get all values"
+                            }
+                            return v
+                        }
+                    }
+                >
+                </PuppyDropdown>
+            </div>
+            
+        </li>
 
             <li className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
 
                 <div className='border-[#6D7177] border-[1px] rounded-[8px]'>
-                    
+                {
+                    execMode===MODIFY_GET_ALL_KEYS || execMode===MODIFY_GET_ALL_VAL ? <></>:
                     <div className='flex flex-col border-[#6D7177] border-b-[1px] w-[290px] p-3'>
                         {
                             getConfigDataa().map(
@@ -657,6 +723,8 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
                         }
 
                     </div>
+                }
+                    
 
                 </div>
             {/* <div className='flex flex-col gap-0 items-start justify-center '>
