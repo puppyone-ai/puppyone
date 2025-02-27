@@ -490,7 +490,7 @@ function useJsonConstructUtils() {
                         type: item.type ?? node.type,
                         data: {
                             ...node.data,
-                            content: item.data.content,
+                            content: JSON.stringify(item.data.content),
                             isLoading: false
                         }
                     }: node)))

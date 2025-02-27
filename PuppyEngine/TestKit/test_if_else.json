@@ -1,0 +1,76 @@
+{
+    "blocks": {
+        "g_ncBD": {
+            "label": "g_ncBD",
+            "type": "structured",
+            "data": {
+                "content": {}
+            },
+            "looped": false
+        },
+        "WUzxLi": {
+            "label": "WUzxLi",
+            "type": "structured",
+            "data": {
+                "content": {}
+            },
+            "looped": false
+        },
+        "3NFJok": {
+            "label": "3NFJok",
+            "type": "text",
+            "data": {
+                "content": "hello, world."
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "IFELSE-1740497989925": {
+            "type": "ifelse",
+            "data": {
+                "cases": {
+                    "case1": {
+                        "conditions": [
+                            {
+                                "block": "3NFJok",
+                                "condition": "less_than_n_chars",
+                                "parameters": {
+                                    "value": 5
+                                },
+                                "operation": "/"
+                            }
+                        ],
+                        "then": {
+                            "from": "3NFJok",
+                            "to": "g_ncBD"
+                        }
+                    },
+                    "case2": {
+                        "conditions": [
+                            {
+                                "block": "3NFJok",
+                                "condition": "greater_than_n_chars",
+                                "parameters": {
+                                    "value": 5
+                                },
+                                "operation": "/"
+                            }
+                        ],
+                        "then": {
+                            "from": "3NFJok",
+                            "to": "WUzxLi"
+                        }
+                    }
+                },
+                "inputs": {
+                    "3NFJok": "3NFJok"
+                },
+                "outputs": {
+                    "g_ncBD": "g_ncBD",
+                    "WUzxLi": "WUzxLi"
+                }
+            }
+        }
+    }
+}
