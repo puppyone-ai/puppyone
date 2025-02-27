@@ -459,16 +459,21 @@ class WorkFlow():
             log_msg += f"\nError: {str(edge_result.error)}"
             logger.error(log_msg)
             raise edge_result.error
-        else:
-            log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
-            logger.info(log_msg)
-            if edge_result.status == "completed":
-                # Map results to output blocks
-                for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
+
+        log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
+        logger.info(log_msg)
+        if edge_result.status == "completed":
+            # Map results to output blocks
+            for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
+                # If the edge is type of ifelse, the result is a set of block contents
+                if self.edges.get(edge_id, {}).get("type") == "ifelse":
+                    for block_id, content in edge_result.result.items():
+                        results[block_id] = content
+                else:
                     results[block_id] = edge_result.result
-                    logger.debug(f"Block {block_id} updated with result type: {type(edge_result.result)}")
-            else:
-                logger.warning(f"Edge {edge_id} completed but status is {edge_result.status}")
+                logger.debug(f"Block {block_id} updated with result type: {type(edge_result.result)}")
+        else:
+            logger.warning(f"Edge {edge_id} completed but status is {edge_result.status}")
 
         return results
 
@@ -597,7 +602,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_llm_structured_output.json":
+        if file_name != "test_if_else.json":
             continue
         # if file_name == "embedding_search.json":
         #     continue
