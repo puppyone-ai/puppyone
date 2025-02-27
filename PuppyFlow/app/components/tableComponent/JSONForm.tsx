@@ -217,6 +217,10 @@ const JSONForm = ({preventParentDrag,
 
 
       const InputFallback = (e:any):string=>{
+        const result = JSON.stringify(e)
+        if(typeof result === 'string'){
+          return result
+        }
         console.error("get error input:",e)
         return ""
       }
