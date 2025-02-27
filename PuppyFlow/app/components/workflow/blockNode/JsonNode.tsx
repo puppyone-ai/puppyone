@@ -12,6 +12,8 @@ import { get, set } from 'lodash'
 import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 import { Transition } from '@headlessui/react'
+import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
+import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -37,7 +39,8 @@ export type JsonNodeData = {
 type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
 function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name } }: JsonBlockNodeProps) {
-
+  const {fetchUserId} = useManageUserWorkspacesUtils()
+  const {userId} = useFlowsPerUserContext()
 
   type ExtendedNode = Node<JsonNodeData> & { looped?: boolean };
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
@@ -554,9 +557,19 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       if (payloaddata.chunks == undefined) {
         return undefined
       }
+      
+
+      const getuserid = async ():Promise<string> =>{
+        if(userId.trim() !== ""){
+          return userId
+        }
+        const res = await fetchUserId() as string
+        return res
+      }
+
 
       // TODO: 需要修改为动态的user_id
-      const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/Rose123`, {
+      const response = await fetch(`${PuppyStorage_IP_address_for_embedding}/${await getuserid()}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
