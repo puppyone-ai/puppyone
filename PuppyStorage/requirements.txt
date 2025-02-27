@@ -12,7 +12,7 @@ pymilvus
 qdrant_client
 weaviate-client
 psycopg2-binary
-pinecone-client
+pinecone
 
 # Server
 boto3
