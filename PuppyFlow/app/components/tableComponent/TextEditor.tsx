@@ -153,6 +153,13 @@ const TextEditor = ({preventParentDrag,
 
       };
 
+      const InputFallback = (e:any):string=>{
+        console.error("get error input",e)
+        return ""
+      }
+
+      
+
 
     
 
@@ -171,7 +178,7 @@ const TextEditor = ({preventParentDrag,
       width={widthStyle}
       height={heightStyle}
       onChange={handleChange}
-      value={getNode(parentId)?.data.content as string}
+      value= {typeof getNode(parentId)?.data.content === 'string' ? getNode(parentId)?.data.content as string: InputFallback(getNode(parentId)?.data.content)}
       options={{
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         unicodeHighlight: {
