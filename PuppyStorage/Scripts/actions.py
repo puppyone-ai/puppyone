@@ -34,7 +34,7 @@ def embedding(
     # Store the embeddings
     db = VectorDatabaseFactory.get_database(db_type=vdb_type)
 
-    collection_name = user_id + "_" + str(uuid.uuid4())
+    collection_name = str(uuid.uuid4())
     db.connect(collection_name)
 
     db.save_embeddings(
