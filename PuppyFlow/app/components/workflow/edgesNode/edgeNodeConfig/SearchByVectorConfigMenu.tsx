@@ -33,7 +33,7 @@ export type SearchByVectorEdgeJsonType = {
             provider: "openai",
             model: "text-embedding-ada-002",
             db_type: "pinecone",
-            collection_name: "test_collection",
+            collection_name: string,
         },
         docs_id: { [key: string]: string }, // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
@@ -50,7 +50,7 @@ type ConstructedSearchByVectorJsonData = {
 
 function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
-    const {getNode, setNodes, setEdges, getNodes} = useReactFlow()
+    const {getNode, setNodes, setEdges, getEdges} = useReactFlow()
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
@@ -299,6 +299,14 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
         const query_label = getNode(query.id)?.data?.label as string | undefined ?? query.label
         const vectorDB_label = getNode(vectorDB.id)?.data?.label as string | undefined ?? vectorDB.label
+
+        console.log("search node config",getNode(parentId))
+
+        console.log("received collection name",getEdges().filter(
+            (eg)=>eg.target === parentId
+        ).map(
+            (eg)=>getNode(eg.source)?.data.index_name
+        )[0] as string)
        
         const edgejson: SearchByVectorEdgeJsonType = {
             // "search-1728709343180": {
@@ -333,7 +341,11 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                     provider: "openai",
                     model: "text-embedding-ada-002",
                     db_type: "pinecone",
-                    collection_name: "test_collection"
+                    collection_name: getEdges().filter(
+                        (eg)=>eg.target === parentId
+                    ).map(
+                        (eg)=>getNode(eg.source)?.data.index_name
+                    )[0] as string
                 },
                 docs_id: {[vectorDB.id]: vectorDB_label},
                 query_id: {[query.id]: query_label},
@@ -404,6 +416,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         else if (queryList.length === 0 && query.id) {
             setQuery({id: "", label: ""})
         }
+        console.log("query list",queryList)
         return queryList.map((q: {id: string, label: string}) => (
             <option key={`${q.id}-${parentId}`} value={q.id}>
                 {q.label}
