@@ -9,7 +9,7 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
 
 import {PuppyDropdown} from "../../../misc/PuppyDropDown"
-import { exec } from 'child_process'
+
 
 type ModifyGetConfigProps = {
     show: boolean,
