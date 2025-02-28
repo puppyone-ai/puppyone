@@ -922,3 +922,20 @@
 .react-flow__controls-custom button:hover svg {
   fill: #CDCDCD;
 }
+
+.reactflow-custom-watermark .react-flow__panel.react-flow__attribution {
+  background: transparent !important;
+}
+
+.reactflow-custom-watermark .react-flow__panel.react-flow__attribution a {
+  color: #646464 !important;
+}
+
+/* Custom styles for ReactFlow attribution */
+.react-flow__attribution {
+  background: transparent !important;
+}
+
+.react-flow__attribution a {
+  color: #646464 !important;
+}
