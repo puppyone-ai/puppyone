@@ -315,7 +315,7 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
         }))
     }
 
-    const [wrapInto, setWrapInto] = useState("")
+    const [wrapInto, setWrapInto] = useState(typeof (getNode(parentId)?.data?.extra_configs as any)?.dict_key === 'string'? (getNode(parentId)?.data?.extra_configs as any)?.dict_key : "")
 
     const INTO_DICT_TYPE= "wrap into dict"
     const INTO_LIST_TYPE= "wrap into list"
