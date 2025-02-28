@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useContext } from "react"
 
 
-export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", mapValueTodisplay=(v:string)=>v}:any) => {
+export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", mapValueTodisplay=(v:string)=>v}:any) => {
     const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
     const handleSelect = (data:any) => {
@@ -47,7 +47,7 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
     };
 
     return (
-        <div style={dropdownContainerStyle} className={`flex`}>
+        <div style={dropdownContainerStyle} className={`flex ${containerClassnames}`}>
             <div  className={`flex-grow overflow-hidden text-[12px] text-nowrap font-[700] ${(optionBadge && selectedValue)?"text-[#000] ":"text-white"} leading-normal tracking-[0.84px] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue)?"border-[3px]":"border-[0px]"} ${(optionBadge && selectedValue)?"bg-[#6D7177]":""}`} 
             onClick={() => {
                 setIsOpen(prev => {

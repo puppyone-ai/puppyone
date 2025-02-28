@@ -124,7 +124,7 @@ function DeployBotton() {
 
   const {setWorkspaces, selectedFlowId, workspaces} = useFlowsPerUserContext()
 
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
+  const API_SERVER_URL = SYSTEM_URLS.PUPPY_STORAGE.BASE
   const {constructWholeWorkflowJsonData} = useWholeWorkflowJsonConstructUtils()
 
 
