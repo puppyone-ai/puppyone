@@ -534,6 +534,16 @@ function Workflow() {
          >
           <Upbar />
           <Background color="#646464" variant={BackgroundVariant.Dots} gap={16}/>
+          <div className="absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]">
+            <a 
+              href="https://www.puppyagent.com/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-[#808080] transition-colors"
+            >
+              PuppyAgent
+            </a>
+          </div>
         </ReactFlow>
         </div>
     </div>
