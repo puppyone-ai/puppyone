@@ -178,11 +178,12 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
         const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
 
+        // console.log("2 structured input ids",input_ids)
         const edgejson: Modify2TextJsonType = {
             // id: parentId,
             type: "modify",
             data: {
-                content: getNode(input_ids[0])?.data.content as string,
+                content: `{{${sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id}}}`,
                 modify_type: "convert2text",
                 inputs: input_ids,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
