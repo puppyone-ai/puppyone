@@ -32,7 +32,7 @@ export type SearchByVectorEdgeJsonType = {
             // For vector
             provider: "openai",
             model: "text-embedding-ada-002",
-            db_type: "pinecone",
+            db_type: "pgvector" | "pinecone",
             collection_name: string,
         },
         docs_id: { [key: string]: string }, // 用于储藏vectordb的id
@@ -340,7 +340,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 extra_configs: {
                     provider: "openai",
                     model: "text-embedding-ada-002",
-                    db_type: "pinecone",
+                    db_type: "pgvector",
                     collection_name: getEdges().filter(
                         (eg)=>eg.target === parentId
                     ).map(
