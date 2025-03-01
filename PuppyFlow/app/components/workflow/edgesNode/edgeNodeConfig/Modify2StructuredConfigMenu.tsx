@@ -213,9 +213,9 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
         const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
 
-        const config = JSON.parse(wrapInto)
-        const targetStructure = Array.isArray(config) ? "list" : "dict"; // Check if config is a list or object
-        const firstKey = !Array.isArray(config) && typeof config === 'object' ? Object.keys(config)[0] : undefined; 
+        // const config = JSON.parse(wrapInto)
+        // const targetStructure = Array.isArray(config) ? "list" : "dict"; // Check if config is a list or object
+        // const firstKey = !Array.isArray(config) && typeof config === 'object' ? Object.keys(config)[0] : undefined; 
 
 
         // "<edge_id>": {
@@ -250,7 +250,7 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
             // id: parentId,
             type: "modify",
             data: {
-                content: getNode(input_ids[0])?.data.content as string,
+                content: `{{${sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id}}}`,
                 modify_type: "convert2structured",
                 extra_configs: {
                     source_type: "text",
