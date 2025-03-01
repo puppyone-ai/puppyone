@@ -32,7 +32,7 @@ export type SearchByVectorEdgeJsonType = {
             // For vector
             provider: "openai",
             model: "text-embedding-ada-002",
-            db_type: "pgvector",
+            db_type: "pgvector" | "pinecone",
             collection_name: string,
         },
         docs_id: { [key: string]: string }, // 用于储藏vectordb的id
