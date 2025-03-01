@@ -6,6 +6,7 @@ import ModifySubMenu from './ModifySubMenu'
 import ChunkingSubMenu from './ChunkingSubMenu'
 import SearchSubMenu from './SearchSubMenu'
 import OthersSubMenu from './OthersSubMenu'
+import {DEFAULT_LLM_MESSAGE} from '../edgeNodeConfig/LLMConfigMenu'
 
 type EdgeMenuProps = {
     nodeType: string,
@@ -116,13 +117,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
         const defaultEdgeConfigNodeContent = edgeType === "load" ? "" :
         edgeType === "embedding" ? "" :
         edgeType === "llm" ? 
-                (
-        `[
-  {"role": "system",
-   "content": "You are an AI"},
-  {"role": "user",
-   "content": "Answer the question by {{input_ID}}"}
-]`):
+        (DEFAULT_LLM_MESSAGE):
         edgeType === "chunk" && subMenuType === "chunk-Bycharacter" ? 
         (`[",",";","\\n"]`):
         edgeType === "chunk" && subMenuType === "chunk-Bylength" ? "":
