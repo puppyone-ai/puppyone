@@ -355,16 +355,17 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 extra_configs: {
                     operations:[
                         {
-                            type:execMode,
+                            type:execMode===MODIFY_REPL_TYPE?"set_value":execMode,
                             params: (execMode===MODIFY_GET_ALL_KEYS||execMode===MODIFY_GET_ALL_VAL)?{
-                                "max_depth": 10
+                                "max_depth": 100
                             }:
                             {
                                 path: [...getConfigDataa().map(({_,value})=>{
                                     const num = Number(value);
                                     return isNaN(num) ? value : num;
                                 })],  // Get the first user's name
-                                ...(execMode===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
+                                ...(execMode===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" }),    // Default value if key doesn't exist
+                                ...(execMode===MODIFY_REPL_TYPE && { value: paramv })    // Default value if key doesn't exist
                             }
                         }
                     ]
@@ -477,6 +478,26 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
         value:""
     },
   ]
+
+  const [paramv,setParamv] = useState("")
+
+  useEffect(
+    ()=>{
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId){
+                return {...node, data: {
+                    ...node.data, 
+                    params:{
+                        ...node.data.params as object,
+                        value:paramv
+                    }
+                }}
+            }
+            return node
+        }))
+    },
+    [paramv]
+)
   
 
   return (
@@ -739,7 +760,18 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             </div> */}
             </li>
 
-        
+            {
+                execMode===MODIFY_REPL_TYPE && (
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[3px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                        With
+                        </div>
+                        <input value={paramv} onChange={(e) => {
+                            setParamv(e.target.value)
+                        }} id="wrap_into" type="string" className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
+                    </li>
+                )
+            }
     </ul>
     
   )
