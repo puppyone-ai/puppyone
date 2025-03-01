@@ -502,24 +502,24 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
 
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
                     <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                     <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                     </svg>
 
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                 Modify
                 </div>
             </div>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M10.5 7.00016C4.08333 7.00016 3.5 2.3335 3.5 2.3335" stroke="#CDCDCD" strokeWidth="1.5"/>
                 <rect x="-0.75" y="0.75" width="3.5" height="3.5" transform="matrix(-1 0 0 1 3.5 0)" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
@@ -527,7 +527,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 <rect x="-0.75" y="0.75" width="3.5" height="3.5" transform="matrix(-1 0 0 1 3.5 9)" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
                 </svg>
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                 Edit
                 </div>
             </div>
@@ -546,7 +546,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                     Loop
                 </div>
                 </div>
-                <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -559,7 +559,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[293px]'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
             <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
              input
             </div>
@@ -568,12 +568,13 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             </div>
             
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[2px] border-[#6D7177] rounded-[4px] w-[293px] bg-black'>
-            <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[2px] border-[#6D7177] flex items-center justify-start'>
+        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full bg-black'>
+            <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start rounded-l-[8px]'>
              Mode
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  bg-black'>
+            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px] rounded-r-[8px] bg-black'>
                 <PuppyDropdown
+                
                     options= {
                         [
                             MODIFY_GET_TYPE,
@@ -606,15 +607,15 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
 
             <li className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
 
-                <div className='border-[#6D7177] border-[1px] rounded-[8px]'>
+                <div className='border-[#6D7177] border-[1px] w-full rounded-[8px]'>
                 {
                     execMode===MODIFY_GET_ALL_KEYS || execMode===MODIFY_GET_ALL_VAL ? <></>:
-                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-[290px] p-3'>
+                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-full p-3'>
                         {
                             getConfigDataa().map(
                                 ({key,value},index)=>(
                                     <>
-                                    <label className='h-[16px] mb-[15px]'>  Step {index+1} </label>
+                                    <label className='h-[32px] text-[12px] font-semibold'>  Step {index+1} </label>
                                         <div className='inline-flex space-x-[12px] items-center justify-start'>
                                         <svg onClick={
                                             ()=>{
@@ -664,9 +665,9 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                                                     getConfigData={getConfigDataa()}
                                                     />
                                                 </div>
-                                                    {/* ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
+                                                    {/* ["contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters"]
 
-                                                    return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
+                                                    return ["is empty", "is not empty", "contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
 
                                                     return ["is True","is False"] */}
                                                 <input 
