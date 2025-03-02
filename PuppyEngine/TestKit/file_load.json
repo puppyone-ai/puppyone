@@ -1,0 +1,147 @@
+{
+    "blocks": {
+        "1": {
+            "type": "file",
+            "label": "a",
+            "data": {
+                "content": ["file_1", "file_2", "file_3"]
+            }
+        },
+        "2": {
+            "type": "structured",
+            "label": "b",
+            "data": {
+                "content": "",
+                "embedding_view": []
+            }
+        }
+    },
+    "edges": {
+        "load-54160835843623": {
+            "type": "load",
+            "data": {
+                "inputs": {"1":"a"},
+                "outputs": {"2":"b"},
+                "block_type": "file",
+                "content": "1",
+                "extra_configs": {
+                    "file_configs": [
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testjson.json",
+                            "file_type": "json"
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testtxt.txt",
+                            "file_type": "txt",
+                            "config": {
+                                "auto_formatting": false
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testmd.md",
+                            "file_type": "markdown",
+                            "config": {
+                                "auto_formatting": true
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testdoc.docx",
+                            "file_type": "doc",
+                            "config": {
+                                "auto_formatting": false
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testpdf.pdf",
+                            "file_type": "pdf",
+                            "config": {
+                                "use_images": true
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testimg.png",
+                            "file_type": "image",
+                            "config": {
+                                "use_llm": false
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testimg2.png",
+                            "file_type": "image",
+                            "config": {
+                                "use_llm": true
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testaudio.mp3",
+                            "file_type": "audio",
+                            "config": {
+                                "mode": "accurate"
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testvideo.mp4",
+                            "file_type": "video",
+                            "config": {
+                                "use_llm": true,
+                                "frame_skip": 300
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testvideo2.mp4",
+                            "file_type": "video",
+                            "config": {
+                                "use_llm": false
+                            }
+                        },
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testcsv.csv",
+                            "file_type": "csv",
+                            "config": {
+                                "column_range": [0, 3],
+                                "row_range": [0, 5]
+                            }
+                        },  
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/testxlsx.xlsx",
+                            "file_type": "xlsx",
+                            "config": {
+                                "column_range": [0, 3],
+                                "row_range": [0, 5]
+                            }
+                        },
+                        {
+                            "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
+                            "file_type": "doc",
+                            "config": {
+                                "auto_formatting": true
+                            }
+                        },
+                        {
+                            "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
+                            "file_type": "pdf",
+                            "config": {
+                                "use_images": true
+                            }
+                        },
+                        {
+                            "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
+                            "file_type": "image",
+                            "config": {
+                                "use_llm": false
+                            }
+                        },
+                        {
+                            "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
+                            "file_type": "audio",
+                            "config": {
+                                "mode": "small"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "version": "0.1"
+}

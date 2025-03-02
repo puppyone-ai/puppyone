@@ -15,14 +15,5 @@ class FileLoadStrategy(LoadStrategy):
         self
     ) -> str:
         self.validate_content()
-
-        root_path, file_name = os.path.split(self.content)
-        file_type = self.extra_configs.get("type", "txt")
-        parser_configs = {k: v for k, v in self.extra_configs.items() if k != "type"}
-
-        file_parser = FileToTextParser(root_path=root_path)
-        return file_parser.parse(
-            file_name=file_name,
-            file_type=file_type,
-            **parser_configs
-        )
+        file_configs = self.extra_configs.get("file_configs", [])
+        return FileToTextParser().parse_multiple(file_configs)
