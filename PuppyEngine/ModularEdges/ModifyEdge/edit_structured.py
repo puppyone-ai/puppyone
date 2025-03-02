@@ -5,27 +5,100 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import re
 from typing import Any, List, Tuple, Union, Optional, Callable
-from Utils.PuppyEngineExceptions import global_exception_handler
+from ModularEdges.ModifyEdge.modify_strategy import ModifyStrategy
+from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
 
 plugin_pattern = r"\{\{(.*?)\}\}"
 
 
-class StructuredNestedOperations:
-    def __init__(
+class ModifyEditStructured(ModifyStrategy):
+    @global_exception_handler(3804, "Error Editing Structured Content")
+    def modify(
         self,
-        data: Any
-    ):
-        self.data = data
+    ) -> Any:
+        operations = self.extra_configs.get("operations", [])
+        result = self.content
 
-    def navigate_to_parent(
+        # If no operations specified, return original content
+        if not operations:
+            return result
+
+        for operation in operations:
+            op_type = operation.get("type", "")
+            op_params = operation.get("params", {})
+
+            try:
+                match op_type:
+                    case "get":
+                        path = op_params.get("path", [])
+                        default = op_params.get("default")
+                        result = self._nested_get(path, default)
+
+                    case "delete":
+                        path = op_params.get("path", [])
+                        result = self._nested_delete(path)
+
+                    case "append":
+                        path = op_params.get("path", [])
+                        value = op_params.get("value")
+                        result = self._nested_append(path, value)
+
+                    case "insert":
+                        path = op_params.get("path", [])
+                        index = op_params.get("index", 0)
+                        value = op_params.get("value")
+                        result = self._nested_insert(path, index, value)
+
+                    case "sort":
+                        path = op_params.get("path", [])
+                        reverse = op_params.get("reverse", False)
+                        result = self._nested_sort(path, reverse=reverse)
+
+                    case "set_value":
+                        path = op_params.get("path", [])
+                        value = op_params.get("value")
+                        result = self._nested_set_value(path, value)
+
+                    case "get_keys":
+                        max_depth = op_params.get("max_depth", -1)
+                        result = self._nested_keys(max_depth)
+
+                    case "get_values":
+                        max_depth = op_params.get("max_depth", -1)
+                        result = self._nested_values(max_depth)
+
+                    case "variable_replace":
+                        plugins = op_params.get("plugins", {})
+                        result = self._replace_structured_variable_values(plugins=plugins)
+
+                    case "set_operation":
+                        path1 = op_params.get("path1", [])
+                        path2 = op_params.get("path2", [])
+                        value1 = op_params.get("value1", None)
+                        value2 = op_params.get("value2", None)
+                        operation_type = op_params.get("operation", "union")
+                        result = self._nested_set_operation(operation_type, path1, path2, value1, value2)
+
+                    case _:
+                        raise ValueError(f"Unsupported operation type: {op_type}")
+
+            except Exception as e:
+                raise PuppyEngineException(3802, f"Error executing structured operation `{op_type}`", str(e))
+
+            finally:
+                self.content = result
+
+        return self.content
+
+    def _navigate_to_parent(
         self,
         path: List[Union[str, int]]
     ) -> Tuple[Any, Any, bool]:
         if not path:
-            return self.data, None, False
+            return self.content, None, False
 
-        current = self.data
+        current = self.content
         *parent_path, last_key = path
 
         try:
@@ -33,15 +106,15 @@ class StructuredNestedOperations:
                 current = current[key] if isinstance(current, dict) else current[int(key)]
             return current, last_key, True
         except (KeyError, IndexError, ValueError, TypeError):
-            return self.data, None, False
+            return self.content, None, False
 
     @global_exception_handler(4200, "Error Getting Nested Value")
-    def nested_get(
+    def _nested_get(
         self,
         path: List[Union[str, int]],
         default: Any = None
     ) -> Any:
-        current = self.data
+        current = self.content
         try:
             if path == ["*"]:
                 return current
@@ -52,13 +125,13 @@ class StructuredNestedOperations:
             return default
 
     @global_exception_handler(4201, "Error Deleting Nested Value")
-    def nested_delete(
+    def _nested_delete(
         self,
         path: List[Union[str, int]]
     ) -> Any:
-        parent, last_key, success = self.navigate_to_parent(path)
+        parent, last_key, success = self._navigate_to_parent(path)
         if not success:
-            return self.data
+            return self.content
 
         try:
             if isinstance(parent, dict):
@@ -66,21 +139,21 @@ class StructuredNestedOperations:
             elif isinstance(parent, list):
                 parent.pop(int(last_key))
         except (KeyError, IndexError, ValueError, TypeError):
-            return self.data
+            return self.content
 
-        return self.data
+        return self.content
 
     @global_exception_handler(4202, "Error Setting Nested Value")
-    def nested_set_value(
+    def _nested_set_value(
         self,
         path: List[Union[str, int]],
         value: Any
     ) -> Any:
         if not path:
-            return self.data
+            return self.content
 
         self._ensure_path_exists(path[:-1])
-        parent, last_key, success = self.navigate_to_parent(path)
+        parent, last_key, success = self._navigate_to_parent(path)
 
         if success:
             try:
@@ -89,15 +162,15 @@ class StructuredNestedOperations:
                 elif isinstance(parent, list):
                     parent[int(last_key)] = value
             except (IndexError, ValueError, TypeError):
-                return self.data
+                return self.content
 
-        return self.data
+        return self.content
 
     def _ensure_path_exists(
         self,
         path: List[Union[str, int]]
     ) -> None:
-        current = self.data
+        current = self.content
         for key in path:
             if isinstance(current, dict):
                 current = current.setdefault(key, {})
@@ -108,11 +181,11 @@ class StructuredNestedOperations:
                 current = current[index]
 
     @global_exception_handler(4203, "Error Ensuring Path Exists")
-    def nested_keys(
+    def _nested_keys(
         self,
         max_depth: int = -1
     ) -> List[List[Union[str, int]]]:
-        return self._collect_paths(self.data, [], max_depth)
+        return self._collect_paths(self.content, [], max_depth)
 
     def _collect_paths(
         self,
@@ -137,55 +210,55 @@ class StructuredNestedOperations:
         return paths
 
     @global_exception_handler(4204, "Error Getting Nested Values")
-    def nested_values(
+    def _nested_values(
         self,
         max_depth: int = -1
     ) -> List[Any]:
-        return [self.nested_get(path) for path in self.nested_keys(max_depth)]
+        return [self._nested_get(path) for path in self._nested_keys(max_depth)]
 
     @global_exception_handler(4205, "Error Appending Nested Value")
-    def nested_append(
+    def _nested_append(
         self,
         path: List[Union[str, int]],
         value: Any
     ) -> Any:
-        target = self.nested_get(path)
+        target = self._nested_get(path)
         if isinstance(target, list):
             target.append(value)
-        return self.data
+        return self.content
 
     @global_exception_handler(4206, "Error Inserting Nested Value")
-    def nested_insert(
+    def _nested_insert(
         self,
         path: List[Union[str, int]],
         index: int,
         value: Any
     ) -> Any:
-        target = self.nested_get(path)
+        target = self._nested_get(path)
         if isinstance(target, list):
             try:
                 target.insert(index, value)
             except IndexError:
-                return self.data
-        return self.data
+                return self.content
+        return self.content
 
     @global_exception_handler(4207, "Error Sorting Nested Value")
-    def nested_sort(
+    def _nested_sort(
         self,
         path: List[Union[str, int]],
         key: Optional[Callable] = None,
         reverse: bool = False
     ) -> Any:
-        target = self.nested_get(path)
+        target = self._nested_get(path)
         if isinstance(target, list):
             try:
                 target.sort(key=key, reverse=reverse)
             except TypeError:
-                return self.data
-        return self.data
+                return self.content
+        return self.content
 
     @global_exception_handler(4208, "Error Setting Nested Operation")
-    def nested_set_operation(
+    def _nested_set_operation(
         self,
         operation: str,
         path1: List[Union[str, int]],
@@ -197,8 +270,8 @@ class StructuredNestedOperations:
             list1 = value1
             list2 = value2
         else:
-            list1 = self.nested_get(path1)
-            list2 = self.nested_get(path2)
+            list1 = self._nested_get(path1)
+            list2 = self._nested_get(path2)
 
             if not isinstance(list1, list) or not isinstance(list2, list):
                 return []
@@ -220,7 +293,7 @@ class StructuredNestedOperations:
         return list(operations.get(operation, set()))
 
     @global_exception_handler(4209, "Error Replacing Structured Variable Values")
-    def replace_structured_variable_values(
+    def _replace_structured_variable_values(
         self,
         **kwargs
     ) -> Any:
@@ -236,6 +309,121 @@ class StructuredNestedOperations:
             return value
 
         # Start the recursive replacement from the root
-        self.data = replace_value(self.data)
-        return self.data
+        self.content = replace_value(self.content)
+        return self.content
 
+
+if __name__ == "__main__":
+    nested_data = {
+        "users": [
+            {"id": 1, "name": "Alice", "scores": [85, 90, 78]},
+            {"id": 2, "name": "Bob", "scores": [92, 88, 95]},
+            {"id": 3, "name": "Charlie", "scores": [75, 80, 85]}
+        ],
+        "settings": {
+            "theme": "dark",
+            "notifications": True,
+            "template": "{{template_name}}"
+        },
+        "lists": {
+            "list1": [1, 2, 3, 4, 5],
+            "list2": [4, 5, 6, 7, 8]
+        }
+    }
+
+    # Test nested get
+    operations = [
+        {
+            "type": "get",
+            "params": {
+                "path": ["users", 0, "name"]
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": operations}).modify()
+    print("Get operation result:", result)
+
+    # Test nested set_value
+    operations = [
+        {
+            "type": "set_value",
+            "params": {
+                "path": ["settings", "theme"],
+                "value": "light"
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": operations}).modify()
+    print("After set_value:", result)
+
+    # Test nested append
+    operations = [
+        {
+            "type": "append",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "value": 100
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": operations}).modify()
+    print("After append:", result)
+
+    # Test nested sort
+    operations = [
+        {
+            "type": "sort",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "reverse": True
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": operations}).modify()
+    print("After sort:", result)
+
+    # Test set operations
+    operations = [
+        {
+            "type": "set_operation",
+            "params": {
+                "path1": ["lists", "list1"],
+                "path2": ["lists", "list2"],
+                "operation": "union"
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": operations}).modify()
+    print("Set union result:", result)
+
+    # Test variable replacement in structured content
+    operations = [
+        {
+            "type": "variable_replace",
+            "params": {
+                "plugins": {"template_name": "custom_template"}
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": operations}).modify()
+    print("After variable replacement:", result)
+
+    # Test chained operations
+    chained_operations = [
+        {
+            "type": "sort",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "reverse": True
+            }
+        },
+        {
+            "type": "get",
+            "params": {
+                "path": ["users", 0, "scores"],
+                "default": []
+            }
+        }
+    ]
+    result = ModifyEditStructured(content=nested_data, extra_configs={"operations": chained_operations}).modify()
+    print("After chained operations:", result)
