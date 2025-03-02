@@ -19,19 +19,24 @@
             "data": {
                 "content": ""
             }
+        },
+        "3": {
+            "type": "text",
+            "label": "text_output",
+            "data": {
+                "content": ""
+            }
         }
     },
     "edges": {
         "convert-1": {
             "type": "modify",
             "data": {
-                "modify_type": "convert",
+                "modify_type": "convert2text",
                 "content": "{{structured_input}}",
                 "extra_configs": {
-                    "source_type": "structured",
-                    "target_type": "text"
                 },
-                "inputs": {"1": "structured_input"},
+                "inputs": {"1": "structured_input", "2": "text_output"},
                 "outputs": {"2": "text_output"}
             }
         }
