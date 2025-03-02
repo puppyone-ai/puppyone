@@ -47,11 +47,9 @@
         "convert-2": {
             "type": "modify",
             "data": {
-                "modify_type": "convert",
+                "modify_type": "convert2structured",
                 "content": "{{list_input}}",
                 "extra_configs": {
-                    "source_type": "text",
-                    "target_type": "structured",
                     "target_structure": "list",
                     "list_separator": [","],
                     "action_type": "default"

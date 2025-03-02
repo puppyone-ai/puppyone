@@ -239,12 +239,12 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
         // Deafult Mode: 
 
-        //     - “some text” → [“some text”] (for list), or, {”key_here”: “some text”} (for dict)
-        //     - When "list_separator": [”,”]: “some, text, here” → [”some”, “text”, “here”]
+        //     - "some text" → ["some text"] (for list), or, {"key_here": "some text"} (for dict)
+        //     - When "list_separator": [","]: "some, text, here" → ["some", "text", "here"]
 
         //     Json Mode: 
 
-        //     - “{’key_here’: ‘some text’} xxx [1,2,3]” → {”key_here”: “some text”, “list_1”: [1, 2, 3]} (parse all the lists and dicts to be a json object)
+        //     - "{'key_here': 'some text'} xxx [1,2,3]" → {"key_here": "some text", "list_1": [1, 2, 3]} (parse all the lists and dicts to be a json object)
         
         const edgejson: Modify2SturcturedJsonType = {
             // id: parentId,
@@ -351,14 +351,14 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
     return (
 
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[384px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                                <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5" />
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                             </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -367,13 +367,16 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                     </div>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
-                                <rect x="3.75" y="0.75" width="7.5" height="7.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                <rect x="0.75" y="4.75" width="7.5" height="7.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" />
-                            </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M12 2L2 12" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M12 2L8 2" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M12 2L12 6" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2 12L6 12" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2 12L2 8" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                                To structured
+                                Convert to Structured
                         </div>
                     </div>
                 </div>
@@ -399,11 +402,11 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                 </div>
             </li>
 
-            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[2px] border-[#6D7177] rounded-[4px] w-[300px] bg-black'>
-                <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[2px] border-[#6D7177] flex items-center justify-start'>
+            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full bg-black'>
+                <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start rounded-l-[8px]'>
                 Mode
                 </div>
-                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  bg-black'>
+                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px] rounded-[8px] bg-black'>
                     <PuppyDropdown
                         options= {
                             [
@@ -427,8 +430,8 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
              {
                 execMode===INTO_DICT_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[3px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                         key
                         </div>
                         <input value={wrapInto} onChange={(e) => {
@@ -442,8 +445,8 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
             {
                 execMode===BY_CHAR_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[3px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                         deliminators
                         </div>
                         <input value={deliminator} onChange={(e) => {
@@ -457,8 +460,8 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
         {
                 execMode===BY_LEN_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[3px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
                         length
                         </div>
                         <input value={bylen} onChange={(e) => {
