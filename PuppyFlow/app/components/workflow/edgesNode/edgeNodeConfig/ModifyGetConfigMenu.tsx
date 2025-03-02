@@ -91,6 +91,7 @@ const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) =
     };
 
     const dropdownItemStyle = {
+        fontSize: '10px',
         padding: '8px',
         color: 'white', // Text color for items
         cursor: 'pointer',
@@ -98,7 +99,7 @@ const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) =
 
     return (
         <div style={dropdownContainerStyle}>
-            <div  className={`overflow-hidden text-[12px] text-nowrap font-[700] ${getConfigData[configIndex]?.key ?"text-[#000] ":"text-white"} leading-normal tracking-[0.84px] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] ${getConfigData[configIndex]?.key ?"border-[3px]":"border-[0px]"} ${getConfigData[configIndex]?.key ?"bg-[#6D7177]":""}`} onClick={() => {
+            <div  className={`overflow-hidden text-[12px] text-nowrap font-semibold ${getConfigData[configIndex]?.key ?"text-[#000] ":"text-white"} h-[16px] px-[4px] flex items-center justify-center rounded-[4px] border-[#6D7177] } ${getConfigData[configIndex]?.key ?"bg-[#6D7177]":""}`} onClick={() => {
                 
                 setIsOpen(prev => {
                     console.log("open",prev)
@@ -302,7 +303,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{node.label}</span>
+            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177] '>{`{{${node.label}}}`}</span>
         ))
     }
 
@@ -508,10 +509,10 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             <div className='flex flex-row gap-[12px]'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
                 <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                    <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    </svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
 
                 </div>
                 <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -521,10 +522,8 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             <div className='flex flex-row gap-[8px] justify-center items-center'>
                 <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M10.5 7.00016C4.08333 7.00016 3.5 2.3335 3.5 2.3335" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <rect x="-0.75" y="0.75" width="3.5" height="3.5" transform="matrix(-1 0 0 1 3.5 0)" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <path d="M13.25 5.25H9.75V8.75H13.25V5.25Z" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <rect x="-0.75" y="0.75" width="3.5" height="3.5" transform="matrix(-1 0 0 1 3.5 9)" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M8.5 2.5L11.5 5.5L5 12H2V9L8.5 2.5Z" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M8.5 2.5L9.5 1.5L12.5 4.5L11.5 5.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                 </svg>
                 </div>
                 <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -533,19 +532,6 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
             </div>
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <div className='flex flex-col items-center justify-center'>
-                <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
-                    setIsLoop(!isLoop)
-                }}>
-                    <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
-                        ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
-                    </div>
-                </button>
-                <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
-                    ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
-                    Loop
-                </div>
-                </div>
                 <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
@@ -610,12 +596,12 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 <div className='border-[#6D7177] border-[1px] w-full rounded-[8px]'>
                 {
                     execMode===MODIFY_GET_ALL_KEYS || execMode===MODIFY_GET_ALL_VAL ? <></>:
-                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-full p-3'>
+                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-full py-[16px] px-[8px] gap-[16px]'>
                         {
                             getConfigDataa().map(
                                 ({key,value},index)=>(
                                     <>
-                                    <label className='h-[32px] text-[12px] font-semibold'>  Step {index+1} </label>
+                                    <label className='h-[16px] mb-[6px] text-[12px] font-semibold flex items-center'>  step {index+1} </label>
                                         <div className='inline-flex space-x-[12px] items-center justify-start'>
                                         <svg onClick={
                                             ()=>{
