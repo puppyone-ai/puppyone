@@ -3,16 +3,22 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import io
 import os
 import re
 import json
 import base64
+import pymupdf
 import easyocr
 import whisper
 import pypandoc
 import requests
 import pymupdf4llm
+import numpy as np
 import pandas as pd
+import concurrent.futures
+from pydub import AudioSegment
+from typing import List, Dict, Any
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
 
 
@@ -27,24 +33,108 @@ class FileToTextParser:
 
     def __init__(
         self,
-        root_path: str,
     ):
         """
-        Initializes the FileToTextParser with the given root path.
-
-        Args:
-            root_path (str): The root directory path where files are located.
+        Initializes the FileToTextParser.
         """
 
-        self.root_path = root_path
-        self.file_path = root_path
         pandoc_path = pypandoc.get_pandoc_path()
         if not (pandoc_path and os.path.exists(pandoc_path)):
             pypandoc.download_pandoc()
 
+    @global_exception_handler(1302, "Error Parsing Multiple Files")
+    def parse_multiple(
+        self,
+        file_configs: List[Dict[str, Any]]
+    ) -> List[Any]:
+        """
+        Parse multiple files concurrently with different configurations.
+
+        Args:
+            file_configs: List of file configurations, where each configuration is a dict with:
+                - file_path: Path or URL to the file
+                - file_type: Type of the file (json, pdf, etc.)
+                - config: Dict of parsing parameters specific to this file
+
+        Returns:
+            List of parsed file contents in the same order as the input configurations
+
+        Raises:
+            PuppyEngineException: If parsing any file fails
+        """
+
+        results = []
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future_to_index = {}
+            for i, file_config in enumerate(file_configs):
+                file_path = file_config.get('file_path')
+                file_type = file_config.get('file_type').lower() or self._determine_file_type(file_path)
+                config = file_config.get('config', {})
+
+                future = executor.submit(self.parse, file_path, file_type, **config)
+                future_to_index[future] = i
+
+            # Collect results as they complete
+            results = [None] * len(file_configs)
+            for future in concurrent.futures.as_completed(future_to_index):
+                idx = future_to_index[future]
+                try:
+                    results[idx] = future.result()
+                except Exception as e:
+                    # Store error in results list
+                    results[idx] = {"error": str(e)}
+
+        return results
+
+    @global_exception_handler(1317, "Error Determining File Type")
+    def _determine_file_type(
+        self,
+        file_path: str
+    ) -> str:
+        """
+        Determine file type from file extension.
+
+        Args:
+            file_path: Path or URL to the file
+
+        Returns:
+            File type based on extension
+        """
+
+        _, ext = os.path.splitext(file_path)
+        ext = ext.lower().lstrip('.')
+
+        extension_map = {
+            'json': 'json',
+            'txt': 'txt',
+            'md': 'markdown',
+            'pdf': 'pdf',
+            'doc': 'doc',
+            'docx': 'doc',
+            'csv': 'csv',
+            'xlsx': 'xlsx',
+            'xls': 'xlsx',
+            'jpg': 'image',
+            'jpeg': 'image',
+            'png': 'image',
+            'gif': 'image',
+            'mp3': 'audio',
+            'wav': 'audio',
+            'mp4': 'video',
+            'avi': 'video',
+            'mov': 'video'
+        }
+
+        file_type = extension_map.get(ext)
+        if not file_type:
+            raise PuppyEngineException(1305, "Unknown File Type", f"Cannot determine file type for extension: {ext}")
+
+        return file_type
+
     def parse(
         self,
-        file_name: str,
+        file_path: str,
         file_type: str,
         **kwargs
     ) -> str:
@@ -52,8 +142,8 @@ class FileToTextParser:
         Parses the given file based on its type.
         
         Args:
-            file_name (str): The name of the file to be parsed.
-            file_type (str): The type of the file (e.g., json, txt, markdown).
+            file_path (str): The path to the file to be parsed.
+            file_type (str): The type of the file to be parsed.
             **kwargs: Additional keyword arguments for specific parsing methods.
 
         Returns:
@@ -63,23 +153,51 @@ class FileToTextParser:
             PuppyEngineException: If the file type is unsupported.
         """
 
-        self.file_path = os.path.join(self.root_path, file_name)
-        file_type = file_type.lower()
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
             raise PuppyEngineException(1301, "Unsupported File Type")
-        return parse_method(**kwargs)
+        return parse_method(file_path, **kwargs)
+
+    @global_exception_handler(1316, "Error Parsing Remote File")
+    def _remote_file_to_byte_io(
+        self,
+        file_url: str
+    ) -> io.BytesIO:
+        """
+        Converts a remote file to a BytesIO object.
+
+        Args:
+            file_url (str): The URL of the remote file.
+
+        Returns:
+            io.BytesIO: The BytesIO object of the remote file.
+        """
+
+        response = requests.get(file_url)
+        return io.BytesIO(response.content)
+
+    def _is_file_url(
+        self,
+        file_url: str
+    ) -> bool:
+        """
+        Checks if the given URL is a file URL.
+        """
+
+        return file_url.startswith("http://") or file_url.startswith("https://")
 
     @global_exception_handler(1302, "Error Parsing JSON File")
     def _parse_json(
         self,
+        file_path: str,
         **kwargs
     ) -> dict:
         """
         Parses a JSON file and returns its content as a dictionary.
 
         Args:
+            file_path (str): The path to the file to be parsed.
             **kwargs: No additional arguments are expected.
 
         Returns:
@@ -92,8 +210,13 @@ class FileToTextParser:
         if kwargs:
             raise ValueError("There should not be any parameters for parsing JSON File!")
 
-        with open(self.file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = ""
+        if self._is_file_url(file_path):
+            file_bytes = self._remote_file_to_byte_io(file_path)
+            content = file_bytes.read().decode('utf-8')
+        else:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
 
             if kwargs.get("keep_json", True):
                 content = json.loads(content)
@@ -102,12 +225,14 @@ class FileToTextParser:
     @global_exception_handler(1303, "Error Parsing TXT File")
     def _parse_txt(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parses a TXT file and returns its content as a string.
 
         Args:
+            file_path (str): The path to the file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - auto_formatting (bool): Whether to remove extra whitespaces and newlines.
 
@@ -115,8 +240,13 @@ class FileToTextParser:
             str: The parsed TXT content.
         """
 
-        with open(self.file_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = ""
+        if self._is_file_url(file_path):
+            file_bytes = self._remote_file_to_byte_io(file_path)
+            content = file_bytes.read().decode('utf-8')
+        else:
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
 
         if kwargs.get("auto_formatting", False):
             content = re.sub(r"\s+", " ", content)
@@ -126,12 +256,14 @@ class FileToTextParser:
     @global_exception_handler(1304, "Error Parsing MARKDOWN File")
     def _parse_markdown(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parses a Markdown file and returns its content as a string.
 
         Args:
+            file_path (str): The path to the file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - auto_formatting (bool): Whether to remove extra whitespaces and newlines.
 
@@ -139,13 +271,18 @@ class FileToTextParser:
             str: The parsed Markdown content.
         """
 
-        with open(self.file_path, "r", encoding="utf-8") as file:
-            markdown_content = file.read()
+        content = ""
+        if self._is_file_url(file_path):
+            file_bytes = self._remote_file_to_byte_io(file_path)
+            content = file_bytes.read().decode('utf-8')
+        else:
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = file.read()
 
         if kwargs.get("auto_formatting", False):
-            markdown_content = self._remove_markdown_syntax(markdown_content)
+            content = self._remove_markdown_syntax(content)
 
-        return markdown_content
+        return content
 
     @global_exception_handler(1312, "Error Removing Markdown Syntax")
     def _remove_markdown_syntax(
@@ -178,12 +315,14 @@ class FileToTextParser:
     @global_exception_handler(1305, "Error Parsing DOC File")
     def _parse_doc(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parses a DOCX file and returns its content as a string.
 
         Args:
+            file_path (str): The path to the file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - auto_formatting (bool): Whether to remove extra whitespaces and newlines.
 
@@ -198,7 +337,12 @@ class FileToTextParser:
         ris, rst, rtf, t2t, textile, tikiwiki, tsv, twiki, typst, vimwiki
         """
 
-        output = pypandoc.convert_file(self.file_path, "markdown")
+        source_file = file_path
+        if self._is_file_url(file_path):
+            source_file_request = requests.get(file_path)
+            source_file = source_file_request.content
+
+        output = pypandoc.convert_file(source_file, "markdown")
 
         output = output.replace('\\"', '"').replace("\\'", "'")
 
@@ -210,12 +354,14 @@ class FileToTextParser:
     @global_exception_handler(1306, "Error Parsing PDF File")
     def _parse_pdf(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parses a PDF file and returns its content as a string.
 
         Args:
+            file_path (str): The path to the file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - use_images (bool): Whether to extract images from the PDF and apply OCR.
             - pages (list): The list of page numbers to parse.
@@ -230,7 +376,12 @@ class FileToTextParser:
         if pages is not None and not isinstance(pages, list):
             raise ValueError("Pages must be a list of integers!")
 
-        pdf_content = pymupdf4llm.to_markdown(self.file_path, pages=pages, write_images=use_images)
+        pdf = file_path
+        if self._is_file_url(file_path):
+            file_object = self._remote_file_to_byte_io(file_path)
+            pdf = pymupdf.open(stream=file_object, filetype='pdf')
+
+        pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
 
         return pdf_content
 
@@ -260,12 +411,14 @@ class FileToTextParser:
     @global_exception_handler(1309, "Error Parsing Image")
     def _parse_image(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parsing the image file using either OCR or LLM description.
 
         Args:
+            file_path (str): The path to the image file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - use_llm (bool): Whether to use LLM for describing the image.
 
@@ -275,21 +428,27 @@ class FileToTextParser:
 
         use_llm = kwargs.get("use_llm", False)
         if use_llm:
-            with open(self.file_path, "rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
-            description = self._describe_image_with_llm(base64_image)
+            image = file_path
+            if not self._is_file_url(file_path):
+                with open(file_path, "rb") as image_file:
+                    image = base64.b64encode(image_file.read()).decode("utf-8")
+                    image = f"data:image/jpeg;base64,{image}"
+            description = self._describe_image_with_llm(image)
             return description
-        return self._ocr_image(self.file_path)
+
+        return self._ocr_image(file_path)
 
     @global_exception_handler(1310, "Error Parsing Audio")
     def _parse_audio(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parsing the audio file and transcribing it using whisper.
 
         Args:
+            file_path (str): The path to the audio file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - mode (str): The mode of the whisper model. Either "base" or "accurate".
 
@@ -299,18 +458,30 @@ class FileToTextParser:
 
         mode = kwargs.get("mode", "accurate")
         model = whisper.load_model("small" if mode == "accurate" else "base")
-        result = model.transcribe(self.file_path)
+        samples = file_path
+        if self._is_file_url(file_path):
+            audio_bytes = self._remote_file_to_byte_io(file_path)
+            # Convert MP3 to WAV using pydub
+            audio = AudioSegment.from_file(audio_bytes, format="mp3")
+            # Ensure it's mono and 16kHz for Whisper
+            audio = audio.set_channels(1).set_frame_rate(16000)
+            # Convert to NumPy array and normalize
+            samples = np.array(audio.get_array_of_samples()).astype(np.float32) / 32768.0
+
+        result = model.transcribe(samples)
         return result["text"]
 
     @global_exception_handler(1311, "Error Parsing Video")
     def _parse_video(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parsing the video file and describing each frame using LLM.
 
         Args:
+            file_path (str): The path to the video file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - use_llm (bool): Whether to use LLM for describing each frame.
             - frame_skip (int): The number of frames to skip between descriptions.
@@ -324,17 +495,19 @@ class FileToTextParser:
             skip_num = kwargs.get("frame_skip", 30)
             return self._describe_video_with_llm(skip_num)
         else:
-            return self._parse_audio(split_speakers=False)
+            return self._parse_audio(file_path, split_speakers=False)
 
     @global_exception_handler(1307, "Error Parsing CSV File")
     def _parse_csv(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parses a CSV file and returns its content as a string.
 
         Args:
+            file_path (str): The path to the CSV file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
@@ -347,7 +520,11 @@ class FileToTextParser:
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
 
-        df = pd.read_csv(self.file_path)
+        csv_file = file_path
+        if self._is_file_url(file_path):
+            csv_file = self._remote_file_to_byte_io(file_path)
+
+        df = pd.read_csv(csv_file)
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
@@ -357,12 +534,14 @@ class FileToTextParser:
     @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
         self,
+        file_path: str,
         **kwargs
     ) -> str:
         """
         Parses an XLSX file and returns its content as a string.
 
         Args:
+            file_path (str): The path to the XLSX file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
@@ -376,7 +555,11 @@ class FileToTextParser:
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
 
-        df = pd.read_excel(self.file_path)
+        xlsx_file = file_path
+        if self._is_file_url(file_path):
+            xlsx_file = self._remote_file_to_byte_io(file_path)
+
+        df = pd.read_excel(xlsx_file)
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
@@ -387,13 +570,13 @@ class FileToTextParser:
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
         self,
-        base64_image: str
+        image: str
     ) -> str:
         """
         Describes an image using the LLM model.
 
         Args:
-            base64_image (str): The base64 encoded image.
+            image (str): The base64 encoded image or image url.
 
         Returns:
             str: The description of the image.
@@ -402,8 +585,8 @@ class FileToTextParser:
         api_key = os.environ.get("OPENAI_API_KEY")
 
         headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
         }
 
         payload = {
@@ -413,19 +596,19 @@ class FileToTextParser:
                 "role": "user",
                 "content": [
                     {
-                    "type": "text",
-                    "text": "Describe the following image in detail."
+                        "type": "text",
+                        "text": "Describe the following image in detail."
                     },
                     {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}"
-                    }
+                        "type": "image_url",
+                        "image_url": {
+                            "url": image
+                        }
                     }
                 ]
                 }
             ],
-            "max_tokens": 1000
+            "max_tokens": 1024
         }
 
         response = requests.post(
@@ -452,38 +635,121 @@ if __name__ == "__main__":
     # Load environment variables
     load_dotenv()
 
-    file_root_path = "PuppyEngine/ModularEdges/LoadEdge/testfiles"
-    parser = FileToTextParser(file_root_path)
-    parsed_content = parser.parse("testjson.json", "json")
-    print(f"JSON Parsed Content:\n{parsed_content}\n", parsed_content.get("Name"))
-
-    parsed_content = parser.parse("testtxt.txt", "txt", auto_formatting=False)
-    print(f"TXT Parsed Content:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testmd.md", "markdown", auto_formatting=True)
-    print(f"Markdown Parsed Content:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testdoc.docx", "doc", auto_formatting=False)
-    print(f"DOCX Parsed Content:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testpdf.pdf", "pdf", use_images=True)
-    print(f"PDF Parsed Content:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testimg.png", "image", use_llm=False)
-    print(f"Image Parsed Content:\n{parsed_content}\n")
-    parsed_content = parser.parse("testimg2.png", "image", use_llm=True)
-    print(f"Image Parsed Content 2:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testaudio.mp3", "audio", mode="accurate")
-    print(f"Audio Parsed Content:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testvideo.mp4", "video", use_llm=True, frame_skip=300)
-    print(f"Video Parsed Content:\n{parsed_content}\n")
-    parsed_content = parser.parse("testvideo2.mp4", "video", use_llm=False)
-    print(f"Video Parsed Content 2:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testcsv.csv", "csv", column_range=[0, 3], row_range=[0, 5])
-    print(f"CSV Parsed Content:\n{parsed_content}\n")
-
-    parsed_content = parser.parse("testxlsx.xlsx", "xlsx", column_range=[0, 3], row_range=[0, 5])
-    print(f"XLSX Parsed Content:\n{parsed_content}\n")
+    file_root_path = "ModularEdges/LoadEdge/testfiles"
+    file_configs = [
+        {
+            "file_path": os.path.join(file_root_path, "testjson.json"),
+            "file_type": "json"
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testtxt.txt"),
+            "file_type": "txt",
+            "config": {
+                "auto_formatting": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testmd.md"),
+            "file_type": "markdown",
+            "config": {
+                "auto_formatting": True
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testdoc.docx"),
+            "file_type": "doc",
+            "config": {
+                "auto_formatting": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testpdf.pdf"),
+            "file_type": "pdf",
+            "config": {
+                "use_images": True
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testimg.png"),
+            "file_type": "image",
+            "config": {
+                "use_llm": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testimg2.png"),
+            "file_type": "image",
+            "config": {
+                "use_llm": True
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testaudio.mp3"),
+            "file_type": "audio",
+            "config": {
+                "mode": "accurate"
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testvideo.mp4"),
+            "file_type": "video",
+            "config": {
+                "use_llm": True,
+                "frame_skip": 300
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
+            "file_type": "video",
+            "config": {
+                "use_llm": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testcsv.csv"),
+            "file_type": "csv",
+            "config": {
+                "column_range": [0, 3],
+                "row_range": [0, 5]
+            }
+        },  
+        {
+            "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
+            "file_type": "xlsx",
+            "config": {
+                "column_range": [0, 3],
+                "row_range": [0, 5]
+            }
+        },
+        {
+            "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
+            "file_type": "doc",
+            "config": {
+                "auto_formatting": True
+            }
+        },
+        {
+            "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
+            "file_type": "pdf",
+            "config": {
+                "use_images": True
+            }
+        },
+        {
+            "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
+            "file_type": "image",
+            "config": {
+                "use_llm": False
+            }
+        },
+        {
+            "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
+            "file_type": "audio",
+            "config": {
+                "mode": "small"
+            }
+        }
+    ]
+    parser = FileToTextParser()
+    parsed_content_list = parser.parse_multiple(file_configs)
+    print(f"Parsed Content List:\n{parsed_content_list}")
