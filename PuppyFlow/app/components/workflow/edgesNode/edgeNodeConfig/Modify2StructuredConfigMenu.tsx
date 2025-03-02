@@ -472,10 +472,6 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                     </li>
                 )
              }
-            
-
-
-
         </ul>
     )
 }
