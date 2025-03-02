@@ -1,0 +1,38 @@
+{
+    "blocks": {
+        "-IahlM": {
+            "label": "-IahlM",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "JabUGj": {
+            "label": "JabUGj",
+            "type": "text",
+            "data": {
+                "content": "{\"dd\",\"dds\"}"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "modify-1740822906773": {
+            "type": "modify",
+            "data": {
+                "content": "{{JabUGj}}",
+                "modify_type": "convert2structured",
+                "extra_configs": {
+                    "target_structure": "dict",
+                    "action_type": "json"
+                },
+                "inputs": {
+                    "JabUGj": "JabUGj"
+                },
+                "outputs": {
+                    "-IahlM": "-IahlM"
+                }
+            }
+        }
+    }
+}
