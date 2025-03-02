@@ -417,9 +417,9 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 }}>
                 <div className='flex items-center gap-[11px] flex-1'>
                 <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                 </svg>
                 </div>
                 <div className='text-[14px] font- flex items-center justify-center h-full'>Modify</div>
