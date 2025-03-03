@@ -6,8 +6,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import uuid
 from typing import List, Dict, Any
 from DataClass.Chunk import Chunk
-from Scripts.Embedder import TextEmbedding
-from Scripts.VectorDatabase import VectorDatabaseFactory
+from Objs.Vector.Embedder import TextEmbedding
+from Objs.Vector.Vdb.vector_db_factory import VectorDatabaseFactory
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 
@@ -18,7 +18,6 @@ def embedding(
     vdb_type: str,
     create_new: bool,
     metadatas: List[Dict[str, Any]],
-    user_id: str
 ) -> Dict[str, Any]:
     embedder = TextEmbedding(model_name=model)
     chunks_contents = [
@@ -29,15 +28,17 @@ def embedding(
         for chunk in chunks
     ]
 
-    embeddings = embedder.get_embeddings(chunks_contents)
+    # Embed the chunks
+    embeddings = embedder.embed(chunks_contents)
 
     # Store the embeddings
-    db = VectorDatabaseFactory.get_database(db_type=vdb_type)
 
     collection_name = str(uuid.uuid4())
-    db.connect(collection_name)
 
-    db.save_embeddings(
+    vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
+    vdb.register_collection(collection_name)
+
+    vdb.store_vectors(
         collection_name=collection_name,
         embeddings=embeddings,
         documents=chunks_contents,
@@ -53,7 +54,7 @@ def delete_collection(
     collection_name: str,
 ) -> None:
     db = VectorDatabaseFactory.get_database(db_type=vdb_type)
-    db.connect(collection_name)
+    db.register_collection(collection_name)
     db.delete_index(collection_name)
 
 @global_exception_handler(3014, "Unexpected Error in Searching Embeddings from Vector Database")
@@ -67,10 +68,10 @@ def embedding_search(
     **kwargs
 ) -> List[Dict[str, Any]]:
     embedder = TextEmbedding(model_name=model)
-    query_embedding = embedder.get_embeddings([query])[0]
+    query_embedding = embedder.embed([query])[0]
 
     db = VectorDatabaseFactory.get_database(db_type=vdb_type)
-    db.connect(collection_name=collection_name)
+    db.register_collection(collection_name=collection_name)
     matched_results = db.search_embeddings(
         collection_name=collection_name,
         query_embedding=query_embedding,
