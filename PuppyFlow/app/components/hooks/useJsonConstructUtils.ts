@@ -436,7 +436,7 @@ function useJsonConstructUtils() {
                     type: item.type ?? node.type,
                     data: {
                         ...node.data,
-                        content: JSON.stringify(item.data.content),
+                        content: (item.type ?? node.type) === "structured" ? JSON.stringify(item.data.content): item.data.content,
                         isLoading: false
                     }
                 }: node)))
@@ -490,7 +490,7 @@ function useJsonConstructUtils() {
                         type: item.type ?? node.type,
                         data: {
                             ...node.data,
-                            content: JSON.stringify(item.data.content),
+                            content: (item.type ?? node.type) === "structured" ? JSON.stringify(item.data.content): item.data.content,
                             isLoading: false
                         }
                     }: node)))
