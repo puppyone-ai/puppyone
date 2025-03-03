@@ -10,6 +10,9 @@ import TextConfigEditorTextArea from '../../../tableComponent/TextConfigEditorTe
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+
+import {PuppyDropdown} from "../../../misc/PuppyDropDown"
+
 type ModifyTextConfigProps = {
     show: boolean,
     parentId: string,
@@ -20,7 +23,7 @@ export type ModifyTextEdgeJsonType = {
     type: "modify",
     data: {
     //   content_type: "str",
-      modify_type: "modify_text",
+      modify_type: "edited_text",
       extra_configs: {},
       content: string,
       inputs: { [key: string]: string },
@@ -193,15 +196,28 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
 
         let edges: { [key: string]: ModifyTextEdgeJsonType } = {}
 
+        console.log("mod text config node", getNode(parentId))
+
         const promptValue = getNode(parentId)?.data.content as string || ""
         const edgejson: ModifyTextEdgeJsonType = {
             // id: parentId,
             type: "modify",
             data: {  
                 // content_type: "str",
-                modify_type: "modify_text",
-                extra_configs: {},
-                content: promptValue,
+                modify_type: "edited_text",
+                extra_configs: {
+                    slice: (
+                        retMode === RET_ALL? [0, -1]:(
+                            retMode === RET_FN?JSON.parse(`[0,${configNum}]`):(
+                                retMode === RET_LN?JSON.parse(`[-${configNum},-1]`):(
+                                    retMode === EX_FN?JSON.parse(`[${configNum},-1]`):JSON.parse(`[0,-${configNum}]`)
+                                )
+                            )
+                        )
+                    ),
+                    sort_type: "/" // if no need to sort, pass the value as /
+                },
+                content: sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (node.label||node.id))[0],
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
@@ -268,8 +284,50 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
             }))
         }
 
-   
+   const RET_ALL = "return all"
+   const RET_FN = "return first n"
+   const RET_LN = "return last n"
+   const EX_FN = "exclude first n"
+   const EX_LN = "exclude last n"
+//    const [wrapInto, setWrapInto] = useState(typeof (getNode(parentId)?.data?.extra_configs as any)?.dict_key === 'string'? (getNode(parentId)?.data?.extra_configs as any)?.dict_key : "")
+   const [retMode,setRetMode] = useState(typeof (getNode(parentId)?.data?.extra_configs as any)?.retMode === 'string'? (getNode(parentId)?.data?.retMode as any)?.retMode : RET_ALL)
 
+   const  [configNum, setConfigNum] = useState(typeof (getNode(parentId)?.data?.extra_configs as any)?.configNum === 'number'? (getNode(parentId)?.data?.extra_configs as any)?.configNum : 100) 
+   
+   useEffect(()=>{
+    setNodes(prevNodes => prevNodes.map(node => {
+        if (node.id === parentId) {
+            return {...node, data: {...node.data, 
+                configNum:configNum,
+                retMode: retMode}}
+        }
+        return node
+    }))
+   },[retMode,configNum]
+
+   )
+
+   const renderRetMode = (v:string)=>{
+
+        if(v === RET_ALL){
+            return v
+        }
+
+
+        return (
+            <>
+                {v.slice(0,-1)}
+                <input 
+                    value={configNum}
+                    onChange={(e)=>{
+                        console.log(e.target.value)
+                        setConfigNum(e.target.value)
+                    }} 
+                    className="w-[50px] text-white bg-black caret-white ml-[5px]"
+                    type="number"></input>
+            </>
+        )
+   }
     
   return (
 
@@ -338,14 +396,38 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
             <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
                 return
             </div>
-            <TextConfigEditorTextArea preventParentDrag={onFocus} 
-                      allowParentDrag={onBlur} 
-                      placeholder='你好, {{parent_nodeid}}, 我是{{parent_nodeid}}'
-                      parentId={parentId}
-                      widthStyle={280} 
-                      heightStyle={140} />
-           
+            <div className='relative'>
+                <TextConfigEditorTextArea preventParentDrag={onFocus} 
+                        allowParentDrag={onBlur} 
+                        placeholder='use {{}} and id to reference input content eample: hello, {{parent_nodeid}}'
+                        parentId={parentId}
+                        widthStyle={280} 
+                        heightStyle={140} />
+
+                <div style={{ position: 'absolute', bottom: 0, right: 0 }}>
+                    <PuppyDropdown
+                        options= {
+                            [
+                                RET_ALL,
+                                RET_FN,
+                                RET_LN,
+                                EX_FN,
+                                EX_LN 
+                            ]
+                        }
+                        onSelect= {(option:string)=>{
+                            setRetMode(option)
+                        }}
+                        selectedValue={renderRetMode(retMode)}
+                        listWidth={"200px"}
+                        containerClassnames="mb-[10px] pr-[5px]"
+                    >
+                    </PuppyDropdown>
+
+                </div>
+            </div>
         </li>
+        
 
         
     </ul>
