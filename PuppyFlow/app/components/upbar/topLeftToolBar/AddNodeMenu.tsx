@@ -1,3 +1,4 @@
+'use client'
 import React, {useEffect, useState, useCallback, useRef} from 'react'
 import { useReactFlow } from '@xyflow/react';
 // import { useNodeContext } from '../../states/NodeContext';
@@ -60,8 +61,8 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       // const newNodeId = `${totalCount + 1}`;
       // if (!mousePosition) return
       const position = screenToFlowPosition({
-        x: event.clientX - 32 * getZoom(),
-        y: event.clientY - 32 * getZoom(),
+        x: event.clientX - 32,
+        y: event.clientY - 32,
       });
       setNode({nodeid: newNodeId, nodeType: draggedNodeType});
       // setIsAdd(false);
@@ -313,10 +314,10 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
       <div
         style={{
           position: 'fixed',
-          width: '64px',  // 固定宽度
-          height: '64px', // 固定高度
-          left: mousePosition.x + 32 * getZoom(),
-          top: mousePosition.y + 32 * getZoom(),
+          width: `64px`,
+          height: `64px`,
+          left: mousePosition.x + 32,
+          top: mousePosition.y + 32,
           pointerEvents: 'none',
           zIndex: 100000,
           transform: 'translate(-50%, -50%)'
@@ -339,7 +340,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
     leaveFrom="transform opacity-100 translate-y-0"
     leaveTo="transform opacity-0 translate-y-[-10px]"
   >
-    <ul id="nodeMenu" className={`will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[37px] z-[10000] text-white flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto shadow-lg min-w-[384px] backdrop-blur-sm bg-opacity-95`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
+    <ul id="nodeMenu" className={`will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[48px] z-[10000] text-white flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto shadow-lg min-w-[384px] backdrop-blur-sm bg-opacity-95`} onMouseLeave={() => manageNodeMenuSubMenu(null)} >
       
       {/* First Section Title */}
       <div className="flex items-center gap-3 px-2 group">
@@ -442,7 +443,8 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
             <div className='text-[11px] font-[400] text-gray-400'>Upload & Process</div>
           </div>
         </button>
-
+        
+        {/* Weblink
         <button className='w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200' 
         onClick={(event)=> {
           event.preventDefault()
@@ -466,6 +468,7 @@ function NodeMenu({selectedMenu, clearMenu}: menuProps) {
             <div className='text-[11px] font-[400] text-gray-400'>URL resource</div>
           </div>
         </button>
+         */}
       </div>
 
     </ul>
