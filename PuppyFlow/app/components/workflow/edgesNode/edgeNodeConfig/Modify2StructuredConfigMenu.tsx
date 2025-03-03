@@ -50,8 +50,7 @@ export type Modify2SturcturedJsonType = {
         content: string,
         modify_type: "convert2structured",
 		extra_configs: {
-            source_type:string,
-            target_type: "structured",
+            conversion_mode:string,
             target_structure: "list"|"dict", // convert to list or object
             action_type: "default"|"json", // convert mode
             list_separator?: string[], // optional, could be , ; etc. or a string, to separate the string into parts in a list format
@@ -253,8 +252,13 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                 content: `{{${sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id}}}`,
                 modify_type: "convert2structured",
                 extra_configs: {
-                    source_type: "text",
-                    target_type: "structured",
+                    conversion_mode: execMode===BY_LEN_TYPE? "split_by_length": (
+                        execMode===BY_CHAR_TYPE? "split_by_character":(
+                            execMode===INTO_LIST_TYPE? "parse_as_list":(
+                                execMode===INTO_DICT_TYPE?"wrap_into_dict":"parse_as_json"
+                            )
+                        )
+                    ),
                     target_structure: execMode===INTO_LIST_TYPE?"list":"dict", // convert to list or object
                     action_type: execMode===JSON_TYPE?"json":"default", // convert mode
                     ...(execMode===INTO_LIST_TYPE ? { list_separator: JSON.parse(deliminator) }:{}), // optional, could be , ; etc. or a string, to separate the string into parts in a list format
