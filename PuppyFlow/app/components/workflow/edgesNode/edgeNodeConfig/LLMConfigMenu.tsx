@@ -73,6 +73,33 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
     )
 
+    useEffect(
+        ()=>{
+            const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
+            const content = JSON.stringify(
+                [
+                    {
+                        "role": "system",
+                        "content": "You are an AI"
+                    },
+                    {
+                        "role": "user",
+                        "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
+                    }
+                ]
+            )
+            if(getNode(parentId)?.data.content as string === DEFAULT_LLM_MESSAGE){
+                setNodes(prevNodes => prevNodes.map(node => {
+                    if (node.id === parentId) {
+                        return { ...node, data: { ...node.data, content: content } }
+                    }
+                    return node
+                }))
+            }
+        },
+        []
+    )
+
     useEffect(() => {
         onLoopChange(isLoop)
     }, [isLoop])
@@ -259,7 +286,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     },
                     {
                         "role": "user",
-                        "content": "answer the question by {{the input ID}}"
+                        "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
                     }
                 ],
                 model: model,
@@ -489,3 +516,11 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 }
 
 export default LLMConfigMenu
+
+export const DEFAULT_LLM_MESSAGE=
+`[
+    {"role": "system",
+     "content": "You are an AI"},
+    {"role": "user",
+     "content": "Answer the question by {{input_ID}}"}
+  ]`
