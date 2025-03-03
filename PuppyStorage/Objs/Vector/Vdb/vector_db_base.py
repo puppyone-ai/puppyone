@@ -20,41 +20,41 @@ logger = logging.getLogger(__name__)
 
 
 class VectorDatabase(ABC):
+
+    _client: Any = None
+    collections: Dict[str, Any]
+
     def __init__(
         self,
-        client_type: int
     ):
-        self.collections = {}
-        if client_type == 0:
-            self.pgvector_client = vecs.create_client(os.environ.get("SUPABASE_URL"))
-        else:
-            self.zilliz_client = MilvusClient(
-                uri=os.environ.get("ZILLIZ_ENDPOINT"),
-                token=os.environ.get("MILVUS_API_KEY"),
-            )
-            self.qdrant_client = QdrantClient(
-                url=os.environ.get("QDRANT_URL"),
-                api_key=os.environ.get("QDRANT_API_KEY")
-            )
-            self.pinecone_client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
-            self.weaviate_client = connect_to_weaviate_cloud(
-                cluster_url=os.getenv("WEAVIATE_RESTFUL_URL"),
-                auth_credentials=Auth.api_key(api_key=os.getenv("WEAVIATE_ADMIN_KEY")),
-                headers={
-                    "X-OpenAI-Api-Key": os.getenv("DEEPBRICKS_API_KEY"),
-                    "X-OpenAI-BaseURL": os.getenv("DEEPBRICKS_BASE_URL")
-                }
-            )
+        # self.zilliz_client = MilvusClient(
+        #     uri=os.environ.get("ZILLIZ_ENDPOINT"),
+        #     token=os.environ.get("MILVUS_API_KEY"),
+        # )
+        # self.qdrant_client = QdrantClient(
+        #     url=os.environ.get("QDRANT_URL"),
+        #     api_key=os.environ.get("QDRANT_API_KEY")
+        # )
+        # self.weaviate_client = connect_to_weaviate_cloud(
+        #     cluster_url=os.getenv("WEAVIATE_RESTFUL_URL"),
+        #     auth_credentials=Auth.api_key(api_key=os.getenv("WEAVIATE_ADMIN_KEY")),
+        #     headers={
+        #         "X-OpenAI-Api-Key": os.getenv("DEEPBRICKS_API_KEY"),
+        #         "X-OpenAI-BaseURL": os.getenv("DEEPBRICKS_BASE_URL")
+        #     }
+        # )
+
+        pass
 
     @abstractmethod
-    def connect(
+    def register_collection(
         self,
         collection_name: str,
     ):
         pass
 
     @abstractmethod
-    def save_embeddings(
+    def store_vectors(
         self,
         collection_name: str,
         embeddings: List[List[float]],
@@ -65,7 +65,7 @@ class VectorDatabase(ABC):
         pass
 
     @abstractmethod
-    def search_embeddings(
+    def retrive_vectors(
         self,
         collection_name: str,
         query_embedding: List[float],

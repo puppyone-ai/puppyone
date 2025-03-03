@@ -3,12 +3,13 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import os
 import uuid
 import logging
 from typing import List, Dict, Any
+
 import vecs
-from Scripts.vector_db_base import VectorDatabase
+
+from Objs.Vector.Vdb.vector_db_base import VectorDatabase
 from Utils.PuppyEngineExceptions import global_exception_handler
 
 logging.basicConfig(level=logging.INFO)
@@ -16,20 +17,20 @@ logger = logging.getLogger(__name__)
 
 
 class PostgresVectorDatabase(VectorDatabase):
+
     def __init__(
-        self,
-        client_type: int
+        self
     ):
         """
         Initialize the PostgresVectorDatabase client.
         """
+        if self.__class__._client is None:  # 只有首次实例化时才会创建连接
+            self.__class__._client = vecs.create_client(os.environ.get("SUPABASE_URL"))
 
-        super().__init__(client_type=client_type)        
-        self.vecs = None
-        self.connections = {}
+        self.client = self.__class__._client
 
     @global_exception_handler(2400, "Error Connecting to Postgres Vector Database")
-    def connect(
+    def register_collection(
         self,
         collection_name: str
     ) -> None:
@@ -40,12 +41,12 @@ class PostgresVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection to connect to.
         """
 
-        if collection_name not in self.connections:
-            self.connections[collection_name] = self.pgvector_client
+        if collection_name not in self.collections:
+            self.collections[collection_name] = self.client.get_or_create_collection(name=collection_name, dimension=len(embeddings[0]))
             logging.info(f"Connected to collection '{collection_name}' in Pgvector.")
 
     @global_exception_handler(2401, "Error Saving Embeddings to Postgres Vector Database")
-    def save_embeddings(
+    def store_vectors(
         self,
         collection_name: str,
         embeddings: List[List[float]],
@@ -66,7 +67,7 @@ class PostgresVectorDatabase(VectorDatabase):
             metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
-        client = self.connections.get(collection_name)
+        client = self.collections.get(collection_name)
         if not client:
             raise ValueError(f"Not connected to collection '{collection_name}'.")
 
@@ -93,7 +94,7 @@ class PostgresVectorDatabase(VectorDatabase):
         logging.info(f"Inserted {len(records)} embeddings into collection '{collection_name}'.")
 
     @global_exception_handler(2402, "Error Searching in Postgres Vector Database")
-    def search_embeddings(
+    def retrive_vectors(
         self,
         collection_name: str,
         query_embedding: List[float],
@@ -112,7 +113,7 @@ class PostgresVectorDatabase(VectorDatabase):
             List[Dict[str, Any]]: List of results, including IDs, documents, and scores.
         """
 
-        client = self.connections.get(collection_name)
+        client = self.collections.get(collection_name)
         if not client:
             raise ValueError(f"Not connected to collection '{collection_name}'.")
 
@@ -147,7 +148,7 @@ class PostgresVectorDatabase(VectorDatabase):
             collection_name (str): Name of the collection to delete.
         """
 
-        client = self.connections.get(collection_name)
+        client = self.collections.get(collection_name)
         if not client:
             raise ValueError(f"Not connected to collection '{collection_name}'.")
 
@@ -172,15 +173,15 @@ if __name__ == "__main__":
     query_vector = rng.random(512).tolist()
 
     # Pgvector Test
-    pgvector_db = PostgresVectorDatabase(client_type=0)
-    pgvector_db.connect("test_collection")
-    pgvector_db.save_embeddings(
+    pgvector_db = PostgresVectorDatabase()
+    pgvector_db.register_collection("test_collection")
+    pgvector_db.store_vectors(
         collection_name="test_collection",
         embeddings=embeddings,
         documents=documents,
         create_new=True,
     )
-    pgvector_results = pgvector_db.search_embeddings(
+    pgvector_results = pgvector_db.retrive_vectors(
         collection_name="test_collection",
         query_embedding=query_vector,
         top_k=5,

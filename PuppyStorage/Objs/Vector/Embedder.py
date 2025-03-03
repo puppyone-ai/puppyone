@@ -1,14 +1,14 @@
 # If you are a VS Code users:
 import os
 import sys
+import requests
+from typing import List, Union
+from io import BytesIO
+from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import os
-from typing import List, Union
 from abc import ABC, abstractmethod
-import requests
-from PIL import Image
-from io import BytesIO
+
 from openai import OpenAI
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
@@ -22,7 +22,7 @@ class Embedder(ABC):
     """
 
     @abstractmethod
-    def get_embeddings(
+    def embed(
         self,
         docs: List[str]
     ) -> List[List[float]]:
@@ -107,7 +107,7 @@ class TextEmbedding(Embedder):
             raise PuppyEngineException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self.provider} is unsupported!")
 
     @global_exception_handler(3201, "Error Generating Embeddings")
-    def get_embeddings(
+    def embed(
         self,
         docs: List[str]
     ) -> List[List[float]]:
@@ -212,13 +212,13 @@ if __name__ == "__main__":
     
     docs = ["This is a sample text.", "This is another sentence."]
     huggerface_embedder = TextEmbedding("BAAI/bge-m3")
-    print(huggerface_embedder.get_embeddings(docs))
+    print(huggerface_embedder.embed(docs))
 
     sentencetransformers_embedder = TextEmbedding("all-MiniLM-L6-v2")
-    print(sentencetransformers_embedder.get_embeddings(docs))
+    print(sentencetransformers_embedder.embed(docs))
     
     openai_embedder = TextEmbedding("text-embedding-ada-002")
-    print(openai_embedder.get_embeddings(docs))
+    print(openai_embedder.embed(docs))
 
     # multi-modal
     embedder = MultiModalEmbedding()
