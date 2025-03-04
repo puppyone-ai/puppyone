@@ -3,7 +3,7 @@ import useJsonConstructUtils, {NodeJsonType, FileData} from './useJsonConstructU
 import { useReactFlow } from '@xyflow/react'
 import {ChunkingAutoEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ChunkingAutoConfigMenu'
 import {CodeEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/CodeConfigMenu'
-import {LLMEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/LLMConfigMenu'
+import {LLMEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/NewLLM'
 import {ModifyCopyEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyCopyConfigMenu'
 import {ModifyGetEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyGetConfigMenu'
 import {ModifyStructuredEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyStructuredConfigMenu'
