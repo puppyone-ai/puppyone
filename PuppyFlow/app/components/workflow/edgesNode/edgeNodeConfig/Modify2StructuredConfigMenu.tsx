@@ -5,7 +5,6 @@ import JSONForm from '../../../tableComponent/JSONForm'
 import useJsonConstructUtils, { NodeJsonType, FileData } from '../../../hooks/useJsonConstructUtils'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
-import { nodeSmallProps } from '../../../upbar/topLeftToolBar/AddNodeMenu'
 import { ModifyConfigNodeData } from '../edgeNodes/ModifyConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
@@ -77,6 +76,19 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
     // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
+
+    // 添加复制功能状态
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+    const [showSettings, setShowSettings] = useState(false);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     useEffect(() => {
         if (!resultNode) return
@@ -184,7 +196,17 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177]'>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -354,8 +376,7 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
     )
 
     return (
-
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[384px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[384px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -397,85 +418,89 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                     </button>
                 </div>
             </li>
-            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-                <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                    input
+
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                    <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                    {displaySourceNodeLabels()}
+                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2'>
+                        {displaySourceNodeLabels()}
+                    </div>
                 </div>
             </li>
 
-            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full bg-black'>
-                <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start rounded-l-[8px]'>
-                Mode
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px] rounded-[8px] bg-black'>
+                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <PuppyDropdown
-                        options= {
-                            [
-                                INTO_DICT_TYPE,
-                                INTO_LIST_TYPE,
-                                JSON_TYPE,
-                                BY_LEN_TYPE,
-                                BY_CHAR_TYPE
-                            ]
-                        }
-                        onSelect= {(option:string)=>{
+                        options={[INTO_DICT_TYPE, INTO_LIST_TYPE, JSON_TYPE, BY_LEN_TYPE, BY_CHAR_TYPE]}
+                        onSelect={(option:string) => {
                             setExecMode(option)
                         }}
                         selectedValue={execMode}
                         listWidth={"200px"}
-                    >
-                    </PuppyDropdown>
+                    />
                 </div>
-            
-             </li>
+            </li>
 
-             {
-                execMode===INTO_DICT_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                        key
-                        </div>
-                        <input value={wrapInto} onChange={(e) => {
-                            setWrapInto(
-                                e.target.value
-                            )
-                        }} id="wrap_into" type='string' className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
-                    </li>
-                )
-             }
+            {execMode === INTO_DICT_TYPE && (
+                <li className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[12px] font-medium text-[#6D7177]'>Key</label>
+                        <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    </div>
+                    <input 
+                        value={wrapInto} 
+                        onChange={(e) => setWrapInto(e.target.value)} 
+                        type='string' 
+                        className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
+                                 hover:border-[#6D7177]/50 transition-colors'
+                        autoComplete='off'
+                    />
+                </li>
+            )}
 
-            {
-                execMode===BY_CHAR_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                        deliminators
-                        </div>
-                        <input value={deliminator} onChange={(e) => {
-                            setDeliminator(
-                                e.target.value
-                            )
-                        }} id="wrap_into" type='string' className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
-                    </li>
-                )
-             }
+            {execMode === BY_CHAR_TYPE && (
+                <li className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[12px] font-medium text-[#6D7177]'>Deliminators</label>
+                        <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    </div>
+                    <input 
+                        value={deliminator} 
+                        onChange={(e) => setDeliminator(e.target.value)} 
+                        type='string' 
+                        className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
+                                 hover:border-[#6D7177]/50 transition-colors'
+                        autoComplete='off'
+                    />
+                </li>
+            )}
 
-        {
-                execMode===BY_LEN_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                        length
-                        </div>
-                        <input value={bylen} onChange={(e) => {
-                            setBylen(
-                                parseInt(e.target.value)
-                            )
-                        }} id="wrap_into" type="number" className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
-                    </li>
-                )
-             }
+            {execMode === BY_LEN_TYPE && (
+                <li className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[12px] font-medium text-[#6D7177]'>Length</label>
+                        <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    </div>
+                    <input 
+                        value={bylen} 
+                        onChange={(e) => setBylen(parseInt(e.target.value))} 
+                        type='number' 
+                        className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
+                                 hover:border-[#6D7177]/50 transition-colors'
+                        autoComplete='off'
+                    />
+                </li>
+            )}
         </ul>
     )
 }
