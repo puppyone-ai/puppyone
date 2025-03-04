@@ -6,7 +6,7 @@ import ModifySubMenu from './ModifySubMenu'
 import ChunkingSubMenu from './ChunkingSubMenu'
 import SearchSubMenu from './SearchSubMenu'
 import OthersSubMenu from './OthersSubMenu'
-import {DEFAULT_LLM_MESSAGE} from '../edgeNodeConfig/LLMConfigMenu'
+import {DEFAULT_LLM_MESSAGE} from '../edgeNodeConfig/NewLLM'
 
 type EdgeMenuProps = {
     nodeType: string,
