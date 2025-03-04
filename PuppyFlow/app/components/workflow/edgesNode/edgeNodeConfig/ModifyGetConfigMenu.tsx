@@ -127,6 +127,75 @@ const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) =
     );
 };
 
+// Add this new component for the Path section
+const PathEditor = ({ paths, setPaths }: any) => {
+    const addPath = () => {
+        setPaths((prev: any) => [...prev, { key: "key", value: "" }]);
+    };
+
+    const removePath = (index: number) => {
+        if (paths.length > 1) {
+            setPaths((prev: any) => prev.filter((_: any, i: number) => i !== index));
+        }
+    };
+
+    return (
+        <div className='flex flex-col gap-4 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+            {paths.map((path: any, index: number) => (
+                <div key={index} className='flex flex-col'>
+                    <div className='flex items-center gap-3'>
+                        <button 
+                            onClick={() => removePath(index)}
+                            className={`w-6 h-6 flex items-center justify-center rounded-lg border border-[#6D7177] 
+                                      ${paths.length <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#252525]'}`}
+                        >
+                            <svg width="14" height="2" viewBox="0 0 14 2">
+                                <path d="M0 1h14" stroke="currentColor" strokeWidth="2"/>
+                            </svg>
+                        </button>
+                        <div className='flex-1 flex gap-2'>
+                            <CustomDropdown
+                                options={["key", "num"]}
+                                onSelect={(keytype: string) => {
+                                    setPaths((prev: any) => prev.map((item: any, i: number) => 
+                                        i === index ? {...item, key: keytype} : item
+                                    ));
+                                }}
+                                configIndex={index}
+                                getConfigData={paths}
+                            />
+                            <input 
+                                value={path.value}
+                                onChange={(e) => {
+                                    setPaths((prev: any) => prev.map((item: any, i: number) => 
+                                        i === index ? {...item, value: e.target.value} : item
+                                    ));
+                                }}
+                                className='flex-1 h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                         text-[#CDCDCD] text-[12px] font-medium appearance-none
+                                         hover:border-[#6D7177]/50 transition-colors'
+                            />
+                        </div>
+                        {index === paths.length - 1 && (
+                            <button 
+                                onClick={addPath}
+                                className='w-6 h-6 flex items-center justify-center rounded-lg border border-[#6D7177] hover:bg-[#252525]'
+                            >
+                                <svg width="14" height="14" viewBox="0 0 14 14">
+                                    <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+                    {index < paths.length - 1 && (
+                        <div className='ml-3 w-[1px] h-4 bg-[#6D7177]/30'></div>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+};
+
 function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
@@ -158,6 +227,18 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const MODIFY_GET_ALL_VAL="get_values"
   
     const [execMode,setExecMode] = useState(getNode(parentId)?.data.type as string||MODIFY_GET_TYPE) 
+
+    // 添加复制功能状态
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     useEffect(
         ()=>{
@@ -303,7 +384,17 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177] '>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -503,7 +594,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
 
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`} >
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
@@ -545,220 +636,115 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
+            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex flex-wrap gap-2'>
+                    {displaySourceNodeLabels()}
+                </div>
             </div>
-            
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full bg-black'>
-            <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start rounded-l-[8px]'>
-             Mode
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px] rounded-r-[8px] bg-black'>
+            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                 <PuppyDropdown
-                
-                    options= {
-                        [
-                            MODIFY_GET_TYPE,
-                            MODIFY_DEL_TYPE,
-                            MODIFY_REPL_TYPE,
-                            MODIFY_GET_ALL_KEYS,
-                            MODIFY_GET_ALL_VAL,
-                        ]
-                    }
-                    onSelect= {(option:string)=>{
-                        setExecMode(option)
-                    }}
+                    options={[MODIFY_GET_TYPE, MODIFY_DEL_TYPE, MODIFY_REPL_TYPE, MODIFY_GET_ALL_KEYS, MODIFY_GET_ALL_VAL]}
+                    onSelect={(option:string) => setExecMode(option)}
                     selectedValue={execMode}
                     listWidth={"200px"}
-                    mapValueTodisplay={
-                        (v:string)=>{
-                            if(v===MODIFY_GET_ALL_KEYS){
-                                return "get all keys"
-                            }else if(v===MODIFY_GET_ALL_VAL){
-                                return "get all values"
-                            }
-                            return v
-                        }
-                    }
-                >
-                </PuppyDropdown>
+                    mapValueTodisplay={(v:string) => {
+                        if(v === MODIFY_GET_ALL_KEYS) return "get all keys"
+                        if(v === MODIFY_GET_ALL_VAL) return "get all values"
+                        return v
+                    }}
+                />
             </div>
-            
         </li>
 
-            <li className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
-
-                <div className='border-[#6D7177] border-[1px] w-full rounded-[8px]'>
-                {
-                    execMode===MODIFY_GET_ALL_KEYS || execMode===MODIFY_GET_ALL_VAL ? <></>:
-                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-full py-[16px] px-[8px] gap-[16px]'>
-                        {
-                            getConfigDataa().map(
-                                ({key,value},index)=>(
-                                    <>
-                                    <label className='h-[16px] mb-[6px] text-[12px] font-semibold flex items-center'>  step {index+1} </label>
-                                        <div className='inline-flex space-x-[12px] items-center justify-start'>
-                                        <svg onClick={
-                                            ()=>{
-                                                setGetConfigDataa(
-                                                    (prev)=>{
-                                                        return prev.filter(
-                                                            (_,curindex)=>index!==curindex
-                                                        )
-
-                                                    }
-                                                )
-                                            }
-                                        } className={`cursor-pointer ${getConfigDataa().length <= 1 ? 'invisible' : ''}`}  width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
-                                            <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
-                                        </svg>
-                                        <ul key={index} className='flex-col border-[#6D7177] rounded-[4px] w-fit bg-black'>
-                                            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[200px]'>
-                                                <div className='flex flex-row flex-wrap gap-[0px] items-center justify-start py-[8px] px-[10px] w-fit'>
-
-                                                <CustomDropdown
-                                                    options={["key","num"]}
-                                                    onSelect={(keytype:string) => {
-                                                            console.log("selected keytype:", keytype);
-                                                            setGetConfigDataa(
-                                                                (prev)=>{
-                                                                    return prev.map(
-                                                                        ({key:curkey,value:curvalue},curindex)=>{
-                                                                            if(curindex==index){
-                                                                                return {
-                                                                                    key:keytype,
-                                                                                    value:curvalue
-                                                                                }
-                                                                            }else{
-                                                                                return {
-                                                                                    key:curkey,
-                                                                                    value:curvalue
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    )
-
-                                                                }
-                                                            )
-                                                        }}
-                                                    configIndex={index}
-                                                    getConfigData={getConfigDataa()}
-                                                    />
-                                                </div>
-                                                    {/* ["contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters"]
-
-                                                    return ["is empty", "is not empty", "contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
-
-                                                    return ["is True","is False"] */}
-                                                <input 
-                                                        value={value}
-                                                        onChange={(e)=>{
-                                                            setGetConfigDataa(
-                                                                (prev)=>{
-                                                                    return prev.map(
-                                                                        ({key:curkey,value:curvalue},curindex)=>{
-                                                                            if(curindex==index){
-                                                                                return {
-                                                                                    key:curkey,
-                                                                                    value:e.target.value
-                                                                                }
-                                                                            }else{
-                                                                                return {
-                                                                                    key:curkey,
-                                                                                    value:curvalue
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    )
-
-                                                                }
-                                                            )
-                                                        }} 
-                                                        className="w-[125px] text-white bg-black caret-white border-l-[1px] pl-[5px]"
-                                                        type="text"></input>
-
-                                                
-                                            </li>
-                                        </ul>
-                                        {getConfigDataa().length - 1 === index ? (
-                                            <div
-                                            onClick={
-                                                ()=>{
-                                                    setGetConfigDataa(
-                                                        (prev)=>{
-                                                            return [
-                                                                ...prev,
-                                                                {
-                                                                    key:"key",
-                                                                    value:""
-                                                                }
-                                                            ]
-                                                        }
-                                                    )
-                                                }
-                                            } className='cursor-pointer'>
-                                            <span> </span>
-                                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                                            </svg>
-                                            </div>
-                                        ) : (
-                                            <div>
-                                            <span> </span>
-                                            <svg onClick={
-                                                ()=>{
-                                                    
-                                                }
-                                            } className='invisible' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                                            </svg>
-                                            </div>
-                                        )}
-                                        </div>
-                                    </>
-                                )
-                            )
-                        }
-
-                    </div>
-                }
-                    
-
+        {!(execMode === MODIFY_GET_ALL_KEYS || execMode === MODIFY_GET_ALL_VAL) && (
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Path</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-            {/* <div className='flex flex-col gap-0 items-start justify-center '>
-                <button onClick={()=>{
-
-                }} className='flex rounded-[8px] bg-black text-[#6D7177] w-[52px] mt-1 font-plus-jakarta-sans text-[10px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                            <svg className="flex-inline" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                            </svg> Case
-                </button>
-            </div> */}
-            </li>
-
-            {
-                execMode===MODIFY_REPL_TYPE && (
-                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[3px] w-full h-[36px]'>
-                        <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                        With
+                <div className='flex flex-col gap-4 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                    {getConfigDataa().map(({key, value}, index) => (
+                        <div key={index} className='flex items-center gap-3'>
+                            <button 
+                                onClick={() => {
+                                    if (getConfigDataa().length > 1) {
+                                        setGetConfigDataa(prev => prev.filter((_, i) => i !== index))
+                                    }
+                                }}
+                                className={`w-6 h-6 flex items-center justify-center rounded-lg border border-[#6D7177] 
+                                          ${getConfigDataa().length <= 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#252525]'}`}
+                            >
+                                <svg width="14" height="2" viewBox="0 0 14 2">
+                                    <path d="M0 1h14" stroke="currentColor" strokeWidth="2"/>
+                                </svg>
+                            </button>
+                            <div className='flex-1 flex gap-2'>
+                                <CustomDropdown
+                                    options={["key", "num"]}
+                                    onSelect={(keytype:string) => {
+                                        setGetConfigDataa(prev => prev.map((item, i) => 
+                                            i === index ? {...item, key: keytype} : item
+                                        ))
+                                    }}
+                                    configIndex={index}
+                                    getConfigData={getConfigDataa()}
+                                />
+                                <input 
+                                    value={value}
+                                    onChange={(e) => {
+                                        setGetConfigDataa(prev => prev.map((item, i) => 
+                                            i === index ? {...item, value: e.target.value} : item
+                                        ))
+                                    }}
+                                    className='flex-1 h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                             text-[#CDCDCD] text-[12px] font-medium appearance-none
+                                             hover:border-[#6D7177]/50 transition-colors'
+                                />
+                            </div>
+                            {index === getConfigDataa().length - 1 && (
+                                <button 
+                                    onClick={() => setGetConfigDataa(prev => [...prev, { key: "key", value: "" }])}
+                                    className='w-6 h-6 flex items-center justify-center rounded-lg border border-[#6D7177] hover:bg-[#252525]'
+                                >
+                                    <svg width="14" height="14" viewBox="0 0 14 14">
+                                        <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+                                    </svg>
+                                </button>
+                            )}
                         </div>
-                        <input value={paramv} onChange={(e) => {
-                            setParamv(e.target.value)
-                        }} id="wrap_into" type="string" className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
-                    </li>
-                )
-            }
+                    ))}
+                </div>
+            </li>
+        )}
+
+        {execMode === MODIFY_REPL_TYPE && (
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[12px] font-medium text-[#6D7177]'>Replace With</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                </div>
+                <input 
+                    value={paramv} 
+                    onChange={(e) => setParamv(e.target.value)} 
+                    type='string' 
+                    className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                             text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
+                             hover:border-[#6D7177]/50 transition-colors'
+                    autoComplete='off'
+                />
+            </li>
+        )}
     </ul>
     
   )
