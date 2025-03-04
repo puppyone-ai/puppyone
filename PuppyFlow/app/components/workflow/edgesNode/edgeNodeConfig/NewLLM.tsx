@@ -4,7 +4,6 @@ import { useReactFlow, useStore, ReactFlowState, MarkerType } from '@xyflow/reac
 import JSONForm from '../../../tableComponent/JSONForm'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
-import { nodeSmallProps } from '../../../upbar/topLeftToolBar/AddNodeMenu'
 import useJsonConstructUtils, { ProcessingData, NodeJsonType } from '../../../hooks/useJsonConstructUtils'
 import JSONConfigEditor from '../../../tableComponent/JSONConfigEditor'
 import { LLMConfigNodeData } from '../edgeNodes/LLMConfig'
@@ -603,7 +602,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                              hover:border-[#6D7177]/50 transition-colors'
                 >
                     <option value="text">Natural Text</option>
-                    <option value="structured">Structured Data</option>
+                    <option value="structured">Structured data</option>
                 </select>
             </li>
             <li className='flex flex-col gap-2'>
