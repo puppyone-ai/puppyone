@@ -356,9 +356,9 @@ class WorkFlow():
                 for bid, content in outputs.items():
                     self.block_states[bid] = "processed"
                     block_type = self.blocks.get(bid, {}).get("type", "text")
+                    block_type =self._valid_output_block_type(bid, content)
                     content = self._unicode_formatting(content, block_type)
                     self.blocks[bid]["data"]["content"] = content
-                    self._valid_output_block_type(bid, content)
 
                 # Complete processed edges
                 for eid in batch:
@@ -578,7 +578,7 @@ class WorkFlow():
         self,
         target_block_id: str,
         output: Any
-    ) -> None:
+    ) -> str:
         """
         Check and classify the output to determine the type of the target block.
 
@@ -586,6 +586,9 @@ class WorkFlow():
             edge_dict (dict): Dictionary containing edge data.
             target_block_id (str): ID of the target block to update.
             output (Any): The output to check and classify.
+
+        Returns:
+            str: The type of the target block.
         """
 
         block_type = self.blocks[target_block_id].get("type", "text")
@@ -595,6 +598,8 @@ class WorkFlow():
         if isinstance(output, str) and block_type == "structured":
             self.blocks[target_block_id]["type"] = "text"
 
+        return self.blocks[target_block_id]["type"]
+
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -602,7 +607,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_modify_convert.json":
+        if file_name != "test_convert2text.json":
             continue
         # if file_name == "embedding_search.json":
         #     continue
