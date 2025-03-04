@@ -14,6 +14,8 @@ from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from torch import no_grad, Tensor, tensor, mean, matmul
 from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.config import config
+import threading
 
 
 class Embedder(ABC):
@@ -29,10 +31,18 @@ class Embedder(ABC):
         pass
 
 
-class TextEmbedding(Embedder):
+class TextEmbedder(Embedder):
     """
     Unified text embedding class supporting HuggingFace, SentenceTransformer, and OpenAI.
     """
+
+    _model_cache = {}  # 模型缓存池 {model_name: (model, tokenizer, client)}
+    _lock = threading.Lock()  # 线程安全锁
+
+    # TODO: 
+    # 需要优化缓存机制:
+    # 添加缓存过期机制（LRU策略）
+    # 实现基于内存压力的自动卸载
 
     def __init__(
         self,
@@ -85,26 +95,31 @@ class TextEmbedding(Embedder):
             "text-embedding-3-small": "openai",
             "text-embedding-3-large": "openai",
         }
-        self.provider = self.model_provider_dict.get(model_name, "openai")
+        self._provider = self.model_provider_dict.get(model_name, "openai")
         self._initialize_model()
 
     @global_exception_handler(3200, "Error Initializing Embedding Model")
     def _initialize_model(self):
-        """
-        Initializes the model based on the provider.
-        """
+        with self._lock:  # 保证线程安全
+            if self.model_name in self._model_cache:
+                # 直接从缓存获取
+                self._model, self._tokenizer, self._client = self._model_cache[self.model_name]
+                return
 
-        if self.provider == "huggingface":
-            self.model = AutoModel.from_pretrained(self.model_name)
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-        elif self.provider == "sentencetransformers":
-            self.model = SentenceTransformer(self.model_name)
-        elif self.provider == "openai":
-            if not self.api_key:
-                raise PuppyEngineException(3301, "Missing Embedding Model API Key", "API key is required for OpenAI Embedding!")
-            self.client = OpenAI(api_key=self.api_key)
-        else:
-            raise PuppyEngineException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self.provider} is unsupported!")
+            if self._provider == "huggingface":
+                self._model = AutoModel.from_pretrained(self.model_name)
+                self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            elif self._provider == "sentencetransformers":
+                self._model = SentenceTransformer(self.model_name)
+            elif self._provider == "openai":
+                if not self.api_key:
+                    raise PuppyEngineException(3301, "Missing Embedding Model API Key", "API key is required for OpenAI Embedding!")
+                self._client = OpenAI(api_key=self.api_key)
+            else:
+                raise PuppyEngineException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
+
+            # 将新模型存入缓存
+            self._model_cache[self.model_name] = (self._model, self._tokenizer, self._client)
 
     @global_exception_handler(3201, "Error Generating Embeddings")
     def embed(
@@ -119,22 +134,39 @@ class TextEmbedding(Embedder):
 
         Returns:
             List[List[float]]: List of embedding vectors.
+
+        输出结构示例
+        vectors = [
+            [0.12, -0.45, 0.78, ...],  # 第一个文档的嵌入向量（长度=模型维度）
+            [0.34, 0.21, -0.09, ...],  # 第二个文档的嵌入向量
+            ... 后续文档的嵌入
+        ]
         """
 
-        if self.provider == "huggingface":
-            inputs = self.tokenizer(docs, padding=True, truncation=True, return_tensors="pt")
+        if self._provider == "huggingface":
+            inputs = self._tokenizer(docs, padding=True, truncation=True, return_tensors="pt")
             with no_grad():
-                outputs = self.model(**inputs)
-            embeddings = mean(outputs.last_hidden_state, dim=1).tolist()
-        elif self.provider == "sentencetransformers":
-            embeddings = self.model.encode(docs, convert_to_tensor=True).tolist()
-        elif self.provider == "openai":
+                outputs = self._model(**inputs)
+            vectors = mean(outputs.last_hidden_state, dim=1).tolist()
+        elif self._provider == "sentencetransformers":
+            vectors = self._model.encode(docs, convert_to_tensor=True).tolist()
+        elif self._provider == "openai":
             docs = [doc.replace("\n", " ") for doc in docs]
-            response = self.client.embeddings.create(input=docs, model=self.model_name).data
-            embeddings = [item.embedding for item in response]
+            response = self._client.embeddings.create(input=docs, model=self.model_name).data
+            vectors = [item.embedding for item in response]
         else:
-            raise ValueError(f"Unsupported Embedding Model Provider: {self.provider}!")
-        return embeddings
+            raise ValueError(f"Unsupported Embedding Model Provider: {self._provider}!")
+        return vectors
+
+    @classmethod
+    def clear_cache(cls, model_name: str = None):
+        """清理模型缓存"""
+        with cls._lock:
+            if model_name:
+                if model_name in cls._model_cache:
+                    del cls._model_cache[model_name]
+            else:
+                cls._model_cache.clear()
 
 
 class MultiModalEmbedding:
@@ -211,13 +243,13 @@ if __name__ == "__main__":
     load_dotenv()
     
     docs = ["This is a sample text.", "This is another sentence."]
-    huggerface_embedder = TextEmbedding("BAAI/bge-m3")
+    huggerface_embedder = TextEmbedder("BAAI/bge-m3")
     print(huggerface_embedder.embed(docs))
 
-    sentencetransformers_embedder = TextEmbedding("all-MiniLM-L6-v2")
+    sentencetransformers_embedder = TextEmbedder("all-MiniLM-L6-v2")
     print(sentencetransformers_embedder.embed(docs))
     
-    openai_embedder = TextEmbedding("text-embedding-ada-002")
+    openai_embedder = TextEmbedder("text-embedding-ada-002")
     print(openai_embedder.embed(docs))
 
     # multi-modal
