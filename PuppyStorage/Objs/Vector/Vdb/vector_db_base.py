@@ -7,7 +7,7 @@ import os
 import logging
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
-import vecs
+
 from pymilvus import MilvusClient
 from qdrant_client import QdrantClient
 from weaviate.classes.init import Auth
@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 class VectorDatabase(ABC):
 
     _client: Any = None
-    collections: Dict[str, Any]
 
     def __init__(
         self,
@@ -47,25 +46,19 @@ class VectorDatabase(ABC):
         pass
 
     @abstractmethod
-    def register_collection(
-        self,
-        collection_name: str,
-    ):
-        pass
-
-    @abstractmethod
     def store_vectors(
         self,
-        collection_name: str,
-        embeddings: List[List[float]],
-        documents: List[str],
-        create_new: bool = False,
+        collection_id: str,
+        ids: List[str],
+        vectors: List[List[float]],
+        contents: List[str],
+        metric: str = "cosine",
         metadatas: List[Dict[str, Any]] = [{}]
     ):
         pass
 
     @abstractmethod
-    def retrive_vectors(
+    def search_vectors(
         self,
         collection_name: str,
         query_embedding: List[float],
