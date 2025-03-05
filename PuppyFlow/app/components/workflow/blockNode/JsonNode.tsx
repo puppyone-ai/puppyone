@@ -276,7 +276,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
 
 
-  const [userInput, setUserInput] = useState<string | undefined>(getNode(id)?.data?.content as string | undefined)
+  const [userInput, setUserInput] = useState<string | undefined>("input view")
 
   // TODO Auto resize of content box
   // TODO dialogue selection of content atttribute(key onl y, no index) 
@@ -298,10 +298,10 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   useEffect(
     () => {
       if (viewMode == INPUT_VIEW_MODE) {
-        setUserInput(getNode(id)?.data?.content ? getNode(id)?.data?.content as string : undefined)
+        setUserInput("input view")
         setShowSettingMenu(false)
       } else {
-        setUserInput(getNode(id)?.data?.chunks ? JSON.stringify(getNode(id)?.data?.chunks, null, 2) : undefined)
+        setUserInput("embedding view")
       }
 
     },
@@ -638,6 +638,12 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     , []
   )
 
+  useEffect(
+    ()=>{
+
+    },[]
+  )
+
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
@@ -897,7 +903,18 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                                   const embeddingViewData = traverseJson(embeddingNodeData.data.content)
 
                                   const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
-                                  setUserInput(getNode(id)?.data?.chunks ? JSON.stringify(embeddingViewDataWithInfo, null, 2) : undefined)
+
+                                  setNodes(prevNodes => prevNodes.map(node => {
+                                    if (node.id === id){
+                                        return {...node, data: {
+                                            ...node.data, 
+                                            chunks: JSON.stringify(embeddingViewDataWithInfo, null, 2)
+                                        }}
+                                    }
+                                    return node
+                                }))
+
+                                  setUserInput("embedding view")
                                   const response = await onEmbeddingClick()
                                   if (response == undefined) {
                                     //retry
