@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState, useContext } from 'react'
 import { useReactFlow, useStore, ReactFlowState, MarkerType} from '@xyflow/react'
 import useJsonConstructUtils, {NodeJsonType} from '../../../hooks/useJsonConstructUtils'
-import { nodeSmallProps } from '../../../upbar/topLeftToolBar/AddNodeMenu'
+import { nodeSmallProps } from '../../../upbar/topLeftToolBar/AddNodeButton'
 // import { useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 // import PythonConfigEditor from '../tableComponent/PythonConfigEditor'
@@ -537,14 +537,14 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
         //     "is_dict"
         //     "greater_than_n"
         //     "less_than_n"
-        // {"contains":"contain", "doesn’t contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars"}
-        // {"is empty":"is_empty", "is not empty":"is_not_empty", "contains":"contain", "doesn’t contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars", "is list":"is_list", "is dict":"is_dict"}
+        // {"contains":"contain", "doesn't contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars"}
+        // {"is empty":"is_empty", "is not empty":"is_not_empty", "contains":"contain", "doesn't contain":"not_contain", "is greater than [N] characters":"greater_than_n_chars", "is less than [N] characters":"less_than_n_chars", "is list":"is_list", "is dict":"is_dict"}
         // {"is True":"is","is False":"is_not"}
     // }
 
     const conditionMappings: { [key: string]: string } = {
         "contains": "contain",
-        "doesn’t contain": "not_contain",
+        "doesn't contain": "not_contain",
         "is greater than [N] characters": "greater_than_n_chars",
         "is less than [N] characters": "less_than_n_chars",
         "is empty": "is_empty",
@@ -835,7 +835,7 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             // clear()
         }
         setIsComplete(false)
-        };
+    };
 
         // const onLoopChange = (newLoop: boolean) => {
         //     setNodes(prevNodes => prevNodes.map(node => {
@@ -1013,20 +1013,20 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
             if(type === "text"){
                 console.log("text")
                 // contains XXX
-                // doesn’t contain XXX
+                // doesn't contain XXX
                 // is greater than [N] characters
                 // is less than [N] characters
-                return ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
+                return ["contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters"]
             }else if(type === "structured"){
             // is empty
             // is not empty
             // contains XXX
-            // doesn’t contain XXX
+            // doesn't contain XXX
             // is List
             // is Dict
             // length is greater than [N]
             // length is less than [N]
-                return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
+                return ["is empty", "is not empty", "contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
             }else if(type === "switch"){
                 // (for Switch)
                 // is True
@@ -1371,9 +1371,9 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
                                                             </div>
                 
                 
-                                                                {/* ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
+                                                                {/* ["contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters"]
 
-                                                                return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
+                                                                return ["is empty", "is not empty", "contains", "doesn't contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
 
                                                                 return ["is True","is False"] */}
                                             
