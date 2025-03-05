@@ -784,7 +784,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
                 <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+            <div className='flex gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                 <PuppyDropdown
                     options={[MODIFY_GET_TYPE, MODIFY_DEL_TYPE, MODIFY_REPL_TYPE, MODIFY_GET_ALL_KEYS, MODIFY_GET_ALL_VAL]}
                     onSelect={(option:string) => setExecMode(option)}
