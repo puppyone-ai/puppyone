@@ -50,7 +50,6 @@ export type Modify2SturcturedJsonType = {
         modify_type: "convert2structured",
 		extra_configs: {
             conversion_mode:string,
-            target_structure: "list"|"dict", // convert to list or object
             action_type: "default"|"json", // convert mode
             list_separator?: string[], // optional, could be , ; etc. or a string, to separate the string into parts in a list format
             length_separator?:number,
@@ -281,10 +280,9 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                             )
                         )
                     ),
-                    target_structure: execMode===INTO_LIST_TYPE?"list":"dict", // convert to list or object
                     action_type: execMode===JSON_TYPE?"json":"default", // convert mode
-                    ...(execMode===INTO_LIST_TYPE ? { list_separator: JSON.parse(deliminator) }:{}), // optional, could be , ; etc. or a string, to separate the string into parts in a list format
-                    ...(execMode===BY_CHAR_TYPE ? { dict_key:`${wrapInto}` }:{}), // optional, the key to store the original text as its value, used when target_structure is dict    
+                    ...(execMode===BY_CHAR_TYPE ? { list_separator: JSON.parse(deliminator) }:{}), // optional, could be , ; etc. or a string, to separate the string into parts in a list format
+                    ...(execMode===INTO_DICT_TYPE ? { dict_key:wrapInto }:{}), // optional, the key to store the original text as its value, used when target_structure is dict    
                     ...(execMode===BY_LEN_TYPE ? { length_separator:bylen }:{}) // optional, the key to store the original text as its value, used when target_structure is dict    
                 },
                 inputs: input_ids,
