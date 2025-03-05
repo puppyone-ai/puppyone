@@ -216,15 +216,20 @@ const JSONForm = ({preventParentDrag,
         }
 
 
-      const InputFallback = (e:any):string=>{
+      const InputFallback = (type:any, e:any):string=>{
         const result = JSON.stringify(e)
         if(typeof result === 'string'){
           return result
         }
-        console.error("get error input:",e)
+        console.error("get error input:","type", type,"object",e)
         return ""
       }
 
+
+      const valueTraceLog = (v: string, trace: string) => {
+        // console.log(v, trace);
+        return v;
+      }
       
     
 
@@ -247,15 +252,21 @@ const JSONForm = ({preventParentDrag,
       width={widthStyle-8 }
       height={heightStyle - 12}
       onChange={handleChange}
-      value={inputvalue? 
-              (typeof inputvalue === 'string'? 
-                inputvalue:
-                InputFallback(inputvalue)
+      value={inputvalue === "embedding view"? 
+              (typeof JSON.stringify(getNode(parentId)?.data.chunks) === 'string'? 
+                valueTraceLog(JSON.stringify(getNode(parentId)?.data.chunks) as string,"from node chunks"):
+                InputFallback(typeof JSON.stringify(getNode(parentId)?.data.chunks), JSON.stringify(getNode(parentId)?.data.chunks))
               ): 
               (typeof getNode(parentId)?.data.content ==='string'?
-                getNode(parentId)?.data.content as string:
-                InputFallback(inputvalue)
+                valueTraceLog(getNode(parentId)?.data.content as string,"from node data"):
+                InputFallback(typeof getNode(parentId)?.data.content, getNode(parentId)?.data.content)
             )}
+      // value={
+      //   inputvalue === "embedding view"? 
+      //   JSON.stringify(getNode(parentId)?.data.chunks)
+      //   : 
+      //   getNode(parentId)?.data.content as string
+      // }
       options={{
         fontFamily: "'JetBrains Mono', monospace",
         fontLigatures: true,
