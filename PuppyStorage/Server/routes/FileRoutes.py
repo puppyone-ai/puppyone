@@ -5,7 +5,7 @@ import time
 import logging
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter,Request
 from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
@@ -45,21 +45,19 @@ try:
 except Exception as e:
     log_error(f"Error connecting to R2: {e}")
 
-@file_router.get("/generate_urls/{user_id}")
-async def generate_file_urls(
-    user_id: str = "Rose123",
-    filename: str = None,
-    content_type: str = "application/octet-stream",
-):
+@file_router.post("/generate_urls")
+async def generate_file_urls(request: Request):
     try:
+        data = await request.json()
+        user_id = data.get("user_id", "Rose123")
+        content_name = data.get("content_name")
+        content_type = data.get("content_type", "application/octet-stream")
+        
         # Generate unique identifier for file
         content_id = str(uuid.uuid4())
         
-        # Handle filename, use default if not provided
-        original_filename = filename or "file"
-        
         # Build file storage path
-        key = f"{user_id}/{content_id}/{original_filename}"
+        key = f"{user_id}/{content_id}/{content_name}"
         
         # Generate presigned upload URL
         upload_url = s3_client.generate_presigned_url(
@@ -111,12 +109,21 @@ if __name__ == "__main__":
 
     print("Starting direct test of file URL generation function...")
     
-    # Test parameters
-    test_filename = "direct_test.txt"
+    content_name = "test_file.txt"
+    content_type = "text/plain"
+    
+    # 创建一个模拟的请求对象
+    class MockRequest:
+        async def json(self):
+            return {
+                "content_name": content_name,
+                "content_type": content_type
+            }
     
     # Call the async function directly
-    print(f"Calling generate_file_urls function, filename: {test_filename}")
-    result = asyncio.run(generate_file_urls(test_filename, content_type="text/plain"))
+    print(f"Calling generate_file_urls function, filename: {content_name}")
+    request = MockRequest()
+    result = asyncio.run(generate_file_urls(request=request))
     
     # Extract content from JSONRespons
     content = result.body.decode()
