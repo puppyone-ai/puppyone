@@ -25,7 +25,7 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
 
     const dropdownListStyle: React.CSSProperties = {
         position: 'absolute',
-        top: '24px',
+        top: '32px',
         left: '0',
         backgroundColor: 'black',
         border: '1px solid #6D7177', // Border color
@@ -46,13 +46,16 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
     };
 
     return (
-        <div style={dropdownContainerStyle} className={`flex ${containerClassnames}`}>
-            <div  className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${(optionBadge && selectedValue)?"text-[#000] ":"text-white"} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue)?"border-[3px]":"border-[0px]"} ${(optionBadge && selectedValue)?"bg-[#6D7177]":""}`} 
-            onClick={() => {
-                setIsOpen(prev => {
-                    console.log("open",prev)
-                    return !prev})
-                }}>
+        <div 
+        style={dropdownContainerStyle} 
+        className={`flex p-[8px] ${containerClassnames}`}
+        onClick={() => {
+            setIsOpen(prev => {
+                console.log("open",prev)
+                return !prev})
+            }}
+        >
+            <div  className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${(optionBadge && selectedValue)?"text-[#000] ":"text-white"} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue)?"border-[3px]":"border-[0px]"} ${(optionBadge && selectedValue)?"bg-[#6D7177]":""}`} >
                 <span>{mapValueTodisplay(selectedValue || "Select a value")}</span>  {/* Display selected label or placeholder */}
                 {/* Down Arrow SVG */}
                 <svg 
