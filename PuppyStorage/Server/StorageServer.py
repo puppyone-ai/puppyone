@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from Utils.PuppyEngineExceptions import PuppyEngineException
 from Utils.logger import log_info, log_error
 from Server.routes.VectorRoutes import vector_router
+from Server.routes.FileRoutes import file_router
 
 try:
     app = FastAPI()
@@ -22,11 +23,12 @@ try:
     )
 
     app.include_router(vector_router)
-
+    app.include_router(file_router)
+        
 except PuppyEngineException as e:
     raise
 except Exception as e:
-    logging.error(f"Server Initialization Error: {str(e)}")
+    log_error(f"Server Initialization Error: {str(e)}")
     raise PuppyEngineException(7301, "Server Initialization Error", str(e))
 
 @app.get("/health")
