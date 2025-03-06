@@ -16,17 +16,15 @@ from Utils.logger import log_info, log_error
 # 创建路由器
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
 
-@vector_router.post("/embed/{user_id}")
-async def embed(
-    request: Request,
-    user_id: str = "rose123"
-):
+@vector_router.post("/embed")
+async def embed(request: Request):
     try:
         data = await request.json()
         chunks = data.get("chunks", [])
         model = data.get("model", "text-embedding-ada-002")
         set_name = data.get("set_name", "default")
-
+        user_id = data.get("user_id", "rose123")  # 从JSON获取
+        
         # 获取客户端提供的collection_id（如果存在）
         collection_name = f"{set_name}__{model}__{user_id}" # ToDo: Add a mechanism to prevent the case that the seperator is already in the args
         
