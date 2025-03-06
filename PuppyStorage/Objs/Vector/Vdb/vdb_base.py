@@ -48,7 +48,7 @@ class VectorDatabase(ABC):
     @abstractmethod
     def store_vectors(
         self,
-        collection_id: str,
+        collection_name: str,
         ids: List[str],
         vectors: List[List[float]],
         contents: List[str],
