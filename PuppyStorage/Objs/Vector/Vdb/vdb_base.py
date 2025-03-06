@@ -8,11 +8,11 @@ import logging
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 
-from pymilvus import MilvusClient
-from qdrant_client import QdrantClient
-from weaviate.classes.init import Auth
-from weaviate import connect_to_weaviate_cloud
-from pinecone.grpc import PineconeGRPC as Pinecone
+# from pymilvus import MilvusClient
+# from qdrant_client import QdrantClient
+# from weaviate.classes.init import Auth
+# from weaviate import connect_to_weaviate_cloud
+# from pinecone.grpc import PineconeGRPC as Pinecone
 
 
 logging.basicConfig(level=logging.INFO)
