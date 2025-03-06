@@ -5,12 +5,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import os
 import logging
-from Objs.Vector.Vdb.vector_db_base import VectorDatabase
+from Objs.Vector.Vdb.vdb_base import VectorDatabase
 # from Objs.Vector.Vdb.zilliz_db_client import ZillizVectorDatabase
 # from Objs.Vector.Vdb.qdrant_db_client import QdrantVectorDatabase
 # from Objs.Vector.Vdb.pinecone_db_client import PineconeVectorDatabase
 # from Objs.Vector.Vdb.weaviate_db_client import WeaviateVectorDatabase
-from Objs.Vector.Vdb.pgvector_db_client import PostgresVectorDatabase
+from Objs.Vector.Vdb.pgv import PostgresVectorDatabase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -120,14 +120,13 @@ if __name__ == "__main__":
     pgvector_db = VectorDatabaseFactory.get_database("pgvector")
     pgvector_db.register_collection("test_collection")
     pgvector_db.save_embeddings(
-        collection_name="test_collection",
-        embeddings=embeddings,
-        documents=documents,
-        create_new=True,
+        collection_id="test_collection",
+        vectors=embeddings,
+        contents=documents,
     )
-    pgvector_results = pgvector_db.search_embeddings(
-        collection_name="test_collection",
-        query_embedding=query_vector,
+    pgvector_results = pgvector_db.search_vectors(
+        collection_id="test_collection",
+        query_vector=query_vector,
         top_k=5,
     )
     print("Pgvector Search Results:", pgvector_results)

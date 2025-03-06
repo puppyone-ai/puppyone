@@ -5,7 +5,7 @@ import requests
 from typing import List, Union
 from io import BytesIO
 from PIL import Image
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from abc import ABC, abstractmethod
 
@@ -98,13 +98,31 @@ class TextEmbedder(Embedder):
         self._provider = self.model_provider_dict.get(model_name, "openai")
         self._initialize_model()
 
+    def __enter__(self):
+        """支持上下文管理器"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """支持上下文管理器"""
+        # 无需特殊清理
+        pass
+
+    # TODO: Add a mechanism to prevent resource uncompelted by downloading intereption
     @global_exception_handler(3200, "Error Initializing Embedding Model")
     def _initialize_model(self):
         with self._lock:  # 保证线程安全
             if self.model_name in self._model_cache:
                 # 直接从缓存获取
-                self._model, self._tokenizer, self._client = self._model_cache[self.model_name]
+                cached_data = self._model_cache[self.model_name]
+                self._model = cached_data[0]
+                self._tokenizer = cached_data[1]
+                self._client = cached_data[2]
                 return
+
+            # 初始化默认值
+            self._model = None
+            self._tokenizer = None
+            self._client = None
 
             if self._provider == "huggingface":
                 self._model = AutoModel.from_pretrained(self.model_name)
@@ -169,73 +187,73 @@ class TextEmbedder(Embedder):
                 cls._model_cache.clear()
 
 
-class MultiModalEmbedding:
-    def __init__(
-        self,
-        model_name: str = 'jinaai/jina-clip-v1'
+# class MultiModalEmbedder:
+#     def __init__(
+#         self,
+#         model_name: str = 'jinaai/jina-clip-v1'
 
-    ):
-        self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
+#     ):
+#         self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True)
 
-    @global_exception_handler(3202, "Error Encoding Text")
-    def encode_text(
-        self,
-        sentences: List[str]
-    ):
-        return self.model.encode_text(sentences)
+#     @global_exception_handler(3202, "Error Encoding Text")
+#     def encode_text(
+#         self,
+#         sentences: List[str]
+#     ):
+#         return self.model.encode_text(sentences)
 
-    @global_exception_handler(3203, "Error Encoding Image")
-    def encode_image(
-        self,
-        image_sources: List[Union[str, Image.Image]]
-    ):
-        images = [self.load_image(img) for img in image_sources]
-        return self.model.encode_image(images)
+#     @global_exception_handler(3203, "Error Encoding Image")
+#     def encode_image(
+#         self,
+#         image_sources: List[Union[str, Image.Image]]
+#     ):
+#         images = [self.load_image(img) for img in image_sources]
+#         return self.model.encode_image(images)
 
-    @staticmethod
-    @global_exception_handler(3204, "Error Loading Image")
-    def load_image(
-        image_source: Union[str, Image.Image]
-    ) -> Image.Image:
-        if isinstance(image_source, str) and image_source.startswith('http'):
-            response = requests.get(image_source)
-            return Image.open(BytesIO(response.content))
-        elif isinstance(image_source, str):
-            return Image.open(image_source)
-        elif isinstance(image_source, Image.Image):
-            return image_source
-        else:
-            raise ValueError("Unsupported image source format.")
+#     @staticmethod
+#     @global_exception_handler(3204, "Error Loading Image")
+#     def load_image(
+#         image_source: Union[str, Image.Image]
+#     ) -> Image.Image:
+#         if isinstance(image_source, str) and image_source.startswith('http'):
+#             response = requests.get(image_source)
+#             return Image.open(BytesIO(response.content))
+#         elif isinstance(image_source, str):
+#             return Image.open(image_source)
+#         elif isinstance(image_source, Image.Image):
+#             return image_source
+#         else:
+#             raise ValueError("Unsupported image source format.")
 
-    def compute_similarity(
-        self,
-        embeddings1: Tensor,
-        embeddings2: Tensor
-    ) -> float:
-        if not isinstance(embeddings1, Tensor):
-            embeddings1 = tensor(embeddings1)
-        if not isinstance(embeddings2, Tensor):
-            embeddings2 = tensor(embeddings2)
+#     def compute_similarity(
+#         self,
+#         embeddings1: Tensor,
+#         embeddings2: Tensor
+#     ) -> float:
+#         if not isinstance(embeddings1, Tensor):
+#             embeddings1 = tensor(embeddings1)
+#         if not isinstance(embeddings2, Tensor):
+#             embeddings2 = tensor(embeddings2)
 
-        # Compute the similarity matrix
-        similarity_matrix = matmul(embeddings1, embeddings2.T)
+#         # Compute the similarity matrix
+#         similarity_matrix = matmul(embeddings1, embeddings2.T)
 
-        # Calculate the average similarity score
-        average_similarity = mean(similarity_matrix).item()
+#         # Calculate the average similarity score
+#         average_similarity = mean(similarity_matrix).item()
 
-        return average_similarity
+#         return average_similarity
 
-    @global_exception_handler(3205, "Error Computing Text-Image Similarity")
-    def text_image_similarity(
-        self,
-        text_inputs: List[str],
-        image_inputs: List[str]
-    ):
-        text_embeddings = self.encode_text(text_inputs)
-        image_embeddings = self.encode_image(image_inputs)
+#     @global_exception_handler(3205, "Error Computing Text-Image Similarity")
+#     def text_image_similarity(
+#         self,
+#         text_inputs: List[str],
+#         image_inputs: List[str]
+#     ):
+#         text_embeddings = self.encode_text(text_inputs)
+#         image_embeddings = self.encode_image(image_inputs)
         
-        similarities = self.compute_similarity(text_embeddings, image_embeddings)
-        return similarities
+#         similarities = self.compute_similarity(text_embeddings, image_embeddings)
+#         return similarities
 
 
 if __name__ == "__main__":
@@ -243,21 +261,23 @@ if __name__ == "__main__":
     load_dotenv()
     
     docs = ["This is a sample text.", "This is another sentence."]
-    huggerface_embedder = TextEmbedder("BAAI/bge-m3")
-    print(huggerface_embedder.embed(docs))
+    with TextEmbedder("BAAI/bge-m3") as embedder:
+        print(embedder.embed(docs))
 
-    sentencetransformers_embedder = TextEmbedder("all-MiniLM-L6-v2")
-    print(sentencetransformers_embedder.embed(docs))
+    with TextEmbedder("all-MiniLM-L6-v2") as embedder:
+        print(embedder.embed(docs))
     
-    openai_embedder = TextEmbedder("text-embedding-ada-002")
-    print(openai_embedder.embed(docs))
+    with TextEmbedder("text-embedding-ada-002") as embedder:
+        print(embedder.embed(docs))
+
+    TextEmbedder.clear_cache
 
     # multi-modal
-    embedder = MultiModalEmbedding()
-    text_inputs = ['A blue cat', 'A red cat']
-    image_inputs = [
-        'https://i.pinimg.com/600x315/21/48/7e/21487e8e0970dd366dafaed6ab25d8d8.jpg',
-        'https://i.pinimg.com/736x/c9/f2/3e/c9f23e212529f13f19bad5602d84b78b.jpg'
-    ]
-    similarities = embedder.text_image_similarity(text_inputs, image_inputs)
-    print(similarities)
+    # embedder = MultiModalEmbedder()
+    # text_inputs = ['A blue cat', 'A red cat']
+    # image_inputs = [
+    #     'https://i.pinimg.com/600x315/21/48/7e/21487e8e0970dd366dafaed6ab25d8d8.jpg',
+    #     'https://i.pinimg.com/736x/c9/f2/3e/c9f23e212529f13f19bad5602d84b78b.jpg'
+    # ]
+    # similarities = embedder.text_image_similarity(text_inputs, image_inputs)
+    # print(similarities)
