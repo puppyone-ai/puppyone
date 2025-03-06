@@ -58,12 +58,13 @@ function PromptEditor({
     allowParentDrag: () => void;
     parentId: string;
 }) {
+
+    const {getEdges, setNodes, getNode} = useReactFlow()
+
     const [entries, setEntries] = useState<PromptEntry[]>([
         { role: "system", content: "You are an AI" },
         { role: "user", content: "Answer the question by {{input_ID}}" }
     ]);
-
-    const { setNodes } = useReactFlow();
 
     useEffect(() => {
         // Update parent node data when entries change
@@ -80,6 +81,10 @@ function PromptEditor({
             return node;
         }));
     }, [entries, parentId, setNodes]);
+
+    useEffect(() => {
+        setEntries(JSON.parse(getNode(parentId)?.data.content as string))
+    }, [getNode(parentId)])
 
     const addNewEntry = () => {
         setEntries([...entries, { role: "user", content: "" }]);
