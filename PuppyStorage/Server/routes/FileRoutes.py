@@ -40,10 +40,13 @@ s3_client = client(
 
 # 使用您的自定义日志函数
 try:
-    response = s3_client.list_buckets()
-    log_info(f"Successfully connected to R2, available buckets: {[b['Name'] for b in response.get('Buckets', [])]}")
+    # 不使用list_buckets，而是检查特定存储桶
+    response = s3_client.head_bucket(Bucket=config.get("CLOUDFLARE_R2_BUCKET"))
+    log_info(f"Successfully connected to R2 bucket: {config.get('CLOUDFLARE_R2_BUCKET')}")
 except Exception as e:
     log_error(f"Error connecting to R2: {e}")
+    # 连接错误不会中断服务，API仍将尝试处理请求
+    # 但在生产环境中可能需要更严格的错误处理
 
 type_header_mapping = {
     "text": "text/plain",
