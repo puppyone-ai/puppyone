@@ -1,12 +1,15 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React,{useRef, useEffect, useState, ReactElement} from 'react'
+import React,{useRef, useEffect, useState, ReactElement, useContext} from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import {useNodesPerFlowContext} from '../../states/NodesPerFlowContext'
 import ReactDOM from 'react-dom'
 import { PuppyUpload } from '../../misc/PuppyUpload'
 import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonConstructUtils'
+import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
+import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
+import { WarnsContext } from '../../states/WarnMessageContext';
 
 export type FileNodeData = {
   content: string,
@@ -35,6 +38,8 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   const [isLocalEdit, setIsLocalEdit] = useState(false) 
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
+  const {userId} = useFlowsPerUserContext()
+  const {fetchUserId} = useManageUserWorkspacesUtils()
 
   useEffect(() => {
     console.log(activatedNode, isOnConnect, isTargetHandleTouched, "border color")
@@ -227,6 +232,16 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     //   }
     // };
 
+    const getuserid = async ():Promise<string> =>{
+      if(userId.trim() !== ""){
+        return userId
+      }
+      const res = await fetchUserId() as string
+      return res
+    }
+
+    const {warns,setWarns} = useContext(WarnsContext) as any;
+
     const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -240,33 +255,72 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
       try {
           // Step 1: 获取预签名URL和UUID, userid = Rose123
-          const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/Rose123`);
-
-          setIsOnUploading(false)
-
-          if (!response.ok) {
-              throw new Error(`Fetch temporary upload info Error: ${response.status}`)
-          }
-
-          const { presigned_url, task_id } = await response.json();
-
-          // Step 2: 上传文件到S3
-          const uploadResponse = await fetch(presigned_url, {
-              method: 'PUT',
+          // data = await request.json()
+          // user_id = data.get("user_id", "Rose123")
+          // content_name = data.get("content_name", "new_content")
+          const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${file.type}`,
+            {
+              method: 'POST',
               headers: {
-                  'Content-Type': file.type,
-                  // 'x-amz-meta-uuid': task_id, // 保存UUID到metadata
+                'Content-Type': 'application/json'
               },
-              body: file,
+              body: JSON.stringify({
+                userid: `${await getuserid()}`,
+                content_name: fileName
+              })
+            }
+          );
+
+        //   return JSONResponse(
+        //     content={
+        //         "upload_url": upload_url,
+        //         "download_url": download_url,
+        //         "content_id": content_id,
+        //         "content_type_header": content_type_header,
+        //         "expires_at": {
+        //             "upload": int(time.time()) + 300,
+        //             "download": int(time.time()) + 86400
+        //         }
+        //     }, 
+        //     status_code=200
+        // )
+        //above is the response from the python fastapi server,below is the reading of response from the python fastapi server
+
+        
+          if (!response.ok) {
+            setWarns(`Fetch temporary upload info Error: ${response.status}`)
+            throw new Error(`Fetch temporary upload info Error: ${response.status}`)
+          }
+        
+          const data = await response.json()
+          console.log(data)
+          const upload_url = data.upload_url
+          const download_url = data.download_url
+          const content_id = data.content_id
+          const content_type_header = data.content_type_header
+          const expires_at = data.expires_at
+          // const { presigned_url, task_id } = await response.json(); //deprecated
+          
+          // Step 2: 上传文件到S3
+          const uploadResponse = await fetch(upload_url, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': file.type,
+              // 'x-amz-meta-uuid': task_id, // 保存UUID到metadata
+            },
+            body: file,
           });
+          
+          setIsOnUploading(false)
 
           if (uploadResponse.ok) {
               console.log('文件上传成功');
-              saveFileInformation(task_id, fileExtension)
+              saveFileInformation(content_id, fileExtension)
               // 在这里可以将UUID保存到block的content
           } else {
               console.log(response)
               console.error('文件上传失败');
+              setWarns('fail to upload file')
           }
         } catch (error) {
             console.error('上传过程中发生错误', error);
@@ -288,36 +342,57 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     
           try {
               // Step 1: Get presigned URL and UUID, userid = Rose123
-              const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/Rose123`);
-
-              setIsOnUploading(false)
-    
-              if (!response.ok) {
-                  throw new Error(`Fetch temporary upload info Error: ${response.status}`);
-              }
-    
-              const { presigned_url, task_id } = await response.json();
-    
-              // Step 2: Upload file to S3
-              const uploadResponse = await fetch(presigned_url, {
-                  method: 'PUT',
+              const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${file.type}`,
+                {
+                  method: 'POST',
                   headers: {
-                      'Content-Type': file.type,
-                      // 'x-amz-meta-uuid': task_id, // Save UUID to metadata
+                    'Content-Type': 'application/json'
                   },
-                  body: file,
+                  body: JSON.stringify({
+                    userid: `${await getuserid()}`,
+                    content_name: fileName
+                  })
+                }
+              );
+              
+              if (!response.ok) {
+                setWarns(`Fetch temporary upload info Error: ${response.status}`)
+                throw new Error(`Fetch temporary upload info Error: ${response.status}`);
+              }
+              
+              const data = await response.json()
+              console.log(data)
+              const upload_url = data.upload_url
+              const download_url = data.download_url
+              const content_id = data.content_id
+              const content_type_header = data.content_type_header
+              const expires_at = data.expires_at
+              
+              // Step 2: Upload file to S3
+              const uploadResponse = await fetch(upload_url, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': file.type,
+                  // 'x-amz-meta-uuid': task_id, // Save UUID to metadata
+                },
+                body: file,
               });
-    
+              
+              
+              setIsOnUploading(false)
+
               if (uploadResponse.ok) {
                   console.log('File upload successful');
-                  saveFileInformation(task_id, fileExtension);
+                  saveFileInformation(content_id, fileExtension);
                   // Here you can save the UUID to the block's content
               } else {
                   console.log(response);
                   console.error('File upload failed');
+                  setWarns('fail to upload file')
               }
           } catch (error) {
               console.error('Error during upload process', error);
+              setWarns('fail to upload file')
           }
         };
     
