@@ -48,6 +48,7 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     const [textContent, setTextContent] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.content || "");
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
    
     useEffect(() => {
         onLoopChange(isLoop)
@@ -168,10 +169,27 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
         }
     }
 
+    const copyToClipboard = (label: string) => {
+        navigator.clipboard.writeText(`{{${label}}}`).then(() => {
+            setCopiedLabel(label);
+            setTimeout(() => setCopiedLabel(null), 2000);
+        });
+    };
+
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{node.label}</span>
+        return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
