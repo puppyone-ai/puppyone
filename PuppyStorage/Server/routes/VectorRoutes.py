@@ -1,9 +1,7 @@
 import os
 import sys
 # 修改路径添加方式，确保能正确找到模块
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))  # 指向 PuppyStorage 目录
-sys.path.append(project_root)
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
