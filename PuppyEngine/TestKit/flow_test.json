@@ -1,595 +1,69 @@
 {
     "blocks": {
-        "ULBOOg": {
-            "label": "ULBOOg",
+        "1": {
+            "label":"a",
             "type": "text",
             "data": {
-                "content": "给我一篇带有核心内容的文章, 仅仅返回文章内容，不要有其他多余结构"
-            },
-            "looped": false
+                "content": "Mei"
+            }
         },
-        "9tTZNz": {
-            "label": "9tTZNz",
-            "type": "structured",
-            "data": {
-                "content": []
-            },
-            "looped": false
-        },
-        "og7Tek": {
-            "label": "og7Tek",
-            "type": "structured",
-            "data": {
-                "content": {
-                    "concepts": [
-                        {
-                            "name": "信息技术对社会的影响",
-                            "details": {
-                                "context": "信息技术的发展已改变人们生活方式、工作模式和社会结构。",
-                                "impact": "推动社会的进步与变革。"
-                            }
-                        },
-                        {
-                            "name": "传统行业的数字化与智能化转型",
-                            "details": {
-                                "trend": "传统行业正在向数字化和智能化转型。",
-                                "benefits": "提高生产效率。",
-                                "new_opportunities": [
-                                    "新的商业模式",
-                                    "新的服务业态"
-                                ]
-                            }
-                        },
-                        {
-                            "name": "人工智能的应用与能力",
-                            "details": {
-                                "technologies": [
-                                    "机器学习",
-                                    "自然语言处理",
-                                    "图像识别"
-                                ],
-                                "capabilities": "计算机能够更好地理解和处理人类语言与行为。",
-                                "applications": {
-                                    "healthcare": "AI辅助诊断系统提高诊断准确性。",
-                                    "finance": "智能投资顾问提供个性化理财建议。"
-                                }
-                            }
-                        },
-                        {
-                            "name": "技术面临的挑战",
-                            "details": {
-                                "issues": [
-                                    "隐私保护",
-                                    "数据安全",
-                                    "人工智能的伦理问题"
-                                ],
-                                "data_concern": "个人数据的收集和使用。",
-                                "discussion_focus": "技术创新与隐私保护的平衡。"
-                            }
-                        },
-                        {
-                            "name": "科技创新的社会影响",
-                            "details": {
-                                "social_impact": [
-                                    "职业替代",
-                                    "社会不平等"
-                                ]
-                            }
-                        },
-                        {
-                            "name": "合作与治理",
-                            "details": {
-                                "stakeholders": [
-                                    "政府",
-                                    "企业",
-                                    "学术界"
-                                ],
-                                "goal": "确保科技创新能够造福人类。"
-                            }
-                        },
-                        {
-                            "name": "未来展望",
-                            "details": {
-                                "summary": "信息技术，尤其是人工智能的进步，正在塑造未来社会的新面貌。",
-                                "dual_nature": [
-                                    "科技的飞速发展",
-                                    "前所未有的机遇和挑战"
-                                ],
-                                "future_focus": "如何充分利用技术的优势，同时应对潜在的风险。"
-                            }
-                        }
-                    ]
-                }
-            },
-            "looped": false
-        },
-        "6grGax": {
-            "label": "6grGax",
+        "2": {
+            "label":"b",
             "type": "text",
             "data": {
-                "content": "文章中阐述了以下几个概念：\n\n1. **信息技术对社会的影响**：信息技术的发展改变了人们的生活方式、工作模式和社会结构，推动社会的进步与变革。\n\n2. **传统行业的数字化与智能化转型**：传统行业正在向数字化和智能化转型，带来生产效率的提高，并创造新的商业模式和服务业态。\n\n3. **人工智能的应用与能力**：人工智能技术如机器学习、自然语言处理和图像识别等，能够帮助计算机更好地理解和处理人类语言与行为。AI在医疗和金融领域的应用，如AI辅助诊断和智能投资顾问。\n\n4. **技术面临的挑战**：包括隐私保护、数据安全和人工智能的伦理问题，特别是个人数据的收集和使用问题，以及如何平衡技术创新与隐私保护。\n\n5. **科技创新的社会影响**：科技创新可能导致职业替代和社会不平等等问题。\n\n6. **合作与治理**：为了确保科技创新能够造福人类，政府、企业和学术界需要共同努力。\n\n7. **未来展望**：科技，特别是人工智能，正在塑造未来社会的面貌，面临着飞速发展的同时也伴随前所未有的机遇和挑战，未来需要在利用技术优势和应对潜在风险之间找到平衡。"
-            },
-            "looped": false
+                "content": ""
+            }
         },
-        "RLxsEM": {
-            "label": "RLxsEM",
+        "3": {
+            "label":"c",
             "type": "text",
             "data": {
-                "content": "请从文章中提取核心概念，对每个概念进行明确定义，并包含以下要素：\n1. 概念名称\n2. 概念定义\n3. 概念的特征或组成部分\n4. 概念在文章中的应用场景或实例\n\n确保提取的是真正的概念性内容，而不仅是文章的主题或摘要。"
-            },
-            "looped": false
+                "content": "apple"
+            }
         },
-        "4Qv-o1": {
-            "label": "4Qv-o1",
-            "type": "structured",
-            "data": {
-                "content": {
-                    "concepts": [
-                        {
-                            "introduction": {
-                                "context": "在当今社会，信息技术的发展已深刻地改变了人们的生活方式、工作模式以及社会结构。",
-                                "technologies": [
-                                    {
-                                        "name": "互联网"
-                                    },
-                                    {
-                                        "name": "人工智能"
-                                    }
-                                ],
-                                "impact": "推动社会的进步与变革"
-                            }
-                        },
-                        {
-                            "transformation": {
-                                "trend": "传统行业逐步向数字化、智能化转型",
-                                "benefits": "生产效率的提高",
-                                "new_opportunities": [
-                                    {
-                                        "type": "新的商业模式"
-                                    },
-                                    {
-                                        "type": "新的服务业态"
-                                    }
-                                ]
-                            }
-                        },
-                        {
-                            "artificial_intelligence": {
-                                "technologies": [
-                                    {
-                                        "name": "机器学习"
-                                    },
-                                    {
-                                        "name": "自然语言处理"
-                                    },
-                                    {
-                                        "name": "图像识别"
-                                    }
-                                ],
-                                "capabilities": "计算机能够更好地理解和处理人类语言与行为",
-                                "applications": {
-                                    "healthcare": {
-                                        "description": "AI辅助诊断系统提高诊断准确性"
-                                    },
-                                    "finance": {
-                                        "description": "智能投资顾问提供个性化理财建议"
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            "challenges": {
-                                "issues": [
-                                    {
-                                        "type": "隐私保护"
-                                    },
-                                    {
-                                        "type": "数据安全"
-                                    },
-                                    {
-                                        "type": "人工智能的伦理问题"
-                                    }
-                                ],
-                                "data_concern": "个人数据的收集和使用",
-                                "discussion_focus": "技术创新与隐私保护的平衡",
-                                "social_impact": [
-                                    {
-                                        "impact": "职业替代"
-                                    },
-                                    {
-                                        "impact": "社会不平等"
-                                    }
-                                ]
-                            }
-                        },
-                        {
-                            "collaboration": {
-                                "stakeholders": [
-                                    {
-                                        "type": "政府"
-                                    },
-                                    {
-                                        "type": "企业"
-                                    },
-                                    {
-                                        "type": "学术界"
-                                    }
-                                ],
-                                "goal": "确保科技创新能够造福人类而非带来负面影响"
-                            }
-                        },
-                        {
-                            "conclusion": {
-                                "summary": "信息技术，尤其是人工智能的进步，正在塑造未来社会的新面貌。",
-                                "dual_nature": [
-                                    {
-                                        "aspect": "科技的飞速发展"
-                                    },
-                                    {
-                                        "aspect": "前所未有的机遇和挑战"
-                                    }
-                                ],
-                                "future_focus": "如何充分利用技术的优势，同时应对潜在的风险"
-                            }
-                        }
-                    ]
-                }
-            },
-            "looped": false
-        },
-        "TjblJ6": {
-            "label": "TjblJ6",
+        "4": {
+            "label":"d",
             "type": "text",
             "data": {
-                "content": "在当今社会，信息技术的发展已深刻地改变了人们的生活方式、工作模式以及社会结构。无论是互联网的普及，还是人工智能的应用，都在不断推动社会的进步与变革。随着科技的快速发展，传统行业逐步向数字化、智能化转型，带来了生产效率的提高，同时也催生了新的商业模式和服务业态。\n\n特别是在人工智能领域，机器学习、自然语言处理和图像识别等技术的发展，使得计算机能够更好地理解和处理人类语言与行为。这些技术的广泛应用，极大地促进了各行各业的自动化和智能化，改变了人们的工作环境。例如，在医疗行业，AI辅助诊断系统的出现使得医生能够更准确地分析病情，快速作出治疗决策；在金融行业，智能投资顾问能够根据市场数据为客户提供个性化的理财建议。\n\n然而，科技的快速发展也带来了一些新的挑战。隐私保护、数据安全以及人工智能的伦理问题成为亟待解决的关键问题。随着越来越多的个人数据被收集和使用，如何平衡技术创新与隐私保护之间的关系，成为了社会各界讨论的焦点。此外，人工智能在某些领域的应用，虽然提高了效率，但也可能带来职业的替代和社会不平等的问题。因此，如何实现科技与社会的和谐发展，需要政府、企业和学术界共同努力，确保科技创新能够造福人类而非带来负面影响。\n\n总的来说，信息技术，尤其是人工智能的进步，正在塑造未来社会的新面貌。它不仅推动了科技的飞速发展，还带来了前所未有的机遇和挑战。如何充分利用技术的优势，同时应对潜在的风险，将是未来社会发展的关键。"
-            },
-            "looped": false
-        },
-        "Xo8ap3": {
-            "label": "Xo8ap3",
-            "type": "structured",
-            "data": {
-                "content": {
-                    "introduction": {
-                        "context": "在当今社会，信息技术的发展已深刻地改变了人们的生活方式、工作模式以及社会结构。",
-                        "technologies": [
-                            {
-                                "name": "互联网"
-                            },
-                            {
-                                "name": "人工智能"
-                            }
-                        ],
-                        "impact": "推动社会的进步与变革"
-                    },
-                    "transformation": {
-                        "trend": "传统行业逐步向数字化、智能化转型",
-                        "benefits": "生产效率的提高",
-                        "new_opportunities": [
-                            {
-                                "type": "新的商业模式"
-                            },
-                            {
-                                "type": "新的服务业态"
-                            }
-                        ]
-                    },
-                    "artificial_intelligence": {
-                        "technologies": [
-                            {
-                                "name": "机器学习"
-                            },
-                            {
-                                "name": "自然语言处理"
-                            },
-                            {
-                                "name": "图像识别"
-                            }
-                        ],
-                        "capabilities": "计算机能够更好地理解和处理人类语言与行为",
-                        "applications": {
-                            "healthcare": {
-                                "description": "AI辅助诊断系统提高诊断准确性"
-                            },
-                            "finance": {
-                                "description": "智能投资顾问提供个性化理财建议"
-                            }
-                        }
-                    },
-                    "challenges": {
-                        "issues": [
-                            {
-                                "type": "隐私保护"
-                            },
-                            {
-                                "type": "数据安全"
-                            },
-                            {
-                                "type": "人工智能的伦理问题"
-                            }
-                        ],
-                        "data_concern": "个人数据的收集和使用",
-                        "discussion_focus": "技术创新与隐私保护的平衡",
-                        "social_impact": [
-                            {
-                                "impact": "职业替代"
-                            },
-                            {
-                                "impact": "社会不平等"
-                            }
-                        ]
-                    },
-                    "collaboration": {
-                        "stakeholders": [
-                            {
-                                "type": "政府"
-                            },
-                            {
-                                "type": "企业"
-                            },
-                            {
-                                "type": "学术界"
-                            }
-                        ],
-                        "goal": "确保科技创新能够造福人类而非带来负面影响"
-                    },
-                    "conclusion": {
-                        "summary": "信息技术，尤其是人工智能的进步，正在塑造未来社会的新面貌。",
-                        "dual_nature": [
-                            {
-                                "aspect": "科技的飞速发展"
-                            },
-                            {
-                                "aspect": "前所未有的机遇和挑战"
-                            }
-                        ],
-                        "future_focus": "如何充分利用技术的优势，同时应对潜在的风险"
-                    }
-                }
-            },
-            "looped": false
-        },
-        "ULyY96": {
-            "label": "ULyY96",
-            "type": "text",
-            "data": {
-                "content": "文章里阐述了以下几个概念：\n\n1. **信息技术对社会的影响**：信息技术的发展改变了人们的生活方式、工作模式和社会结构，推动了社会的进步与变革。\n   \n2. **传统行业的数字化与智能化转型**：传统行业正在向数字化和智能化转型，这一趋势有助于提高生产效率，并带来了新的商业模式和服务业态。\n\n3. **人工智能的应用与能力**：通过机器学习、自然语言处理和图像识别等技术，人工智能能够更好地理解和处理人类语言与行为，广泛应用于医疗和金融等领域。\n\n4. **技术面临的挑战**：包括隐私保护、数据安全和人工智能的伦理问题，特别是在个人数据的收集和使用方面，讨论的焦点是如何在技术创新与隐私保护之间找到平衡。\n\n5. **科技创新的社会影响**：科技创新可能带来的职业替代和社会不平等问题。\n\n6. **合作与治理**：政府、企业和学术界等各方应共同合作，确保科技创新能够造福人类。\n\n7. **未来展望**：信息技术，特别是人工智能的进步，正在塑造未来社会的新面貌，面临着科技飞速发展带来的机遇和挑战，未来的重点是如何利用技术的优势，同时应对潜在的风险。"
-            },
-            "looped": false
-        },
-        "sYRH-k": {
-            "label": "sYRH-k",
-            "type": "structured",
-            "data": {
-                "content": []
-            },
-            "looped": false
+                "content": ""
+            }
         }
     },
     "edges": {
-        "llm-1737611018491": {
+        "llm-1723230193364": {
             "type": "llm",
             "data": {
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "把{{Xo8ap3}}根据结构需求，将value部分填入{{9tTZNz}}"
-                    }
+                    {"role": "system", "content": "You are a helpful AI assistant that called {{a}}"},
+                    {"role": "user", "content": "Introduce yourself in one sentence and say `apple`."}
                 ],
+                "sys_prompt": "",
                 "model": "gpt-4o",
                 "base_url": "",
-                "max_tokens": 4096,
+                "max_tokens": 2048,
                 "temperature": 0.7,
-                "structured_output": true,
-                "inputs": {
-                    "9tTZNz": "9tTZNz",
-                    "Xo8ap3": "Xo8ap3"
-                },
-                "looped": false,
-                "outputs": {
-                    "4Qv-o1": "4Qv-o1"
-                }
+                "inputs": {"1": "a"},
+                "outputs": {"2": "b"},
+                "structured_output": false
             }
         },
-        "llm-1737611453714": {
+        "llm-1727364074151": {
             "type": "llm",
             "data": {
                 "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "{{9tTZNz}}是一个目前用于将问题{{RLxsEM}}进行解析的JSONPAth，根据{{4Qv-o1}}进行了回答，回答是{{6grGax}}, 答案不够好，因为回答的并不是概念，根据这个原因重新生成一个更深度的JSONMAP"
-                    }
+                    {"role": "system", "content": "count how many 'apple' are in user input"},
+                    {"role": "user", "content": "{{b}}, {{c}}"}
                 ],
-                "model": "gpt-4-turbo",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": true,
-                "inputs": {
-                    "9tTZNz": "9tTZNz",
-                    "4Qv-o1": "4Qv-o1",
-                    "RLxsEM": "RLxsEM",
-                    "6grGax": "6grGax"
-                },
-                "looped": false,
-                "outputs": {
-                    "og7Tek": "og7Tek"
-                }
-            }
-        },
-        "llm-1737610918380": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "{{RLxsEM}}"
-                    }
-                ],
+                "sys_prompt": "",
                 "model": "gpt-4o",
                 "base_url": "",
-                "max_tokens": 4096,
+                "max_tokens": 2048,
                 "temperature": 0.7,
-                "structured_output": true,
-                "inputs": {
-                    "RLxsEM": "RLxsEM"
-                },
-                "looped": false,
-                "outputs": {
-                    "9tTZNz": "9tTZNz"
-                }
-            }
-        },
-        "llm-1737610317247": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "{{ULBOOg}}"
-                    }
-                ],
-                "model": "gpt-4-turbo",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": false,
-                "inputs": {
-                    "ULBOOg": "ULBOOg"
-                },
-                "looped": false,
-                "outputs": {
-                    "TjblJ6": "TjblJ6"
-                }
-            }
-        },
-        "llm-1737610071586": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "{{TjblJ6}}"
-                    }
-                ],
-                "model": "gpt-4o",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": true,
-                "inputs": {
-                    "TjblJ6": "TjblJ6"
-                },
-                "looped": false,
-                "outputs": {
-                    "sYRH-k": "sYRH-k"
-                }
-            }
-        },
-        "llm-1737611360909": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "根据{{4Qv-o1}}回复{{RLxsEM}}"
-                    }
-                ],
-                "model": "gpt-4o",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": false,
-                "inputs": {
-                    "RLxsEM": "RLxsEM",
-                    "4Qv-o1": "4Qv-o1"
-                },
-                "looped": false,
-                "outputs": {
-                    "6grGax": "6grGax"
-                }
-            }
-        },
-        "llm-1737610128549": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "以{{RLxsEM}}作为JSONPath，将{{sYRH-k}}中的value拓展成更深的JSON结构"
-                    }
-                ],
-                "model": "gpt-4o",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": true,
-                "inputs": {
-                    "sYRH-k": "sYRH-k",
-                    "RLxsEM": "RLxsEM"
-                },
-                "looped": false,
-                "outputs": {
-                    "Xo8ap3": "Xo8ap3"
-                }
-            }
-        },
-        "llm-1737612020431": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "根据{{og7Tek}}，回答{{RLxsEM}}"
-                    }
-                ],
-                "model": "gpt-4o",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": false,
-                "inputs": {
-                    "RLxsEM": "RLxsEM",
-                    "og7Tek": "og7Tek"
-                },
-                "looped": false,
-                "outputs": {
-                    "ULyY96": "ULyY96"
-                }
+                "inputs": {"2":"b","3":"c"},
+                "outputs": {"4":"d"},
+                "structured_output":false
             }
         }
     },
-    "task_id": "e6364945-c559-4e70-8952-0bf59eb61d7f"
+    "version": "0.1"
 }

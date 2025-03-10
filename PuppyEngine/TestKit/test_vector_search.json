@@ -11,10 +11,10 @@
             "label": "OlVqOq",
             "type": "structured",
             "data": {
-                "content": {
-                    "family": {
-                        "father": "阿强",
-                        "sons": [
+            "content": {
+                "family": {
+                    "father": "阿强",
+                    "sons": [
                         {
                             "name": "熊大",
                             "trait": "聪明"
