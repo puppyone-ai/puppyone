@@ -908,7 +908,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
-                        // createNewConnection('load')
+                        createNewConnection('load')
                     }}>
                         <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
                             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="10" viewBox="0 0 13 10" fill="none">
