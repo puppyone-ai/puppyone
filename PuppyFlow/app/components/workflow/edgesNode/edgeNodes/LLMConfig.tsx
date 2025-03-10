@@ -2,7 +2,7 @@ import { Handle, Position, NodeProps, Node, useOnViewportChange, Viewport} from 
 // import { useNodeContext } from '@/app/components/states/NodeContext'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, {useState, useEffect, useRef} from 'react'
-import LLMConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/NewLLM'
+import LLMConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/LLMConfigMenu'
 import { useReactFlow } from '@xyflow/react'
 export type LLMConfigNodeData = {
     looped: boolean | undefined,
