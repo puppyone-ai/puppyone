@@ -10,6 +10,7 @@ import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonCo
 import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
 import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
 import { WarnsContext } from '../../states/WarnMessageContext';
+// import {WarnsContext,WarnsContainer} from "puppyui"
 
 export type FileNodeData = {
   content: string,
@@ -315,7 +316,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
           if (uploadResponse.ok) {
               console.log('文件上传成功');
-              saveFileInformation(content_id, fileExtension)
+              saveFileInformation(upload_url, content_id, fileExtension)
               // 在这里可以将UUID保存到block的content
           } else {
               console.log(response)
@@ -383,7 +384,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
               if (uploadResponse.ok) {
                   console.log('File upload successful');
-                  saveFileInformation(content_id, fileExtension);
+                  saveFileInformation(upload_url, content_id, fileExtension);
                   // Here you can save the UUID to the block's content
               } else {
                   console.log(response);
@@ -399,9 +400,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
 
 
-    const saveFileInformation = (task_id: string, fileType: string) => {
+    const saveFileInformation = (upload_url:string ,task_id: string, fileType: string) => {
         setNodes(prevNodes => prevNodes.map(node => node.id === id ? { ...node, data: { 
-            ...node.data,content: task_id, fileType: fileType } } : node));
+            ...node.data,content: task_id, fileType: fileType, upload_url:upload_url } } : node));
     }
 
 
@@ -411,6 +412,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     useEffect(() => {
       const currentNode = getNode(id);
       if (currentNode?.data?.content && currentNode?.data?.fileType) {
+        console.log("currentNode", currentNode)
         const task_id = currentNode.data.content;
         const fileExtension = currentNode.data.fileType;
         
