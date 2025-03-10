@@ -28,4 +28,4 @@ COPY . .
 EXPOSE 8002
 
 # Use Hypercorn as the ASGI server
-CMD ["hypercorn", "./Server.StorageServer:app", "--bind", "0.0.0.0:8002"]
+CMD ["hypercorn", "./Server/StorageServer:app", "--bind", "0.0.0.0:8002"]
