@@ -724,8 +724,22 @@ if __name__ == "__main__":
         try:
             with open(file_path, encoding="utf-8") as f:
                 data = json.load(f)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as e:
+            # 显示更详细的错误信息，包括出错位置
             print(f"{Colors.RED}错误: 文件 '{file_path}' 不是有效的JSON格式{Colors.ENDC}")
+            print(f"{Colors.YELLOW}错误位置: 第{e.lineno}行, 第{e.colno}列{Colors.ENDC}")
+            print(f"{Colors.YELLOW}错误信息: {e.msg}{Colors.ENDC}")
+            
+            # 可选：显示出错的行及错误位置标记
+            try:
+                with open(file_path, encoding="utf-8") as f:
+                    lines = f.readlines()
+                    if 0 <= e.lineno-1 < len(lines):
+                        error_line = lines[e.lineno-1]
+                        print(f"{Colors.CYAN}问题行内容: {error_line.rstrip()}{Colors.ENDC}")
+                        print(f"{Colors.RED}{' ' * (e.colno-1)}^ 错误位置{Colors.ENDC}")
+            except Exception:
+                pass
             continue
         except Exception as e:
             print(f"{Colors.RED}错误: 无法读取文件 '{file_path}': {str(e)}{Colors.ENDC}")
