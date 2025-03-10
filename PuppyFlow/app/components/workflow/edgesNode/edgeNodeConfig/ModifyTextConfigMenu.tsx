@@ -47,6 +47,8 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
     const [resultNode, setResultNode] = useState<string | null>((getNode(parentId)?.data as ModifyConfigNodeData)?.resultNode ?? null)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
+    const [textContent, setTextContent] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.content || "");
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
    
     useEffect(() => {
         onLoopChange(isLoop)
@@ -167,10 +169,27 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
         }
     }
 
+    const copyToClipboard = (label: string) => {
+        navigator.clipboard.writeText(`{{${label}}}`).then(() => {
+            setCopiedLabel(label);
+            setTimeout(() => setCopiedLabel(null), 2000);
+        });
+    };
+
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{node.label}</span>
+        return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -330,106 +349,128 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
    }
     
   return (
-
-    <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            
-            <div className='flex flex-row gap-[12px]'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                </svg>
-
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    </svg>
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
-                Modify
+                <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
+                    Modify Text
                 </div>
-            </div>
-            <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center text-[10px] font-[400] text-main-grey font-plus-jakarta-sans'>
-                Aa
-                </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
-                text
-                </div>
-            </div>
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
                 <div className='flex flex-col items-center justify-center'>
-                <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
-                    setIsLoop(!isLoop)
-                }}>
-                    <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
-                        ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
+                    <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
+                        setIsLoop(!isLoop)
+                    }}>
+                        <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
+                            ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
+                        </div>
+                    </button>
+                    <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
+                        ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
+                        Loop
                     </div>
-                </button>
-                <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
-                    ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
-                    Loop
                 </div>
-                </div>
-                <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                onClick={onDataSubmit}>
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                    <path d="M8 5L0 10V0L8 5Z" fill="black"/>
-                    </svg>
-                </span>
-                <span>
-                    Run
-                </span>
+                <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                    onClick={onDataSubmit}>
+                    <span>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                            <path d="M8 5L0 10V0L8 5Z" fill="black"/>
+                        </svg>
+                    </span>
+                    <span>
+                        Run
+                    </span>
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[280px]'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
-            </div>
-            
-        </li>
-        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
-                return
-            </div>
-            <div className='relative'>
-                <TextConfigEditorTextArea preventParentDrag={onFocus} 
-                        allowParentDrag={onBlur} 
-                        placeholder='use {{}} and id to reference input content eample: hello, {{parent_nodeid}}'
-                        parentId={parentId}
-                        widthStyle={280} 
-                        heightStyle={140} />
-
-                <div style={{ position: 'absolute', bottom: 0, right: 0 }}>
-                    <PuppyDropdown
-                        options= {
-                            [
-                                RET_ALL,
-                                RET_FN,
-                                RET_LN,
-                                EX_FN,
-                                EX_LN 
-                            ]
-                        }
-                        onSelect= {(option:string)=>{
-                            setRetMode(option)
-                        }}
-                        selectedValue={renderRetMode(retMode)}
-                        listWidth={"200px"}
-                        containerClassnames="mb-[10px] pr-[5px]"
-                    >
-                    </PuppyDropdown>
-
+            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px]
+                          border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex flex-wrap gap-2'>
+                    {displaySourceNodeLabels()}
                 </div>
             </div>
         </li>
-        
-
-        
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Return Text</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+            </div>
+            <div className='bg-[#252525] rounded-[8px] p-3 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <textarea
+                    value={textContent}
+                    onChange={(e)=>{
+                        const newContent = e.target.value;
+                        setTextContent(newContent);
+                        
+                        // 更新节点数据
+                        setNodes(prevNodes => prevNodes.map(node => {
+                            if (node.id === parentId) {
+                                return {...node, data: {...node.data, content: newContent}}
+                            }
+                            return node
+                        }));
+                    }}
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                    placeholder='use {{}} and id to reference input content example: hello, {{parent_nodeid}}'
+                    className='w-full h-[140px] bg-transparent text-[#CDCDCD] text-[12px] resize-none outline-none p-1'
+                />
+            </div>
+        </li>
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Return Mode</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+            </div>
+            <div className='flex items-center gap-2'>
+                <PuppyDropdown
+                    options={[
+                        RET_ALL,
+                        RET_FN,
+                        RET_LN,
+                        EX_FN,
+                        EX_LN 
+                    ]}
+                    onSelect={(option:string)=>{
+                        setRetMode(option)
+                    }}
+                    selectedValue={retMode}
+                    listWidth={"200px"}
+                    containerClassnames="w-full"
+                >
+                </PuppyDropdown>
+                
+                {retMode !== RET_ALL && (
+                    <div className='flex items-center gap-2'>
+                        <input 
+                            value={configNum}
+                            onChange={(e)=>{
+                                setConfigNum(e.target.value)
+                            }} 
+                            className='w-[80px] h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                     border-[1px] border-[#6D7177]/30 
+                                     text-[12px] text-[#CDCDCD] 
+                                     hover:border-[#6D7177]/50 transition-colors'
+                            type="number"
+                        />
+                        <span className='text-[12px] text-[#CDCDCD]'>
+                            {retMode.includes('first') || retMode.includes('last') ? 'items' : 'characters'}
+                        </span>
+                    </div>
+                )}
+            </div>
+        </li>
     </ul>
   )
 }
