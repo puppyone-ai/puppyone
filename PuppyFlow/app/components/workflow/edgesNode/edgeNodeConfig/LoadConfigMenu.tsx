@@ -63,7 +63,7 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                 y: parentEdgeNode.position.y - 96,
             }
 
-            const resultNodeType = getNode(getSourceNodeIdWithLabel(parentId)[0].id)?.type
+            const resultNodeType = "structured"
 
             const newNode = {
                 id: resultNode,
@@ -285,27 +285,17 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
-                                <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="0.5" y="0.5" width="23" height="23" rx="7.5" stroke="#CDCDCD"/>
+                                <path d="M8.5 11.9997C14.9167 11.9997 15.5 7.33301 15.5 7.33301" stroke="#CDCDCD" stroke-width="1.5"/>
+                                <path d="M8.5 12.0003C14.9167 12.0003 15.5 16.667 15.5 16.667" stroke="#CDCDCD" stroke-width="1.5"/>
+                                <rect x="5.75" y="8.75" width="3.5" height="6.5" fill="#1C1D1F" stroke="#CDCDCD" stroke-width="1.5"/>
+                                <rect x="14.75" y="5.75" width="3.5" height="3.5" fill="#1C1D1F" stroke="#CDCDCD" stroke-width="1.5"/>
+                                <rect x="14.75" y="14.75" width="3.5" height="3.5" fill="#1C1D1F" stroke="#CDCDCD" stroke-width="1.5"/>
                             </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                            Modify
-                        </div>
-                    </div>
-                    <div className='flex flex-row gap-[8px] justify-center items-center'>
-                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M12 2L2 12" stroke="#CDCDCD" strokeWidth="1.5"/>
-                            <path d="M12 2L8 2" stroke="#CDCDCD" strokeWidth="1.5"/>
-                            <path d="M12 2L12 6" stroke="#CDCDCD" strokeWidth="1.5"/>
-                            <path d="M2 12L6 12" stroke="#CDCDCD" strokeWidth="1.5"/>
-                            <path d="M2 12L2 8" stroke="#CDCDCD" strokeWidth="1.5"/>
-                        </svg>
-                        </div>
-                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                            Convert to Text
+                            Load
                         </div>
                     </div>
                 </div>
