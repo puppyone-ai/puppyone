@@ -23,7 +23,7 @@ export type ModifyTextEdgeJsonType = {
     type: "modify",
     data: {
     //   content_type: "str",
-      modify_type: "edited_text",
+      modify_type: "edit_text",
       extra_configs: {},
       content: string,
       inputs: { [key: string]: string },
@@ -223,7 +223,7 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
             type: "modify",
             data: {  
                 // content_type: "str",
-                modify_type: "edited_text",
+                modify_type: "edit_text",
                 extra_configs: {
                     slice: (
                         retMode === RET_ALL? [0, -1]:(
