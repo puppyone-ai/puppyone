@@ -142,11 +142,17 @@ class WorkFlow():
     def __init__(
         self,
         json_data: Dict[str, Dict[str, str]],
-        latest_version: str = "0.1"
+        latest_version: str = "0.1",
+        step_mode: bool = False
     ):
         """
         Initialize the processor for the WorkFlow object.
 
+        Args:
+            json_data: The workflow definition in JSON format
+            latest_version: The latest version of the schema
+            step_mode: If True, enable step-by-step execution mode
+        
         Example Input JSON:
         {
             "blocks": {
@@ -210,7 +216,9 @@ class WorkFlow():
         self.max_workers = min(32, (os.cpu_count() or 1) * 4)
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
-
+        
+        # 添加步进模式属性
+        self.step_mode = step_mode
 
     def _validate_single_flow(
         self
@@ -300,13 +308,30 @@ class WorkFlow():
 
             # while there is still edges to process
             parallel_batch = self._find_parallel_batches()
+            batch_count = 0
+            
             while parallel_batch:
-                logger.info("Found parallel batches: %s", parallel_batch)
+                batch_count += 1
+                logger.info(f"Found parallel batch #{batch_count}: {parallel_batch}")
+                
+                if self.step_mode:
+                    input(f"\n按回车键执行批次 #{batch_count}... ")
+                    
                 processed_block_ids = self._process_batch_results(parallel_batch)
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
                 }
+                
+                if self.step_mode:
+                    print(f"\n批次 #{batch_count} 执行完成。")
+                    print(f"处理的块: {processed_block_ids}")
+                    for block_id in processed_block_ids:
+                        content = self.blocks.get(block_id, {}).get("data", {}).get("content", "")
+                        if isinstance(content, str) and len(content) > 100:
+                            content = content[:100] + "..."
+                        print(f"  块 {block_id} 内容: {content}")
+                    
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
 
@@ -602,27 +627,131 @@ class WorkFlow():
 
 
 if __name__ == "__main__":
+    import argparse
     from dotenv import load_dotenv
     load_dotenv()
-
-    test_kit = "TestKit/"
-    for file_name in os.listdir(test_kit):
-        if file_name != "test_convert2text.json":
+    
+    # 添加颜色支持
+    class Colors:
+        HEADER = '\033[95m'
+        BLUE = '\033[94m'
+        CYAN = '\033[96m'
+        GREEN = '\033[92m'
+        YELLOW = '\033[93m'
+        RED = '\033[91m'
+        ENDC = '\033[0m'
+        BOLD = '\033[1m'
+        UNDERLINE = '\033[4m'
+    
+    def print_json(data, title=None, max_length=1000):
+        """格式化打印JSON数据，支持截断长字符串"""
+        if title:
+            print(f"{Colors.BOLD}{Colors.CYAN}{title}{Colors.ENDC}")
+            
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except:
+                pass
+                
+        if isinstance(data, dict) or isinstance(data, list):
+            # 处理字典和列表中超长的字符串
+            def shorten_strings(obj, max_len=max_length):
+                if isinstance(obj, dict):
+                    result = {}
+                    for k, v in obj.items():
+                        result[k] = shorten_strings(v, max_len)
+                    return result
+                elif isinstance(obj, list):
+                    return [shorten_strings(item, max_len) for item in obj]
+                elif isinstance(obj, str) and len(obj) > max_len:
+                    return obj[:max_len] + f"{Colors.YELLOW}... [截断，总长度: {len(obj)}]{Colors.ENDC}"
+                else:
+                    return obj
+            
+            # 美化输出
+            formatted = json.dumps(shorten_strings(data), ensure_ascii=False, indent=2)
+            
+            # 添加颜色高亮
+            formatted = formatted.replace('"', f'{Colors.GREEN}"') \
+                                 .replace('": ', f'"{Colors.ENDC}: ') \
+                                 .replace('true', f'{Colors.YELLOW}true{Colors.ENDC}') \
+                                 .replace('false', f'{Colors.YELLOW}false{Colors.ENDC}') \
+                                 .replace('null', f'{Colors.RED}null{Colors.ENDC}')
+            
+            print(formatted)
+        else:
+            print(data)
+            
+    
+    # 添加命令行参数解析
+    parser = argparse.ArgumentParser(description="WorkFlow引擎测试")
+    parser.add_argument("--step", action="store_true", help="启用步进测试模式")
+    parser.add_argument("--file", type=str, help="指定要测试的JSON文件路径")
+    parser.add_argument("--dir", type=str, default="PuppyEngine/TestKit/", help="指定要测试的JSON文件目录")
+    args = parser.parse_args()
+    
+    # 确定要处理的文件列表
+    files_to_process = []
+    
+    if args.file:
+        # 如果指定了单个文件，只处理该文件
+        if os.path.isfile(args.file):
+            files_to_process.append(args.file)
+        else:
+            print(f"{Colors.RED}错误: 找不到指定的文件 '{args.file}'{Colors.ENDC}")
+            sys.exit(1)
+    else:
+        # 否则处理目录中的所有JSON文件
+        test_dir = args.dir
+        if not os.path.isdir(test_dir):
+            print(f"{Colors.RED}错误: 找不到指定的目录 '{test_dir}'{Colors.ENDC}")
+            sys.exit(1)
+            
+        for file_name in os.listdir(test_dir):
+            if file_name.endswith('.json'):
+                files_to_process.append(os.path.join(test_dir, file_name))
+    
+    if not files_to_process:
+        print(f"{Colors.YELLOW}警告: 在指定位置未找到任何JSON文件{Colors.ENDC}")
+        sys.exit(0)
+        
+    # 处理每个文件
+    for file_path in files_to_process:
+        file_name = os.path.basename(file_path)
+        print(f"\n{Colors.BOLD}{Colors.HEADER}========================= {file_name} ========================={Colors.ENDC}")
+        
+        try:
+            with open(file_path, encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError:
+            print(f"{Colors.RED}错误: 文件 '{file_path}' 不是有效的JSON格式{Colors.ENDC}")
             continue
-        # if file_name == "embedding_search.json":
-        #     continue
-        file_path = os.path.join(test_kit, file_name)
-        print(f"========================= {file_name} =========================")
-        with open(file_path, encoding="utf-8") as f:
-            data = json.load(f)
+        except Exception as e:
+            print(f"{Colors.RED}错误: 无法读取文件 '{file_path}': {str(e)}{Colors.ENDC}")
+            continue
 
-        # Use list() to collect all outputs, ensure the workflow is complete
+        # 创建工作流实例时启用步进模式
         outputs = []
-        workflow = WorkFlow(data)
+        workflow = WorkFlow(data, step_mode=args.step)
+        batch_count = 0
+        
         for output_blocks in workflow.process():
+            batch_count += 1
             logger.info("Received output blocks: %s", output_blocks)
             outputs.append(output_blocks)
+            
+            # 美化输出批次结果
+            if output_blocks:
+                print(f"\n{Colors.BOLD}{Colors.BLUE}===== 批次 #{batch_count} 输出块 ====={Colors.ENDC}")
+                print_json(output_blocks)
 
-        logger.info("Final blocks state: %s", workflow.blocks)
-        logger.info("All outputs: %s", outputs)
+        # 美化最终状态输出
+        print(f"\n{Colors.BOLD}{Colors.BLUE}===== 最终块状态 ====={Colors.ENDC}")
+        print_json(workflow.blocks)
+        
+        # 美化所有输出
+        print(f"\n{Colors.BOLD}{Colors.BLUE}===== 所有批次输出概要 ====={Colors.ENDC}")
+        print(f"总共处理了 {batch_count} 个批次，生成了 {sum(len(out) for out in outputs)} 个输出块")
+        
         workflow.clear_workflow()
