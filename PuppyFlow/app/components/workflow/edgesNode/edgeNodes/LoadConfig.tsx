@@ -1,7 +1,7 @@
 import { Handle, Position, NodeProps, Node, } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, {useState} from 'react'
-
+import LoadConfigMenu from '../edgeNodeConfig/LoadConfigMenu'
 type LoadConfigNodeProps = NodeProps<Node>
 
 function LoadConfig({isConnectable, id}: LoadConfigNodeProps) {
@@ -9,10 +9,22 @@ function LoadConfig({isConnectable, id}: LoadConfigNodeProps) {
     const {isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll} = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
 
+    const onClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        if (activatedEdge === id) {
+            clearEdgeActivation()
+        }
+        else {
+            clearAll()
+            activateEdge(id)
+        }
+    }
 
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
-             <button className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}>
+             <button 
+             onClick={onClickButton}
+             className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}>
                 Load
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
@@ -107,6 +119,7 @@ function LoadConfig({isConnectable, id}: LoadConfigNodeProps) {
             onMouseLeave={() => setIsTargetHandleTouched(false)}
                 />
         </button>
+        <LoadConfigMenu show={activatedEdge === id ? true : false} parentId={id} />
         </div>
        
     )
