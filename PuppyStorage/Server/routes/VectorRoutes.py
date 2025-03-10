@@ -1,7 +1,7 @@
 import os
 import sys
 # 修改路径添加方式，确保能正确找到模块
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
