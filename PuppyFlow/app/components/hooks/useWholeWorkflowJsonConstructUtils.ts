@@ -355,7 +355,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   // id: nodeInfo.id,
                   type: "modify",
                   data: {  
-                      modify_type: "edited_text",
+                      modify_type: "edit_text",
                       extra_configs: {},
                       content: nodeInfo.data.content as string,
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
