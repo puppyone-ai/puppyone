@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from Objs.Vector.embedder import TextEmbedder 
 from Objs.Vector.vector_db_factory import VectorDatabaseFactory
 
-from Utils.PuppyEngineExceptions import PuppyEngineException
+from Utils.PuppyEngineExceptions import PuppyException
 from Utils.logger import log_info, log_error
 
 # 创建路由器
@@ -48,7 +48,7 @@ async def embed(request: Request):
         
         return JSONResponse(content=collection_name, status_code=200)
 
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Embedding Error: {str(e)}")
         return JSONResponse(
             content={"error": str(e)}, 
@@ -68,10 +68,10 @@ async def delete_vdb_collection(
         log_info(f"Successfully Deleted Collection: {collection_name}")
 
         return JSONResponse(content={"message": "Collection Deleted Successfully"}, status_code=200)
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Unexpected Error in Deleting Vector Collection: {str(e)}")
         return JSONResponse(content={"error": "Internal Server Error"}, status_code=500)
 
@@ -107,10 +107,10 @@ async def search_vdb_collection(
         )
 
         return JSONResponse(content=results, status_code=200)
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Search Error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Unexpected Error in Vector Search: {str(e)}")
         return JSONResponse(content={"error": "Internal Server Error"}, status_code=500) 
 
@@ -196,7 +196,7 @@ if __name__ == "__main__":
             await test_delete(collection_name)
             
             print("\n===== 所有测试完成 =====")
-        except Exception as e:
+        except PuppyException as e:
             print(f"测试过程中发生错误: {str(e)}")
     
     # 执行测试

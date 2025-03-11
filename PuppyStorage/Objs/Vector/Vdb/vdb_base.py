@@ -4,7 +4,6 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import os
-import logging
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 
@@ -13,10 +12,6 @@ from abc import ABC, abstractmethod
 # from weaviate.classes.init import Auth
 # from weaviate import connect_to_weaviate_cloud
 # from pinecone.grpc import PineconeGRPC as Pinecone
-
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class VectorDatabase(ABC):
