@@ -178,11 +178,12 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
         const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
 
+        // console.log("2 structured input ids",input_ids)
         const edgejson: Modify2TextJsonType = {
             // id: parentId,
             type: "modify",
             data: {
-                content: getNode(input_ids[0])?.data.content as string,
+                content: `{{${sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id}}}`,
                 modify_type: "convert2text",
                 inputs: input_ids,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
@@ -246,9 +247,9 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                                <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5" />
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                             </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -257,10 +258,13 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                     </div>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
-                                <rect x="3.75" y="0.75" width="7.5" height="7.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                <rect x="0.75" y="4.75" width="7.5" height="7.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" />
-                            </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M12 2L2 12" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M12 2L8 2" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M12 2L12 6" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2 12L6 12" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2 12L2 8" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                             Convert to Text

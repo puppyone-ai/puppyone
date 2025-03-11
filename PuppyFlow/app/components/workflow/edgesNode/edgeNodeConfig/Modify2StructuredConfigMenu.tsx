@@ -10,6 +10,7 @@ import { ModifyConfigNodeData } from '../edgeNodes/ModifyConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+import {PuppyDropdown} from '../../../misc/PuppyDropDown'
 
 type ModifyCopyConfigProps = {
     show: boolean,
@@ -32,6 +33,16 @@ type ModifyCopyConfigProps = {
 //     "outputs": { "3": "3/label_3" },
 //   }
 // }
+
+// source_type: "text",
+// target_type: "structured",
+// target_structure": "list/dict", // convert to list or object
+// action_type: "default/json", // convert mode
+// list_separator: [], // optional, could be , ; etc. or a string, to separate the string into parts in a list format
+// dict_key: "key_here", // optional, the key to store the original text as its value, used when target_structure is dict
+// }
+// inputs: {"2": "2/label_2"},
+// outputs: { "3": "3/label_3" },
 export type Modify2SturcturedJsonType = {
     // id: string,
     type: "modify",
@@ -39,9 +50,12 @@ export type Modify2SturcturedJsonType = {
         content: string,
         modify_type: "convert2structured",
 		extra_configs: {
-			target_structure: ("list"|"dict"),
-            action_type: "json",
-            list_separator?: any[], // could be , ; etc. or a string
+            source_type:string,
+            target_type: "structured",
+            target_structure: "list"|"dict", // convert to list or object
+            action_type: "default"|"json", // convert mode
+            list_separator?: string[], // optional, could be , ; etc. or a string, to separate the string into parts in a list format
+            length_separator?:number,
             dict_key?: string, // the key to store the original text as its value
 		}
         inputs: { [key: string]: string },
@@ -199,21 +213,53 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
 
         const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
 
-        const config = JSON.parse(wrapInto)
-        const targetStructure = Array.isArray(config) ? "list" : "dict"; // Check if config is a list or object
-        const firstKey = !Array.isArray(config) && typeof config === 'object' ? Object.keys(config)[0] : undefined; 
+        // const config = JSON.parse(wrapInto)
+        // const targetStructure = Array.isArray(config) ? "list" : "dict"; // Check if config is a list or object
+        // const firstKey = !Array.isArray(config) && typeof config === 'object' ? Object.keys(config)[0] : undefined; 
 
+
+        // "<edge_id>": {
+        //     "type": "modify",
+        //     "data": {
+        //             "modify_type": "convert2structured",
+        //             "content": "111,{{a}}, 222,{{b}}",
+        //             "extra_configs": {
+        //                 "source_type": "text",
+        //                 "target_type": "structured",
+        //                 "target_structure": "list/dict", // convert to list or object
+        //             "action_type": "default/json", // convert mode
+        //             "list_separator": [], // optional, could be , ; etc. or a string, to separate the string into parts in a list format
+        //             "dict_key": "key_here", // optional, the key to store the original text as its value, used when target_structure is dict
+        //             }
+        //         "inputs": {"2": "2/label_2"},
+        //         "outputs": { "3": "3/label_3" },
+        //     }
+        // }
+
+
+        // Deafult Mode: 
+
+        //     - "some text" → ["some text"] (for list), or, {"key_here": "some text"} (for dict)
+        //     - When "list_separator": [","]: "some, text, here" → ["some", "text", "here"]
+
+        //     Json Mode: 
+
+        //     - "{'key_here': 'some text'} xxx [1,2,3]" → {"key_here": "some text", "list_1": [1, 2, 3]} (parse all the lists and dicts to be a json object)
+        
         const edgejson: Modify2SturcturedJsonType = {
             // id: parentId,
             type: "modify",
             data: {
-                content: getNode(input_ids[0])?.data.content as string,
+                content: `{{${sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id}}}`,
                 modify_type: "convert2structured",
                 extra_configs: {
-                    target_structure: targetStructure,
-                    action_type: "json",
-                    list_separator: [], // could be , ; etc. or a string
-                    dict_key: firstKey, // the key to store the original text as its value
+                    source_type: "text",
+                    target_type: "structured",
+                    target_structure: execMode===INTO_LIST_TYPE?"list":"dict", // convert to list or object
+                    action_type: execMode===JSON_TYPE?"json":"default", // convert mode
+                    ...(execMode===INTO_LIST_TYPE ? { list_separator: JSON.parse(deliminator) }:{}), // optional, could be , ; etc. or a string, to separate the string into parts in a list format
+                    ...(execMode===BY_CHAR_TYPE ? { dict_key:`${wrapInto}` }:{}), // optional, the key to store the original text as its value, used when target_structure is dict    
+                    ...(execMode===BY_LEN_TYPE ? { length_separator:bylen }:{}) // optional, the key to store the original text as its value, used when target_structure is dict    
                 },
                 inputs: input_ids,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
@@ -269,19 +315,50 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
         }))
     }
 
-    const [wrapInto, setWrapInto] = useState("")
+    const [wrapInto, setWrapInto] = useState(typeof (getNode(parentId)?.data?.extra_configs as any)?.dict_key === 'string'? (getNode(parentId)?.data?.extra_configs as any)?.dict_key : "")
 
+    const INTO_DICT_TYPE= "wrap into dict"
+    const INTO_LIST_TYPE= "wrap into list"
+    const JSON_TYPE= "JSON"
+    const BY_LEN_TYPE= "split by length"
+    const BY_CHAR_TYPE= "split by character"
+
+    const [execMode, setExecMode] = useState(JSON_TYPE)
+
+    const [deliminator, setDeliminator] = useState(typeof (getNode(parentId)?.data?.extra_configs as any)?.list_separator === 'string'? (getNode(parentId)?.data?.extra_configs as any)?.list_separator : `[",",";",".","\\n"]`)
+    const [bylen, setBylen] = useState<number>(typeof (getNode(parentId)?.data?.extra_configs as any)?.length_separator === 'number' ? (getNode(parentId)?.data?.extra_configs as any)?.length_separator : 10)
+
+    // ...(execMode===INTO_LIST_TYPE ? { list_separator: JSON.parse(deliminator) }:{}), // optional, could be , ; etc. or a string, to separate the string into parts in a list format
+    // ...(execMode===BY_CHAR_TYPE ? { dict_key:`${wrapInto}` }:{}) // optional, the key to store the original text as its value, used when target_structure is dict   
+    useEffect(
+        ()=>{
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId){
+                    return {...node, data: {
+                        ...node.data, 
+                        extra_configs:{
+                            list_separator: deliminator,
+                            dict_key: wrapInto,
+                            length_separator: bylen
+                        }
+                    }}
+                }
+                return node
+            }))
+        },
+        [deliminator, bylen, wrapInto]
+    )
 
     return (
 
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[384px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                                <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5" />
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                             </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -290,13 +367,16 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                     </div>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="13" viewBox="0 0 12 13" fill="none">
-                                <rect x="3.75" y="0.75" width="7.5" height="7.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                <rect x="0.75" y="4.75" width="7.5" height="7.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" />
-                            </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M12 2L2 12" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M12 2L8 2" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M12 2L12 6" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2 12L6 12" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2 12L2 8" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                            Copy
+                                Convert to Structured
                         </div>
                     </div>
                 </div>
@@ -321,16 +401,78 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                     {displaySourceNodeLabels()}
                 </div>
             </li>
-            <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[128px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                Wrap Into
+
+            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full bg-black'>
+                <div className='bg-black text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start rounded-l-[8px]'>
+                Mode
                 </div>
-                <input value={wrapInto} onChange={(e) => {
-                    setWrapInto(
-                        e.target.value
-                    )
-                }} id="wrap_into" type='string' className='px-[10px] py-[5px] rounded-r-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
-            </li>
+                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px] rounded-[8px] bg-black'>
+                    <PuppyDropdown
+                        options= {
+                            [
+                                INTO_DICT_TYPE,
+                                INTO_LIST_TYPE,
+                                JSON_TYPE,
+                                BY_LEN_TYPE,
+                                BY_CHAR_TYPE
+                            ]
+                        }
+                        onSelect= {(option:string)=>{
+                            setExecMode(option)
+                        }}
+                        selectedValue={execMode}
+                        listWidth={"200px"}
+                    >
+                    </PuppyDropdown>
+                </div>
+            
+             </li>
+
+             {
+                execMode===INTO_DICT_TYPE && (
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                        key
+                        </div>
+                        <input value={wrapInto} onChange={(e) => {
+                            setWrapInto(
+                                e.target.value
+                            )
+                        }} id="wrap_into" type='string' className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
+                    </li>
+                )
+             }
+
+            {
+                execMode===BY_CHAR_TYPE && (
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                        deliminators
+                        </div>
+                        <input value={deliminator} onChange={(e) => {
+                            setDeliminator(
+                                e.target.value
+                            )
+                        }} id="wrap_into" type='string' className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
+                    </li>
+                )
+             }
+
+        {
+                execMode===BY_LEN_TYPE && (
+                    <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
+                        <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
+                        length
+                        </div>
+                        <input value={bylen} onChange={(e) => {
+                            setBylen(
+                                parseInt(e.target.value)
+                            )
+                        }} id="wrap_into" type="number" className='px-[10px] py-[5px] rounded-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off'></input>
+                    </li>
+                )
+             }
+            
 
 
 
