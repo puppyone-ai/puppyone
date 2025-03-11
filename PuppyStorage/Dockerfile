@@ -23,4 +23,4 @@ ENV PYTHONPATH="/app"
 EXPOSE 8002
 
 # Set the entry point to run the FastAPI server
-CMD ["python", "-m", "server.storage_server"]
+CMD ["hypercorn", "server.storage_server:app", "--bind", "0.0.0.0:8002"]
