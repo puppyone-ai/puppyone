@@ -5,8 +5,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from Utils.PuppyEngineExceptions import PuppyEngineException
+from Utils.PuppyException import PuppyException
 from Utils.logger import log_info, log_error
+
 from Server.routes.VectorRoutes import vector_router
 from Server.routes.FileRoutes import file_router
 
@@ -24,19 +25,16 @@ try:
 
     app.include_router(vector_router)
     app.include_router(file_router)
-        
-except PuppyEngineException as e:
-    raise
-except Exception as e:
+    
+except PuppyException as e:
     log_error(f"Server Initialization Error: {str(e)}")
-    raise PuppyEngineException(7301, "Server Initialization Error", str(e))
 
 @app.get("/health")
 async def health_check():
     try:
         log_info("Health Check Accessed!")
         return JSONResponse(content={"status": "healthy"}, status_code=200)
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Health Check Error: {str(e)}!")
         return JSONResponse(content={"status": "unhealthy", "error": str(e)}, status_code=500)
 
@@ -51,8 +49,5 @@ if __name__ == "__main__":
         config.bind = ["127.0.0.1:8002"]
 
         asyncio.run(serve(app, config))
-    except PuppyEngineException as e:
-        raise
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Unexpected Error in Launching Server: {str(e)}")
-        raise PuppyEngineException(7000, "Unexpected Error in Launching Server", str(e))

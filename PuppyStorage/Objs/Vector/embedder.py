@@ -1,7 +1,6 @@
 # If you are a VS Code users:
 import os
 import sys
-import requests
 from typing import List, Union
 from io import BytesIO
 from PIL import Image
@@ -13,7 +12,7 @@ from openai import OpenAI
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from torch import no_grad, Tensor, tensor, mean, matmul
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.PuppyException import PuppyException, global_exception_handler
 from Utils.config import config
 import threading
 
@@ -131,10 +130,10 @@ class TextEmbedder(Embedder):
                 self._model = SentenceTransformer(self.model_name)
             elif self._provider == "openai":
                 if not self.api_key:
-                    raise PuppyEngineException(3301, "Missing Embedding Model API Key", "API key is required for OpenAI Embedding!")
+                    raise PuppyException(3301, "Missing Embedding Model API Key", "API key is required for OpenAI Embedding!")
                 self._client = OpenAI(api_key=self.api_key)
             else:
-                raise PuppyEngineException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
+                raise PuppyException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
 
             # 将新模型存入缓存
             self._model_cache[self.model_name] = (self._model, self._tokenizer, self._client)
@@ -173,7 +172,7 @@ class TextEmbedder(Embedder):
             response = self._client.embeddings.create(input=docs, model=self.model_name).data
             vectors = [item.embedding for item in response]
         else:
-            raise ValueError(f"Unsupported Embedding Model Provider: {self._provider}!")
+            raise PuppyException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
         return vectors
 
     @classmethod
@@ -270,7 +269,7 @@ if __name__ == "__main__":
     with TextEmbedder("text-embedding-ada-002") as embedder:
         print(embedder.embed(docs))
 
-    TextEmbedder.clear_cache
+    TextEmbedder.clear_cache()
 
     # multi-modal
     # embedder = MultiModalEmbedder()
