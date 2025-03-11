@@ -4,14 +4,14 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 import uuid
-import logging
 from typing import List, Dict, Any
 
 import vecs
 
 from Objs.Vector.Vdb.vdb_base import VectorDatabase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.PuppyException import PuppyException, global_exception_handler
 from Utils.config import config
+from Utils.logger import log_info, log_error, log_warning
 
 
 class PostgresVectorDatabase(VectorDatabase):
@@ -66,21 +66,21 @@ class PostgresVectorDatabase(VectorDatabase):
         # 检查度量方式是否支持
         measure = self._metric_value.get(metric)
         if not measure:
-            logging.warning(f"不支持的度量方式: {metric}")
+            log_warning(f"不支持的度量方式: {metric}")
             return False
             
         try:
             # 尝试创建索引 - 如果已存在会抛出异常
             collection.create_index(measure=measure)
-            logging.info(f"已创建 {metric} 索引")
+            log_info(f"已创建 {metric} 索引")
             return True
-        except Exception as e:
+        except PuppyException as e:
             # 检查异常是否表明索引已存在
             if "already exists" in str(e).lower():
-                logging.debug(f"{metric} 索引已存在")
+                log_info(f"{metric} 索引已存在")
                 return True
             # 其他异常表示创建失败
-            logging.warning(f"{metric} 索引创建失败: {str(e)}")
+            log_warning(f"{metric} 索引创建失败: {str(e)}")
             return False
 
     @global_exception_handler(2401, "Error Saving Embeddings to Postgres Vector Database")
@@ -107,14 +107,14 @@ class PostgresVectorDatabase(VectorDatabase):
         """
         # Validate input
         if not vectors or len(vectors) == 0:
-            raise ValueError("Vector list cannot be empty during store vectors into PGVector")
+            raise PuppyException(2401, "Vector list cannot be empty during store vectors into PGVector")
         
         vector_dimension = len(vectors[0])
         
         # Validate all vectors have consistent dimensions
         for i, vec in enumerate(vectors):
             if len(vec) != vector_dimension:
-                raise ValueError(f"Vector {i} has dimension ({len(vec)}) inconsistent with the first vector's dimension ({vector_dimension})")
+                raise PuppyException(2401, "Vector dimension inconsistency", f"Vector {i} has dimension ({len(vec)}) inconsistent with the first vector's dimension ({vector_dimension})")
             
         # 2. Prepare record structure
         if metadata is None:
@@ -135,7 +135,7 @@ class PostgresVectorDatabase(VectorDatabase):
         # Note: If collection dimension doesn't match vector dimension, this will fail
         # The vecs library will throw an exception which our global exception handler will catch
         collection.upsert(records=records)
-        logging.info(f"Inserted {len(records)} vectors into collection '{collection_name}'")
+        log_info(f"Inserted {len(records)} vectors into collection '{collection_name}'")
         
         # 5. Create default index
         if default_metric:
@@ -172,8 +172,8 @@ class PostgresVectorDatabase(VectorDatabase):
                 dimension=len(query_vector)
             )
             
-        except Exception as e:
-            logging.warning(f"Error getting collection '{collection_name}': {str(e)}")
+        except PuppyException as e:
+            log_warning(f"Error getting collection '{collection_name}': {str(e)}")
             return []
         
         # 2. Ensure index exists
@@ -190,12 +190,12 @@ class PostgresVectorDatabase(VectorDatabase):
                 include_value=True,
                 include_metadata=True,
             )
-        except Exception as e:
+        except PuppyException as e:
             # Check if error is related to dimension mismatch
             if "dimension" in str(e).lower():
-                logging.warning(f"Dimension mismatch: Query vector dimension ({len(query_vector)}) does not match collection dimension")
+                log_warning(f"Dimension mismatch: Query vector dimension ({len(query_vector)}) does not match collection dimension")
             else:
-                logging.warning(f"Error querying collection '{collection_name}': {str(e)}")
+                log_warning(f"Error querying collection '{collection_name}': {str(e)}")
             return []
         
         # 4. Process results
@@ -240,14 +240,14 @@ class PostgresVectorDatabase(VectorDatabase):
         try:
             collection = self.client.get_or_create_collection(name=collection_name)
             collection.delete(ids=ids)
-            logging.info(f"Cleaned collection: {collection_name}")
-        except Exception as e:
+            log_info(f"Cleaned collection: {collection_name}")
+        except PuppyException as e:
             # Check if the error is because collection does not exist
             if "provide a dimension" in str(e).lower():
-                logging.warning(f"Collection '{collection_name}' does not exist, nothing to clean")
+                log_warning(f"Collection '{collection_name}' does not exist, nothing to clean")
             else:
                 # For other errors, log and raise
-                logging.error(f"Failed to clean collection '{collection_name}': {str(e)}")
+                log_error(f"Failed to clean collection '{collection_name}': {str(e)}")
                 raise
 
     @global_exception_handler(2404, "Error Deleting Postgres Vector Database")
@@ -264,14 +264,14 @@ class PostgresVectorDatabase(VectorDatabase):
         """
         try:
             self.client.delete_collection(collection_name)
-            logging.info(f"Deleted collection: {collection_name}")
-        except Exception as e:
+            log_info(f"Deleted collection: {collection_name}")
+        except PuppyException as e:
             # Check if the error is because collection doesn't exist
             if "provide a dimension" in str(e).lower():
-                logging.warning(f"Collection '{collection_name}' does not exist, nothing to delete")
+                log_warning(f"Collection '{collection_name}' does not exist, nothing to delete")
             else:
                 # For other errors, log and raise
-                logging.error(f"Failed to delete collection '{collection_name}': {str(e)}")
+                log_error(f"Failed to delete collection '{collection_name}': {str(e)}")
                 raise
 
 if __name__ == "__main__":
