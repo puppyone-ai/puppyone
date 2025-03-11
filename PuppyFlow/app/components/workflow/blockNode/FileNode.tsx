@@ -328,7 +328,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
           if (uploadResponse.ok) {
               console.log('文件上传成功');
-              saveFileInformation(upload_url, content_id, fileExtension)
+              saveFileInformation(download_url, content_id, fileExtension)
               // 在这里可以将UUID保存到block的content
           } else {
               console.log(response)
@@ -421,7 +421,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
               if (uploadResponse.ok) {
                   console.log('File upload successful');
-                  saveFileInformation(upload_url, content_id, fileExtension);
+                  saveFileInformation(download_url, content_id, fileExtension);
                   // Here you can save the UUID to the block's content
               } else {
                   console.log(response);
@@ -437,9 +437,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
 
 
-    const saveFileInformation = (upload_url:string ,task_id: string, fileType: string) => {
+    const saveFileInformation = (download_url:string ,task_id: string, fileType: string) => {
         setNodes(prevNodes => prevNodes.map(node => node.id === id ? { ...node, data: { 
-            ...node.data,content: task_id, fileType: fileType, upload_url:upload_url } } : node));
+            ...node.data,content: task_id, fileType: fileType, download_url:download_url } } : node));
     }
 
 
