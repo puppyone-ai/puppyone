@@ -217,7 +217,7 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
                     ),
                     sort_type: "/" // if no need to sort, pass the value as /
                 },
-                content: sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => `${(getNode(node.id)?.data?.content||"")}`).join(","),
+                content: promptValue,
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
