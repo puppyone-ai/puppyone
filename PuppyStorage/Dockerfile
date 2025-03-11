@@ -1,31 +1,26 @@
-# Use Python 3.11-slim base image
-FROM python:3.11-slim
+# Use Python 3.11 base image
+FROM python:3.11.5-slim
 
-# Set the working directory
-WORKDIR /app
-
-# Install build dependencies
+# Install build-essential
 RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip
+# Set a working directory for the app
+WORKDIR /app
 
-# Copy the dependencies file
+# Copy requirements.txt and install dependencies
 COPY requirements.txt .
-
-# Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Add current directory to PYTHONPATH
-ENV PYTHONPATH="/app"
 
 # Copy the entire project directory to the container
 COPY . .
 
-# Expose the port
+# Add current directory to PYTHONPATH
+ENV PYTHONPATH="/app"
+
+# Expose the port FastAPI will run on
 EXPOSE 8002
 
-# Use Hypercorn as the ASGI server with correct module path
+# Set the entry point to run the FastAPI server
 CMD ["hypercorn", "./Server/StorageServer:app", "--bind", "0.0.0.0:8002"]
