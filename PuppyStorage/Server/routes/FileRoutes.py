@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
 from boto3 import client
-from Utils.PuppyEngineExceptions import PuppyEngineException
+from Utils.PuppyException import PuppyException
 from Utils.logger import log_info, log_error
 from Utils.config import config
 
@@ -43,7 +43,7 @@ try:
     # 不使用list_buckets，而是检查特定存储桶
     response = s3_client.head_bucket(Bucket=config.get("CLOUDFLARE_R2_BUCKET"))
     log_info(f"Successfully connected to R2 bucket: {config.get('CLOUDFLARE_R2_BUCKET')}")
-except Exception as e:
+except PuppyException as e:
     log_error(f"Error connecting to R2: {e}")
     # 连接错误不会中断服务，API仍将尝试处理请求
     # 但在生产环境中可能需要更严格的错误处理
@@ -119,7 +119,7 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
     except NoCredentialsError:
         log_error("Failed to get Cloudflare R2 credentials")
         return JSONResponse(content={"error": "Credentials not available"}, status_code=403)
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Error generating file URLs: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
     
@@ -181,7 +181,7 @@ if __name__ == "__main__":
                 print(f"File upload failed! Status code: {upload_response.status_code}")
                 print(f"Error message: {upload_response.text}")
 
-        except Exception as e:
+        except PuppyException as e:
             print(f"File upload failed: {str(e)}")
         
         # Wait to ensure upload completes
@@ -205,7 +205,7 @@ if __name__ == "__main__":
             else:
                 print("❌ File content mismatch!")
                 return False
-        except Exception as e:
+        except PuppyException as e:
             print(f"File download failed: {str(e)}")
             return False
     

@@ -33,3 +33,13 @@ def log_error(
         logger.error(message)
     except Exception as e:
         logger.error(f"Failed to log to Axiom: {e}")
+
+
+def log_warning(
+    message: any
+):
+    try:
+        axiom_client.ingest_events(AXIOM_DATASET, [{"level": "WARNING", "message": message}])
+        logger.warning(message)
+    except Exception as e:
+        logger.error(f"Failed to log to Axiom: {e}")
