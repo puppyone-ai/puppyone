@@ -44,6 +44,122 @@ type ConstructedLLMJsonData = {
     edges: { [key: string]: LLMEdgeJsonType }
 }
 
+type PromptEntry = {
+    role: "system" | "user";
+    content: string;
+}
+
+function PromptEditor({ 
+    preventParentDrag, 
+    allowParentDrag, 
+    parentId, 
+}: {
+    preventParentDrag: () => void;
+    allowParentDrag: () => void;
+    parentId: string;
+}) {
+
+    const {getEdges, setNodes, getNode} = useReactFlow()
+
+    const [entries, setEntries] = useState<PromptEntry[]>([
+        { role: "system", content: "You are an AI" },
+        { role: "user", content: "Answer the question by {{input_ID}}" }
+    ]);
+
+    useEffect(() => {
+        // Update parent node data when entries change
+        setNodes(nodes => nodes.map(node => {
+            if (node.id === parentId) {
+                return {
+                    ...node,
+                    data: {
+                        ...node.data,
+                        content: JSON.stringify(entries, null, 2)
+                    }
+                };
+            }
+            return node;
+        }));
+    }, [entries, parentId, setNodes]);
+
+    useEffect(() => {
+        setEntries(JSON.parse(getNode(parentId)?.data.content as string))
+    }, [getNode(parentId)])
+
+    const addNewEntry = () => {
+        setEntries([...entries, { role: "user", content: "" }]);
+    };
+
+    const updateEntry = (index: number, field: keyof PromptEntry, value: string) => {
+        const newEntries = [...entries];
+        newEntries[index] = {
+            ...newEntries[index],
+            [field]: field === 'role' ? value as "system" | "user" : value
+        };
+        setEntries(newEntries);
+    };
+
+    const removeEntry = (index: number) => {
+        setEntries(entries.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="flex flex-col gap-2">
+            {entries.map((entry, index) => (
+                <div key={index} className="flex gap-2 items-start">
+                    <select
+                        value={entry.role}
+                        onChange={(e) => updateEntry(index, 'role', e.target.value)}
+                        onFocus={preventParentDrag}
+                        onBlur={allowParentDrag}
+                        className="h-[32px] px-2 bg-[#1E1E1E] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                 text-[12px] text-[#CDCDCD] min-w-[90px]
+                                 hover:border-[#39BC66]/50 focus:border-[#39BC66] transition-colors"
+                    >
+                        <option value="system">System</option>
+                        <option value="user">User</option>
+                    </select>
+                    <div className="flex-1">
+                        <textarea
+                            value={entry.content}
+                            onChange={(e) => updateEntry(index, 'content', e.target.value)}
+                            onFocus={preventParentDrag}
+                            onBlur={allowParentDrag}
+                            className="w-full min-h-[32px] px-2 py-1 bg-[#1E1E1E] rounded-[6px] 
+                                     border-[1px] border-[#6D7177]/30 text-[12px] text-[#CDCDCD] resize-y
+                                     hover:border-[#39BC66]/50 focus:border-[#39BC66] transition-colors"
+                            placeholder="Enter prompt content..."
+                        />
+                    </div>
+                    {entries.length > 1 && (
+                        <button
+                            onClick={() => removeEntry(index)}
+                            className="p-1 text-[#6D7177] hover:text-[#ff4d4d] transition-colors"
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            ))}
+            <button
+                onClick={addNewEntry}
+                className="mt-2 flex items-center gap-2 px-3 h-[28px] rounded-[6px] 
+                           bg-[#252525] border-[1px] border-[#6D7177]/30
+                           text-[12px] text-[#6D7177]
+                           hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
+                           transition-colors"
+            >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D7177">
+                    <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                Add Prompt
+            </button>
+        </div>
+    );
+}
+
 function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
@@ -71,6 +187,8 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [isLoop, setIsLoop] = useState(
         (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
     )
+    const [showAdvanced, setShowAdvanced] = useState(false)
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
     useEffect(
         ()=>{
@@ -240,11 +358,29 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }
 
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000); // 1秒后恢复
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177] '>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -393,8 +529,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
 
     return (
-
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] border-box ${show ? "" : "hidden"} `} >
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans '>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
                     <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
@@ -433,83 +568,95 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     </button>
                 </div>
             </li>
-            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-                <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                    input
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                    <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                    {displaySourceNodeLabels()}
+                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px]
+                              border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2'>
+                        {displaySourceNodeLabels()}
+                    </div>
                 </div>
-
             </li>
-
-
-            <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans w-full'>
-                <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
-                    message
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Prompt</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-                <JSONConfigEditor preventParentDrag={onFocus} allowParentDrag={onBlur} placeholder='[
-            {"role": "system", 
-            "content": "You are an AI"},
-            {"role": "user", 
-            "content": "answer the question by {{input_ID}}"}
-            ]' parentId={parentId} widthStyle={432} heightStyle={208} />
+                <div className='bg-[#252525] rounded-[8px] p-3 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PromptEditor 
+                        preventParentDrag={onFocus}
+                        allowParentDrag={onBlur}
+                        parentId={parentId}
+                    />
+                </div>
             </li>
-
-            <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                    model
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Response Type</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-                <select ref={modelRef} id='model' value={model} onChange={() => {
-                    if (modelRef.current) {
-                        setModel(modelRef.current.value as "gpt-4o" | "gpt-4o-mini" | "gpt-4")
-                    }
-                }}
-                    className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[600] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                    <option value={"gpt-4o"}>
-                        gpt-4o
-                    </option>
-                    <option value={"gpt-4o-mini"}>
-                        gpt-4o-mini
-                    </option>
-                    <option value={"gpt-4-turbo"}>
-                        gpt-4
-                    </option>
+                <select 
+                    value={isStructured_output ? "structured" : "text"}
+                    onChange={(e) => setStructured_output(e.target.value === "structured")}
+                    className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                             border-[1px] border-[#6D7177]/30 
+                             text-[12px] text-[#CDCDCD] appearance-none cursor-pointer 
+                             hover:border-[#6D7177]/50 transition-colors'
+                >
+                    <option value="text">Natural Text</option>
+                    <option value="structured">Structured data</option>
                 </select>
-
             </li>
-
-            <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[130px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
-                    structured output
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[13px] font-semibold text-[#6D7177]'>Advanced Settings</label>
+                        <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                    </div>
+                    <button 
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
+                    >
+                        {showAdvanced ? 'Hide' : 'Show'}
+                        <svg 
+                            className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                 </div>
-                <select ref={structured_outputRef} id='structured_output' value={isStructured_output === true ? "True" : "False"} onChange={() => {
-                    if (structured_outputRef.current) {
-                        setStructured_output(structured_outputRef.current.value === "True" ? true : false)
-                    }
-                }}
-                    className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[600] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                    <option value={"True"}>
-                        True
-                    </option>
-                    <option value={"False"}>
-                        False
-                    </option>
-                </select>
 
+                {showAdvanced && (
+                    <div className='flex flex-col gap-4 mt-2 p-3 bg-[#1E1E1E] rounded-lg border border-[#6D7177]/30'>
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-[12px] text-[#6D7177]'>AI Model</label>
+                            <select 
+                                ref={modelRef}
+                                value={model}
+                                onChange={() => {
+                                    if (modelRef.current) {
+                                        setModel(modelRef.current.value as modelType)
+                                    }
+                                }}
+                                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                         border-[1px] border-[#6D7177]/30 
+                                         text-[12px] text-[#CDCDCD] appearance-none cursor-pointer 
+                                         hover:border-[#6D7177]/50 transition-colors'
+                            >
+                                <option value="gpt-4o">GPT-4o</option>
+                                <option value="gpt-4o-mini">GPT-4o-mini</option>
+                                <option value="gpt-4">GPT-4</option>
+                            </select>
+                        </div>
+                    </div>
+                )}
             </li>
-
-            {/* <li className='flex flex-col gap-1  items-start justify-center font-plus-jakarta-sans'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
-                base url
-            </div>
-            <input ref={baseUrlRef} id="base_url" type='text' className='px-[9px] py-[8px] border-[1px] border-[#6D7177] rounded-[8px] bg-black text-[12px] font-[600] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center w-[384px] font-plus-jakarta-sans' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur} value={baseUrl} onChange={() => {
-                if (baseUrlRef.current){
-                    setBaseUrl(baseUrlRef.current.value)
-                }
-            }}></input>
-        </li> */}
-
         </ul>
     )
 }

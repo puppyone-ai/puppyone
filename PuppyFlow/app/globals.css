@@ -201,18 +201,19 @@
     border-radius: 10px;
     background-color: transparent;
     border: 2px solid #42454A;
-  }
+}
 
-  .react-flow .react-flow__handle:hover {
+.react-flow .react-flow__handle:hover {
     width: 20px;
     height: 20px;
     border-radius: 10px;
     border: 2px solid #FFA73D;
-    transition-duration: 0.3s;
     cursor: pointer;
-  }
+}
 
-  /* 防止react flow的滚动和拖拽 */
+
+
+/* 防止react flow的滚动和拖拽 */
 .react-flow__renderer,
 .react-flow__draggable {
   transform: none !important;
@@ -248,6 +249,7 @@
     height: 20px;
     border-radius: 10px;
     border: 2px solid #FFA73D;
+    z-index: 20;
   }
   
   .react-flow .react-flow__handle.connectingfrom {
@@ -792,7 +794,7 @@
   background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: none;
   top: 0px;
   left: 50%;
   transform: translateX(-50%);
@@ -808,7 +810,7 @@
   background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: none;
   top: 50%;
   left: 0px;
   transform: translateY(-50%) rotate(90deg);
@@ -824,7 +826,7 @@
   background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: none;
   top: 0px;
   left: 50%;
   transform: translateX(-50%) rotate(180deg);
@@ -840,7 +842,7 @@
   background-image: url("data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M8 4V16' stroke='%23FFA73D' stroke-width='4'/%3E%3Cpath d='M0 8L8 0L16 8L13.5 10.5L8 5L2.5 10.5L0 8Z' fill='%23FFA73D'/%3E%3C/svg%3E");
   background-size: contain;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: none;
   top: 50%;
   left: 0px;
   transform: translateY(-50%) rotate(-90deg);
@@ -903,7 +905,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 200ms ease;  /* 添加过渡效果 */
 }
 
 /* hover 样式 */
@@ -916,9 +917,25 @@
 /* 确保 SVG 图标颜色跟随按钮颜色变化 */
 .react-flow__controls-custom button svg {
   fill: #6D7177;
-  transition: fill 200ms ease;  /* 添加过渡效果 */
 }
 
 .react-flow__controls-custom button:hover svg {
   fill: #CDCDCD;
+}
+
+.reactflow-custom-watermark .react-flow__panel.react-flow__attribution {
+  background: transparent !important;
+}
+
+.reactflow-custom-watermark .react-flow__panel.react-flow__attribution a {
+  color: #646464 !important;
+}
+
+/* Custom styles for ReactFlow attribution */
+.react-flow__attribution {
+  background: transparent !important;
+}
+
+.react-flow__attribution a {
+  color: #646464 !important;
 }

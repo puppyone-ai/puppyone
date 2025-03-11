@@ -6,6 +6,7 @@ import ModifySubMenu from './ModifySubMenu'
 import ChunkingSubMenu from './ChunkingSubMenu'
 import SearchSubMenu from './SearchSubMenu'
 import OthersSubMenu from './OthersSubMenu'
+import {DEFAULT_LLM_MESSAGE} from '../edgeNodeConfig/NewLLM'
 
 type EdgeMenuProps = {
     nodeType: string,
@@ -14,7 +15,7 @@ type EdgeMenuProps = {
     handleId: string | undefined,
 }
 
-export type menuNameType = null | "LLMsub1" | "Modifysub1" | "Chunkingsub1" | "ChunkingOtherssub2" | "Searchsub1" | "SaveIntosub1"| "Codesub1" | "Otherssub1" | "Embeddingsub1" | "ChooseSub1" | "LoadSub1"
+export type menuNameType = null | "LLMsub1" | "Modifysub1" | "Chunkingsub1" | "ChunkingOtherssub2" | "Searchsub1" | "SaveIntosub1"| "Codesub1" | "Otherssub1" | "Embeddingsub1" | "ChooseSub1" | "LoadSub1" | "Retrievingsub1" | "Generatingsub1"
 
 function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
 
@@ -116,13 +117,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
         const defaultEdgeConfigNodeContent = edgeType === "load" ? "" :
         edgeType === "embedding" ? "" :
         edgeType === "llm" ? 
-                (
-        `[
-  {"role": "system",
-   "content": "You are an AI"},
-  {"role": "user",
-   "content": "Answer the question by {{input_ID}}"}
-]`):
+        (DEFAULT_LLM_MESSAGE):
         edgeType === "chunk" && subMenuType === "chunk-Bycharacter" ? 
         (`[",",";","\\n"]`):
         edgeType === "chunk" && subMenuType === "chunk-Bylength" ? "":
@@ -363,6 +358,12 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
             case "LoadSub1":
                 value = 10
                 break
+            case "Retrievingsub1":
+                value = 11
+                break
+            case "Generatingsub1":
+                value = 12
+                break
             default:
                 value = -1
         }
@@ -386,7 +387,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
 
 <li className="w-full">
                 <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
-                    AI Action
+                    Processing
                 </div>
             </li>
 
@@ -399,18 +400,13 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     createNewConnection('llm')
                 }}>
                 <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                 
-                <img src="openai.svg" alt="llm logo" className="w-[12px] h-[12px]" />
+                    <img src="data:image/svg+xml;utf8,%3Csvg width='14' height='14' viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='openai-white-logomark 28' clip-path='url(%23clip0_3316_1519)'%3E%3Cg id='Clip path group'%3E%3Cmask id='mask0_3316_1519' style='mask-type:luminance' maskUnits='userSpaceOnUse' x='0' y='0' width='14' height='14'%3E%3Cg id='clip0_10145_290560'%3E%3Cpath id='Vector' d='M14 0H0V14H14V0Z' fill='white'/%3E%3C/g%3E%3C/mask%3E%3Cg mask='url(%23mask0_3316_1519)'%3E%3Cg id='Group'%3E%3Cpath id='Vector_2' d='M12.9965 5.73C13.3141 4.77669 13.2047 3.73238 12.6968 2.86525C11.9329 1.53525 10.3973 0.851002 8.89752 1.173C8.23033 0.421377 7.27177 -0.00606008 6.26683 6.49355e-05C4.73383 -0.00343506 3.37365 0.983564 2.90202 2.44219C1.91721 2.64388 1.06715 3.26031 0.569708 4.134C-0.199855 5.4605 -0.024417 7.13263 1.00371 8.27013C0.686083 9.22344 0.795458 10.2678 1.3034 11.1349C2.06727 12.4649 3.6029 13.1491 5.10265 12.8271C5.7694 13.5788 6.7284 14.0062 7.73333 13.9996C9.26721 14.0036 10.6278 13.0157 11.0995 11.5558C12.0843 11.3541 12.9343 10.7376 13.4318 9.86394C14.2005 8.53744 14.0246 6.86663 12.9969 5.72913L12.9965 5.73ZM7.73421 13.0848C7.1204 13.0857 6.52583 12.8709 6.05465 12.4776C6.07608 12.4662 6.11327 12.4456 6.13733 12.4308L8.92508 10.8208C9.06771 10.7398 9.15521 10.588 9.15433 10.4239V6.49388L10.3325 7.17419C10.3452 7.18031 10.3535 7.19256 10.3553 7.20656V10.4611C10.3535 11.9084 9.18146 13.0818 7.73421 13.0848ZM2.09746 10.6773C1.7899 10.1461 1.67921 9.52356 1.78465 8.91938C1.80521 8.93163 1.84152 8.95394 1.86733 8.96881L4.65508 10.5788C4.7964 10.6615 4.9714 10.6615 5.11315 10.5788L8.51646 8.61356V9.97419C8.51733 9.98819 8.51077 10.0018 8.49983 10.0105L5.6819 11.6376C4.42671 12.3603 2.82371 11.9307 2.0979 10.6773H2.09746ZM1.36377 4.59206C1.67002 4.06006 2.15346 3.65319 2.72921 3.44188C2.72921 3.46594 2.7279 3.50838 2.7279 3.53813V6.75856C2.72702 6.92219 2.81452 7.074 2.95671 7.15494L6.36002 9.11975L5.18183 9.80006C5.17002 9.80794 5.15515 9.80925 5.14202 9.80356L2.32365 8.17519C1.07108 7.44981 0.641458 5.84725 1.36333 4.5925L1.36377 4.59206ZM11.0439 6.84475L7.64058 4.8795L8.81877 4.19963C8.83058 4.19175 8.84546 4.19044 8.85858 4.19613L11.677 5.82319C12.9317 6.54813 13.3618 8.15331 12.6368 9.40806C12.3301 9.93919 11.8471 10.3461 11.2718 10.5578V7.24113C11.2731 7.0775 11.1861 6.92613 11.0443 6.84475H11.0439ZM12.2164 5.07988C12.1958 5.06719 12.1595 5.04531 12.1337 5.03044L9.34596 3.42044C9.20465 3.33775 9.02964 3.33775 8.8879 3.42044L5.48458 5.38569V4.02506C5.48371 4.01106 5.49027 3.9975 5.50121 3.98875L8.31915 2.363C9.57433 1.63894 11.1791 2.06988 11.9027 3.3255C12.2085 3.85575 12.3192 4.47656 12.2155 5.07988H12.2164ZM4.84408 7.50494L3.66546 6.82463C3.65277 6.8185 3.64446 6.80625 3.64271 6.79225V3.53769C3.64358 2.08869 4.81915 0.914439 6.26815 0.915314C6.88108 0.915314 7.47433 1.13056 7.94552 1.52256C7.92408 1.53394 7.88733 1.5545 7.86283 1.56938L5.07508 3.17938C4.93246 3.26031 4.84496 3.41169 4.84583 3.57575L4.84408 7.50406V7.50494ZM5.48415 6.12506L7.00008 5.24963L8.51602 6.12463V7.87506L7.00008 8.75006L5.48415 7.87506V6.12506Z' fill='%23CDCDCD'/></g></g></g></g><defs><clipPath id='clip0_3316_1519'><rect width='14' height='14' fill='white'/></clipPath></defs></svg>" alt="OpenAI Logo" />                
                 </div>
                 <div className='text-[14px] font- flex items-center justify-center h-full'>LLM</div>
                 </button>
             </li> 
 
-            <li className="w-full">
-                <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
-                    Processing
-                </div>
-            </li>
+
             <li className="w-full">
                 <button className={`w-full h-[38px] ${selectedSubMenu === 1 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
                 onMouseEnter={() => manageTextNodeSubMenu("Modifysub1")}
@@ -423,9 +419,9 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 }}>
                 <div className='flex items-center gap-[11px] flex-1'>
                 <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 12 12" fill="none">
+                    <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                 </svg>
                 </div>
                 <div className='text-[14px] font- flex items-center justify-center h-full'>Modify</div>
@@ -439,6 +435,11 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 <ModifySubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 1 ? 1 : 0} createNewConnection={createNewConnection}/>
             </li> 
             <li className="w-full">
+                <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
+                    RAG
+                </div>
+            </li>
+            <li className="w-full">
                 <button className={`w-full h-[38px] ${selectedSubMenu === 2 || selectedSubMenu === 3 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
                 onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
                 >
@@ -446,7 +447,17 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
 
                 <div className='flex items-center gap-[11px] flex-1'>
                     <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                    <img src="chunking.svg" alt="chunking logo" />
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <rect x="9" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <rect x="0.5" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <rect x="9" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <path d="M5 2.75H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <path d="M2.75 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <path d="M11.25 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    </svg>
+
                     </div>
                     <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>Chunking</div>
                 </div>
@@ -458,6 +469,50 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 </button>
                 <ChunkingSubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 2 || selectedSubMenu === 3 ? 1 : 0} manageTextNodeSubMenu={manageTextNodeSubMenu} selectedSubMenu={selectedSubMenu} createNewConnection={createNewConnection} />
             </li>   
+            <li className="w-full">
+                <button className={`w-full h-[38px] ${selectedSubMenu === 11 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
+                onMouseEnter={() => manageTextNodeSubMenu("Retrievingsub1")}
+                onClick={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                }}>
+                    <div className='flex items-center gap-[11px] flex-1'>
+                        <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 3H1V6H7V3Z" stroke="#CDCDCD"/>
+                            <path d="M7 6H1V9H7V6Z" stroke="#CDCDCD"/>
+                            <path d="M7 9H1V12H7V9Z" stroke="#CDCDCD"/>
+                            <path d="M10.5 10L13 7.5L10.5 5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M13.0003 7.49953L7 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
+                        </div>
+                        <div className='text-[14px] flex items-center justify-center h-full'>Retrieving</div>
+                    </div>
+                </button>
+            </li>
+
+                <li className="w-full">
+                    <button className={`w-full h-[38px] ${selectedSubMenu === 12 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
+                    onMouseEnter={() => manageTextNodeSubMenu("Generatingsub1")}
+                    onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        createNewConnection('generate')
+                    }}>
+                        <div className='flex items-center gap-[11px] flex-1'>
+                            <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7 1V13" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M13 7L1 7" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M11.0711 2.92893L2.92893 11.0711" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M11.0711 11.0711L2.92893 2.92893" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
+                            </div>
+                            <div className='text-[14px] flex items-center justify-center h-full'>Generating</div>
+                        </div>
+                    </button>
+                </li>
+            
 
             <li className="w-full">
                 <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
@@ -470,9 +525,27 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 >
                 <div className='flex items-center gap-[11px] flex-1'>
                     <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 15 15" fill="none">
-                    <path d="M6 6L14.0002 13.9999" stroke="#CDCDCD" strokeWidth="2"/>
-                    <circle cx="5.5" cy="5.5" r="4.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="2"/>
+                    <svg 
+                      width="14" 
+                      height="14" 
+                      viewBox="0 0 14 14" 
+                      fill="none" 
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <circle 
+                        cx="5" 
+                        cy="5" 
+                        r="4" 
+                        fill="#1C1D1F" 
+                        stroke="#CDCDCD" 
+                        strokeWidth="1.5"
+                      />
+                      <path 
+                        d="M8 8L12 12" 
+                        stroke="#CDCDCD" 
+                        strokeWidth="1.5" 
+                        strokeLinecap="round"
+                      />
                     </svg>
                     </div>
                     <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>Search</div>
@@ -499,12 +572,13 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     createNewConnection('choose')
                 }}>
                 <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                </svg>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 7H4" stroke="#D9D9D9" stroke-width="1.5"/>
+                    <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 7 3 9 3C10.1429 3 10.8571 3 12 3" stroke="#D9D9D9" stroke-width="1.5"/>
+                    <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 6.5 11 8.57143 11C9.71429 11 10.8571 11 12 11" stroke="#D9D9D9" stroke-width="1.5"/>
+                    <path d="M10.5 1L12.5 3L10.5 5" stroke="#D9D9D9"/>
+                    <path d="M10.5 9L12.5 11L10.5 13" stroke="#D9D9D9"/>
+                    </svg>
                 </div>
                 <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>If/Else</div>
                 </button>
@@ -530,6 +604,8 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 </button>
             </li>
 
+
+
             </ul>
             )
         case 'structured':
@@ -542,9 +618,9 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                 } 
                 onMouseLeave={() => manageTextNodeSubMenu(null)}>
                 
-                <li>
+                <li className="w-full">
                     <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
-                        AI Action
+                        Processing
                     </div>
                 </li>
 
@@ -557,17 +633,13 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                         createNewConnection('llm')
                     }}>
                     <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                    <img src="openai.svg" alt="llm logo" className="w-[12px] h-[12px]" />
+                        <img src="data:image/svg+xml;utf8,%3Csvg width='14' height='14' viewBox='0 0 14 14' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cg id='openai-white-logomark 28' clip-path='url(%23clip0_3316_1519)'%3E%3Cg id='Clip path group'%3E%3Cmask id='mask0_3316_1519' style='mask-type:luminance' maskUnits='userSpaceOnUse' x='0' y='0' width='14' height='14'%3E%3Cg id='clip0_10145_290560'%3E%3Cpath id='Vector' d='M14 0H0V14H14V0Z' fill='white'/%3E%3C/g%3E%3C/mask%3E%3Cg mask='url(%23mask0_3316_1519)'%3E%3Cg id='Group'%3E%3Cpath id='Vector_2' d='M12.9965 5.73C13.3141 4.77669 13.2047 3.73238 12.6968 2.86525C11.9329 1.53525 10.3973 0.851002 8.89752 1.173C8.23033 0.421377 7.27177 -0.00606008 6.26683 6.49355e-05C4.73383 -0.00343506 3.37365 0.983564 2.90202 2.44219C1.91721 2.64388 1.06715 3.26031 0.569708 4.134C-0.199855 5.4605 -0.024417 7.13263 1.00371 8.27013C0.686083 9.22344 0.795458 10.2678 1.3034 11.1349C2.06727 12.4649 3.6029 13.1491 5.10265 12.8271C5.7694 13.5788 6.7284 14.0062 7.73333 13.9996C9.26721 14.0036 10.6278 13.0157 11.0995 11.5558C12.0843 11.3541 12.9343 10.7376 13.4318 9.86394C14.2005 8.53744 14.0246 6.86663 12.9969 5.72913L12.9965 5.73ZM7.73421 13.0848C7.1204 13.0857 6.52583 12.8709 6.05465 12.4776C6.07608 12.4662 6.11327 12.4456 6.13733 12.4308L8.92508 10.8208C9.06771 10.7398 9.15521 10.588 9.15433 10.4239V6.49388L10.3325 7.17419C10.3452 7.18031 10.3535 7.19256 10.3553 7.20656V10.4611C10.3535 11.9084 9.18146 13.0818 7.73421 13.0848ZM2.09746 10.6773C1.7899 10.1461 1.67921 9.52356 1.78465 8.91938C1.80521 8.93163 1.84152 8.95394 1.86733 8.96881L4.65508 10.5788C4.7964 10.6615 4.9714 10.6615 5.11315 10.5788L8.51646 8.61356V9.97419C8.51733 9.98819 8.51077 10.0018 8.49983 10.0105L5.6819 11.6376C4.42671 12.3603 2.82371 11.9307 2.0979 10.6773H2.09746ZM1.36377 4.59206C1.67002 4.06006 2.15346 3.65319 2.72921 3.44188C2.72921 3.46594 2.7279 3.50838 2.7279 3.53813V6.75856C2.72702 6.92219 2.81452 7.074 2.95671 7.15494L6.36002 9.11975L5.18183 9.80006C5.17002 9.80794 5.15515 9.80925 5.14202 9.80356L2.32365 8.17519C1.07108 7.44981 0.641458 5.84725 1.36333 4.5925L1.36377 4.59206ZM11.0439 6.84475L7.64058 4.8795L8.81877 4.19963C8.83058 4.19175 8.84546 4.19044 8.85858 4.19613L11.677 5.82319C12.9317 6.54813 13.3618 8.15331 12.6368 9.40806C12.3301 9.93919 11.8471 10.3461 11.2718 10.5578V7.24113C11.2731 7.0775 11.1861 6.92613 11.0443 6.84475H11.0439ZM12.2164 5.07988C12.1958 5.06719 12.1595 5.04531 12.1337 5.03044L9.34596 3.42044C9.20465 3.33775 9.02964 3.33775 8.8879 3.42044L5.48458 5.38569V4.02506C5.48371 4.01106 5.49027 3.9975 5.50121 3.98875L8.31915 2.363C9.57433 1.63894 11.1791 2.06988 11.9027 3.3255C12.2085 3.85575 12.3192 4.47656 12.2155 5.07988H12.2164ZM4.84408 7.50494L3.66546 6.82463C3.65277 6.8185 3.64446 6.80625 3.64271 6.79225V3.53769C3.64358 2.08869 4.81915 0.914439 6.26815 0.915314C6.88108 0.915314 7.47433 1.13056 7.94552 1.52256C7.92408 1.53394 7.88733 1.5545 7.86283 1.56938L5.07508 3.17938C4.93246 3.26031 4.84496 3.41169 4.84583 3.57575L4.84408 7.50406V7.50494ZM5.48415 6.12506L7.00008 5.24963L8.51602 6.12463V7.87506L7.00008 8.75006L5.48415 7.87506V6.12506Z' fill='%23CDCDCD'/></g></g></g></g><defs><clipPath id='clip0_3316_1519'><rect width='14' height='14' fill='white'/></clipPath></defs></svg>" alt="OpenAI Logo" />
                     </div>
                     <div className='text-[14px] flex items-center justify-center h-full'>LLM</div>
                     </button>
                 </li>
 
-                <li className="w-full">
-                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
-                        Processing
-                    </div>
-                </li>
+
 
                 <li className="w-full">
                     <button className={`w-full h-[38px] ${selectedSubMenu === 1 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
@@ -578,10 +650,10 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     }}>
                     <div className='flex items-center gap-[11px] flex-1'>
                         <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                                <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                                <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                            </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
                         </div>
                         <div className='text-[14px]  items-center justify-center h-full'>Modify</div>
                     </div>
@@ -593,7 +665,11 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     </button>
                     <ModifySubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 1 ? 1 : 0} createNewConnection={createNewConnection}/>
                 </li>
-
+                <li className="w-full">
+                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
+                        RAG
+                    </div>
+                </li>
                 <li className="w-full">
                     <button className={`w-full h-[38px] ${selectedSubMenu === 2 || selectedSubMenu === 3 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
                     onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
@@ -602,7 +678,16 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
     
                     <div className='flex items-center gap-[11px] flex-1'>
                         <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                        <img src="chunking.svg" alt="chunking logo" />
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <rect x="9" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <rect x="0.5" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <rect x="9" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M5 2.75H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M2.75 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M11.25 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                        </svg>
                         </div>
                         <div className='text-[14px]  flex items-center justify-center h-full'>Chunking</div>
                     </div>
@@ -614,6 +699,50 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     </button>
                     <ChunkingSubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 2 || selectedSubMenu === 3 ? 1 : 0} manageTextNodeSubMenu={manageTextNodeSubMenu} selectedSubMenu={selectedSubMenu} createNewConnection={createNewConnection} />
                 </li> 
+
+                <li className="w-full">
+                    <button className={`w-full h-[38px] ${selectedSubMenu === 11 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
+                    onMouseEnter={() => manageTextNodeSubMenu("Retrievingsub1")}
+                    onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                    }}>
+                        <div className='flex items-center gap-[11px] flex-1'>
+                            <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7 3H1V6H7V3Z" stroke="#CDCDCD"/>
+                                <path d="M7 6H1V9H7V6Z" stroke="#CDCDCD"/>
+                                <path d="M7 9H1V12H7V9Z" stroke="#CDCDCD"/>
+                                <path d="M10.5 10L13 7.5L10.5 5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M13.0003 7.49953L7 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
+                            </div>
+                            <div className='text-[14px] flex items-center justify-center h-full'>Retrieving</div>
+                        </div>
+                    </button>
+                </li>
+
+                <li className="w-full">
+                    <button className={`w-full h-[38px] ${selectedSubMenu === 12 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
+                    onMouseEnter={() => manageTextNodeSubMenu("Generatingsub1")}
+                    onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        createNewConnection('generate')
+                    }}>
+                        <div className='flex items-center gap-[11px] flex-1'>
+                            <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M7 1V13" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M13 7L1 7" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M11.0711 2.92893L2.92893 11.0711" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M11.0711 11.0711L2.92893 2.92893" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
+                            </div>
+                            <div className='text-[14px] flex items-center justify-center h-full'>Generating</div>
+                        </div>
+                    </button>
+                </li>
 
                 <li className="w-full">
                     <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
@@ -647,9 +776,27 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     >
                     <div className='flex items-center gap-[11px] flex-1'>
                         <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 15 15" fill="none">
-                        <path d="M6 6L14.0002 13.9999" stroke="#CDCDCD" strokeWidth="2"/>
-                        <circle cx="5.5" cy="5.5" r="4.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="2"/>
+                        <svg 
+                          width="14" 
+                          height="14" 
+                          viewBox="0 0 14 14" 
+                          fill="none" 
+                          xmlns="http://www.w3.org/2000/svg"
+                        >
+                          <circle 
+                            cx="5" 
+                            cy="5" 
+                            r="4" 
+                            fill="#1C1D1F" 
+                            stroke="#CDCDCD" 
+                            strokeWidth="1.5"
+                          />
+                          <path 
+                            d="M8 8L12 12" 
+                            stroke="#CDCDCD" 
+                            strokeWidth="1.5" 
+                            strokeLinecap="round"
+                          />
                         </svg>
                         </div>
                         <div className='text-[14px]  flex items-center justify-center h-full'>Search</div>
@@ -676,12 +823,14 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                         createNewConnection('choose')
                     }}>
                     <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                    <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                    <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                    <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M1 7H4" stroke="#D9D9D9" stroke-width="1.5"/>
+                    <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 7 3 9 3C10.1429 3 10.8571 3 12 3" stroke="#D9D9D9" stroke-width="1.5"/>
+                    <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 6.5 11 8.57143 11C9.71429 11 10.8571 11 12 11" stroke="#D9D9D9" stroke-width="1.5"/>
+                    <path d="M10.5 1L12.5 3L10.5 5" stroke="#D9D9D9"/>
+                    <path d="M10.5 9L12.5 11L10.5 13" stroke="#D9D9D9"/>
                     </svg>
+
                     </div>
                     <div className='text-[14px]  flex items-center justify-center h-full'>If/Else</div>
                     </button>
@@ -733,107 +882,11 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     </button>
                     <OthersSubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 7 ? 1 : 0} />
                 </li> */}
+
+
                 </ul>
             )
-        case 'vector_database':
-            return (
-                <ul ref={edgeMenuRef} id="edgeMenu" className={`w-[196px] bg-[#1c1d1f] rounded-[16px] p-[8px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] gap-[8px] py-[11px] items-start`} style={{
-                    position: "absolute",
-                    visibility: "visible",
-                    ...edgeMenuStyle
-                }}
-                onMouseLeave={() => manageTextNodeSubMenu(null)}>
-                    
-                    <li>
-                        <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold">
-                            Search
-                        </div>
-                    </li>
-
-                    <li className="w-full">
-                        <button className={`w-full h-[38px] ${selectedSubMenu === 4 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
-                        onMouseEnter={() => manageTextNodeSubMenu("Searchsub1")}>
-                            <div className='flex items-center gap-[11px] flex-1'>
-                                <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 15 15" fill="none">
-                                        <path d="M6 6L14.0002 13.9999" stroke="#CDCDCD" strokeWidth="2"/>
-                                        <circle cx="5.5" cy="5.5" r="4.5" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="2"/>
-                                    </svg>
-                                </div>
-                                <div className='text-[14px] flex items-center justify-center h-full'>Search</div>
-                            </div>
-                            <div className='h-full w-[7px] flex items-center justify-center mr-[9px]'>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="7" height="10" viewBox="0 0 7 10" fill="none">
-                                    <path d="M1 1L5 5L1 9" stroke={selectedSubMenu === 4? "#1C1D1F":"#CDCDCD"} strokeWidth="2"/>
-                                </svg>
-                            </div>
-                        </button>
-                        <SearchSubMenu nodeType={nodeType} sourceNodeId={sourceNodeId} showMenu={selectedSubMenu === 4 ? 1 : 0} createNewConnection={createNewConnection}/>
-                    </li>
-
-                    <li className="w-full">
-                        <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
-                            Others
-                        </div>
-                    </li>
-
-                    <li className="w-full">
-                        <button className={`w-full h-[38px] ${selectedSubMenu === 9 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
-                        onMouseEnter={() => manageTextNodeSubMenu("ChooseSub1")}
-                        onClick={(event) => {
-                            event.preventDefault()
-                            event.stopPropagation()
-                            createNewConnection('choose')
-                        }}>
-                            <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                    <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                                    <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                                    <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                                    <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                                </svg>
-                            </div>
-                            <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
-                        </button>
-                    </li>
-                </ul>
-            )
-        case 'switch':
-            return (
-                <ul ref={edgeMenuRef} id="edgeMenu" className={`w-[196px] bg-[#1c1d1f] rounded-[16px] p-[8px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] gap-[8px] py-[11px] items-start`} style={{
-                    position: "absolute",
-                    visibility: "visible",
-                    ...edgeMenuStyle
-                }} 
-                onMouseLeave={() => manageTextNodeSubMenu(null)}>
-                  
-                <li>
-                    <div className="text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center">
-                        Others
-                    </div>
-                </li>
-
-                <li className="w-full">
-                    <button className={`w-full h-[38px] ${selectedSubMenu === 9 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`} 
-                    onMouseEnter={() => manageTextNodeSubMenu("ChooseSub1")}
-                    onClick={(event) => {
-                        event.preventDefault()
-                        event.stopPropagation()
-                        createNewConnection('choose')
-                    }}>
-                        <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                                <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                                <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                                <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                            </svg>
-                        </div>
-                        <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
-                    </button>
-                </li>
-                </ul>
-            )
+        
         case 'file':
             return (
                 <ul ref={edgeMenuRef} id="edgeMenu" className={`w-[196px] bg-[#1c1d1f] rounded-[16px] p-[8px] border-solid border-[3px] border-[#42454A] absolute float-start flex flex-col justify-evenly z-[20001] gap-[8px] py-[11px] items-start`} style={{
@@ -855,7 +908,7 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                     onClick={(event) => {
                         event.preventDefault()
                         event.stopPropagation()
-                        // createNewConnection('load')
+                        createNewConnection('load')
                     }}>
                         <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
                             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="10" viewBox="0 0 13 10" fill="none">
@@ -883,12 +936,13 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                         createNewConnection('choose')
                     }}>
                         <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                                <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                                <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                                <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                            </svg>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M1 7H4" stroke="#D9D9D9" stroke-width="1.5"/>
+                        <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 7 3 9 3C10.1429 3 10.8571 3 12 3" stroke="#D9D9D9" stroke-width="1.5"/>
+                        <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 6.5 11 8.57143 11C9.71429 11 10.8571 11 12 11" stroke="#D9D9D9" stroke-width="1.5"/>
+                        <path d="M10.5 1L12.5 3L10.5 5" stroke="#D9D9D9"/>
+                        <path d="M10.5 9L12.5 11L10.5 13" stroke="#D9D9D9"/>
+                        </svg>
                         </div>
                         <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
                     </button>
