@@ -8,10 +8,10 @@ from typing import List, Dict, Any
 
 import vecs
 
-from Objs.Vector.Vdb.vdb_base import VectorDatabase
-from Utils.PuppyException import PuppyException, global_exception_handler
-from Utils.config import config
-from Utils.logger import log_info, log_error, log_warning
+from objs.vector.vdb.vdb_base import VectorDatabase
+from utils.puppy_exception import PuppyException, global_exception_handler
+from utils.config import config
+from utils.logger import log_info, log_error, log_warning
 
 
 class PostgresVectorDatabase(VectorDatabase):

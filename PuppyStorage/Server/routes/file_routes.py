@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
 from boto3 import client
-from Utils.PuppyException import PuppyException
-from Utils.logger import log_info, log_error
-from Utils.config import config
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
+from utils.config import config
 
 # 仅配置 boto3 日志，不修改全局设置
 boto3_logger = logging.getLogger('boto3')
