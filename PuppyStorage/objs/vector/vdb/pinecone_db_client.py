@@ -8,6 +8,7 @@ import uuid
 import logging
 from typing import List, Dict, Any
 from pinecone import ServerlessSpec
+from pinecone.grpc import PineconeGRPC as Pinecone
 from Scripts.vector_db_base import VectorDatabase
 from Utils.PuppyEngineExceptions import global_exception_handler
 
@@ -20,11 +21,12 @@ class PineconeVectorDatabase(VectorDatabase):
         self,
         client_type: int
     ):
-        super().__init__(client_type=client_type)
+        super().__init__()
+        self.client = Pinecone(api_key=os.environ.get("PINECONE_API_KEY"))
         self.connections = {}
 
     @global_exception_handler(2410, "Error Connecting to Pinecone Vector Database")
-    def connect(
+    def register_collection(
         self,
         collection_name: str
     ) -> None:
@@ -155,7 +157,7 @@ if __name__ == "__main__":
 
     # Pinecone Test
     pinecone_db = PineconeVectorDatabase(client_type=0)
-    pinecone_db.connect("pinecone_test_collection")
+    pinecone_db.register_collection("pinecone_test_collection")
     pinecone_db.save_embeddings(
         collection_name="pinecone_test_collection",
         embeddings=embeddings,

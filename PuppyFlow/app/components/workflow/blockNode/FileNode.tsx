@@ -1,9 +1,16 @@
 'use client'
-import { NodeProps, Node, Handle, Position, useReactFlow } from '@xyflow/react'
-import React,{useRef, useEffect, useState, ReactElement} from 'react'
+import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
+import React,{useRef, useEffect, useState, ReactElement, useContext} from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import {useNodesPerFlowContext} from '../../states/NodesPerFlowContext'
+import ReactDOM from 'react-dom'
+import { PuppyUpload } from '../../misc/PuppyUpload'
+import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonConstructUtils'
+import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
+import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
+import { WarnsContext } from '../../states/WarnMessageContext';
+// import {WarnsContext,WarnsContainer} from "puppyui"
 
 export type FileNodeData = {
   content: string,
@@ -32,6 +39,8 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   const [isLocalEdit, setIsLocalEdit] = useState(false) 
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
+  const {userId} = useFlowsPerUserContext()
+  const {fetchUserId} = useManageUserWorkspacesUtils()
 
   useEffect(() => {
     console.log(activatedNode, isOnConnect, isTargetHandleTouched, "border color")
@@ -190,7 +199,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   }
 
 
-    // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要减去32px, 因为有logo），否则，则需要拉到当前的label的宽度（拖住文体即可）
+    // 计算 <input> element 的宽度, input element 的宽度是根据 measureSpanRef 的宽度来决定的，分情况：若是editable，则需要拉到当前的最大width （若是前面有isInput, isOutput, locked，则需要减去53px，否则，则需要拉到当前的label的宽度（拖住文体即可）
     const calculateInputWidth = () => {
       if (contentRef.current) {
         if (editable) {
@@ -212,20 +221,265 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
       }
       return '100%'
     }
-  
+
+    // const inputRef = useRef<HTMLInputElement>(null); // Create a ref for the file input
+
+    // const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    //   console.log("handle file change")
+    //   const files = event.target.files;
+    //   if (files && files.length > 0) {
+    //     console.log(files); // Log the selected files
+    //     // Handle the files here (e.g., upload them)
+    //   }
+    // };
+
+    const getuserid = async ():Promise<string> =>{
+      if(userId.trim() !== ""){
+        return userId
+      }
+      const res = await fetchUserId() as string
+      return res
+    }
+
+    const {warns,setWarns} = useContext(WarnsContext) as any;
+
+    const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setIsOnUploading(true)
+
+      // 获取文件扩展名
+      const fileName = file.name;
+      const fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+
+
+      try {
+          // Step 1: 获取预签名URL和UUID, userid = Rose123
+          // data = await request.json()
+          // user_id = data.get("user_id", "Rose123")
+          // content_name = data.get("content_name", "new_content")
+          
+          // Get file extension
+          const fileName = file.name;
+          let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"]
+
+          if (!supportedFileExtensions.includes(fileExtension)) {
+            fileExtension = "application"
+          }
+          if(fileExtension === "txt") {
+            fileExtension = "text"
+          }
+          const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                userid: `${await getuserid()}`,
+                content_name: fileName
+              })
+            }
+          );
+
+        //   return JSONResponse(
+        //     content={
+        //         "upload_url": upload_url,
+        //         "download_url": download_url,
+        //         "content_id": content_id,
+        //         "content_type_header": content_type_header,
+        //         "expires_at": {
+        //             "upload": int(time.time()) + 300,
+        //             "download": int(time.time()) + 86400
+        //         }
+        //     }, 
+        //     status_code=200
+        // )
+        //above is the response from the python fastapi server,below is the reading of response from the python fastapi server
+
+        
+          if (!response.ok) {
+            setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}])
+            throw new Error(`Fetch temporary upload info Error: ${response.status}`)
+          }
+        
+          const data = await response.json()
+          console.log(data)
+          const upload_url = data.upload_url
+          const download_url = data.download_url
+          const content_id = data.content_id
+          const content_type_header = data.content_type_header
+          const expires_at = data.expires_at
+          // const { presigned_url, task_id } = await response.json(); //deprecated
+          
+          // Step 2: 上传文件到S3
+          const uploadResponse = await fetch(upload_url, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': file.type,
+              // 'x-amz-meta-uuid': task_id, // 保存UUID到metadata
+            },
+            body: file,
+          });
+          
+          setIsOnUploading(false)
+
+          if (uploadResponse.ok) {
+              console.log('文件上传成功');
+              saveFileInformation(upload_url, content_id, fileExtension)
+              // 在这里可以将UUID保存到block的content
+          } else {
+              console.log(response)
+              console.error('文件上传失败');
+              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
+          }
+        } catch (error) {
+            console.error('上传过程中发生错误', error);
+        }
+    };
+
+        // New handleDrop function to process dropped files
+        const handleDrop = async (files: FileList) => {
+          if (!files || files.length === 0) return;
+
+          setIsOnUploading(true)
+          
+          // Process the first file (or could loop through all files)
+          const file = files[0];
+          
+          // Get file extension
+          const fileName = file.name;
+          let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+
+          // txt
+          // html
+          // css
+          // js
+          // json
+          // png
+          // jpg
+          // gif
+          // svg
+          // mp3
+          // wav
+          // mp4
+          // webm
+          // pdf
+          // zip
+          // application
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"]
+
+          if (!supportedFileExtensions.includes(fileExtension)) {
+            fileExtension = "application"
+          }
+          if(fileExtension === "txt") {
+            fileExtension = "text"
+          }
+    
+          try {
+              // Step 1: Get presigned URL and UUID, userid = Rose123
+              const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({
+                    userid: `${await getuserid()}`,
+                    content_name: fileName
+                  })
+                }
+              );
+              
+              if (!response.ok) {
+                setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}])
+                throw new Error(`Fetch temporary upload info Error: ${response.status}`);
+              }
+              
+              const data = await response.json()
+              console.log(data)
+              const upload_url = data.upload_url
+              const download_url = data.download_url
+              const content_id = data.content_id
+              const content_type_header = data.content_type_header
+              const expires_at = data.expires_at
+              
+              // Step 2: Upload file to S3
+              const uploadResponse = await fetch(upload_url, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': file.type,
+                  // 'x-amz-meta-uuid': task_id, // Save UUID to metadata
+                },
+                body: file,
+              });
+              
+              
+              setIsOnUploading(false)
+
+              if (uploadResponse.ok) {
+                  console.log('File upload successful');
+                  saveFileInformation(upload_url, content_id, fileExtension);
+                  // Here you can save the UUID to the block's content
+              } else {
+                  console.log(response);
+                  console.error('File upload failed');
+                  setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
+              }
+          } catch (error) {
+              console.error('Error during upload process', error);
+              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
+          }
+        };
+    
+
+
+
+    const saveFileInformation = (upload_url:string ,task_id: string, fileType: string) => {
+        setNodes(prevNodes => prevNodes.map(node => node.id === id ? { ...node, data: { 
+            ...node.data,content: task_id, fileType: fileType, upload_url:upload_url } } : node));
+    }
+
+
+    const [uploadedFiles, setUploadedFiles] = useState<{task_id: string, fileType: string}[]>([]);
+    const [isOnUploading, setIsOnUploading] = useState(false);
+
+    useEffect(() => {
+      const currentNode = getNode(id);
+      if (currentNode?.data?.content && currentNode?.data?.fileType) {
+        console.log("currentNode", currentNode)
+        const task_id = currentNode.data.content;
+        const fileExtension = currentNode.data.fileType;
+        
+        // Check if we already have this file in uploadedFiles
+        const fileExists = uploadedFiles.some(file => 
+          file.task_id === task_id && file.fileType === fileExtension
+        );
+        
+        if (!fileExists) {
+          // Add to uploadedFiles
+          setUploadedFiles(prevFiles => [...prevFiles, {
+            task_id: task_id as string,
+            fileType: fileExtension as string
+          }]);
+        }
+      }
+    }, [getNode(id)]);
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div id={id} ref={contentRef} 
-        className={`w-full h-full ${
+      <div id={id} ref={contentRef}
+        className={`flex flex-col w-full h-full border-[1.5px] ${
           content 
             ? "border-solid border-[1.5px]" 
             : "border-dashed border-[1.5px]"
-        } min-w-[144px] min-h-[144px] p-[8px] rounded-[16px] flex justify-center ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
+        } min-w-[144px] min-h-[144px] p-[8px] rounded-[16px] flex justify-start ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
           
         {/* the top bar of a block */}
         <div ref={labelContainerRef} 
-          className={` h-[24px] w-full rounded-[4px] px-[0px] flex items-center justify-between`}>
+          className={`h-[24px] w-full max-w-full rounded-[4px]  flex items-center justify-between mb-2`}>
           
           {/* top-left wrapper */}
           <div className="flex items-center gap-[8px]"
@@ -274,10 +528,89 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           </div>
         </div>
 
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] right-[8px]'>
+        {/* <div 
+              className={`cursor-pointer h-full w-full mx-auto my-2 rounded-[8px] border-dashed border-2 border-gray-400 hover:border-blue-400 hover:bg-gray-800/20 active:border-blue-500 transition-all duration-200 flex flex-col items-center justify-center gap-3 p-4`}
+              onClick={(e) => {
+                console.log(inputRef.current)
+                
+                inputRef.current?.click();
+              }}
+              onDragOver={(e) => {
+                e.preventDefault(); // Prevent default to allow drop
+                e.stopPropagation();
+                e.currentTarget.classList.add('bg-gray-800/30', 'border-blue-400');
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.classList.remove('bg-gray-800/30', 'border-blue-400');
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.classList.remove('bg-gray-800/30', 'border-blue-400');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                  // Handle the file(s) here
+                  console.log(files);
+                }
+              }}
+            >
+
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-400 group-hover:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              
+              <div className="text-center space-y-2">
+                <p className="text-sm font-medium text-gray-300">Drag and drop files here</p>
+                <p className="text-xs text-gray-500">or</p>
+                <p className="text-xs font-medium text-blue-400 hover:text-blue-300">Browse files</p>
+              </div>
+              
+              <p className="text-xs text-gray-500 mt-2">Supported formats: .json</p>
+          </div> */}
+          <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading}/>
+
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] left-[8px] m-[8px]'>
           <path d="M0.5 0.5H8.87821L13.2838 12.5H0.5V0.5Z" stroke="#6D7177"/>
           <rect x="0.5" y="3.38916" width="13" height="9.11111"  stroke="#6D7177"/>
         </svg>
+
+        <NodeResizeControl
+          minWidth={240}
+          minHeight={280}
+          style={{
+            position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize',
+            background: 'transparent',
+            border: 'none',
+            display:isLoading?"none":"flex"
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
+              right: "8px",
+              bottom: "8px",
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'transparent',
+              zIndex: "200000",
+              width: "26px",
+              height: "26px",
+            }}
+          >
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="group active:group-[]:fill-[#4599DF]">
+              <path d="M10 5.99998H12V7.99998H10V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+              <path d="M10 2H12V4H10V2Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+              <path d="M6 5.99998H8V7.99998H6V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+              <path d="M6 10H8V12H6V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+              <path d="M2 10H4V12H2V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+              <path d="M10 10H12V12H10V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+            </svg>
+          </div>
+        </NodeResizeControl>
 
         <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
             isConnectable={isConnectable} position={Position.Top}  />
@@ -379,6 +712,25 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
        
             
       </div>
+      {/* {ReactDOM.createPortal(
+            <input
+                type="file"
+                ref={inputRef}
+                onChange={handleFileChange}
+                onClick={(e) => e.stopPropagation()}
+                accept=".json"
+                className="opacity-0 absolute top-0 left-0 w-full h-full cursor-pointer"
+                style={{
+                    position: 'fixed',
+                    top: '-100%',
+                    left: '-100%',
+                    // 移除 pointer-events-none
+                    // 移除 transform 和 translate，因为它们可能会影响点击
+                    zIndex: 9999,
+                }}
+            />,
+            document.body
+        )} */}
     </div>
       
 

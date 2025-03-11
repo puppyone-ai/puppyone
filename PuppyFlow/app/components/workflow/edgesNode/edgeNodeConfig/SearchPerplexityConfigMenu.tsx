@@ -52,7 +52,16 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
         (getNode(parentId)?.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"
     )
     const modelRef = useRef<HTMLSelectElement>(null)
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     useEffect(() => {
         onModelChange(model)
@@ -174,7 +183,17 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177]'>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -275,7 +294,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
     
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`} >
          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
@@ -312,31 +331,42 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
+            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex flex-wrap gap-2'>
+                    {displaySourceNodeLabels()}
+                </div>
             </div>
         </li>
-        <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             model
-            </div>  
-            <select ref={modelRef} value={model} onChange={() => {
-                if (modelRef.current){
-                    setModel(modelRef.current.value as perplexityModelNames)
-                }
-            }}  id='model' className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none h-full w-full font-plus-jakarta-sans'>
-                <option value={"llama-3.1-sonar-small-128k-online"}>
-                llama-3.1-sonar-small-128k-online
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Model</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+            </div>
+            <select 
+                ref={modelRef} 
+                value={model} 
+                onChange={() => {
+                    if (modelRef.current){
+                        setModel(modelRef.current.value as perplexityModelNames)
+                    }
+                }}
+                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                         text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
+                         hover:border-[#6D7177]/50 transition-colors'
+            >
+                <option value="llama-3.1-sonar-small-128k-online" className='text-[#CDCDCD]'>
+                    llama-3.1-sonar-small-128k-online
                 </option>
-                <option value={"llama-3.1-sonar-large-128k-online"}>
-                llama-3.1-sonar-large-128k-online
+                <option value="llama-3.1-sonar-large-128k-online" className='text-[#CDCDCD]'>
+                    llama-3.1-sonar-large-128k-online
                 </option>
-                <option value={"llama-3.1-sonar-huge-128k-online"}>
-                llama-3.1-sonar-huge-128k-online
+                <option value="llama-3.1-sonar-huge-128k-online" className='text-[#CDCDCD]'>
+                    llama-3.1-sonar-huge-128k-online
                 </option>
             </select>
         </li>

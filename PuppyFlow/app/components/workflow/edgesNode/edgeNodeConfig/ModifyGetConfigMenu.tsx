@@ -7,6 +7,10 @@ import { ModifyConfigNodeData } from '../edgeNodes/ModifyConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+
+import {PuppyDropdown} from "../../../misc/PuppyDropDown"
+
+
 type ModifyGetConfigProps = {
     show: boolean,
     parentId: string,
@@ -27,7 +31,8 @@ export type ModifyGetEdgeJsonType = {
         "operations": [{
             type:string,
             params: {
-                path: (string|number)[],  // Get the first user's name
+                max_depth?:number,
+                path?: (string|number)[],  // Get the first user's name
                 default?: string      // Default value if key doesn't exist
             }
         }
@@ -47,81 +52,221 @@ type ConstructedModifyGetJsonData = {
 
 type modeNames = "list" | "dict"
 
-const CustomDropdown = ({ options, onSelect, configIndex, getConfigData }:any) => {
-    const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
-    const handleSelect = (keytype: string) => {
-        onSelect(keytype);
-        setIsOpen(false); // Close dropdown after selection
-    };
+// Add these new types for the tree structure
+type PathNode = {
+  id: string,
+  key: string, // "key" or "num"
+  value: string,
+  children: PathNode[]
+}
 
-    // Inline styles
-    const dropdownContainerStyle: React.CSSProperties  = {
-        position: 'relative',
-        cursor: 'pointer',
-    };
+// Replace the PathEditor component with this new TreePathEditor
+const TreePathEditor = ({ paths, setPaths }: { 
+  paths: PathNode[], 
+  setPaths: React.Dispatch<React.SetStateAction<PathNode[]>> 
+}) => {
+  
+  const addNode = (parentId: string) => {
+    setPaths((prevPaths) => {
+      const newPaths = JSON.parse(JSON.stringify(prevPaths));
+      const findAndAddNode = (nodes: PathNode[]) => {
+        for (let node of nodes) {
+          if (node.id === parentId) {
+            node.children.push({
+              id: nanoid(6),
+              key: "key",
+              value: "",
+              children: [],
+            });
+            return true;
+          }
+          if (node.children.length && findAndAddNode(node.children)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      findAndAddNode(newPaths);
+      return newPaths;
+    });
+  };
 
-    const dropdownHeaderStyle = {
-        padding: '8px',
-        backgroundColor: '#333', // Background color
-        color: 'white', // Text color
-        border: '1px solid #6D7177', // Border color
-        borderRadius: '4px', // Rounded corners
-    };
+  const deleteNode = (nodeId: string) => {
+    setPaths((prevPaths) => {
+      const newPaths = JSON.parse(JSON.stringify(prevPaths));
+      const findAndDeleteNode = (nodes: PathNode[]) => {
+        for (let i = 0; i < nodes.length; i++) {
+          if (nodes[i].id === nodeId) {
+            nodes.splice(i, 1);
+            return true;
+          }
+          if (nodes[i].children.length && findAndDeleteNode(nodes[i].children)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      findAndDeleteNode(newPaths);
+      return newPaths;
+    });
+  };
 
-    const dropdownListStyle: React.CSSProperties = {
-        position: 'absolute',
-        top: '150%',
-        left: 0,
-        right: 0,
-        backgroundColor: 'black', // Background color for dropdown items
-        border: '1px solid #6D7177', // Border color
-        borderRadius: '4px', // Rounded corners
-        zIndex: 1000, // Ensure dropdown is above other elements
-        height: 'auto', // Max height for dropdown
-        width:'100px',
-        overflowY: 'auto', // Scroll if too many items
-        overflowX:'hidden',
-        color:'white'
-    };
+  const updateNodeValue = (nodeId: string, value: string) => {
+    setPaths((prevPaths) => {
+      const newPaths = JSON.parse(JSON.stringify(prevPaths));
+      const findAndUpdateNode = (nodes: PathNode[]) => {
+        for (let node of nodes) {
+          if (node.id === nodeId) {
+            node.value = value;
+            return true;
+          }
+          if (node.children.length && findAndUpdateNode(node.children)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      findAndUpdateNode(newPaths);
+      return newPaths;
+    });
+  };
 
-    const dropdownItemStyle = {
-        padding: '8px',
-        color: 'white', // Text color for items
-        cursor: 'pointer',
-    };
+  const updateNodeKey = (nodeId: string, key: string) => {
+    setPaths((prevPaths) => {
+      const newPaths = JSON.parse(JSON.stringify(prevPaths));
+      const findAndUpdateNode = (nodes: PathNode[]) => {
+        for (let node of nodes) {
+          if (node.id === nodeId) {
+            node.key = key;
+            return true;
+          }
+          if (node.children.length && findAndUpdateNode(node.children)) {
+            return true;
+          }
+        }
+        return false;
+      };
+      findAndUpdateNode(newPaths);
+      return newPaths;
+    });
+  };
 
+  const renderNode = (node: PathNode, level = 0) => {
+    const isLeafNode = node.children.length === 0;
+    
     return (
-        <div style={dropdownContainerStyle}>
-            <div  className={`overflow-hidden text-[12px] text-nowrap font-[700] ${getConfigData[configIndex]?.key ?"text-[#000] ":"text-white"} leading-normal tracking-[0.84px] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] ${getConfigData[configIndex]?.key ?"border-[3px]":"border-[0px]"} ${getConfigData[configIndex]?.key ?"bg-[#6D7177]":""}`} onClick={() => {
-                
-                setIsOpen(prev => {
-                    console.log("open",prev)
-                    return !prev})
-                }}>
-                {getConfigData[configIndex]?.key  || "Select key type"} {/* Display selected label or placeholder */}
+      <div key={node.id} className="relative group">
+        <div
+          className="relative"
+          style={{ marginLeft: `${level * 32}px` }}
+        >
+          {/* SVG connector lines for non-root nodes */}
+          {level > 0 && (
+            <svg 
+              className="absolute -left-[16px] top-[-6px]"
+              width="17" 
+              height="21" 
+              viewBox="0 0 17 21" 
+              fill="none"
+            >
+              <path
+                d="M1 0L1 20H17"
+                stroke="#6D7177"
+                strokeWidth="1"
+                strokeOpacity="0.5"
+                fill="none"
+              />
+            </svg>
+          )}
+          
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
+              <input 
+                value={node.value}
+                onChange={(e) => updateNodeValue(node.id, e.target.value)}
+                className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
+                         text-[#CDCDCD] text-[12px] font-medium appearance-none'
+                placeholder={node.key === 'num' ? 'Enter number...' : 'Enter key...'}
+              />
+              
+              {/* Floating type selector */}
+              <div 
+                className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
+                           px-2 rounded-[4px] cursor-pointer transition-colors
+                           ${node.key === 'key' 
+                             ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50 hover:bg-[#2D2544]/80' 
+                             : 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 hover:bg-[#443425]/80'}`}
+                onClick={() => {
+                  updateNodeKey(node.id, node.key === 'key' ? 'num' : 'key');
+                }}
+              >
+                <div className={`text-[10px] font-semibold min-w-[24px] text-center
+                               ${node.key === 'key' 
+                                 ? 'text-[#9B6DFF]' 
+                                 : 'text-[#FF9B4D]'}`}>
+                  {node.key}
+                </div>
+              </div>
             </div>
-            {isOpen ? (
-                <ul style={dropdownListStyle}>
-                    {console.log("options",options)}
-                    {options.map((keytype:string) => (
-                        <li
-                            key={keytype}
-                            style={dropdownItemStyle}
-                            onClick={() => handleSelect(keytype)}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
-                        >
-                            {keytype}
-                        </li>
-                    ))}
-                </ul>
-            ):<></>}
+
+            <button 
+              onClick={() => deleteNode(node.id)}
+              className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
+        
+        <div className="relative">
+          {node.children.map((child) => renderNode(child, level + 1))}
+          
+          {isLeafNode && level < 5 && (
+            <div className="flex items-center" style={{ marginLeft: `${level * 32 + 32}px` }}>
+              <button
+                onClick={() => addNode(node.id)}
+                className='w-6 h-6 flex items-center justify-center rounded-md
+                          bg-[#252525] border-[1px] border-[#6D7177]/30
+                          text-[#6D7177]
+                          hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
+                          transition-colors'
+              >
+                <svg width="10" height="10" viewBox="0 0 14 14">
+                  <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     );
+  };
+
+  return (
+    <div className='flex flex-col gap-3'>
+      {paths.length === 0 ? (
+        <button
+          onClick={() => setPaths([{ id: nanoid(6), key: "key", value: "", children: [] }])}
+          className='w-full h-[32px] flex items-center justify-center gap-2 rounded-[6px] 
+                   border border-[#6D7177]/30 bg-[#252525] text-[#CDCDCD] text-[12px] font-medium 
+                   hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] transition-colors'
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D7177">
+            <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Create Root Node
+        </button>
+      ) : (
+        paths.map((path) => renderNode(path))
+      )}
+    </div>
+  );
 };
 
-function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetConfigProps) {
+function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const {getNode, setNodes, setEdges} = useReactFlow()
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
@@ -143,6 +288,38 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
+
+
+    const MODIFY_GET_TYPE="get"
+    const MODIFY_DEL_TYPE="delete"
+    const MODIFY_REPL_TYPE="replace"
+    const MODIFY_GET_ALL_KEYS="get_keys"
+    const MODIFY_GET_ALL_VAL="get_values"
+  
+    const [execMode,setExecMode] = useState(getNode(parentId)?.data.type as string||MODIFY_GET_TYPE) 
+
+    // 添加复制功能状态
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
+
+    useEffect(
+        ()=>{
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId) {
+                    return { ...node, data: { ...node.data, type:execMode } }; // Update the cases in the node's data
+                }
+                return node;
+            }))
+        },[execMode]
+    )
 
     const onFocus: () => void = () => {
         const curRef = menuRef.current
@@ -277,7 +454,17 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{node.label}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -305,6 +492,22 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
 
         const input_label = sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (node.label?node.label:node.id))[0]
 
+
+            // 7. Get Keys operation (Retrieve all keys from a nested structure)
+            // {
+            //     "type": "get_keys",
+            //     "params": {
+            //         "max_depth": 2  // Get all keys up to depth level 2
+            //     }
+            // },
+            // // 8. Get Values operation (Retrieve all values from a nested structure)
+            // {
+            //     "type": "get_values",
+            //     "params": {
+            //         "max_depth": 2  // Get all values up to depth level 2
+            //     }
+            // },
+
         const edgejson: ModifyGetEdgeJsonType = {
             // id: parentId,
             type: "modify",
@@ -314,13 +517,17 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
                 extra_configs: {
                     operations:[
                         {
-                            type:type,
-                            params: {
-                                path: [...getConfigDataa().map(({_,value})=>{
+                            type:execMode===MODIFY_REPL_TYPE?"set_value":execMode,
+                            params: (execMode===MODIFY_GET_ALL_KEYS||execMode===MODIFY_GET_ALL_VAL)?{
+                                "max_depth": 100
+                            }:
+                            {
+                                path: [...getConfigDataa().map(({key, value})=>{
                                     const num = Number(value);
                                     return isNaN(num) ? value : num;
                                 })],  // Get the first user's name
-                                ...(type===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" })    // Default value if key doesn't exist
+                                ...(execMode===MODIFY_GET_TYPE && { default: "Get Failed, value not exist" }),    // Default value if key doesn't exist
+                                ...(execMode===MODIFY_REPL_TYPE && { value: paramv })    // Default value if key doesn't exist
                             }
                         }
                     ]
@@ -369,7 +576,7 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
            
         }
         setIsComplete(false)
-        };
+    };
 
     
     const onModeChange = () => {
@@ -427,75 +634,130 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
     }))
   }
 
-  const getConfigDataa = ()=> getNode(parentId)?.data.getConfigData as [] || [
-    {
-        key:"key",
-        value:""
-    },
-  ]
-  
-    
+  const getConfigDataa = (): Array<{key: string, value: string}> => 
+    (getNode(parentId)?.data.getConfigData as Array<{key: string, value: string}>) || [
+      {
+        key: "key",
+        value: ""
+      },
+    ];
 
-//   useEffect(() => {
-//     setNodes(prevNodes => prevNodes.map(node => {
-//         if (node.id === parentId) {
-//             return { ...node, data: { ...node.data, getConfigData:getConfigData } }; // Update the cases in the node's data
-//         }
-//         return node;
-//     }));
+  const [paramv,setParamv] = useState("")
+
+  useEffect(
+    ()=>{
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId){
+                return {...node, data: {
+                    ...node.data, 
+                    params:{
+                        ...node.data.params as object,
+                        value:paramv
+                    }
+                }}
+            }
+            return node
+        }))
+    },
+    [paramv]
+)
+  
+  // Add this new state for tree path structure
+  const [pathTree, setPathTree] = useState<PathNode[]>(() => {
+    // Try to convert existing flat path to tree structure if available
+    const existingData = getConfigDataa();
+    if (existingData && existingData.length > 0) {
+      // Create a simple tree with the existing path items
+      const rootNode: PathNode = {
+        id: nanoid(6),
+        key: existingData[0]?.key || "key",
+        value: existingData[0]?.value || "",
+        children: []
+      };
+      
+      let currentNode = rootNode;
+      for (let i = 1; i < existingData.length; i++) {
+        const item = existingData[i];
+        if (item) {
+          const newNode: PathNode = {
+            id: nanoid(6),
+            key: item.key || "key",
+            value: item.value || "",
+            children: []
+          };
+          currentNode.children.push(newNode);
+          currentNode = newNode;
+        }
+      }
+      
+      return [rootNode];
+    }
     
-//     setTimeout(() => {
-//         console.log("getconfigdata state track",getConfigData,getNode(parentId))
-//     }, 2000) // Log after 2 seconds
-// }, [getConfigData]); // Dependency array includes cases
+    // Default empty tree with one root node
+    return [{
+      id: nanoid(6),
+      key: "key",
+      value: "",
+      children: []
+    }];
+  });
+
+  // Function to flatten the tree structure into a path array
+  const flattenPathTree = (nodes: PathNode[]): {key: string, value: string}[] => {
+    const result: {key: string, value: string}[] = [];
+    
+    const traverse = (node: PathNode) => {
+      result.push({key: node.key, value: node.value});
+      if (node.children.length > 0) {
+        traverse(node.children[0]); // We only follow the first child in each level
+      }
+    };
+    
+    if (nodes.length > 0) {
+      traverse(nodes[0]);
+    }
+    
+    return result;
+  };
+
+  // Effect to update the flat path when tree changes
+  useEffect(() => {
+    const flatPath = flattenPathTree(pathTree);
+    setGetConfigDataa(() => flatPath);
+  }, [pathTree]);
 
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-[0px] text-white rounded-[9px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme pt-[7px] pb-[6px] px-[6px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[416px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`} >
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="12" viewBox="0 0 10 12" fill="none">
-                    <rect x="0.75" y="0.75" width="8.5" height="10.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M6.5 4.5L3.5 7.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    </svg>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
 
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
                 Modify
                 </div>
             </div>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path d="M10.5 7.00016C4.08333 7.00016 3.5 2.3335 3.5 2.3335" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <rect x="-0.75" y="0.75" width="3.5" height="3.5" transform="matrix(-1 0 0 1 3.5 0)" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <path d="M13.25 5.25H9.75V8.75H13.25V5.25Z" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <rect x="-0.75" y="0.75" width="3.5" height="3.5" transform="matrix(-1 0 0 1 3.5 9)" fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M8.5 2.5L11.5 5.5L5 12H2V9L8.5 2.5Z" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M8.5 2.5L9.5 1.5L12.5 4.5L11.5 5.5" stroke="#CDCDCD" strokeWidth="1.5"/>
                 </svg>
                 </div>
-                <div className='flex items-center justify-center text-[12px] font-[700] text-main-grey font-plus-jakarta-sans leading-normal'>
-                {type.charAt(0).toUpperCase() + type.slice(1)}
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                Edit
                 </div>
             </div>
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <div className='flex flex-col items-center justify-center'>
-                <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
-                    setIsLoop(!isLoop)
-                }}>
-                    <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
-                        ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
-                    </div>
-                </button>
-                <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
-                    ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
-                    Loop
-                </div>
-                </div>
-                <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -508,170 +770,64 @@ function ModifyGetConfigMenu({show, parentId, type, MODIFY_GET_TYPE}: ModifyGetC
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[293px]'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                 {displaySourceNodeLabels()}
             </div>
-            
+        </li>
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+            </div>
+            <div className='flex gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <PuppyDropdown
+                    options={[MODIFY_GET_TYPE, MODIFY_DEL_TYPE, MODIFY_REPL_TYPE, MODIFY_GET_ALL_KEYS, MODIFY_GET_ALL_VAL]}
+                    onSelect={(option:string) => setExecMode(option)}
+                    selectedValue={execMode}
+                    listWidth={"200px"}
+                    mapValueTodisplay={(v:string) => {
+                        if(v === MODIFY_GET_ALL_KEYS) return "get all keys"
+                        if(v === MODIFY_GET_ALL_VAL) return "get all values"
+                        return v
+                    }}
+                />
+            </div>
         </li>
 
-            <li className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>
-
-                <div className='border-[#6D7177] border-[1px] rounded-[8px]'>
-                    
-                    <div className='flex flex-col border-[#6D7177] border-b-[1px] w-[290px] p-3'>
-                        {
-                            getConfigDataa().map(
-                                ({key,value},index)=>(
-                                    <>
-                                    <label className='h-[16px] mb-[15px]'>  Step {index+1} </label>
-                                        <div className='inline-flex space-x-[12px] items-center justify-start'>
-                                        <svg onClick={
-                                            ()=>{
-                                                setGetConfigDataa(
-                                                    (prev)=>{
-                                                        return prev.filter(
-                                                            (_,curindex)=>index!==curindex
-                                                        )
-
-                                                    }
-                                                )
-                                            }
-                                        } className={`cursor-pointer ${getConfigDataa().length <= 1 ? 'invisible' : ''}`}  width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" strokeWidth="1.5"/>
-                                            <path d="M6 10L14 10" stroke="#6D7177" strokeWidth="2"/>
-                                        </svg>
-                                        <ul key={index} className='flex-col border-[#6D7177] rounded-[4px] w-fit bg-black'>
-                                            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[200px]'>
-                                                <div className='flex flex-row flex-wrap gap-[0px] items-center justify-start py-[8px] px-[10px] w-fit'>
-
-                                                <CustomDropdown
-                                                    options={["key","num"]}
-                                                    onSelect={(keytype:string) => {
-                                                            console.log("selected keytype:", keytype);
-                                                            setGetConfigDataa(
-                                                                (prev)=>{
-                                                                    return prev.map(
-                                                                        ({key:curkey,value:curvalue},curindex)=>{
-                                                                            if(curindex==index){
-                                                                                return {
-                                                                                    key:keytype,
-                                                                                    value:curvalue
-                                                                                }
-                                                                            }else{
-                                                                                return {
-                                                                                    key:curkey,
-                                                                                    value:curvalue
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    )
-
-                                                                }
-                                                            )
-                                                        }}
-                                                    configIndex={index}
-                                                    getConfigData={getConfigDataa()}
-                                                    />
-                                                </div>
-                                                    {/* ["contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters"]
-
-                                                    return ["is empty", "is not empty", "contains", "doesn’t contain", "is greater than [N] characters", "is less than [N] characters", "is list","is dict"]
-
-                                                    return ["is True","is False"] */}
-                                                <input 
-                                                        value={value}
-                                                        onChange={(e)=>{
-                                                            setGetConfigDataa(
-                                                                (prev)=>{
-                                                                    return prev.map(
-                                                                        ({key:curkey,value:curvalue},curindex)=>{
-                                                                            if(curindex==index){
-                                                                                return {
-                                                                                    key:curkey,
-                                                                                    value:e.target.value
-                                                                                }
-                                                                            }else{
-                                                                                return {
-                                                                                    key:curkey,
-                                                                                    value:curvalue
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    )
-
-                                                                }
-                                                            )
-                                                        }} 
-                                                        className="w-[125px] text-white bg-black caret-white border-l-[1px] pl-[5px]"
-                                                        type="text"></input>
-
-                                                
-                                            </li>
-                                        </ul>
-                                        {getConfigDataa().length - 1 === index ? (
-                                            <div
-                                            onClick={
-                                                ()=>{
-                                                    setGetConfigDataa(
-                                                        (prev)=>{
-                                                            return [
-                                                                ...prev,
-                                                                {
-                                                                    key:"key",
-                                                                    value:""
-                                                                }
-                                                            ]
-                                                        }
-                                                    )
-                                                }
-                                            } className='cursor-pointer'>
-                                            <span> </span>
-                                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                                            </svg>
-                                            </div>
-                                        ) : (
-                                            <div>
-                                            <span> </span>
-                                            <svg onClick={
-                                                ()=>{
-                                                    
-                                                }
-                                            } className='invisible' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                                            </svg>
-                                            </div>
-                                        )}
-                                        </div>
-                                    </>
-                                )
-                            )
-                        }
-
-                    </div>
-
+        {!(execMode === MODIFY_GET_ALL_KEYS || execMode === MODIFY_GET_ALL_VAL) && (
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Path</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-            {/* <div className='flex flex-col gap-0 items-start justify-center '>
-                <button onClick={()=>{
-
-                }} className='flex rounded-[8px] bg-black text-[#6D7177] w-[52px] mt-1 font-plus-jakarta-sans text-[10px] font-[700] border-[1px] border-[#6D7177] items-center'>
-                            <svg className="flex-inline" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                                <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                            </svg> Case
-                </button>
-            </div> */}
+                <div className='flex flex-col gap-4 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                    <TreePathEditor paths={pathTree} setPaths={setPathTree} />
+                </div>
             </li>
+        )}
 
-        
+        {execMode === MODIFY_REPL_TYPE && (
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[12px] font-medium text-[#6D7177]'>Replace With</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                </div>
+                <input 
+                    value={paramv} 
+                    onChange={(e) => setParamv(e.target.value)} 
+                    type='string' 
+                    className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                             text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
+                             hover:border-[#6D7177]/50 transition-colors'
+                    autoComplete='off'
+                />
+            </li>
+        )}
     </ul>
     
   )
