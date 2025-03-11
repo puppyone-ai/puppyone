@@ -7,11 +7,11 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 # TODO: Maybe only need to use multi-modal embedding in the future?
-from Objs.Vector.embedder import TextEmbedder 
-from Objs.Vector.vector_db_factory import VectorDatabaseFactory
+from objs.vector.embedder import TextEmbedder 
+from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from Utils.PuppyEngineExceptions import PuppyException
-from Utils.logger import log_info, log_error
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
 
 # 创建路由器
 vector_router = APIRouter(prefix="/vector", tags=["vector"])

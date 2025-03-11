@@ -1,6 +1,6 @@
 import logging
 from axiom_py import Client
-from Utils.config import config
+from utils.config import config
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("httpx").setLevel(logging.ERROR)
