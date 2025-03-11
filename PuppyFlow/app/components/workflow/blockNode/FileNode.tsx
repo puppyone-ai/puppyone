@@ -278,7 +278,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                userid: `${await getuserid()}`,
+                user_id: `${await getuserid()}`,
                 content_name: fileName
               })
             }
@@ -387,7 +387,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                     'Content-Type': 'application/json'
                   },
                   body: JSON.stringify({
-                    userid: `${await getuserid()}`,
+                    user_id: `${await getuserid()}`,
                     content_name: fileName
                   })
                 }
