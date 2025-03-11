@@ -5,11 +5,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from Utils.PuppyException import PuppyException
-from Utils.logger import log_info, log_error
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
 
-from Server.routes.VectorRoutes import vector_router
-from Server.routes.FileRoutes import file_router
+from server.routes.vector_routes import vector_router
+from server.routes.file_routes import file_router
 
 try:
     app = FastAPI()
