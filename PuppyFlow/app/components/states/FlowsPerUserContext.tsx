@@ -672,8 +672,18 @@ const FlowsPerUserProps = () => {
 
     // 切换workspace
     const handleFlowSwitch = async (newFlowId: string | null) => {
+        let currentNodes = reactFlowInstance.getNodes();
+        let currentEdges = reactFlowInstance.getEdges();
+
         try {
             const targetWorkspace = workspaces.find(w => w.flowId === newFlowId);
+            console.log("new flow id:", newFlowId)
+            console.log("切换前的flow:", {
+                nodes: reactFlowInstance.getNodes(),
+                edges: reactFlowInstance.getEdges(),
+                viewport: reactFlowInstance.getViewport()   
+            });
+            console.log("切换前的全部工作区:", workspaces);
             console.log("切换前的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
                 isDirty: targetWorkspace?.isDirty,
@@ -693,14 +703,19 @@ const FlowsPerUserProps = () => {
                     viewport: reactFlowInstance.getViewport(),
                     timestamp: Date.now()
                 };
+
+                console.log("缓存后缓存状态:", unsavedStatesRef.current);
             }
 
             // 2. 加载新工作区的数据
             if (newFlowId) {
-                console.log("准备加载新工作区数据");
+                console.log("准备加载新工作区数据", unsavedStatesRef.current);
                 const unsavedState = unsavedStatesRef.current[newFlowId];
                 if (unsavedState) {
-                    console.log("使用未保存的状态");
+                    console.log("准备加载新工作区数据from unsaved", unsavedStatesRef.current);
+                    console.log("使用未保存的状态",unsavedStatesRef.current[newFlowId]);
+                    console.log("使用未保存的状态的nodes", unsavedState.nodes);
+                    console.log("使用未保存的状态的edges", unsavedState.edges);
                     reactFlowInstance.setNodes(unsavedState.nodes);
                     reactFlowInstance.setEdges(unsavedState.edges);
                     if(unsavedState?.viewport !== undefined){
@@ -737,27 +752,54 @@ const FlowsPerUserProps = () => {
                             ));
                         } else {
                             console.log("没有历史记录，清空画布");
+                            // Or try this more direct approach
+                            reactFlowInstance.deleteElements({ nodes: reactFlowInstance.getNodes(), edges: reactFlowInstance.getEdges() });
                             reactFlowInstance.setNodes([]);
                             reactFlowInstance.setEdges([]);
+                            // reactFlowInstance.setViewport({ x: 0, y: 0, zoom: 1 });
+                        
+
+                            // Check again after a small delay
+                            setTimeout(() => {
+                                console.log("Nodes after timeout:", reactFlowInstance.getNodes());
+                                console.log("edges after timeout:", reactFlowInstance.getEdges());
+                            }, 100);
                         }
                     }
                 }
             } else {
                 console.log("切换到空工作区");
+                reactFlowInstance.deleteElements({ nodes: reactFlowInstance.getNodes(), edges: reactFlowInstance.getEdges() });
                 reactFlowInstance.setNodes([]);
                 reactFlowInstance.setEdges([]);
+                // reactFlowInstance.setViewport({ x: 0, y: 0, zoom: 1 });
             }
 
             // 3. 最后更新选中的工作区
+            console.log("currentNodes", currentNodes)
+            console.log("currentEdges", currentEdges)
+            if(currentNodes.length !== 0 || currentEdges.length !== 0){
+                while(currentNodes === reactFlowInstance.getNodes() || currentEdges === reactFlowInstance.getEdges()){
+
+                        console.log("等待加载完成")
+
+                }
+            }
             console.log("更新选中的工作区");
             setSelectedFlowId(newFlowId);
             
             // 加载完成后再次检查状态
+            console.log("切换后的全部工作区:", workspaces);
             console.log("切换后的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
                 isDirty: targetWorkspace?.isDirty,
                 viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
+            });
+            console.log("切换后的flow:", {
+                nodes: reactFlowInstance.getNodes(),
+                edges: reactFlowInstance.getEdges(),
+                viewport: reactFlowInstance.getViewport()   
             });
         } catch (error) {
             console.error("Error switching workspace:", error);
@@ -773,11 +815,13 @@ const FlowsPerUserProps = () => {
             const currentJson = constructWholeJsonWorkflow();
             const targetWorkspace = workspacesRef.current.find(w => w.flowId === selectedFlowId);
             if (targetWorkspace && !isJsonEqual(targetWorkspace.latestJson, currentJson)) {
-                setWorkspaces(prev => prev.map(w => 
-                    w.flowId === selectedFlowId 
+                setWorkspaces(prev => prev.map(w => {
+                    console.log("prevous worsapce state:", w)
+                    console.log("currentJson", currentJson)
+                    return w.flowId === selectedFlowId 
                         ? { ...w, latestJson: currentJson, isDirty: true }
                         : w
-                ));
+                }));
             }
         }, 1000);
 

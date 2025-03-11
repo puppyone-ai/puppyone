@@ -259,7 +259,19 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           // data = await request.json()
           // user_id = data.get("user_id", "Rose123")
           // content_name = data.get("content_name", "new_content")
-          const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${file.type}`,
+          
+          // Get file extension
+          const fileName = file.name;
+          let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"]
+
+          if (!supportedFileExtensions.includes(fileExtension)) {
+            fileExtension = "application"
+          }
+          if(fileExtension === "txt") {
+            fileExtension = "text"
+          }
+          const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
             {
               method: 'POST',
               headers: {
@@ -289,7 +301,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
         
           if (!response.ok) {
-            setWarns(`Fetch temporary upload info Error: ${response.status}`)
+            setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}])
             throw new Error(`Fetch temporary upload info Error: ${response.status}`)
           }
         
@@ -321,7 +333,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           } else {
               console.log(response)
               console.error('文件上传失败');
-              setWarns('fail to upload file')
+              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
           }
         } catch (error) {
             console.error('上传过程中发生错误', error);
@@ -339,11 +351,36 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           
           // Get file extension
           const fileName = file.name;
-          const fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+          let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+
+          // txt
+          // html
+          // css
+          // js
+          // json
+          // png
+          // jpg
+          // gif
+          // svg
+          // mp3
+          // wav
+          // mp4
+          // webm
+          // pdf
+          // zip
+          // application
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"]
+
+          if (!supportedFileExtensions.includes(fileExtension)) {
+            fileExtension = "application"
+          }
+          if(fileExtension === "txt") {
+            fileExtension = "text"
+          }
     
           try {
               // Step 1: Get presigned URL and UUID, userid = Rose123
-              const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${file.type}`,
+              const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
                 {
                   method: 'POST',
                   headers: {
@@ -357,7 +394,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               );
               
               if (!response.ok) {
-                setWarns(`Fetch temporary upload info Error: ${response.status}`)
+                setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}])
                 throw new Error(`Fetch temporary upload info Error: ${response.status}`);
               }
               
@@ -389,11 +426,11 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               } else {
                   console.log(response);
                   console.error('File upload failed');
-                  setWarns('fail to upload file')
+                  setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
               }
           } catch (error) {
               console.error('Error during upload process', error);
-              setWarns('fail to upload file')
+              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
           }
         };
     
