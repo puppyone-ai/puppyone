@@ -14,6 +14,7 @@ import {VectorNodeData} from "../workflow/blockNode/VectorNode"
 import {WebLinkNodeData} from "../workflow/blockNode/WebLinkNode"
 import { SYSTEM_URLS } from "@/config/urls";
 import { WarnsContext } from '../states/WarnMessageContext';
+// import {WarnsContext,WarnsContainer} from "puppyui"
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
 
@@ -51,6 +52,7 @@ export type ProcessingData = {
 function useJsonConstructUtils() {
     const {getEdges, getNode, setNodes, getNodes, getViewport} = useReactFlow()
     const {warns,setWarns} = useContext(WarnsContext);
+    // const {warns,setWarns} = useContext(WarnsContext) as any;
     // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -186,6 +188,18 @@ function useJsonConstructUtils() {
                 // });
                 // console.log(data);
                 const data = JSON.parse(event.data)
+                if(data.error){
+                    setWarns(
+                        (prev:{time:number, text:string}[])=>[
+                            ...prev,
+                            {
+                                time:Math.floor(Date.now() / 1000),
+                                text:`${data.error}`        
+                            } 
+                        ]
+                    )
+                }
+                
                 
                 
     
@@ -213,6 +227,15 @@ function useJsonConstructUtils() {
                 updateUI(data, resultNode);
 
             } catch (error) {
+                setWarns(
+                    (prev:{time:number, text:string}[])=>[
+                        ...prev,
+                        {
+                            time:Math.floor(Date.now() / 1000),
+                            text:`Error processing event data::${error}`      
+                        } 
+                    ]
+                )
                 console.error('Error processing event data:', error);
                 reject(error)
             }
@@ -280,6 +303,15 @@ function useJsonConstructUtils() {
                     }
                 }catch(error){
                     console.error('Error convert event data json to object by json parse:', error);
+                    setWarns(
+                        (prev:{time:number, text:string}[])=>[
+                            ...prev,
+                            {
+                                time:Math.floor(Date.now() / 1000),
+                                text:`Error convert event data json to object by json parse:${error}`      
+                            } 
+                        ]
+                    )
                     reject(error)
                 }
                 
@@ -315,6 +347,15 @@ function useJsonConstructUtils() {
         };
     
         eventSource.onerror = (error) => {
+            setWarns(
+                (prev:{time:number, text:string}[])=>[
+                    ...prev,
+                    {
+                        time:Math.floor(Date.now() / 1000),
+                        text:`EventSource failed:${error}`        
+                    } 
+                ]
+            )
             console.error('EventSource failed:', error);
             eventSource.close();
             reject(error)
@@ -324,6 +365,15 @@ function useJsonConstructUtils() {
         const timeout = setTimeout(() => {
             console.log('Connection timed out');
             eventSource.close();
+            setWarns(
+                (prev:{time:number, text:string}[])=>[
+                    ...prev,
+                    {
+                        time:Math.floor(Date.now() / 1000),
+                        text:"Connection timed out"       
+                    } 
+                ]
+            )
             reject(new Error("Connection timed out"))
         }, 300000); // 5分钟超时
     
@@ -344,6 +394,7 @@ function useJsonConstructUtils() {
        const updateUI = useCallback(async (jsonResult: ProcessingData, resultNode: string | null) => {
         // 将jsonResult.data 转换为 Map
         const data = new Map(Object.entries(jsonResult.data));
+        console.log("updateUIupdateUI",jsonResult)
         // console.log(`Received ${data.length} file(s)`);
         // console.log(getNodes(), "current nodes in reactflow")
         if (!resultNode) return
@@ -351,13 +402,41 @@ function useJsonConstructUtils() {
         if (!target) return
         if (data.has(resultNode)) {
             const item = data.get(resultNode)
+            console.log("updateUI item",item)
+
+            // {
+            //     "label": "t7K7q-",
+            //     "type": "structured",
+            //     "data": {
+            //         "content": []
+            //     }
+            // }
+
+            // ({
+            //     id: output,
+            //     position: {
+            //         x: parentEdgeNode.position.x + 160,
+            //         y: startY + spacing * index
+            //     },
+            //     data: {  
+            //         content: "", 
+            //         label: output,
+            //         isLoading: false,
+            //         locked: false,
+            //         isInput: false,
+            //         isOutput: false,
+            //         editable: false,
+            //     },
+            //     type: 'structured',
+            // })
+
             if (item) {
                 setNodes(prevNodes => (prevNodes.map(node => node.id === resultNode ? {
                     ...node,
                     type: item.type ?? node.type,
                     data: {
                         ...node.data,
-                        content: item.data.content,
+                        content: JSON.stringify(item.data.content),
                         isLoading: false
                     }
                 }: node)))
@@ -393,6 +472,7 @@ function useJsonConstructUtils() {
             // console.log(`Received ${data.length} file(s)`);
             // console.log(getNodes(), "current nodes in reactflow")
             
+            // {"data": {"LX9eMG": {"label": "LX9eMG", "type": "structured", "data": {"content": []}}}, "is_complete": false}
             if (!resultNodes.length) return
             const targets = resultNodes.filter(resultNode => getNode(resultNode))
             if (!targets.length) return
@@ -410,7 +490,7 @@ function useJsonConstructUtils() {
                         type: item.type ?? node.type,
                         data: {
                             ...node.data,
-                            content: item.data.content,
+                            content: JSON.stringify(item.data.content),
                             isLoading: false
                         }
                     }: node)))
@@ -503,6 +583,15 @@ function useJsonConstructUtils() {
 
     const reportError = useCallback((resultNode: string | null, errorMessage: string) => {
         if (!resultNode) {
+            setWarns(
+                (prev:{time:number, text:string}[])=>[
+                    ...prev,
+                    {
+                        time:Math.floor(Date.now() / 1000),
+                        text:`${errorMessage}`        
+                    } 
+                ]
+            )
             throw new Error(errorMessage)
         }
         const resultNodeid = getNode(resultNode)

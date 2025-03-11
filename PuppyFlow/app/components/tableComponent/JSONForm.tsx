@@ -214,6 +214,18 @@ const JSONForm = ({preventParentDrag,
         }
           
         }
+
+
+      const InputFallback = (e:any):string=>{
+        const result = JSON.stringify(e)
+        if(typeof result === 'string'){
+          return result
+        }
+        console.error("get error input:",e)
+        return ""
+      }
+
+      
     
 
   return (
@@ -235,7 +247,15 @@ const JSONForm = ({preventParentDrag,
       width={widthStyle-8 }
       height={heightStyle - 12}
       onChange={handleChange}
-      value={inputvalue?inputvalue:getNode(parentId)?.data.content as string}
+      value={inputvalue? 
+              (typeof inputvalue === 'string'? 
+                inputvalue:
+                InputFallback(inputvalue)
+              ): 
+              (typeof getNode(parentId)?.data.content ==='string'?
+                getNode(parentId)?.data.content as string:
+                InputFallback(inputvalue)
+            )}
       options={{
         fontFamily: "'JetBrains Mono', monospace",
         fontLigatures: true,

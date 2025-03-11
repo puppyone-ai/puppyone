@@ -607,7 +607,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_convert2text.json":
+        if file_name != "test_edit_text.json":
             continue
         # if file_name == "embedding_search.json":
         #     continue
