@@ -163,8 +163,8 @@ const PathEditor: React.FC = () => {
                 onClick={() => addNode(node.id)}
                 className="w-6 h-6 flex items-center justify-center rounded-lg border border-[#6D7177] hover:bg-[#252525] mb-2"
               >
-                <svg width="14" height="14" viewBox="0 0 14 14">
-                  <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+                <svg width="10" height="10" viewBox="0 0 10 10">
+                  <path d="M5 0v10M0 5h10" stroke="currentColor" strokeWidth="2"/>
                 </svg>
               </button>
               <span className="ml-2 text-[12px] text-[#6D7177]">Add child</span>

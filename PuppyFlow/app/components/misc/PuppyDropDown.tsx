@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useContext } from "react"
 
 
-export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", mapValueTodisplay=(v:string)=>v}:any) => {
+export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", height="32px", mapValueTodisplay=(v:string)=>v}:any) => {
     const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
     const handleSelect = (data:any) => {
@@ -14,6 +14,7 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
         position: 'relative',
         cursor: 'pointer',
         width: '100%',
+        height: height,
     };
 
     const dropdownHeaderStyle = {
@@ -80,7 +81,10 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
                         <li
                             key={index}
                             style={dropdownItemStyle}
-                            onClick={() => handleSelect(option)}
+                            onClick={(e) => {
+                                e.stopPropagation(); // 阻止事件冒泡
+                                handleSelect(option);
+                            }}
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
                         >

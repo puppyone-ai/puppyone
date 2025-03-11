@@ -369,7 +369,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
     }
 
     return (
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
                     <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
@@ -389,19 +389,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                     </div>
                 </div>
                 <div className='flex flex-row gap-[8px] items-center justify-center'>
-                    <div className='flex flex-col items-center justify-center'>
-                        <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
-                            setIsLoop(!isLoop)
-                        }}>
-                            <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
-                                ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
-                            </div>
-                        </button>
-                        <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
-                            ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
-                            Loop
-                        </div>
-                    </div>
+
                     <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                         onClick={onDataSubmit}>
                         <span>
