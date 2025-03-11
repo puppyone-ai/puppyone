@@ -12,8 +12,8 @@ from openai import OpenAI
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from torch import no_grad, Tensor, tensor, mean, matmul
-from Utils.PuppyException import PuppyException, global_exception_handler
-from Utils.config import config
+from utils.puppy_exception import PuppyException, global_exception_handler
+from utils.config import config
 import threading
 
 
