@@ -38,8 +38,11 @@ class FileToTextParser:
         Initializes the FileToTextParser.
         """
 
-        pandoc_path = pypandoc.get_pandoc_path()
-        if not (pandoc_path and os.path.exists(pandoc_path)):
+        try:
+            pandoc_path = pypandoc.get_pandoc_path()
+            if not (pandoc_path and os.path.exists(pandoc_path)):
+                pypandoc.download_pandoc()
+        except Exception:
             pypandoc.download_pandoc()
 
     @global_exception_handler(1302, "Error Parsing Multiple Files")

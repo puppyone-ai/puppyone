@@ -204,7 +204,7 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
         const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
 
         const file_task_id = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.content
-        const file_download_url = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.down_url
+        const file_download_url = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.download_url
         const file_type = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.fileType
         // console.log("2 structured input ids",input_ids)
         const edgejson: LoadConfigJsonType = {

@@ -31,14 +31,10 @@
         "convert-1": {
             "type": "modify",
             "data": {
-                "modify_type": "convert",
+                "modify_type": "convert2structured",
                 "content": "{{text_input}}",
                 "extra_configs": {
-                    "source_type": "text",
-                    "target_type": "structured",
-                    "action_type": "json",
-                    "target_structure": "dict",
-                    "dict_key": "value"
+                    "conversion_mode": "parse_as_list"
                 },
                 "inputs": {"1": "text_input"},
                 "outputs": {"3": "structured_output"}
@@ -48,13 +44,13 @@
             "type": "modify",
             "data": {
                 "modify_type": "convert2structured",
-                "content": "{{list_input}}",
+                "content": "{{text_input}}",
                 "extra_configs": {
                     "target_structure": "list",
                     "list_separator": [","],
                     "action_type": "default"
                 },
-                "inputs": {"2": "list_input"},
+                "inputs": {"1": "text_input"},
                 "outputs": {"4": "list_output"}
             }
         }
