@@ -587,12 +587,13 @@ class WorkFlow():
                     content = f'{{"content": {content}}}'
                 
                 # Validate JSON structure
-                try:
-                    json.loads(content)
-                except json.JSONDecodeError as e:
-                    logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
-                    raise ValueError(f"Invalid JSON structure: {str(e)}")
-                
+                if block_type == "structured":
+                    try:
+                        json.loads(content)
+                    except json.JSONDecodeError as e:
+                        logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
+                        raise ValueError(f"Invalid JSON structure: {str(e)}")
+
             except Exception as e:
                 logger.error("Structured content formatting failed: %s\nContent: %s", str(e), content)
                 raise ValueError(f"Invalid structured content format: {str(e)}")
