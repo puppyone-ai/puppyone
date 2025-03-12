@@ -571,7 +571,7 @@ class WorkFlow():
             content = content.encode("utf-8", "ignore").decode("unicode_escape")
 
         # For structured blocks, ensure valid JSON formatting
-        if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
+        if (content.startswith("[") or content.startswith("{")):
             try:
                 # Normalize newlines and carriage returns
                 content = content.replace("\n", "\\n").replace("\r", "\\r")
@@ -633,7 +633,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_edit_text.json":
+        if file_name != "modify2.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
