@@ -65,6 +65,8 @@ type ConstructedModifyCopyJsonData = {
     edges: { [key: string]: Modify2SturcturedJsonType }
 }
 
+const RESULT_NODE_TYPE = "structured"
+
 function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode, setNodes, setEdges } = useReactFlow()
@@ -102,7 +104,7 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                 y: parentEdgeNode.position.y - 96,
             }
 
-            const resultNodeType = getNode(getSourceNodeIdWithLabel(parentId)[0].id)?.type
+            const resultNodeType = RESULT_NODE_TYPE
 
             const newNode = {
                 id: resultNode,
@@ -318,7 +320,7 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
         }
         // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
         else {
-            const resultNodeType = getNode(getSourceNodeIdWithLabel(parentId)[0].id)?.type
+            const resultNodeType = RESULT_NODE_TYPE
             setNodes(prevNodes => prevNodes.map(node => {
                 if (node.id === resultNode) {
                     return { ...node, type: resultNodeType || "text", data: { ...node.data, content: "", isLoading: true } }
