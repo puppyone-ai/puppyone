@@ -1,0 +1,80 @@
+{
+    "blocks": {
+
+        "bPA96H": {
+
+            "label": "bPA96H",
+
+            "type": "structured",
+
+            "data": {
+
+                "content": ""
+
+            }
+
+        },
+
+        "_slMRL": {
+
+            "label": "_slMRL",
+
+            "type": "file",
+
+            "data": {
+
+                "content": "673677de-a672-45e6-9479-1a9787962b63"
+
+            },
+
+            "looped": false
+
+        }
+
+    },
+    "edges": {
+
+        "load-1741728891958": {
+
+            "type": "load",
+
+            "data": {
+
+                "block_type": "file",
+
+                "content": "_slMRL",
+
+                "extra_configs": {
+
+                    "file_configs": [
+
+                        {
+
+                            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/673677de-a672-45e6-9479-1a9787962b63/meiguo.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1b4584c8de96138fdff9cc6eded932ad%2F20250311%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250311T213447Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=8e039c65bac719184d75468c096f0f54e68df1ea916f73d337e18973c074e02a",
+
+                            "file_type": "pdf"
+
+                        }
+
+                    ]
+
+                },
+
+                "inputs": {
+
+                    "_slMRL": "_slMRL"
+
+                },
+
+                "outputs": {
+
+                    "bPA96H": "bPA96H"
+
+                }
+
+            }
+
+        }
+
+    }
+}
