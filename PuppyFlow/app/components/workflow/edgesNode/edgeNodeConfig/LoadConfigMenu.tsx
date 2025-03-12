@@ -205,9 +205,14 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
         const input_ids = Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label])))
 
-        const file_task_id = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.content
-        const file_download_url = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.download_url
-        const file_type = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.fileType
+        const nodeContent = getNode(sourceNodeIdWithLabelGroup[0].id)?.data?.content
+        const fileConfigs = Array.isArray(nodeContent) 
+            ? nodeContent.map(file => ({
+                file_path: file.download_url,
+                file_type: file.fileType
+              }))
+            : []
+        
         // console.log("2 structured input ids",input_ids)
         const edgejson: LoadConfigJsonType = {
             // id: parentId,
@@ -216,15 +221,8 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                 block_type: "file",
                 content: `${sourceNodeIdWithLabelGroup[0].id}`,
                 extra_configs: {
-                    file_configs: [
-                        {
-                            file_path: file_download_url as string,
-                            file_type: file_type as string,
-                            // configs: {
-                                    // configs for the specific file type
-                            // }
-                        }
-                    ]
+                    file_configs: fileConfigs
+                    
                 },
                 inputs: input_ids,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
