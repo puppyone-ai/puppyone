@@ -328,7 +328,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
           if (uploadResponse.ok) {
               console.log('文件上传成功');
-              saveFileInformation(download_url, content_id, fileExtension)
+              saveFileInformation(download_url, content_id, fileExtension, content_type_header, expires_at)
               // 在这里可以将UUID保存到block的content
           } else {
               console.log(response)
@@ -421,7 +421,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
               if (uploadResponse.ok) {
                   console.log('File upload successful');
-                  saveFileInformation(download_url, content_id, fileExtension);
+                  saveFileInformation(download_url, content_id, fileExtension, content_type_header, expires_at);
                   // Here you can save the UUID to the block's content
               } else {
                   console.log(response);
@@ -437,9 +437,16 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
 
 
-    const saveFileInformation = (download_url:string ,task_id: string, fileType: string) => {
+    const saveFileInformation = (download_url:string ,task_id: string, fileType: string, content_type_header: string, expires_at: string) => {
         setNodes(prevNodes => prevNodes.map(node => node.id === id ? { ...node, data: { 
-            ...node.data,content: task_id, fileType: fileType, download_url:download_url } } : node));
+            ...node.data, content: Array.isArray(node.data?.content) 
+                ? [...(node.data.content.filter((item: any) => item.task_id !== task_id)), 
+                   { task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
+                : [{ task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
+            }} : node));
+        setTimeout(() => {
+            console.log("updated file node", getNode(id))
+        }, 1000)
     }
 
 
@@ -448,23 +455,10 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
     useEffect(() => {
       const currentNode = getNode(id);
-      if (currentNode?.data?.content && currentNode?.data?.fileType) {
+      if (currentNode?.data?.content && Array.isArray(currentNode.data.content)) {
         console.log("currentNode", currentNode)
-        const task_id = currentNode.data.content;
-        const fileExtension = currentNode.data.fileType;
-        
-        // Check if we already have this file in uploadedFiles
-        const fileExists = uploadedFiles.some(file => 
-          file.task_id === task_id && file.fileType === fileExtension
-        );
-        
-        if (!fileExists) {
-          // Add to uploadedFiles
-          setUploadedFiles(prevFiles => [...prevFiles, {
-            task_id: task_id as string,
-            fileType: fileExtension as string
-          }]);
-        }
+
+        setUploadedFiles(currentNode.data.content);
       }
     }, [getNode(id)]);
 
