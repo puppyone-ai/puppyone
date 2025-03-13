@@ -30,15 +30,15 @@ def global_exception_handler(
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except PuppyException as e:
+            except puppy_exception as e:
                 tb_str = traceback.format_exc()
                 full_error_message = f"{str(e)}\nTraceback:\n{tb_str}"
                 logging.error(full_error_message)
                 raise
             except Exception as e:
                 tb_str = traceback.format_exc()
-                full_error_message = f"[{PuppyException.service_name.upper()}_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
+                full_error_message = f"[{puppy_exception.service_name.upper()}_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
                 logging.error(full_error_message)
-                raise PuppyException(error_code, error_message, str(e))
+                raise puppy_exception(error_code, error_message, str(e))
         return wrapper
     return decorator
