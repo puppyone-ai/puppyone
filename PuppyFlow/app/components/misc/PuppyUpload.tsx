@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import ReactDOM from "react-dom"
 
-export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setUploadedFiles, isOnUploading }: any) => {
+export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setUploadedFiles, isOnUploading, handleDelete }: any) => {
     const inputRef = useRef<HTMLInputElement>(null);
     
 
@@ -93,16 +93,17 @@ export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setU
                 </>
             ) : (
                 <div className="w-full min-h-[180px]">
-                    {uploadedFiles.map((file: {task_id: string, fileType: string}, index: number) => (
+                    {uploadedFiles.map((file: {fileName: string, fileType: string}, index: number) => (
                         <div 
                             key={index} 
                             className="bg-gray-700 hover:bg-gray-600 text-white rounded-md p-2 mb-2 flex justify-between items-center"
                         >
-                            <span>{`file_${file.task_id.substring(0, 8)}.${file.fileType}`}</span>
+                            <span>{file.fileName.replace(/^file_/, '')}</span>
                             <button 
                                 onClick={(e) => {
                                     e.stopPropagation(); // Prevent opening file dialog
-                                    setUploadedFiles(uploadedFiles.filter((_: {task_id: string, fileType: string}, i: number) => i !== index));
+                                    handleDelete(file, index)
+                                    setUploadedFiles(uploadedFiles.filter((_: {fileName:string, task_id: string, fileType: string}, i: number) => i !== index));
                                 }}
                                 className="text-gray-400 hover:text-red-400"
                             >
