@@ -369,7 +369,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
     }
 
     return (
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
                     <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
@@ -421,7 +421,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
                     <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px]
+                <div className='flex gap-2 p-2 bg-transparent rounded-[8px]
                               border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}

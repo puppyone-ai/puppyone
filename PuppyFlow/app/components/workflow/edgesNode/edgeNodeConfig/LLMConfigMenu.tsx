@@ -44,6 +44,138 @@ type ConstructedLLMJsonData = {
     edges: { [key: string]: LLMEdgeJsonType }
 }
 
+// Add these new types for the prompt structure
+type PromptNode = {
+  id: string,
+  role: "system" | "user" | "assistant",
+  content: string
+}
+
+// Add the new PromptEditor component
+const PromptEditor = ({ prompts, setPrompts }: { 
+  prompts: PromptNode[], 
+  setPrompts: React.Dispatch<React.SetStateAction<PromptNode[]>> 
+}) => {
+  
+  const addNode = () => {
+    setPrompts((prevPrompts) => [
+      ...prevPrompts,
+      {
+        id: nanoid(6),
+        role: "user",
+        content: ""
+      }
+    ]);
+  };
+
+  const deleteNode = (nodeId: string) => {
+    setPrompts((prevPrompts) => prevPrompts.filter(node => node.id !== nodeId));
+  };
+
+  const updateNodeContent = (nodeId: string, content: string) => {
+    setPrompts((prevPrompts) => prevPrompts.map(node => 
+      node.id === nodeId ? { ...node, content } : node
+    ));
+  };
+
+  const updateNodeRole = (nodeId: string, role: "system" | "user" | "assistant") => {
+    setPrompts((prevPrompts) => prevPrompts.map(node => 
+      node.id === nodeId ? { ...node, role } : node
+    ));
+  };
+
+  const renderNode = (node: PromptNode) => {
+    return (
+      <div key={node.id} className="relative group mb-1">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
+            <input 
+              value={node.content}
+              onChange={(e) => updateNodeContent(node.id, e.target.value)}
+              className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
+                       text-[#CDCDCD] text-[12px] font-medium appearance-none'
+              placeholder="Enter message content..."
+            />
+            
+            {/* Role selector */}
+            <div 
+              className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
+                         px-2 rounded-[4px] cursor-pointer transition-colors
+                         ${node.role === 'system' 
+                           ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50' 
+                           : node.role === 'user'
+                           ? 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50'
+                           : 'bg-[#254430] border border-[#4DFF9B]/30 hover:border-[#4DFF9B]/50'}`}
+              onClick={() => {
+                const roles: Array<"system" | "user" | "assistant"> = ["system", "user", "assistant"];
+                const currentIndex = roles.indexOf(node.role);
+                const nextRole = roles[(currentIndex + 1) % roles.length];
+                updateNodeRole(node.id, nextRole);
+              }}
+            >
+              <div className={`text-[10px] font-semibold min-w-[24px] text-center
+                             ${node.role === 'system' 
+                               ? 'text-[#9B6DFF]' 
+                               : node.role === 'user'
+                               ? 'text-[#FF9B4D]'
+                               : 'text-[#4DFF9B]'}`}>
+                {node.role}
+              </div>
+            </div>
+          </div>
+
+          <button 
+            onClick={() => deleteNode(node.id)}
+            className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className='flex flex-col gap-2'>
+      {prompts.length === 0 ? (
+        <button
+          onClick={() => setPrompts([{ id: nanoid(6), role: "system", content: "You are an AI" }])}
+          className='w-full h-[32px] flex items-center justify-center gap-2 rounded-[6px] 
+                   border border-[#6D7177]/30 bg-[#252525] text-[#CDCDCD] text-[12px] font-medium 
+                   hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] transition-colors'
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D7177">
+            <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          Create First Message
+        </button>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {prompts.map((prompt) => renderNode(prompt))}
+          
+          {/* Replace the full-width button with a small plus button */}
+          <div className="flex items-center mt-1">
+            <button
+              onClick={addNode}
+              className='w-6 h-6 flex items-center justify-center rounded-md
+                        bg-[#252525] border-[1px] border-[#6D7177]/30
+                        text-[#6D7177]
+                        hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
+                        transition-colors'
+            >
+              <svg width="10" height="10" viewBox="0 0 14 14">
+                <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
@@ -53,8 +185,8 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
-    const [model, setModel] = useState<"gpt-4o" | "gpt-4o-mini" | "gpt-4">(
-        (getNode(parentId)?.data as LLMConfigNodeData)?.model ?? "gpt-4o"
+    const [model, setModel] = useState<"gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo">(
+        (getNode(parentId)?.data?.model as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo") || "gpt-4o"
     )
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
@@ -71,6 +203,56 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [isLoop, setIsLoop] = useState(
         (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
     )
+
+    // 添加设置面板的展开/折叠状态
+    const [showSettings, setShowSettings] = useState(false)
+
+    // Replace the existing JSON state with the new prompts state
+    const [prompts, setPrompts] = useState<PromptNode[]>(() => {
+        const existingNode = getNode(parentId);
+        if (existingNode?.data?.message) {
+            try {
+                // Handle the case where message might be already an object
+                const messageData = typeof existingNode.data.message === 'string' 
+                    ? JSON.parse(existingNode.data.message) 
+                    : existingNode.data.message;
+                
+                // Ensure it's an array
+                if (Array.isArray(messageData)) {
+                    return messageData.map((msg: any) => ({
+                        id: nanoid(6),
+                        role: msg.role || "user",  // Default to user if role is missing
+                        content: msg.content || ""  // Default to empty string if content is missing
+                    }));
+                }
+            } catch (e) {
+                console.warn("Failed to parse message JSON:", e);
+                // Return default messages on parse error
+                return [
+                    { id: nanoid(6), role: "system", content: "You are an AI" },
+                    { id: nanoid(6), role: "user", content: "Answer the question" }
+                ];
+            }
+        }
+        
+        // Default messages if none exist
+        return [
+            { id: nanoid(6), role: "system", content: "You are an AI" },
+            { id: nanoid(6), role: "user", content: "Answer the question" }
+        ];
+    });
+
+    // 添加复制功能状态
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     useEffect(
         ()=>{
@@ -226,6 +408,23 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }, [resultNode, isAddFlow, isComplete])
 
+    // Update the effect to handle the new prompt format
+    useEffect(() => {
+        try {
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId) {
+                    const messageJson = JSON.stringify(
+                        prompts.map(({ role, content }) => ({ role, content }))
+                    );
+                    return { ...node, data: { ...node.data, message: messageJson } };
+                }
+                return node;
+            }));
+        } catch (e) {
+            console.error("Error updating message JSON:", e);
+        }
+    }, [prompts]);
+
     const onFocus: () => void = () => {
         const curRef = menuRef.current
         if (curRef && !curRef.classList.contains("nodrag")) {
@@ -240,11 +439,20 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }
 
-
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177] '>{`{{${node.label}}}`}</span>
+        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
+                         border-[1px] text-[12px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -288,7 +496,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                         "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
                     }
                 ],
-                model: model,
+                model: model as modelType,
                 base_url: baseUrl,
                 max_tokens: 4096,
                 temperature: 0.7,
@@ -309,7 +517,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }
 
-
     const onDataSubmit = async () => {
         // click 第一步： clearActivation
         await new Promise(resolve => {
@@ -319,12 +526,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
         // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
         if (!resultNode || !getNode(resultNode)) {
-
             const newResultNodeId = nanoid(6)
             // onResultNodeChange(newResultNodeId)
             setResultNode(newResultNodeId)
-
-            // setIsAddContext(false)
             setIsAddFlow(false)
         }
         // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
@@ -342,10 +546,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             // inactivateNode(parentId)
         }
         setIsComplete(false)
-
     };
 
-    const onModelChange = (newModel: "gpt-4o" | "gpt-4o-mini" | "gpt-4") => {
+    const onModelChange = (newModel: "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo") => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, model: newModel } }
@@ -390,41 +593,48 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }))
     }
 
-
+    useEffect(() => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return { ...node, data: { ...node.data, model: model } };
+            }
+            return node;
+        }));
+    }, [model]);
 
     return (
-
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] border-box ${show ? "" : "hidden"} `} >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans '>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <g clipPath="url(#clip0_3289_923)">
-                                <mask id="mask0_3289_923" style={{ maskType: "luminance" }} maskUnits="userSpaceOnUse" x="0" y="0" width="14" height="14">
-                                    <path d="M14 0H0V14H14V0Z" fill="white" />
-                                </mask>
-                                <g mask="url(#mask0_3289_923)">
-                                    <path d="M12.9965 5.73C13.3141 4.77669 13.2047 3.73238 12.6968 2.86525C11.9329 1.53525 10.3973 0.851002 8.89752 1.173C8.23033 0.421377 7.27177 -0.00606008 6.26683 6.49355e-05C4.73383 -0.00343506 3.37365 0.983564 2.90202 2.44219C1.91721 2.64388 1.06715 3.26031 0.569708 4.134C-0.199855 5.4605 -0.024417 7.13263 1.00371 8.27013C0.686083 9.22344 0.795458 10.2678 1.3034 11.1349C2.06727 12.4649 3.6029 13.1491 5.10265 12.8271C5.7694 13.5788 6.7284 14.0062 7.73333 13.9996C9.26721 14.0036 10.6278 13.0157 11.0995 11.5558C12.0843 11.3541 12.9343 10.7376 13.4318 9.86394C14.2005 8.53744 14.0246 6.86663 12.9969 5.72913L12.9965 5.73ZM7.73421 13.0848C7.1204 13.0857 6.52583 12.8709 6.05465 12.4776C6.07608 12.4662 6.11327 12.4456 6.13733 12.4308L8.92508 10.8208C9.06771 10.7398 9.15521 10.588 9.15433 10.4239V6.49388L10.3325 7.17419C10.3452 7.18031 10.3535 7.19256 10.3553 7.20656V10.4611C10.3535 11.9084 9.18146 13.0818 7.73421 13.0848ZM2.09746 10.6773C1.7899 10.1461 1.67921 9.52356 1.78465 8.91938C1.80521 8.93163 1.84152 8.95394 1.86733 8.96881L4.65508 10.5788C4.7964 10.6615 4.9714 10.6615 5.11315 10.5788L8.51646 8.61356V9.97419C8.51733 9.98819 8.51077 10.0018 8.49983 10.0105L5.6819 11.6376C4.42671 12.3603 2.82371 11.9307 2.0979 10.6773H2.09746ZM1.36377 4.59206C1.67002 4.06006 2.15346 3.65319 2.72921 3.44188C2.72921 3.46594 2.7279 3.50838 2.7279 3.53813V6.75856C2.72702 6.92219 2.81452 7.074 2.95671 7.15494L6.36002 9.11975L5.18183 9.80006C5.17002 9.80794 5.15515 9.80925 5.14202 9.80356L2.32365 8.17519C1.07108 7.44981 0.641458 5.84725 1.36333 4.5925L1.36377 4.59206ZM11.0439 6.84475L7.64058 4.8795L8.81877 4.19963C8.83058 4.19175 8.84546 4.19044 8.85858 4.19613L11.677 5.82319C12.9317 6.54813 13.3618 8.15331 12.6368 9.40806C12.3301 9.93919 11.8471 10.3461 11.2718 10.5578V7.24113C11.2731 7.0775 11.1861 6.92613 11.0443 6.84475H11.0439ZM12.2164 5.07988C12.1958 5.06719 12.1595 5.04531 12.1337 5.03044L9.34596 3.42044C9.20465 3.33775 9.02964 3.33775 8.8879 3.42044L5.48458 5.38569V4.02506C5.48371 4.01106 5.49027 3.9975 5.50121 3.98875L8.31915 2.363C9.57433 1.63894 11.1791 2.06988 11.9027 3.3255C12.2085 3.85575 12.3192 4.47656 12.2155 5.07988H12.2164ZM4.84408 7.50494L3.66546 6.82463C3.65277 6.8185 3.64446 6.80625 3.64271 6.79225V3.53769C3.64358 2.08869 4.81915 0.914439 6.26815 0.915314C6.88108 0.915314 7.47433 1.13056 7.94552 1.52256C7.92408 1.53394 7.88733 1.5545 7.86283 1.56938L5.07508 3.17938C4.93246 3.26031 4.84496 3.41169 4.84583 3.57575L4.84408 7.50406V7.50494ZM5.48415 6.12506L7.00008 5.24963L8.51602 6.12463V7.87506L7.00008 8.75006L5.48415 7.87506V6.12506Z" fill="#CDCDCD" />
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[416px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`} >
+            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <g clipPath="url(#clip0_3289_923)">
+                                    <mask id="mask0_3289_923" style={{ maskType: "luminance" }} maskUnits="userSpaceOnUse" x="0" y="0" width="14" height="14">
+                                        <path d="M14 0H0V14H14V0Z" fill="white" />
+                                    </mask>
+                                    <g mask="url(#mask0_3289_923)">
+                                        <path d="M12.9965 5.73C13.3141 4.77669 13.2047 3.73238 12.6968 2.86525C11.9329 1.53525 10.3973 0.851002 8.89752 1.173C8.23033 0.421377 7.27177 -0.00606008 6.26683 6.49355e-05C4.73383 -0.00343506 3.37365 0.983564 2.90202 2.44219C1.91721 2.64388 1.06715 3.26031 0.569708 4.134C-0.199855 5.4605 -0.024417 7.13263 1.00371 8.27013C0.686083 9.22344 0.795458 10.2678 1.3034 11.1349C2.06727 12.4649 3.6029 13.1491 5.10265 12.8271C5.7694 13.5788 6.7284 14.0062 7.73333 13.9996C9.26721 14.0036 10.6278 13.0157 11.0995 11.5558C12.0843 11.3541 12.9343 10.7376 13.4318 9.86394C14.2005 8.53744 14.0246 6.86663 12.9969 5.72913L12.9965 5.73ZM7.73421 13.0848C7.1204 13.0857 6.52583 12.8709 6.05465 12.4776C6.07608 12.4662 6.11327 12.4456 6.13733 12.4308L8.92508 10.8208C9.06771 10.7398 9.15521 10.588 9.15433 10.4239V6.49388L10.3325 7.17419C10.3452 7.18031 10.3535 7.19256 10.3553 7.20656V10.4611C10.3535 11.9084 9.18146 13.0818 7.73421 13.0848ZM2.09746 10.6773C1.7899 10.1461 1.67921 9.52356 1.78465 8.91938C1.80521 8.93163 1.84152 8.95394 1.86733 8.96881L4.65508 10.5788C4.7964 10.6615 4.9714 10.6615 5.11315 10.5788L8.51646 8.61356V9.97419C8.51733 9.98819 8.51077 10.0018 8.49983 10.0105L5.6819 11.6376C4.42671 12.3603 2.82371 11.9307 2.0979 10.6773H2.09746ZM1.36377 4.59206C1.67002 4.06006 2.15346 3.65319 2.72921 3.44188C2.72921 3.46594 2.7279 3.50838 2.7279 3.53813V6.75856C2.72702 6.92219 2.81452 7.074 2.95671 7.15494L6.36002 9.11975L5.18183 9.80006C5.17002 9.80794 5.15515 9.80925 5.14202 9.80356L2.32365 8.17519C1.07108 7.44981 0.641458 5.84725 1.36333 4.5925L1.36377 4.59206ZM11.0439 6.84475L7.64058 4.8795L8.81877 4.19963C8.83058 4.19175 8.84546 4.19044 8.85858 4.19613L11.677 5.82319C12.9317 6.54813 13.3618 8.15331 12.6368 9.40806C12.3301 9.93919 11.8471 10.3461 11.2718 10.5578V7.24113C11.2731 7.0775 11.1861 6.92613 11.0443 6.84475H11.0439ZM12.2164 5.07988C12.1958 5.06719 12.1595 5.04531 12.1337 5.03044L9.34596 3.42044C9.20465 3.33775 9.02964 3.33775 8.8879 3.42044L5.48458 5.38569V4.02506C5.48371 4.01106 5.49027 3.9975 5.50121 3.98875L8.31915 2.363C9.57433 1.63894 11.1791 2.06988 11.9027 3.3255C12.2085 3.85575 12.3192 4.47656 12.2155 5.07988H12.2164ZM4.84408 7.50494L3.66546 6.82463C3.65277 6.8185 3.64446 6.80625 3.64271 6.79225V3.53769C3.64358 2.08869 4.81915 0.914439 6.26815 0.915314C6.88108 0.915314 7.47433 1.13056 7.94552 1.52256C7.92408 1.53394 7.88733 1.5545 7.86283 1.56938L5.07508 3.17938C4.93246 3.26031 4.84496 3.41169 4.84583 3.57575L4.84408 7.50406V7.50494ZM5.48415 6.12506L7.00008 5.24963L8.51602 6.12463V7.87506L7.00008 8.75006L5.48415 7.87506V6.12506Z" fill="#CDCDCD" />
+                                    </g>
                                 </g>
-                            </g>
-                            <defs>
-                                <clipPath id="clip0_3289_923">
-                                    <rect width="14" height="14" fill="white" />
-                                </clipPath>
-                            </defs>
-                        </svg>
-                    </div>
-                    <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                        LLM
+                                <defs>
+                                    <clipPath id="clip0_3289_923">
+                                        <rect width="14" height="14" fill="white" />
+                                    </clipPath>
+                                </defs>
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                            LLM
+                        </div>
                     </div>
                 </div>
                 <div className='flex flex-row gap-[8px] items-center justify-center'>
-
-                    <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                    <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                         onClick={onDataSubmit}>
                         <span>
                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                                <path d="M8 5L0 10V0L8 5Z" fill="black" />
+                                <path d="M8 5L0 10V0L8 5Z" fill="black"/>
                             </svg>
                         </span>
                         <span>
@@ -433,83 +643,107 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     </button>
                 </div>
             </li>
-            <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-                <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                    input
-                </div>
-                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                    {displaySourceNodeLabels()}
-                </div>
 
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                    <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
+                </div>
+                <div className='flex gap-2 p-2 bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2'>
+                        {displaySourceNodeLabels()}
+                    </div>
+                </div>
             </li>
 
-
-            <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans w-full'>
-                <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
-                    message
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Messages</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-                <JSONConfigEditor preventParentDrag={onFocus} allowParentDrag={onBlur} placeholder='[
-            {"role": "system", 
-            "content": "You are an AI"},
-            {"role": "user", 
-            "content": "answer the question by {{input_ID}}"}
-            ]' parentId={parentId} widthStyle={432} heightStyle={208} />
+                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                    <PromptEditor prompts={prompts} setPrompts={setPrompts} />
+                </div>
+            </li>
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Structured Output</label>
+                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                </div>
+                <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <select 
+                        value={isStructured_output ? "True" : "False"}
+                        onChange={(e) => setStructured_output(e.target.value === "True")}
+                        className='w-full h-full bg-transparent border-none outline-none px-3
+                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
+                        onMouseDownCapture={onFocus}
+                        onBlur={onBlur}
+                    >
+                        <option value="True">True</option>
+                        <option value="False">False</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                    </div>
+                </div>
+            </li>
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
+                    <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                    <button 
+                        onClick={() => setShowSettings(!showSettings)}
+                        className='ml-auto text-[12px] font-medium text-[#6D7177] hover:text-[#CDCDCD] transition-colors flex items-center gap-1'
+                    >
+                        {showSettings ? 'Hide' : 'Show'}
+                        <svg 
+                            className={`w-4 h-4 transition-transform duration-200 ${showSettings ? 'rotate-180' : ''}`} 
+                            viewBox="0 0 24 24"
+                        >
+                            <path 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth="2" 
+                                d="M19 9l-7 7-7-7"
+                            />
+                        </svg>
+                    </button>
+                </div>
+                {showSettings && (
+                    <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                        <div className='flex flex-col gap-2'>
+                            <div className='flex items-center gap-2'>
+                                <label className='text-[12px] font-medium text-[#6D7177]'>Model</label>
+                            </div>
+                            <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                                <select 
+                                    value={model}
+                                    onChange={(e) => setModel(e.target.value as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo")}
+                                    className='w-full h-full bg-transparent border-none outline-none px-3
+                                             text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
+                                    onMouseDownCapture={onFocus}
+                                    onBlur={onBlur}
+                                >
+                                    <option value="gpt-4o">gpt-4o</option>
+                                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                                    <option value="gpt-4-turbo">gpt-4</option>
+                                </select>
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </li>
 
-            <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                    model
-                </div>
-                <select ref={modelRef} id='model' value={model} onChange={() => {
-                    if (modelRef.current) {
-                        setModel(modelRef.current.value as "gpt-4o" | "gpt-4o-mini" | "gpt-4")
-                    }
-                }}
-                    className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[600] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                    <option value={"gpt-4o"}>
-                        gpt-4o
-                    </option>
-                    <option value={"gpt-4o-mini"}>
-                        gpt-4o-mini
-                    </option>
-                    <option value={"gpt-4-turbo"}>
-                        gpt-4
-                    </option>
-                </select>
-
-            </li>
-
-            <li className='flex items-center justify-start bg-black font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[130px] font-plus-jakarta-sans text-[12px] font-[600] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
-                    structured output
-                </div>
-                <select ref={structured_outputRef} id='structured_output' value={isStructured_output === true ? "True" : "False"} onChange={() => {
-                    if (structured_outputRef.current) {
-                        setStructured_output(structured_outputRef.current.value === "True" ? true : false)
-                    }
-                }}
-                    className='flex flex-row items-center justify-start py-[5px] px-[16px] text-[12px] font-[600] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                    <option value={"True"}>
-                        True
-                    </option>
-                    <option value={"False"}>
-                        False
-                    </option>
-                </select>
-
-            </li>
-
-            {/* <li className='flex flex-col gap-1  items-start justify-center font-plus-jakarta-sans'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[600] leading-normal ml-[4px]'>
-                base url
-            </div>
-            <input ref={baseUrlRef} id="base_url" type='text' className='px-[9px] py-[8px] border-[1px] border-[#6D7177] rounded-[8px] bg-black text-[12px] font-[600] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center w-[384px] font-plus-jakarta-sans' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur} value={baseUrl} onChange={() => {
-                if (baseUrlRef.current){
-                    setBaseUrl(baseUrlRef.current.value)
-                }
-            }}></input>
-        </li> */}
-
+            
         </ul>
     )
 }
