@@ -9,6 +9,8 @@ import { SearchConfigNodeData } from '../edgeNodes/SearchConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+import { PuppyDropdown } from '../../../misc/PuppyDropDown'
+
 type SearchPerplexityConfigProps = {
     show: boolean,
     parentId: string,
@@ -347,28 +349,24 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Model</label>
                 <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <select 
-                ref={modelRef} 
-                value={model} 
-                onChange={() => {
-                    if (modelRef.current){
-                        setModel(modelRef.current.value as perplexityModelNames)
-                    }
-                }}
-                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
-                         text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
-                         hover:border-[#6D7177]/50 transition-colors'
-            >
-                <option value="llama-3.1-sonar-small-128k-online" className='text-[#CDCDCD]'>
-                    llama-3.1-sonar-small-128k-online
-                </option>
-                <option value="llama-3.1-sonar-large-128k-online" className='text-[#CDCDCD]'>
-                    llama-3.1-sonar-large-128k-online
-                </option>
-                <option value="llama-3.1-sonar-huge-128k-online" className='text-[#CDCDCD]'>
-                    llama-3.1-sonar-huge-128k-online
-                </option>
-            </select>
+            <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <PuppyDropdown
+                    options={[
+                        "llama-3.1-sonar-small-128k-online",
+                        "llama-3.1-sonar-large-128k-online",
+                        "llama-3.1-sonar-huge-128k-online"
+                    ]}
+                    selectedValue={model}
+                    onSelect={(value: string) => {
+                        setModel(value as perplexityModelNames);
+                    }}
+                    buttonHeight="32px"
+                    buttonBgColor="transparent"
+                    menuBgColor="#1A1A1A"
+                    listWidth="100%"
+                    containerClassnames="w-full"
+                />
+            </div>
         </li>
     </ul>
   )

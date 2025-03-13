@@ -420,7 +420,8 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Return Mode</label>
                 <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <div className='flex items-center gap-2'>
+            <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+            
                 <PuppyDropdown
                     options={[
                         RET_ALL,

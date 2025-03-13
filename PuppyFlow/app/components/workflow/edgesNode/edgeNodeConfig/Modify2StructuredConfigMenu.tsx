@@ -436,7 +436,7 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
                     <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex gap-2 bg-[#252525] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <PuppyDropdown
                         options={[INTO_DICT_TYPE, INTO_LIST_TYPE, JSON_TYPE, BY_LEN_TYPE, BY_CHAR_TYPE]}
                         onSelect={(option:string) => {
