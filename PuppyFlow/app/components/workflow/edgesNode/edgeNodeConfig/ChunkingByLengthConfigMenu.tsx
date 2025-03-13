@@ -9,6 +9,8 @@ import { ChunkingConfigNodeData } from '../edgeNodes/ChunkingConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+import { PuppyDropdown } from '../../../misc/PuppyDropDown'
+
 type ChunkingByLengthConfigProps = {
     show: boolean,
     parentId: string,
@@ -374,7 +376,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
 
     
   return (
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             <div className='flex flex-row gap-[12px]'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -426,7 +428,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
                 <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+            <div className='flex gap-2 p-2 bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                 <div className='flex flex-wrap gap-2'>
                     {displaySourceNodeLabels()}
                 </div>
@@ -437,21 +439,21 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
                 <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <select 
-                ref={subChunkingModeRef} 
-                value={sub_chunk_mode} 
-                onChange={() => {
-                    if (subChunkingModeRef.current) {
-                        setSubChunkMode(subChunkingModeRef.current.value as sub_chunking_mode_names)
-                    }
-                }}
-                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
-                         border-[1px] border-[#6D7177]/30 
-                         text-[12px] text-[#CDCDCD] appearance-none cursor-pointer 
-                         hover:border-[#6D7177]/50 transition-colors'
-            >
-                <option value="size">by size</option>
-            </select>
+            <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <PuppyDropdown
+                    options={["size"]}
+                    selectedValue={sub_chunk_mode}
+                    onSelect={(value: string) => {
+                        setSubChunkMode(value as sub_chunking_mode_names);
+                    }}
+                    buttonHeight="32px"
+                    buttonBgColor="transparent"
+                    menuBgColor="#1A1A1A"
+                    listWidth="100%"
+                    containerClassnames="w-full"
+                    mapValueTodisplay={(v: string) => v === "size" ? "by size" : v}
+                />
+            </div>
         </li>
         <li className='flex flex-col gap-2'>
             <div className='flex items-center justify-between'>
