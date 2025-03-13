@@ -189,6 +189,7 @@ class WorkFlow():
         }
         """
 
+        self.step_mode = step_mode
         # Convert the JSON data to the latest version
         self.version = json_data.get("version", self.__class__.version)
 
@@ -216,9 +217,6 @@ class WorkFlow():
         self.max_workers = min(32, (os.cpu_count() or 1) * 4)
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
-        
-        # 添加步进模式属性
-        self.step_mode = step_mode
 
     def _validate_single_flow(
         self
@@ -302,7 +300,10 @@ class WorkFlow():
     def process(
         self
     ) -> Generator[Dict[str, Any], None, None]:
-        """Process the workflow with concurrent edge execution"""
+        """
+        Process the workflow with concurrent edge execution
+        """
+
         try:
             logger.info("Starting workflow processing")
 
@@ -315,23 +316,23 @@ class WorkFlow():
                 logger.info(f"Found parallel batch #{batch_count}: {parallel_batch}")
                 
                 if self.step_mode:
-                    input(f"\n按回车键执行批次 #{batch_count}... ")
-                    
+                    input(f"\nPress Enter to execute batch #{batch_count}... ")
+
                 processed_block_ids = self._process_batch_results(parallel_batch)
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
                 }
-                
+
                 if self.step_mode:
-                    print(f"\n批次 #{batch_count} 执行完成。")
-                    print(f"处理的块: {processed_block_ids}")
+                    print(f"\nBatch #{batch_count} completed.")
+                    print(f"Processed blocks: {processed_block_ids}")
                     for block_id in processed_block_ids:
                         content = self.blocks.get(block_id, {}).get("data", {}).get("content", "")
                         if isinstance(content, str) and len(content) > 100:
                             content = content[:100] + "..."
-                        print(f"  块 {block_id} 内容: {content}")
-                    
+                        print(f"Block {block_id} content: {content}")
+        
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
 
@@ -543,7 +544,7 @@ class WorkFlow():
 
     def _unicode_formatting(
         self,
-        content: str,
+        content: Any,
         block_type: str
     ) -> str:
         """
@@ -570,7 +571,7 @@ class WorkFlow():
             content = content.encode("utf-8", "ignore").decode("unicode_escape")
 
         # For structured blocks, ensure valid JSON formatting
-        if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
+        if (content.startswith("[") or content.startswith("{")):
             try:
                 # Normalize newlines and carriage returns
                 content = content.replace("\n", "\\n").replace("\r", "\\r")
@@ -580,18 +581,15 @@ class WorkFlow():
                 content = content.replace('"', r'\"')  # Escape all double quotes
                 content = content.replace("'", r"\'")  # Escape all single quotes
                 content = content.replace("`", r"\`")  # Escape all backticks
-                
-                # Wrap array in object if needed
-                if content.startswith("["):
-                    content = f'{{"content": {content}}}'
-                
+
                 # Validate JSON structure
-                try:
-                    json.loads(content)
-                except json.JSONDecodeError as e:
-                    logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
-                    raise ValueError(f"Invalid JSON structure: {str(e)}")
-                
+                if block_type == "structured":
+                    try:
+                        json.loads(content)
+                    except json.JSONDecodeError as e:
+                        logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
+                        raise ValueError(f"Invalid JSON structure: {str(e)}")
+
             except Exception as e:
                 logger.error("Structured content formatting failed: %s\nContent: %s", str(e), content)
                 raise ValueError(f"Invalid structured content format: {str(e)}")
@@ -627,145 +625,26 @@ class WorkFlow():
 
 
 if __name__ == "__main__":
-    import argparse
     from dotenv import load_dotenv
     load_dotenv()
-    
-    # 添加颜色支持
-    class Colors:
-        HEADER = '\033[95m'
-        BLUE = '\033[94m'
-        CYAN = '\033[96m'
-        GREEN = '\033[92m'
-        YELLOW = '\033[93m'
-        RED = '\033[91m'
-        ENDC = '\033[0m'
-        BOLD = '\033[1m'
-        UNDERLINE = '\033[4m'
-    
-    def print_json(data, title=None, max_length=1000):
-        """格式化打印JSON数据，支持截断长字符串"""
-        if title:
-            print(f"{Colors.BOLD}{Colors.CYAN}{title}{Colors.ENDC}")
-            
-        if isinstance(data, str):
-            try:
-                data = json.loads(data)
-            except:
-                pass
-                
-        if isinstance(data, dict) or isinstance(data, list):
-            # 处理字典和列表中超长的字符串
-            def shorten_strings(obj, max_len=max_length):
-                if isinstance(obj, dict):
-                    result = {}
-                    for k, v in obj.items():
-                        result[k] = shorten_strings(v, max_len)
-                    return result
-                elif isinstance(obj, list):
-                    return [shorten_strings(item, max_len) for item in obj]
-                elif isinstance(obj, str) and len(obj) > max_len:
-                    return obj[:max_len] + f"{Colors.YELLOW}... [截断，总长度: {len(obj)}]{Colors.ENDC}"
-                else:
-                    return obj
-            
-            # 美化输出
-            formatted = json.dumps(shorten_strings(data), ensure_ascii=False, indent=2)
-            
-            # 添加颜色高亮
-            formatted = formatted.replace('"', f'{Colors.GREEN}"') \
-                                 .replace('": ', f'"{Colors.ENDC}: ') \
-                                 .replace('true', f'{Colors.YELLOW}true{Colors.ENDC}') \
-                                 .replace('false', f'{Colors.YELLOW}false{Colors.ENDC}') \
-                                 .replace('null', f'{Colors.RED}null{Colors.ENDC}')
-            
-            print(formatted)
-        else:
-            print(data)
-            
-    
-    # 添加命令行参数解析
-    parser = argparse.ArgumentParser(description="WorkFlow引擎测试")
-    parser.add_argument("--step", action="store_true", help="启用步进测试模式")
-    parser.add_argument("--file", type=str, help="指定要测试的JSON文件路径")
-    parser.add_argument("--dir", type=str, default="PuppyEngine/TestKit/", help="指定要测试的JSON文件目录")
-    args = parser.parse_args()
-    
-    # 确定要处理的文件列表
-    files_to_process = []
-    
-    if args.file:
-        # 如果指定了单个文件，只处理该文件
-        if os.path.isfile(args.file):
-            files_to_process.append(args.file)
-        else:
-            print(f"{Colors.RED}错误: 找不到指定的文件 '{args.file}'{Colors.ENDC}")
-            sys.exit(1)
-    else:
-        # 否则处理目录中的所有JSON文件
-        test_dir = args.dir
-        if not os.path.isdir(test_dir):
-            print(f"{Colors.RED}错误: 找不到指定的目录 '{test_dir}'{Colors.ENDC}")
-            sys.exit(1)
-            
-        for file_name in os.listdir(test_dir):
-            if file_name.endswith('.json'):
-                files_to_process.append(os.path.join(test_dir, file_name))
-    
-    if not files_to_process:
-        print(f"{Colors.YELLOW}警告: 在指定位置未找到任何JSON文件{Colors.ENDC}")
-        sys.exit(0)
-        
-    # 处理每个文件
-    for file_path in files_to_process:
-        file_name = os.path.basename(file_path)
-        print(f"\n{Colors.BOLD}{Colors.HEADER}========================= {file_name} ========================={Colors.ENDC}")
-        
-        try:
-            with open(file_path, encoding="utf-8") as f:
-                data = json.load(f)
-        except json.JSONDecodeError as e:
-            # 显示更详细的错误信息，包括出错位置
-            print(f"{Colors.RED}错误: 文件 '{file_path}' 不是有效的JSON格式{Colors.ENDC}")
-            print(f"{Colors.YELLOW}错误位置: 第{e.lineno}行, 第{e.colno}列{Colors.ENDC}")
-            print(f"{Colors.YELLOW}错误信息: {e.msg}{Colors.ENDC}")
-            
-            # 可选：显示出错的行及错误位置标记
-            try:
-                with open(file_path, encoding="utf-8") as f:
-                    lines = f.readlines()
-                    if 0 <= e.lineno-1 < len(lines):
-                        error_line = lines[e.lineno-1]
-                        print(f"{Colors.CYAN}问题行内容: {error_line.rstrip()}{Colors.ENDC}")
-                        print(f"{Colors.RED}{' ' * (e.colno-1)}^ 错误位置{Colors.ENDC}")
-            except Exception:
-                pass
-            continue
-        except Exception as e:
-            print(f"{Colors.RED}错误: 无法读取文件 '{file_path}': {str(e)}{Colors.ENDC}")
+
+    test_kit = "TestKit/"
+    for file_name in os.listdir(test_kit):
+        if file_name != "test_edit_text.json":
             continue
 
-        # 创建工作流实例时启用步进模式
+        file_path = os.path.join(test_kit, file_name)
+        print(f"========================= {file_name} =========================")
+        with open(file_path, encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Use list() to collect all outputs, ensure the workflow is complete
         outputs = []
-        workflow = WorkFlow(data, step_mode=args.step)
-        batch_count = 0
-        
+        workflow = WorkFlow(data)
         for output_blocks in workflow.process():
-            batch_count += 1
             logger.info("Received output blocks: %s", output_blocks)
             outputs.append(output_blocks)
-            
-            # 美化输出批次结果
-            if output_blocks:
-                print(f"\n{Colors.BOLD}{Colors.BLUE}===== 批次 #{batch_count} 输出块 ====={Colors.ENDC}")
-                print_json(output_blocks)
 
-        # 美化最终状态输出
-        print(f"\n{Colors.BOLD}{Colors.BLUE}===== 最终块状态 ====={Colors.ENDC}")
-        print_json(workflow.blocks)
-        
-        # 美化所有输出
-        print(f"\n{Colors.BOLD}{Colors.BLUE}===== 所有批次输出概要 ====={Colors.ENDC}")
-        print(f"总共处理了 {batch_count} 个批次，生成了 {sum(len(out) for out in outputs)} 个输出块")
-        
+        logger.info("Final blocks state: %s", workflow.blocks)
+        logger.info("All outputs: %s", outputs)
         workflow.clear_workflow()
