@@ -93,12 +93,12 @@ export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setU
                 </>
             ) : (
                 <div className="w-full min-h-[180px]">
-                    {uploadedFiles.map((file: {fileName: string, fileType: string}, index: number) => (
+                    {uploadedFiles.map((file: {fileName: string|undefined, fileType: string, task_id:string}, index: number) => (
                         <div 
                             key={index} 
                             className="bg-gray-700 hover:bg-gray-600 text-white rounded-md p-2 mb-2 flex justify-between items-center"
                         >
-                            <span>{file.fileName.replace(/^file_/, '')}</span>
+                            <span>{file.fileName?.replace(/^file_/, '') || file.task_id + '.' + file.fileType|| 'Unnamed file'}</span>
                             <button 
                                 onClick={(e) => {
                                     e.stopPropagation(); // Prevent opening file dialog
