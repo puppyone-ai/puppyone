@@ -5,64 +5,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import json
 import uuid
 from threading import Lock
-from axiom_py import Client
 from collections import defaultdict
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
-from botocore.config import Config
-from botocore.exceptions import NoCredentialsError
-from boto3 import client
+
 from Server.WorkFlow import WorkFlow
 from Utils.PuppyEngineExceptions import PuppyEngineException
-
-from dotenv import load_dotenv
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(dotenv_path, override=True)
-
-import warnings
-warnings.simplefilter("ignore", DeprecationWarning)
-warnings.simplefilter("ignore", UserWarning)
-warnings.simplefilter("ignore", FutureWarning)
-
-import logging
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("httpx").setLevel(logging.ERROR)
-logger = logging.getLogger(__name__)
-
-# Initialize Axiom client for logging
-axiom_client = Client(
-    os.getenv("AXIOM_TOKEN"),
-    os.getenv("AXIOM_ORG_ID")
-)
-
-def log_info(
-    message: any
-):
-    try:
-        axiom_client.ingest_events(os.getenv("AXIOM_DATASET"), [{"level": "INFO", "message": message}])
-        logger.info(message)
-    except Exception as e:
-        logger.error(f"Failed to log to Axiom: {e}")
-
-def log_error(
-    message: any
-):
-    try:
-        axiom_client.ingest_events(os.getenv("AXIOM_DATASET"), [{"level": "ERROR", "message": message}])
-        logger.error(message)
-    except Exception as e:
-        logger.error(f"Failed to log to Axiom: {e}")
-
-# Initialize the S3 client for Cloudflare R2
-s3_client = client(
-    's3',
-    endpoint_url=os.getenv("CLOUDFLARE_R2_ENDPOINT"),
-    aws_access_key_id=os.getenv("CLOUDFLARE_R2_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
-    config=Config(signature_version='s3v4')
-)
-
+from Utils.logger import log_info, log_error
 
 class DataStore:
     def __init__(
@@ -256,27 +207,6 @@ async def send_data(
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
         raise PuppyEngineException(6300, "Server Internal Error", str(e))
-
-@app.get("/generate_presigned_url")
-async def generate_presigned_url():
-    try:
-        task_id = str(uuid.uuid4())
-        # Generate a presigned URL using SigV4
-        presigned_url = s3_client.generate_presigned_url(
-            'put_object',
-            Params={
-                'Bucket': os.getenv("CLOUDFLARE_R2_BUCKET"),
-                'Key': task_id
-            },
-            ExpiresIn=300  # URL valid for 5 minutes
-        )
-        return JSONResponse(content={"presigned_url": presigned_url, "task_id": task_id}, status_code=200)
-    except NoCredentialsError:
-        log_error("Credentials not available for Cloudflare R2.")
-        return JSONResponse(content={"error": "Credentials not available."}, status_code=403)
-    except Exception as e:
-        log_error(f"Error generating presigned URL: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
 if __name__ == "__main__":

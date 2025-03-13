@@ -1,9 +1,10 @@
+import logging
 import traceback
 from functools import wraps
-from utils.logger import log_error, log_info
+
 
 class PuppyException(Exception):
-    service_name = "puppystorage"  
+    service_name = "puppyengine"  
     
     def __init__(
         self,
@@ -22,29 +23,22 @@ class PuppyException(Exception):
 
 def global_exception_handler(
     error_code: int,
-    error_message: str,
-    log_at_root: bool = False
+    error_message: str
 ):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except PuppyException as e:
-                # Propagate the error without re-logging
-                if not log_at_root:
-                    raise
+            except puppy_exception as e:
                 tb_str = traceback.format_exc()
                 full_error_message = f"{str(e)}\nTraceback:\n{tb_str}"
-                log_error(full_error_message)
+                logging.error(full_error_message)
                 raise
             except Exception as e:
-                # Wrap and propagate the exception, logging only at root level
-                if not log_at_root:
-                    raise PuppyException(error_code, error_message, str(e))
                 tb_str = traceback.format_exc()
-                full_error_message = f"[{PuppyException.service_name.upper()}_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
-                log_error(full_error_message)
-                raise PuppyException(error_code, error_message, str(e))
+                full_error_message = f"[{puppy_exception.service_name.upper()}_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
+                logging.error(full_error_message)
+                raise puppy_exception(error_code, error_message, str(e))
         return wrapper
     return decorator
