@@ -7,7 +7,7 @@ import os
 import sys
 from typing import List, Tuple
 from ModularEdges.StorageEdge import StoragerFactory
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 
 

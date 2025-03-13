@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import copy
 from typing import Any
 from ModularEdges.ModifyEdge.modify_strategy import ModifyStrategy
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class ModifyCopyContent(ModifyStrategy):

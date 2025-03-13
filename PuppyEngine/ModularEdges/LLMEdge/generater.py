@@ -9,7 +9,7 @@ import logging
 from typing import Any, List, Dict
 from litellm import completion
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class ChatService:
@@ -53,16 +53,16 @@ class ChatService:
     ):  
         self.api_key = api_key or os.environ.get("DEEPBRICKS_API_KEY", api_key)
         if not self.api_key:
-            raise PuppyEngineException(3701, "Missing Large Language Model API Key")
+            raise PuppyException(3701, "Missing Large Language Model API Key")
         
         self.base_url = base_url or os.environ.get("DEEPBRICKS_BASE_URL", base_url)
 
         self.model = model or os.environ.get("OPENAI_MODEL", model)
         if not self.model:
-            raise PuppyEngineException(3702, "Missing Large Language Model Name")
+            raise PuppyException(3702, "Missing Large Language Model Name")
 
         if not messages:
-            raise PuppyEngineException(3700, "Missing Prompt Message", "The messages field is required for the chat completion tasks with the specific LLM.")
+            raise PuppyException(3700, "Missing Prompt Message", "The messages field is required for the chat completion tasks with the specific LLM.")
 
         self.messages = messages
         self.temperature = temperature

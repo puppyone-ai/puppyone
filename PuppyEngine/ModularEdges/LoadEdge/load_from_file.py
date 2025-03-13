@@ -19,7 +19,7 @@ import pandas as pd
 import concurrent.futures
 from pydub import AudioSegment
 from typing import List, Dict, Any
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class FileToTextParser:
@@ -63,7 +63,7 @@ class FileToTextParser:
             List of parsed file contents in the same order as the input configurations
 
         Raises:
-            PuppyEngineException: If parsing any file fails
+            PuppyException: If parsing any file fails
         """
 
         results = []
@@ -131,7 +131,7 @@ class FileToTextParser:
 
         file_type = extension_map.get(ext)
         if not file_type:
-            raise PuppyEngineException(1305, "Unknown File Type", f"Cannot determine file type for extension: {ext}")
+            raise PuppyException(1305, "Unknown File Type", f"Cannot determine file type for extension: {ext}")
 
         return file_type
 
@@ -153,13 +153,13 @@ class FileToTextParser:
             str: The parsed content of the file.
 
         Raises:
-            PuppyEngineException: If the file type is unsupported.
+            PuppyException: If the file type is unsupported.
         """
 
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
-            raise PuppyEngineException(1301, "Unsupported File Type")
+            raise PuppyException(1301, "Unsupported File Type")
         return parse_method(file_path, **kwargs)
 
     @global_exception_handler(1316, "Error Parsing Remote File")
@@ -207,7 +207,7 @@ class FileToTextParser:
             dict: The parsed JSON content.
 
         Raises:
-            PuppyEngineException: If any additional arguments are provided.
+            PuppyException: If any additional arguments are provided.
         """
 
         if kwargs:

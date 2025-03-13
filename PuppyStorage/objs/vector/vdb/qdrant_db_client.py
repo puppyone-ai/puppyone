@@ -10,7 +10,7 @@ from typing import List, Dict, Any
 from qdrant_client.http.models import VectorParams, Distance
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from Scripts.vector_db_base import VectorDatabase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

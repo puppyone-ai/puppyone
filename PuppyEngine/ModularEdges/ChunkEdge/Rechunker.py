@@ -8,7 +8,7 @@ import uuid
 from typing import List, Dict, Optional
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
 from ModularEdges.LLMEdge.generater import lite_llm_chat
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class ReChunker(BaseChunk):

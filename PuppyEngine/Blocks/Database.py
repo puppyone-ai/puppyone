@@ -2,7 +2,7 @@ from typing import Dict, List, Any
 from abc import ABC, abstractmethod
 from pymongo import MongoClient
 from sqlalchemy import create_engine, MetaData, Table, Column, String
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -391,7 +391,7 @@ class DatabaseFactory:
 
         db_type = self.config[alias]["type"].lower()
         if db_type not in {"mysql", "postgresql", "mongodb"}:
-            raise PuppyEngineException(1500, "Unsupported Database Type", f"Database type {db_type} is not supported")
+            raise PuppyException(1500, "Unsupported Database Type", f"Database type {db_type} is not supported")
 
         client_class = {
             "mysql": SQLAlchemyClient,

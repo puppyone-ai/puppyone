@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
-from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
+from Utils.puppy_exception import global_exception_handler, PuppyException
 
 
 """
@@ -226,7 +226,7 @@ class WorkFlow():
         A flow is a sequence of connected edges through their input/output blocks.
         
         Raises:
-            PuppyEngineException: If multiple disconnected flows are detected
+            PuppyException: If multiple disconnected flows are detected
         """
 
         if not self.edges:
@@ -248,7 +248,7 @@ class WorkFlow():
         # If not all blocks were visited, there are disconnected flows
         if visited_blocks != all_blocks:
             unvisited = all_blocks - visited_blocks
-            raise PuppyEngineException(
+            raise PuppyException(
                 5204,
                 "Multiple Flows Detected",
                 f"Found disconnected blocks: {unvisited}. Only one connected flow is allowed."
@@ -441,7 +441,7 @@ class WorkFlow():
                     logger.info(f"Reverted edge {edge_id} to pending state")
 
             logger.error(f"Batch execution failed: {str(e)}", exc_info=True)
-            raise PuppyEngineException(5203, "Edge Batch Execution Failed", str(e))
+            raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
 
     def _prepare_block_configs(
         self,

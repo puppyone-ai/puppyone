@@ -3,7 +3,7 @@ import traceback
 from functools import wraps
 
 
-class PuppyEngineException(Exception):
+class PuppyException(Exception):
     def __init__(
         self,
         error_code: int,
@@ -29,7 +29,7 @@ def global_exception_handler(
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except PuppyEngineException as e:
+            except PuppyException as e:
                 # Propagate the error without re-logging
                 if not log_at_root:
                     raise
@@ -39,10 +39,10 @@ def global_exception_handler(
             except Exception as e:
                 # Wrap and propagate the exception, logging only at root level
                 if not log_at_root:
-                    raise PuppyEngineException(error_code, error_message, str(e))
+                    raise PuppyException(error_code, error_message, str(e))
                 tb_str = traceback.format_exc()
                 full_error_message = f"[PE_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
                 logging.error(full_error_message)
-                raise PuppyEngineException(error_code, error_message, str(e))
+                raise PuppyException(error_code, error_message, str(e))
         return wrapper
     return decorator
