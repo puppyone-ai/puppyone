@@ -10,6 +10,7 @@ import { LLMConfigNodeData } from '../edgeNodes/LLMConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+import { PuppyDropdown } from '../../../misc/PuppyDropDown'
 
 type LLMConfigProps = {
     show: boolean,
@@ -675,23 +676,21 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Structured Output</label>
                     <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
-                <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                    <select 
-                        value={isStructured_output ? "True" : "False"}
-                        onChange={(e) => setStructured_output(e.target.value === "True")}
-                        className='w-full h-full bg-transparent border-none outline-none px-3
-                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
-                        onMouseDownCapture={onFocus}
-                        onBlur={onBlur}
-                    >
-                        <option value="True">True</option>
-                        <option value="False">False</option>
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                        <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                    </div>
+                <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                        options={["True", "False"]}
+                        selectedValue={isStructured_output ? "True" : "False"}
+                        onSelect={(value: string) => {
+                            setStructured_output(value === "True");
+                            onBlur && onBlur();
+                        }}
+                        buttonHeight="32px"
+                        buttonBgColor="transparent"
+                        menuBgColor="#1A1A1A"
+                        listWidth="100%"
+                        containerClassnames="w-full"
+                        onFocus={onFocus}
+                    />
                 </div>
             </li>
             <li className='flex flex-col gap-2'>

@@ -505,13 +505,6 @@ function EdgeMenu1({nodeType, sourceNodeId}: EdgeMenuProps) {
                         <div className='text-[14px] flex items-center justify-center h-full'>Retrieving</div>
                     </div>
                 </button>
-                <ModifySubMenu 
-                    nodeType={nodeType} 
-                    sourceNodeId={sourceNodeId} 
-                    showMenu={selectedSubMenu === 11 ? 1 : 0} 
-                    createNewConnection={createNewConnection}
-                    parentMenuRef={mainMenuRef}
-                />
             </li>
 
                 <li className="w-full relative">

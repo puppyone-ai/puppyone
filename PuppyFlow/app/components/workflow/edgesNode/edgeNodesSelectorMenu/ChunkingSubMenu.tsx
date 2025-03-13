@@ -75,6 +75,7 @@ function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, man
                     <div className='text-[14px]  flex items-center justify-center h-full'>By character</div>
                 </button>
             </li> 
+            {/*
             <li className='w-full'>
                 <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' 
                  onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
@@ -129,6 +130,7 @@ function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, man
                     createNewConnection={createNewConnection} 
                 />
             </li> 
+            */}
         </ul>
     )
 }
