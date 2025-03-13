@@ -11,7 +11,7 @@ from ModularEdges.LoadEdge.load_file import FileLoadStrategy
 from ModularEdges.LoadEdge.load_weblink import WeblinkLoadStrategy
 from ModularEdges.LoadEdge.load_database import DatabaseLoadStrategy
 from ModularEdges.LoadEdge.load_structured import StructuredLoadStrategy
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import puppy_exception, global_exception_handler
 
 
 class LoaderFactory(EdgeFactoryBase):
@@ -35,7 +35,7 @@ class LoaderFactory(EdgeFactoryBase):
         block_type = init_configs.get("block_type")
         strategy_class = cls._strategies.get(block_type)
         if not strategy_class:
-            raise PuppyEngineException(1000, "Invalid Strategy", 
+            raise puppy_exception(1000, "Invalid Strategy", 
                                      f"Block type {block_type} not supported")
 
         strategy = strategy_class(init_configs.get("content"), extra_configs)

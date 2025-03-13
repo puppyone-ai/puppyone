@@ -1,0 +1,131 @@
+{
+    "blocks": {
+
+        "fjwXyf": {
+
+            "label": "fjwXyf",
+
+            "type": "structured",
+
+            "data": {
+
+                "content": ""
+
+            }
+
+        },
+
+        "TAmkTw": {
+
+            "label": "TAmkTw",
+
+            "type": "file",
+
+            "data": {
+
+                "content": [
+
+                    {
+
+                        "task_id": "e4033cc1-885d-4666-adf7-411999d08e2b",
+
+                        "fileType": "pdf",
+
+                        "download_url": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/e4033cc1-885d-4666-adf7-411999d08e2b/732077.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1b4584c8de96138fdff9cc6eded932ad%2F20250312%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250312T131336Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=443805f6ebf5d9a1df2047b8554bc67955e0a9cbe511c9ae2fb1d56b251a3e31",
+
+                        "content_type_header": "application/pdf",
+
+                        "expires_at": {
+
+                            "upload": 1741785516,
+
+                            "download": 1741871616
+
+                        }
+
+                    },
+
+                    {
+
+                        "task_id": "c3b188fd-3715-47ff-9a30-dd2cc1a2bc3c",
+
+                        "fileType": "pdf",
+
+                        "download_url": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/c3b188fd-3715-47ff-9a30-dd2cc1a2bc3c/meiguo.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1b4584c8de96138fdff9cc6eded932ad%2F20250312%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250312T131502Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=1364e38a7a3106c70c4ac224570699d2ac34a7a42355055b0e670997f051489a",
+
+                        "content_type_header": "application/pdf",
+
+                        "expires_at": {
+
+                            "upload": 1741785602,
+
+                            "download": 1741871702
+
+                        }
+
+                    }
+
+                ]
+
+            },
+
+            "looped": false
+
+        }
+
+    },
+
+    "edges": {
+
+        "load-1741785223746": {
+
+            "type": "load",
+
+            "data": {
+
+                "block_type": "file",
+
+                "content": "TAmkTw",
+
+                "extra_configs": {
+
+                    "file_configs": [
+
+                        {
+
+                            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/e4033cc1-885d-4666-adf7-411999d08e2b/732077.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1b4584c8de96138fdff9cc6eded932ad%2F20250312%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250312T131336Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=443805f6ebf5d9a1df2047b8554bc67955e0a9cbe511c9ae2fb1d56b251a3e31",
+
+                            "file_type": "pdf"
+
+                        },
+
+                        {
+
+                            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/c3b188fd-3715-47ff-9a30-dd2cc1a2bc3c/meiguo.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=1b4584c8de96138fdff9cc6eded932ad%2F20250312%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250312T131502Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=1364e38a7a3106c70c4ac224570699d2ac34a7a42355055b0e670997f051489a",
+
+                            "file_type": "pdf"
+
+                        }
+
+                    ]
+
+                },
+
+                "inputs": {
+
+                    "TAmkTw": "TAmkTw"
+
+                },
+
+                "outputs": {
+
+                    "fjwXyf": "fjwXyf"
+
+                }
+
+            }
+
+        }
+
+    }
+}

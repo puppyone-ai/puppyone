@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 import vecs
 
 from objs.vector.vdb.vdb_base import VectorDatabase
-from utils.puppy_exception import PuppyException, global_exception_handler
+from utils.puppy_exception import puppy_exception, global_exception_handler
 from utils.config import config
 from utils.logger import log_info, log_error, log_warning
 
@@ -74,7 +74,7 @@ class PostgresVectorDatabase(VectorDatabase):
             collection.create_index(measure=measure)
             log_info(f"已创建 {metric} 索引")
             return True
-        except PuppyException as e:
+        except puppy_exception as e:
             # 检查异常是否表明索引已存在
             if "already exists" in str(e).lower():
                 log_info(f"{metric} 索引已存在")
@@ -107,14 +107,14 @@ class PostgresVectorDatabase(VectorDatabase):
         """
         # Validate input
         if not vectors or len(vectors) == 0:
-            raise PuppyException(2401, "Vector list cannot be empty during store vectors into PGVector")
+            raise puppy_exception(2401, "Vector list cannot be empty during store vectors into PGVector")
         
         vector_dimension = len(vectors[0])
         
         # Validate all vectors have consistent dimensions
         for i, vec in enumerate(vectors):
             if len(vec) != vector_dimension:
-                raise PuppyException(2401, "Vector dimension inconsistency", f"Vector {i} has dimension ({len(vec)}) inconsistent with the first vector's dimension ({vector_dimension})")
+                raise puppy_exception(2401, "Vector dimension inconsistency", f"Vector {i} has dimension ({len(vec)}) inconsistent with the first vector's dimension ({vector_dimension})")
             
         # 2. Prepare record structure
         if metadata is None:
@@ -172,7 +172,7 @@ class PostgresVectorDatabase(VectorDatabase):
                 dimension=len(query_vector)
             )
             
-        except PuppyException as e:
+        except puppy_exception as e:
             log_warning(f"Error getting collection '{collection_name}': {str(e)}")
             return []
         
@@ -190,7 +190,7 @@ class PostgresVectorDatabase(VectorDatabase):
                 include_value=True,
                 include_metadata=True,
             )
-        except PuppyException as e:
+        except puppy_exception as e:
             # Check if error is related to dimension mismatch
             if "dimension" in str(e).lower():
                 log_warning(f"Dimension mismatch: Query vector dimension ({len(query_vector)}) does not match collection dimension")
@@ -241,7 +241,7 @@ class PostgresVectorDatabase(VectorDatabase):
             collection = self.client.get_or_create_collection(name=collection_name)
             collection.delete(ids=ids)
             log_info(f"Cleaned collection: {collection_name}")
-        except PuppyException as e:
+        except puppy_exception as e:
             # Check if the error is because collection does not exist
             if "provide a dimension" in str(e).lower():
                 log_warning(f"Collection '{collection_name}' does not exist, nothing to clean")
@@ -265,7 +265,7 @@ class PostgresVectorDatabase(VectorDatabase):
         try:
             self.client.delete_collection(collection_name)
             log_info(f"Deleted collection: {collection_name}")
-        except PuppyException as e:
+        except puppy_exception as e:
             # Check if the error is because collection doesn't exist
             if "provide a dimension" in str(e).lower():
                 log_warning(f"Collection '{collection_name}' does not exist, nothing to delete")

@@ -7,7 +7,7 @@ import os
 import concurrent.futures
 from typing import List, Optional
 from firecrawl import FirecrawlApp
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import puppy_exception, global_exception_handler
 
 
 class WebScraper:
@@ -18,7 +18,7 @@ class WebScraper:
         api_key = api_key or os.environ.get("FIRECRAWL_API_KEY")
         self.api_client = FirecrawlApp(api_key or os.environ.get("FIRECRAWL_API_KEY"))
         if not api_key:
-            raise PuppyEngineException(1202, "Invalid or Missing FireCrawl API Key", f"FIRECRAWL_API_KEY: {api_key}")
+            raise puppy_exception(1202, "Invalid or Missing FireCrawl API Key", f"FIRECRAWL_API_KEY: {api_key}")
 
     @global_exception_handler(1203, "Error in getting URL Mapping")
     def url_map(

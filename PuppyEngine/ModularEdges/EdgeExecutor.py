@@ -21,7 +21,7 @@ from ModularEdges.RerankEdge import RerankerFactory
 from ModularEdges.ConditionEdge import ConditionerFactory
 from ModularEdges.QueryRewriteEdge import QueryRewriterFactory
 from ModularEdges.EdgeConfigParser import ConfigParserFactory
-from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
+from Utils.puppy_exception import global_exception_handler, puppy_exception
 
 
 @dataclass
@@ -144,7 +144,7 @@ class EdgeExecutor:
         try:
             edge_factory = self.edge_factories.get(self.edge_type)
             if not edge_factory:
-                raise PuppyEngineException(3001, "Invalid Edge Type", 
+                raise puppy_exception(3001, "Invalid Edge Type", 
                                          f"Edge type {self.edge_type} not supported")
 
             result = edge_factory.execute(init_configs, extra_configs)

@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import re
 from typing import Any, List, Tuple, Union, Optional, Callable
 from ModularEdges.ModifyEdge.modify_strategy import ModifyStrategy
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import puppy_exception, global_exception_handler
 
 
 plugin_pattern = r"\{\{(.*?)\}\}"
@@ -84,7 +84,7 @@ class ModifyEditStructured(ModifyStrategy):
                         raise ValueError(f"Unsupported operation type: {op_type}")
 
             except Exception as e:
-                raise PuppyEngineException(3802, f"Error executing structured operation `{op_type}`", str(e))
+                raise puppy_exception(3802, f"Error executing structured operation `{op_type}`", str(e))
 
             finally:
                 self.content = result

@@ -10,7 +10,7 @@ from ModularEdges.ModifyEdge.copy_content import ModifyCopyContent
 from ModularEdges.ModifyEdge.convert_to_text import ModifyConvert2Text
 from ModularEdges.ModifyEdge.edit_structured import ModifyEditStructured
 from ModularEdges.ModifyEdge.convert_2_structured import ModifyConvert2Structured
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import puppy_exception, global_exception_handler
 
 
 class ModifierFactory(EdgeFactoryBase):
@@ -32,7 +32,7 @@ class ModifierFactory(EdgeFactoryBase):
         modify_type = init_configs.get("modify_type")
         strategy_class = cls._strategies.get(modify_type)
         if not strategy_class:
-            raise PuppyEngineException(3014, f"Invalid modify type: {modify_type}")
+            raise puppy_exception(3014, f"Invalid modify type: {modify_type}")
         return strategy_class(init_configs.get("content"), extra_configs).modify()
 
 

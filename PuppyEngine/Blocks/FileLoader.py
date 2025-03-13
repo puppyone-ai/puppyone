@@ -13,7 +13,7 @@ import pypandoc
 import requests
 import pymupdf4llm
 import pandas as pd
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import puppy_exception, global_exception_handler
 
 
 class FileToTextParser:
@@ -60,7 +60,7 @@ class FileToTextParser:
             str: The parsed content of the file.
 
         Raises:
-            PuppyEngineException: If the file type is unsupported.
+            puppy_exception: If the file type is unsupported.
         """
 
         self.file_path = os.path.join(self.root_path, file_name)
@@ -68,7 +68,7 @@ class FileToTextParser:
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
-            raise PuppyEngineException(1301, "Unsupported File Type")
+            raise puppy_exception(1301, "Unsupported File Type")
         return parse_method(**kwargs)
 
     @global_exception_handler(1302, "Error Parsing JSON File")
@@ -86,7 +86,7 @@ class FileToTextParser:
             dict: The parsed JSON content.
 
         Raises:
-            PuppyEngineException: If any additional arguments are provided.
+            puppy_exception: If any additional arguments are provided.
         """
 
         if kwargs:

@@ -1,8 +1,7 @@
 import logging
 import warnings
 from axiom_py import Client
-from utils.config import config
-
+from Utils.config import config
 
 # Configure basic logging
 logging.basicConfig(level=logging.INFO)
@@ -14,21 +13,20 @@ class Logger:
     - default: logs to both Axiom and terminal
     - local: logs only to terminal
     """
-    logger_name = "puppystorage"
+    logger_name = "puppyengine"
     
-    def __init__(self, mode="default"):
+    def __init__(self, mode):
         """Initialize Logger instance"""
         self.mode = mode
         self.logger = logging.getLogger(self.__class__.logger_name)
         
         # Set the logging handler based on the mode
         if mode == "default":
-
             # only ignore specific warning types in default mode
             warnings.simplefilter("ignore", DeprecationWarning)
             warnings.simplefilter("ignore", UserWarning)
             warnings.simplefilter("ignore", FutureWarning)
-
+            
             # Initialize the Axiom client
             self.axiom_token = config.get("AXIOM_TOKEN")
             self.axiom_org_id = config.get("AXIOM_ORG_ID")

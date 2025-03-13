@@ -12,7 +12,7 @@ from openai import OpenAI
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer
 from torch import no_grad, Tensor, tensor, mean, matmul
-from utils.puppy_exception import PuppyException, global_exception_handler
+from utils.puppy_exception import puppy_exception, global_exception_handler
 from utils.config import config
 import threading
 
@@ -130,10 +130,10 @@ class TextEmbedder(Embedder):
                 self._model = SentenceTransformer(self.model_name)
             elif self._provider == "openai":
                 if not self.api_key:
-                    raise PuppyException(3301, "Missing Embedding Model API Key", "API key is required for OpenAI Embedding!")
+                    raise puppy_exception(3301, "Missing Embedding Model API Key", "API key is required for OpenAI Embedding!")
                 self._client = OpenAI(api_key=self.api_key)
             else:
-                raise PuppyException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
+                raise puppy_exception(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
 
             # 将新模型存入缓存
             self._model_cache[self.model_name] = (self._model, self._tokenizer, self._client)
@@ -172,7 +172,7 @@ class TextEmbedder(Embedder):
             response = self._client.embeddings.create(input=docs, model=self.model_name).data
             vectors = [item.embedding for item in response]
         else:
-            raise PuppyException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
+            raise puppy_exception(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
         return vectors
 
     @classmethod

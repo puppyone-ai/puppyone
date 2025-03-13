@@ -3,7 +3,9 @@ import traceback
 from functools import wraps
 
 
-class PuppyEngineException(Exception):
+class puppy_exception(Exception):
+    service_name = "puppyengine"  
+    
     def __init__(
         self,
         error_code: int,
@@ -13,7 +15,7 @@ class PuppyEngineException(Exception):
         self.error_code = error_code
         self.error_message = error_message
         self.cause = cause
-        self.raise_message = f"[PE_ERROR_{self.error_code}]: {self.error_message}!"
+        self.raise_message = f"[{self.service_name.upper()}_ERROR_{self.error_code}]: {self.error_message}!"
         if self.cause:
             self.raise_message += f"\nCause: {self.cause}"
         super().__init__(self.raise_message)
@@ -29,20 +31,18 @@ def global_exception_handler(
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
-            except PuppyEngineException as e:
-                # Propagate the error without re-logging
-                if not log_at_root:
-                    raise
+            except puppy_exception as e:
                 tb_str = traceback.format_exc()
-                logging.error(f"{str(e)}\nTraceback:\n{tb_str}")
+                full_error_message = f"{str(e)}\nTraceback:\n{tb_str}"
+                logging.error(full_error_message)
                 raise
             except Exception as e:
                 # Wrap and propagate the exception, logging only at root level
                 if not log_at_root:
-                    raise PuppyEngineException(error_code, error_message, str(e))
+                    raise puppy_exception(error_code, error_message, str(e))
                 tb_str = traceback.format_exc()
-                full_error_message = f"[PE_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
+                full_error_message = f"[{puppy_exception.service_name.upper()}_ERROR_{error_code}]: {error_message}\nCause: {str(e)}\nTraceback:\n{tb_str}"
                 logging.error(full_error_message)
-                raise PuppyEngineException(error_code, error_message, str(e))
+                raise puppy_exception(error_code, error_message, str(e))
         return wrapper
     return decorator

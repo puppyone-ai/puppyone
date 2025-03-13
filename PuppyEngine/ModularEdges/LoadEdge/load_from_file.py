@@ -19,7 +19,7 @@ import pandas as pd
 import concurrent.futures
 from pydub import AudioSegment
 from typing import List, Dict, Any
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import puppy_exception, global_exception_handler
 
 
 class FileToTextParser:
@@ -42,8 +42,10 @@ class FileToTextParser:
             pandoc_path = pypandoc.get_pandoc_path()
             if not (pandoc_path and os.path.exists(pandoc_path)):
                 pypandoc.download_pandoc()
-        except Exception:
+        except OSError:
             pypandoc.download_pandoc()
+        except puppy_exception as e:
+            print(f"Error initializing FileToTextParser: {e}")
 
     @global_exception_handler(1302, "Error Parsing Multiple Files")
     def parse_multiple(
@@ -63,7 +65,7 @@ class FileToTextParser:
             List of parsed file contents in the same order as the input configurations
 
         Raises:
-            PuppyEngineException: If parsing any file fails
+            puppy_exception: If parsing any file fails
         """
 
         results = []
@@ -84,7 +86,7 @@ class FileToTextParser:
                 idx = future_to_index[future]
                 try:
                     results[idx] = future.result()
-                except Exception as e:
+                except puppy_exception as e:
                     # Store error in results list
                     results[idx] = {"error": str(e)}
 
@@ -131,7 +133,7 @@ class FileToTextParser:
 
         file_type = extension_map.get(ext)
         if not file_type:
-            raise PuppyEngineException(1305, "Unknown File Type", f"Cannot determine file type for extension: {ext}")
+            raise puppy_exception(1305, "Unknown File Type", f"Cannot determine file type for extension: {ext}")
 
         return file_type
 
@@ -153,13 +155,13 @@ class FileToTextParser:
             str: The parsed content of the file.
 
         Raises:
-            PuppyEngineException: If the file type is unsupported.
+            puppy_exception: If the file type is unsupported.
         """
 
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
-            raise PuppyEngineException(1301, "Unsupported File Type")
+            raise puppy_exception(1301, "Unsupported File Type")
         return parse_method(file_path, **kwargs)
 
     @global_exception_handler(1316, "Error Parsing Remote File")
@@ -207,7 +209,7 @@ class FileToTextParser:
             dict: The parsed JSON content.
 
         Raises:
-            PuppyEngineException: If any additional arguments are provided.
+            puppy_exception: If any additional arguments are provided.
         """
 
         if kwargs:
