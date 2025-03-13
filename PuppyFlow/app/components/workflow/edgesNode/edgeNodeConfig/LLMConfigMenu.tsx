@@ -207,27 +207,27 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     // 添加设置面板的展开/折叠状态
     const [showSettings, setShowSettings] = useState(false)
 
-    // Replace the existing JSON state with the new prompts state
+    // 修改初始化 prompts 的逻辑，从 content 字段读取
     const [prompts, setPrompts] = useState<PromptNode[]>(() => {
         const existingNode = getNode(parentId);
-        if (existingNode?.data?.message) {
+        if (existingNode?.data?.content) {
             try {
-                // Handle the case where message might be already an object
-                const messageData = typeof existingNode.data.message === 'string' 
-                    ? JSON.parse(existingNode.data.message) 
-                    : existingNode.data.message;
+                // 尝试解析 content 字段
+                const contentData = typeof existingNode.data.content === 'string' 
+                    ? JSON.parse(existingNode.data.content) 
+                    : existingNode.data.content;
                 
-                // Ensure it's an array
-                if (Array.isArray(messageData)) {
-                    return messageData.map((msg: any) => ({
+                // 确保它是一个数组
+                if (Array.isArray(contentData)) {
+                    return contentData.map((msg: any) => ({
                         id: nanoid(6),
-                        role: msg.role || "user",  // Default to user if role is missing
-                        content: msg.content || ""  // Default to empty string if content is missing
+                        role: msg.role || "user",  // 默认为 user
+                        content: msg.content || ""  // 默认为空字符串
                     }));
                 }
             } catch (e) {
-                console.warn("Failed to parse message JSON:", e);
-                // Return default messages on parse error
+                console.warn("Failed to parse content JSON:", e);
+                // 解析错误时返回默认消息
                 return [
                     { id: nanoid(6), role: "system", content: "You are an AI" },
                     { id: nanoid(6), role: "user", content: "Answer the question" }
@@ -235,7 +235,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             }
         }
         
-        // Default messages if none exist
+        // 如果没有现有数据，返回默认消息
         return [
             { id: nanoid(6), role: "system", content: "You are an AI" },
             { id: nanoid(6), role: "user", content: "Answer the question" }
@@ -408,22 +408,29 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }, [resultNode, isAddFlow, isComplete])
 
-    // Update the effect to handle the new prompt format
+    // 修改 useEffect，只更新 content 字段
     useEffect(() => {
         try {
+            const contentJson = JSON.stringify(
+                prompts.map(({ role, content }) => ({ role, content }))
+            );
+            
             setNodes(prevNodes => prevNodes.map(node => {
                 if (node.id === parentId) {
-                    const messageJson = JSON.stringify(
-                        prompts.map(({ role, content }) => ({ role, content }))
-                    );
-                    return { ...node, data: { ...node.data, message: messageJson } };
+                    return { 
+                        ...node, 
+                        data: { 
+                            ...node.data, 
+                            content: contentJson // 只更新 content 字段
+                        } 
+                    };
                 }
                 return node;
             }));
         } catch (e) {
-            console.error("Error updating message JSON:", e);
+            console.error("Error updating content JSON:", e);
         }
-    }, [prompts]);
+    }, [prompts, setNodes, parentId]);
 
     const onFocus: () => void = () => {
         const curRef = menuRef.current
@@ -460,7 +467,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
-        // const newResultNodeId = nanoid()
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
             resultNodeLabel = getNode(resultNode)?.data?.label as string
         }
@@ -481,9 +487,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
         let edges: { [key: string]: LLMEdgeJsonType } = {}
 
+        // 直接使用 content 字段
         const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
         const edgejson: LLMEdgeJsonType = {
-            // id: parentId,
             type: "llm",
             data: {
                 messages: messageContent !== "error" ? messageContent : [
@@ -505,7 +511,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
-
         }
 
         edges[parentId] = edgejson
