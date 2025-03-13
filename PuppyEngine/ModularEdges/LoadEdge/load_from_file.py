@@ -8,6 +8,7 @@ import os
 import re
 import json
 import base64
+import threading
 import pymupdf
 import easyocr
 import whisper
@@ -38,12 +39,42 @@ class FileToTextParser:
         Initializes the FileToTextParser.
         """
 
+        # 初始化各种锁
+        self._pandoc_lock = threading.Lock()
+        self._ocr_lock = threading.Lock()
+        self._whisper_lock = threading.Lock()
+        self._audio_lock = threading.Lock()
+        
+        # 预加载模型和资源
         try:
+            self._whisper_model = None  # 延迟加载
+            self._ocr_reader = None     # 延迟加载
+            
+            # pandoc 检查
             pandoc_path = pypandoc.get_pandoc_path()
             if not (pandoc_path and os.path.exists(pandoc_path)):
                 pypandoc.download_pandoc()
         except Exception:
             pypandoc.download_pandoc()
+
+    def _get_whisper_model(self, mode: str):
+        """懒加载 whisper 模型"""
+        if self._whisper_model is None:
+            with self._whisper_lock:
+                if self._whisper_model is None:
+                    self._whisper_model = whisper.load_model(
+                        "small" if mode == "accurate" else "base"
+                    )
+        return self._whisper_model
+
+    def _get_ocr_reader(self, language_list: list = None):
+        """懒加载 OCR reader"""
+        if self._ocr_reader is None:
+            with self._ocr_lock:
+                if self._ocr_reader is None:
+                    language_list = language_list if language_list else ["ch_sim", "en"]
+                    self._ocr_reader = easyocr.Reader(language_list)
+        return self._ocr_reader
 
     @global_exception_handler(1302, "Error Parsing Multiple Files")
     def parse_multiple(
@@ -379,19 +410,21 @@ class FileToTextParser:
         if pages is not None and not isinstance(pages, list):
             raise ValueError("Pages must be a list of integers!")
 
-        pdf = file_path
+        # 确保每个线程使用独立的 PDF 对象
         if self._is_file_url(file_path):
             file_object = self._remote_file_to_byte_io(file_path)
-            pdf = pymupdf.open(stream=file_object, filetype='pdf')
-
-        pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
+            with pymupdf.open(stream=file_object, filetype='pdf') as pdf:
+                pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
+        else:
+            with pymupdf.open(file_path) as pdf:
+                pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
 
         return pdf_content
 
     @global_exception_handler(1313, "Error in OCR Image")
     def _ocr_image(
-        self,
-        image_path: str,
+        self, 
+        image_path: str, 
         language_list: list = None
     ) -> str:
         """
@@ -404,12 +437,10 @@ class FileToTextParser:
         Returns:
             str: The extracted image text.
         """
-
-        language_list = language_list if language_list else ["ch_sim", "en"]
-        reader = easyocr.Reader(language_list)
-        result = reader.readtext(image_path)
-        texts_in_img = "\n".join([text[1] for text in result])
-        return texts_in_img
+        reader = self._get_ocr_reader(language_list)
+        with self._ocr_lock:
+            result = reader.readtext(image_path)
+        return "\n".join([text[1] for text in result])
 
     @global_exception_handler(1309, "Error Parsing Image")
     def _parse_image(
@@ -460,18 +491,17 @@ class FileToTextParser:
         """
 
         mode = kwargs.get("mode", "accurate")
-        model = whisper.load_model("small" if mode == "accurate" else "base")
-        samples = file_path
-        if self._is_file_url(file_path):
-            audio_bytes = self._remote_file_to_byte_io(file_path)
-            # Convert MP3 to WAV using pydub
-            audio = AudioSegment.from_file(audio_bytes, format="mp3")
-            # Ensure it's mono and 16kHz for Whisper
-            audio = audio.set_channels(1).set_frame_rate(16000)
-            # Convert to NumPy array and normalize
-            samples = np.array(audio.get_array_of_samples()).astype(np.float32) / 32768.0
+        model = self._get_whisper_model(mode)
+        
+        with self._audio_lock:
+            samples = file_path
+            if self._is_file_url(file_path):
+                audio_bytes = self._remote_file_to_byte_io(file_path)
+                audio = AudioSegment.from_file(audio_bytes, format="mp3")
+                audio = audio.set_channels(1).set_frame_rate(16000)
+                samples = np.array(audio.get_array_of_samples()).astype(np.float32) / 32768.0
 
-        result = model.transcribe(samples)
+            result = model.transcribe(samples)
         return result["text"]
 
     @global_exception_handler(1311, "Error Parsing Video")

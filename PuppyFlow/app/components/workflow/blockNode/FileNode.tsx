@@ -10,6 +10,7 @@ import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonCo
 import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
 import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
 import { WarnsContext } from '../../states/WarnMessageContext';
+import { uploadFiles } from '@/app/utils/uploadthing'
 // import {WarnsContext,WarnsContainer} from "puppyui"
 
 export type FileNodeData = {
@@ -328,7 +329,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
           if (uploadResponse.ok) {
               console.log('文件上传成功');
-              saveFileInformation(download_url, content_id, fileExtension, content_type_header, expires_at)
+              saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at)
               // 在这里可以将UUID保存到block的content
           } else {
               console.log(response)
@@ -421,7 +422,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
               if (uploadResponse.ok) {
                   console.log('File upload successful');
-                  saveFileInformation(download_url, content_id, fileExtension, content_type_header, expires_at);
+                  saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
                   // Here you can save the UUID to the block's content
               } else {
                   console.log(response);
@@ -437,12 +438,12 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
 
 
-    const saveFileInformation = (download_url:string ,task_id: string, fileType: string, content_type_header: string, expires_at: string) => {
+    const saveFileInformation = (fileName:string, download_url:string ,task_id: string, fileType: string, content_type_header: string, expires_at: string) => {
         setNodes(prevNodes => prevNodes.map(node => node.id === id ? { ...node, data: { 
             ...node.data, content: Array.isArray(node.data?.content) 
                 ? [...(node.data.content.filter((item: any) => item.task_id !== task_id)), 
-                   { task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
-                : [{ task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
+                   { fileName: fileName, task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
+                : [{ fileName: fileName, task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
             }} : node));
         setTimeout(() => {
             console.log("updated file node", getNode(id))
@@ -450,7 +451,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     }
 
 
-    const [uploadedFiles, setUploadedFiles] = useState<{task_id: string, fileType: string}[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<{fileName:string ,task_id: string, fileType: string}[]>([]);
     const [isOnUploading, setIsOnUploading] = useState(false);
 
     useEffect(() => {
@@ -461,6 +462,16 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
         setUploadedFiles(currentNode.data.content);
       }
     }, [getNode(id)]);
+
+
+    const handleDelete = (file:string, index:number) => {
+      setNodes(prevNodes => prevNodes.map(node => {
+        if (node.id === id) {
+            return { ...node, data: { ...node.data, content: uploadedFiles.filter((_: {fileName:string, task_id: string, fileType: string}, i: number) => i !== index)} }
+        }
+        return node
+    }))
+    }
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
@@ -563,7 +574,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               
               <p className="text-xs text-gray-500 mt-2">Supported formats: .json</p>
           </div> */}
-          <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading}/>
+          <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading} handleDelete={handleDelete}/>
 
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] left-[8px] m-[8px]'>
           <path d="M0.5 0.5H8.87821L13.2838 12.5H0.5V0.5Z" stroke="#6D7177"/>

@@ -14,7 +14,7 @@ class Logger:
     - default: logs to both Axiom and terminal
     - local: logs only to terminal
     """
-    logger_name = "puppystorage"
+    logger_name = "puppyengine"
     
     def __init__(self, mode="default"):
         """Initialize Logger instance"""
