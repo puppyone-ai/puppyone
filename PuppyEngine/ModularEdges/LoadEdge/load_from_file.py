@@ -410,17 +410,16 @@ class FileToTextParser:
         if pages is not None and not isinstance(pages, list):
             raise ValueError("Pages must be a list of integers!")
 
-        pdf = file_path
+        # 确保每个线程使用独立的 PDF 对象
         if self._is_file_url(file_path):
             file_object = self._remote_file_to_byte_io(file_path)
-            pdf = pymupdf.open(stream=file_object, filetype='pdf')
-
-        pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
+            with pymupdf.open(stream=file_object, filetype='pdf') as pdf:
+                pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
+        else:
+            with pymupdf.open(file_path) as pdf:
+                pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
 
         return pdf_content
-
-
-
 
     @global_exception_handler(1313, "Error in OCR Image")
     def _ocr_image(
