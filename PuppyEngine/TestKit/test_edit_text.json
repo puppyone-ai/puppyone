@@ -64,6 +64,7 @@
         }
 
     },
+
     "edges": {
 
         "modify-1741610116175": {
@@ -88,7 +89,7 @@
 
                 },
 
-                "content": "{{LIv4dK}},{{EZy7x-}},{{Nyce_M}}",
+                "content": "[{{LIv4dK}},{{EZy7x-}},{{Nyce_M}}]",
 
                 "inputs": {
 

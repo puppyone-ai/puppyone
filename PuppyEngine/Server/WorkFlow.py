@@ -581,11 +581,7 @@ class WorkFlow():
                 content = content.replace('"', r'\"')  # Escape all double quotes
                 content = content.replace("'", r"\'")  # Escape all single quotes
                 content = content.replace("`", r"\`")  # Escape all backticks
-                
-                # Wrap array in object if needed
-                if content.startswith("["):
-                    content = f'{{"content": {content}}}'
-                
+
                 # Validate JSON structure
                 if block_type == "structured":
                     try:
@@ -634,7 +630,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "modify2.json":
+        if file_name != "test_edit_text.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
