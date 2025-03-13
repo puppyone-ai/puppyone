@@ -8,7 +8,7 @@ import sys
 from typing import List
 from duckduckgo_search import DDGS
 from ModularEdges.LLMEdge.generater import lite_llm_chat
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import SearchStrategy
 
 

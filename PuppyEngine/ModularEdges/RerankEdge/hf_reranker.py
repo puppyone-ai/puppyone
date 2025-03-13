@@ -8,7 +8,7 @@ from typing import List, Dict
 from torch import no_grad
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from ModularEdges.RerankEdge.base_reranker import BaseReranker
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class HuggingFaceReranker(BaseReranker):

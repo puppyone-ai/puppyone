@@ -14,7 +14,7 @@ from ModularEdges.ChunkEdge.special_chunk import SpecialChunking
 from ModularEdges.ChunkEdge.advanced_chunk import AdvancedChunking
 from ModularEdges.ChunkEdge.character_chunk import CharacterChunking
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class ChunkerFactory(EdgeFactoryBase):

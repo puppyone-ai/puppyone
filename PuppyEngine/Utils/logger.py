@@ -1,7 +1,7 @@
 import logging
 import warnings
 from axiom_py import Client
-from utils.config import config
+from Utils.config import config
 
 
 # Configure basic logging

@@ -7,7 +7,7 @@ import os
 from typing import List, Dict
 import cohere
 from ModularEdges.RerankEdge.base_reranker import BaseReranker
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class CohereReranker(BaseReranker):

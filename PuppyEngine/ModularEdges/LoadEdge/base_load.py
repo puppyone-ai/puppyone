@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from typing import Any, Dict
 from abc import ABC, abstractmethod
-from Utils.PuppyEngineExceptions import PuppyEngineException
+from Utils.puppy_exception import PuppyException
 
 
 class LoadStrategy(ABC):
@@ -24,7 +24,7 @@ class LoadStrategy(ABC):
     ):
         """Validate that content is not empty"""
         if not self.content:
-            raise PuppyEngineException(1100, f"Empty {self.__class__.__name__} Content")
+            raise PuppyException(1100, f"Empty {self.__class__.__name__} Content")
 
     @abstractmethod
     def load(self) -> Any:
