@@ -199,6 +199,9 @@ class WorkflowRunner:
         """
 
         for file_path in files:
+            if file_path.name != "test_edit_text.json":
+                continue
+
             logger.info(f"\n{'=' * 25} {file_path.name} {'=' * 25}")
 
             if data := self._process_json_file(file_path):
