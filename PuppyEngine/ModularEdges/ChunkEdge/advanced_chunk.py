@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 from markdown2 import markdown
 from DataClass.Chunk import Chunk
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class AdvancedChunking(BaseChunk):

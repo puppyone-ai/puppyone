@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from Server.WorkFlow import WorkFlow
-from Utils.PuppyEngineExceptions import PuppyEngineException
+from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error
 
 class DataStore:
@@ -88,7 +88,7 @@ class DataStore:
             # Verify incoming blocks match input blocks
             incoming_block_ids = set(blocks.keys())
             if incoming_block_ids != input_block_ids:
-                raise PuppyEngineException(
+                raise PuppyException(
                     7302,
                     "Input Block Mismatch",
                     f"Incoming blocks {incoming_block_ids} do not match expected input blocks {input_block_ids}",
@@ -129,11 +129,11 @@ try:
     )
 
     data_store = DataStore()
-except PuppyEngineException as e:
+except PuppyException as e:
     raise
 except Exception as e:
     log_error(f"Server Initialization Error: {str(e)}")
-    raise PuppyEngineException(6301, "Server Initialization Error", str(e))
+    raise PuppyException(6301, "Server Initialization Error", str(e))
 
 
 @app.get("/health")
@@ -154,7 +154,7 @@ async def get_data(
             try:
                 workflow = data_store.get_workflow(task_id)
                 if not workflow:
-                    raise PuppyEngineException(
+                    raise PuppyException(
                         7303,
                         "Workflow Not Found",
                         f"Workflow with task_id {task_id} not found"
@@ -179,12 +179,12 @@ async def get_data(
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
         return StreamingResponse(stream_data(), media_type="text/event-stream")
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Error Getting Data from Server: {str(e)}")
-        raise PuppyEngineException(6100, "Error Getting Data from Server", str(e))
+        raise PuppyException(6100, "Error Getting Data from Server", str(e))
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyEngineException(6300, "Server Internal Error", str(e))
+        raise PuppyException(6300, "Server Internal Error", str(e))
 
 @app.post("/send_data")
 async def send_data(
@@ -201,12 +201,12 @@ async def send_data(
             return JSONResponse(content={"data": data, "task_id": task_id}, status_code=200)
 
         return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Error Sending Data to Server: {str(e)}")
-        raise PuppyEngineException(6200, "Error Sending Data to Server", str(e))
+        raise PuppyException(6200, "Error Sending Data to Server", str(e))
     except Exception as e:
         log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyEngineException(6300, "Server Internal Error", str(e))
+        raise PuppyException(6300, "Server Internal Error", str(e))
 
 
 if __name__ == "__main__":
@@ -217,8 +217,8 @@ if __name__ == "__main__":
         config = hypercorn.Config()
         config.bind = ["127.0.0.1:8001"]
         asyncio.run(hypercorn.asyncio.serve(app, config))
-    except PuppyEngineException as e:
+    except PuppyException as e:
         raise
     except Exception as e:
         log_error(f"Unexpected Error in Launching Server: {str(e)}")
-        raise PuppyEngineException(6000, "Unexpected Error in Launching Server", str(e))
+        raise PuppyException(6000, "Unexpected Error in Launching Server", str(e))

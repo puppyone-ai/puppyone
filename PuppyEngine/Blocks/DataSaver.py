@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup
 from markdown2 import markdown
 from pypandoc import convert_text
 from Blocks.Database import DatabaseFactory
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class DataSaver:
@@ -164,10 +164,10 @@ class DataSaver:
         elif isinstance(data, dict):
             saver_func = dict_savers.get(file_type)
         else:
-            raise PuppyEngineException(2301, "Unsupported Data Type", f"Data type {type(data).__name__} is unsupported!")
+            raise PuppyException(2301, "Unsupported Data Type", f"Data type {type(data).__name__} is unsupported!")
 
         if not saver_func:
-            raise PuppyEngineException(2302, "Unsupported File Type", f"Type {file_type} is unsupported!")
+            raise PuppyException(2302, "Unsupported File Type", f"Type {file_type} is unsupported!")
 
         return saver_func(data, filename, **kwargs)
 

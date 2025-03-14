@@ -14,7 +14,7 @@ from ModularEdges.SaveEdge.save_to_text import TextSaveStrategy
 from ModularEdges.SaveEdge.save_to_xlsx import XlsxSaveStrategy
 from ModularEdges.SaveEdge.save_to_markdown import MarkdownSaveStrategy
 from ModularEdges.SaveEdge.save_to_database import DatabaseSaveStrategy
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class SaverFactory(EdgeFactoryBase):
@@ -50,11 +50,11 @@ class SaverFactory(EdgeFactoryBase):
         elif isinstance(data, dict):
             strategy = cls._dict_strategies.get(file_type)
         else:
-            raise PuppyEngineException(2301, "Unsupported Data Type", 
+            raise PuppyException(2301, "Unsupported Data Type", 
                                      f"Data type {type(data).__name__} is unsupported!")
 
         if not strategy:
-            raise PuppyEngineException(2302, "Unsupported File Type", 
+            raise PuppyException(2302, "Unsupported File Type", 
                                      f"Type {file_type} is unsupported!")
 
         return strategy.save(data, init_configs.get("file_name"), **extra_configs)

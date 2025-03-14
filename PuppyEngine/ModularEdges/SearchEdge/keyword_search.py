@@ -8,7 +8,7 @@ import sys
 import math
 from transformers import AutoTokenizer
 from typing import List, Dict, Optional
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 
 

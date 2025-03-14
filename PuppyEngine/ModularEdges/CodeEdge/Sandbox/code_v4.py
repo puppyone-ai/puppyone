@@ -16,7 +16,7 @@ from RestrictedPython import compile_restricted
 from RestrictedPython.Guards import safe_builtins
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from RestrictedPython.PrintCollector import PrintCollector
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class CoderFactory(EdgeFactoryBase):
