@@ -280,7 +280,7 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
 
     return (
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[352px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[352px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -315,7 +315,7 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Input</label>
                     <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex gap-2 p-2 bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}
                     </div>

@@ -41,6 +41,7 @@ class FileToTextParser:
 
         # 初始化各种锁
         self._pandoc_lock = threading.Lock()
+        self._pymupdf4llm_lock = threading.Lock()
         self._ocr_lock = threading.Lock()
         self._whisper_lock = threading.Lock()
         self._audio_lock = threading.Lock()
@@ -376,7 +377,8 @@ class FileToTextParser:
             source_file_request = requests.get(file_path)
             source_file = source_file_request.content
 
-        output = pypandoc.convert_file(source_file, "markdown")
+        with self._pandoc_lock:
+            output = pypandoc.convert_file(source_file, "markdown")
 
         output = output.replace('\\"', '"').replace("\\'", "'")
 
@@ -411,13 +413,10 @@ class FileToTextParser:
             raise ValueError("Pages must be a list of integers!")
 
         # 确保每个线程使用独立的 PDF 对象
-        if self._is_file_url(file_path):
-            file_object = self._remote_file_to_byte_io(file_path)
-            with pymupdf.open(stream=file_object, filetype='pdf') as pdf:
-                pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
-        else:
-            with pymupdf.open(file_path) as pdf:
-                pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
+        file_object = self._remote_file_to_byte_io(file_path) if self._is_file_url(file_path) else file_path
+
+        with pymupdf.open(stream=file_object, filetype='pdf') as pdf, self._pymupdf4llm_lock:
+            pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
 
         return pdf_content
 
