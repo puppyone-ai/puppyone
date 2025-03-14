@@ -8,7 +8,7 @@ import json
 import logging
 import requests
 from typing import List, Dict, Any
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class StoragerFactory:
