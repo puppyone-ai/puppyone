@@ -71,9 +71,6 @@ async def delete_vdb_collection(
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    except PuppyException as e:
-        log_error(f"Unexpected Error in Deleting Vector Collection: {str(e)}")
-        return JSONResponse(content={"error": "Internal Server Error"}, status_code=500)
 
 
 @vector_router.get("/search/{collection_name}")
@@ -108,11 +105,8 @@ async def search_vdb_collection(
 
         return JSONResponse(content=results, status_code=200)
     except PuppyException as e:
-        log_error(f"Search Error: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    except PuppyException as e:
         log_error(f"Unexpected Error in Vector Search: {str(e)}")
-        return JSONResponse(content={"error": "Internal Server Error"}, status_code=500) 
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import asyncio
