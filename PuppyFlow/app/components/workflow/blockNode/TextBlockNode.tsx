@@ -329,7 +329,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         <path d="M9 11.9961L4 12.001" stroke="#6C98D5" stroke-width="2" />
         <path d="M13.5 7H9.5V5.5H15.5V18.5H9.5V17H13.5H14V16.5V7.5V7H13.5Z" fill="#6C98D5" stroke="#6C98D5" />
       </svg>
-
     )
     else if (isOutput) return (
       <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -340,12 +339,9 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     )
     else return (
       <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-        <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-        <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-        <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-        <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-        <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-        <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+        <path d="M3 8H17" className="stroke-[#A4C8F0]  group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M3 12H15" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M3 16H13" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     )
   }
