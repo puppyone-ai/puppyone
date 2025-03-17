@@ -446,7 +446,14 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{node.label}</span>
+            <span 
+                key={`${node.id}-${parentId}`} 
+                className='flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium
+                         bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90'
+            >
+                {node.label}
+            </span>
         ))
     }
 
@@ -495,12 +502,17 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     }
 
     const displayOutputNodeLabels = () => {
-        if (outputs.length === 0) return [].map((node: string) => (
-            <span key={`${node}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{getNode(node)?.data?.label as string ?? node}</span>
-        ))
+        if (outputs.length === 0) return null;
 
         return outputs.map((node: string) => (
-            <span key={`${node}-${parentId}`} className='w-fit text-[12px] font-[700] text-[#000] leading-normal tracking-[0.84px] bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] border-[3px]'>{getNode(node)?.data?.label as string ?? node}</span>
+            <span 
+                key={`${node}-${parentId}`} 
+                className='flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium
+                         bg-[#252525] border-[#39BC66]/30 text-[#39BC66]/90'
+            >
+                {getNode(node)?.data?.label as string ?? node}
+            </span>
         ))
     }
 
@@ -1160,68 +1172,78 @@ function ChooseConfigMenu({show, parentId}: ChooseConfigProps) {
     
         return (
 
-            <ul ref={menuRef} className={`w-[535px] absolute top-[58px] left-[0px] text-white rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[8px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
-                {/* {
-                    comapreAndDelete(getNodes()).map(output =><div>${output}</div>
-                    )
-                } */}
-                <li className='flex gap-1 items-center justify-between font-plus-jakarta-sans'>
-                    <div className='flex flex-row gap-[8px] justify-center items-center'>
-                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[4px] flex items-center justify-center'>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
-                            <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
-                            <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                            <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
-                            </svg>
-                        </div>
-                        <div className='flex items-center justify-center text-[12px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                        If/Else
+            <ul ref={menuRef} className={`w-[535px] absolute top-[58px] left-[0px] text-white rounded-[16px] border-[1px] border-[#6D7177] bg-main-black-theme p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`} >
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                    <div className='flex flex-row gap-[12px]'>
+                        <div className='flex flex-row gap-[8px] justify-center items-center'>
+                            <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                    <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2"/>
+                                    <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5"/>
+                                    <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9"/>
+                                    <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9"/>
+                                </svg>
+                            </div>
+                            <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                                If/Else
+                            </div>
                         </div>
                     </div>
-                    <div className='w-[57px] h-[26px]'>
-                        <button className='w-full h-full rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[700] font-plus-jakarta-sans flex flex-row items-center  justify-center gap-[7px]' onClick={onDataSubmit}>
-                        <span>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                            <path d="M8 5L0 10V0L8 5Z" fill="black"/>
-                            </svg>
-                        </span>
-                        <span>
-                            Run
-                        </span>
+                    <div className='flex flex-row gap-[8px] items-center justify-center'>
+                        <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                            onClick={onDataSubmit}>
+                            <span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                                    <path d="M8 5L0 10V0L8 5Z" fill="black"/>
+                                </svg>
+                            </span>
+                            <span>
+                                Run
+                            </span>
                         </button>
                     </div>
                 </li>
-                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
-                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] flex items-center justify-start'>
-                     input
+
+                <li className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                        <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                     </div>
-                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  border-l-[1px] border-[#6D7177]'>
-                        {displaySourceNodeLabels()}
-                    </div>
-                    
-                </li>
-                <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[4px] w-[510px]'>
-                    <div className='text-[#6D7177] w-[62px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] flex items-center justify-start'>
-                     output
-                    </div>
-                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]  border-l-[1px] border-[#6D7177]'>
-                        {displayOutputNodeLabels()} 
-                        <svg onClick={
-                            async()=>{
-                                // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
-                                const newResultNodeOneId = nanoid(6)
-                                // onResultNodeChange(newResultNodeId)
-                                setAutogenerated(true)
-                                setOutputs(prev => Array.from(new Set([...prev, newResultNodeOneId])))
-                            }
-                        } className='cursor-pointer' width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect x="0.75" y="0.75" width="18.5" height="18.5" rx="7.25" fill="#090909" stroke="#6D7177" stroke-width="1.5"/>
-                            <path d="M10 6V14" stroke="#6D7177" stroke-width="1.5"/>
-                            <path d="M6 10H14" stroke="#6D7177" stroke-width="1.5"/>
-                        </svg>
+                    <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                        <div className='flex flex-wrap gap-2'>
+                            {displaySourceNodeLabels()}
+                        </div>
                     </div>
                 </li>
+
+                <li className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[13px] font-semibold text-[#6D7177]'>Output Nodes</label>
+                        <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    </div>
+                    <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                        <div className='flex flex-wrap gap-2 items-center w-full'>
+                            {displayOutputNodeLabels()}
+                            <button 
+                                onClick={async() => {
+                                    const newResultNodeOneId = nanoid(6)
+                                    setAutogenerated(true)
+                                    setOutputs(prev => Array.from(new Set([...prev, newResultNodeOneId])))
+                                }}
+                                className='h-[20px] w-[20px] px-[6px] flex items-center justify-center rounded-[4px] 
+                                        bg-[#252525] border-[1px] border-[#6D7177]/30
+                                        text-[#6D7177]
+                                        hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
+                                        transition-colors'
+                            >
+                                <svg width="10" height="10" viewBox="0 0 14 14">
+                                    <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </li>
+
                 {
                     cases.map((case_value,case_index)=>(
                         <li key={case_index} className='flex flex-col gap-0 items-start justify-center font-plus-jakarta-sans'>

@@ -7,7 +7,7 @@ import os
 from typing import List, Dict, Any
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from ModularEdges.RerankEdge.rrf_reranker import RRFReranker
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.RerankEdge.llm_reranker import LLMBasedReranker
 from ModularEdges.RerankEdge.cohere_reranker import CohereReranker
 from ModularEdges.RerankEdge.hf_reranker import HuggingFaceReranker

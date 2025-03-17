@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from typing import Any, Dict, List
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.ConditionEdge.condition_evaluation import ConditionEvaluator
 
 

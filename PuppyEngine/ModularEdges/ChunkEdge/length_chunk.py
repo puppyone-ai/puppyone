@@ -7,7 +7,7 @@ from typing import List, Dict, Tuple, Optional
 from transformers import AutoTokenizer
 from DataClass.Chunk import Chunk
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class LengthChunking(BaseChunk):
