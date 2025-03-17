@@ -10,9 +10,10 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
 from boto3 import client
-from Utils.PuppyEngineExceptions import PuppyEngineException
-from Utils.logger import log_info, log_error
-from Utils.config import config
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
+from utils.config import config
+
 
 # 仅配置 boto3 日志，不修改全局设置
 boto3_logger = logging.getLogger('boto3')
@@ -43,7 +44,7 @@ try:
     # 不使用list_buckets，而是检查特定存储桶
     response = s3_client.head_bucket(Bucket=config.get("CLOUDFLARE_R2_BUCKET"))
     log_info(f"Successfully connected to R2 bucket: {config.get('CLOUDFLARE_R2_BUCKET')}")
-except Exception as e:
+except PuppyException as e:
     log_error(f"Error connecting to R2: {e}")
     # 连接错误不会中断服务，API仍将尝试处理请求
     # 但在生产环境中可能需要更严格的错误处理
@@ -119,10 +120,74 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
     except NoCredentialsError:
         log_error("Failed to get Cloudflare R2 credentials")
         return JSONResponse(content={"error": "Credentials not available"}, status_code=403)
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Error generating file URLs: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
     
+
+@file_router.delete("/delete")
+async def delete_file(request: Request):
+    try:
+        # 从请求体获取参数
+        data = await request.json()
+        user_id = data.get("user_id")
+        content_id = data.get("content_id")
+        content_name = data.get("content_name")
+        
+        # 验证必要参数
+        if not user_id or not content_id or not content_name:
+            missing_params = []
+            if not user_id: missing_params.append("user_id")
+            if not content_id: missing_params.append("content_id")
+            if not content_name: missing_params.append("content_name")
+            
+            log_error(f"删除文件时缺少必要参数: {', '.join(missing_params)}")
+            return JSONResponse(
+                content={"error": f"缺少必要参数: {', '.join(missing_params)}"},
+                status_code=400
+            )
+        
+        # 构建文件存储路径
+        key = f"{user_id}/{content_id}/{content_name}"
+        
+        # 检查文件是否存在
+        try:
+            s3_client.head_object(
+                Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
+                Key=key
+            )
+        except:
+            log_error(f"文件不存在: {key}")
+            return JSONResponse(
+                content={"error": f"文件 {content_name} 不存在"},
+                status_code=404
+            )
+        
+        # 删除特定文件
+        s3_client.delete_object(
+            Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
+            Key=key
+        )
+        
+        log_info(f"已删除用户 {user_id} 的文件: {key}")
+        return JSONResponse(
+            content={
+                "message": f"已成功删除文件: {content_name}",
+                "user_id": user_id,
+                "content_id": content_id,
+                "deleted_at": int(time.time())
+            },
+            status_code=200
+        )
+    except NoCredentialsError:
+        log_error("无法获取Cloudflare R2凭证")
+        return JSONResponse(content={"error": "凭证不可用"}, status_code=403)
+    except PuppyException as e:
+        log_error(f"删除文件时出错: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+    except Exception as e:
+        log_error(f"删除文件时发生未预期的错误: {str(e)}")
+        return JSONResponse(content={"error": "服务器内部错误"}, status_code=500)
 
 if __name__ == "__main__":
     import asyncio
@@ -181,7 +246,7 @@ if __name__ == "__main__":
                 print(f"File upload failed! Status code: {upload_response.status_code}")
                 print(f"Error message: {upload_response.text}")
 
-        except Exception as e:
+        except PuppyException as e:
             print(f"File upload failed: {str(e)}")
         
         # Wait to ensure upload completes
@@ -205,7 +270,7 @@ if __name__ == "__main__":
             else:
                 print("❌ File content mismatch!")
                 return False
-        except Exception as e:
+        except PuppyException as e:
             print(f"File download failed: {str(e)}")
             return False
     

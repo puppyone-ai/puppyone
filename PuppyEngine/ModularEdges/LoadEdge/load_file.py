@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 import os
 from ModularEdges.LoadEdge.base_load import LoadStrategy
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.LoadEdge.load_from_file import FileToTextParser
 
 

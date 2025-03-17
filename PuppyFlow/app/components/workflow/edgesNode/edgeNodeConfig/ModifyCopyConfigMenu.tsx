@@ -163,8 +163,8 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
             <button 
                 key={`${node.id}-${parentId}`} 
                 onClick={() => copyToClipboard(node.label)}
-                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
-                         border-[1px] text-[12px] font-medium transition-all duration-200
+                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium transition-all duration-200
                          ${copiedLabel === node.label 
                            ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
                            : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
@@ -260,7 +260,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
 
 
     return (
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[16px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -304,7 +304,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
                     <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}
                     </div>

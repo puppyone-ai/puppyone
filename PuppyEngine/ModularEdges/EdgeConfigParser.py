@@ -8,7 +8,7 @@ from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Union, Tuple
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 @dataclass

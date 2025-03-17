@@ -7,16 +7,15 @@ import os
 import uuid
 import logging
 from typing import List, Dict, Any
-from qdrant_client.http.models import VectorParams, Distance
-from qdrant_client.models import Filter, FieldCondition, MatchValue
+from pymilvus import CollectionSchema, FieldSchema, DataType
 from Scripts.vector_db_base import VectorDatabase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class QdrantVectorDatabase(VectorDatabase):
+class ZillizVectorDatabase(VectorDatabase):
     def __init__(
         self,
         client_type: int
@@ -24,41 +23,39 @@ class QdrantVectorDatabase(VectorDatabase):
         super().__init__(client_type=client_type)
         self.connections = {}
 
-    @global_exception_handler(2407, "Error Connecting to Qdrant Vector Database")
+    @global_exception_handler(2404, "Error Connecting to Zilliz Vector Database")
     def register_collection(
         self,
         collection_name: str
     ) -> None:
         """
-        Connect to a collection in Qdrant.
+        Connect to a collection in Zilliz.
         
         Args:
             collection_name (str): Name of the collection.
         """
 
         if collection_name not in self.connections:
-            self.connections[collection_name] = self.qdrant_client
-            logging.info(f"Connected to collection '{collection_name}' in Qdrant.")
+            self.connections[collection_name] = self.zilliz_client
+            logging.info(f"Connected to collection '{collection_name}' in Zilliz.")
 
-    @global_exception_handler(2408, "Error Saving Embeddings to Qdrant Vector Database")
+    @global_exception_handler(2405, "Error Saving Embeddings to Zilliz Vector Database")
     def save_embeddings(
         self,
         collection_name: str,
         embeddings: List[List[float]],
         documents: List[str],
         create_new: bool = False,
-        metric: str = "cosine",
         metadatas: List[Dict[str, Any]] = [{}]
     ) -> None:
         """
-        Save embeddings to the specified collection in Qdrant.
+        Save embeddings to the specified collection in Zilliz.
         
         Args:
             collection_name (str): Name of the collection.
             embeddings (List[List[float]]): List of embeddings.
             documents (List[str]): List of documents.
             create_new (bool): Whether to create a new collection.
-            metric (str): Similarity metric (default: "cosine").
             metadatas (List[Dict[str, Any]]): Additional metadata to store with the embeddings.
         """
 
@@ -67,35 +64,28 @@ class QdrantVectorDatabase(VectorDatabase):
             raise ValueError(f"Not connected to collection '{collection_name}'.")
 
         if create_new:
-            metric_dict = {
-                "cosine": Distance.COSINE,
-                "euclidean": Distance.EUCLID,
-                "manhattan": Distance.MANHATTAN,
-                "dot": Distance.DOT
-            }
-            metric = metric.lower()
-            client.create_collection(
-                    collection_name=collection_name,
-                    vectors_config=VectorParams(size=len(embeddings[0]), distance=metric_dict.get(metric)),
-            )
-            logging.info(f"Created new collection '{collection_name}' with specified configuration.")
+            fields = [
+                FieldSchema(name="id", dtype=DataType.VARCHAR, is_primary=True, max_length=64),
+                FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=len(embeddings[0])),
+                FieldSchema(name="metadata", dtype=DataType.OBJECT)
+            ]
+            schema = CollectionSchema(fields)
+            client.create_collection(collection_name, schema)
+            logging.info(f"Created new collection '{collection_name}' with specified schema.")
 
         ids = [metadata.get("id") for metadata in metadatas]
         if not ids:
             ids = [str(uuid.uuid4()) for _ in embeddings]
 
-        points = [
-            {
-                "id": ids[i],
-                "vector": embeddings[i],
-                "payload": {"document": documents[i], **metadatas[i]}
-            }
-            for i in range(len(embeddings))
+        data = [
+            ids,
+            embeddings,
+            [{"document": documents[i], **metadatas[i]} for i in range(len(documents))]
         ]
-        client.upsert(collection_name=collection_name, points=points)
+        client.upsert(collection_name, data)
         logging.info(f"Inserted {len(embeddings)} embeddings into collection '{collection_name}'.")
 
-    @global_exception_handler(2409, "Error Searching Embeddings in Qdrant Vector Database")
+    @global_exception_handler(2406, "Error Searching Embeddings in Zilliz Vector Database")
     def search_embeddings(
         self,
         collection_name: str,
@@ -105,16 +95,16 @@ class QdrantVectorDatabase(VectorDatabase):
     ) -> List[Dict[str, Any]]:
         """
         Search for nearest embeddings in the collection.
-
+        
         Args:
-
             collection_name (str): Name of the collection.
             query_embedding (List[float]): Query embedding.
             top_k (int): Number of nearest results to return.
+            metric_type (str): Similarity metric, could be "COSINE", "L2", "IP" (default: "COSINE").
             filter_tag (str): Tag to filter by.
             filter_str (str): Filter string.
-            with_payload (bool): Whether to include payload in the results.
- 
+            partition_names (List[str]): List of partition names.
+
         Returns:
             List[Dict[str, Any]]: List of search results.
         """
@@ -123,32 +113,22 @@ class QdrantVectorDatabase(VectorDatabase):
         if not client:
             raise ValueError(f"Not connected to collection '{collection_name}'.")
 
-        filter_tag, filter_str = kwargs.get("filter_tag"), kwargs.get("filter_str")
-        with_payload = kwargs.get("with_payload", True)
-        response = client.search(
+        search_params = {"metric_type": kwargs.get("metric_type", "COSINE"), "params": {"nprobe": 10}}
+        partition_names = kwargs.get("partition_names")
+        responses = client.search(
             collection_name=collection_name,
-            query_vector=query_embedding,
-            query_filter=(
-                Filter(
-                    must=[
-                        FieldCondition(
-                            key=filter_tag, match=MatchValue(value=filter_str)
-                        )
-                    ]
-                )
-                if filter_tag and filter_str
-                else None
-            ),
-            with_payload=with_payload,
+            data=[query_embedding],
+            filter="embedding",
             limit=top_k,
+            search_params=search_params,
+            partition_names=partition_names
         )
 
         results = [{
             "id": result.id,
-            "document": result.payload.get("document"),
-            "score": result.score
-            } for result in response
-        ]
+            "document": result.entity.get("document"),
+            "score": result.distance
+        } for result in responses[0]]
         return results
 
 
@@ -168,18 +148,18 @@ if __name__ == "__main__":
     documents = [f"Document content {i}" for i in range(10)]
     query_vector = rng.random(512).tolist()
 
-    # Qdrant Test
-    qdrant_db = QdrantVectorDatabase(client_type=0)
-    qdrant_db.register_collection("qdrant_test_collection")
-    qdrant_db.save_embeddings(
-        collection_name="qdrant_test_collection",
+    # Zilliz Test
+    zilliz_db = ZillizVectorDatabase(client_type=0)
+    zilliz_db.register_collection("zilliz_test_collection")
+    zilliz_db.save_embeddings(
+        collection_name="zilliz_test_collection",
         embeddings=embeddings,
         documents=documents,
         create_new=True,
     )
-    qdrant_results = qdrant_db.search_embeddings(
-        collection_name="qdrant_test_collection",
+    zilliz_results = zilliz_db.search_embeddings(
+        collection_name="zilliz_test_collection",
         query_embedding=query_vector,
         top_k=5,
     )
-    print("Qdrant Search Results:", qdrant_results)
+    print("Zilliz Search Results:", zilliz_results)

@@ -20,7 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
-from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
+from Utils.puppy_exception import global_exception_handler, PuppyException
 
 
 """
@@ -142,11 +142,17 @@ class WorkFlow():
     def __init__(
         self,
         json_data: Dict[str, Dict[str, str]],
-        latest_version: str = "0.1"
+        latest_version: str = "0.1",
+        step_mode: bool = False
     ):
         """
         Initialize the processor for the WorkFlow object.
 
+        Args:
+            json_data: The workflow definition in JSON format
+            latest_version: The latest version of the schema
+            step_mode: If True, enable step-by-step execution mode
+        
         Example Input JSON:
         {
             "blocks": {
@@ -183,6 +189,7 @@ class WorkFlow():
         }
         """
 
+        self.step_mode = step_mode
         # Convert the JSON data to the latest version
         self.version = json_data.get("version", self.__class__.version)
 
@@ -211,7 +218,6 @@ class WorkFlow():
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
 
-
     def _validate_single_flow(
         self
     ) -> None:
@@ -220,7 +226,7 @@ class WorkFlow():
         A flow is a sequence of connected edges through their input/output blocks.
         
         Raises:
-            PuppyEngineException: If multiple disconnected flows are detected
+            PuppyException: If multiple disconnected flows are detected
         """
 
         if not self.edges:
@@ -242,7 +248,7 @@ class WorkFlow():
         # If not all blocks were visited, there are disconnected flows
         if visited_blocks != all_blocks:
             unvisited = all_blocks - visited_blocks
-            raise PuppyEngineException(
+            raise PuppyException(
                 5204,
                 "Multiple Flows Detected",
                 f"Found disconnected blocks: {unvisited}. Only one connected flow is allowed."
@@ -294,19 +300,39 @@ class WorkFlow():
     def process(
         self
     ) -> Generator[Dict[str, Any], None, None]:
-        """Process the workflow with concurrent edge execution"""
+        """
+        Process the workflow with concurrent edge execution
+        """
+
         try:
             logger.info("Starting workflow processing")
 
             # while there is still edges to process
             parallel_batch = self._find_parallel_batches()
+            batch_count = 0
+            
             while parallel_batch:
-                logger.info("Found parallel batches: %s", parallel_batch)
+                batch_count += 1
+                logger.info(f"Found parallel batch #{batch_count}: {parallel_batch}")
+                
+                if self.step_mode:
+                    input(f"\nPress Enter to execute batch #{batch_count}... ")
+
                 processed_block_ids = self._process_batch_results(parallel_batch)
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
                 }
+
+                if self.step_mode:
+                    print(f"\nBatch #{batch_count} completed.")
+                    print(f"Processed blocks: {processed_block_ids}")
+                    for block_id in processed_block_ids:
+                        content = self.blocks.get(block_id, {}).get("data", {}).get("content", "")
+                        if isinstance(content, str) and len(content) > 100:
+                            content = content[:100] + "..."
+                        print(f"Block {block_id} content: {content}")
+        
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
 
@@ -415,7 +441,7 @@ class WorkFlow():
                     logger.info(f"Reverted edge {edge_id} to pending state")
 
             logger.error(f"Batch execution failed: {str(e)}", exc_info=True)
-            raise PuppyEngineException(5203, "Edge Batch Execution Failed", str(e))
+            raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
 
     def _prepare_block_configs(
         self,
@@ -518,7 +544,7 @@ class WorkFlow():
 
     def _unicode_formatting(
         self,
-        content: str,
+        content: Any,
         block_type: str
     ) -> str:
         """
@@ -545,7 +571,7 @@ class WorkFlow():
             content = content.encode("utf-8", "ignore").decode("unicode_escape")
 
         # For structured blocks, ensure valid JSON formatting
-        if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
+        if (content.startswith("[") or content.startswith("{")):
             try:
                 # Normalize newlines and carriage returns
                 content = content.replace("\n", "\\n").replace("\r", "\\r")
@@ -555,18 +581,15 @@ class WorkFlow():
                 content = content.replace('"', r'\"')  # Escape all double quotes
                 content = content.replace("'", r"\'")  # Escape all single quotes
                 content = content.replace("`", r"\`")  # Escape all backticks
-                
-                # Wrap array in object if needed
-                if content.startswith("["):
-                    content = f'{{"content": {content}}}'
-                
+
                 # Validate JSON structure
-                try:
-                    json.loads(content)
-                except json.JSONDecodeError as e:
-                    logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
-                    raise ValueError(f"Invalid JSON structure: {str(e)}")
-                
+                if block_type == "structured":
+                    try:
+                        json.loads(content)
+                    except json.JSONDecodeError as e:
+                        logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
+                        raise ValueError(f"Invalid JSON structure: {str(e)}")
+
             except Exception as e:
                 logger.error("Structured content formatting failed: %s\nContent: %s", str(e), content)
                 raise ValueError(f"Invalid structured content format: {str(e)}")
@@ -607,10 +630,9 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_convert2text.json":
+        if file_name != "test_edit_text.json":
             continue
-        # if file_name == "embedding_search.json":
-        #     continue
+
         file_path = os.path.join(test_kit, file_name)
         print(f"========================= {file_name} =========================")
         with open(file_path, encoding="utf-8") as f:

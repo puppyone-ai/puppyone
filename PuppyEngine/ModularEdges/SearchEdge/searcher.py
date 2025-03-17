@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Dict, Any
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.web_search import WebSearchStrategy
 from ModularEdges.SearchEdge.qa_search import LLMQASearchStrategy
 from ModularEdges.SearchEdge.search_strategy import SearchStrategy

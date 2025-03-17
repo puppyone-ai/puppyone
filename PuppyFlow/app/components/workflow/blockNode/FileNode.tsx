@@ -10,6 +10,7 @@ import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonCo
 import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
 import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
 import { WarnsContext } from '../../states/WarnMessageContext';
+import { uploadFiles } from '@/app/utils/uploadthing'
 // import {WarnsContext,WarnsContainer} from "puppyui"
 
 export type FileNodeData = {
@@ -143,34 +144,29 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
     if (locked) return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="4" y="12" width="12" height="7" fill="#3EDBC9"/>
-      <rect x="6" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="6" y="12" width="12" height="7" fill="#3EDBC9" />
+        <rect x="8" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2" />
       </svg>
     )
     else if (isInput) return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M8.5 14V10L11.1667 12L8.5 14Z" fill="#6C98D5" stroke="#6C98D5"/>
-      <path d="M9 11.9961L4 12.001" stroke="#6C98D5" stroke-width="2"/>
-      <path d="M13.5 7H9.5V5.5H15.5V18.5H9.5V17H13.5H14V16.5V7.5V7H13.5Z" fill="#6C98D5" stroke="#6C98D5"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9.5 14V10L12.1667 12L9.5 14Z" fill="#6C98D5" stroke="#6C98D5" />
+        <path d="M10 11.9961L5 12.001" stroke="#6C98D5" stroke-width="2" />
+        <path d="M14.5 7H10.5V5.5H16.5V18.5H10.5V17H14.5H15V16.5V7.5V7H14.5Z" fill="#6C98D5" stroke="#6C98D5" />
       </svg>
-
     )
     else if (isOutput) return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12.5 14V10L15.1667 12L12.5 14Z" fill="#FF9267" stroke="#FF9267"/>
-      <path d="M13 11.9961L8 12.001" stroke="#FF9267" stroke-width="2"/>
-      <path d="M6.5 7H10.5V5.5H4.5V18.5H10.5V17H6.5H6V16.5V7.5V7H6.5Z" fill="#FF9267" stroke="#FF9267"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M13.5 14V10L16.1667 12L13.5 14Z" fill="#FF9267" stroke="#FF9267" />
+        <path d="M14 11.9961L9 12.001" stroke="#FF9267" stroke-width="2" />
+        <path d="M7.5 7H11.5V5.5H5.5V18.5H11.5V17H7.5H7V16.5V7.5V7H7.5Z" fill="#FF9267" stroke="#FF9267" />
       </svg>
     )
     else return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-        <path d="M5.5 4.5H8.5V7.5H5.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-        <path d="M5.5 16.5H8.5V19.5H5.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-        <path d="M11.5 16.5H14.5V19.5H11.5V16.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-        <path d="M11.5 10.5H14.5V13.5H11.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-        <path d="M5.5 10.5H8.5V13.5H5.5V10.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
-        <path d="M11.5 4.5H14.5V7.5H11.5V4.5Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#6D7177] group-hover:stroke-[#CDCDCD] group-active:stroke-[#4599DF]" strokeWidth="1.5"/>
+        <path d="M8 13.5H16" className="stroke-[#6D7177] group-hover:stroke-[#CDCDCD] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     )
   }
@@ -278,7 +274,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                userid: `${await getuserid()}`,
+                user_id: `${await getuserid()}`,
                 content_name: fileName
               })
             }
@@ -328,7 +324,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
           if (uploadResponse.ok) {
               console.log('文件上传成功');
-              saveFileInformation(upload_url, content_id, fileExtension)
+              saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at)
               // 在这里可以将UUID保存到block的content
           } else {
               console.log(response)
@@ -387,7 +383,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                     'Content-Type': 'application/json'
                   },
                   body: JSON.stringify({
-                    userid: `${await getuserid()}`,
+                    user_id: `${await getuserid()}`,
                     content_name: fileName
                   })
                 }
@@ -421,7 +417,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
               if (uploadResponse.ok) {
                   console.log('File upload successful');
-                  saveFileInformation(upload_url, content_id, fileExtension);
+                  saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
                   // Here you can save the UUID to the block's content
               } else {
                   console.log(response);
@@ -437,36 +433,40 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
 
 
-    const saveFileInformation = (upload_url:string ,task_id: string, fileType: string) => {
+    const saveFileInformation = (fileName:string, download_url:string ,task_id: string, fileType: string, content_type_header: string, expires_at: string) => {
         setNodes(prevNodes => prevNodes.map(node => node.id === id ? { ...node, data: { 
-            ...node.data,content: task_id, fileType: fileType, upload_url:upload_url } } : node));
+            ...node.data, content: Array.isArray(node.data?.content) 
+                ? [...(node.data.content.filter((item: any) => item.task_id !== task_id)), 
+                   { fileName: fileName, task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
+                : [{ fileName: fileName, task_id: task_id, fileType: fileType, download_url:download_url, content_type_header: content_type_header, expires_at: expires_at }]
+            }} : node));
+        setTimeout(() => {
+            console.log("updated file node", getNode(id))
+        }, 1000)
     }
 
 
-    const [uploadedFiles, setUploadedFiles] = useState<{task_id: string, fileType: string}[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<{fileName:string ,task_id: string, fileType: string}[]>([]);
     const [isOnUploading, setIsOnUploading] = useState(false);
 
     useEffect(() => {
       const currentNode = getNode(id);
-      if (currentNode?.data?.content && currentNode?.data?.fileType) {
+      if (currentNode?.data?.content && Array.isArray(currentNode.data.content)) {
         console.log("currentNode", currentNode)
-        const task_id = currentNode.data.content;
-        const fileExtension = currentNode.data.fileType;
-        
-        // Check if we already have this file in uploadedFiles
-        const fileExists = uploadedFiles.some(file => 
-          file.task_id === task_id && file.fileType === fileExtension
-        );
-        
-        if (!fileExists) {
-          // Add to uploadedFiles
-          setUploadedFiles(prevFiles => [...prevFiles, {
-            task_id: task_id as string,
-            fileType: fileExtension as string
-          }]);
-        }
+
+        setUploadedFiles(currentNode.data.content);
       }
     }, [getNode(id)]);
+
+
+    const handleDelete = (file:string, index:number) => {
+      setNodes(prevNodes => prevNodes.map(node => {
+        if (node.id === id) {
+            return { ...node, data: { ...node.data, content: uploadedFiles.filter((_: {fileName:string, task_id: string, fileType: string}, i: number) => i !== index)} }
+        }
+        return node
+    }))
+    }
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
@@ -569,7 +569,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               
               <p className="text-xs text-gray-500 mt-2">Supported formats: .json</p>
           </div> */}
-          <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading}/>
+          <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading} handleDelete={handleDelete}/>
 
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] left-[8px] m-[8px]'>
           <path d="M0.5 0.5H8.87821L13.2838 12.5H0.5V0.5Z" stroke="#6D7177"/>

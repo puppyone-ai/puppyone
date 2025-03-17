@@ -39,6 +39,20 @@ type JSONEditorProps = {
 //   }
 // }
 
+// 为 Monaco Editor 定义一个自定义主题
+const JSON_FORM_THEME = 'customJsonFormTheme';
+const jsonFormThemeData: Monaco.editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#1C1D1F',
+    // 修改缩进指南线的颜色 - 使用更深的颜色
+    'editorIndentGuide.background': '#3A3A3A',     // 普通缩进线
+    'editorIndentGuide.activeBackground': '#505050' // 活动缩进线
+  }
+};
+
 const JSONForm = ({preventParentDrag, 
                     allowParentDrag, 
                     parentId,
@@ -71,6 +85,14 @@ const JSONForm = ({preventParentDrag,
       }
     }, [getNode(parentId)?.data.content])
 
+    // 添加一个函数来定义和应用主题
+    useEffect(() => {
+      const defineTheme = async () => {
+        const monaco = await loader.init();
+        monaco.editor.defineTheme(JSON_FORM_THEME, jsonFormThemeData);
+      };
+      defineTheme();
+    }, []);
 
     // useEffect(() => {
     //   console.log("onTrigger !!")
@@ -248,25 +270,14 @@ const JSONForm = ({preventParentDrag,
     <Editor
       className='json-form'
       defaultLanguage="json"
-      // theme={themeManager.getCurrentTheme()}
+      theme={JSON_FORM_THEME}
       width={widthStyle-8 }
       height={heightStyle - 12}
       onChange={handleChange}
-      value={inputvalue === "embedding view"? 
-              (typeof JSON.stringify(getNode(parentId)?.data.chunks) === 'string'? 
-                valueTraceLog(JSON.stringify(getNode(parentId)?.data.chunks) as string,"from node chunks"):
-                InputFallback(typeof JSON.stringify(getNode(parentId)?.data.chunks), JSON.stringify(getNode(parentId)?.data.chunks))
-              ): 
-              (typeof getNode(parentId)?.data.content ==='string'?
+      value={(typeof getNode(parentId)?.data.content ==='string'?
                 valueTraceLog(getNode(parentId)?.data.content as string,"from node data"):
                 InputFallback(typeof getNode(parentId)?.data.content, getNode(parentId)?.data.content)
             )}
-      // value={
-      //   inputvalue === "embedding view"? 
-      //   JSON.stringify(getNode(parentId)?.data.chunks)
-      //   : 
-      //   getNode(parentId)?.data.content as string
-      // }
       options={{
         fontFamily: "'JetBrains Mono', monospace",
         fontLigatures: true,
@@ -277,7 +288,7 @@ const JSONForm = ({preventParentDrag,
           horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
         },
         fontSize: 14,
-        fontWeight: 'normal',
+        fontWeight: 'regular',
         lineHeight: 20,
         wordWrap: 'on',
         scrollBeyondLastLine: false,

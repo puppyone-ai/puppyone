@@ -1,0 +1,37 @@
+{
+    "blocks": {
+        "FMjkWX": {
+            "label": "FMjkWX",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        },
+        "7pfBuT": {
+            "label": "7pfBuT",
+            "type": "text",
+            "data": {
+                "content": "[\"# FeatBit Server-Side SDK for .NET\n\n## Introduction\n\nThis is the .NET Server-Side SDK for the 100% open-source feature flags management\nplatform [FeatBit]\n\n## See Also\n- [Connect To JavaScript Sdk](https://docs.featbit.co/getting-started/connect-an-sdk#javascript)\", \"# FeatBit Server-Side SDK for Python\n\n## Introduction\n\nThis is the Python Server-Side SDK for the 100% open-source feature flags management platform [FeatBit](https://github.com/featbit/featbit).\n\nThe FeatBit zt-1ew5e2vbb-x6Apan1xZOaYMnFzqZkGNQ).\n- If you encounter a bug or would like to request a\n  feature, [submit an issue](https://github.com/featbit/featbit-python-sdk/issues/new).\n\n## See Also\n- [Connect To Python Sdk](https://docs.featbit.co/sdk/overview#python)\"]"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "modify-1741730869788": {
+            "type": "modify",
+            "data": {
+                "content": "{{7pfBuT}}",
+                "modify_type": "convert2structured",
+                "extra_configs": {
+                    "conversion_mode": "parse_as_list"
+                },
+                "inputs": {
+                    "7pfBuT": "7pfBuT"
+                },
+                "outputs": {
+                    "FMjkWX": "FMjkWX"
+                }
+            }
+        }
+    }
+}
