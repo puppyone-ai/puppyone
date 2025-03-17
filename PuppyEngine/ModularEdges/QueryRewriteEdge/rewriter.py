@@ -13,7 +13,7 @@ from ModularEdges.QueryRewriteEdge.query_scoping import QueryScopingStrategy
 from ModularEdges.QueryRewriteEdge.query_relexation import QueryRelaxationStrategy
 from ModularEdges.QueryRewriteEdge.sub_question_query import SubQuestionQueryStrategy
 from ModularEdges.QueryRewriteEdge.query_segmentation import QuerySegmentationStrategy
-from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
+from Utils.puppy_exception import global_exception_handler, PuppyException
 from ModularEdges.QueryRewriteEdge.step_back_prompting import StepBackPromptingStrategy
 from ModularEdges.QueryRewriteEdge.rewrite_retrieve_read import RewriteRetrieveReadStrategy
 from ModularEdges.QueryRewriteEdge.hyde_query_conversion import HydeQueryConversionStrategy
@@ -47,7 +47,7 @@ class QueryRewriterFactory(EdgeFactoryBase):
 
         strategy_class = cls._strategies.get(strategy_type)
         if not strategy_class:
-            raise PuppyEngineException(3700, "Invalid Strategy", 
+            raise PuppyException(3700, "Invalid Strategy", 
                                      f"Strategy type {strategy_type} not supported")
 
         strategy = strategy_class(init_configs.get("query"), init_configs.get("model"))

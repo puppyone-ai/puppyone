@@ -26,7 +26,7 @@ async def embed(request: Request):
         user_id = data.get("user_id", "rose123")  # 从JSON获取
         
         # 获取客户端提供的collection_id（如果存在）
-        collection_name = f"{set_name}__{model}__{user_id}" # ToDo: Add a mechanism to prevent the case that the seperator is already in the args
+        collection_name = f"{user_id}__{model}__{set_name}" # 调整顺序以符合OLAP cube设计，从高层级(用户)到低层级(集合)
         
         # 1. Embedding process - completed at the routing layer
         chunks_content = [chunk.get("content", "") for chunk in chunks]
@@ -71,9 +71,6 @@ async def delete_vdb_collection(
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    except PuppyException as e:
-        log_error(f"Unexpected Error in Deleting Vector Collection: {str(e)}")
-        return JSONResponse(content={"error": "Internal Server Error"}, status_code=500)
 
 
 @vector_router.get("/search/{collection_name}")
@@ -108,11 +105,8 @@ async def search_vdb_collection(
 
         return JSONResponse(content=results, status_code=200)
     except PuppyException as e:
-        log_error(f"Search Error: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    except PuppyException as e:
         log_error(f"Unexpected Error in Vector Search: {str(e)}")
-        return JSONResponse(content={"error": "Internal Server Error"}, status_code=500) 
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import asyncio
