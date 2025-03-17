@@ -8,7 +8,7 @@ import json
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
 from ModularEdges.LLMEdge.generater import lite_llm_chat
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class QueryRewriteStrategy(ABC):

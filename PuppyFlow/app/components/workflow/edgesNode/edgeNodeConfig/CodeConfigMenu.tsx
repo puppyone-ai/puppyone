@@ -54,6 +54,7 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
     const [codeInputs, setCodeInputs] = useState<string[]>(
         getSourceNodeIdWithLabel(parentId).map(node => node.label)
     )
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
     useEffect(() => {
         onLoopChange(isLoop)
@@ -191,8 +192,26 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
         if (!isEqual(codeInputs, newCodeInputs)) {
             setCodeInputs(newCodeInputs)
         }
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177]'>{`{{${node.label}}}`}</span>
+        
+        const copyToClipboard = (label: string) => {
+            navigator.clipboard.writeText(`{{${label}}}`).then(() => {
+                setCopiedLabel(label);
+                setTimeout(() => setCopiedLabel(null), 2000);
+            });
+        };
+        
+        return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -288,8 +307,7 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
   
     
   return (
-
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             <div className='flex flex-row gap-[8px] justify-center items-center'>
                 <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
@@ -301,12 +319,12 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
                     <rect x="7.31445" y="4" width="1.37143" height="1.5" fill="#D9D9D9"/>
                     </svg>
                 </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
                 Code
                 </div>
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -319,25 +337,34 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
+            <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px]
+                          border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex flex-wrap gap-2'>
+                    {displaySourceNodeLabels()}
+                </div>
             </div>
         </li>
-        <li className='flex flex-col gap-1 items-start justify-center font-plus-jakarta-sans w-full'>
-            <div className='text-[#6D7177] font-plus-jakarta-sans text-[12px] font-[700] leading-normal ml-[4px]'>
-                Python function
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Python Function</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <PythonConfigEditor preventParentDrag={onFocus} 
-                      placeholder="define your function"
-                      allowParentDrag={onBlur} 
-                      parentId={parentId}
-                      widthStyle={432} 
-                      heightStyle={208} 
-                      inputs={codeInputs}/>
+            
+                <PythonConfigEditor 
+                    preventParentDrag={onFocus} 
+                    placeholder="Define your function"
+                    allowParentDrag={onBlur} 
+                    parentId={parentId}
+                    widthStyle={420} 
+                    heightStyle={208} 
+                    inputs={codeInputs}
+                />
+            
         </li>
     </ul>
   )

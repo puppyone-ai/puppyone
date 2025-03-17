@@ -7,7 +7,7 @@ import re
 import json
 import ast
 from typing import Any, List, Dict, Union, Tuple
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.ModifyEdge.modify_strategy import ModifyStrategy
 
 
@@ -71,8 +71,35 @@ class ModifyConvert2Structured(ModifyStrategy):
             if isinstance(result, (dict, list)):
                 return True, result
             return False, None
-        except (SyntaxError, ValueError):
+        except (SyntaxError, ValueError) as e:
+            print(f"Error: {e}")
             return False, None
+
+    def _try_load_list_from_string(
+        self,
+        text: str
+    ) -> List[Any]:
+        """
+        Try to load a list from a string
+        """
+
+        # Try parsing the entire string first
+        success, result = self._try_parse_python_literal(text.strip())
+        if success:
+            # If the result is already a list, return it directly
+            if isinstance(result, list):
+                return result
+            # If it's another type of structure, wrap it in a list
+            return [result]
+
+        # If the entire string isn't a valid Python literal, try JSON
+        try:
+            parsed = json.loads(text.strip())
+            if isinstance(parsed, list):
+                return parsed
+            return [parsed]
+        except json.JSONDecodeError:
+            pass
 
     def _extract_mixed_content_to_list(
         self,
@@ -91,25 +118,23 @@ class ModifyConvert2Structured(ModifyStrategy):
         Returns:
             List containing extracted components with proper types
         """
+
         if not text.strip():
             return []
 
-        # Try parsing the entire string
-        success, result = self._try_parse_python_literal(text)
-        if success:
-            if isinstance(result, list):
-                return result
-            return [result]
+        segments = self._try_load_list_from_string(text)
+        if segments:
+            return segments
 
-        # Extract all JSON-like structures with their positions
-        result = []
+        # If neither worked, continue with mixed content extraction
         segments = self._extract_json_segments(text)
         
         # No JSON structures found, return the whole text as a single element
         if not segments:
             return [text.strip()]
-            
+        
         # Process text with JSON segments
+        result = []
         last_end = 0
         for start, end, parsed_obj in segments:
             # Add any text before this JSON segment
@@ -127,7 +152,7 @@ class ModifyConvert2Structured(ModifyStrategy):
             suffix = text[last_end:].strip()
             if suffix:
                 result.append(suffix)
-                
+            
         return result
 
     def _extract_json_segments(
@@ -308,6 +333,8 @@ if __name__ == "__main__":
     converted_content = ModifyConvert2Structured(content=content, extra_configs=extra_configs).modify()
     print(f"Input: {content}\nOutput: {converted_content}")
     content = "[1, 2, 3]"
+    content = "[\"1\", \"2\", \"3\"]"
+    content = "[\"# FeatBit Server-Side SDK for .NET\\n\\n## Introduction\\nconnect-an-sdk#javascript)\", \"# FeatBit Server-Side SDK for Python\\n\\n## Introduction\\n\\n[Connect To Python Sdk](https://docs.featbit.co/sdk/overview#python)\"]"
     extra_configs = {
         "conversion_mode": "parse_as_list",
     }

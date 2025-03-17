@@ -1,17 +1,17 @@
 import os
 import sys
-import uuid
+# 修改路径添加方式，确保能正确找到模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 # TODO: Maybe only need to use multi-modal embedding in the future?
-from Objs.Vector.embedder import TextEmbedder 
-from Objs.Vector.vector_db_factory import VectorDatabaseFactory
+from objs.vector.embedder import TextEmbedder 
+from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from Utils.PuppyEngineExceptions import PuppyEngineException
-from Utils.logger import log_info, log_error
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
 
 # 创建路由器
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
@@ -26,7 +26,7 @@ async def embed(request: Request):
         user_id = data.get("user_id", "rose123")  # 从JSON获取
         
         # 获取客户端提供的collection_id（如果存在）
-        collection_name = f"{set_name}__{model}__{user_id}" # ToDo: Add a mechanism to prevent the case that the seperator is already in the args
+        collection_name = f"{user_id}__{model}__{set_name}" # 调整顺序以符合OLAP cube设计，从高层级(用户)到低层级(集合)
         
         # 1. Embedding process - completed at the routing layer
         chunks_content = [chunk.get("content", "") for chunk in chunks]
@@ -48,7 +48,7 @@ async def embed(request: Request):
         
         return JSONResponse(content=collection_name, status_code=200)
 
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Embedding Error: {str(e)}")
         return JSONResponse(
             content={"error": str(e)}, 
@@ -68,12 +68,9 @@ async def delete_vdb_collection(
         log_info(f"Successfully Deleted Collection: {collection_name}")
 
         return JSONResponse(content={"message": "Collection Deleted Successfully"}, status_code=200)
-    except PuppyEngineException as e:
+    except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    except Exception as e:
-        log_error(f"Unexpected Error in Deleting Vector Collection: {str(e)}")
-        return JSONResponse(content={"error": "Internal Server Error"}, status_code=500)
 
 
 @vector_router.get("/search/{collection_name}")
@@ -107,12 +104,9 @@ async def search_vdb_collection(
         )
 
         return JSONResponse(content=results, status_code=200)
-    except PuppyEngineException as e:
-        log_error(f"Search Error: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
-    except Exception as e:
+    except PuppyException as e:
         log_error(f"Unexpected Error in Vector Search: {str(e)}")
-        return JSONResponse(content={"error": "Internal Server Error"}, status_code=500) 
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import asyncio
@@ -196,7 +190,7 @@ if __name__ == "__main__":
             await test_delete(collection_name)
             
             print("\n===== 所有测试完成 =====")
-        except Exception as e:
+        except PuppyException as e:
             print(f"测试过程中发生错误: {str(e)}")
     
     # 执行测试
