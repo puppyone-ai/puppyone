@@ -224,7 +224,7 @@ class WorkFlow():
         """
         Validates that there is only one connected flow in the workflow.
         A flow is a sequence of connected edges through their input/output blocks.
-        
+ 
         Raises:
             PuppyException: If multiple disconnected flows are detected
         """
@@ -259,7 +259,10 @@ class WorkFlow():
         block_id: str,
         visited_blocks: Set[str]
     ) -> None:
-        """Recursively traverse connected blocks through edges"""
+        """
+        Recursively traverse connected blocks through edges
+        """
+
         if block_id in visited_blocks:
             return
 
@@ -287,7 +290,9 @@ class WorkFlow():
     def clear_workflow(
         self
     ) -> None:
-        """Clear the workflow"""
+        """
+        Clear the workflow
+        """
 
         self.blocks = {}
         self.edges = {}
@@ -310,11 +315,11 @@ class WorkFlow():
             # while there is still edges to process
             parallel_batch = self._find_parallel_batches()
             batch_count = 0
-            
+
             while parallel_batch:
                 batch_count += 1
                 logger.info(f"Found parallel batch #{batch_count}: {parallel_batch}")
-                
+
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
 
@@ -332,7 +337,7 @@ class WorkFlow():
                         if isinstance(content, str) and len(content) > 100:
                             content = content[:100] + "..."
                         print(f"Block {block_id} content: {content}")
-        
+
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
 
@@ -343,7 +348,9 @@ class WorkFlow():
     def _find_parallel_batches(
         self
     ) -> Set[str]:
-        """Find sets of edges that can be executed in parallel"""
+        """
+        Find sets of edges that can be executed in parallel
+        """
 
         processed_blocks = set(bid for bid, state in self.block_states.items() 
                              if state == "processed")
@@ -399,7 +406,10 @@ class WorkFlow():
         self,
         edge_batch: Set[str]
     ) -> Dict[str, Any]:
-        """Execute a batch of edges concurrently"""
+        """
+        Execute a batch of edges concurrently
+        """
+
         futures = {}
         results = {}
 
@@ -447,17 +457,22 @@ class WorkFlow():
         self,
         edge_id: str
     ) -> Dict[str, Any]:
-        """Prepare block configs for edge execution"""
+        """
+        Prepare block configs for edge execution
+        """
+
         input_block_ids = self.edge_to_inputs_mapping.get(edge_id, [])
         block_configs = {}
-        
+
         for block_id in input_block_ids:
             block = self.blocks.get(block_id)
             if block:
                 block_configs[block_id] = {
                     "label": block.get("label"),
                     "content": block.get("data", {}).get("content"),
-                    "looped": block.get("looped", False)
+                    "embedding_view": block.get("data", {}).get("embedding_view", []),
+                    "looped": block.get("looped", False),
+                    "collection_configs": block.get("collection_configs", {})
                 }
 
         return block_configs
@@ -468,7 +483,9 @@ class WorkFlow():
         results: Dict[str, Any],
         future: concurrent.futures.Future
     ) -> None:
-        """Process the result of an edge execution"""
+        """
+        Process the result of an edge execution
+        """
 
         edge_result = future.result()
 
@@ -571,11 +588,11 @@ class WorkFlow():
             content = content.encode("utf-8", "ignore").decode("unicode_escape")
 
         # For structured blocks, ensure valid JSON formatting
-        if (content.startswith("[") or content.startswith("{")):
+        if block_type == "structured" and (content.startswith("[") or content.startswith("{")):
             try:
                 # Normalize newlines and carriage returns
                 content = content.replace("\n", "\\n").replace("\r", "\\r")
-                
+
                 # Handle quote escaping
                 content = content.replace(r'\"', '"')  # Unescape any already escaped quotes
                 content = content.replace('"', r'\"')  # Escape all double quotes
@@ -583,12 +600,11 @@ class WorkFlow():
                 content = content.replace("`", r"\`")  # Escape all backticks
 
                 # Validate JSON structure
-                if block_type == "structured":
-                    try:
-                        json.loads(content)
-                    except json.JSONDecodeError as e:
-                        logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
-                        raise ValueError(f"Invalid JSON structure: {str(e)}")
+                try:
+                    json.loads(content)
+                except json.JSONDecodeError as e:
+                    logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
+                    raise ValueError(f"Invalid JSON structure: {str(e)}")
 
             except Exception as e:
                 logger.error("Structured content formatting failed: %s\nContent: %s", str(e), content)
@@ -630,7 +646,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_edit_text.json":
+        if file_name != "embedding_search.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
