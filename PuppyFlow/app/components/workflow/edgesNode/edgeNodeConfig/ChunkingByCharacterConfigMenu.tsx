@@ -244,15 +244,15 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (
-            <button
-                key={`${node.id}-${parentId}`}
+        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
+            <button 
+                key={`${node.id}-${parentId}`} 
                 onClick={() => copyToClipboard(node.label)}
-                className={`flex items-center justify-center px-3 h-[28px] rounded-[6px] 
-                         border-[1px] text-[12px] font-medium transition-all duration-200
-                         ${copiedLabel === node.label
-                        ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]'
-                        : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
             >
                 {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
             </button>
@@ -389,19 +389,6 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                     </div>
                 </div>
                 <div className='flex flex-row gap-[8px] items-center justify-center'>
-                    <div className='flex flex-col items-center justify-center'>
-                        <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
-                            setIsLoop(!isLoop)
-                        }}>
-                            <div className={`w-[8px] h-[8px] rounded-[50%] absolute top-[1.5px] transition-all ease-in-out
-                                ${isLoop ? "right-[2px] bg-[#39BC66]" : "left-[2px] bg-[#6D7177]"}`}>
-                            </div>
-                        </button>
-                        <div className={`text-[6px] font-plus-jakarta-sans font-[700] leading-normal transition-all duration-300 ease-in-out
-                            ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
-                            Loop
-                        </div>
-                    </div>
                     <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                         onClick={onDataSubmit}>
                         <span>
@@ -418,10 +405,10 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
 
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
-                    <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>Input Variables</label>
                     <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex gap-2 p-2 bg-transparent rounded-[8px]
+                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px]
                               border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}
@@ -431,7 +418,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
 
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
-                    <label className='text-[13px] font-semibold text-[#6D7177]'>Delimiters</label>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>Delimiters</label>
                     <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
                 </div>
 
