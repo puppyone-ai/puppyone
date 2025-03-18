@@ -44,12 +44,13 @@ const JSON_FORM_THEME = 'customJsonFormTheme';
 const jsonFormThemeData: Monaco.editor.IStandaloneThemeData = {
   base: 'vs-dark',
   inherit: true,
-  rules: [],
+  rules: [
+  ],
   colors: {
     'editor.background': '#1C1D1F',
-    // 修改缩进指南线的颜色 - 使用更深的颜色
-    'editorIndentGuide.background': '#3A3A3A',     // 普通缩进线
-    'editorIndentGuide.activeBackground': '#505050' // 活动缩进线
+    // 修改缩进指南线的颜色 - 使用与行号相同的颜色
+    'editorIndentGuide.background': 'rgba(109, 113, 119, 0.5)',     // 普通缩进线
+    'editorIndentGuide.activeBackground': 'rgba(109, 113, 119, 0.8)' // 活动缩进线（稍微深一点）
   }
 };
 
@@ -300,6 +301,15 @@ const JSONForm = ({preventParentDrag,
         glyphMargin: false,
         lineDecorationsWidth: 0, // 控制行号和正文的间距
         readOnly: readonly?readonly:isOnGeneratingNewNode,
+        bracketPairColorization: {
+          enabled: false,  // 禁用括号对着色
+        },
+        folding: true,
+        foldingHighlight: false,
+        foldingStrategy: 'indentation',
+        showFoldingControls: 'mouseover',
+        foldingImportsByDefault: true,
+        foldingMaximumRegions: 5000,
       }}
       onMount={handleEditorDidMount}
     />
