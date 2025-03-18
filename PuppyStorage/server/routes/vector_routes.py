@@ -34,7 +34,7 @@ async def embed(request: Request):
         set_hash = hash_and_truncate(set_name)
         
         # 新的collection_name格式：user_id(32)__model_hash(15)__set_hash(15)
-        collection_name = f"{user_id}__{model_hash}__{set_hash}"
+        collection_name = f"{user_id}{model_hash}{set_hash}"
         
         # 1. Embedding process - completed at the routing layer
         chunks_content = [chunk.get("content", "") for chunk in chunks]
