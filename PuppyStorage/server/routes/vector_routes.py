@@ -1,5 +1,6 @@
 import os
 import sys
+import hashlib
 # 修改路径添加方式，确保能正确找到模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -23,10 +24,17 @@ async def embed(request: Request):
         chunks = data.get("chunks", [])
         model = data.get("model", "text-embedding-ada-002")
         set_name = data.get("set_name", "default")
-        user_id = data.get("user_id", "rose123")  # 从JSON获取
+        user_id = data.get("user_id", "rose123")
         
-        # 获取客户端提供的collection_id（如果存在）
-        collection_name = f"{user_id}__{model}__{set_name}" # 调整顺序以符合OLAP cube设计，从高层级(用户)到低层级(集合)
+        # 对model和set_name进行哈希处理并截断
+        def hash_and_truncate(text: str, length: int = 15) -> str:
+            return hashlib.md5(text.encode()).hexdigest()[:length]
+        
+        model_hash = hash_and_truncate(model)
+        set_hash = hash_and_truncate(set_name)
+        
+        # 新的collection_name格式：user_id(32)__model_hash(15)__set_hash(15)
+        collection_name = f"{user_id}__{model_hash}__{set_hash}"
         
         # 1. Embedding process - completed at the routing layer
         chunks_content = [chunk.get("content", "") for chunk in chunks]
