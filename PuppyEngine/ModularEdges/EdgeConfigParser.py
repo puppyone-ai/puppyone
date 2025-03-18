@@ -8,7 +8,7 @@ from itertools import product
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Union, Tuple
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 @dataclass
@@ -36,14 +36,19 @@ class EdgeConfigParser(ABC):
         self,
         variable_replace_field: str = None
     ) -> ParsedEdgeParams:
-        """Parse edge and block configs into parameters for edge execution"""
+        """
+        Parse edge and block configs into parameters for edge execution
+        """
+
         pass
 
     def _get_base_configs(
         self,
         base_fields: Dict[str, str]
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
-        """Get base configurations for init and extra configs"""
+        """
+        Get base configurations for init and extra configs
+        """
 
         base_init = {
             field: self.edge_configs.get(config_key, "")
@@ -55,7 +60,9 @@ class EdgeConfigParser(ABC):
         self,
         content: Any
     ) -> List[str]:
-        """Convert content to list of strings for loop processing"""
+        """
+        Convert content to list of strings for loop processing
+        """
 
         if isinstance(content, list):
             return [str(item) for item in content]
@@ -68,7 +75,9 @@ class EdgeConfigParser(ABC):
         variable_field: str,
         base_fields: Dict[str, str]
     ) -> Tuple[bool, List[Dict[str, Any]], List[Dict[str, Any]]]:
-        """Parse single block content and generate configs for both single and loop cases"""
+        """
+        Parse single block content and generate configs for both single and loop cases
+        """
 
         base_init, base_extra = self._get_base_configs(base_fields)
 
@@ -89,7 +98,9 @@ class EdgeConfigParser(ABC):
     def get_looped_configs(
         self
     ) -> List[Dict[str, Any]]:
-        """Get looped configs from block configs"""
+        """
+        Get looped configs from block configs
+        """
 
         looped_values = {}
         non_looped_values = {}
@@ -242,9 +253,22 @@ class SearchConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "query"
     ) -> ParsedEdgeParams:
+        # Handle multiple document sources
+        doc_ids = self.edge_configs.get("doc_ids", [])
+        collection_configs_list = []
+        doc_contents = []
+        for doc_id in doc_ids:
+            content = self.block_configs[doc_id]["embedding_view"]
+            doc_contents.extend(content)
+            collections = [self.block_configs[doc_id]["collection_configs"]] * len(content)
+            collection_configs_list.extend(collections)
+
+        self.block_configs[doc_ids[0]]["content"] = doc_contents
+        for doc_id in doc_ids[1:]:
+            self.block_configs.pop(doc_id)
+
         variables = self.get_looped_configs()
         query_id = list(self.edge_configs.get("query_id", {}).keys())[0]
-        docs_id = None
 
         init_configs = [{
             "search_type": self.edge_configs.get("search_type", ""),
@@ -253,12 +277,18 @@ class SearchConfigParser(EdgeConfigParser):
 
         original_extra_configs = self.edge_configs.get("extra_configs", {})
         is_loop = len(variables) > 1
-        if self.edge_configs.get("search_type") in {"vector", "keyword", "llm"}:
-            docs_id = list(self.edge_configs.get("docs_id", {}).keys())[0]
         if is_loop:
-            extra_configs = [{**original_extra_configs, "documents": variable.get(docs_id, "")} for variable in variables]
+            extra_configs = [{
+                **original_extra_configs,
+                "documents": variable.get(doc_ids[0], ""),
+                "collection_configs": [collection_configs_list[i]]
+            } for i, variable in enumerate(variables)]
         else:
-            extra_configs = [{**original_extra_configs, "documents": self.block_configs.get(docs_id, {}).get("content", "")}]
+            extra_configs = [{
+                **original_extra_configs,
+                "documents": self.block_configs.get(doc_ids[0], {}).get("content", ""),
+                "collection_configs": collection_configs_list
+            }]
 
         return ParsedEdgeParams(
             init_configs=init_configs,

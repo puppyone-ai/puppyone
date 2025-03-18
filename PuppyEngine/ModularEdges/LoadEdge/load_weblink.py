@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import logging
 from ModularEdges.LoadEdge.base_load import LoadStrategy
 from ModularEdges.LoadEdge.load_from_weblink import WebScraper
-from Utils.PuppyEngineExceptions import global_exception_handler, PuppyEngineException
+from Utils.puppy_exception import global_exception_handler, PuppyException
 
 
 class WeblinkLoadStrategy(LoadStrategy):
@@ -25,7 +25,7 @@ class WeblinkLoadStrategy(LoadStrategy):
         }
 
         if mode not in mode_dict:
-            raise PuppyEngineException(1201, "Invalid Mode", 
+            raise PuppyException(1201, "Invalid Mode", 
                                      f"Invalid mode `{mode}`. Supported: {list(mode_dict.keys())}")
 
         scraper = WebScraper()

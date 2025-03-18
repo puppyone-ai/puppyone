@@ -7,7 +7,8 @@ import SearchByVectorConfigMenu from '@/app/components/workflow/edgesNode/edgeNo
 import { useReactFlow } from '@xyflow/react'
 
 export type SearchConfigNodeData = {
-    subMenuType: string | null
+    nodeLabels?: {label: string, id: string}[],
+    subMenuType: string | null,
     top_k: number | undefined,
     content: string | null,
     looped: boolean | undefined,

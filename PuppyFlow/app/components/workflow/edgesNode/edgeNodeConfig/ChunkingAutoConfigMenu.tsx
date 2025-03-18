@@ -45,6 +45,7 @@ function ChunkingAutoConfigMenu({show, parentId}: ChunkingAutoConfigProps) {
     // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
     useEffect(() => {
         onLoopChange(isLoop)
@@ -152,10 +153,29 @@ function ChunkingAutoConfigMenu({show, parentId}: ChunkingAutoConfigProps) {
         }
       }, [resultNode, isAddFlow, isComplete])
    
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
+
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177]'>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -240,81 +260,83 @@ function ChunkingAutoConfigMenu({show, parentId}: ChunkingAutoConfigProps) {
           
         }
         setIsComplete(false)
-        };
+    };
 
-        const onLoopChange = (newLoop: boolean) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, looped: newLoop}}
-                }
-                return node
-            }))
-        }
+    const onLoopChange = (newLoop: boolean) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return {...node, data: {...node.data, looped: newLoop}}
+            }
+            return node
+        }))
+    }
 
-    
-        const onResultNodeChange = (newResultNode: string) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, resultNode: newResultNode}}
-                }
-                return node
-            }))
-        }
+    const onResultNodeChange = (newResultNode: string) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return {...node, data: {...node.data, resultNode: newResultNode}}
+            }
+            return node
+        }))
+    }
 
-    
-  return (
-
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
-        <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            
-            <div className='flex flex-row gap-[12px]'>
-            <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 14 14">
-                <path stroke="#CDCDCD" strokeWidth="1.5" d="M3.5 7c6.417 0 7-4.667 7-4.667M3.5 7c6.417 0 7 4.667 7 4.667"/>
-                <path fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" d="M.75 3.75h3.5v6.5H.75zm9-3h3.5v3.5h-3.5zm0 9h3.5v3.5h-3.5z"/>
-                </svg>
+    return (
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
+            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <rect x="9" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <rect x="0.5" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <rect x="9" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M5 2.75H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M2.75 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M11.25 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                            Chunking
+                        </div>
+                    </div>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="15" fill="none" viewBox="0 0 16 15">
+                                <path fill="#CDCDCD" d="M1.953.64v.61h-.68v4.292h.68v.612H.483V.641h1.47Zm4.585 3.472h-1.59l-.3.888h-.943L5.246.682h1.02L7.795 5h-.979l-.278-.888Zm-.252-.744L5.747 1.67l-.557 1.7h1.096Zm4.614-.032V.682h.917v2.654c0 .459-.07.816-.213 1.072-.266.469-.773.703-1.521.703-.748 0-1.256-.234-1.523-.703-.143-.256-.214-.613-.214-1.072V.682h.917v2.654c0 .297.035.514.105.65.11.243.348.364.715.364.365 0 .602-.121.712-.364.07-.136.105-.353.105-.65Zm3.812 2.206V1.238h-.68V.641h1.47v5.513h-1.47v-.612h.68ZM2.062 8.641v.609h-.68v4.292h.68v.612H.59V8.641h1.47Zm5.417.04v.765H6.187V13h-.909V9.446H3.98v-.764h3.5Zm2.334 4.44c-.617 0-1.088-.169-1.415-.505-.437-.412-.656-1.006-.656-1.781 0-.791.219-1.385.656-1.781.327-.336.798-.504 1.415-.504.618 0 1.09.168 1.415.504.436.396.654.99.654 1.781 0 .775-.218 1.37-.653 1.781-.327.336-.798.504-1.416.504Zm.853-1.161c.209-.264.313-.639.313-1.125 0-.484-.105-.858-.316-1.122-.209-.266-.492-.399-.85-.399-.357 0-.642.132-.855.396-.213.264-.32.639-.32 1.125s.107.861.32 1.125c.213.264.498.395.855.395.358 0 .642-.131.853-.395Zm3.938 1.582V9.238h-.68v-.597h1.47v5.513h-1.47v-.612h.68Z"/>
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                            Auto
+                        </div>
+                    </div>
                 </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                Chunking
+                <div className='flex flex-row gap-[8px] items-center justify-center'>
+                    <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                        onClick={onDataSubmit}>
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                                <path d="M8 5L0 10V0L8 5Z" fill="black"/>
+                            </svg>
+                        </span>
+                        <span>Run</span>
+                    </button>
                 </div>
-            </div>
-            <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="15" fill="none" viewBox="0 0 16 15">
-                    <path fill="#CDCDCD" d="M1.953.64v.61h-.68v4.292h.68v.612H.483V.641h1.47Zm4.585 3.472h-1.59l-.3.888h-.943L5.246.682h1.02L7.795 5h-.979l-.278-.888Zm-.252-.744L5.747 1.67l-.557 1.7h1.096Zm4.614-.032V.682h.917v2.654c0 .459-.07.816-.213 1.072-.266.469-.773.703-1.521.703-.748 0-1.256-.234-1.523-.703-.143-.256-.214-.613-.214-1.072V.682h.917v2.654c0 .297.035.514.105.65.11.243.348.364.715.364.365 0 .602-.121.712-.364.07-.136.105-.353.105-.65Zm3.812 2.206V1.238h-.68V.641h1.47v5.513h-1.47v-.612h.68ZM2.062 8.641v.609h-.68v4.292h.68v.612H.59V8.641h1.47Zm5.417.04v.765H6.187V13h-.909V9.446H3.98v-.764h3.5Zm2.334 4.44c-.617 0-1.088-.169-1.415-.505-.437-.412-.656-1.006-.656-1.781 0-.791.219-1.385.656-1.781.327-.336.798-.504 1.415-.504.618 0 1.09.168 1.415.504.436.396.654.99.654 1.781 0 .775-.218 1.37-.653 1.781-.327.336-.798.504-1.416.504Zm.853-1.161c.209-.264.313-.639.313-1.125 0-.484-.105-.858-.316-1.122-.209-.266-.492-.399-.85-.399-.357 0-.642.132-.855.396-.213.264-.32.639-.32 1.125s.107.861.32 1.125c.213.264.498.395.855.395.358 0 .642-.131.853-.395Zm3.938 1.582V9.238h-.68v-.597h1.47v5.513h-1.47v-.612h.68Z"/>
-                    </svg>
+            </li>
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>Input</label>
+                    <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                Auto
+                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2'>
+                        {displaySourceNodeLabels()}
+                    </div>
                 </div>
-            </div>
-            </div>
-            <div className='flex flex-row gap-[8px] items-center justify-center'>
-
-                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                onClick={onDataSubmit}>
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                    <path d="M8 5L0 10V0L8 5Z" fill="black"/>
-                    </svg>
-                </span>
-                <span>
-                    Run
-                </span>
-                </button>
-            </div>
-        </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
-            </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
-            </div>
-        </li>
-    </ul>
-  )
+            </li>
+        </ul>
+    )
 }
 
 export default ChunkingAutoConfigMenu
