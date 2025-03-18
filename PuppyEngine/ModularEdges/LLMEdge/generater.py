@@ -6,139 +6,88 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import os
 import json
 import logging
-from typing import Any, List, Dict
-from litellm import completion
+import requests
+from typing import Any, List, Dict, Tuple
+from ModularEdges.LLMEdge.llm_chat import ChatService
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
-class ChatService:
-    """
-    Chat configurations to interact with LiteLLM"s completion API with optional parameters.
+def get_open_router_models(
+    url: str = "https://openrouter.ai/api/v1/models"
+) -> List[str]:
+    try:
+        response = requests.get(url)
+        all_model_info = response.json().get("data", [])
+        valid_modalities = {"text+image->text", "text->text"}
+        valid_models = [
+            model_info.get("id") 
+            for model_info in all_model_info 
+            if model_info.get("architecture").get("modality") in valid_modalities
+        ]
+    except Exception as e:
+        logging.error(f"Error getting open router models: {e}")
+        valid_models = ["openai/gpt-4o-mini"]
 
-    Init Args:
-        api_key (str): The API key to use for the OpenAI API. Use the environment variable OPENAI_API_KEY if not provided.
-        base_url (str): The base URL for the OpenAI API. Use the environment variable OPENAI_BASE_URL if not provided.
-        model (str): The model to use for the LLM. Use the environment variable OPENAI_MODEL if not provided.
-        messages (list): List of messages comprising the conversation so far.
-        temperature (float, optional): The temperature of the LLM. The higher the temperature, the more random the output. The default is 0.1 for stable responses.
-        max_tokens (int, optional): The maximum number of tokens to generate. The default is 4096.
-        printing (bool, optional): Whether to print the response. The default is False.
-        stream (bool, optional): Whether to stream the response. The default is True.
-        top_p (float, optional): Nucleus sampling probability.
-        n (int, optional: Number of chat completion choices to generate. The default is 1.
-        presence_penalty (float, optional): Penalty for new tokens based on their presence.
-        frequency_penalty (float, optional): Penalty for new tokens based on their frequency.
-        kwargs (dict, optional): Additional parameters for any LLMs API require.
+    return valid_models
 
-    Returns:
-        str: The response from the LiteLLM API.
-    """
+open_router_models = get_open_router_models()
 
-    def __init__(
-        self,
-        api_key: str = None,
-        base_url: str = None,
-        model: str = "gpt-4o-2024-08-06",
-        messages: list = None,
-        temperature: float = 0.1, 
-        max_tokens: int = 2048,
-        printing: bool = False, 
-        stream: bool = True,
-        top_p: float = None,
-        n: int = 1,
-        presence_penalty: float = None,
-        frequency_penalty: float = None,
-        **kwargs
-    ):  
-        if not model:
-            raise PuppyException(3702, "Missing Large Language Model Name")
+def get_open_router_llm_settings(
+    model: str = None,
+    api_key: str = None,
+    base_url: str = None,
+) -> Tuple[str, str, str]:
+    api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
+    base_url = base_url or os.environ.get("OPENROUTER_BASE_URL")
+    if model not in open_router_models:
+        raise PuppyException(3701, "Invalid Open Router Model")
+    return api_key, base_url, model
 
-        if not messages:
-            raise PuppyException(3700, "Missing Prompt Message", "The messages field is required for the chat completion tasks with the specific LLM.")
+def get_lite_llm_settings(
+    model: str = None,
+    api_key: str = None,
+    base_url: str = None,
+) -> Tuple[str, str, str]:
+    # Convert model name to api model name
+    valid_models = {
+        "gpt-4o": "openai/gpt-4o-2024-08-06",
+        "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
+        "gpt-4.5-preview": "openai/gpt-4.5-preview-2025-02-27",
+        "o1": "openai/o1-2024-12-17",
+        "o1-mini": "openai/o1-mini-2024-09-12",
+        "o3-mini": "openai/o3-mini-2025-01-31",
+        "claude-3.7-sonnet": "anthropic/claude-3-7-sonnet-latest",
+        "claude-3.7-sonnet-thinking": "anthropic/claude-3-7-sonnet-latest",
+        "claude-3.5-sonnet": "anthropic/claude-3-5-sonnet-latest",
+        "claude-3.5-haiku": "anthropic/claude-3-5-haiku-latest",
+        "claude-3-opus": "anthropic/claude-3-opus-latest",
+        "deepseek-v3": "deepseek/deepseek-chat",
+        "deepseek-r1": "deepseek/deepseek-reasoner",
+    }
+    valid_model = valid_models.get(model, "openai/gpt-4o-2024-08-06")
 
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model = model
-        self.messages = messages
-        self.temperature = temperature
-        self.max_tokens = max_tokens
-        self.printing = printing
-        self.stream = stream
-        self.top_p = top_p
-        self.n = n
-        self.presence_penalty = presence_penalty
-        self.frequency_penalty = frequency_penalty
+    if valid_model.startswith("openai"):
+        key_name = "DEEPBRICKS_API_KEY"
+    elif valid_model.startswith("anthropic"):
+        key_name = "ANTHROPIC_API_KEY"
+    elif valid_model.startswith("deepseek"):
+        key_name = "DEEPSEEK_API_KEY"
+    else:
+        raise PuppyException(3701, "Missing Large Language Model API Key")
 
-        # Set any additional attributes from kwargs
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+    api_key = api_key or os.environ.get(key_name)
+    base_url = base_url or os.environ.get("DEEPBRICKS_BASE_URL")
+    return api_key, base_url, valid_model
 
-    @global_exception_handler(3600, "Error Generating Response for the Current Prompt Message")
-    def chat_completion(
-        self, 
-    ) -> Any:
-        """
-        Sending prompts to the specified model and returning the response based on the configuration.
-
-        Args:
-            printing (bool): Whether to print the response. The default is False.
-
-        Returns:
-            Any: The response from the model.
-        """
-
-        data = {k: v for k, v in self.__dict__.items() if v is not None and k != "printing"}
-        response = completion(**data)
-        if self.stream:
-            return self._handle_stream_response(response)
-        else:
-            return self._handle_non_stream_response(response)
-
-    def _handle_non_stream_response(
-        self, 
-        response: Any, 
-    ) -> str:
-        """
-        Handle the non-stream response from the model.
-
-        Args:
-            response (Any): The response from the model.
-
-        Returns:
-            str: The response content.
-        """
-
-        response_content = response.choices[0].message.content
-        if self.printing:
-            print(response_content + "\n")
-        return response_content
-
-    def _handle_stream_response(
-        self, 
-        response: Any
-    ) -> str:
-        """
-        Handle the stream response from the model.
-
-        Args:
-            response (Any): The response from the model.
-
-        Returns:
-            str: The response content.
-        """
-
-        final_response = ""
-        for chunk in response:
-            chunk_content = chunk.choices[0].delta.content
-            if chunk_content:
-                if self.printing:
-                    print(chunk_content, end="")
-                final_response += chunk_content
-        if self.printing:
-            print("\n")
-        return final_response
-
+def get_huggingface_llm_settings(
+    model: str = None,
+    api_key: str = None,
+    api_base: str = None,
+) -> Tuple[str, str, str]:
+    api_key = api_key or os.environ.get("HUGGINGFACE_API_KEY")
+    model = f"huggingface/{model}" if model else "huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct"
+    return api_key, api_base, model
 
 @global_exception_handler(3601, "Error Generating Response Using Lite LLM")
 def lite_llm_chat(
@@ -150,6 +99,7 @@ def lite_llm_chat(
 
     Args:
         **kwargs: The keyword arguments for the chat configurations, including:
+        - hoster (str): "openrouter" or "huggingface" or "litellm"
         - api_key
         - model
         - base_url
@@ -181,38 +131,27 @@ def lite_llm_chat(
     if history:
         messages = history + messages
     kwargs["messages"] = messages
-    
-    # Convert model name to api model name
-    valid_models = {
-        "gpt-4o": "openai/gpt-4o-2024-08-06",
-        "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
-        "gpt-4.5-preview": "openai/gpt-4.5-preview-2025-02-27",
-        "o1": "openai/o1-2024-12-17",
-        "o1-mini": "openai/o1-mini-2024-09-12",
-        "o3-mini": "openai/o3-mini-2025-01-31",
-        "claude-3.7-sonnet": "anthropic/claude-3-7-sonnet-latest",
-        "claude-3.7-sonnet-thinking": "anthropic/claude-3-7-sonnet-latest",
-        "claude-3.5-sonnet": "anthropic/claude-3-5-sonnet-latest",
-        "claude-3.5-haiku": "anthropic/claude-3-5-haiku-latest",
-        "claude-3-opus": "anthropic/claude-3-opus-latest",
-        "deepseek-v3": "deepseek/deepseek-chat",
-        "deepseek-r1": "deepseek/deepseek-reasoner",
-    }
-    model = kwargs["model"] or os.environ.get("OPENAI_MODEL", kwargs["model"])
-    valid_model = valid_models.get(model, "openai/gpt-4o-2024-08-06")
-    kwargs["model"] = valid_model
 
-    if valid_model.startswith("openai"):
-        key_name = "DEEPBRICKS_API_KEY"
-    elif valid_model.startswith("anthropic"):
-        key_name = "ANTHROPIC_API_KEY"
-    elif valid_model.startswith("deepseek"):
-        key_name = "DEEPSEEK_API_KEY"
+    hoster = kwargs.pop("hoster", "openrouter")
+    if hoster == "openrouter":
+        kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_open_router_llm_settings(
+            model=kwargs.get("model"),
+            api_key=kwargs.get("api_key"),
+            base_url=kwargs.get("base_url")
+        )
+        kwargs["is_openrouter"] = True
+    elif hoster == "huggingface":
+        kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_huggingface_llm_settings(
+            model=kwargs.get("model"),
+            api_key=kwargs.get("api_key"),
+            api_base=kwargs.get("api_base")
+        )
     else:
-        raise PuppyException(3701, "Missing Large Language Model API Key")
-
-    kwargs["api_key"] = kwargs.get("api_key", None) or os.environ.get(key_name)
-    kwargs["base_url"] = kwargs.get("base_url", None) or os.environ.get("DEEPBRICKS_BASE_URL")
+        kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_lite_llm_settings(
+            model=kwargs.get("model"),
+            api_key=kwargs.get("api_key"),
+            base_url=kwargs.get("base_url")
+        )
 
     # Initialize the ChatService with the configured settings
     chat_service = ChatService(**kwargs)
@@ -230,54 +169,6 @@ def lite_llm_chat(
 
     return result
 
-@global_exception_handler(3602, "Error Generating Response Using Hugging Face Models")
-def huggingface_llm_chat(
-    messages: List[Dict[str, str]],
-    model: str = None,
-    api_key: str = None,
-    api_base: str = None,
-    max_tokens: int = 4096,
-    temperature: float = 0.7,
-    stream: bool = False,
-    **kwargs
-) -> str:
-    """
-    Chat with Huggingface hosted models using litellm
-    
-    Args:
-        messages: List of message dicts with 'role' and 'content'
-        model: Huggingface model name (e.g. "meta-llama/Meta-Llama-3.1-8B-Instruct")
-        api_key: Huggingface API key
-        api_base: API base URL for dedicated endpoints
-        max_tokens: Maximum tokens to generate
-        temperature: Sampling temperature
-        stream: Whether to stream the response
-        **kwargs: Additional parameters for litellm
-        
-    Returns:
-        Generated response text
-    """
-    # Set API key if provided
-    if api_key:
-        os.environ["HUGGINGFACE_API_KEY"] = api_key
-
-    # Prepare model name with huggingface prefix
-    model_name = f"huggingface/{model}" if model else "huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct"
-
-    # Initialize ChatService with Huggingface configs
-    chat_service = ChatService(
-        api_key=api_key,
-        base_url=api_base,
-        model=model_name,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-        stream=stream,
-        **kwargs
-    )
-
-    # Get response using the chat service
-    return chat_service.chat_completion()
 
 class LLMFactory(EdgeFactoryBase):
     @staticmethod
@@ -320,10 +211,9 @@ Query: What's the name of the PuppyAgent's agent framework?
             "required": ["name"]
         }
     }
-    
+
     response = lite_llm_chat(
-        model="gpt-4o",
-        user_prompt=user_prompt,
+        model="google/gemini-flash-1.5-8b-exp",
         response_format=structure,
         messages=[
             {"role": "user", "content": user_prompt}
@@ -331,9 +221,11 @@ Query: What's the name of the PuppyAgent's agent framework?
         history=[
             {"role": "system", "content": "You are a helpful assistant designed to output JSON."}
         ],
-        max_tokens=100
+        max_tokens=100,
+        hoster="openrouter"
     )
     print(response)
+    
     
 #     structure = {
 #         "type": "json_schema",
