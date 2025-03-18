@@ -27,7 +27,7 @@ async def embed(request: Request):
         user_id = data.get("user_id", "rose123")
         
         # 对model和set_name进行哈希处理并截断
-        def hash_and_truncate(text: str, length: int = 15) -> str:
+        def hash_and_truncate(text: str, length: int = 8) -> str:
             return hashlib.md5(text.encode()).hexdigest()[:length]
         
         model_hash = hash_and_truncate(model)
