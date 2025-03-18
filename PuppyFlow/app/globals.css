@@ -430,7 +430,7 @@
 
 /* 字符串值 */
 .monaco-editor .mtk5 {
-  color: #FF9CAC !important; /* 橙红色 */
+  color: #82be65 !important; /* 编辑器绿色 */
 }
 
 /* 键名 */
@@ -522,7 +522,7 @@
 
 /* 设置左边line number的颜色 */
 .monaco-editor .line-numbers {
-  color: #6D7177 !important;
+  color: rgba(109, 113, 119, 0.5) !important;
 }
 
 .monaco-editor .current-line {
@@ -938,4 +938,28 @@
 
 .react-flow__attribution a {
   color: #646464 !important;
+}
+
+/* Add these rules to style brackets differently */
+.json-form .monaco-editor .mtk9.bracket-highlighting{
+  color: #FF9CAC !important; /* Pink color for curly braces */
+}
+
+.json-form .monaco-editor .mtk9.bracket-highlighting {
+  color: #9CFFC9 !important; /* Green color for square brackets */
+}
+
+/* You might need to adjust the class names based on your Monaco editor's output */
+.json-form .monaco-editor .mtk3 {
+  color: #ffa8b7 !important; /* For curly braces */
+}
+
+.json-form .monaco-editor .mtk4 {
+  color: #ff90ac !important; /* 更柔和的紫罗兰色用于方括号 */
+}
+
+/* 优化选中文本的样式 */
+.json-form .monaco-editor .selected-text {
+  background-color: rgba(255, 167, 61, 0.25) !important; /* 稍微降低了不透明度 */
+  border-radius: 2px;
 }
