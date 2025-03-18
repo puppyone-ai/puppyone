@@ -1,0 +1,71 @@
+{
+    "blocks": {
+
+        "RCAnzN": {
+
+            "label": "RCAnzN",
+
+            "type": "structured",
+
+            "data": {
+
+                "content": ""
+
+            }
+
+        },
+
+        "OyEKEy": {
+
+            "label": "OyEKEy",
+
+            "type": "structured",
+
+            "data": {
+
+                "content": [
+
+                    "apple",
+
+                    "juice"
+
+                ]
+
+            },
+
+            "looped": false
+
+        }
+
+    },
+
+    "edges": {
+
+        "modify-1740841716476": {
+
+            "type": "modify",
+
+            "data": {
+
+                "content": "{{OyEKEy}}",
+
+                "modify_type": "convert2text",
+
+                "inputs": {
+
+                    "OyEKEy": "OyEKEy"
+
+                },
+
+                "outputs": {
+
+                    "RCAnzN": "RCAnzN"
+
+                }
+
+            }
+
+        }
+
+    }
+}

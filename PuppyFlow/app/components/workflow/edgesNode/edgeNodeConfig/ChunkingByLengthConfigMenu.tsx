@@ -9,6 +9,8 @@ import { ChunkingConfigNodeData } from '../edgeNodes/ChunkingConfig'
 import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
+import { PuppyDropdown } from '../../../misc/PuppyDropDown'
+
 type ChunkingByLengthConfigProps = {
     show: boolean,
     parentId: string,
@@ -69,6 +71,20 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
 
+    // 添加复制功能状态
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+
+    // 添加展开/收起状态
+    const [showSettings, setShowSettings] = useState(false);
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     useEffect(() => {
         onSubChunkModeChange(sub_chunk_mode)
@@ -209,7 +225,17 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177]'>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -350,15 +376,20 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
 
     
   return (
-
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px] font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             <div className='flex flex-row gap-[12px]'>
                 <div className='flex flex-row gap-[8px] justify-center items-center'>
                 <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 14 14">
-                <path stroke="#CDCDCD" strokeWidth="1.5" d="M3.5 7c6.417 0 7-4.667 7-4.667M3.5 7c6.417 0 7 4.667 7 4.667"/>
-                <path fill="#1C1D1F" stroke="#CDCDCD" strokeWidth="1.5" d="M.75 3.75h3.5v6.5H.75zm9-3h3.5v3.5h-3.5zm0 9h3.5v3.5h-3.5z"/>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <rect x="9" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <rect x="0.5" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <rect x="9" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M5 2.75H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M2.75 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M11.25 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                    <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5"/>
                 </svg>
                 </div>
                 <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -379,7 +410,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
                 
-                <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>
                     <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -392,71 +423,122 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                {displaySourceNodeLabels()}
-            </div>
-        </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             mode
-            </div>
-            <select ref={subChunkingModeRef} value={sub_chunk_mode} onChange={() => {
-                if (subChunkingModeRef.current)
-                    { setSubChunkMode(subChunkingModeRef.current.value as sub_chunking_mode_names)}
-            }} id='mode' className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                <option value={"size"}>
-                    by size
-                </option>
-            </select>
-        </li>
-        <li>
-            <ul className='flex flex-col border-[#6D7177] rounded-[8px] w-full'>
-                <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[88px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                chunk_size
+            <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex flex-wrap gap-2'>
+                    {displaySourceNodeLabels()}
                 </div>
-                <input ref={chunk_sizeRef} value={chunk_size} onChange={() => {
-                    if (chunk_sizeRef.current) {
-                        setChunk_size(chunk_sizeRef.current.value === "" ? undefined : Number(chunk_sizeRef.current.value))
-                    }
-                }} id="chunk_size" type='number' className='px-[10px] py-[5px] rounded-r-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
-                </li>
-                <li className='flex items-center justify-start font-plus-jakarta-sans border-x-[1px] border-b-[1px] bg-black border-[#6D7177] rounded-b-[8px] w-full h-[36px]'>
-                <div className='text-[#6D7177] w-[122px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-                overlap
-                </div>
-                <input ref={overlapRef} value={overlap} onChange={() => {
-                    if (overlapRef.current) {
-                        setOverlap(overlapRef.current.value === "" ? undefined : Number(overlapRef.current.value))
-                    }
-                }} id="overlap" type='number' className='px-[10px] py-[5px] rounded-r-[8px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
-                </li>
-            </ul>
-        </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[140px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             handle_half_word
             </div>
-            <select ref={handle_half_wordRef} id='handle_half_word' value={handle_half_word === true ? "True" : "False"} onChange={() => {
-                if (handle_half_wordRef.current) {
-                    setHandle_half_word(handle_half_wordRef.current.value === "True" ? true : false)
-                }
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal font-plus-jakarta-sans text-main-grey border-none w-full h-full'>
-                <option value={"True"}>
-                    True
-                </option>
-                <option value={"False"}>
-                    False
-                </option>
-            </select>
         </li>
-     
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+            </div>
+            <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <PuppyDropdown
+                    options={["size"]}
+                    selectedValue={sub_chunk_mode}
+                    onSelect={(value: string) => {
+                        setSubChunkMode(value as sub_chunking_mode_names);
+                    }}
+                    buttonHeight="32px"
+                    buttonBgColor="transparent"
+                    menuBgColor="#1A1A1A"
+                    listWidth="100%"
+                    containerClassnames="w-full"
+                    mapValueTodisplay={(v: string) => v === "size" ? "by size" : v}
+                />
+            </div>
+        </li>
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
+                    <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                </div>
+                <button 
+                    onClick={() => setShowSettings(!showSettings)}
+                    className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
+                >
+                    {showSettings ? 'Hide' : 'Show'}
+                    <svg 
+                        className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </div>
 
-        
+            {showSettings && (
+                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                    <div className='flex flex-col gap-1'>
+                        <label className='text-[12px] text-[#6D7177]'>Chunk Size</label>
+                        <input 
+                            ref={chunk_sizeRef}
+                            value={chunk_size}
+                            onChange={() => {
+                                if (chunk_sizeRef.current) {
+                                    setChunk_size(chunk_sizeRef.current.value === "" ? undefined : Number(chunk_sizeRef.current.value))
+                                }
+                            }}
+                            type='number'
+                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                     border-[1px] border-[#6D7177]/30 
+                                     text-[12px] text-[#CDCDCD]
+                                     hover:border-[#6D7177]/50 focus:border-[#39BC66] transition-colors'
+                            onMouseDownCapture={onFocus}
+                            onBlur={onBlur}
+                        />
+                    </div>
+                    <div className='flex flex-col gap-1'>
+                        <label className='text-[12px] text-[#6D7177]'>Overlap</label>
+                        <input 
+                            ref={overlapRef}
+                            value={overlap}
+                            onChange={() => {
+                                if (overlapRef.current) {
+                                    setOverlap(overlapRef.current.value === "" ? undefined : Number(overlapRef.current.value))
+                                }
+                            }}
+                            type='number'
+                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                     border-[1px] border-[#6D7177]/30 
+                                     text-[12px] text-[#CDCDCD]
+                                     hover:border-[#6D7177]/50 focus:border-[#39BC66] transition-colors'
+                            onMouseDownCapture={onFocus}
+                            onBlur={onBlur}
+                        />
+                    </div>
+                    <div className='flex flex-col gap-1'>
+                        <label className='text-[12px] text-[#6D7177]'>Handle Half Word</label>
+                        <select 
+                            ref={handle_half_wordRef}
+                            value={handle_half_word === true ? "True" : "False"}
+                            onChange={() => {
+                                if (handle_half_wordRef.current) {
+                                    setHandle_half_word(handle_half_wordRef.current.value === "True" ? true : false)
+                                }
+                            }}
+                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                     border-[1px] border-[#6D7177]/30 
+                                     text-[12px] text-[#CDCDCD] appearance-none cursor-pointer 
+                                     hover:border-[#6D7177]/50 transition-colors'
+                        >
+                            <option value="True">True</option>
+                            <option value="False">False</option>
+                        </select>
+                    </div>
+                </div>
+            )}
+        </li>
     </ul>
   )
 }

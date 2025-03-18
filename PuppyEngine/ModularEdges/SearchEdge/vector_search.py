@@ -7,7 +7,7 @@ import os
 import sys
 from typing import List, Tuple
 from ModularEdges.StorageEdge import StoragerFactory
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 
 
@@ -27,6 +27,36 @@ class VectorRetrievalStrategy(BaseRetriever):
 
         :return: A list of tuples containing the document and its score.
         """
+
+        # Handle multiple collection configs
+        collection_configs = self.extra_configs.get("collection_configs", [])
+        collection_name_set = set([config.get("collection_name", "") for config in collection_configs])
+        if len(collection_name_set) > 1:
+            search_results = []
+            for collection_config in collection_configs:
+                collection_name = collection_config.get("collection_name", "")
+                if collection_name in collection_name_set:
+                    collection_name_set.remove(collection_name)
+
+                search_results.extend(StorageClient.execute(
+                    collection_name=collection_name,
+                    search_configs={
+                        "query": self.query,
+                        "model": collection_config.get("model", "text-embedding-ada-002"),
+                        "vdb_type": collection_config.get("db_type", "pgvector"),
+                        "top_k": self.top_k,
+                        "threshold": self.threshold,
+                    }
+                ))
+
+            # Sort and return the top k results and pass the threshold
+            search_results.sort(key=lambda x: x["score"], reverse=True)
+            if self.top_k:
+                search_results = search_results[:self.top_k]
+            if self.threshold:
+                search_results = [result for result in search_results if result["score"] >= self.threshold]
+
+            return search_results
 
         return StorageClient.execute(
             collection_name=self.extra_configs.get("collection_name", ""),

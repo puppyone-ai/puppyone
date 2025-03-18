@@ -35,7 +35,7 @@ export type SearchByVectorEdgeJsonType = {
             db_type: "pgvector" | "pinecone",
             collection_name: string,
         },
-        docs_id: { [key: string]: string }, // 用于储藏vectordb的id
+        doc_ids: string[], // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
         looped: boolean,
         outputs: { [key: string]: string }
@@ -81,6 +81,27 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         (getNode(parentId)?.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7
     )
 
+    // 添加复制功能状态
+    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
+
+    // 添加展开/收起状态
+    const [showSettings, setShowSettings] = useState(false);
+
+    // Add these state variables near your other useState declarations
+    const [nodeLabels, setNodeLabels] = useState<{label: string, id: string}[]>(
+        (getNode(parentId)?.data as SearchConfigNodeData)?.nodeLabels ?? []
+    );
+    // Change this state variable to a ref
+    const sourceNodeLabelsRef = useRef<{label: string, id: string}[]>(getSourceNodeIdWithLabel(parentId).map((node) => ({label:node.label, id:node.id})));
+
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
+            setCopiedLabel(text);
+            setTimeout(() => setCopiedLabel(null), 1000);
+        }).catch(err => {
+            console.warn('Failed to copy:', err);
+        });
+    };
 
     useEffect(() => {
         onQueryChange(query)
@@ -268,11 +289,18 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        // if (!isEqual(sourceNodeIdWithLabelGroup, parents)) {
-        //     setParents(sourceNodeIdWithLabelGroup);
-        // }
         return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <span key={`${node.id}-${parentId}`} className='w-fit text-[10px] font-semibold text-[#000] leading-normal bg-[#6D7177] px-[4px] flex items-center justify-center h-[16px] rounded-[4px] border-[#6D7177]'>{`{{${node.label}}}`}</span>
+            <button 
+                key={`${node.id}-${parentId}`} 
+                onClick={() => copyToClipboard(node.label)}
+                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
+                         border-[1px] text-[10px] font-medium transition-all duration-200
+                         ${copiedLabel === node.label 
+                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
+                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
+            >
+                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+            </button>
         ))
     }
 
@@ -347,7 +375,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                         (eg)=>getNode(eg.source)?.data.index_name
                     )[0] as string
                 },
-                docs_id: {[vectorDB.id]: vectorDB_label},
+                doc_ids: nodeLabels.map(node => node.id),
                 query_id: {[query.id]: query_label},
                 looped: false,
             },
@@ -394,7 +422,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             }))
         }
         setIsComplete(false)
-        };
+    };
 
 
     const displayQueryLabels = () => {
@@ -418,8 +446,12 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         }
         console.log("query list",queryList)
         return queryList.map((q: {id: string, label: string}) => (
-            <option key={`${q.id}-${parentId}`} value={q.id}>
-                {q.label}
+            <option 
+                key={`${q.id}-${parentId}`} 
+                value={q.id}
+                className='text-[#3B9BFF]'
+            >
+                {`{{${q.label}}}`}
             </option>
         ))
     }
@@ -444,8 +476,12 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             setVectorDB({id: "", label: ""})
         }
         return vectorDBList.map((db: {id: string, label: string}) => (
-            <option key={`${db.id}-${parentId}`} value={db.id}>
-                {db.label}
+            <option 
+                key={`${db.id}-${parentId}`} 
+                value={db.id}
+                className='text-[#3B9BFF]'
+            >
+                {`{{${db.label}}}`}
             </option>
         ))
     }
@@ -495,13 +531,41 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         }))
     }
     
-    
-
-
  
+
+    // Add these functions near your other handler functions
+    const updateNodeLabelsInParent = (labels: {label: string, id: string}[]) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return {...node, data: {...node.data, nodeLabels: labels}};
+            }
+            return node;
+        }));
+    };
+
+    const addNodeLabel = (label: {label: string, id: string}) => {
+        if (label && !nodeLabels.some(nodeLabel => nodeLabel.id === label.id)) {
+            const newNodeLabels = [...nodeLabels, label];
+            setNodeLabels(newNodeLabels);
+            updateNodeLabelsInParent(newNodeLabels);
+        }
+    };
+
+    const removeNodeLabel = (index: number) => {
+        const newNodeLabels = [...nodeLabels];
+        newNodeLabels.splice(index, 1);
+        setNodeLabels(newNodeLabels);
+        updateNodeLabelsInParent(newNodeLabels);
+    };
+
+    // Update the useEffect to set the ref value instead
+    useEffect(() => {
+        sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name).map((node) => ({label:node.label, id:node.id}))
+    }, [getSourceNodeIdWithLabel(parentId)])
+
   return (
 
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[rgb(109,113,119)] bg-main-black-theme p-[7px]  font-plus-jakarta-sans flex flex-col gap-[13px] ${show ? "" : "hidden"} `} >
+    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
             
             <div className='flex flex-row gap-[12px]'>
@@ -545,77 +609,154 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 </button>
             </div>
         </li>
-        <li className='flex gap-1 items-center justify-start font-plus-jakarta-sans border-[1px] border-[#6D7177] rounded-[8px] w-full'>
-            <div className='text-[#6D7177] w-[57px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             input
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
+                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
             </div>
-            <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-             {displaySourceNodeLabels()}
+            <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                {displaySourceNodeLabels()}
             </div>
-            
         </li>
 
-        <ul className='flex flex-col border-[#6D7177] rounded-[8px] w-full'>
-            <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-t-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[112px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             query
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Query</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <select ref={queryRef} id='query' value={query.id} onChange={() => {
-                if (queryRef.current){
-                    if (queryRef.current.value !== query.id) {
+            <select 
+                ref={queryRef} 
+                value={query.id} 
+                onChange={() => {
+                    if (queryRef.current && queryRef.current.value !== query.id) {
                         const selectedLabel = getNode(queryRef.current.value)?.data?.label as string | undefined ?? queryRef.current.value
-                        console.log(selectedLabel, "queryValue")
                         setQuery({id: queryRef.current.value, label: selectedLabel})
                     }
-                }
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
+                }}
+                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                         text-[#3B9BFF] text-[12px] font-medium appearance-none cursor-pointer 
+                         hover:border-[#6D7177]/50 transition-colors'
+            >
                 {displayQueryLabels()}
             </select>
-            
-            </li>
-            <li className='flex items-center justify-start font-plus-jakarta-sans border-x-[1px] border-b-[1px] bg-black border-[#6D7177] rounded-b-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[112px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start'>
-             vector DB
-            </div>
-            <select ref={vectorDBRef} id='vectorDB' value={vectorDB.id} onChange={() => {
-                if (vectorDBRef.current){
-                    if (vectorDBRef.current.value !== vectorDB.id) {
-                        const selectedLabel = getNode(vectorDBRef.current.value)?.data?.label as string | undefined ?? vectorDBRef.current.value
-                        console.log(selectedLabel, "vectordb")
-                        setVectorDB({id: vectorDBRef.current.value, label: selectedLabel})
-                    }
-                }
-            }} className='flex flex-row items-center justify-start py-[5px] px-[10px] text-[12px] font-[700] leading-normal text-main-grey border-none w-full h-full font-plus-jakarta-sans'>
-                {displayVectorDBLabels()}
-            </select>
-            </li>
-        </ul>
-
-
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[120px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
-             result number
-            </div>
-            <input ref={topkRef} value={top_k} onChange={() => {
-                if (topkRef.current) {
-                    setTop_k(topkRef.current.value === "" ? undefined : Number(topkRef.current.value))
-                }
-            }} id="result_number" type='number' className='px-[10px] py-[5px] rounded-r-[4px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
-            
-        </li>
-        <li className='flex items-center justify-start font-plus-jakarta-sans border-[1px] bg-black border-[#6D7177] rounded-[8px] w-full h-[36px]'>
-            <div className='text-[#6D7177] w-[160px] font-plus-jakarta-sans text-[12px] font-[700] leading-normal px-[12px] py-[8px] border-r-[1px] border-[#6D7177] flex items-center justify-start whitespace-nowrap'>
-             threshold
-            </div>
-            <input ref={thresholdRef} value={threshold} onChange={() => {
-                if (thresholdRef.current) {
-                    setThreshold(thresholdRef.current.value === "" ? undefined : Number(thresholdRef.current.value))
-                }
-            }} id="threshold" type='number' max={1} min={0} step={0.001} className='px-[10px] py-[5px] rounded-r-[4px] bg-black text-[12px] font-[700] text-[#CDCDCD] tracking-[1.12px] leading-normal flex items-center justify-center font-plus-jakarta-sans w-full h-full' autoComplete='off' required onMouseDownCapture={onFocus} onBlur={onBlur}></input>
-            
         </li>
 
-        
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>Database with Vector Indexing</label>
+                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+            </div>
+           
+            {/* start of node labels */}
+            <div className='bg-[#1E1E1E] rounded-[8px] p-2 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
+                        {nodeLabels.map((label, index) => (
+                            <div key={index}
+                                className='flex items-center bg-[#252525] rounded-md 
+                                        border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 
+                                        transition-colors group'
+                            >
+                                <span className='text-[12px] text-[#FF9B4D] px-2 py-1'>
+                                    {label.label}
+                                </span>
+                                <button
+                                    onClick={() => removeNodeLabel(index)}
+                                    className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
+                                            px-1 py-1 opacity-0 group-hover:opacity-100'
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        ))}
+
+                    </div>
+                </div>
+
+                <div className='mt-1'>
+                    <div className='text-[11px] text-[#6D7177] mb-2'>Available Database Blocks:</div>
+                    <div className='flex flex-wrap gap-2'>
+                        {sourceNodeLabelsRef.current.map((labelOption: {label: string, id: string}) => (
+                            <button
+                                key={labelOption.id}
+                                onClick={() => addNodeLabel({label:labelOption.label, id:labelOption.id})}
+                                className={`px-2 py-1 rounded-md text-[11px] transition-colors
+                                        ${nodeLabels.some(nodeLabel => nodeLabel.id === labelOption.id)
+                                        ? 'bg-[#252525] text-[#CDCDCD] border border-[#6D7177]/50'
+                                        : 'bg-[#1E1E1E] text-[#6D7177] border border-[#6D7177]/30 hover:bg-[#252525] hover:text-[#CDCDCD]'}`}
+                            >
+                                {labelOption.label||labelOption.id}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            {/* end of node labels */}
+        </li>
+
+        <li className='flex flex-col gap-2'>
+            <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
+                    <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                </div>
+                <button 
+                    onClick={() => setShowSettings(!showSettings)}
+                    className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
+                >
+                    {showSettings ? 'Hide' : 'Show'}
+                    <svg 
+                        className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        viewBox="0 0 24 24" 
+                        stroke="currentColor"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+            </div>
+
+            {showSettings && (
+                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                    <div className='flex flex-col gap-1'>
+                        <label className='text-[12px] text-[#6D7177]'>Result Number</label>
+                        <input 
+                            ref={topkRef} 
+                            value={top_k} 
+                            onChange={() => {
+                                if (topkRef.current) {
+                                    setTop_k(topkRef.current.value === "" ? undefined : Number(topkRef.current.value))
+                                }
+                            }}
+                            type='number'
+                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 text-[12px] text-[#CDCDCD] hover:border-[#6D7177]/50 transition-colors'
+                            onMouseDownCapture={onFocus}
+                            onBlur={onBlur}
+                        />
+                    </div>
+                    <div className='flex flex-col gap-1'>
+                        <label className='text-[12px] text-[#6D7177]'>Threshold</label>
+                        <input 
+                            ref={thresholdRef} 
+                            value={threshold} 
+                            onChange={() => {
+                                if (thresholdRef.current) {
+                                    setThreshold(thresholdRef.current.value === "" ? undefined : Number(thresholdRef.current.value))
+                                }
+                            }}
+                            type='number'
+                            max={1}
+                            min={0}
+                            step={0.001}
+                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 text-[12px] text-[#CDCDCD] hover:border-[#6D7177]/50 transition-colors'
+                            onMouseDownCapture={onFocus}
+                            onBlur={onBlur}
+                        />
+                    </div>
+                </div>
+            )}
+        </li>
     </ul>
   )
 }

@@ -9,7 +9,7 @@ import logging
 from typing import Any, List, Dict
 from litellm import completion
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class ChatService:
@@ -51,19 +51,15 @@ class ChatService:
         frequency_penalty: float = None,
         **kwargs
     ):  
-        self.api_key = api_key or os.environ.get("DEEPBRICKS_API_KEY", api_key)
-        if not self.api_key:
-            raise PuppyEngineException(3701, "Missing Large Language Model API Key")
-        
-        self.base_url = base_url or os.environ.get("DEEPBRICKS_BASE_URL", base_url)
-
-        self.model = model or os.environ.get("OPENAI_MODEL", model)
-        if not self.model:
-            raise PuppyEngineException(3702, "Missing Large Language Model Name")
+        if not model:
+            raise PuppyException(3702, "Missing Large Language Model Name")
 
         if not messages:
-            raise PuppyEngineException(3700, "Missing Prompt Message", "The messages field is required for the chat completion tasks with the specific LLM.")
+            raise PuppyException(3700, "Missing Prompt Message", "The messages field is required for the chat completion tasks with the specific LLM.")
 
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
         self.messages = messages
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -185,6 +181,38 @@ def lite_llm_chat(
     if history:
         messages = history + messages
     kwargs["messages"] = messages
+    
+    # Convert model name to api model name
+    valid_models = {
+        "gpt-4o": "openai/gpt-4o-2024-08-06",
+        "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
+        "gpt-4.5-preview": "openai/gpt-4.5-preview-2025-02-27",
+        "o1": "openai/o1-2024-12-17",
+        "o1-mini": "openai/o1-mini-2024-09-12",
+        "o3-mini": "openai/o3-mini-2025-01-31",
+        "claude-3.7-sonnet": "anthropic/claude-3-7-sonnet-latest",
+        "claude-3.7-sonnet-thinking": "anthropic/claude-3-7-sonnet-latest",
+        "claude-3.5-sonnet": "anthropic/claude-3-5-sonnet-latest",
+        "claude-3.5-haiku": "anthropic/claude-3-5-haiku-latest",
+        "claude-3-opus": "anthropic/claude-3-opus-latest",
+        "deepseek-v3": "deepseek/deepseek-chat",
+        "deepseek-r1": "deepseek/deepseek-reasoner",
+    }
+    model = kwargs["model"] or os.environ.get("OPENAI_MODEL", kwargs["model"])
+    valid_model = valid_models.get(model, "openai/gpt-4o-2024-08-06")
+    kwargs["model"] = valid_model
+
+    if valid_model.startswith("openai"):
+        key_name = "DEEPBRICKS_API_KEY"
+    elif valid_model.startswith("anthropic"):
+        key_name = "ANTHROPIC_API_KEY"
+    elif valid_model.startswith("deepseek"):
+        key_name = "DEEPSEEK_API_KEY"
+    else:
+        raise PuppyException(3701, "Missing Large Language Model API Key")
+
+    kwargs["api_key"] = kwargs.get("api_key", None) or os.environ.get(key_name)
+    kwargs["base_url"] = kwargs.get("base_url", None) or os.environ.get("DEEPBRICKS_BASE_URL")
 
     # Initialize the ChatService with the configured settings
     chat_service = ChatService(**kwargs)
@@ -294,6 +322,7 @@ Query: What's the name of the PuppyAgent's agent framework?
     }
     
     response = lite_llm_chat(
+        model="gpt-4o",
         user_prompt=user_prompt,
         response_format=structure,
         messages=[
@@ -306,40 +335,40 @@ Query: What's the name of the PuppyAgent's agent framework?
     )
     print(response)
     
-    structure = {
-        "type": "json_schema",
-        "json_schema": {
-            "name": "chunked_document",
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "chunks": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "required": ["chunks"]  # Specify required properties
-            }
-        }
-    }
-    doc = """
-Artificial Intelligence (AI) is the simulation of human intelligence in machines.
-AI systems are used to perform tasks that normally require human intelligence.
-There are two types of AI: narrow AI and general AI.
-Narrow AI is designed to perform a narrow task like facial recognition.
-General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
-"""
-    response = lite_llm_chat(
-        user_prompt=user_prompt,
-        response_format=structure,
-        messages=[
-            {"role": "user", "content": doc}
-        ],
-        history=[
-            {"role": "system", "content": "You are an expert document chunker. Your task is to split the original document into semantically meaningful chunks. Ensure that the document is chunked in a way that each chunk contains coherent and complete thoughts or ideas. Output in json."}
-        ],
-        max_tokens=100
-    )
-    print(response)
+#     structure = {
+#         "type": "json_schema",
+#         "json_schema": {
+#             "name": "chunked_document",
+#             "schema": {
+#                 "type": "object",
+#                 "properties": {
+#                     "chunks": {
+#                         "type": "array",
+#                         "items": {
+#                             "type": "string"
+#                         }
+#                     }
+#                 },
+#                 "required": ["chunks"]  # Specify required properties
+#             }
+#         }
+#     }
+#     doc = """
+# Artificial Intelligence (AI) is the simulation of human intelligence in machines.
+# AI systems are used to perform tasks that normally require human intelligence.
+# There are two types of AI: narrow AI and general AI.
+# Narrow AI is designed to perform a narrow task like facial recognition.
+# General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
+# """
+#     response = lite_llm_chat(
+#         user_prompt=user_prompt,
+#         response_format=structure,
+#         messages=[
+#             {"role": "user", "content": doc}
+#         ],
+#         history=[
+#             {"role": "system", "content": "You are an expert document chunker. Your task is to split the original document into semantically meaningful chunks. Ensure that the document is chunked in a way that each chunk contains coherent and complete thoughts or ideas. Output in json."}
+#         ],
+#         max_tokens=100
+#     )
+#     print(response)

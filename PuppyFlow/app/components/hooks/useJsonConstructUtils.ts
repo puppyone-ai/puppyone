@@ -20,7 +20,7 @@ import { WarnsContext } from '../states/WarnMessageContext';
 
 export const backend_IP_address_for_sendingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/send_data`
 export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/get_data`
-export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/generate_presigned_url`
+export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/generate_urls`
 export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`
 
 export type BasicNodeData = JsonNodeData | FileNodeData | ResultNodeData |  SwitchNodeData | TextBlockNodeData | VectorDatabaseNodeData | VectorNodeData | WebLinkNodeData | {content: string | any, subtype?: string, model?: string, method?: string, vdb_type?: string, index_name?: string}
@@ -51,8 +51,8 @@ export type ProcessingData = {
 
 function useJsonConstructUtils() {
     const {getEdges, getNode, setNodes, getNodes, getViewport} = useReactFlow()
-    const {warns,setWarns} = useContext(WarnsContext);
-    // const {warns,setWarns} = useContext(WarnsContext) as any;
+    // const {warns,setWarns} = useContext(WarnsContext);
+    const {warns,setWarns} = useContext(WarnsContext) as any;
     // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -436,10 +436,11 @@ function useJsonConstructUtils() {
                     type: item.type ?? node.type,
                     data: {
                         ...node.data,
-                        content: JSON.stringify(item.data.content),
+                        content: (item.type ?? node.type) === "structured" ? JSON.stringify(item.data.content): item.data.content,
                         isLoading: false
                     }
                 }: node)))
+                setTimeout(()=>{console.log("currentnodes",getNodes())},1000)
             }
         }
         // for (let item of data) {
@@ -490,7 +491,7 @@ function useJsonConstructUtils() {
                         type: item.type ?? node.type,
                         data: {
                             ...node.data,
-                            content: JSON.stringify(item.data.content),
+                            content: (item.type ?? node.type) === "structured" ? JSON.stringify(item.data.content): item.data.content,
                             isLoading: false
                         }
                     }: node)))

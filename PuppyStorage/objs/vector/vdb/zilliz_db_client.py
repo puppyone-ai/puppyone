@@ -9,7 +9,7 @@ import logging
 from typing import List, Dict, Any
 from pymilvus import CollectionSchema, FieldSchema, DataType
 from Scripts.vector_db_base import VectorDatabase
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class ZillizVectorDatabase(VectorDatabase):
         self.connections = {}
 
     @global_exception_handler(2404, "Error Connecting to Zilliz Vector Database")
-    def connect(
+    def register_collection(
         self,
         collection_name: str
     ) -> None:
@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     # Zilliz Test
     zilliz_db = ZillizVectorDatabase(client_type=0)
-    zilliz_db.connect("zilliz_test_collection")
+    zilliz_db.register_collection("zilliz_test_collection")
     zilliz_db.save_embeddings(
         collection_name="zilliz_test_collection",
         embeddings=embeddings,

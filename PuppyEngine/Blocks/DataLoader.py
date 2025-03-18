@@ -9,7 +9,7 @@ from typing import Dict, Any
 from Blocks.WebScrape import WebScraper
 from Blocks.Database import DatabaseFactory
 from Blocks.FileLoader import FileToTextParser
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class DataLoader:
@@ -50,7 +50,7 @@ class DataLoader:
     ) -> str:
         text = self.data.get("content", "")
         if not text:
-            raise PuppyEngineException(1100, "Empty Text Content")
+            raise PuppyException(1100, "Empty Text Content")
         return text
 
     @global_exception_handler(1001, "Unexpected Error in Loading Structure Text")
@@ -59,7 +59,7 @@ class DataLoader:
     ) -> Dict[str, Any]:
         structured = self.data.get("content", {})
         if not structured:
-            raise PuppyEngineException(1101, "Empty Structured Text Content")
+            raise PuppyException(1101, "Empty Structured Text Content")
         return structured
 
     @global_exception_handler(1002, "Unexpected Error in Loading Weblink")
@@ -68,7 +68,7 @@ class DataLoader:
     ) -> str:
         url = self.data.get("content", "")
         if not url:
-            raise PuppyEngineException(1200, "Empty Weblink")
+            raise PuppyException(1200, "Empty Weblink")
 
         extra_config = self.data.get("extra_config", {})
 
@@ -82,7 +82,7 @@ class DataLoader:
         }
 
         if mode not in mode_dict:
-            raise PuppyEngineException(1201, "Invalid Mode", f"Invalid mode '{mode}' provided. Supported modes: {list(mode_dict.keys())}")
+            raise PuppyException(1201, "Invalid Mode", f"Invalid mode '{mode}' provided. Supported modes: {list(mode_dict.keys())}")
 
         scraper = WebScraper()
 
@@ -96,7 +96,7 @@ class DataLoader:
     ) -> str:
         file_path = self.data.get("content", "")
         if not file_path:
-            raise PuppyEngineException(1300, "Empty File Path")
+            raise PuppyException(1300, "Empty File Path")
 
         root_path, file_name = os.path.split(file_path)
         extra_configs = self.data.get("extra_configs", {})
@@ -116,7 +116,7 @@ class DataLoader:
     ) -> dict:
         db_configs = self.data.get("content", {})
         if not db_configs:
-            raise PuppyEngineException(1400, "Empty Database Configuration")
+            raise PuppyException(1400, "Empty Database Configuration")
         extra_configs = self.data.get("extra_configs", {})
         client_name = extra_configs.get("client_name", "")
         table_name = extra_configs.get("table_name", "")

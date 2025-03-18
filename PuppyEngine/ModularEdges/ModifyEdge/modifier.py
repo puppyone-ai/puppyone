@@ -7,16 +7,16 @@ from typing import Any, Dict
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from ModularEdges.ModifyEdge.edit_text import ModifyEditText
 from ModularEdges.ModifyEdge.copy_content import ModifyCopyContent
-from ModularEdges.ModifyEdge.convert_to_text import ModifyConvertToText
+from ModularEdges.ModifyEdge.convert_to_text import ModifyConvert2Text
 from ModularEdges.ModifyEdge.edit_structured import ModifyEditStructured
 from ModularEdges.ModifyEdge.convert_2_structured import ModifyConvert2Structured
-from Utils.PuppyEngineExceptions import PuppyEngineException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 class ModifierFactory(EdgeFactoryBase):
     _strategies = {
         "copy": ModifyCopyContent,
-        "convert2text": ModifyConvertToText,
+        "convert2text": ModifyConvert2Text,
         "convert2structured": ModifyConvert2Structured,
         "edit_text": ModifyEditText,
         "edit_structured": ModifyEditStructured,
@@ -32,7 +32,7 @@ class ModifierFactory(EdgeFactoryBase):
         modify_type = init_configs.get("modify_type")
         strategy_class = cls._strategies.get(modify_type)
         if not strategy_class:
-            raise PuppyEngineException(3014, f"Invalid modify type: {modify_type}")
+            raise PuppyException(3014, f"Invalid modify type: {modify_type}")
         return strategy_class(init_configs.get("content"), extra_configs).modify()
 
 

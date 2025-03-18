@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import csv
 from typing import Dict
 from ModularEdges.SaveEdge.base_save import SaveStrategy
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 
 
 class CsvSaveStrategy(SaveStrategy):

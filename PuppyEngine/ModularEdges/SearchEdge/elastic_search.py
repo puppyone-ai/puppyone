@@ -8,7 +8,7 @@ import sys
 import json
 import requests
 from typing import List
-from Utils.PuppyEngineExceptions import global_exception_handler
+from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import SearchStrategy
 
 

@@ -3,7 +3,7 @@ import useJsonConstructUtils, {NodeJsonType, FileData} from './useJsonConstructU
 import { useReactFlow } from '@xyflow/react'
 import {ChunkingAutoEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ChunkingAutoConfigMenu'
 import {CodeEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/CodeConfigMenu'
-import {LLMEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/LLMConfigMenu'
+import {LLMEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/NewLLM'
 import {ModifyCopyEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyCopyConfigMenu'
 import {ModifyGetEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyGetConfigMenu'
 import {ModifyStructuredEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyStructuredConfigMenu'
@@ -355,7 +355,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   // id: nodeInfo.id,
                   type: "modify",
                   data: {  
-                      modify_type: "modify_text",
+                      modify_type: "edit_text",
                       extra_configs: {},
                       content: nodeInfo.data.content as string,
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
@@ -411,7 +411,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                         db_type: "pinecone",
                         collection_name: "test_collection"
                       },
-                      docs_id: {[vectorDB_id as string]: vectorDB_label as string},
+                      doc_ids: (getNode(nodeInfo.id)?.data as SearchConfigNodeData)?.nodeLabels?.map((node: {id: string, label: string}) => node.id),
                       query_id: {[query_id as string]: query_label as string},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
                   },

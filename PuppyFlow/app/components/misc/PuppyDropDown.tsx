@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useContext } from "react"
 
 
-export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", mapValueTodisplay=(v:string)=>v}:any) => {
+export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", buttonHeight="32px", buttonBgColor="transparent", menuBgColor="#1A1A1A", mapValueTodisplay=(v:string)=>v}:any) => {
     const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
     const handleSelect = (data:any) => {
@@ -25,9 +25,9 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
 
     const dropdownListStyle: React.CSSProperties = {
         position: 'absolute',
-        top: '24px',
+        top: '32px',
         left: '0',
-        backgroundColor: 'black',
+        backgroundColor: menuBgColor, // 使用传入的菜单背景色
         border: '1px solid #6D7177', // Border color
         borderRadius: '8px', // Rounded corners
         zIndex: 1000, // Ensure dropdown is above other elements
@@ -46,13 +46,20 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
     };
 
     return (
-        <div style={dropdownContainerStyle} className={`flex ${containerClassnames}`}>
+        <div 
+        style={dropdownContainerStyle} 
+        className={`flex px-[8px] ${containerClassnames}`}
+        onClick={() => {
+            setIsOpen(prev => {
+                console.log("open",prev)
+                return !prev})
+            }}
+        >
             <div  className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${(optionBadge && selectedValue)?"text-[#000] ":"text-white"} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue)?"border-[3px]":"border-[0px]"} ${(optionBadge && selectedValue)?"bg-[#6D7177]":""}`} 
-            onClick={() => {
-                setIsOpen(prev => {
-                    console.log("open",prev)
-                    return !prev})
-                }}>
+                 style={{ 
+                     height: buttonHeight,
+                     backgroundColor: optionBadge && selectedValue ? "#6D7177" : buttonBgColor // 使用传入的按钮背景色，但如果optionBadge和selectedValue都为true，则保持原有的背景色
+                 }}>
                 <span>{mapValueTodisplay(selectedValue || "Select a value")}</span>  {/* Display selected label or placeholder */}
                 {/* Down Arrow SVG */}
                 <svg 
@@ -77,7 +84,10 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
                         <li
                             key={index}
                             style={dropdownItemStyle}
-                            onClick={() => handleSelect(option)}
+                            onClick={(e) => {
+                                e.stopPropagation(); // 阻止事件冒泡
+                                handleSelect(option);
+                            }}
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
                         >
