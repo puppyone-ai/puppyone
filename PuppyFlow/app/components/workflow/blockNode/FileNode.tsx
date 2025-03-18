@@ -47,10 +47,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   useEffect(() => {
     console.log(activatedNode, isOnConnect, isTargetHandleTouched, "border color")
     if (activatedNode?.id === id) {
-      setBorderColor("border-main-blue");
-  } else {
+      setBorderColor("border-[#9E7E5F]");
+    } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
-     
     }
   }, [activatedNode, isOnConnect, isTargetHandleTouched])
  
@@ -166,8 +165,8 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     )
     else return (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#6D7177] group-hover:stroke-[#CDCDCD] group-active:stroke-[#4599DF]" strokeWidth="1.5"/>
-        <path d="M8 13.5H16" className="stroke-[#6D7177] group-hover:stroke-[#CDCDCD] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F]  group-active:stroke-[#BF9A78]" strokeWidth="1.5"/>
+        <path d="M8 13.5H16" className="stroke-[#9E7E5F]  group-active:stroke-[#BF9A78]" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     )
   }
@@ -493,24 +492,20 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     }
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[144px] min-h-[144px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       <div id={id} ref={contentRef}
-        className={`flex flex-col w-full h-full border-[1.5px] ${
-          content 
-            ? "border-solid border-[1.5px]" 
-            : "border-dashed border-[1.5px]"
-        } min-w-[144px] min-h-[144px] p-[8px] rounded-[16px] flex justify-start ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
+        className={`flex flex-col w-full h-full border-[1.5px] border-solid border-[1.5px] min-w-[240px] min-h-[176px] p-[8px] rounded-[16px] flex justify-start ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
           
         {/* the top bar of a block */}
         <div ref={labelContainerRef} 
-          className={`h-[24px] w-full max-w-full rounded-[4px]  flex items-center justify-between mb-2`}>
+          className={`h-[24px] w-full max-w-full rounded-[4px] flex items-center justify-between mb-2`}>
           
           {/* top-left wrapper */}
-          <div className="flex items-center gap-[8px]"
+          <div className="flex items-center gap-[8px] hover:cursor-grab active:cursor-grabbing group"
             style={{
               maxWidth: calculateMaxLabelContainerWidth(),
             }}>
-            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center">
+            <div className="min-w-[20px] min-h-[24px] flex items-center justify-center group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]">
               {renderTagLogo()}
             </div>
 
@@ -529,21 +524,37 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               {nodeLabel}
             </span>
             
-            <input ref={labelRef} 
-              autoFocus={editable} 
-              className={`flex items-center justify-start text-[#6D7177] font-[700] text-[12px] leading-[18px] font-plus-jakarta-sans bg-transparent h-[18px] focus:outline-none`}
-              style={{
-                boxSizing: "content-box",
-                width: calculateInputWidth(),
-                maxWidth: `calc(${calculateMaxLabelContainerWidth()} - 16px)`,
-              }}
-              size={nodeLabel.length ?? 0}
-              value={`${nodeLabel}`} 
-              readOnly={!editable} 
-              onChange={EditLabel} 
-              onMouseDownCapture={onFocus} 
-              onBlur={onBlur} 
-            />
+            {editable ? (
+              <input ref={labelRef} 
+                autoFocus={editable} 
+                className={`
+                  flex items-center justify-start 
+                  font-[600] text-[12px] leading-[18px] 
+                  font-plus-jakarta-sans bg-transparent h-[18px] 
+                  focus:outline-none truncate w-full
+                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]'}
+                `}
+                value={nodeLabel}
+                readOnly={!editable}
+                onChange={(e) => {
+                  setIsLocalEdit(true);
+                  setNodeLabel(e.target.value);
+                }}
+                onMouseDownCapture={onFocus}
+                onBlur={onBlur}
+              />
+            ) : (
+              <span 
+                className={`
+                  flex items-center justify-start 
+                  font-[600] text-[12px] leading-[18px] 
+                  font-plus-jakarta-sans truncate w-fit
+                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]'}
+                `}
+              >
+                {nodeLabel}
+              </span>
+            )}
           </div>
 
           {/* top-right toolbar */}
@@ -595,14 +606,10 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           </div> */}
           <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading} handleDelete={handleDelete}/>
 
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="13" viewBox="0 0 14 13" fill="none" className='fixed bottom-[8px] left-[8px] m-[8px]'>
-          <path d="M0.5 0.5H8.87821L13.2838 12.5H0.5V0.5Z" stroke="#6D7177"/>
-          <rect x="0.5" y="3.38916" width="13" height="9.11111"  stroke="#6D7177"/>
-        </svg>
 
         <NodeResizeControl
           minWidth={240}
-          minHeight={280}
+          minHeight={176}
           style={{
             position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize',
             background: 'transparent',
@@ -625,13 +632,13 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               height: "26px",
             }}
           >
-            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="group active:group-[]:fill-[#4599DF]">
-              <path d="M10 5.99998H12V7.99998H10V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-              <path d="M10 2H12V4H10V2Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-              <path d="M6 5.99998H8V7.99998H6V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-              <path d="M6 10H8V12H6V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-              <path d="M2 10H4V12H2V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
-              <path d="M10 10H12V12H10V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#4599DF]" />
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="group active:group-[]:fill-[#BF9A78]">
+              <path d="M10 5.99998H12V7.99998H10V5.99998Z" className="fill-[#9E7E5F] group-hover:fill-[#CDCDCD] group-active:fill-[#BF9A78]" />
+              <path d="M10 2H12V4H10V2Z" className="fill-[#9E7E5F] group-hover:fill-[#CDCDCD] group-active:fill-[#BF9A78]" />
+              <path d="M6 5.99998H8V7.99998H6V5.99998Z" className="fill-[#9E7E5F] group-hover:fill-[#CDCDCD] group-active:fill-[#BF9A78]" />
+              <path d="M6 10H8V12H6V10Z" className="fill-[#9E7E5F] group-hover:fill-[#CDCDCD] group-active:fill-[#BF9A78]" />
+              <path d="M2 10H4V12H2V10Z" className="fill-[#9E7E5F] group-hover:fill-[#CDCDCD] group-active:fill-[#BF9A78]" />
+              <path d="M10 10H12V12H10V10Z" className="fill-[#9E7E5F] group-hover:fill-[#CDCDCD] group-active:fill-[#BF9A78]" />
             </svg>
           </div>
         </NodeResizeControl>
