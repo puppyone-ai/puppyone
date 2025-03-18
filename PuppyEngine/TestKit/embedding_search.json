@@ -71,13 +71,59 @@
                         "metadata": {"id": "11"}
                     }
                 ]
-            }
+            },
+            "collection_configs": {
+                "vdb_type": "pgvector",
+                "model": "text-embedding-ada-002",
+                "collection_name": "pg_test_collection"
+            },
+            "looped": true
         },
         "4": {
             "type": "text",
             "label": "d",
             "data": {
                 "content": "economy"
+            }
+        },
+        "6": {
+            "type": "structured",
+            "label": "f",
+            "data": {
+                "content": [
+                    "Tesla",
+                    "is a leading electric vehicle manufacturer in the United States",
+                    "has been accelerating its globalization efforts in recent years",
+                    "aiming to secure a position in the global electric vehicle market.",
+                    "The United States being the second-largest automotive market in the world."
+                ],
+                "embedding_view": [
+                    {
+                        "content": "Tesla",
+                        "metadata": {"id": "1"}
+                    },
+                    {
+                        "content": "is a leading electric vehicle manufacturer in the United States",
+                        "metadata": {"id": "2"}
+                    },
+                    {
+                        "content": "has been accelerating its globalization efforts in recent years",
+                        "metadata": {"id": "3"}
+                    },
+                    {
+                        "content": "aiming to secure a position in the global electric vehicle market.",
+                        "metadata": {"id": "4"}
+                    },
+                    {
+                        "content": "The United States being the second-largest automotive market in the world.",
+                        "metadata": {"id": "5"}
+                    }
+                ]
+            },
+            "collection_configs": {
+                "vdb_type": "pgvector",
+                "model": "text-embedding-ada-002",
+                "collection_name": "pg_test_collection"
             }
         }
     },
@@ -86,18 +132,15 @@
             "type": "search",
             "data": {
                 "search_type": "vector",
-                "inputs": {"3": "c", "4": "d"},
+                "inputs": {"3": "c", "4": "d", "6": "f"},
                 "outputs": {"5":"e"},
                 "top_k": 10,
                 "threshold": 0.5,
                 "extra_configs": {
-                    "provider": "openai",
-                    "model": "text-embedding-ada-002",
-                    "db_type": "pgvector",
-                    "collection_name": "pg_test_collection"
+                    "db_type": "pgvector"
                 },
                 "query_id": {"4": "d"},
-                "docs_id": {"3": "c"}
+                "doc_ids": ["3", "6"]
             }
         }
     },

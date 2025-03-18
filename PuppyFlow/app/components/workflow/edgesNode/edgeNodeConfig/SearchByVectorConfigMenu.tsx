@@ -35,7 +35,7 @@ export type SearchByVectorEdgeJsonType = {
             db_type: "pgvector" | "pinecone",
             collection_name: string,
         },
-        docs_id: { [key: string]: string }, // 用于储藏vectordb的id
+        doc_ids: string[], // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
         looped: boolean,
         outputs: { [key: string]: string }
@@ -86,6 +86,13 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     // 添加展开/收起状态
     const [showSettings, setShowSettings] = useState(false);
+
+    // Add these state variables near your other useState declarations
+    const [nodeLabels, setNodeLabels] = useState<{label: string, id: string}[]>(
+        (getNode(parentId)?.data as SearchConfigNodeData)?.nodeLabels ?? []
+    );
+    // Change this state variable to a ref
+    const sourceNodeLabelsRef = useRef<{label: string, id: string}[]>(getSourceNodeIdWithLabel(parentId).map((node) => ({label:node.label, id:node.id})));
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(`{{${text}}}`).then(() => {
@@ -368,7 +375,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                         (eg)=>getNode(eg.source)?.data.index_name
                     )[0] as string
                 },
-                docs_id: {[vectorDB.id]: vectorDB_label},
+                doc_ids: nodeLabels.map(node => node.id),
                 query_id: {[query.id]: query_label},
                 looped: false,
             },
@@ -524,10 +531,38 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         }))
     }
     
-    
-
-
  
+
+    // Add these functions near your other handler functions
+    const updateNodeLabelsInParent = (labels: {label: string, id: string}[]) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return {...node, data: {...node.data, nodeLabels: labels}};
+            }
+            return node;
+        }));
+    };
+
+    const addNodeLabel = (label: {label: string, id: string}) => {
+        if (label && !nodeLabels.some(nodeLabel => nodeLabel.id === label.id)) {
+            const newNodeLabels = [...nodeLabels, label];
+            setNodeLabels(newNodeLabels);
+            updateNodeLabelsInParent(newNodeLabels);
+        }
+    };
+
+    const removeNodeLabel = (index: number) => {
+        const newNodeLabels = [...nodeLabels];
+        newNodeLabels.splice(index, 1);
+        setNodeLabels(newNodeLabels);
+        updateNodeLabelsInParent(newNodeLabels);
+    };
+
+    // Update the useEffect to set the ref value instead
+    useEffect(() => {
+        sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name).map((node) => ({label:node.label, id:node.id}))
+    }, [getSourceNodeIdWithLabel(parentId)])
+
   return (
 
     <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
@@ -611,21 +646,53 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Database with Vector Indexing</label>
                 <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
             </div>
-            <select 
-                ref={vectorDBRef} 
-                value={vectorDB.id} 
-                onChange={() => {
-                    if (vectorDBRef.current && vectorDBRef.current.value !== vectorDB.id) {
-                        const selectedLabel = getNode(vectorDBRef.current.value)?.data?.label as string | undefined ?? vectorDBRef.current.value
-                        setVectorDB({id: vectorDBRef.current.value, label: selectedLabel})
-                    }
-                }}
-                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
-                         text-[#3B9BFF] text-[12px] font-medium appearance-none cursor-pointer 
-                         hover:border-[#6D7177]/50 transition-colors'
-            >
-                {displayVectorDBLabels()}
-            </select>
+           
+            {/* start of node labels */}
+            <div className='bg-[#1E1E1E] rounded-[8px] p-2 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
+                        {nodeLabels.map((label, index) => (
+                            <div key={index}
+                                className='flex items-center bg-[#252525] rounded-md 
+                                        border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 
+                                        transition-colors group'
+                            >
+                                <span className='text-[12px] text-[#FF9B4D] px-2 py-1'>
+                                    {label.label}
+                                </span>
+                                <button
+                                    onClick={() => removeNodeLabel(index)}
+                                    className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
+                                            px-1 py-1 opacity-0 group-hover:opacity-100'
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        ))}
+
+                    </div>
+                </div>
+
+                <div className='mt-1'>
+                    <div className='text-[11px] text-[#6D7177] mb-2'>Available Database Blocks:</div>
+                    <div className='flex flex-wrap gap-2'>
+                        {sourceNodeLabelsRef.current.map((labelOption: {label: string, id: string}) => (
+                            <button
+                                key={labelOption.id}
+                                onClick={() => addNodeLabel({label:labelOption.label, id:labelOption.id})}
+                                className={`px-2 py-1 rounded-md text-[11px] transition-colors
+                                        ${nodeLabels.some(nodeLabel => nodeLabel.id === labelOption.id)
+                                        ? 'bg-[#252525] text-[#CDCDCD] border border-[#6D7177]/50'
+                                        : 'bg-[#1E1E1E] text-[#6D7177] border border-[#6D7177]/30 hover:bg-[#252525] hover:text-[#CDCDCD]'}`}
+                            >
+                                {labelOption.label||labelOption.id}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            {/* end of node labels */}
         </li>
 
         <li className='flex flex-col gap-2'>

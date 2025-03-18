@@ -411,7 +411,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                         db_type: "pinecone",
                         collection_name: "test_collection"
                       },
-                      docs_id: {[vectorDB_id as string]: vectorDB_label as string},
+                      doc_ids: (getNode(nodeInfo.id)?.data as SearchConfigNodeData)?.nodeLabels?.map((node: {id: string, label: string}) => node.id),
                       query_id: {[query_id as string]: query_label as string},
                       looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
                   },
