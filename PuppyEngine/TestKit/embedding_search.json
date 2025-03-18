@@ -136,9 +136,7 @@
                 "outputs": {"5":"e"},
                 "top_k": 10,
                 "threshold": 0.5,
-                "extra_configs": {
-                    "db_type": "pgvector"
-                },
+                "extra_configs": {},
                 "query_id": {"4": "d"},
                 "doc_ids": ["3", "6"]
             }
