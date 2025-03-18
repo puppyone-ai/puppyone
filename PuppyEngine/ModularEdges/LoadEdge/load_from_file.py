@@ -8,24 +8,29 @@ import os
 import re
 import json
 import base64
-import threading
 import pymupdf
 import easyocr
 import whisper
+import logging
 import pypandoc
 import requests
+import traceback
 import pymupdf4llm
 import numpy as np
 import pandas as pd
-import concurrent.futures
+import multiprocessing
 from pydub import AudioSegment
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from Utils.puppy_exception import PuppyException, global_exception_handler
+
+
+logger = logging.getLogger(__name__)
 
 
 class FileToTextParser:
     """
     A class to parse various file types into text or structured data.
+    Uses process isolation to handle non-thread-safe libraries.
 
     Attributes:
         root_path (str): The root directory path where files are located.
@@ -36,45 +41,46 @@ class FileToTextParser:
         self,
     ):
         """
-        Initializes the FileToTextParser.
+        Initializes the FileToTextParser without shared resources
         """
 
-        # 初始化各种锁
-        self._pandoc_lock = threading.Lock()
-        self._pymupdf4llm_lock = threading.Lock()
-        self._ocr_lock = threading.Lock()
-        self._whisper_lock = threading.Lock()
-        self._audio_lock = threading.Lock()
-        
-        # 预加载模型和资源
+        # Lazy loading flags - each process will load its own models
+        self._whisper_model = None
+        self._ocr_reader = None
+
+        # Check/download pandoc once during initialization
         try:
-            self._whisper_model = None  # 延迟加载
-            self._ocr_reader = None     # 延迟加载
-            
-            # pandoc 检查
             pandoc_path = pypandoc.get_pandoc_path()
             if not (pandoc_path and os.path.exists(pandoc_path)):
                 pypandoc.download_pandoc()
         except Exception:
             pypandoc.download_pandoc()
 
-    def _get_whisper_model(self, mode: str):
-        """懒加载 whisper 模型"""
+    def _get_whisper_model(
+        self,
+        mode: str
+    ) -> whisper.load_model:
+        """
+        Lazy loading whisper model
+        """
+
         if self._whisper_model is None:
-            with self._whisper_lock:
-                if self._whisper_model is None:
-                    self._whisper_model = whisper.load_model(
-                        "small" if mode == "accurate" else "base"
-                    )
+            self._whisper_model = whisper.load_model(
+                "small" if mode == "accurate" else "base"
+            )
         return self._whisper_model
 
-    def _get_ocr_reader(self, language_list: list = None):
-        """懒加载 OCR reader"""
+    def _get_ocr_reader(
+        self,
+        language_list: list = None
+    ) -> easyocr.Reader:
+        """
+        Lazy loading OCR reader
+        """
+
         if self._ocr_reader is None:
-            with self._ocr_lock:
-                if self._ocr_reader is None:
-                    language_list = language_list if language_list else ["ch_sim", "en"]
-                    self._ocr_reader = easyocr.Reader(language_list)
+            language_list = language_list if language_list else ["ch_sim", "en"]
+            self._ocr_reader = easyocr.Reader(language_list)
         return self._ocr_reader
 
     @global_exception_handler(1302, "Error Parsing Multiple Files")
@@ -83,44 +89,173 @@ class FileToTextParser:
         file_configs: List[Dict[str, Any]]
     ) -> List[Any]:
         """
-        Parse multiple files concurrently with different configurations.
+        Parse multiple files using separate processes for thread-unsafe libraries
+        while maintaining the original file sequence
 
         Args:
-            file_configs: List of file configurations, where each configuration is a dict with:
-                - file_path: Path or URL to the file
-                - file_type: Type of the file (json, pdf, etc.)
-                - config: Dict of parsing parameters specific to this file
+            file_configs: List of file configurations
 
         Returns:
-            List of parsed file contents in the same order as the input configurations
-
-        Raises:
-            PuppyException: If parsing any file fails
+            List of parsed file contents with user-friendly error messages for failures
         """
 
-        results = []
+        # Initialize results array and error tracking
+        results = [None] * len(file_configs)
+        errors = []
 
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future_to_index = {}
-            for i, file_config in enumerate(file_configs):
-                file_path = file_config.get('file_path')
-                file_type = file_config.get('file_type').lower() or self._determine_file_type(file_path)
-                config = file_config.get('config', {})
+        try:
+            # Separate files into simple and complex types while preserving indices
+            simple_files = []
+            complex_files = []
 
-                future = executor.submit(self.parse, file_path, file_type, **config)
-                future_to_index[future] = i
+            for i, config in enumerate(file_configs):
+                file_path = config.get('file_path')
+                file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
 
-            # Collect results as they complete
-            results = [None] * len(file_configs)
-            for future in concurrent.futures.as_completed(future_to_index):
-                idx = future_to_index[future]
-                try:
-                    results[idx] = future.result()
-                except Exception as e:
-                    # Store error in results list
-                    results[idx] = {"error": str(e)}
+                if file_type in ('json', 'txt', 'markdown', 'csv', 'xlsx'):
+                    simple_files.append((i, config))
+                else:
+                    complex_files.append((i, config))
 
-        return results
+            # Process simple files directly
+            if simple_files:
+                self._process_simple_files(simple_files, results, errors)
+
+            # Process complex files with multiprocessing
+            if complex_files:
+                self._process_complex_files(complex_files, results, errors)
+
+            # Log error summary if needed
+            if errors:
+                logger.error(f"Encountered {len(errors)} errors while parsing files")
+
+            return results
+        except KeyboardInterrupt:
+            logger.warning("Keyboard interrupt detected - stopping processes")
+            return results
+        except Exception as e:
+            logger.error(f"Error in parse_multiple: {str(e)}\n{traceback.format_exc()}")
+            raise
+
+    def _group_files_by_type(
+        self, 
+        file_configs: List[Dict[str, Any]]
+    ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
+        """
+        Group file configurations by file type
+
+        Args:
+            file_configs: List of file configurations
+
+        Returns:
+            Dictionary mapping file types to lists of (index, config) tuples
+        """
+
+        file_type_groups = {}
+        for i, config in enumerate(file_configs):
+            file_path = config.get('file_path')
+            file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
+
+            if file_type not in file_type_groups:
+                file_type_groups[file_type] = []
+
+            file_type_groups[file_type].append((i, config))
+
+        return file_type_groups
+
+    def _process_simple_files(
+        self,
+        configs_with_indices: List[Tuple[int, Dict[str, Any]]],
+        results: List[Any],
+        errors: List[Tuple]
+    ) -> None:
+        """
+        Process simple file types (json, txt, etc.) directly without multiprocessing
+
+        Args:
+            configs_with_indices: List of (index, config) tuples
+            results: List to store results (modified in-place)
+            errors: List to store errors (modified in-place)
+        """
+
+        for idx, config in configs_with_indices:
+            try:
+                file_path = config.get('file_path')
+                parse_config = config.get('config', {})
+                results[idx] = self.parse(file_path, file_type=config.get('file_type', ''), **parse_config)
+            except Exception as e:
+                # Log full error for developers
+                error_details = traceback.format_exc()
+                logger.error(f"Error processing {file_path}: {str(e)}\n{error_details}")
+
+                # Store user-friendly error message
+                results[idx] = f"Failed to parse file: {os.path.basename(file_path)}"
+                errors.append((idx, e, error_details))
+
+    def _process_complex_files(
+        self,
+        configs_with_indices: List[Tuple[int, Dict[str, Any]]],
+        results: List[Any],
+        errors: List[Tuple]
+    ) -> None:
+        """
+        Process complex file types (images, audio, etc.) using multiprocessing
+
+        Args:
+            configs_with_indices: List of (index, config) tuples
+            results: List to store results (modified in-place)
+            errors: List to store errors (modified in-place)
+        """
+
+        # Determine optimal number of processes
+        num_processes = max(1, min(multiprocessing.cpu_count() - 1, 4))
+
+        # Use 'spawn' context for better Windows compatibility
+        ctx = multiprocessing.get_context('spawn')
+        with ctx.Pool(processes=num_processes) as pool:
+            # Prepare arguments for each file
+            args_list = [
+                (config.get('file_path'), 
+                 config.get('file_type', ''), 
+                 config.get('config', {})) 
+                for _, config in configs_with_indices
+            ]
+
+            # Use map_async with timeout to handle keyboard interrupts
+            process_results = pool.map_async(self._process_file_wrapper, args_list).get(timeout=3600)
+
+            # Collect results
+            for (idx, _), result in zip(configs_with_indices, process_results):
+                results[idx] = result
+                if isinstance(result, str) and result.startswith("Failed to parse file:"):
+                    errors.append((idx, "See log for details", ""))
+
+    def _process_file_wrapper(
+        self,
+        args: Tuple[str, str, Dict[str, Any]]
+    ):
+        """
+        Helper function for multiprocessing - processes a single file in its own process
+
+        Args:
+            args: Tuple of (file_path, file_type, config)
+
+        Returns:
+            Parsed file content or error dict with user-friendly message
+        """
+
+        file_path, file_type, config = args
+        try:
+            # Create a new parser instance to ensure process isolation
+            parser = FileToTextParser()
+            return parser.parse(file_path, file_type, **config)
+        except Exception as e:
+            # Log the full error for developers
+            error_details = traceback.format_exc()
+            logger.error(f"Error processing {file_path}: {str(e)}\n{error_details}")
+
+            # Return a user-friendly error message
+            return f"Failed to parse file: {os.path.basename(file_path)}"
 
     @global_exception_handler(1317, "Error Determining File Type")
     def _determine_file_type(
@@ -351,38 +486,40 @@ class FileToTextParser:
     def _parse_doc(
         self,
         file_path: str,
+        auto_formatting: bool = True,
         **kwargs
     ) -> str:
         """
-        Parses a DOCX file and returns its content as a string.
+        Parse DOC/DOCX files into text.
 
         Args:
-            file_path (str): The path to the file to be parsed.
-            **kwargs: Additional arguments for specific parsing options.
-            - auto_formatting (bool): Whether to remove extra whitespaces and newlines.
+            file_path: Path to the DOC/DOCX file
+            auto_formatting: Whether to preserve formatting
 
         Returns:
-            str: The parsed CSV content.
-
-        Supported file types:
-        biblatex, bibtex, bits, commonmark, commonmark_x, creole, csljson, csv, 
-        djot, docbook, docx, dokuwiki, endnotexml, epub, fb2, gfm, haddock, html, 
-        ipynb, jats, jira, json, latex, man, markdown, markdown_github, markdown_mmd, 
-        markdown_phpextra, markdown_strict, mediawiki, muse, native, odt, opml, org, 
-        ris, rst, rtf, t2t, textile, tikiwiki, tsv, twiki, typst, vimwiki
+            Extracted text content
         """
 
-        source_file = file_path
         if self._is_file_url(file_path):
-            source_file_request = requests.get(file_path)
-            source_file = source_file_request.content
+            response = requests.get(file_path)
+            response.raise_for_status()
+            output = pypandoc.convert_text(
+                response.content,
+                "markdown",
+                format="docx",
+                encoding="utf-8"
+            )
+        else:
+            output = pypandoc.convert_file(
+                file_path, 
+                "markdown", 
+                encoding="utf-8"
+            )
 
-        with self._pandoc_lock:
-            output = pypandoc.convert_file(source_file, "markdown")
-
+        # Clean up the output
         output = output.replace('\\"', '"').replace("\\'", "'")
 
-        if kwargs.get("auto_formatting", False):
+        if not auto_formatting:
             output = re.sub(r"\s+", " ", output)
 
         return output
@@ -412,11 +549,12 @@ class FileToTextParser:
         if pages is not None and not isinstance(pages, list):
             raise ValueError("Pages must be a list of integers!")
 
-        # 确保每个线程使用独立的 PDF 对象
-        file_object = self._remote_file_to_byte_io(file_path) if self._is_file_url(file_path) else file_path
+        pdf = file_path
+        if self._is_file_url(file_path):
+            file_object = self._remote_file_to_byte_io(file_path)
+            pdf = pymupdf.open(stream=file_object, filetype='pdf')
 
-        with pymupdf.open(stream=file_object, filetype='pdf') as pdf, self._pymupdf4llm_lock:
-            pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
+        pdf_content = pymupdf4llm.to_markdown(pdf, pages=pages, write_images=use_images)
 
         return pdf_content
 
@@ -437,8 +575,7 @@ class FileToTextParser:
             str: The extracted image text.
         """
         reader = self._get_ocr_reader(language_list)
-        with self._ocr_lock:
-            result = reader.readtext(image_path)
+        result = reader.readtext(image_path)
         return "\n".join([text[1] for text in result])
 
     @global_exception_handler(1309, "Error Parsing Image")
@@ -492,15 +629,14 @@ class FileToTextParser:
         mode = kwargs.get("mode", "accurate")
         model = self._get_whisper_model(mode)
         
-        with self._audio_lock:
-            samples = file_path
-            if self._is_file_url(file_path):
-                audio_bytes = self._remote_file_to_byte_io(file_path)
-                audio = AudioSegment.from_file(audio_bytes, format="mp3")
-                audio = audio.set_channels(1).set_frame_rate(16000)
-                samples = np.array(audio.get_array_of_samples()).astype(np.float32) / 32768.0
+        samples = file_path
+        if self._is_file_url(file_path):
+            audio_bytes = self._remote_file_to_byte_io(file_path)
+            audio = AudioSegment.from_file(audio_bytes, format="mp3")
+            audio = audio.set_channels(1).set_frame_rate(16000)
+            samples = np.array(audio.get_array_of_samples()).astype(np.float32) / 32768.0
 
-            result = model.transcribe(samples)
+        result = model.transcribe(samples)
         return result["text"]
 
     @global_exception_handler(1311, "Error Parsing Video")
