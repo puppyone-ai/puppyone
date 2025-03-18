@@ -11,6 +11,7 @@ import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
 import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
 import { WarnsContext } from '../../states/WarnMessageContext';
 import { uploadFiles } from '@/app/utils/uploadthing'
+import { SYSTEM_URLS } from "@/config/urls";
 // import {WarnsContext,WarnsContainer} from "puppyui"
 
 export type FileNodeData = {
@@ -459,13 +460,36 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     }, [getNode(id)]);
 
 
-    const handleDelete = (file:string, index:number) => {
-      setNodes(prevNodes => prevNodes.map(node => {
-        if (node.id === id) {
-            return { ...node, data: { ...node.data, content: uploadedFiles.filter((_: {fileName:string, task_id: string, fileType: string}, i: number) => i !== index)} }
+    const handleDelete = async (file:{fileName: string|undefined, fileType: string, task_id:string}, index:number) => {
+
+    //   - **Request Body Parameters:**
+    // - `user_id (string)`: **REQUIRED** - User identifier
+    // - `content_id (string)`: **REQUIRED** - Content identifier
+    // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
+      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/delete`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            user_id: `${await getuserid()}`,
+            content_id: file.task_id,
+            content_name: file.fileName
+          })
         }
-        return node
-    }))
+      );
+
+      // console.log("delete res",response)
+      // if the response is ok, then delete the file
+      if (response.ok) {
+        setNodes(prevNodes => prevNodes.map(node => {
+          if (node.id === id) {
+              return { ...node, data: { ...node.data, content: uploadedFiles.filter((_: {fileName:string, task_id: string, fileType: string}, i: number) => i !== index)} }
+          }
+          return node
+      }))
+      }
     }
 
   return (
