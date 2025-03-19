@@ -467,7 +467,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
       const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/delete`,
         {
-          method: 'POST',
+          method: 'DELETE',
           headers: {
             'Content-Type': 'application/json'
           },
