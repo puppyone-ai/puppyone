@@ -34,7 +34,7 @@ export type SearchByVectorEdgeJsonType = {
             model: "text-embedding-ada-002",
             db_type: "pgvector" | "pinecone",
             collection_name: string,
-        },
+        }|{},
         doc_ids: string[], // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
         looped: boolean,
@@ -335,6 +335,38 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         ).map(
             (eg)=>getNode(eg.source)?.data.index_name
         )[0] as string)
+
+        const construct_input_nodes_data_from_ids = (blocks: { [key: string]: NodeJsonType }) => {
+            const data = Object.entries(blocks).map(([id, node]) => {
+                console.log("construct_input_nodes_data_from_ids node",node)
+                console.log("construct_input_nodes_data_from_ids id",id)
+
+                const originalNode = getNode(id);
+                console.log("construct_input_nodes_data_from_ids originalNode",originalNode)
+
+                if (originalNode?.type === "structured") {
+                    return [id, {
+                        ...node,
+                        data:{
+                            ...node.data,
+                            embedding_view:originalNode?.data?.chunks,
+                        },
+                        collection_configs: originalNode?.data?.collection_configs,
+                    }];
+                } else {
+                    return [id, {
+                        ...node,
+                    }];
+                }
+            })
+
+            console.log("construct_input_nodes_data_from_ids data",data)
+            return Object.fromEntries(data);
+
+        }
+
+        const final_blocks =  construct_input_nodes_data_from_ids(blocks)
+        
        
         const edgejson: SearchByVectorEdgeJsonType = {
             // "search-1728709343180": {
@@ -366,14 +398,6 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 top_k: top_k ?? 5,
                 threshold: threshold ?? 0.7,
                 extra_configs: {
-                    provider: "openai",
-                    model: "text-embedding-ada-002",
-                    db_type: "pgvector",
-                    collection_name: getEdges().filter(
-                        (eg)=>eg.target === parentId
-                    ).map(
-                        (eg)=>getNode(eg.source)?.data.index_name
-                    )[0] as string
                 },
                 doc_ids: nodeLabels.map(node => node.id),
                 query_id: {[query.id]: query_label},
@@ -385,10 +409,10 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         if (query_label !== query.label) setQuery({id: query.id, label: query_label})
         if (vectorDB_label !== vectorDB.label) setVectorDB({id: vectorDB.id, label: vectorDB_label})
         edges[parentId] = edgejson
-        console.log(blocks, edges)
+        console.log("search by vector payload",final_blocks, edges)
 
         return {
-            blocks,
+            blocks: final_blocks,
             edges
         }
     }
