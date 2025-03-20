@@ -240,33 +240,29 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     const {warns,setWarns} = useContext(WarnsContext) as any;
 
     const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (!file) return;
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
 
-      setIsOnUploading(true)
-
-      // 获取文件扩展名
-      const fileName = file.name;
-      const fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-
+      setIsOnUploading(true);
 
       try {
-          // Step 1: 获取预签名URL和UUID, userid = Rose123
-          // data = await request.json()
-          // user_id = data.get("user_id", "Rose123")
-          // content_name = data.get("content_name", "new_content")
+        // Process each file sequentially
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
           
           // Get file extension
           const fileName = file.name;
           let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"]
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"];
 
           if (!supportedFileExtensions.includes(fileExtension)) {
-            fileExtension = "application"
+            fileExtension = "application";
           }
           if(fileExtension === "txt") {
-            fileExtension = "text"
+            fileExtension = "text";
           }
+
+          // Step 1: Get presigned URL and UUID
           const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
             {
               method: 'POST',
@@ -279,154 +275,121 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               })
             }
           );
-
-        //   return JSONResponse(
-        //     content={
-        //         "upload_url": upload_url,
-        //         "download_url": download_url,
-        //         "content_id": content_id,
-        //         "content_type_header": content_type_header,
-        //         "expires_at": {
-        //             "upload": int(time.time()) + 300,
-        //             "download": int(time.time()) + 86400
-        //         }
-        //     }, 
-        //     status_code=200
-        // )
-        //above is the response from the python fastapi server,below is the reading of response from the python fastapi server
-
-        
+          
           if (!response.ok) {
-            setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}])
-            throw new Error(`Fetch temporary upload info Error: ${response.status}`)
+            setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}]);
+            continue; // Skip this file and try the next one
           }
         
-          const data = await response.json()
-          console.log(data)
-          const upload_url = data.upload_url
-          const download_url = data.download_url
-          const content_id = data.content_id
-          const content_type_header = data.content_type_header
-          const expires_at = data.expires_at
-          // const { presigned_url, task_id } = await response.json(); //deprecated
+          const data = await response.json();
+          console.log(data);
+          const upload_url = data.upload_url;
+          const download_url = data.download_url;
+          const content_id = data.content_id;
+          const content_type_header = data.content_type_header;
+          const expires_at = data.expires_at;
           
-          // Step 2: 上传文件到S3
+          // Step 2: Upload file to S3
           const uploadResponse = await fetch(upload_url, {
             method: 'PUT',
             headers: {
               'Content-Type': file.type,
-              // 'x-amz-meta-uuid': task_id, // 保存UUID到metadata
             },
             body: file,
           });
           
-          setIsOnUploading(false)
-
           if (uploadResponse.ok) {
-              console.log('文件上传成功');
-              saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at)
-              // 在这里可以将UUID保存到block的content
+              console.log(`File ${fileName} uploaded successfully`);
+              saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
           } else {
-              console.log(response)
-              console.error('文件上传失败');
-              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
+              console.error(`Failed to upload file ${fileName}`);
+              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Failed to upload file ${fileName}`}]);
           }
-        } catch (error) {
-            console.error('上传过程中发生错误', error);
         }
+      } catch (error) {
+        console.error('Error during upload process', error);
+      } finally {
+        setIsOnUploading(false); // Make sure to set loading state to false when all uploads are done
+      }
     };
 
         // New handleDrop function to process dropped files
-        const handleDrop = async (files: FileList) => {
+        const handleDrop = async (files: FileList | File[]) => {
           if (!files || files.length === 0) return;
 
-          setIsOnUploading(true)
+          setIsOnUploading(true);
           
-          // Process the first file (or could loop through all files)
-          const file = files[0];
-          
-          // Get file extension
-          const fileName = file.name;
-          let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-
-          // txt
-          // html
-          // css
-          // js
-          // json
-          // png
-          // jpg
-          // gif
-          // svg
-          // mp3
-          // wav
-          // mp4
-          // webm
-          // pdf
-          // zip
-          // application
-          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"]
-
-          if (!supportedFileExtensions.includes(fileExtension)) {
-            fileExtension = "application"
-          }
-          if(fileExtension === "txt") {
-            fileExtension = "text"
-          }
-    
           try {
-              // Step 1: Get presigned URL and UUID, userid = Rose123
-              const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
-                {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  },
-                  body: JSON.stringify({
-                    user_id: `${await getuserid()}`,
-                    content_name: fileName
-                  })
-                }
-              );
+            // Process all dropped files sequentially
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
               
-              if (!response.ok) {
-                setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}])
-                throw new Error(`Fetch temporary upload info Error: ${response.status}`);
-              }
-              
-              const data = await response.json()
-              console.log(data)
-              const upload_url = data.upload_url
-              const download_url = data.download_url
-              const content_id = data.content_id
-              const content_type_header = data.content_type_header
-              const expires_at = data.expires_at
-              
-              // Step 2: Upload file to S3
-              const uploadResponse = await fetch(upload_url, {
-                method: 'PUT',
-                headers: {
-                  'Content-Type': file.type,
-                  // 'x-amz-meta-uuid': task_id, // Save UUID to metadata
-                },
-                body: file,
-              });
-              
-              
-              setIsOnUploading(false)
+              // Get file extension
+              const fileName = file.name;
+              let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
+              const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"];
 
-              if (uploadResponse.ok) {
-                  console.log('File upload successful');
-                  saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
-                  // Here you can save the UUID to the block's content
-              } else {
-                  console.log(response);
-                  console.error('File upload failed');
-                  setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
+              if (!supportedFileExtensions.includes(fileExtension)) {
+                fileExtension = "application";
               }
+              if(fileExtension === "txt") {
+                fileExtension = "text";
+              }
+        
+              try {
+                  // Step 1: Get presigned URL and UUID
+                  const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
+                    {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        user_id: `${await getuserid()}`,
+                        content_name: fileName
+                      })
+                    }
+                  );
+                  
+                  if (!response.ok) {
+                    setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Fetch temporary upload info Error: ${response.status}`}]);
+                    console.error(`Failed to get upload URL for file ${fileName}`);
+                    continue; // Skip this file and try the next one
+                  }
+                  
+                  const data = await response.json();
+                  console.log(data);
+                  const upload_url = data.upload_url;
+                  const download_url = data.download_url;
+                  const content_id = data.content_id;
+                  const content_type_header = data.content_type_header;
+                  const expires_at = data.expires_at;
+                  
+                  // Step 2: Upload file to S3
+                  const uploadResponse = await fetch(upload_url, {
+                    method: 'PUT',
+                    headers: {
+                      'Content-Type': file.type,
+                    },
+                    body: file,
+                  });
+                  
+                  if (uploadResponse.ok) {
+                      console.log(`File ${fileName} uploaded successfully`);
+                      saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
+                  } else {
+                      console.error(`Failed to upload file ${fileName}`);
+                      setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Failed to upload file ${fileName}`}]);
+                  }
+              } catch (error) {
+                  console.error(`Error uploading file ${file.name}:`, error);
+                  setWarns((prev: string[])=>[...prev,{time:Date.now(),text:`Error uploading file ${file.name}`}]);
+              }
+            }
           } catch (error) {
-              console.error('Error during upload process', error);
-              setWarns((prev: string[])=>[...prev,{time:Date.now(),text:'fail to upload file'}])
+              console.error('Error in file processing:', error);
+          } finally {
+              setIsOnUploading(false); // Make sure to set loading state to false when all uploads are done
           }
         };
     
@@ -461,10 +424,10 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
     const handleDelete = async (file:{fileName: string|undefined, fileType: string, task_id:string}, index:number) => {
 
-    //   - **Request Body Parameters:**
-    // - `user_id (string)`: **REQUIRED** - User identifier
-    // - `content_id (string)`: **REQUIRED** - Content identifier
-    // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
+    //   - **Request Body Parameters:**
+    // - `user_id (string)`: **REQUIRED** - User identifier
+    // - `content_id (string)`: **REQUIRED** - Content identifier
+    // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
       const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/delete`,
         {
           method: 'DELETE',
