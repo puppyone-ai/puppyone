@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from objs.vector.embedder import TextEmbedder 
 from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from utils.puppy_exception import PuppyException
-from utils.logger import log_info, log_error
+from Utils.puppy_exception import PuppyException
+from Utils.logger import log_info, log_error
 
 # 创建路由器
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
@@ -92,7 +92,11 @@ async def search_vdb_collection(
         query = data.get("query", "")
         top_k = data.get("top_k", 5)
         threshold = data.get("threshold", None)
-        model = data.get("model", collection_name.split("__")[1]) # This ensure the query vector dimension is consistent with the collection
+        # This ensures the query vector dimension is consistent with the collection
+        collection_parts = collection_name.split("__")
+        # Safely get the model name with a fallback
+        model_name = collection_parts[1] if len(collection_parts) > 1 else "text-embedding-ada-002"
+        model = data.get("model", model_name)
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
 
