@@ -1,7 +1,7 @@
 import os
 import sys
 import hashlib
-# 修改路径添加方式，确保能正确找到模块
+# Modify path to ensure correct module imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request
@@ -14,20 +14,20 @@ from objs.vector.vector_db_factory import VectorDatabaseFactory
 from utils.puppy_exception import PuppyException
 from utils.logger import log_info, log_error
 
-# 创建路由器
+# Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
 
 def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
     """
-    生成collection name的私有辅助函数
+    Private helper function to generate collection name
     
     Args:
-        user_id (str): 用户ID
-        model (str): 模型名称
-        set_name (str): 集合名称
+        user_id (str): User ID
+        model (str): Model name
+        set_name (str): Set name
         
     Returns:
-        str: 生成的collection name
+        str: Generated collection name
     """
     def hash_and_truncate(text: str, length: int = 8) -> str:
         return hashlib.md5(text.encode()).hexdigest()[:length]
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     import json
     from typing import Dict, Any, Optional
     
-    # 创建一个模拟Request类
+    # Create a mock Request class
     query = "What does the fox say?"
     documents = [
         "🎵 Ring-ding-ding-ding-dingeringeding! 🎵",
@@ -160,11 +160,11 @@ if __name__ == "__main__":
         async def json(self) -> Dict[str, Any]:
             return self._json_data
     
-    # 测试嵌入API
+    # Test embedding API
     async def test_embed():
-        print("===== 测试嵌入API =====")
+        print("===== Testing Embedding API =====")
         
-        # 构建测试数据
+        # Prepare test data
         chunks = [{"content": doc, "metadata": {"index": i}} for i, doc in enumerate(documents)]
         data = {
             "chunks": chunks,
@@ -172,58 +172,58 @@ if __name__ == "__main__":
             "set_name": "fox_song"
         }
         
-        # 调用API
+        # Call API
         mock_request = MockRequest(data)
         response = await embed(request=mock_request)
-        print(f"嵌入响应: {response.body.decode()}")
+        print(f"Embedding Response: {response.body.decode()}")
         collection_name = json.loads(response.body)
         return collection_name
     
-    # 测试搜索API
+    # Test search API
     async def test_search(collection_name: str):
-        print("\n===== 测试搜索API =====")
-        # 构建测试数据
+        print("\n===== Testing Search API =====")
+        # Prepare test data
         data = {
             "query": "What does the fox say?",
             "top_k": 3,
             "vdb_type": "pgvector"
         }
         
-        # 调用API
+        # Call API
         mock_request = MockRequest(data)
         response = await search_vdb_collection(request=mock_request, collection_name=collection_name)
-        print(f"搜索响应: {response.body.decode()}")
+        print(f"Search Response: {response.body.decode()}")
         return response
     
-    # 测试删除API
+    # Test delete API
     async def test_delete(collection_name: str):
-        print("\n===== 测试删除API =====")
-        # 构建测试数据
+        print("\n===== Testing Delete API =====")
+        # Prepare test data
         data = {
             "vdb_type": "pgvector"
         }
         
-        # 调用API
+        # Call API
         mock_request = MockRequest(data)
         response = await delete_vdb_collection(request=mock_request, collection_name=collection_name)
-        print(f"删除响应: {response.body.decode()}")
+        print(f"Delete Response: {response.body.decode()}")
         return response
     
-    # 运行所有测试
+    # Run all tests
     async def run_tests():
         try:
-            # 测试嵌入
+            # Test embedding
             collection_name = await test_embed()
             
-            # 测试搜索
+            # Test search
             await test_search(collection_name)
             
-            # 测试删除
+            # Test delete
             await test_delete(collection_name)
             
-            print("\n===== 所有测试完成 =====")
+            print("\n===== All Tests Completed =====")
         except PuppyException as e:
-            print(f"测试过程中发生错误: {str(e)}")
+            print(f"Error occurred during tests: {str(e)}")
     
-    # 执行测试
+    # Execute tests
     asyncio.run(run_tests())
