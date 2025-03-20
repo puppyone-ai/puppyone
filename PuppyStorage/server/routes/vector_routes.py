@@ -17,6 +17,25 @@ from utils.logger import log_info, log_error
 # 创建路由器
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
 
+def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
+    """
+    生成collection name的私有辅助函数
+    
+    Args:
+        user_id (str): 用户ID
+        model (str): 模型名称
+        set_name (str): 集合名称
+        
+    Returns:
+        str: 生成的collection name
+    """
+    def hash_and_truncate(text: str, length: int = 8) -> str:
+        return hashlib.md5(text.encode()).hexdigest()[:length]
+    
+    model_hash = hash_and_truncate(model)
+    set_hash = hash_and_truncate(set_name)
+    return f"{user_id}{model_hash}{set_hash}"
+
 @vector_router.post("/embed")
 async def embed(request: Request):
     try:
@@ -26,15 +45,7 @@ async def embed(request: Request):
         set_name = data.get("set_name", "default")
         user_id = data.get("user_id", "rose123")
         
-        # 对model和set_name进行哈希处理并截断
-        def hash_and_truncate(text: str, length: int = 8) -> str:
-            return hashlib.md5(text.encode()).hexdigest()[:length]
-        
-        model_hash = hash_and_truncate(model)
-        set_hash = hash_and_truncate(set_name)
-        
-        # 新的collection_name格式：user_id(32)__model_hash(15)__set_hash(15)
-        collection_name = f"{user_id}{model_hash}{set_hash}"
+        collection_name = _generate_collection_name(user_id, model, set_name)
         
         # 1. Embedding process - completed at the routing layer
         chunks_content = [chunk.get("content", "") for chunk in chunks]
@@ -54,7 +65,12 @@ async def embed(request: Request):
             collection_name=collection_name
         )
         
-        return JSONResponse(content=collection_name, status_code=200)
+        return JSONResponse(content={
+            "user_id": user_id,
+            "model": model,
+            "set_name": set_name,
+            "collection_name": collection_name
+        }, status_code=200)
 
     except PuppyException as e:
         log_error(f"Embedding Error: {str(e)}")
@@ -63,38 +79,46 @@ async def embed(request: Request):
             status_code=500
         )
 
-@vector_router.delete("/delete/{collection_name}")
-async def delete_vdb_collection(
-    request: Request,
-    collection_name: str
-):
+@vector_router.delete("/delete")
+async def delete_vdb_collection(request: Request):
     try:
         data = await request.json()
+        user_id = data.get("user_id")
+        model = data.get("model")
+        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
+
+        collection_name = _generate_collection_name(user_id, model, set_name)
+
         vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
         vdb.delete_collection(collection_name)
-        log_info(f"Successfully Deleted Collection: {collection_name}")
-
-        return JSONResponse(content={"message": "Collection Deleted Successfully"}, status_code=200)
+        
+        return JSONResponse(content={
+            "message": "Collection Deleted Successfully",
+            "user_id": user_id,
+            "model": model,
+            "set_name": set_name
+        }, status_code=200)
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@vector_router.get("/search/{collection_name}")
-async def search_vdb_collection(
-    request: Request,
-    collection_name: str,
-):
+@vector_router.get("/search")
+async def search_vdb_collection(request: Request):
     try:
         data = await request.json()
+        user_id = data.get("user_id")
+        model = data.get("model")
+        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
         query = data.get("query", "")
         top_k = data.get("top_k", 5)
         threshold = data.get("threshold", None)
-        model = data.get("model", collection_name.split("__")[1]) # This ensure the query vector dimension is consistent with the collection
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
+
+        collection_name = _generate_collection_name(user_id, model, set_name)
 
         # 嵌入处理
         with TextEmbedder(model_name=model) as embedder:
