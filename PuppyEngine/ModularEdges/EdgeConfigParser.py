@@ -133,7 +133,8 @@ class EdgeConfigParser(ABC):
         self,
         text_content: str,
         variable_values: Dict[str, Any],
-        keep_new_content_type: bool = False
+        keep_new_content_type: bool = False,
+        escape_inner_chars: bool = False
     ) -> Any:
         placeholders = re.findall(self.placeholder_pattern, text_content)
         for content_block_label in placeholders:
@@ -143,10 +144,42 @@ class EdgeConfigParser(ABC):
             ]
             if replace_block_id:
                 replaced_content = variable_values.get(replace_block_id[0], "")
-                text_content = replaced_content if keep_new_content_type else text_content.replace(f"{{{{{content_block_label}}}}}", str(replaced_content))
+                if not isinstance(replaced_content, str):
+                    replaced_content = str(replaced_content)
+                if escape_inner_chars:
+                    replaced_content = self._escape_markdown(replaced_content)
+                text_content = replaced_content if keep_new_content_type else text_content.replace(f"{{{{{content_block_label}}}}}", replaced_content)
             else:
                 raise ValueError(f"Block {content_block_label} not found")
         return text_content
+    
+    def _escape_markdown(
+        self,
+        text: str
+    ) -> str:
+        """
+        Escapes markdown special characters and structures to be treated as plain text.
+
+        Args:
+            text: The markdown text to escape
+
+        Returns:
+            Escaped string where markdown syntax is treated as literal text
+        """
+
+        # Handle backslashes first to avoid double-escaping
+        text = text.replace('\\', '\\\\').replace('\n', '\\n').replace('\t', '\\t')
+
+        # Handle quotes
+        text = text.replace('"', '\\\"').replace("'", "\\\'")
+
+        # Handle multi-line code blocks (```)
+        # text = text.replace('```', '\\`\\`\\`')
+
+        # Handle list-bracket
+        # text = text.replace('[', '\\[').replace(']', '\\]')
+
+        return text
 
 
 class LoadConfigParser(EdgeConfigParser):
@@ -411,7 +444,8 @@ class ModifyConfigParser(EdgeConfigParser):
             variable_replace_field: self.replace_placeholders(
                 text_content=self.edge_configs.get(variable_replace_field),
                 variable_values=variable,
-                keep_new_content_type=True if modify_type == "edit_structured" else False
+                keep_new_content_type=True if modify_type == "edit_structured" else False,
+                escape_inner_chars=False
             )
         } for variable in variables]
 
