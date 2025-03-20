@@ -10,9 +10,9 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
 from boto3 import client
-from utils.puppy_exception import PuppyException
-from utils.logger import log_info, log_error
-from utils.config import config
+from Utils.puppy_exception import PuppyException
+from Utils.logger import log_info, log_error
+from Utils.config import config
 
 
 # 仅配置 boto3 日志，不修改全局设置
@@ -75,13 +75,13 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
         user_id = data.get("user_id", "Rose123")
         content_name = data.get("content_name", "new_content")
         content_type_header = type_header_mapping.get(content_type, "application/octet-stream")
-        
+
         # Generate unique identifier for file
         content_id = str(uuid.uuid4())
-        
+
         # Build file storage path
         key = f"{user_id}/{content_id}/{content_name}"
-        
+
         # Generate presigned upload URL
         upload_url = s3_client.generate_presigned_url(
             'put_object',
@@ -92,7 +92,7 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
             },
             ExpiresIn=300  # Upload URL valid for 5 minutes
         )
-        
+
         # Generate presigned download URL
         download_url = s3_client.generate_presigned_url(
             'get_object',
@@ -102,7 +102,7 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
             },
             ExpiresIn=86400  # Download URL valid for 24 hours
         )
-        
+
         log_info(f"Generated file URLs for user {user_id}: {key}")
         return JSONResponse(
             content={
@@ -123,7 +123,7 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
     except PuppyException as e:
         log_error(f"Error generating file URLs: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    
+
 
 @file_router.delete("/delete")
 async def delete_file(request: Request):
@@ -133,36 +133,36 @@ async def delete_file(request: Request):
         user_id = data.get("user_id")
         content_id = data.get("content_id")
         content_name = data.get("content_name")
-        
+
         # 验证必要参数
         if not user_id or not content_id or not content_name:
             missing_params = []
             if not user_id: missing_params.append("user_id")
             if not content_id: missing_params.append("content_id")
             if not content_name: missing_params.append("content_name")
-            
+
             log_error(f"删除文件时缺少必要参数: {', '.join(missing_params)}")
             return JSONResponse(
                 content={"error": f"缺少必要参数: {', '.join(missing_params)}"},
                 status_code=400
             )
-        
+
         # 构建文件存储路径
         key = f"{user_id}/{content_id}/{content_name}"
-        
+
         # 检查文件是否存在
         try:
             s3_client.head_object(
                 Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
                 Key=key
             )
-        except:
+        except Exception as e:
             log_error(f"文件不存在: {key}")
             return JSONResponse(
                 content={"error": f"文件 {content_name} 不存在"},
                 status_code=404
             )
-        
+
         # 删除特定文件
         s3_client.delete_object(
             Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
@@ -195,51 +195,51 @@ if __name__ == "__main__":
     import json
 
     print("Starting direct test of file URL generation function...")
-    
+
     # Test multiple file types
     test_cases = [
         {"content_type": "text", "content_name": "test_document.txt", "test_content": "This is a plain text document"},
         {"content_type": "json", "content_name": "test_data.json", "test_content": '{"name": "Test", "value": 123}'},
         {"content_type": "html", "content_name": "test_page.html", "test_content": "<html><body><h1>Test Page</h1></body></html>"}
     ]
-    
+
     # Create a mock request class
     class MockRequest:
         def __init__(self, data):
             self.data = data
-            
+ 
         async def json(self):
             return self.data
-    
+
     async def test_file_type(case):
         print(f"\nTesting file type: {case['content_type']}, filename: {case['content_name']}")
-        
+
         # Create mock request
         request = MockRequest({"content_name": case["content_name"]})
-        
+
         # Call the function with path parameter
         result = await generate_file_urls(request=request, content_type=case["content_type"])
-        
+
         # Extract content from JSONResponse
         content = result.body.decode()
         data = json.loads(content)
-        
+
         print(f"Successfully obtained URLs! File ID: {data['content_id']}")
-        
+
         upload_url = data["upload_url"]
         download_url = data["download_url"]
         content_type_header = data["content_type_header"]
-        
+
         # Upload test file using the presigned URL
         print(f"Uploading test {case['content_type']} file...")
-        
+
         try:
             upload_response = requests.put(
                 upload_url,
                 data=case["test_content"].encode('utf-8'),
                 headers={"Content-Type": content_type_header}
             )
-            
+
             if upload_response.status_code >= 200 and upload_response.status_code < 300:
                 print("File uploaded successfully!")
             else:
@@ -256,11 +256,11 @@ if __name__ == "__main__":
         print("Downloading and verifying file...")
         try:
             download_response = requests.get(download_url)
-            
+
             if download_response.status_code != 200:
                 print(f"File download failed! Status code: {download_response.status_code}")
                 return False
-                
+
             downloaded_content = download_response.text
             print(f"File downloaded successfully!")
             
@@ -273,19 +273,19 @@ if __name__ == "__main__":
         except PuppyException as e:
             print(f"File download failed: {str(e)}")
             return False
-    
+
     # Run all test cases
     async def run_tests():
         results = []
         for case in test_cases:
             result = await test_file_type(case)
             results.append((case["content_type"], result))
-        
+
         # Print summary
         print("\n====== Test Summary ======")
         for file_type, result in results:
             status = "✅ PASSED" if result else "❌ FAILED"
             print(f"{file_type}: {status}")
-    
+
     # Execute tests
     asyncio.run(run_tests())

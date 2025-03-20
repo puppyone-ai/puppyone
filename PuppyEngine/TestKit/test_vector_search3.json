@@ -1,0 +1,61 @@
+{
+    "blocks": {
+        "XiUyMF": {
+            "label": "XiUyMF",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "U2_wRz": {
+            "label": "U2_wRz",
+            "type": "structured",
+            "data": {
+                "content": ["hello"],
+                "embedding_view": [
+                    {
+                        "content": "hello",
+                        "metadata": {"id": "0","list_0": 0,"path": [0],"info": []}
+                    }
+                ]
+            },
+            "looped": false,
+            "collection_configs": {
+                "model": "text-embedding-ada-002",
+                "method": "cosine",
+                "vdb_type": "pgvector",
+                "collection_name": "None5c46f906c21f969b"
+            }
+        },
+        "KM8iFp": {
+            "label": "KM8iFp",
+            "type": "text",
+            "data": {
+                "content": "hi"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "search-1742489870885": {
+            "type": "search",
+            "data": {
+                "search_type": "vector",
+                "inputs": {
+                    "U2_wRz": "U2_wRz",
+                    "KM8iFp": "KM8iFp"
+                },
+                "outputs": {
+                    "XiUyMF": "XiUyMF"
+                },
+                "top_k": 5,
+                "threshold": 0.7,
+                "extra_configs": {},
+                "doc_ids": ["U2_wRz"],
+                "query_id": {"KM8iFp": "KM8iFp"},
+                "looped": false
+            },
+            "id": "search-1742489870885"
+        }
+    }
+}
