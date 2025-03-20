@@ -511,11 +511,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       }
 
       const transformPayload = async (originalPayload: any) => {
+        console.log("originalPayload", originalPayload)
         return {
           chunks: originalPayload.data.chunks,
           create_new: true, // Indicates that a new entry is being created
           vdb_type: originalPayload.data.vdb_type,
           model: originalPayload.data.model,
+          method: originalPayload.data.method,
           user_id: await getuserid()
         };
       };
@@ -550,7 +552,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           ...node,
           data: {
             ...node.data,
-            index_name: index_name_response
+            index_name: index_name_response,
+            collection_configs: {
+              model: payloaddata.model,
+              method: payloaddata.method,
+              vdb_type: payloaddata.vdb_type,
+              collection_name: index_name_response
+            },
           }
         } : node))
 
@@ -559,7 +567,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         setTimeout(() => {
           const newnode = getNode(id)
-          console.log("index_name", newnode)
+          console.log("updated json node status after received index_name", newnode)
         }, 1200);
 
       }

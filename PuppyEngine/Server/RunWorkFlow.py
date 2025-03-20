@@ -199,7 +199,7 @@ class WorkflowRunner:
         """
 
         for file_path in files:
-            if file_path.name != "test_edit_text.json":
+            if file_path.name != "test_modify_flow.json":
                 continue
 
             logger.info(f"\n{'=' * 25} {file_path.name} {'=' * 25}")
