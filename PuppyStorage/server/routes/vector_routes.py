@@ -169,15 +169,16 @@ if __name__ == "__main__":
         data = {
             "chunks": chunks,
             "model": "text-embedding-ada-002",
-            "set_name": "fox_song"
+            "set_name": "fox_song",
+            "user_id": "test_user",
+            "vdb_type": "pgvector"
         }
         
         # Call API
         mock_request = MockRequest(data)
         response = await embed(request=mock_request)
         print(f"Embedding Response: {response.body.decode()}")
-        collection_name = json.loads(response.body)
-        return collection_name
+        return json.loads(response.body)["collection_name"]
     
     # Test search API
     async def test_search(collection_name: str):
@@ -186,26 +187,32 @@ if __name__ == "__main__":
         data = {
             "query": "What does the fox say?",
             "top_k": 3,
-            "vdb_type": "pgvector"
+            "vdb_type": "pgvector",
+            "user_id": "test_user",
+            "model": "text-embedding-ada-002",
+            "set_name": "fox_song"
         }
         
         # Call API
         mock_request = MockRequest(data)
-        response = await search_vdb_collection(request=mock_request, collection_name=collection_name)
+        response = await search_vdb_collection(request=mock_request)
         print(f"Search Response: {response.body.decode()}")
         return response
     
     # Test delete API
-    async def test_delete(collection_name: str):
+    async def test_delete():
         print("\n===== Testing Delete API =====")
         # Prepare test data
         data = {
-            "vdb_type": "pgvector"
+            "vdb_type": "pgvector",
+            "user_id": "test_user",
+            "model": "text-embedding-ada-002",
+            "set_name": "fox_song"
         }
         
         # Call API
         mock_request = MockRequest(data)
-        response = await delete_vdb_collection(request=mock_request, collection_name=collection_name)
+        response = await delete_vdb_collection(request=mock_request)
         print(f"Delete Response: {response.body.decode()}")
         return response
     
@@ -219,10 +226,10 @@ if __name__ == "__main__":
             await test_search(collection_name)
             
             # Test delete
-            await test_delete(collection_name)
+            await test_delete()
             
             print("\n===== All Tests Completed =====")
-        except PuppyException as e:
+        except Exception as e:
             print(f"Error occurred during tests: {str(e)}")
     
     # Execute tests
