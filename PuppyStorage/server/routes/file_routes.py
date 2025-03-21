@@ -214,8 +214,11 @@ if __name__ == "__main__":
     async def test_file_type(case):
         print(f"\nTesting file type: {case['content_type']}, filename: {case['content_name']}")
         
-        # Create mock request
-        request = MockRequest({"content_name": case["content_name"]})
+        # Create mock request with all required parameters
+        request = MockRequest({
+            "user_id": "test_user",
+            "content_name": case["content_name"]
+        })
         
         # Call the function with path parameter
         result = await generate_file_urls(request=request, content_type=case["content_type"])
@@ -246,7 +249,7 @@ if __name__ == "__main__":
                 print(f"File upload failed! Status code: {upload_response.status_code}")
                 print(f"Error message: {upload_response.text}")
 
-        except PuppyException as e:
+        except Exception as e:
             print(f"File upload failed: {str(e)}")
         
         # Wait to ensure upload completes
@@ -270,7 +273,7 @@ if __name__ == "__main__":
             else:
                 print("❌ File content mismatch!")
                 return False
-        except PuppyException as e:
+        except Exception as e:
             print(f"File download failed: {str(e)}")
             return False
     
