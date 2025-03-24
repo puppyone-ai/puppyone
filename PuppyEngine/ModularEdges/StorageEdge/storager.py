@@ -13,10 +13,10 @@ from Utils.puppy_exception import global_exception_handler
 
 class StoragerFactory:
     def __init__(
-        self,
-        base_url: str = os.getenv("STORAGE_SERVER_URL", "http://127.0.0.1:8002")
+        self
     ):
-        self.base_url = base_url
+        host = os.getenv("STORAGE_HOST", "localhost")
+        self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
         self.headers = {
             "Content-Type": "application/json"
         }
