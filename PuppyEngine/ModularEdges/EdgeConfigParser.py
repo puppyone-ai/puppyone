@@ -146,7 +146,7 @@ class EdgeConfigParser(ABC):
                 replaced_content = variable_values.get(replace_block_id[0], "")
                 content_to_match = f"{{{{{content_block_label}}}}}"
                 # Handle single block content that keep the original content type
-                if text_content == content_to_match:
+                if text_content == content_to_match and self.edge_configs.get("modify_type") != "edit_text":
                     return replaced_content
 
                 if escape_inner_chars:
