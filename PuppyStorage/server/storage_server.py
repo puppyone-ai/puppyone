@@ -7,8 +7,8 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from utils.puppy_exception import PuppyException
 from utils.logger import log_info, log_error
-from server.routes.file_routes import file_router
-from server.routes.vector_routes import vector_router
+from Server.routes.file_routes import file_router
+from Server.routes.vector_routes import vector_router
 
 
 try:
