@@ -42,6 +42,7 @@ class ModifyConvert2Structured(ModifyStrategy):
             case "parse_as_json":
                 return self.parse_json_from_string(self.content)
             case "parse_as_list":
+                # Fall back to mixed content extraction
                 return self._extract_mixed_content_to_list(self.content)
             case "split_by_length":
                 text_unit_size = self.extra_configs.get("text_unit_size", 1000)
@@ -332,20 +333,25 @@ if __name__ == "__main__":
     }
     converted_content = ModifyConvert2Structured(content=content, extra_configs=extra_configs).modify()
     print(f"Input: {content}\nOutput: {converted_content}")
-    content = "[1, 2, 3]"
-    content = "[\"1\", \"2\", \"3\"]"
-    content = "[\"# FeatBit Server-Side SDK for .NET\\n\\n## Introduction\\nconnect-an-sdk#javascript)\", \"# FeatBit Server-Side SDK for Python\\n\\n## Introduction\\n\\n[Connect To Python Sdk](https://docs.featbit.co/sdk/overview#python)\"]"
+    content1 = "[1, 2, 3]"
+    content2 = "[\"1\", \"2\", \"3\"]"
+    content3 = "[\"# FeatBit Server-Side SDK for .NET\\n\\n## Introduction\\nconnect-an-sdk#javascript)\", \"# FeatBit Server-Side SDK for Python\\n\\n## Introduction\\n\\n[Connect To Python Sdk](https://docs.featbit.co/sdk/overview#python)\"]"
     extra_configs = {
         "conversion_mode": "parse_as_list",
     }
-    converted_content = ModifyConvert2Structured(content=content, extra_configs=extra_configs).modify()
-    print(f"Input: {content}\nOutput: {converted_content}")
+    converted_content = ModifyConvert2Structured(content=content1, extra_configs=extra_configs).modify()
+    print(f"Input: {content1}\nOutput: {converted_content}")
+    converted_content = ModifyConvert2Structured(content=content2, extra_configs=extra_configs).modify()
+    print(f"Input: {content2}\nOutput: {converted_content}")
+    converted_content = ModifyConvert2Structured(content=content3, extra_configs=extra_configs).modify()
+    print(f"Input: {content3}\nOutput: {converted_content}")
     content = "abc"
     extra_configs = {
         "conversion_mode": "parse_as_list",
     }
     converted_content = ModifyConvert2Structured(content=content, extra_configs=extra_configs).modify()
     print(f"Input: {content}\nOutput: {converted_content}")
+    print("Length of converted_content: ", len(converted_content))
     
     print("\n=== Testing split_by_length ===")
     content = "Large Language Model is a type of AI model that uses a large amount of data."
