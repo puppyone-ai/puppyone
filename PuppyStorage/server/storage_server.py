@@ -5,8 +5,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from Utils.puppy_exception import PuppyException
-from Utils.logger import log_info, log_error
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
 from Server.routes.file_routes import file_router
 from Server.routes.vector_routes import vector_router
 

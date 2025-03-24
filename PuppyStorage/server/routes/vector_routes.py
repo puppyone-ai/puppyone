@@ -11,8 +11,8 @@ from fastapi.responses import JSONResponse
 from objs.vector.embedder import TextEmbedder 
 from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from Utils.puppy_exception import PuppyException
-from Utils.logger import log_info, log_error
+from utils.puppy_exception import PuppyException
+from utils.logger import log_info, log_error
 
 # Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
