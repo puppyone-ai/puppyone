@@ -1,7 +1,7 @@
 import os
 import sys
 import hashlib
-# 修改路径添加方式，确保能正确找到模块
+# Modify path to ensure correct module imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request
@@ -14,8 +14,27 @@ from objs.vector.vector_db_factory import VectorDatabaseFactory
 from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error
 
-# 创建路由器
+# Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
+
+def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
+    """
+    Private helper function to generate collection name
+    
+    Args:
+        user_id (str): User ID
+        model (str): Model name
+        set_name (str): Set name
+        
+    Returns:
+        str: Generated collection name
+    """
+    def hash_and_truncate(text: str, length: int = 8) -> str:
+        return hashlib.md5(text.encode()).hexdigest()[:length]
+    
+    model_hash = hash_and_truncate(model)
+    set_hash = hash_and_truncate(set_name)
+    return f"{user_id}{model_hash}{set_hash}"
 
 @vector_router.post("/embed")
 async def embed(request: Request):
@@ -26,15 +45,7 @@ async def embed(request: Request):
         set_name = data.get("set_name", "default")
         user_id = data.get("user_id", "rose123")
         
-        # 对model和set_name进行哈希处理并截断
-        def hash_and_truncate(text: str, length: int = 8) -> str:
-            return hashlib.md5(text.encode()).hexdigest()[:length]
-        
-        model_hash = hash_and_truncate(model)
-        set_hash = hash_and_truncate(set_name)
-        
-        # 新的collection_name格式：user_id(32)__model_hash(15)__set_hash(15)
-        collection_name = f"{user_id}{model_hash}{set_hash}"
+        collection_name = _generate_collection_name(user_id, model, set_name)
         
         # 1. Embedding process - completed at the routing layer
         chunks_content = [chunk.get("content", "") for chunk in chunks]
@@ -54,7 +65,12 @@ async def embed(request: Request):
             collection_name=collection_name
         )
         
-        return JSONResponse(content=collection_name, status_code=200)
+        return JSONResponse(content={
+            "user_id": user_id,
+            "model": model,
+            "set_name": set_name,
+            "collection_name": collection_name
+        }, status_code=200)
 
     except PuppyException as e:
         log_error(f"Embedding Error: {str(e)}")
@@ -63,42 +79,46 @@ async def embed(request: Request):
             status_code=500
         )
 
-@vector_router.delete("/delete/{collection_name}")
-async def delete_vdb_collection(
-    request: Request,
-    collection_name: str
-):
+@vector_router.delete("/delete")
+async def delete_vdb_collection(request: Request):
     try:
         data = await request.json()
+        user_id = data.get("user_id")
+        model = data.get("model")
+        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
+
+        collection_name = _generate_collection_name(user_id, model, set_name)
+
         vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
         vdb.delete_collection(collection_name)
-        log_info(f"Successfully Deleted Collection: {collection_name}")
-
-        return JSONResponse(content={"message": "Collection Deleted Successfully"}, status_code=200)
+        
+        return JSONResponse(content={
+            "message": "Collection Deleted Successfully",
+            "user_id": user_id,
+            "model": model,
+            "set_name": set_name
+        }, status_code=200)
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@vector_router.get("/search/{collection_name}")
-async def search_vdb_collection(
-    request: Request,
-    collection_name: str,
-):
+@vector_router.get("/search")
+async def search_vdb_collection(request: Request):
     try:
         data = await request.json()
+        user_id = data.get("user_id")
+        model = data.get("model")
+        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
         query = data.get("query", "")
         top_k = data.get("top_k", 5)
         threshold = data.get("threshold", None)
-        # This ensures the query vector dimension is consistent with the collection
-        collection_parts = collection_name.split("__")
-        # Safely get the model name with a fallback
-        model_name = collection_parts[1] if len(collection_parts) > 1 else "text-embedding-ada-002"
-        model = data.get("model", model_name)
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
+
+        collection_name = _generate_collection_name(user_id, model, set_name)
 
         # 嵌入处理
         with TextEmbedder(model_name=model) as embedder:
@@ -125,7 +145,7 @@ if __name__ == "__main__":
     import json
     from typing import Dict, Any, Optional
     
-    # 创建一个模拟Request类
+    # Create a mock Request class
     query = "What does the fox say?"
     documents = [
         "🎵 Ring-ding-ding-ding-dingeringeding! 🎵",
@@ -140,70 +160,77 @@ if __name__ == "__main__":
         async def json(self) -> Dict[str, Any]:
             return self._json_data
     
-    # 测试嵌入API
+    # Test embedding API
     async def test_embed():
-        print("===== 测试嵌入API =====")
+        print("===== Testing Embedding API =====")
         
-        # 构建测试数据
+        # Prepare test data
         chunks = [{"content": doc, "metadata": {"index": i}} for i, doc in enumerate(documents)]
         data = {
             "chunks": chunks,
             "model": "text-embedding-ada-002",
-            "set_name": "fox_song"
+            "set_name": "fox_song",
+            "user_id": "test_user",
+            "vdb_type": "pgvector"
         }
         
-        # 调用API
+        # Call API
         mock_request = MockRequest(data)
         response = await embed(request=mock_request)
-        print(f"嵌入响应: {response.body.decode()}")
-        collection_name = json.loads(response.body)
-        return collection_name
+        print(f"Embedding Response: {response.body.decode()}")
+        return json.loads(response.body)["collection_name"]
     
-    # 测试搜索API
+    # Test search API
     async def test_search(collection_name: str):
-        print("\n===== 测试搜索API =====")
-        # 构建测试数据
+        print("\n===== Testing Search API =====")
+        # Prepare test data
         data = {
             "query": "What does the fox say?",
             "top_k": 3,
-            "vdb_type": "pgvector"
+            "vdb_type": "pgvector",
+            "user_id": "test_user",
+            "model": "text-embedding-ada-002",
+            "set_name": "fox_song"
         }
         
-        # 调用API
+        # Call API
         mock_request = MockRequest(data)
-        response = await search_vdb_collection(request=mock_request, collection_name=collection_name)
-        print(f"搜索响应: {response.body.decode()}")
+        response = await search_vdb_collection(request=mock_request)
+        print(f"Search Response: {response.body.decode()}")
         return response
     
-    # 测试删除API
-    async def test_delete(collection_name: str):
-        print("\n===== 测试删除API =====")
-        # 构建测试数据
+    # Test delete API
+    async def test_delete():
+        print("\n===== Testing Delete API =====")
+        # Prepare test data
         data = {
-            "vdb_type": "pgvector"
+            "vdb_type": "pgvector",
+            "user_id": "test_user",
+            "model": "text-embedding-ada-002",
+            "set_name": "fox_song"
         }
         
-        # 调用API
+        # Call API
         mock_request = MockRequest(data)
-        response = await delete_vdb_collection(request=mock_request, collection_name=collection_name)
-        print(f"删除响应: {response.body.decode()}")
+        response = await delete_vdb_collection(request=mock_request)
+        print(f"Delete Response: {response.body.decode()}")
         return response
     
-    # 运行所有测试
+    # Run all tests
     async def run_tests():
         try:
-            # 测试嵌入
+            # Test embedding
             collection_name = await test_embed()
             
-            # 测试搜索
+            # Test search
             await test_search(collection_name)
             
-            # 测试删除
-            await test_delete(collection_name)
+            # Test delete
+            await test_delete()
             
-            print("\n===== 所有测试完成 =====")
-        except PuppyException as e:
-            print(f"测试过程中发生错误: {str(e)}")
+            print("\n===== All Tests Completed =====")
+        except Exception as e:
+            print(f"Error occurred during tests: {str(e)}")
     
-    # 执行测试
+    # Execute tests
     asyncio.run(run_tests())
