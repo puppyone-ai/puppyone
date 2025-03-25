@@ -121,8 +121,8 @@ async def delete_vdb_collection(request: Request, collection_name: str = None):
 
 
 @global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
-@vector_router.get("/search")
-@vector_router.get("/search/{collection_name}")
+@vector_router.post("/search")
+@vector_router.post("/search/{collection_name}")
 async def search_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
