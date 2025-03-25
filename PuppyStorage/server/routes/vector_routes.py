@@ -90,25 +90,25 @@ async def embed(request: Request):
         )
 
 @global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
-@vector_router.delete("/delete")
-async def delete_vdb_collection(request: Request):
+@vector_router.delete("/delete/{collection_name}")
+async def delete_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
-        user_id = data.get("user_id")
-        model = data.get("model")
-        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
-
-        collection_name = _generate_collection_name(user_id, model, set_name)
+        
+        # 如果路径参数中没有collection_name,则从body中获取信息并生成
+        if not collection_name:
+            user_id = data.get("user_id")
+            model = data.get("model")
+            set_name = data.get("set_name")
+            collection_name = _generate_collection_name(user_id, model, set_name)
 
         vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
         vdb.delete_collection(collection_name)
         
         return JSONResponse(content={
             "message": "Collection Deleted Successfully",
-            "user_id": user_id,
-            "model": model,
-            "set_name": set_name
+            "collection_name": collection_name
         }, status_code=200)
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
@@ -116,24 +116,23 @@ async def delete_vdb_collection(request: Request):
 
 
 @global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
-@vector_router.get("/search")
-async def search_vdb_collection(request: Request):
+@vector_router.get("/search/{collection_name}")
+async def search_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
-        user_id = data.get("user_id", "default_user")
-        model = data.get("model", "text-embedding-ada-002")
-        set_name = data.get("set_name", "default_set")
         vdb_type = data.get("vdb_type", "pgvector")
         query = data.get("query", "")
         top_k = data.get("top_k", 5)
         threshold = data.get("threshold", None)
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
-
-        # Log the parameters for debugging
-        log_info(f"Search parameters: user_id={user_id}, model={model}, set_name={set_name}")
         
-        collection_name = _generate_collection_name(user_id, model, set_name)
+        # 如果路径参数中没有collection_name,则从body中获取信息并生成
+        if not collection_name:
+            user_id = data.get("user_id")
+            model = data.get("model")
+            set_name = data.get("set_name")
+            collection_name = _generate_collection_name(user_id, model, set_name)
 
         # 嵌入处理
         with TextEmbedder(model_name=model) as embedder:
