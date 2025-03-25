@@ -32,6 +32,22 @@ def get_open_router_models(
     return valid_models
 
 open_router_models = get_open_router_models()
+open_router_supported_models = [
+    "openai/o1-pro",
+    "openai/o3-mini-high",
+    "openai/o3-mini",
+    "openai/o1",
+    "openai/o1-mini",
+    "openai/gpt-4.5-preview",
+    "openai/gpt-4o-2024-11-20",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4-turbo",
+    "deepseek/deepseek-chat-v3-0324:free",
+    "deepseek/deepseek-r1-zero:free",
+    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet",
+]
 
 def get_open_router_llm_settings(
     model: str = None,
@@ -40,7 +56,7 @@ def get_open_router_llm_settings(
 ) -> Tuple[str, str, str]:
     api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
     base_url = base_url or os.environ.get("OPENROUTER_BASE_URL")
-    if model not in open_router_models:
+    if model not in open_router_models or model not in open_router_supported_models:
         raise PuppyException(3701, "Invalid Open Router Model")
     return api_key, base_url, model
 
@@ -213,7 +229,9 @@ Query: What's the name of the PuppyAgent's agent framework?
     }
 
     response = lite_llm_chat(
-        model="google/gemini-flash-1.5-8b-exp",
+        # free model for testing
+        # model="google/gemini-flash-1.5-8b-exp",
+        model="deepseek/deepseek-chat-v3-0324:free",
         response_format=structure,
         messages=[
             {"role": "user", "content": user_prompt}
