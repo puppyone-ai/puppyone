@@ -10,6 +10,7 @@ import requests
 from typing import List, Dict, Any
 from Utils.puppy_exception import global_exception_handler
 from Utils.config import config
+from Utils.logger import log_info, log_error
 
 
 class StoragerFactory:
@@ -65,11 +66,21 @@ class StoragerFactory:
         search_configs: dict
     ) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/vector/search/{collection_name}"
+        log_info(f"Sending request to: {url}")
+        log_info(f"Request method: POST")
+        log_info(f"Request headers: {self.headers}")
+        log_info(f"Request body: {search_configs}")
+        
         response = requests.post(
             url,
             json=search_configs,
             headers=self.headers
         )
+        
+        log_info(f"Response status: {response.status_code}")
+        log_info(f"Response headers: {response.headers}")
+        log_info(f"Response url: {response.url}")
+        
         response.raise_for_status()
         results = response.json()
         logging.info(f"Embedding Search Results: {results}")
