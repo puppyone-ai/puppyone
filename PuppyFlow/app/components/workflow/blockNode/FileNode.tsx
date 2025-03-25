@@ -44,15 +44,21 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   const {userId} = useFlowsPerUserContext()
   const {fetchUserId} = useManageUserWorkspacesUtils()
 
+ 
+
   useEffect(() => {
-    console.log(activatedNode, isOnConnect, isTargetHandleTouched, "border color")
-    if (activatedNode?.id === id) {
-      setBorderColor("border-[#9E7E5F]");
+    if (locked) {
+      setBorderColor("border-[#3EDBC9]");
+    } else if (isInput) {
+      setBorderColor("border-[#84EB89]");
+    } else if (isOutput) {
+      setBorderColor("border-[#FF9267]");
+    } else if (activatedNode?.id === id) {
+      setBorderColor("border-[#BF9A78]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
- 
+  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
     // 管理labelContainer的宽度
     useEffect(() => {
@@ -133,37 +139,10 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           }
       }
 
-   // for rendering different background color of upper right tag
-   const renderTagStyle = () => {
-    if (locked) return "bg-[#3EDBC9] w-fit"
-    else if (isInput) return "bg-[#6C98D5] w-fit"
-    else if (isOutput) return "bg-[#FF9267] w-fit"
-    else return "border-[#6D7177] bg-[#6D7177] w-fit"
-  } 
 
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
-    if (locked) return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="6" y="12" width="12" height="7" fill="#3EDBC9" />
-        <rect x="8" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2" />
-      </svg>
-    )
-    else if (isInput) return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M9.5 14V10L12.1667 12L9.5 14Z" fill="#6C98D5" stroke="#6C98D5" />
-        <path d="M10 11.9961L5 12.001" stroke="#6C98D5" stroke-width="2" />
-        <path d="M14.5 7H10.5V5.5H16.5V18.5H10.5V17H14.5H15V16.5V7.5V7H14.5Z" fill="#6C98D5" stroke="#6C98D5" />
-      </svg>
-    )
-    else if (isOutput) return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M13.5 14V10L16.1667 12L13.5 14Z" fill="#FF9267" stroke="#FF9267" />
-        <path d="M14 11.9961L9 12.001" stroke="#FF9267" stroke-width="2" />
-        <path d="M7.5 7H11.5V5.5H5.5V18.5H11.5V17H7.5H7V16.5V7.5V7H7.5Z" fill="#FF9267" stroke="#FF9267" />
-      </svg>
-    )
-    else return (
+    return (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
         <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F]  group-active:stroke-[#BF9A78]" strokeWidth="1.5"/>
         <path d="M8 13.5H16" className="stroke-[#9E7E5F]  group-active:stroke-[#BF9A78]" strokeWidth="1.5" strokeLinecap="round"/>
@@ -456,6 +435,40 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+        <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
+        {isInput && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
+            <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor"/>
+              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>INPUT</span>
+          </div>
+        )}
+        
+        {isOutput && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
+            <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor"/>
+              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>OUTPUT</span>
+          </div>
+        )}
+        
+        {locked && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor"/>
+            </svg>
+            <span>LOCKED</span>
+          </div>
+        )}
+      </div>
+      
       <div id={id} ref={contentRef}
         className={`flex flex-col w-full h-full border-[1.5px] border-solid border-[1.5px] min-w-[240px] min-h-[176px] p-[8px] rounded-[16px] flex justify-start ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
           
@@ -494,8 +507,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
                   font-plus-jakarta-sans bg-transparent h-[18px] 
-                  focus:outline-none truncate w-full
-                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]'}
+                  focus:outline-none truncate w-full text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]
                 `}
                 value={nodeLabel}
                 readOnly={!editable}
@@ -511,8 +523,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                 className={`
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
-                  font-plus-jakarta-sans truncate w-fit
-                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]'}
+                  font-plus-jakarta-sans truncate w-fit text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#BF9A78]
                 `}
               >
                 {nodeLabel}

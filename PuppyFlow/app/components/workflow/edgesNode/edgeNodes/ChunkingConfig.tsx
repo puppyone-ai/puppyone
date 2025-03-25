@@ -31,8 +31,18 @@ function ChunkingConfig({data: {subMenuType}, isConnectable, id}: ChunkingConfig
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const {getNode} = useReactFlow()
     
-
-
+    useEffect(() => {
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+        }
+        
+        return () => {
+            if (activatedEdge === id) {
+                clearEdgeActivation()
+            }
+        }
+    }, [])
 
     const selectChunkingMenuType = () => {
         switch (subMenuType) {

@@ -1,6 +1,6 @@
 import { Handle, Position, NodeProps, Node, } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import SearchPerplexityConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/SearchPerplexityConfigMenu'
 import SearchGoogleConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/SearchGoogleConfigMenu'
 import SearchByVectorConfigMenu from '@/app/components/workflow/edgesNode/edgeNodeConfig/SearchByVectorConfigMenu'
@@ -28,6 +28,20 @@ function SearchConfig({data: {subMenuType}, isConnectable, id}: SearchConfigNode
     const {isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll} = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const {getNode} = useReactFlow()
+    
+    useEffect(() => {
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+        }
+        
+        return () => {
+            if (activatedEdge === id) {
+                clearEdgeActivation()
+            }
+        }
+    }, [])
+    
     const selectSearchMenuType = () => {
         switch (subMenuType) {
             case 'search-Vector':
