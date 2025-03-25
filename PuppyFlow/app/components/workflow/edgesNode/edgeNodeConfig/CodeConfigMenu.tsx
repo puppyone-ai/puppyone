@@ -212,7 +212,8 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
             >
                 {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
             </button>
-        ))
+        )
+    )
     }
 
     const constructJsonData = (): ConstructedCodeJsonData | Error => {
