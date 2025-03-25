@@ -1,0 +1,441 @@
+{
+
+    "blocks": {
+  
+      "AsqM0X": {
+  
+        "label": "AsqM0X",
+  
+        "type": "structured",
+  
+        "data": {
+  
+          "content": ""
+  
+        }
+  
+      },
+  
+      "OlVqOq": {
+  
+        "label": "OlVqOq",
+  
+        "type": "structured",
+  
+        "data": {
+  
+          "content": {
+  
+            "family": {
+  
+              "father": "阿强",
+  
+              "sons": [
+  
+                {
+  
+                  "name": "熊大",
+  
+                  "trait": "聪明"
+  
+                },
+  
+                {
+  
+                  "name": "熊二",
+  
+                  "trait": "傻"
+  
+                }
+  
+              ]
+  
+            }
+  
+          },
+  
+          "embedding_view": [
+  
+            {
+  
+              "content": "阿强",
+  
+              "metadata": {
+  
+                "id": "0",
+  
+                "key_0": "family",
+  
+                "key_1": "father",
+  
+                "path": [
+  
+                  "family",
+  
+                  "father"
+  
+                ],
+  
+                "info": {
+  
+                  "family": {
+  
+                    "sons": [
+  
+                      {
+  
+                        "name": "熊大",
+  
+                        "trait": "聪明"
+  
+                      },
+  
+                      {
+  
+                        "name": "熊二",
+  
+                        "trait": "傻"
+  
+                      }
+  
+                    ]
+  
+                  }
+  
+                }
+  
+              }
+  
+            },
+  
+            {
+  
+              "content": "熊大",
+  
+              "metadata": {
+  
+                "id": "1",
+  
+                "key_0": "family",
+  
+                "key_1": "sons",
+  
+                "list_2": 0,
+  
+                "key_3": "name",
+  
+                "path": [
+  
+                  "family",
+  
+                  "sons",
+  
+                  0,
+  
+                  "name"
+  
+                ],
+  
+                "info": {
+  
+                  "family": {
+  
+                    "father": "阿强",
+  
+                    "sons": [
+  
+                      {
+  
+                        "trait": "聪明"
+  
+                      },
+  
+                      {
+  
+                        "name": "熊二",
+  
+                        "trait": "傻"
+  
+                      }
+  
+                    ]
+  
+                  }
+  
+                }
+  
+              }
+  
+            },
+  
+            {
+  
+              "content": "聪明",
+  
+              "metadata": {
+  
+                "id": "2",
+  
+                "key_0": "family",
+  
+                "key_1": "sons",
+  
+                "list_2": 0,
+  
+                "key_3": "trait",
+  
+                "path": [
+  
+                  "family",
+  
+                  "sons",
+  
+                  0,
+  
+                  "trait"
+  
+                ],
+  
+                "info": {
+  
+                  "family": {
+  
+                    "father": "阿强",
+  
+                    "sons": [
+  
+                      {
+  
+                        "name": "熊大"
+  
+                      },
+  
+                      {
+  
+                        "name": "熊二",
+  
+                        "trait": "傻"
+  
+                      }
+  
+                    ]
+  
+                  }
+  
+                }
+  
+              }
+  
+            },
+  
+            {
+  
+              "content": "熊二",
+  
+              "metadata": {
+  
+                "id": "3",
+  
+                "key_0": "family",
+  
+                "key_1": "sons",
+  
+                "list_2": 1,
+  
+                "key_3": "name",
+  
+                "path": [
+  
+                  "family",
+  
+                  "sons",
+  
+                  1,
+  
+                  "name"
+  
+                ],
+  
+                "info": {
+  
+                  "family": {
+  
+                    "father": "阿强",
+  
+                    "sons": [
+  
+                      {
+  
+                        "name": "熊大",
+  
+                        "trait": "聪明"
+  
+                      },
+  
+                      {
+  
+                        "trait": "傻"
+  
+                      }
+  
+                    ]
+  
+                  }
+  
+                }
+  
+              }
+  
+            },
+  
+            {
+  
+              "content": "傻",
+  
+              "metadata": {
+  
+                "id": "4",
+  
+                "key_0": "family",
+  
+                "key_1": "sons",
+  
+                "list_2": 1,
+  
+                "key_3": "trait",
+  
+                "path": [
+  
+                  "family",
+  
+                  "sons",
+  
+                  1,
+  
+                  "trait"
+  
+                ],
+  
+                "info": {
+  
+                  "family": {
+  
+                    "father": "阿强",
+  
+                    "sons": [
+  
+                      {
+  
+                        "name": "熊大",
+  
+                        "trait": "聪明"
+  
+                      },
+  
+                      {
+  
+                        "name": "熊二"
+  
+                      }
+  
+                    ]
+  
+                  }
+  
+                }
+  
+              }
+  
+            }
+  
+          ]
+  
+        },
+  
+        "looped": false,
+  
+        "collection_configs": {
+  
+          "model": "text-embedding-ada-002",
+  
+          "method": "cosine",
+  
+          "vdb_type": "pgvector",
+  
+          "collection_name": "82902327-a8f1-4446-9f59-5cd52b658d0f5c46f906c21f969b"
+  
+        }
+  
+      },
+  
+      "IkJXNd": {
+  
+        "label": "IkJXNd",
+  
+        "type": "text",
+  
+        "data": {
+  
+          "content": "who is dummy"
+  
+        },
+  
+        "looped": false
+  
+      }
+  
+    },
+  
+    "edges": {
+  
+      "search-1742823789430": {
+  
+        "type": "search",
+  
+        "data": {
+  
+          "search_type": "vector",
+  
+          "inputs": {
+  
+            "OlVqOq": "OlVqOq",
+  
+            "IkJXNd": "IkJXNd"
+  
+          },
+  
+          "outputs": {
+  
+            "AsqM0X": "AsqM0X"
+  
+          },
+  
+          "top_k": 5,
+  
+          "threshold": 0.7,
+  
+          "extra_configs": {},
+  
+          "doc_ids": [
+  
+            "OlVqOq"
+  
+          ],
+  
+          "query_id": {
+  
+            "IkJXNd": "IkJXNd"
+  
+          },
+  
+          "looped": false
+  
+        },
+  
+        "id": "search-1742823789430"
+  
+      }
+  
+    }
+  
+  }
