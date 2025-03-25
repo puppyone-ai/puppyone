@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from objs.vector.embedder import TextEmbedder 
 from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from utils.puppy_exception import PuppyException
+from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 
 # Create router
@@ -30,20 +30,33 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
         str: Generated collection name
     """
     def hash_and_truncate(text: str, length: int = 8) -> str:
+        # Add validation to handle None values
+        if text is None:
+            text = "default"
         return hashlib.md5(text.encode()).hexdigest()[:length]
+    
+    # Add validation for all parameters
+    user_id = user_id or "default_user"
+    model = model or "default_model"
+    set_name = set_name or "default_set"
     
     model_hash = hash_and_truncate(model)
     set_hash = hash_and_truncate(set_name)
     return f"{user_id}{model_hash}{set_hash}"
 
-@vector_router.post("/embed")
-async def embed(request: Request):
+
+@global_exception_handler(error_code=3001, error_message="Failed to embed")
+@vector_router.post("/embed/{user_id}")
+async def embed(request: Request, user_id: str = None):
     try:
         data = await request.json()
         chunks = data.get("chunks", [])
         model = data.get("model", "text-embedding-ada-002")
         set_name = data.get("set_name", "default")
-        user_id = data.get("user_id", "rose123")
+        
+        # 如果路径中有 user_id，优先使用路径参数的值
+        if not user_id:
+            user_id = data.get("user_id", "rose123")
         
         collection_name = _generate_collection_name(user_id, model, set_name)
         
@@ -79,46 +92,50 @@ async def embed(request: Request):
             status_code=500
         )
 
-@vector_router.delete("/delete")
-async def delete_vdb_collection(request: Request):
+@global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
+@vector_router.delete("/delete/{collection_name}")
+async def delete_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
-        user_id = data.get("user_id")
-        model = data.get("model")
-        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
-
-        collection_name = _generate_collection_name(user_id, model, set_name)
+        
+        # 如果路径参数中没有collection_name,则从body中获取信息并生成
+        if not collection_name:
+            user_id = data.get("user_id")
+            model = data.get("model")
+            set_name = data.get("set_name")
+            collection_name = _generate_collection_name(user_id, model, set_name)
 
         vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
         vdb.delete_collection(collection_name)
         
         return JSONResponse(content={
             "message": "Collection Deleted Successfully",
-            "user_id": user_id,
-            "model": model,
-            "set_name": set_name
+            "collection_name": collection_name
         }, status_code=200)
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@vector_router.get("/search")
-async def search_vdb_collection(request: Request):
+@global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
+@vector_router.get("/search/{collection_name}")
+async def search_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
-        user_id = data.get("user_id")
-        model = data.get("model")
-        set_name = data.get("set_name")
         vdb_type = data.get("vdb_type", "pgvector")
         query = data.get("query", "")
         top_k = data.get("top_k", 5)
         threshold = data.get("threshold", None)
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
-
-        collection_name = _generate_collection_name(user_id, model, set_name)
+        
+        # 如果路径参数中没有collection_name,则从body中获取信息并生成
+        if not collection_name:
+            user_id = data.get("user_id")
+            model = data.get("model")
+            set_name = data.get("set_name")
+            collection_name = _generate_collection_name(user_id, model, set_name)
 
         # 嵌入处理
         with TextEmbedder(model_name=model) as embedder:
