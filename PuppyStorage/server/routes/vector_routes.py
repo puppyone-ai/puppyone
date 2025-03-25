@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from objs.vector.embedder import TextEmbedder 
 from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from utils.puppy_exception import PuppyException
+from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 
 # Create router
@@ -44,6 +44,8 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
     set_hash = hash_and_truncate(set_name)
     return f"{user_id}{model_hash}{set_hash}"
 
+
+@global_exception_handler(error_code=3001, error_message="Failed to embed")
 @vector_router.post("/embed")
 async def embed(request: Request):
     try:
@@ -87,6 +89,7 @@ async def embed(request: Request):
             status_code=500
         )
 
+@global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
 @vector_router.delete("/delete")
 async def delete_vdb_collection(request: Request):
     try:
@@ -112,6 +115,7 @@ async def delete_vdb_collection(request: Request):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
+@global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
 @vector_router.get("/search")
 async def search_vdb_collection(request: Request):
     try:
