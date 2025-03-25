@@ -46,14 +46,17 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
 
 
 @global_exception_handler(error_code=3001, error_message="Failed to embed")
-@vector_router.post("/embed")
-async def embed(request: Request):
+@vector_router.post("/embed/{user_id}")
+async def embed(request: Request, user_id: str = None):
     try:
         data = await request.json()
         chunks = data.get("chunks", [])
         model = data.get("model", "text-embedding-ada-002")
         set_name = data.get("set_name", "default")
-        user_id = data.get("user_id", "rose123")
+        
+        # 如果路径中有 user_id，优先使用路径参数的值
+        if not user_id:
+            user_id = data.get("user_id", "rose123")
         
         collection_name = _generate_collection_name(user_id, model, set_name)
         
