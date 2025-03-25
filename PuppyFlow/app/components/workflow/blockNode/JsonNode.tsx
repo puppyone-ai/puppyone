@@ -68,15 +68,18 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
   useEffect(() => {
-    // console.log(activatedNode, isOnConnect, isTargetHandleTouched, "border color")
-    if (activatedNode?.id === id) {
+    if (locked) {
+      setBorderColor("border-[#3EDBC9]");
+    } else if (isInput) {
+      setBorderColor("border-[#84EB89]");
+    } else if (isOutput) {
+      setBorderColor("border-[#FF9267]");
+    } else if (activatedNode?.id === id) {
       setBorderColor("border-[#9B7EDB]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
-
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
-
+  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
   useEffect(() => {
     if (!contentRef.current) return;
@@ -176,37 +179,10 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     }
   }
 
-  // for rendering different background color of upper right tag
-  const renderTagStyle = () => {
-    if (locked) return "bg-[#3EDBC9] w-fit"
-    else if (isInput) return "bg-[#6C98D5] w-fit"
-    else if (isOutput) return "bg-[#FF9267] w-fit"
-    else return "border-[#6D7177] bg-[#6D7177] w-fit"
-  }
 
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
-    if (locked) return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="6" y="12" width="12" height="7" fill="#3EDBC9" />
-        <rect x="8" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2" />
-      </svg>
-    )
-    else if (isInput) return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M9.5 14V10L12.1667 12L9.5 14Z" fill="#6C98D5" stroke="#6C98D5" />
-        <path d="M10 11.9961L5 12.001" stroke="#6C98D5" stroke-width="2" />
-        <path d="M14.5 7H10.5V5.5H16.5V18.5H10.5V17H14.5H15V16.5V7.5V7H14.5Z" fill="#6C98D5" stroke="#6C98D5" />
-      </svg>
-    )
-    else if (isOutput) return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M13.5 14V10L16.1667 12L13.5 14Z" fill="#FF9267" stroke="#FF9267" />
-        <path d="M14 11.9961L9 12.001" stroke="#FF9267" stroke-width="2" />
-        <path d="M7.5 7H11.5V5.5H5.5V18.5H11.5V17H7.5H7V16.5V7.5V7H7.5Z" fill="#FF9267" stroke="#FF9267" />
-      </svg>
-    )
-    else return (
+    return (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
         <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#B0A4E3] group-active:fill-[#9B7EDB]" />
         <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#B0A4E3] group-active:fill-[#9B7EDB]" />
@@ -620,9 +596,42 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+      {/* Add tags for input, output and locked states */}
+      <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
+        {isInput && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
+            <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor"/>
+              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>INPUT</span>
+          </div>
+        )}
+        
+        {isOutput && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
+            <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor"/>
+              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>OUTPUT</span>
+          </div>
+        )}
+        
+        {locked && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor"/>
+          </svg>
+          <span>LOCKED</span>
+        </div>
+        )}
+      </div>
 
-
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
 
 
         {/* the top bar of a block */}
@@ -645,8 +654,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
                   font-plus-jakarta-sans bg-transparent h-[18px] 
-                  focus:outline-none truncate
-                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]'}
+                  focus:outline-none truncate text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]
                   w-full
                 `}
                 value={nodeLabel}
@@ -672,8 +680,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                 className={`
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
-                  font-plus-jakarta-sans truncate
-                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]'}
+                  font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]
                 `}
               >
                 {nodeLabel}
@@ -704,11 +711,11 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                     onClick={handleEmbedViewClick}
                   >
                     {vectorIndexingStatus === 'processing' ? (
-                      <svg 
-                        width="16" 
-                        height="16" 
-                        viewBox="0 0 16 16" 
-                        fill="none" 
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
                         xmlns="http://www.w3.org/2000/svg"
                         style={{
                           animation: "rotate 1.5s linear infinite",
@@ -727,11 +734,11 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                           `}
                         </style>
                         <circle cx="8" cy="8" r="7" stroke="#CDCDCD" strokeWidth="1.5" strokeOpacity="0.2" />
-                        <path 
-                          d="M8 1A7 7 0 0 1 15 8" 
-                          stroke="#CDCDCD" 
-                          strokeWidth="1.5" 
-                          strokeLinecap="round" 
+                        <path
+                          d="M8 1A7 7 0 0 1 15 8"
+                          stroke="#CDCDCD"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
                         />
                       </svg>
                     ) : (
@@ -854,228 +861,228 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
               }
 
+            </div>
+
+
+
+
+
+
+            {/* Loop Button */}
+            <div
+              className={`flex items-center justify-center min-w-[24px] min-h-[24px] rounded-[8px] cursor-pointer ${(activatedNode?.id === id || isLooped) ? 'opacity-100' : 'opacity-0'} hover:bg-[#3E3E41]`}
+              onClick={() => {
+                setIsLooped(prev => {
+                  console.log("setislooped step1 click", !prev)
+                  return !prev
+                })
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                <path
+                  d="M10.0661 3.52107C12.3186 4.57139 13.2931 7.24881 12.2427 9.50124C11.1924 11.7537 8.51501 12.7282 6.26258 11.6778C4.92078 11.0521 4.00446 9.95798 3.67606 8.70632"
+                  stroke={isLooped ? "#39BC66" : "#6D7177"}
+                  strokeWidth="1.5"
+                  strokeLinecap="square"
+                  className={isLooped ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
+                />
+                <path
+                  d="M2.5 10L3.5 8L5.5 8.5"
+                  stroke={isLooped ? "#39BC66" : "#6D7177"}
+                  strokeWidth="1.5"
+                  strokeLinecap="square"
+                  className={isLooped ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
+                />
+              </svg>
+            </div>
+
+
           </div>
+        </div>
 
-
-
-
-
-
-          {/* Loop Button */}
-          <div
-            className={`flex items-center justify-center min-w-[24px] min-h-[24px] rounded-[8px] cursor-pointer ${(activatedNode?.id === id || isLooped) ? 'opacity-100' : 'opacity-0'} hover:bg-[#3E3E41]`}
-            onClick={() => {
-              setIsLooped(prev => {
-                console.log("setislooped step1 click", !prev)
-                return !prev
-              })
+        {/* JSON Editor */}
+        {isLoading ? <SkeletonLoadingIcon /> :
+          <div className={`rounded-[8px] ${borderColor} border-[1px]`}
+            style={{
+              border: "1px solid rgba(109, 113, 119, 0.5)",
+              background: "linear-gradient(180deg, #1E2025 0%, #1A1B1F 100%)",
+              boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-              <path
-                d="M10.0661 3.52107C12.3186 4.57139 13.2931 7.24881 12.2427 9.50124C11.1924 11.7537 8.51501 12.7282 6.26258 11.6778C4.92078 11.0521 4.00446 9.95798 3.67606 8.70632"
-                stroke={isLooped ? "#39BC66" : "#6D7177"}
-                strokeWidth="1.5"
-                strokeLinecap="square"
-                className={isLooped ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
-              />
-              <path
-                d="M2.5 10L3.5 8L5.5 8.5"
-                stroke={isLooped ? "#39BC66" : "#6D7177"}
-                strokeWidth="1.5"
-                strokeLinecap="square"
-                className={isLooped ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
-              />
+            {
+              <div style={{
+                width: 'fit-content',
+                maxWidth: calculateMaxLabelContainerWidth(),
+                overflow: "hidden"
+              }}>
+
+                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
+                  placeholder='["JSON"]'
+                  parentId={id}
+                  widthStyle={contentSize.width - 16}
+                  heightStyle={contentSize.height - 36}
+                  inputvalue={userInput}
+                  synced={true}
+                />
+
+              </div>
+            }
+
+
+          </div>
+        }
+
+
+
+
+
+
+
+
+
+
+        <NodeResizeControl
+          minWidth={240}
+          minHeight={176}
+          style={{
+            position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize',
+            background: 'transparent',
+            border: 'none',
+            display: isLoading ? "none" : "flex"
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
+              right: "8px",
+              bottom: "8px",
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              backgroundColor: 'transparent',
+              zIndex: "200000",
+              width: "26px",
+              height: "26px",
+            }}
+          >
+            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="group active:group-[]:fill-[#9B7EDB]">
+              <path d="M10 5.99998H12V7.99998H10V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
+              <path d="M10 2H12V4H10V2Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
+              <path d="M6 5.99998H8V7.99998H6V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
+              <path d="M6 10H8V12H6V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
+              <path d="M2 10H4V12H2V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
+              <path d="M10 10H12V12H10V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
             </svg>
           </div>
+        </NodeResizeControl>
 
 
-        </div>
-      </div>
-
-      {/* JSON Editor */}
-      {isLoading ? <SkeletonLoadingIcon /> :
-        <div className={`rounded-[8px] ${borderColor} border-[1px]`}
-          style={{
-            border: "1px solid rgba(109, 113, 119, 0.5)",
-            background: "linear-gradient(180deg, #1E2025 0%, #1A1B1F 100%)",
-            boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
-          }}
-        >
-          {
-            <div style={{
-              width: 'fit-content',
-              maxWidth: calculateMaxLabelContainerWidth(),
-              overflow: "hidden"
-            }}>
-
-              <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-                placeholder='["JSON"]'
-                parentId={id}
-                widthStyle={contentSize.width - 16}
-                heightStyle={contentSize.height - 36}
-                inputvalue={userInput}
-                synced={true}
-              />
-
-            </div>
-          }
-
-
-        </div>
-      }
-
-
-
-
-
-
-
-
-
-
-      <NodeResizeControl
-        minWidth={240}
-        minHeight={176}
-        style={{
-          position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize',
-          background: 'transparent',
-          border: 'none',
-          display: isLoading ? "none" : "flex"
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
-            right: "8px",
-            bottom: "8px",
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: 'transparent',
-            zIndex: "200000",
-            width: "26px",
-            height: "26px",
-          }}
-        >
-          <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg" className="group active:group-[]:fill-[#9B7EDB]">
-            <path d="M10 5.99998H12V7.99998H10V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
-            <path d="M10 2H12V4H10V2Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
-            <path d="M6 5.99998H8V7.99998H6V5.99998Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
-            <path d="M6 10H8V12H6V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
-            <path d="M2 10H4V12H2V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
-            <path d="M10 10H12V12H10V10Z" className="fill-[#6D7177] group-hover:fill-[#CDCDCD] group-active:fill-[#9B7EDB]" />
-          </svg>
-        </div>
-      </NodeResizeControl>
-
-
-      {/* {index_name && 
+        {/* {index_name && 
         <div className='absolute bottom-[40px] left-[40px] h-[16px] font-plus-jakarta-sans px-[4px] py-[3px] flex items-center justify-center rounded-[4px] border-[0.5px] border-solid border-[#3E3E41] bg-gradient-to-r from-[#E55D87] to-[#5FC3E4]
          text-main-black-theme text-[8px] font-bold'>Embedded</div>
         } */}
 
-      <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
-        isConnectable={isConnectable} position={Position.Top} />
-      <WhiteBallHandle id={`${id}-b`} type="source" sourceNodeId={id}
-        isConnectable={isConnectable}
-        position={Position.Right} />
-      <WhiteBallHandle id={`${id}-c`} type="source" sourceNodeId={id} isConnectable={isConnectable} position={Position.Bottom} />
-      <WhiteBallHandle id={`${id}-d`} type="source" sourceNodeId={id}
-        isConnectable={isConnectable}
-        position={Position.Left} />
-      <Handle
-        id={`${id}-a`}
-        type="target"
-        position={Position.Top}
-        style={{
-          position: "absolute",
-          width: "calc(100%)",
-          height: "calc(100%)",
-          top: "0",
-          left: "0",
-          borderRadius: "0",
-          transform: "translate(0px, 0px)",
-          background: "transparent",
-          // border: isActivated ? "1px solid #4599DF" : "none",
-          border: "3px solid transparent",
-          zIndex: !isOnConnect ? "-1" : "1",
-          // maybe consider about using stored isActivated
-        }}
-        isConnectable={isConnectable}
-        onMouseEnter={() => setIsTargetHandleTouched(true)}
-        onMouseLeave={() => setIsTargetHandleTouched(false)}
-      />
-      <Handle
-        id={`${id}-b`}
-        type="target"
-        position={Position.Right}
-        style={{
-          position: "absolute",
-          width: "calc(100%)",
-          height: "calc(100%)",
-          top: "0",
-          left: "0",
-          borderRadius: "0",
-          transform: "translate(0px, 0px)",
-          background: "transparent",
-          // border: isActivated ? "1px solid #4599DF" : "none",
-          border: "3px solid transparent",
-          zIndex: !isOnConnect ? "-1" : "1",
-          // maybe consider about using stored isActivated
-        }}
-        isConnectable={isConnectable}
-        onMouseEnter={() => setIsTargetHandleTouched(true)}
-        onMouseLeave={() => setIsTargetHandleTouched(false)}
-      />
-      <Handle
-        id={`${id}-c`}
-        type="target"
-        position={Position.Bottom}
-        style={{
-          position: "absolute",
-          width: "calc(100%)",
-          height: "calc(100%)",
-          top: "0",
-          left: "0",
-          borderRadius: "0",
-          transform: "translate(0px, 0px)",
-          background: "transparent",
-          // border: isActivated ? "1px solid #4599DF" : "none",
-          border: "3px solid transparent",
-          zIndex: !isOnConnect ? "-1" : "1",
-          // maybe consider about using stored isActivated
-        }}
-        isConnectable={isConnectable}
-        onMouseEnter={() => setIsTargetHandleTouched(true)}
-        onMouseLeave={() => setIsTargetHandleTouched(false)}
-      />
-      <Handle
-        id={`${id}-d`}
-        type="target"
-        position={Position.Left}
-        style={{
-          position: "absolute",
-          width: "calc(100%)",
-          height: "calc(100%)",
-          top: "0",
-          left: "0",
-          borderRadius: "0",
-          transform: "translate(0px, 0px)",
-          background: "transparent",
-          // border: isActivated ? "1px solid #4599DF" : "none",
-          border: "3px solid transparent",
-          zIndex: !isOnConnect ? "-1" : "1",
-          // maybe consider about using stored isActivated
-        }}
-        isConnectable={isConnectable}
-        onMouseEnter={() => setIsTargetHandleTouched(true)}
-        onMouseLeave={() => setIsTargetHandleTouched(false)}
-      />
+        <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
+          isConnectable={isConnectable} position={Position.Top} />
+        <WhiteBallHandle id={`${id}-b`} type="source" sourceNodeId={id}
+          isConnectable={isConnectable}
+          position={Position.Right} />
+        <WhiteBallHandle id={`${id}-c`} type="source" sourceNodeId={id} isConnectable={isConnectable} position={Position.Bottom} />
+        <WhiteBallHandle id={`${id}-d`} type="source" sourceNodeId={id}
+          isConnectable={isConnectable}
+          position={Position.Left} />
+        <Handle
+          id={`${id}-a`}
+          type="target"
+          position={Position.Top}
+          style={{
+            position: "absolute",
+            width: "calc(100%)",
+            height: "calc(100%)",
+            top: "0",
+            left: "0",
+            borderRadius: "0",
+            transform: "translate(0px, 0px)",
+            background: "transparent",
+            // border: isActivated ? "1px solid #4599DF" : "none",
+            border: "3px solid transparent",
+            zIndex: !isOnConnect ? "-1" : "1",
+            // maybe consider about using stored isActivated
+          }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-b`}
+          type="target"
+          position={Position.Right}
+          style={{
+            position: "absolute",
+            width: "calc(100%)",
+            height: "calc(100%)",
+            top: "0",
+            left: "0",
+            borderRadius: "0",
+            transform: "translate(0px, 0px)",
+            background: "transparent",
+            // border: isActivated ? "1px solid #4599DF" : "none",
+            border: "3px solid transparent",
+            zIndex: !isOnConnect ? "-1" : "1",
+            // maybe consider about using stored isActivated
+          }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-c`}
+          type="target"
+          position={Position.Bottom}
+          style={{
+            position: "absolute",
+            width: "calc(100%)",
+            height: "calc(100%)",
+            top: "0",
+            left: "0",
+            borderRadius: "0",
+            transform: "translate(0px, 0px)",
+            background: "transparent",
+            // border: isActivated ? "1px solid #4599DF" : "none",
+            border: "3px solid transparent",
+            zIndex: !isOnConnect ? "-1" : "1",
+            // maybe consider about using stored isActivated
+          }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-d`}
+          type="target"
+          position={Position.Left}
+          style={{
+            position: "absolute",
+            width: "calc(100%)",
+            height: "calc(100%)",
+            top: "0",
+            left: "0",
+            borderRadius: "0",
+            transform: "translate(0px, 0px)",
+            background: "transparent",
+            // border: isActivated ? "1px solid #4599DF" : "none",
+            border: "3px solid transparent",
+            zIndex: !isOnConnect ? "-1" : "1",
+            // maybe consider about using stored isActivated
+          }}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
 
 
-    </div>
+      </div>
     </div >
 
   )
