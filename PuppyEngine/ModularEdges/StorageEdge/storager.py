@@ -67,7 +67,7 @@ class StoragerFactory:
         url = f"{self.base_url}/vector/search/{collection_name}"
         response = requests.post(
             url,
-            data=json.dumps(search_configs),
+            json=search_configs,
             headers=self.headers
         )
         response.raise_for_status()
