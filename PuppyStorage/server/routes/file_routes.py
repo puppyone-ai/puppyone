@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
 from boto3 import client
-from utils.puppy_exception import PuppyException
+from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
 
@@ -68,6 +68,7 @@ type_header_mapping = {
     "application": "application/octet-stream"
 }
 
+@global_exception_handler(error_code=4001, error_message="Failed to generate file URLs")
 @file_router.post("/generate_urls/{content_type}")
 async def generate_file_urls(request: Request, content_type: str = "text"):
     try:
@@ -125,6 +126,8 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
         return JSONResponse(content={"error": str(e)}, status_code=500)
     
 
+
+@global_exception_handler(error_code=4002, error_message="Failed to delete file")
 @file_router.delete("/delete")
 async def delete_file(request: Request):
     try:
