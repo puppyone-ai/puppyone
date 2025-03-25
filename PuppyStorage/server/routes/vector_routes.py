@@ -30,7 +30,15 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
         str: Generated collection name
     """
     def hash_and_truncate(text: str, length: int = 8) -> str:
+        # Add validation to handle None values
+        if text is None:
+            text = "default"
         return hashlib.md5(text.encode()).hexdigest()[:length]
+    
+    # Add validation for all parameters
+    user_id = user_id or "default_user"
+    model = model or "default_model"
+    set_name = set_name or "default_set"
     
     model_hash = hash_and_truncate(model)
     set_hash = hash_and_truncate(set_name)
