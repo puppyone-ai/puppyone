@@ -15,7 +15,7 @@ type FileNodeSettingMenuProps = {
 
 function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSettingMenuProps) {
 
-    const {  manageNodeasLocked, setNodeEditable, preventInactivateNode} = useNodesPerFlowContext()
+    const {  manageNodeasLocked, setNodeEditable, preventInactivateNode, manageNodeasInput, manageNodeasOutput} = useNodesPerFlowContext()
     const {onTriggerUploadFile} = useFileNodeUploadUtils()
     const {setNodes, setEdges, getEdges, getNode}  = useReactFlow()
     const [tempUploadInfo, setTempUploadInfo] = useState<{uploadUrl: string, uploadId: string} | null>(null)
@@ -96,7 +96,6 @@ function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSetti
             leaveTo="transform opacity-0 translate-y-[-10px]"
         >
             <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
-
                 <li>
                     <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                     onClick={(e) => {
@@ -118,8 +117,39 @@ function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSetti
                     </button>
                 </li>
 
-
                 <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+                <li>
+                    <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                    onClick={()=> manageNodeasInput(nodeid)}>
+                    <div className='flex items-center justify-center'>
+                    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="16" y="7" width="2.5" height="12" rx="0.5" fill="currentColor"/>
+                      <path d="M6 13H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        {getNode(nodeid)?.data?.isInput ? "Unset input" :"Set as input"}
+                    </div>
+                    </button>
+                </li>
+                <li>
+                    <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+                    onClick={()=> manageNodeasOutput(nodeid)}>
+                    <div className='flex items-center justify-center'>
+                    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="7.5" y="7" width="2.5" height="12" rx="0.5" fill="currentColor"/>
+                      <path d="M12 13H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M16 9L20 13L16 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    </div>
+                    <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                        {getNode(nodeid)?.data?.isOutput ? "Unset output" :"Set as output"}
+                    </div>
+                    </button>
+                </li>
+
+
                 <li>
                     <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                     onClick={()=> manageNodeasLocked(nodeid)}>
@@ -134,6 +164,7 @@ function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSetti
                         </div>
                     </button>
                 </li>
+                <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
                 <li>
                     <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                     onClick={manageEditLabel}>

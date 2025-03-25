@@ -943,33 +943,6 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                 <div className='text-[14px] flex items-center justify-center h-full'>Load</div>
                             </button>
                         </li>
-
-                        <li className="w-full">
-                            <div className="text-left w-full leading-[13px] text-[#6D7177] text-[10px] font-semibold border-t-[1.5px] border-[#3E3E41] pt-[3px]">
-                                Others
-                            </div>
-                        </li>
-
-                        <li className="w-full">
-                            <button className={`w-full h-[38px] ${selectedSubMenu === 9 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`}
-                                onMouseEnter={() => manageTextNodeSubMenu("ChooseSub1")}
-                                onClick={(event) => {
-                                    event.preventDefault()
-                                    event.stopPropagation()
-                                    createNewConnection('choose')
-                                }}>
-                                <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M1 7H4" stroke="#D9D9D9" stroke-width="1.5" />
-                                        <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 7 3 9 3C10.1429 3 10.8571 3 12 3" stroke="#D9D9D9" stroke-width="1.5" />
-                                        <path d="M4 7C4 7 4.35714 7 5.5 7C7.5 7 6.5 11 8.57143 11C9.71429 11 10.8571 11 12 11" stroke="#D9D9D9" stroke-width="1.5" />
-                                        <path d="M10.5 1L12.5 3L10.5 5" stroke="#D9D9D9" />
-                                        <path d="M10.5 9L12.5 11L10.5 13" stroke="#D9D9D9" />
-                                    </svg>
-                                </div>
-                                <div className='text-[14px] flex items-center justify-center h-full'>If/Else</div>
-                            </button>
-                        </li>
                     </ul>
                 </div>
             )
