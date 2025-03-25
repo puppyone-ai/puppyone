@@ -177,6 +177,23 @@ const PromptEditor = ({ prompts, setPrompts }: {
   );
 };
 
+const open_router_supported_models = [
+    "openai/o1-pro",
+    "openai/o3-mini-high",
+    "openai/o3-mini",
+    "openai/o1",
+    "openai/o1-mini",
+    "openai/gpt-4.5-preview",
+    "openai/gpt-4o-2024-11-20",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4-turbo",
+    "deepseek/deepseek-chat-v3-0324:free",
+    "deepseek/deepseek-r1-zero:free",
+    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet",
+]
+
 function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
@@ -727,14 +744,14 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                                 <select 
                                     value={model}
                                     onChange={(e) => setModel(e.target.value as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo")}
-                                    className='w-full h-full bg-transparent border-none outline-none px-3
+                                    className='w-full h-full bg-[#252525] border-none outline-none px-3
                                              text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
                                     onMouseDownCapture={onFocus}
                                     onBlur={onBlur}
                                 >
-                                    <option value="gpt-4o">gpt-4o</option>
-                                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                                    <option value="gpt-4-turbo">gpt-4</option>
+                                    {open_router_supported_models.map((model) => (
+                                        <option value={model}>{model}</option>
+                                    ))}
                                 </select>
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
