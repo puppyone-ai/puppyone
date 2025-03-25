@@ -46,6 +46,7 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
 
 
 @global_exception_handler(error_code=3001, error_message="Failed to embed")
+@vector_router.post("/embed")
 @vector_router.post("/embed/{user_id}")
 async def embed(request: Request, user_id: str = None):
     try:
@@ -93,6 +94,7 @@ async def embed(request: Request, user_id: str = None):
         )
 
 @global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
+@vector_router.delete("/delete")
 @vector_router.delete("/delete/{collection_name}")
 async def delete_vdb_collection(request: Request, collection_name: str = None):
     try:
@@ -119,7 +121,8 @@ async def delete_vdb_collection(request: Request, collection_name: str = None):
 
 
 @global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
-@vector_router.get("/search/{collection_name}")
+@vector_router.post("/search")
+@vector_router.post("/search/{collection_name}")
 async def search_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
@@ -129,6 +132,7 @@ async def search_vdb_collection(request: Request, collection_name: str = None):
         threshold = data.get("threshold", None)
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
+        model = data.get("model", "text-embedding-ada-002") 
         
         # 如果路径参数中没有collection_name,则从body中获取信息并生成
         if not collection_name:
