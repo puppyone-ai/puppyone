@@ -11,6 +11,82 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
 import {JsonNodeData} from '../../blockNode/JsonNode'
 
+const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:any) => {
+
+    const handleSelect = (nodeId: string, label: string) => {
+        onSelect({id:nodeId, label:label});
+        setIsOpen(false); // Close dropdown after selection
+    };
+  
+    // Inline styles
+    const dropdownContainerStyle: React.CSSProperties  = {
+        position: 'relative',
+        cursor: 'pointer',
+    };
+  
+    const dropdownHeaderStyle = {
+        padding: '8px',
+        backgroundColor: '#333', // Background color
+        color: 'white', // Text color
+        border: '1px solid #6D7177', // Border color
+        borderRadius: '4px', // Rounded corners
+    };
+  
+    const dropdownListStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: '150%',
+        left: 0,
+        right: 0,
+        backgroundColor: 'black', // Background color for dropdown items
+        border: '1px solid #6D7177', // Border color
+        borderRadius: '4px', // Rounded corners
+        zIndex: 1000, // Ensure dropdown is above other elements
+        height: 'auto', // Max height for dropdown
+        width:'100px',
+        overflowY: 'auto', // Scroll if too many items
+        overflowX:'hidden',
+        color:'white'
+    };
+  
+    const dropdownItemStyle = {
+        padding: '8px',
+        color: 'white', // Text color for items
+        cursor: 'pointer',
+    };
+  
+    return (
+        <div className="relative">
+            {isOpen ? (
+                <ul className='absolute top-1 left-0 w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                    {options.length > 0 ? (
+                        options.map((node:any, index:number) => (
+                            <>
+                                <li
+                                key={node.id}
+                                className='w-full'
+                            >
+                                <button 
+                                    className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                    onClick={() => handleSelect(node.id, node.data.label)}
+                                >
+                                    <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                        {node.data.label || node.id}
+                                    </span>
+                                </button>
+                            </li>
+                            </>
+                        ))
+                    ) : (
+                        <li className='w-full'>
+                            <span className='w-full text-center text-[#CDCDCD] text-[12px] font-[400]'>Not available</span>
+                        </li>
+                    )}
+                </ul>
+            ):<></>}
+        </div>
+    );
+  };
+
 
 type SearchByVectorConfigProps = {
     show: boolean,
@@ -102,6 +178,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             console.warn('Failed to copy:', err);
         });
     };
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     useEffect(() => {
         onQueryChange(query)
@@ -695,6 +772,30 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                                 </button>
                             </div>
                         ))}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                    className='w-[28px] h-[28px] flex items-center justify-center rounded-md
+                                              bg-[#252525] border border-[#6D7177]/30 
+                                              text-[#6D7177] 
+                                              hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
+                                              transition-colors'
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
+                                    </svg>
+                                </button>
+                                <CustomDropdown
+                                    options={sourceNodeLabelsRef.current.map(item => ({ 
+                                        id: item.id, 
+                                        data: { label: item.label || item.id } 
+                                    }))}
+                                    onSelect={(item: {id: string, label: string}) => addNodeLabel({id: item.id, label: item.label})}
+                                    selectedValue={null}
+                                    isOpen={isDropdownOpen}
+                                    setIsOpen={setIsDropdownOpen}
+                                />
+                            </div>
 
                     </div>
                 </div>
