@@ -810,7 +810,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                                     onBlur={onBlur}
                                 >
                                     {open_router_supported_models.map((model) => (
-                                        <option value={model}>{model}</option>
+                                        <option key={model} value={model}>{model}</option>
                                     ))}
                                 </select>
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
