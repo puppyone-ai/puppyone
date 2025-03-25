@@ -46,8 +46,8 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
 
 
 @global_exception_handler(error_code=3001, error_message="Failed to embed")
-@vector_router.post("/embed")
 @vector_router.post("/embed/{user_id}")
+@vector_router.post("/embed")
 async def embed(request: Request, user_id: str = None):
     try:
         data = await request.json()
@@ -94,8 +94,8 @@ async def embed(request: Request, user_id: str = None):
         )
 
 @global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
-@vector_router.delete("/delete")
 @vector_router.delete("/delete/{collection_name}")
+@vector_router.delete("/delete")
 async def delete_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
@@ -121,8 +121,8 @@ async def delete_vdb_collection(request: Request, collection_name: str = None):
 
 
 @global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
-@vector_router.post("/search")
-@vector_router.post("/search/{collection_name}")
+@vector_router.post("/search/{collection_name}")  # 更具体的路由，应该放在前面
+@vector_router.post("/search")                    # 更通用的路由，放在后面
 async def search_vdb_collection(request: Request, collection_name: str = None):
     try:
         data = await request.json()
