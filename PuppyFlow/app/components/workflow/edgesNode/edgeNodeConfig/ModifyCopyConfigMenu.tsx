@@ -228,7 +228,9 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
             resolve(null)
         });
         // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
-        if (!resultNode || !getNode(resultNode)) {
+        const resultNodeId = (getNode(parentId)?.data as ModifyConfigNodeData)?.resultNode;
+        console.log(resultNodeId, "resultNodeId")
+        if (!resultNodeId || !getNode(resultNodeId)) {
 
             const newResultNodeId = nanoid(6)
             // onResultNodeChange(newResultNodeId)
@@ -241,11 +243,12 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
         else {
             const resultNodeType = getNode(getSourceNodeIdWithLabel(parentId)[0].id)?.type
             setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === resultNode) {
+                if (node.id === resultNodeId) {
                     return { ...node, type: resultNodeType || "text", data: { ...node.data, content: "", isLoading: true } }
                 }
                 return node
             }))
+            setResultNode(resultNodeId)
 
         }
         setIsComplete(false)
