@@ -3,14 +3,9 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-import re
 from typing import Any
 from Utils.puppy_exception import global_exception_handler
 from ModularEdges.ModifyEdge.modify_strategy import ModifyStrategy
-import json
-
-
-plugin_pattern = r"\{\{(.*?)\}\}"
 
 
 class ModifyEditText(ModifyStrategy):
@@ -18,35 +13,10 @@ class ModifyEditText(ModifyStrategy):
     def modify(
         self
     ) -> Any:
-        plugins = self.extra_configs.get("plugins", {})
         slice_range = self.extra_configs.get("slice", [0, -1])
         sort_type = self.extra_configs.get("sort_type", "")
-
-        def replacer(match):
-            key = match.group(1)
-            content = plugins.get(key, f"{{{{{key}}}}}")
-            print("Original content:", content)
-
-            # First, ensure content is a string
-            if not isinstance(content, str):
-                content = str(content)
-            
-            # Properly escape for JSON string context
-            # Use json.dumps to handle the escaping correctly
-            # Remove the outer quotes that json.dumps adds
-            content = json.dumps(content)[1:-1]
-            
-            # Ensure newlines are properly escaped for string literals
-            # This is needed because the content might be inserted into a string
-            # that will be evaluated later
-            content = content.replace('\\n', '\\\\n').replace('\\r', '\\\\r')
-            
-            print("Escaped content:", content)
-            return content
-
-        plugin_pattern_compiled = re.compile(plugin_pattern)
-        self.content = plugin_pattern_compiled.sub(replacer, self.content)
         self.content = self.content[slice_range[0]:slice_range[1] if slice_range[1] != -1 else None]
+
         if sort_type in {"ascending", "descending"}:
             self.content = "".join(sorted(self.content, reverse=(sort_type == "descending")))
         return self.content

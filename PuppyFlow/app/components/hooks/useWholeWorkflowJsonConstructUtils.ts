@@ -406,10 +406,6 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       top_k: (nodeInfo.data as SearchConfigNodeData)?.top_k ?? 5,
                       threshold: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.threshold ?? 0.7,
                       extra_configs: {
-                        provider: "openai",
-                        model: "text-embedding-ada-002",
-                        db_type: "pinecone",
-                        collection_name: "test_collection"
                       },
                       doc_ids: (getNode(nodeInfo.id)?.data as SearchConfigNodeData)?.nodeLabels?.map((node: {id: string, label: string}) => node.id),
                       query_id: {[query_id as string]: query_label as string},
@@ -495,9 +491,40 @@ export default function useWholeWorkflowJsonConstructUtils() {
            }  
             
         }
+
+        const construct_input_nodes_data_from_ids = (blocks: { [key: string]: NodeJsonType }) => {
+          const data = Object.entries(blocks).map(([id, node]) => {
+              console.log("construct_input_nodes_data_from_ids node",node)
+              console.log("construct_input_nodes_data_from_ids id",id)
+
+              const originalNode = getNode(id);
+              console.log("construct_input_nodes_data_from_ids originalNode",originalNode)
+
+              if (originalNode?.type === "structured") {
+                  return [id, {
+                      ...node,
+                      data:{
+                          ...node.data,
+                          embedding_view:originalNode?.data?.chunks,
+                      },
+                      collection_configs: originalNode?.data?.collection_configs,
+                  }];
+              } else {
+                  return [id, {
+                      ...node,
+                  }];
+              }
+          })
+
+          console.log("construct_input_nodes_data_from_ids data",data)
+          return Object.fromEntries(data);
+
+      }
+
+      const final_blocks =  construct_input_nodes_data_from_ids(blocks)
     
         return {
-            blocks,
+            blocks: final_blocks,
             edges
         }
       }
