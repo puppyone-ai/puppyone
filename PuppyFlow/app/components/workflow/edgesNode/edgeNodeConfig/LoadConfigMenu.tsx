@@ -285,14 +285,11 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="0.5" y="0.5" width="23" height="23" rx="7.5" stroke="#CDCDCD"/>
-                                <path d="M8.5 11.9997C14.9167 11.9997 15.5 7.33301 15.5 7.33301" stroke="#CDCDCD" stroke-width="1.5"/>
-                                <path d="M8.5 12.0003C14.9167 12.0003 15.5 16.667 15.5 16.667" stroke="#CDCDCD" stroke-width="1.5"/>
-                                <rect x="5.75" y="8.75" width="3.5" height="6.5" fill="#1C1D1F" stroke="#CDCDCD" stroke-width="1.5"/>
-                                <rect x="14.75" y="5.75" width="3.5" height="3.5" fill="#1C1D1F" stroke="#CDCDCD" stroke-width="1.5"/>
-                                <rect x="14.75" y="14.75" width="3.5" height="3.5" fill="#1C1D1F" stroke="#CDCDCD" stroke-width="1.5"/>
-                            </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="10" viewBox="0 0 13 10" fill="none">
+                                        <rect x="0.75" y="0.75" width="5.5" height="8.5" stroke="#D9D9D9" strokeWidth="1.5" />
+                                        <path d="M13 5L9 2.6906V7.3094L13 5ZM9 5.4H9.4V4.6H9V5.4Z" fill="#D9D9D9" />
+                                        <path d="M6 5H10" stroke="#D9D9D9" strokeWidth="1.5" />
+                                    </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
                             Load
@@ -315,7 +312,7 @@ function Modify2TextConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Input</label>
                     <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
                 </div>
-                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/50 border-dashed hover:border-[#6D7177]/70 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}
                     </div>
