@@ -132,6 +132,7 @@ async def search_vdb_collection(request: Request, collection_name: str = None):
         threshold = data.get("threshold", None)
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
+        model = data.get("model", "text-embedding-ada-002") 
         
         # 如果路径参数中没有collection_name,则从body中获取信息并生成
         if not collection_name:
