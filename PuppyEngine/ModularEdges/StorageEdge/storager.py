@@ -9,14 +9,16 @@ import logging
 import requests
 from typing import List, Dict, Any
 from Utils.puppy_exception import global_exception_handler
+from Utils.config import config
 
 
 class StoragerFactory:
     def __init__(
         self
     ):
-        host = os.getenv("STORAGE_HOST", "localhost")
-        self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
+        # host = os.getenv("STORAGE_HOST", "localhost")
+        # self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
+        self.base_url = config.get("STORAGE_SERVER_URL", "http://localhost:8000")
         self.headers = {
             "Content-Type": "application/json"
         }
