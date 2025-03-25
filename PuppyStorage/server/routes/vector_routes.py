@@ -30,7 +30,15 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
         str: Generated collection name
     """
     def hash_and_truncate(text: str, length: int = 8) -> str:
+        # Add validation to handle None values
+        if text is None:
+            text = "default"
         return hashlib.md5(text.encode()).hexdigest()[:length]
+    
+    # Add validation for all parameters
+    user_id = user_id or "default_user"
+    model = model or "default_model"
+    set_name = set_name or "default_set"
     
     model_hash = hash_and_truncate(model)
     set_hash = hash_and_truncate(set_name)
@@ -108,9 +116,9 @@ async def delete_vdb_collection(request: Request):
 async def search_vdb_collection(request: Request):
     try:
         data = await request.json()
-        user_id = data.get("user_id")
-        model = data.get("model")
-        set_name = data.get("set_name")
+        user_id = data.get("user_id", "default_user")
+        model = data.get("model", "text-embedding-ada-002")
+        set_name = data.get("set_name", "default_set")
         vdb_type = data.get("vdb_type", "pgvector")
         query = data.get("query", "")
         top_k = data.get("top_k", 5)
@@ -118,6 +126,9 @@ async def search_vdb_collection(request: Request):
         filters = data.get("filters", {})
         metric = data.get("metric", "cosine")
 
+        # Log the parameters for debugging
+        log_info(f"Search parameters: user_id={user_id}, model={model}, set_name={set_name}")
+        
         collection_name = _generate_collection_name(user_id, model, set_name)
 
         # 嵌入处理
