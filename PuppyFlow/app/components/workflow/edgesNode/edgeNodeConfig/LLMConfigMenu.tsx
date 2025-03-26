@@ -271,8 +271,16 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         });
     };
 
+    const lastNodeWithLabel = useRef<string|undefined>(undefined)
+
     useEffect(
         ()=>{
+            console.log("lastNodeWithLabel",lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
+            if(lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label){
+                return
+            }
+            console.log("update llm config")
+            lastNodeWithLabel.current = getSourceNodeIdWithLabel(parentId)[0]?.label
             const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
             const content = JSON.stringify(
                 [
@@ -294,8 +302,11 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 return node
             }))
 
+            setTimeout(() => {
+                console.log("updated llm config",getNode(parentId)?.data.content)
+            }, 500)
         },
-        []
+        [getEdges()]
     )
 
     useEffect(() => {
