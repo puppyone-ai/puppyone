@@ -287,14 +287,14 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     }
                 ]
             )
-            if(getNode(parentId)?.data.content as string === DEFAULT_LLM_MESSAGE){
-                setNodes(prevNodes => prevNodes.map(node => {
-                    if (node.id === parentId) {
-                        return { ...node, data: { ...node.data, content: content } }
-                    }
-                    return node
-                }))
-            }
+
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId) {
+                    return { ...node, data: { ...node.data, content: content } }
+                }
+                return node
+            }))
+
         },
         []
     )
@@ -507,10 +507,11 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
         // 直接使用 content 字段
         const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
+        console.log(messageContent)
         const edgejson: LLMEdgeJsonType = {
             type: "llm",
             data: {
-                messages: messageContent !== "error" ? messageContent : [
+                messages: [
                     {
                         "role": "system",
                         "content": "You are an AI"
@@ -532,7 +533,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
 
         edges[parentId] = edgejson
-        console.log(blocks, edges)
+        console.log("LLMCONFIG",blocks, edges)
 
         return {
             blocks,
