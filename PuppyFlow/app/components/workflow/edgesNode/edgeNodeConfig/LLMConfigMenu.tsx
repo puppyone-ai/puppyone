@@ -22,13 +22,13 @@ type messageType = {
     content: string,
 }
 
-type modelType = "gpt-4o" | "gpt-4o-mini" | "gpt-4"
+
 export interface LLMEdgeJsonType {
     // id: string,
     type: "llm",
     data: {
         messages: messageType[],
-        model: modelType,
+        model: string,
         base_url: string,
         max_tokens: number,
         temperature: number,
@@ -203,8 +203,8 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
-    const [model, setModel] = useState<"gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo">(
-        (getNode(parentId)?.data?.model as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo") || "gpt-4o"
+    const [model, setModel] = useState<string>(
+        (getNode(parentId)?.data?.model as string) || "gpt-4o"
     )
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
@@ -520,7 +520,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                         "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
                     }
                 ],
-                model: model as modelType,
+                model: model as string,
                 base_url: baseUrl,
                 max_tokens: 4096,
                 temperature: 0.7,
@@ -571,7 +571,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         setIsComplete(false)
     };
 
-    const onModelChange = (newModel: "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo") => {
+    const onModelChange = (newModel: string) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, model: newModel } }
@@ -743,7 +743,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                             <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                                 <select 
                                     value={model}
-                                    onChange={(e) => setModel(e.target.value as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo")}
+                                    onChange={(e) => setModel(e.target.value)}
                                     className='w-full h-full bg-[#252525] border-none outline-none px-3
                                              text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
                                     onMouseDownCapture={onFocus}
