@@ -34,7 +34,6 @@ export interface LLMEdgeJsonType {
         temperature: number,
         inputs: { [key: string]: string },
         structured_output: boolean,
-        looped: boolean,
         outputs: { [key: string]: string }
     }
 
@@ -527,7 +526,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 temperature: 0.7,
                 structured_output: isStructured_output,
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
