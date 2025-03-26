@@ -261,17 +261,17 @@ export default function useWholeWorkflowJsonConstructUtils() {
             case "generate":
               break     
             case "llm":
-              const messageContent = cleanJsonString(nodeInfo.data.content as string)
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              const id = sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id
               edgejson = {
                 // id: nodeInfo.id,
                 type: "llm",
                 data: {
-                    messages: messageContent !== "error" ? messageContent : [
+                    messages: [
                         {"role": "system", 
                          "content": "You are an AI"},
                         {"role": "user", 
-                        "content": "Answer the question by {{input_ID}}"}
+                        "content": `Answer the question by {{${id}}}`}
                        ],
                     model: (nodeInfo.data as LLMConfigNodeData)?.model ?? "gpt-4o",
                     base_url: (nodeInfo.data as LLMConfigNodeData)?.base_url ?? "",

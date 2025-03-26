@@ -530,13 +530,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             },
         }
 
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === parentId) {
-                return { ...node, data: { ...node.data, content: edgejson.data.messages } }
-            }
-            return node
-        }))
-
         edges[parentId] = edgejson
         console.log("LLMCONFIG",blocks, edges)
 
