@@ -279,7 +279,6 @@ export default function useWholeWorkflowJsonConstructUtils() {
                     temperature: 0.7,
                     structured_output: (nodeInfo.data as LLMConfigNodeData)?.structured_output ?? false,
                     inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                    looped: (nodeInfo.data as LLMConfigNodeData).looped ?? false,
                     outputs: {[(nodeInfo.data as LLMConfigNodeData).resultNode as string]: getNode((nodeInfo.data as LLMConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as LLMConfigNodeData).resultNode as string}
                     
                 },
