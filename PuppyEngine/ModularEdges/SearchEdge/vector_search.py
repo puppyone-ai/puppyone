@@ -59,11 +59,12 @@ class VectorRetrievalStrategy(BaseRetriever):
             return search_results
 
         return StorageClient.execute(
-            collection_name=self.extra_configs.get("collection_name", ""),
+            collection_name=collection_configs[0].get("collection_name", ""),
             search_configs={
                 "query": self.query,
-                "model": self.extra_configs.get("model", "text-embedding-ada-002"),
-                "vdb_type": self.extra_configs.get("db_type", "pgvector"),
+                "model": collection_configs[0].get("model", "text-embedding-ada-002"),
+                "user_id": collection_configs[0].get("user_id", ""),
+                "vdb_type": collection_configs[0].get("db_type", "pgvector"),
                 "top_k": self.top_k,
                 "threshold": self.threshold,
             }
