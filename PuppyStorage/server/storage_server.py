@@ -2,9 +2,10 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from utils.puppy_exception import PuppyException
 from utils.logger import log_info, log_error
 from server.routes.file_routes import file_router
@@ -22,6 +23,22 @@ try:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        error_details = exc.errors()
+        error_messages = []
+        for error in error_details:
+            field = " -> ".join(str(x) for x in error["loc"])
+            message = error["msg"]
+            error_messages.append(f"{field}: {message}")
+        
+        error_message = "; ".join(error_messages)
+        raise PuppyException(
+            error_code=3000,  # Validation error code
+            error_message="Validation Error",
+            cause=error_message
+        )
 
     app.include_router(vector_router)
     app.include_router(file_router)

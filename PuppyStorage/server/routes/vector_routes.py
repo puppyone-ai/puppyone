@@ -6,12 +6,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, Field, conlist
+from typing import List, Optional, Dict, Any
 
 # TODO: Maybe only need to use multi-modal embedding in the future?
 from objs.vector.embedder import TextEmbedder 
 from objs.vector.vector_db_factory import VectorDatabaseFactory
 
-from utils.puppy_exception import PuppyException
+from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 
 # Create router
@@ -30,45 +33,77 @@ def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
         str: Generated collection name
     """
     def hash_and_truncate(text: str, length: int = 8) -> str:
+        # Add validation to handle None values
+        if text is None:
+            text = "default"
         return hashlib.md5(text.encode()).hexdigest()[:length]
+    
+    # Add validation for all parameters
+    user_id = user_id or "default_user"
+    model = model or "default_model"
+    set_name = set_name or "default_set"
     
     model_hash = hash_and_truncate(model)
     set_hash = hash_and_truncate(set_name)
     return f"{user_id}{model_hash}{set_hash}"
 
+class ChunkModel(BaseModel):
+    content: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+class EmbedRequest(BaseModel):
+    chunks: conlist(ChunkModel, min_length=1)  # 确保至少有一个chunk
+    set_name: str
+    model: str = "text-embedding-ada-002"
+    user_id: str = "public"
+    vdb_type: str = "pgvector"
+
+class DeleteRequest(BaseModel):
+    vdb_type: str
+    user_id: str
+    model: str
+    set_name: str
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    vdb_type: str = "pgvector"
+    user_id: str = "public"
+    model: str = "text-embedding-ada-002"
+    set_name: str
+
+@global_exception_handler(error_code=3001, error_message="Failed to embed")
+@vector_router.post("/embed/{user_id}")
 @vector_router.post("/embed")
-async def embed(request: Request):
+async def embed(embed_request: EmbedRequest, user_id: str = None):
     try:
-        data = await request.json()
-        chunks = data.get("chunks", [])
-        model = data.get("model", "text-embedding-ada-002")
-        set_name = data.get("set_name", "default")
-        user_id = data.get("user_id", "rose123")
+        collection_name = _generate_collection_name(
+            embed_request.user_id, 
+            embed_request.model, 
+            embed_request.set_name
+        )
         
-        collection_name = _generate_collection_name(user_id, model, set_name)
-        
-        # 1. Embedding process - completed at the routing layer
-        chunks_content = [chunk.get("content", "") for chunk in chunks]
-        with TextEmbedder(model_name=model) as embedder:
+        # 1. Embedding process
+        chunks_content = [chunk.content for chunk in embed_request.chunks]
+        with TextEmbedder(model_name=embed_request.model) as embedder:
             vectors = embedder.embed(chunks_content)
             
         # 2. Storage processing - handed to database layer
-        vdb_type = data.get("vdb_type", "pgvector")
-        vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
+        vdb = VectorDatabaseFactory.get_database(db_type=embed_request.vdb_type)
         
         # Pass vector data to database after preparation
         # 传递collection_name参数
         vdb.store_vectors(
             vectors=vectors,
             contents=chunks_content,
-            metadata=[c.get("metadata", {}) for c in chunks],
+            metadata=[c.metadata for c in embed_request.chunks],
             collection_name=collection_name
         )
         
         return JSONResponse(content={
-            "user_id": user_id,
-            "model": model,
-            "set_name": set_name,
+            "user_id": embed_request.user_id,
+            "model": embed_request.model,
+            "set_name": embed_request.set_name,
             "collection_name": collection_name
         }, status_code=200)
 
@@ -79,62 +114,67 @@ async def embed(request: Request):
             status_code=500
         )
 
+@global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
+@vector_router.delete("/delete/{collection_name}")
 @vector_router.delete("/delete")
-async def delete_vdb_collection(request: Request):
+async def delete_vdb_collection(
+    delete_request: DeleteRequest,
+    collection_name: str = None
+):
     try:
-        data = await request.json()
-        user_id = data.get("user_id")
-        model = data.get("model")
-        set_name = data.get("set_name")
-        vdb_type = data.get("vdb_type", "pgvector")
-
-        collection_name = _generate_collection_name(user_id, model, set_name)
-
+        if not collection_name:
+            collection_name = _generate_collection_name(
+                delete_request.user_id,
+                delete_request.model,
+                delete_request.set_name
+            )
+        vdb_type = delete_request.vdb_type
+        
         vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
         vdb.delete_collection(collection_name)
         
         return JSONResponse(content={
             "message": "Collection Deleted Successfully",
-            "user_id": user_id,
-            "model": model,
-            "set_name": set_name
+            "collection_name": collection_name
         }, status_code=200)
     except PuppyException as e:
         log_error(f"Vector Collection Deletion error: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 
-@vector_router.get("/search")
-async def search_vdb_collection(request: Request):
+@global_exception_handler(error_code=3003, error_message="Failed to search vector collection")
+@vector_router.post("/search/{collection_name}")
+@vector_router.post("/search")
+async def search_vdb_collection(
+    search_request: SearchRequest,
+    collection_name: str = None
+):
     try:
-        data = await request.json()
-        user_id = data.get("user_id")
-        model = data.get("model")
-        set_name = data.get("set_name")
-        vdb_type = data.get("vdb_type", "pgvector")
-        query = data.get("query", "")
-        top_k = data.get("top_k", 5)
-        threshold = data.get("threshold", None)
-        filters = data.get("filters", {})
-        metric = data.get("metric", "cosine")
+        if not collection_name:
+            collection_name = _generate_collection_name(
+                search_request.user_id,
+                search_request.model,
+                search_request.set_name
+            )
 
-        collection_name = _generate_collection_name(user_id, model, set_name)
-
+        model = search_request.model
+        query = search_request.query
+        
         # 嵌入处理
         with TextEmbedder(model_name=model) as embedder:
             query_vector = embedder.embed([query])[0]
 
         # 数据库查询
-        vdb = VectorDatabaseFactory.get_database(db_type=vdb_type)
+        vdb = VectorDatabaseFactory.get_database(db_type=search_request.vdb_type)
         results = vdb.search_vectors(
             collection_name=collection_name,
             query_vector=query_vector,
-            top_k=top_k,
-            threshold=threshold,
-            filters=filters,
-            metric=metric
+            top_k=search_request.top_k,
+            threshold=search_request.threshold,
+            filters=search_request.filters,
+            metric=search_request.metric
         )
-
+        log_info(f"Search results: {results}")
         return JSONResponse(content=results, status_code=200)
     except PuppyException as e:
         log_error(f"Unexpected Error in Vector Search: {str(e)}")
@@ -170,13 +210,13 @@ if __name__ == "__main__":
             "chunks": chunks,
             "model": "text-embedding-ada-002",
             "set_name": "fox_song",
-            "user_id": "test_user",
+            "user_id": "rose123",
             "vdb_type": "pgvector"
         }
         
         # Call API
         mock_request = MockRequest(data)
-        response = await embed(request=mock_request)
+        response = await embed(embed_request=mock_request)
         print(f"Embedding Response: {response.body.decode()}")
         return json.loads(response.body)["collection_name"]
     
@@ -188,14 +228,14 @@ if __name__ == "__main__":
             "query": "What does the fox say?",
             "top_k": 3,
             "vdb_type": "pgvector",
-            "user_id": "test_user",
+            "user_id": "rose123",
             "model": "text-embedding-ada-002",
             "set_name": "fox_song"
         }
         
         # Call API
         mock_request = MockRequest(data)
-        response = await search_vdb_collection(request=mock_request)
+        response = await search_vdb_collection(search_request=mock_request)
         print(f"Search Response: {response.body.decode()}")
         return response
     
@@ -212,7 +252,7 @@ if __name__ == "__main__":
         
         # Call API
         mock_request = MockRequest(data)
-        response = await delete_vdb_collection(request=mock_request)
+        response = await delete_vdb_collection(delete_request=mock_request)
         print(f"Delete Response: {response.body.decode()}")
         return response
     

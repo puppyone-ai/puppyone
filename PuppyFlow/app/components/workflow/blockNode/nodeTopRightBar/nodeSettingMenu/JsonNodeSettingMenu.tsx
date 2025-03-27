@@ -289,38 +289,36 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
         leaveTo="transform opacity-0 translate-y-[-10px]"
     >
         <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
-              {/* <li>
-                <button className='flex flex-row items-center justify-start   gap-[8px] w-full h-[26px]  border-none rounded-t-[4px]'
+               <li>
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                 onClick={()=> manageNodeasInput(nodeid)}>
                 <div className='flex items-center justify-center'>
                 <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M11.5 15V11L14.1667 13L11.5 15Z" fill="#BEBEBE" stroke="#BEBEBE"/>
-                <path d="M12 12.9961L7 13.001" stroke="#BEBEBE" stroke-width="2"/>
-                <path d="M16.5 8H12.5V6.5H18.5V19.5H12.5V18H16.5H17V17.5V8.5V8H16.5Z" fill="#BEBEBE" stroke="#BEBEBE"/>
+                  <rect x="16" y="7" width="2.5" height="12" rx="0.5" fill="currentColor"/>
+                  <path d="M6 13H14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-
                 </div>
-                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
+                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
                     {getNode(nodeid)?.data?.isInput ? "Unset input" :"Set as input"}
                 </div>
                 </button>
             </li>
             <li>
-                <button className='flex flex-row items-center justify-start  gap-[8px] w-full h-[26px]  border-none'
+                <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                 onClick={()=> manageNodeasOutput(nodeid)}>
                 <div className='flex items-center justify-center'>
                 <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15.5 15V11L18.1667 13L15.5 15Z" fill="#BEBEBE" stroke="#BEBEBE"/>
-                <path d="M16 12.9961L11 13.001" stroke="#BEBEBE" stroke-width="2"/>
-                <path d="M9.5 8H13.5V6.5H7.5V19.5H13.5V18H9.5H9V17.5V8.5V8H9.5Z" fill="#BEBEBE" stroke="#BEBEBE"/>
+                  <rect x="7.5" y="7" width="2.5" height="12" rx="0.5" fill="currentColor"/>
+                  <path d="M12 13H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M16 9L20 13L16 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-
                 </div>
-                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
+                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
                     {getNode(nodeid)?.data?.isOutput ? "Unset output" :"Set as output"}
                 </div>
                 </button>
-            </li> */}
+            </li> 
             
             <li>
                 <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
@@ -348,6 +346,8 @@ function JsonNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: JsonNodeSetti
                 </button>
             </li>
             <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li> */}
+
+            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
             <li>
                 <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                 onClick={manageEditLabel}>

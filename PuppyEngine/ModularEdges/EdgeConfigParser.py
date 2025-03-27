@@ -144,11 +144,14 @@ class EdgeConfigParser(ABC):
             ]
             if replace_block_id:
                 replaced_content = variable_values.get(replace_block_id[0], "")
-                if not isinstance(replaced_content, str):
-                    replaced_content = str(replaced_content)
+                content_to_match = f"{{{{{content_block_label}}}}}"
+                # Handle single block content that keep the original content type
+                if text_content == content_to_match and self.edge_configs.get("modify_type") != "edit_text":
+                    return replaced_content
+
                 if escape_inner_chars:
-                    replaced_content = self._escape_markdown(replaced_content)
-                text_content = replaced_content if keep_new_content_type else text_content.replace(f"{{{{{content_block_label}}}}}", replaced_content)
+                    replaced_content = self._escape_markdown(str(replaced_content))
+                text_content = replaced_content if keep_new_content_type else text_content.replace(content_to_match, str(replaced_content))
             else:
                 raise ValueError(f"Block {content_block_label} not found")
         return text_content
@@ -172,12 +175,6 @@ class EdgeConfigParser(ABC):
 
         # Handle quotes
         text = text.replace('"', '\\\"').replace("'", "\\\'")
-
-        # Handle multi-line code blocks (```)
-        # text = text.replace('```', '\\`\\`\\`')
-
-        # Handle list-bracket
-        # text = text.replace('[', '\\[').replace(']', '\\]')
 
         return text
 

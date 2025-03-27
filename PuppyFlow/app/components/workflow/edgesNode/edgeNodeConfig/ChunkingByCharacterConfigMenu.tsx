@@ -91,7 +91,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                             <path d="M6 5L3 8L6 11" stroke="currentColor" strokeWidth="0.583333"/>
                             <path d="M3 8H11V3" stroke="currentColor" strokeWidth="0.583333"/>
                         </svg>
-                        <span className="text-[11px]">Enter</span>
+                        <span className="text-[10px]">Enter</span>
                     </span>
                 );
             case "\t": return "Tab";
@@ -244,19 +244,79 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <button 
-                key={`${node.id}-${parentId}`} 
-                onClick={() => copyToClipboard(node.label)}
-                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
-                         border-[1px] text-[10px] font-medium transition-all duration-200
-                         ${copiedLabel === node.label 
-                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
-                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
-            >
-                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
-            </button>
-        ))
+        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => {
+            // Get the node type from the node data
+            const nodeInfo = getNode(node.id)
+            const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
+            
+            // Define colors based on node type
+            let colorClasses = {
+                text: {
+                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+                },
+                file: {
+                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
+                },
+                structured: {
+                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
+                }
+            }
+            
+            // Define SVG icons for each node type, using the provided references
+            const nodeIcons = {
+                text: (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                ),
+                file: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5"/>
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                ),
+                structured: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    </svg>
+                )
+            }
+            
+            // Choose the appropriate color classes based on node type
+            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
+            
+            // Choose the appropriate icon based on node type
+            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
+            
+            return (
+                <button 
+                    key={`${node.id}-${parentId}`} 
+                    onClick={() => copyToClipboard(node.label)}
+                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
+                             border-[1px] text-[10px] font-medium transition-all duration-200
+                             ${copiedLabel === node.label 
+                               ? colors.active
+                               : colors.default}`}
+                >
+                    <div className="flex-shrink-0">
+                        {icon}
+                    </div>
+                    <span className="truncate max-w-[100px]">
+                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+                    </span>
+                </button>
+            )
+        })
     }
 
     // 添加新的分隔符
@@ -406,9 +466,9 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[12px] font-semibold text-[#6D7177]'>Input Variables</label>
-                    <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
+                    <span className='text-[9px] text-[#6D7177] px-[4px] py-[1.5px] rounded bg-[#282828]'>Auto</span>
                 </div>
-                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px]
+                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-dashed
                               border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}
@@ -419,10 +479,10 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[12px] font-semibold text-[#6D7177]'>Delimiters</label>
-                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
 
-                <div className='bg-[#1E1E1E] rounded-[8px] p-2 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='bg-[#1E1E1E] rounded-[8px] p-[5px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2 items-center'>
                         {delimiters.map((delimiter, index) => (
                             <div key={index}
@@ -430,7 +490,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                                           border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 
                                           transition-colors group'
                             >
-                                <span className='text-[12px] text-[#FF9B4D] px-2 py-1'>
+                                <span className='text-[10px] text-[#FF9B4D] px-2 py-1'>
                                     {delimiterDisplay(delimiter)}
                                 </span>
                                 <button
@@ -447,7 +507,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                         ))}
 
                         {showDelimiterInput ? (
-                            <div className='h-[28px] bg-[#252525] rounded-md 
+                            <div className='h-[24px] bg-[#252525] rounded-md 
                                          border border-[#FF9B4D]/30 
                                          flex items-center'
                             >
@@ -456,7 +516,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                                     type="text"
                                     placeholder="Type..."
                                     className='w-[80px] h-full bg-transparent border-none outline-none px-2
-                                             text-[12px] text-[#CDCDCD]'
+                                             text-[10px] text-[#CDCDCD]'
                                     onKeyDown={handleCustomDelimiterInput}
                                     onBlur={() => setShowDelimiterInput(false)}
                                     onFocus={onFocus}
@@ -465,7 +525,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                         ) : (
                             <button
                                 onClick={() => setShowDelimiterInput(true)}
-                                className='w-[28px] h-[28px] flex items-center justify-center rounded-md
+                                className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                           bg-[#252525] border border-[#6D7177]/30 
                                           text-[#6D7177] 
                                           hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
@@ -480,13 +540,13 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                 </div>
 
                 <div className='mt-1'>
-                    <div className='text-[11px] text-[#6D7177] mb-2'>Common delimiters:</div>
+                    <div className='text-[10px] text-[#6D7177] mb-2'>Common delimiters:</div>
                     <div className='flex flex-wrap gap-2'>
                         {commonDelimiters.map((delimiter) => (
                             <button
                                 key={delimiter.value}
                                 onClick={() => addDelimiter(delimiter.value)}
-                                className={`px-2 py-1 rounded-md text-[11px] transition-colors
+                                className={`px-2 py-1 rounded-md text-[10px] transition-colors
                                          ${delimiters.includes(delimiter.value)
                                         ? 'bg-[#252525] text-[#CDCDCD] border border-[#6D7177]/50'
                                         : 'bg-[#1E1E1E] text-[#6D7177] border border-[#6D7177]/30 hover:bg-[#252525] hover:text-[#CDCDCD]'}`}
