@@ -533,7 +533,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             index_name: index_name_response,
             collection_configs: {
               model: payloaddata.model,
-              method: payloaddata.method,
+              // method: payloaddata.method,
               vdb_type: payloaddata.vdb_type,
               collection_name: index_name_response
             },
