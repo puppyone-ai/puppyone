@@ -46,6 +46,8 @@ class VectorRetrievalStrategy(BaseRetriever):
                         "vdb_type": collection_config.get("db_type", "pgvector"),
                         "top_k": self.top_k,
                         "threshold": self.threshold,
+                        "user_id": collection_config.get("user_id", ""),
+                        "set_name": collection_config.get("set_name", ""),
                     }
                 ))
 

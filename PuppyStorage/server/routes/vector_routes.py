@@ -65,12 +65,30 @@ class DeleteRequest(BaseModel):
     set_name: str
 
 class SearchRequest(BaseModel):
-    query: str
-    top_k: int = 5
-    vdb_type: str = "pgvector"
-    user_id: str = "public"
-    model: str = "text-embedding-ada-002"
-    set_name: str
+    query: str  # 必需的搜索查询字符串
+    set_name: str  # 必需的集合名称
+    user_id: str = Field(default="public")  # 使用 Field 确保默认值为字符串
+    model: str = Field(default="text-embedding-ada-002")
+    vdb_type: str = Field(default="pgvector")
+    top_k: int = Field(default=5, ge=1)  # 确保 top_k 至少为 1
+    threshold: Optional[float] = Field(default=None)
+    filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    metric: str = Field(default="cosine")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "What does the fox say?",
+                "set_name": "songs",
+                "user_id": "rose123",
+                "model": "text-embedding-ada-002",
+                "vdb_type": "pgvector",
+                "top_k": 5,
+                "threshold": 0.8,
+                "filters": {},
+                "metric": "cosine"
+            }
+        }
 
 @global_exception_handler(error_code=3001, error_message="Failed to embed")
 @vector_router.post("/embed/{user_id}")
