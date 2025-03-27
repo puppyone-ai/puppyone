@@ -488,7 +488,10 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                             ...node.data,
                             embedding_view:originalNode?.data?.chunks,
                         },
-                        collection_configs: originalNode?.data?.collection_configs,
+                        collection_configs: {
+                            ...(originalNode?.data as any)?.collection_configs, 
+                            // user_id: "dsadsad" //DEBUG
+                        },
                     }];
                 } else {
                     return [id, {

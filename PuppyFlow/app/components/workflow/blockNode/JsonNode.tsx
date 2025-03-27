@@ -500,6 +500,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           vdb_type: originalPayload.data.vdb_type,
           model: originalPayload.data.model,
           method: originalPayload.data.method,
+          set_name: originalPayload.data.set_name
         };
       };
 
