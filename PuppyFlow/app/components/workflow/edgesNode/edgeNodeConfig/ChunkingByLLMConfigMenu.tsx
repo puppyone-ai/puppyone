@@ -27,7 +27,7 @@ export type ChunkingLLMEdgeJsonType = {
             model: LLMModelNames,
             prompt: string
         },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 
@@ -49,7 +49,7 @@ function ChunkingByLLMConfigMenu({show, parentId}: ChunkingByLLMConfigProps) {
         (getNode(parentId)?.data as ChunkingConfigNodeData)?.extra_configs?.model ?? "gpt-4o"
     )
     const modelRef = useRef<HTMLSelectElement>(null)
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as ChunkingConfigNodeData)?.resultNode ?? null
     )
@@ -61,9 +61,9 @@ function ChunkingByLLMConfigMenu({show, parentId}: ChunkingByLLMConfigProps) {
         onModelChange(model)
     }, [model])
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
 
     useEffect( () => {
@@ -222,7 +222,7 @@ function ChunkingByLLMConfigMenu({show, parentId}: ChunkingByLLMConfigProps) {
                     model: model,
                     prompt: promptValue
                 },
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },  
         }

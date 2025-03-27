@@ -25,7 +25,7 @@ export type ChunkingByCharacterEdgeJsonType = {
         extra_configs: {
             delimiters: string[]
         },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -43,7 +43,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
     // const {addNode, addCount, allowActivateNode, clear, totalCount, preventInactivateNode, allowInactivateNode} = useNodeContext()
     const { clearAll } = useNodesPerFlowContext()
     // const {getZoom, getViewport, getNode, flowToScreenPosition} = useReactFlow()
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as ChunkingConfigNodeData).resultNode ?? null
     )
@@ -100,9 +100,9 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
         }
     };
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     // 更新分隔符到节点数据
     useEffect(() => {
@@ -371,7 +371,7 @@ function ChunkingByCharacterConfigMenu({ show, parentId }: ChunkingByCharacterCo
                 chunking_mode: "character",
                 sub_chunking_mode: "character",
                 extra_configs: { delimiters: delimiters },
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
