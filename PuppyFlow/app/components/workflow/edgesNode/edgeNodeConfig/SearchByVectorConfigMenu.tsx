@@ -661,6 +661,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     // Update the useEffect to set the ref value instead
     useEffect(() => {
+        console.log("getSourceNodeIdWithLabel(parentId)",getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured").map(node => getNode(node.id)))
         sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name).map((node) => ({label:node.label, id:node.id}))
     }, [getSourceNodeIdWithLabel(parentId)])
 
