@@ -86,7 +86,7 @@ export type ChooseEdgeJsonType = {
         content?: { [key: string]: string },
         inputs: { [key: string]: string },
         outputs: { [key: string]: string },
-        looped?: boolean,
+        // looped?: boolean,
         ON?: { [key: string]: string },
         OFF?: { [key: string]: string },
         cases?: any

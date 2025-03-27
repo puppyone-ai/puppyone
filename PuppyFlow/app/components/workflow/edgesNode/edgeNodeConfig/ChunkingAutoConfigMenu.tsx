@@ -21,7 +21,7 @@ export type ChunkingAutoEdgeJsonType = {
         inputs: { [key: string]: string },
         chunking_mode: "auto",
         extra_configs: { [key: string]: string },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
     
@@ -38,7 +38,7 @@ function ChunkingAutoConfigMenu({show, parentId}: ChunkingAutoConfigProps) {
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as ChunkingConfigNodeData)?.resultNode ?? null
     )
@@ -47,9 +47,9 @@ function ChunkingAutoConfigMenu({show, parentId}: ChunkingAutoConfigProps) {
     const [isComplete, setIsComplete] = useState(true)
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect( () => {
         if (!resultNode) return
@@ -276,7 +276,7 @@ function ChunkingAutoConfigMenu({show, parentId}: ChunkingAutoConfigProps) {
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 chunking_mode: "auto",
                 extra_configs: {},
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             }
         }
