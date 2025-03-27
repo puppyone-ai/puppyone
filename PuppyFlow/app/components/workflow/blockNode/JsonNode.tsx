@@ -435,7 +435,8 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       content: nodeContent,
       vdb_type: "pgvector",
       model: "text-embedding-ada-002",
-      method: "cosine",
+      // method: "cosine",
+      set_name: id
     }
     const embeddingNode = {
       ...node,
@@ -493,8 +494,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           create_new: true, // Indicates that a new entry is being created
           vdb_type: originalPayload.data.vdb_type,
           model: originalPayload.data.model,
-          method: originalPayload.data.method,
-          user_id: await getuserid()
+          // method: originalPayload.data.method,
+          user_id: await getuserid(),
+          set_name: originalPayload.data.set_name
         };
       };
 
