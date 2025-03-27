@@ -29,7 +29,7 @@ export type CodeEdgeJsonType = {
     data: {
         code: string,
         inputs: { [key: string]: string },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -46,7 +46,7 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
     // const {getZoom, getViewport, getNode, flowToScreenPosition} = useReactFlow()
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as CodeConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as CodeConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>((getNode(parentId)?.data as CodeConfigNodeData)?.resultNode ?? null)
     // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
@@ -56,9 +56,9 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
     )
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
   
     useEffect( () => {
         if (!resultNode) return
@@ -241,7 +241,7 @@ function CodeConfigMenu({show, parentId}: CodeConfigProps) {
             data: {  
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 code: getNode(parentId)?.data.code as string ?? "",
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }

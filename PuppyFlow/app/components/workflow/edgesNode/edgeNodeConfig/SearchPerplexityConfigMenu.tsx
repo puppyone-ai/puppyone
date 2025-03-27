@@ -27,7 +27,7 @@ export type SearchPerplexityEdgeJsonType = {
         extra_configs: {
             model: perplexityModelNames
         },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -229,7 +229,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                 extra_configs: {model: model},
-                looped: false,
+                // looped: false,
                 outputs: {[resultNode as string]: resultNodeLabel as string}
             },
         }
