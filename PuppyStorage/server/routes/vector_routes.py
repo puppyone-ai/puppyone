@@ -20,23 +20,6 @@ from utils.logger import log_info, log_error
 # Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
 
-# 添加在router定义之前
-@vector_router.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    error_details = exc.errors()
-    error_messages = []
-    for error in error_details:
-        field = " -> ".join(str(x) for x in error["loc"])
-        message = error["msg"]
-        error_messages.append(f"{field}: {message}")
-    
-    error_message = "; ".join(error_messages)
-    raise PuppyException(
-        error_code=3000,  # 可以定义专门的验证错误码
-        error_message="Validation Error",
-        cause=error_message
-    )
-
 def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
     """
     Private helper function to generate collection name
