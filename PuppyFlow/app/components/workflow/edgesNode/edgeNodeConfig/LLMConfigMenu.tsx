@@ -203,7 +203,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
     const [model, setModel] = useState<string>(
-        (getNode(parentId)?.data?.model as string) || open_router_supported_models[0]
+        (getNode(parentId)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
