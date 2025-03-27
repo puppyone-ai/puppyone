@@ -203,7 +203,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
     const [model, setModel] = useState<string>(
-        (getNode(parentId)?.data?.model as string) || "gpt-4o"
+        (getNode(parentId)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
@@ -553,6 +553,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
 
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
+        console.log("Current model:", model);  // 添加这行
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
