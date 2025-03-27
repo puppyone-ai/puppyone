@@ -482,7 +482,12 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
       const getuserid = async (): Promise<string | null> => {
         if (!userId || userId.trim() === "") {
-          return null
+          const res = await fetchUserId()
+          if (res) {
+            return res
+          } else {
+            return null
+          }
         }
         return userId
       }
@@ -494,8 +499,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           create_new: true, // Indicates that a new entry is being created
           vdb_type: originalPayload.data.vdb_type,
           model: originalPayload.data.model,
-          // method: originalPayload.data.method,
-          user_id: await getuserid(),
+          method: originalPayload.data.method,
           set_name: originalPayload.data.set_name
         };
       };
@@ -525,17 +529,21 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
       // // 5. updateNode
       const index_name_response = await response.json()
-      if (typeof index_name_response === 'string') {
+      console.log("index_name_response", index_name_response)
+      const user_id = await getuserid()
+      if (index_name_response.collection_name) {
         setNodes(prevNodes => prevNodes.map(node => node.id === id ? {
           ...node,
           data: {
             ...node.data,
-            index_name: index_name_response,
+            index_name: index_name_response.collection_name,
             collection_configs: {
+              set_name: index_name_response.set_name,
               model: payloaddata.model,
               // method: payloaddata.method,
               vdb_type: payloaddata.vdb_type,
-              collection_name: index_name_response
+              user_id: user_id,
+              collection_name: index_name_response.collection_name
             },
           }
         } : node))
@@ -591,7 +599,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   useEffect(
     () => {
-
+      if(getNode(id)?.data.index_name){
+        setVectorIndexingStatus('completed')
+      }
     }, []
   )
 
