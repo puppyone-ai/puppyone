@@ -282,8 +282,12 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isLooped, setIsLooped] = useState<boolean>((getNode(id) as ExtendedNode)?.looped || false); // New state to track the position
 
   const [showPathEditor, setShowPathEditor] = useState(false);
-  const [paths, setPaths] = useState<PathNode[]>([]);
+  const [paths, setPaths] = useState<PathNode[]>(getNode(id)?.data?.paths as PathNode[] || []);
   const [originalPaths, setOriginalPaths] = useState<PathNode[]>([]);
+
+  useEffect(() => {
+    setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, paths: paths } } : node))
+  }, [paths])
 
   // Validation function to check if any node has an empty value
   const hasEmptyValues = (nodes: PathNode[]): boolean => {
