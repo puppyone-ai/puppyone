@@ -66,6 +66,7 @@ class VectorRetrievalStrategy(BaseRetriever):
                 "query": self.query,
                 "model": collection_configs[0].get("model", "text-embedding-ada-002"),
                 "user_id": collection_configs[0].get("user_id", ""),
+                "set_name": collection_configs[0].get("set_name", ""),
                 "vdb_type": collection_configs[0].get("db_type", "pgvector"),
                 "top_k": self.top_k,
                 "threshold": self.threshold,
