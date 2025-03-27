@@ -613,7 +613,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   useEffect(
     () => {
-
+      if(getNode(id)?.data.index_name){
+        setVectorIndexingStatus('completed')
+      }
     }, []
   )
 
