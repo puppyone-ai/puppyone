@@ -500,7 +500,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           vdb_type: originalPayload.data.vdb_type,
           model: originalPayload.data.model,
           method: originalPayload.data.method,
-          user_id: await getuserid()
         };
       };
 
