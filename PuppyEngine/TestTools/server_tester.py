@@ -79,6 +79,9 @@ if __name__ == "__main__":
     for file_name in os.listdir(directory):
         if not file_name.endswith('.json'):
             print(f"ERROR: Invalid test case format: {file_name} \nJson format required")
+        # if file_name != "test_vdb_search.json":
+        #     continue
+
         file_path = os.path.join(directory, file_name)
         print(f"========================= {file_name} =========================")
         print("Testing send_data...")

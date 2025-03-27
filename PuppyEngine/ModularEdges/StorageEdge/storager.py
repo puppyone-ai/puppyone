@@ -19,7 +19,7 @@ class StoragerFactory:
     ):
         # host = os.getenv("STORAGE_HOST", "localhost")
         # self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
-        self.base_url = config.get("STORAGE_SERVER_URL", "http://localhost:8000")
+        self.base_url = config.get("STORAGE_SERVER_URL", "http://localhost:8002")
         self.headers = {
             "Content-Type": "application/json"
         }
