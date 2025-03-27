@@ -488,7 +488,10 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                             ...node.data,
                             embedding_view:originalNode?.data?.chunks,
                         },
-                        collection_configs: originalNode?.data?.collection_configs,
+                        collection_configs: {
+                            ...(originalNode?.data as any)?.collection_configs, 
+                            // user_id: "dsadsad" //DEBUG
+                        },
                     }];
                 } else {
                     return [id, {
@@ -721,6 +724,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     // Update the useEffect to set the ref value instead
     useEffect(() => {
+        console.log("getSourceNodeIdWithLabel(parentId)",getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured").map(node => getNode(node.id)))
         sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name).map((node) => ({label:node.label, id:node.id}))
     }, [getSourceNodeIdWithLabel(parentId)])
 
