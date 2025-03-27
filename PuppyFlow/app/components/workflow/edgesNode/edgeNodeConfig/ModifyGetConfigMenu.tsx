@@ -39,7 +39,7 @@ export type ModifyGetEdgeJsonType = {
     ]
       },
       inputs: { [key: string]: string },
-      looped: boolean,
+      // looped: boolean,
       outputs: { [key: string]: string }
     },
    
@@ -287,7 +287,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
     // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
 
 
     const MODIFY_GET_TYPE="get"
@@ -344,9 +344,9 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
         onNumKeyChange()
     }, [numKeyValue])
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     // useEffect(() => {
     //     onResultNodeChange()
@@ -533,7 +533,7 @@ function ModifyGetConfigMenu({show, parentId}: ModifyGetConfigProps) {
                     ]
                 },
                 inputs: inputs,
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }

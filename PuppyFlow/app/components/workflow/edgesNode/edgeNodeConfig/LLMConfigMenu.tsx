@@ -217,9 +217,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [isStructured_output, setStructured_output] = useState(
         (getNode(parentId)?.data as LLMConfigNodeData)?.structured_output ?? false
     )
-    const [isLoop, setIsLoop] = useState(
-        (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
-    )
+    // const [isLoop, setIsLoop] = useState(
+    //     (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
+    // )
 
     // 添加设置面板的展开/折叠状态
     const [showSettings, setShowSettings] = useState(false)
@@ -309,9 +309,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         [getEdges()]
     )
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect(() => {
         onModelChange(model)
@@ -507,7 +507,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 label: resultNodeLabel as string,
                 type: isStructured_output ? "structured" : "text",
                 data: { content: "" },
-                looped: (getNode(resultNode as string) as any)?.looped ? true : false,
+                // looped: (getNode(resultNode as string) as any)?.looped ? true : false,
             }
         }
         

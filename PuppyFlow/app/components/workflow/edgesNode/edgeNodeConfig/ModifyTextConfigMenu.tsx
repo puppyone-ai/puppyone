@@ -27,7 +27,7 @@ export type ModifyTextEdgeJsonType = {
       extra_configs: {},
       content: string,
       inputs: { [key: string]: string },
-      looped: boolean,
+    //   looped: boolean,
       outputs: { [key: string]: string }
     },
   }
@@ -43,16 +43,16 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>((getNode(parentId)?.data as ModifyConfigNodeData)?.resultNode ?? null)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     const [textContent, setTextContent] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.content || "");
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
    
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
 
     useEffect( () => {
@@ -238,7 +238,7 @@ function ModifyTextConfigMenu({show, parentId}: ModifyTextConfigProps) {
                 },
                 content: promptValue,
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }

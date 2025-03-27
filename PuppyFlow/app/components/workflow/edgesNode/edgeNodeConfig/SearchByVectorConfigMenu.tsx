@@ -113,7 +113,7 @@ export type SearchByVectorEdgeJsonType = {
         }|{},
         doc_ids: string[], // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
     id:string
@@ -478,7 +478,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 },
                 doc_ids: nodeLabels.map(node => node.id),
                 query_id: {[query.id]: query_label},
-                looped: false,
+                // looped: false,
             },
             id: parentId
         }
