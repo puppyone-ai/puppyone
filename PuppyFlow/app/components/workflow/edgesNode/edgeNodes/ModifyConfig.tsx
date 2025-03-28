@@ -35,6 +35,17 @@ function ModifyConfig({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
     
     useEffect(() => {
         console.log(getInternalNode(id))
+        
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+        }
+        
+        return () => {
+            if (activatedEdge === id) {
+                clearEdgeActivation()
+            }
+        }
     }, [])
 
     const MODIFY_GET_TYPE="get"

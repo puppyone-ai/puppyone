@@ -25,7 +25,7 @@ export type ChunkingMarkdownEdgeJsonType = {
         extra_configs: {
             tags: tagType
         },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -208,7 +208,7 @@ function ChunkingForMarkdownConfigMenu({show, parentId}: ChunkingForMarkdownConf
                 extra_configs: {
                     tags:tagValue
                 },
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
             

@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from botocore.exceptions import NoCredentialsError
 from botocore.config import Config
 from boto3 import client
-from utils.puppy_exception import PuppyException
+from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
 
@@ -68,6 +68,7 @@ type_header_mapping = {
     "application": "application/octet-stream"
 }
 
+@global_exception_handler(error_code=4001, error_message="Failed to generate file URLs")
 @file_router.post("/generate_urls/{content_type}")
 async def generate_file_urls(request: Request, content_type: str = "text"):
     try:
@@ -125,6 +126,8 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
         return JSONResponse(content={"error": str(e)}, status_code=500)
     
 
+
+@global_exception_handler(error_code=4002, error_message="Failed to delete file")
 @file_router.delete("/delete")
 async def delete_file(request: Request):
     try:
@@ -214,8 +217,11 @@ if __name__ == "__main__":
     async def test_file_type(case):
         print(f"\nTesting file type: {case['content_type']}, filename: {case['content_name']}")
         
-        # Create mock request
-        request = MockRequest({"content_name": case["content_name"]})
+        # Create mock request with all required parameters
+        request = MockRequest({
+            "user_id": "test_user",
+            "content_name": case["content_name"]
+        })
         
         # Call the function with path parameter
         result = await generate_file_urls(request=request, content_type=case["content_type"])
@@ -246,7 +252,7 @@ if __name__ == "__main__":
                 print(f"File upload failed! Status code: {upload_response.status_code}")
                 print(f"Error message: {upload_response.text}")
 
-        except PuppyException as e:
+        except Exception as e:
             print(f"File upload failed: {str(e)}")
         
         # Wait to ensure upload completes
@@ -270,7 +276,7 @@ if __name__ == "__main__":
             else:
                 print("❌ File content mismatch!")
                 return False
-        except PuppyException as e:
+        except Exception as e:
             print(f"File download failed: {str(e)}")
             return False
     

@@ -1,0 +1,48 @@
+{
+    "blocks": {
+        "UArP_U": {
+            "label": "UArP_U",
+            "type": "text",
+            "data": {
+                "content": ""
+            },
+            "looped": false
+        },
+        "y54vZ4": {
+            "label": "y54vZ4",
+            "type": "text",
+            "data": {
+                "content": "hello"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "llm-1742978113729": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an AI"
+                    },
+                    {
+                        "role": "user",
+                        "content": "Answer the question by {{y54vZ4}}"
+                    }
+                ],
+                "model": "openai/gpt-4o-mini",
+                "base_url": "",
+                "max_tokens": 4096,
+                "temperature": 0.7,
+                "structured_output": false,
+                "inputs": {
+                    "y54vZ4": "y54vZ4"
+                },
+                "outputs": {
+                    "UArP_U": "UArP_U"
+                }
+            }
+        }
+    }
+}
