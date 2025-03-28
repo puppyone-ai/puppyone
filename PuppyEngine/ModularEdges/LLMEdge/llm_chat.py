@@ -3,7 +3,7 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from typing import Any, Dict
+from typing import Any
 import litellm
 from openai import OpenAI
 from litellm import completion
@@ -13,15 +13,10 @@ from Utils.puppy_exception import PuppyException, global_exception_handler
 litellm._turn_on_debug()
 
 
-import instructor
-from pydantic import BaseModel
 openai_client = OpenAI(
   base_url=os.environ.get("OPENROUTER_BASE_URL"),
   api_key=os.environ.get("OPENROUTER_API_KEY"),
 )
-
-class Content(BaseModel):
-    content: Dict[str, Any]
 
 
 class ChatService:
@@ -57,7 +52,7 @@ class ChatService:
         temperature: float = 0.1, 
         max_tokens: int = 2048,
         printing: bool = False, 
-        stream: bool = False,
+        stream: bool = True,
         **kwargs
     ):
         if not model:
@@ -98,14 +93,7 @@ class ChatService:
         data.pop("is_openrouter", None)
         data.pop("base_url", None)
         data.pop("api_key", None)
-
-        self.structured_output = data.pop("structured_output", None)
-        if self.structured_output:
-            openai_client_json = instructor.from_openai(openai_client, mode=instructor.Mode.JSON)
-            response = openai_client_json.chat.completions.create(**data, response_model=Content) if self.is_openrouter else completion(**data)
-        else:
-            response = openai_client.chat.completions.create(**data) if self.is_openrouter else completion(**data)
-
+        response = openai_client.chat.completions.create(**data) if self.is_openrouter else completion(**data)
         if self.stream:
             return self._handle_stream_response(response)
         else:
@@ -125,11 +113,7 @@ class ChatService:
             str: The response content.
         """
 
-        print("RESPONSE: ", response)
-        if self.structured_output:
-            response_content = response.content
-        else:
-            response_content = response.choices[0].message.content
+        response_content = response.choices[0].message.content
         if self.printing:
             print(response_content + "\n")
         return response_content
