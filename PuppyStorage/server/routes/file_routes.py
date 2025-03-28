@@ -184,51 +184,51 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
 @file_router.delete("/delete")
 async def delete_file(request: Request):
     try:
-        # 从请求体获取参数
+        # Get parameters from request body
         data = await request.json()
         user_id = data.get("user_id")
         content_id = data.get("content_id")
         content_name = data.get("content_name")
         
-        # 验证必要参数
+        # Validate required parameters
         if not user_id or not content_id or not content_name:
             missing_params = []
             if not user_id: missing_params.append("user_id")
             if not content_id: missing_params.append("content_id")
             if not content_name: missing_params.append("content_name")
             
-            log_error(f"删除文件时缺少必要参数: {', '.join(missing_params)}")
+            log_error(f"Missing required parameters: {', '.join(missing_params)}")
             return JSONResponse(
-                content={"error": f"缺少必要参数: {', '.join(missing_params)}"},
+                content={"error": f"Missing required parameters: {', '.join(missing_params)}"},
                 status_code=400
             )
         
-        # 构建文件存储路径
+        # Build file storage path
         key = f"{user_id}/{content_id}/{content_name}"
         
-        # 检查文件是否存在
+        # Check if file exists
         try:
             s3_client.head_object(
                 Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
                 Key=key
             )
         except:
-            log_error(f"文件不存在: {key}")
+            log_error(f"File does not exist: {key}")
             return JSONResponse(
-                content={"error": f"文件 {content_name} 不存在"},
+                content={"error": f"File {content_name} does not exist"},
                 status_code=404
             )
         
-        # 删除特定文件
+        # Delete specific file
         s3_client.delete_object(
             Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
             Key=key
         )
         
-        log_info(f"已删除用户 {user_id} 的文件: {key}")
+        log_info(f"Deleted file for user {user_id}: {key}")
         return JSONResponse(
             content={
-                "message": f"已成功删除文件: {content_name}",
+                "message": f"Successfully deleted file: {content_name}",
                 "user_id": user_id,
                 "content_id": content_id,
                 "deleted_at": int(time.time())
@@ -236,36 +236,36 @@ async def delete_file(request: Request):
             status_code=200
         )
     except NoCredentialsError:
-        log_error("无法获取Cloudflare R2凭证")
-        return JSONResponse(content={"error": "凭证不可用"}, status_code=403)
+        log_error("Failed to get Cloudflare R2 credentials")
+        return JSONResponse(content={"error": "Credentials not available"}, status_code=403)
     except PuppyException as e:
-        log_error(f"删除文件时出错: {str(e)}")
+        log_error(f"Error deleting file: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
     except Exception as e:
-        log_error(f"删除文件时发生未预期的错误: {str(e)}")
-        return JSONResponse(content={"error": "服务器内部错误"}, status_code=500)
+        log_error(f"Unexpected error while deleting file: {str(e)}")
+        return JSONResponse(content={"error": "Internal server error"}, status_code=500)
 
 @global_exception_handler(error_code=4003, error_message="Failed to get download URL")
 @file_router.post("/download_url")
 async def get_download_url(request: GetDownloadUrlRequest):
     try:
-        # 构建文件存储路径
+        # Build file storage path
         key = f"{request.user_id}/{request.content_id}/{request.content_name}"
         
-        # 检查文件是否存在
+        # Check if file exists
         try:
             s3_client.head_object(
                 Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
                 Key=key
             )
         except:
-            log_error(f"文件不存在: {key}")
+            log_error(f"File does not exist: {key}")
             return JSONResponse(
-                content={"error": f"文件 {request.content_name} 不存在"},
+                content={"error": f"File {request.content_name} does not exist"},
                 status_code=404
             )
         
-        # 生成预签名下载URL
+        # Generate presigned download URL
         download_url = s3_client.generate_presigned_url(
             'get_object',
             Params={
@@ -275,7 +275,7 @@ async def get_download_url(request: GetDownloadUrlRequest):
             ExpiresIn=request.expires_in
         )
         
-        log_info(f"已为用户 {request.user_id} 生成文件下载链接: {key}")
+        log_info(f"Generated download URL for user {request.user_id}: {key}")
         return JSONResponse(
             content={
                 "download_url": download_url,
@@ -284,30 +284,30 @@ async def get_download_url(request: GetDownloadUrlRequest):
             status_code=200
         )
     except NoCredentialsError:
-        log_error("无法获取Cloudflare R2凭证")
-        return JSONResponse(content={"error": "凭证不可用"}, status_code=403)
+        log_error("Failed to get Cloudflare R2 credentials")
+        return JSONResponse(content={"error": "Credentials not available"}, status_code=403)
     except PuppyException as e:
-        log_error(f"生成下载链接时发生错误: {str(e)}")
+        log_error(f"Error generating download URL: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @global_exception_handler(error_code=4004, error_message="Failed to get upload URL")
 @file_router.post("/upload_url")
 async def get_upload_url(request: GetUploadUrlRequest):
     try:
-        # 获取内容类型header
+        # Get content type header
         content_type_header = type_header_mapping.get(
             request.content_type, 
             "application/octet-stream"
         )
         
-        # 构建文件存储路径
+        # Build file storage path
         key = f"{request.user_id}/{request.content_id}/{request.content_name}"
         
-        # 检查key长度
+        # Check key length
         if len(key.encode('utf-8')) > 1024:
             raise PuppyException("File path too long. Please use a shorter filename.")
             
-        # 生成预签名上传URL
+        # Generate presigned upload URL
         upload_url = s3_client.generate_presigned_url(
             'put_object',
             Params={
@@ -318,7 +318,7 @@ async def get_upload_url(request: GetUploadUrlRequest):
             ExpiresIn=request.expires_in
         )
         
-        log_info(f"已为用户 {request.user_id} 生成文件上传链接: {key}")
+        log_info(f"Generated upload URL for user {request.user_id}: {key}")
         return JSONResponse(
             content={
                 "upload_url": upload_url,
@@ -328,14 +328,14 @@ async def get_upload_url(request: GetUploadUrlRequest):
             status_code=200
         )
     except NoCredentialsError:
-        log_error("无法获取Cloudflare R2凭证")
-        return JSONResponse(content={"error": "凭证不可用"}, status_code=403)
+        log_error("Failed to get Cloudflare R2 credentials")
+        return JSONResponse(content={"error": "Credentials not available"}, status_code=403)
     except PuppyException as e:
-        log_error(f"生成上传链接时出错: {str(e)}")
+        log_error(f"Error generating upload URL: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=400)
     except Exception as e:
-        log_error(f"生成上传链接时发生错误: {str(e)}")
-        return JSONResponse(content={"error": "服务器内部错误"}, status_code=500)
+        log_error(f"Unexpected error while generating upload URL: {str(e)}")
+        return JSONResponse(content={"error": "Internal server error"}, status_code=500)
 
 if __name__ == "__main__":
     import asyncio
