@@ -1,0 +1,84 @@
+{
+    "blocks": {
+        "2ubV2z": {
+        
+        "label": "2ubV2z",
+        
+        "type": "structured",
+        
+        "data": {
+        
+            "content": ""
+        
+        }
+        
+        },
+        "jEKTwV": {
+        
+        "label": "jEKTwV",
+        
+        "type": "text",
+        
+        "data": {
+        
+            "content": "根据您提供的嵌套字典数据，我可以解析如下：\n\n阿强家有两个儿子：\n1. 第一个儿子：\n   - 名字：熊大\n   - 性格：聪明\n\n2. 第二个儿子：\n   - 名字：熊二\n   - 性格：傻\n\n请问您具体想了解这个数据的什么信息？我可以帮您进一步解答。"
+        
+        },
+        
+        "looped": false
+        
+        }
+    },
+    "edges": {  
+        "llm-1743162885526": {
+        "type": "llm",
+        
+        "data": {
+        
+            "messages": [
+        
+            {
+        
+                "role": "system",
+        
+                "content": "You are an AI"
+        
+            },
+        
+            {
+        
+                "role": "user",
+        
+                "content": "answer the question by {{jEKTwV}}"
+        
+            }
+        
+            ],
+        
+            "model": "deepseek/deepseek-chat-v3-0324:free",
+        
+            "base_url": "",
+        
+            "max_tokens": 4096,
+        
+            "temperature": 0.7,
+        
+            "structured_output": true,
+        
+            "inputs": {
+        
+            "jEKTwV": "jEKTwV"
+        
+            },
+        
+            "outputs": {
+        
+            "2ubV2z": "2ubV2z"
+        
+            }
+        
+        }
+        
+        }
+    }  
+}
