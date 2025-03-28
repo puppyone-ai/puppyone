@@ -23,7 +23,7 @@ export type ModifyStructuredEdgeJsonType = {
       extra_configs: {},
       content: string | any,
       inputs: { [key: string]: string },
-      looped: boolean,
+    //   looped: boolean,
       outputs: { [key: string]: string }
     },
   }
@@ -39,16 +39,16 @@ function ModifyStructuredConfigMenu({show, parentId}: ModifyStructuredConfigProp
     const {getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ModifyConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>((getNode(parentId)?.data as ModifyConfigNodeData)?.resultNode ?? null)
     // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
     
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
 
     useEffect( () => {
@@ -204,7 +204,7 @@ function ModifyStructuredConfigMenu({show, parentId}: ModifyStructuredConfigProp
                 extra_configs: {},
                 content: cleanJsonString(promptValue),
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
@@ -299,7 +299,7 @@ function ModifyStructuredConfigMenu({show, parentId}: ModifyStructuredConfigProp
             </div>
             </div>
             <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <div className='flex flex-col items-center justify-center'>
+                {/* <div className='flex flex-col items-center justify-center'>
                 <button className='w-[23px] h-[13px] rounded-[8px] border-[1px] border-[#6D7177] relative' onClick={() => {
                     setIsLoop(!isLoop)
                 }}>
@@ -311,7 +311,7 @@ function ModifyStructuredConfigMenu({show, parentId}: ModifyStructuredConfigProp
                     ${isLoop ? "text-[#39BC66]" : "text-[#6D7177]"}`}>
                     Loop
                 </div>
-                </div>
+                </div> */}
                 <button className='w-[57px] h-[24px] rounded-[6px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 onClick={onDataSubmit}>
                 <span>

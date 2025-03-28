@@ -24,7 +24,7 @@ export type ModifyCopyEdgeJsonType = {
         content: string,
         extra_configs: {},
         inputs: { [key: string]: string },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -266,7 +266,7 @@ function ModifyCopyConfigMenu({ show, parentId }: ModifyCopyConfigProps) {
                 content: `{{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label||node.id))[0]}}}`,
                 extra_configs: {},
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                looped: false,
+                // looped: false,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
