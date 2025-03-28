@@ -1,0 +1,50 @@
+{
+    "blocks": {
+        "UuPhzZ": {
+            "label": "UuPhzZ",
+            "type": "structured",
+            "data": {
+                "content": ""
+            }
+        },
+        "Nvy1Yj": {
+            "label": "Nvy1Yj",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "hello"
+                ]
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "modify-1742811075737": {
+            "type": "modify",
+            "data": {
+                "content": "{{Nvy1Yj}}",
+                "modify_type": "edit_structured",
+                "extra_configs": {
+                "operations": [
+                    {
+                        "type": "get",
+                        "params": {
+                            "path": [
+                                0
+                            ],
+                            "default": "Get Failed, value not exist"
+                        }
+                    }
+                ]
+                },
+                "inputs": {
+                    "Nvy1Yj": "Nvy1Yj"
+                },
+                "looped": false,
+                "outputs": {
+                    "UuPhzZ": "UuPhzZ"
+                }
+            }
+        }
+    }
+}

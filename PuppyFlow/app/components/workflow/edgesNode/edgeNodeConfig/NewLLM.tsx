@@ -33,7 +33,7 @@ export interface LLMEdgeJsonType {
         temperature: number,
         inputs: { [key: string]: string },
         structured_output: boolean,
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     }
 
@@ -184,9 +184,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [isStructured_output, setStructured_output] = useState(
         (getNode(parentId)?.data as LLMConfigNodeData)?.structured_output ?? false
     )
-    const [isLoop, setIsLoop] = useState(
-        (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
-    )
+    // const [isLoop, setIsLoop] = useState(
+    //     (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
+    // )
     const [showAdvanced, setShowAdvanced] = useState(false)
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
@@ -217,9 +217,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         []
     )
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect(() => {
         onModelChange(model)
@@ -430,7 +430,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 temperature: 0.7,
                 structured_output: isStructured_output,
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
 

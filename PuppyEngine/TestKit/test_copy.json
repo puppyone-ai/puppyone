@@ -1,0 +1,31 @@
+{
+    "blocks": {
+        "1": {
+            "label": "a",
+            "type": "text",
+            "data": {
+                "content": "{\"fammily\": {\"father\": \"阿强\", \"sons\":[{\"name\":\"熊大\",\"tralt\":\"聪明\"},{\"name\":\"熊二\",\"tralt\":\"傻\"}]}}"
+            }
+        },
+        "2": {
+            "label": "b",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "edge_14": {
+            "type": "modify",
+            "data": {
+                "modify_type": "copy",
+                "content": "{{a}}",
+                "inputs": {"1": "a"},
+                "outputs": {"2": "b"},
+                "extra_config": {}
+            }
+        }
+    },
+    "version": "0.1"
+}

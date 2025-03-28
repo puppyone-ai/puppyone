@@ -9,8 +9,8 @@ import logging
 from typing import List, Dict, Any
 from weaviate.classes.config import DataType
 from weaviate.classes.config import Property, DataType, Configure
-from Scripts.vector_db_base import VectorDatabase
-from Utils.puppy_exception import global_exception_handler
+from objs.vector.vdb.vdb_base import VectorDatabase
+from utils.puppy_exception import global_exception_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
