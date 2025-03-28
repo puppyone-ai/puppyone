@@ -138,7 +138,9 @@ def lite_llm_chat(
     # Handle structured output
     structured_output = kwargs.get("structured_output", False)
     if structured_output:
+        kwargs["response_format"] = {"type": "json_object"}
         kwargs["messages"].append({"role":"user", "content":"in json format"})
+    kwargs.pop("structured_output", None)
 
     # Construct the prompt
     messages = kwargs.get("messages", None)
@@ -176,10 +178,7 @@ def lite_llm_chat(
     # Return the result from the chat service
     if structured_output:
         try:
-            if isinstance(result, str):
-                return json.loads(result)
-            else:
-                return result
+            return json.loads(result)
         except json.JSONDecodeError:
             logging.error(f"Error parsing structured output: {result}")
             return result
