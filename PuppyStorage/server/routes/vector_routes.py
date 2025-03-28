@@ -96,7 +96,7 @@ class SearchRequest(BaseModel):
 async def embed(embed_request: EmbedRequest, user_id: str = None):
     try:
         collection_name = _generate_collection_name(
-            embed_request.user_id, 
+            user_id if user_id is not None else embed_request.user_id, 
             embed_request.model, 
             embed_request.set_name
         )
