@@ -10,7 +10,7 @@ import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import dynamic from 'next/dynamic'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 export type TextBlockNodeData = {
   content: string,
   label: string,
@@ -33,6 +33,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
   const { getNode } = useReactFlow()
   const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside } = useNodesPerFlowContext()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
   // const [isActivated, setIsActivated] = useState(false)
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
@@ -46,130 +47,83 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
 
-  // Derive isInput and isOutput from arrays
-  const isInput = inputEdgeNodeID && inputEdgeNodeID.length === 0 && (outputEdgeNodeID && outputEdgeNodeID.length > 0)
-  const isOutput = outputEdgeNodeID && outputEdgeNodeID.length === 0 && (inputEdgeNodeID && inputEdgeNodeID.length > 0)
+  // Get connected nodes
+  const sourceNodes = getSourceNodeIdWithLabel(id)
+  const targetNodes = getTargetNodeIdWithLabel(id)
+  
+  // Updated logic: determine isInput and isOutput based on lengths
+  const isInput = sourceNodes.length === 0 && targetNodes.length > 0
+  const isOutput = targetNodes.length === 0 && sourceNodes.length > 0
 
   useEffect(() => {
     if (activatedNode?.id === id) {
       setBorderColor("border-main-blue");
-    } else if (locked) {
-      setBorderColor("border-[#3EDBC9]");
-    } else if (isInput) {
-      setBorderColor("border-[#84EB89]");
-    } else if (isOutput) {
-      setBorderColor("border-[#FF9267]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
   }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
 
+  const displaySourceNodeLabels = () => {
+    const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id)
+    return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => {
+      // Get the node type from the node data
+      const nodeInfo = getNode(node.id)
+      const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
 
+      // Simplified version - using basic styling
+      return (
+        <button
+          key={`${node.id}-${id}`}
+          onClick={() => {
+            // Simple copy to clipboard functionality
+            navigator.clipboard.writeText(`{{${node.label}}}`);
+          }}
+          className="flex items-center gap-2 px-2 py-1 rounded 
+                         border border-gray-400 text-xs bg-gray-800 text-gray-200
+                         hover:bg-gray-700 transition-colors"
+        >
+          {/* Simple text indicator of node type */}
+          <span className="text-xs">{nodeType}</span>
 
-  // useEffect(() => {
-  //   const addNodeAndSetFlag = async () => {
-  //     // console.log(isAdd, id)
-  //     // console.log(`I am waiting to add you node ${id}`)
-  //     await addNode(id); // 假设 addNode 返回一个 Promise
-  //     setIsAdd(true);
-  //   };
+          <span className="truncate max-w-[100px]">
+            {`{{${node.label}}}`}
+          </span>
+        </button>
+      )
+    })
+  }
 
-  //   if (!isAdd) {
-  //     const findnode = searchNode(id)
-  //     if (findnode) {
-  //       // console.log("have already create. no need to recreate")
-  //       setIsAdd(true)
-  //       allowActivateNode()
-  //       return
-  //     }
-  //     addNodeAndSetFlag();
-  //     allowActivateNode()
-  //   }
+  const displayTargetNodeLabels = () => {
+    const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(id)
+    return targetNodeIdWithLabelGroup.map((node: { id: string, label: string }) => {
+      // Get the node type from the node data
+      const nodeInfo = getNode(node.id)
+      const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
 
-  //   if (isAdd){
-  //     setSelf(searchNode(id))
-  //   }
+      // Simplified version - using basic styling
+      return (
+        <button
+          key={`${node.id}-${id}`}
+          onClick={() => {
+            // Simple copy to clipboard functionality
+            navigator.clipboard.writeText(`{{${node.label}}}`);
+          }}
+          className="flex items-center gap-2 px-2 py-1 rounded 
+                       border border-gray-400 text-xs bg-gray-800 text-gray-200
+                       hover:bg-gray-700 transition-colors"
+        >
+          {/* Simple text indicator of node type */}
+          <span className="text-xs">{nodeType}</span>
 
-  // }, [isAdd, id]);
+          <span className="truncate max-w-[100px]">
+            {`{{${node.label}}}`}
+          </span>
+        </button>
+      )
+    })
+  }
 
-
-  // useEffect(() => {
-  //   if (isOnConnect) {
-  //     console.log(isOnConnect)
-  //     return
-  //   }
-  //   if (!searchNode(id)?.activated) setSelectedHandle(null)
-  // }, [searchNode(id)?.activated, isOnConnect])
-
-
-  // useEffect(()=>{
-
-  //   const mouseClick = async (event: MouseEvent) => {
-  //     // console.log(event.target, id, nodes)
-
-  //     event.preventDefault()
-  //     event.stopPropagation()
-  //     const target = event.target as unknown as HTMLElement
-  //     // console.log(target.hasAttribute('data-nodeid'))
-  //     // console.log(event.target, event.target.getAttribute('data-nodeid'), id, "hi")
-  //     console.log(target)
-
-  //     if (target === null || !target || !target.hasAttribute('data-nodeid')) {
-  //       // console.log(nodes, searchNode(id))
-  //       clear()
-  //       setIsActivated(false)
-  //       allowActivateNode()
-  //       // console.log(`${id} should be inactivated`)
-  //     }
-  //     // else if (target && target.hasAttribute('data-nodeid') && target.getAttribute('data-nodeid') !== id) {
-  //     //     // console.log(searchNode(id), id)
-  //     //     // const newId = target.getAttribute('data-nodeid')
-  //     //     // inactivateNode(id)
-  //     //     // if (newId) activateNode(newId)
-  //     //     // setIsActivated(false)
-  //     //     // console.log(`${id} should be inactivated`)
-  //     //   }
-  //     // else {
-  //     //   // console.log(target, id)
-  //     //   // await activateNode(id)
-  //     //   setIsActivated(true)
-  //     //   // console.log(`${id} should be activated`)
-  //     // }
-  //     }
-
-  //   const onMouseEnter = (event: MouseEvent) => {
-  //     event.preventDefault()
-  //     event.stopPropagation()
-  //     activateNode(id)
-  //     setIsActivated(true)
-  //   }
-
-  //   const onMouseLeave = (event: MouseEvent) => {
-  //     event.preventDefault()
-  //     event.stopPropagation()
-  //     inactivateNode(id)
-  //     setIsActivated(false)
-  //   }
-
-  //   const currentRef = componentRef.current
-
-  //   if (currentRef && isAdd) {
-  //     document.addEventListener('click', mouseClick)
-  //     currentRef.addEventListener('mouseenter', onMouseEnter)
-  //     currentRef.addEventListener('mouseleave', onMouseLeave)
-  //   }
-
-  //   return () => {
-  //     if (currentRef) {
-  //       document.removeEventListener('click', mouseClick)
-  //       currentRef.removeEventListener('mouseenter', onMouseEnter)
-  //       currentRef.removeEventListener('mouseleave', onMouseLeave)
-  //     }
-  //     // document.removeEventListener('click', mouseClick)
-
-  //   }
-  // }, [isAdd])
 
   useEffect(() => {
     if (!contentRef.current) return;
@@ -202,39 +156,14 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
     const onLabelContainerBlur = () => {
 
-      // if (isLocalEdit){
-      //   console.log("rename label!!")
-      //   console.log(isLocalEdit)
-      //   setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, label: nodeLabel } } : node))
-      //   setIsLocalEdit(false)
-      // }
       if (labelContainerRef.current) {
-        // labelContainerRef.current.style.width = `60px`
-        // labelContainerRef.current.style.width = `fit-content`
-        // if (contentRef.current) {
-        //   labelContainerRef.current.style.maxWidth = `${contentRef.current.clientWidth - 32}px`
-        // }
+
         setNodeUneditable(id)
       }
-
-      // if (labelRef.current) {
-      //   // labelContainerRef.current.style.width = `60px`
-      //   // labelContainerRef.current.style.width = `fit-content`
-      //   if (contentRef.current) {
-      //     labelRef.current.style.maxWidth = `${contentRef.current.clientWidth - 55}px`
-      //   }
-      //   disallowEditLabel(id)
-      // }
     }
 
     if (labelContainerRef.current) {
-      // labelContainerRef.current.addEventListener("click", onLabelContainerFocus)
-      // labelRef.current.addEventListener("blur", onLabelBlur)
-      // document.addEventListener("click", (e: MouseEvent) => {
-      //   if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
-      //     onLabelContainerBlur()
-      //   }
-      // })
+
 
       document.addEventListener("click", (e: MouseEvent) => {
         if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
@@ -245,8 +174,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
     return () => {
       if (labelContainerRef.current) {
-        // labelContainerRef.current.removeEventListener("click", onLabelContainerFocus)
-        // labelRef.current.removeEventListener("blur", onLabelBlur)
         document.removeEventListener("click", (e: MouseEvent) => {
           if (!labelContainerRef.current?.contains(e.target as HTMLElement)) {
             onLabelContainerBlur()
@@ -328,9 +255,9 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     // Always return the text icon regardless of isInput, isOutput, or locked
     return (
       <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-        <path d="M3 8H17" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
-        <path d="M3 12H15" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
-        <path d="M3 16H13" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M3 8H17" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M3 12H15" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M3 16H13" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     )
   }
@@ -351,36 +278,36 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         {isInput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor"/>
-              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor" />
+              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span>INPUT</span>
           </div>
         )}
-        
+
         {isOutput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor"/>
-              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor" />
+              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span>OUTPUT</span>
           </div>
         )}
-        
+
         {locked && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor"/>
+              <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor" />
             </svg>
             <span>LOCKED</span>
           </div>
         )}
       </div>
-      
+
       <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[240px] min-h-[176px] rounded-[16px] px-[8px] pt-[8px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden flex flex-col`}>
 
         {/* the top bar of a block */}
@@ -412,7 +339,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             </span>
 
             {editable ? (
-              <input 
+              <input
                 ref={labelRef}
                 autoFocus={editable}
                 className={`
@@ -431,7 +358,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                 onBlur={onBlur}
               />
             ) : (
-              <span 
+              <span
                 className={`
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
@@ -451,13 +378,15 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         </div>
 
         {/* the plain text editor */}
-        <div className="px-[8px] flex-1">
+        <div className="px-[8px] flex-1 relative">
+
+
           {isLoading ? <SkeletonLoadingIcon /> :
             <TextEditorTextArea
               preventParentDrag={preventNodeDrag}
               allowParentDrag={allowNodeDrag}
               widthStyle={contentSize.width - 16} // 减去左右padding (16px)
-              heightStyle={contentSize.height - 32}
+              heightStyle={contentSize.height - 32} // 保持原来的高度
               placeholder='Text'
               parentId={id}
             />
@@ -633,7 +562,55 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           onMouseLeave={() => setIsTargetHandleTouched(false)}
         />
 
-      </div>
+      </div>        
+      {/* the panel of source nodes and target nodes */}
+      {/* <div className="absolute left-0 -bottom-[2px] transform translate-y-full w-full flex gap-2 z-10"
+        {displaySourceNodeLabels().length > 0 && (
+          <div className="w-[48%] bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
+            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
+              Source Nodes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {sourceNodes.map(node => (
+                <button
+                  key={`${node.id}-${id}-simple`}
+                  onClick={() => {
+                    navigator.clipboard.writeText(`{{${node.label}}}`);
+                  }}
+                  className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
+                           text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
+                >
+                  {node.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {displayTargetNodeLabels().length > 0 && (
+          <div className="w-[48%] ml-auto bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
+            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
+              Target Nodes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {targetNodes.map(node => (
+                <button
+                  key={`${node.id}-${id}-simple`}
+                  onClick={() => {
+                    navigator.clipboard.writeText(`{{${node.label}}}`);
+                  }}
+                  className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
+                           text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
+                >
+                  {node.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div> 
+      */}
+   
     </div>
 
 
