@@ -203,7 +203,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
     const [model, setModel] = useState<string>(
-        (getNode(parentId)?.data?.model as string) || "gpt-4o"
+        (getNode(parentId)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
@@ -217,9 +217,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [isStructured_output, setStructured_output] = useState(
         (getNode(parentId)?.data as LLMConfigNodeData)?.structured_output ?? false
     )
-    const [isLoop, setIsLoop] = useState(
-        (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
-    )
+    // const [isLoop, setIsLoop] = useState(
+    //     (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
+    // )
 
     // 添加设置面板的展开/折叠状态
     const [showSettings, setShowSettings] = useState(false)
@@ -271,8 +271,16 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         });
     };
 
+    const lastNodeWithLabel = useRef<string|undefined>(undefined)
+
     useEffect(
         ()=>{
+            console.log("lastNodeWithLabel",lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
+            if(lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label){
+                return
+            }
+            console.log("update llm config")
+            lastNodeWithLabel.current = getSourceNodeIdWithLabel(parentId)[0]?.label
             const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
             const content = JSON.stringify(
                 [
@@ -294,13 +302,16 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 return node
             }))
 
+            setTimeout(() => {
+                console.log("updated llm config",getNode(parentId)?.data.content)
+            }, 500)
         },
-        []
+        [getEdges()]
     )
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect(() => {
         onModelChange(model)
@@ -542,6 +553,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
 
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
+        console.log("Current model:", model);  // 添加这行
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
@@ -556,7 +568,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 label: resultNodeLabel as string,
                 type: isStructured_output ? "structured" : "text",
                 data: { content: "" },
-                looped: (getNode(resultNode as string) as any)?.looped ? true : false,
+                // looped: (getNode(resultNode as string) as any)?.looped ? true : false,
             }
         }
         

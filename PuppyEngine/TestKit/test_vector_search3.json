@@ -22,7 +22,7 @@
             "looped": false,
             "collection_configs": {
                 "model": "text-embedding-ada-002",
-                "method": "cosine",
+                "user_id": "None5c46f906c21f969b",
                 "vdb_type": "pgvector",
                 "collection_name": "None5c46f906c21f969b"
             }

@@ -28,7 +28,7 @@ export type ChunkingByLengthEdgeJsonType = {
             overlap: number,
             handle_half_word: boolean
         }, 
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -63,7 +63,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
     const chunk_sizeRef = useRef<HTMLInputElement>(null)
     const overlapRef = useRef<HTMLInputElement>(null)
     const handle_half_wordRef = useRef<HTMLSelectElement>(null)
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as ChunkingConfigNodeData)?.resultNode ?? null
     )
@@ -103,9 +103,9 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
         onHandleHalfWordChange(handle_half_word)
     }, [handle_half_word])
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect( () => {
         if (!resultNode) return
@@ -332,7 +332,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                     overlap: overlap ?? 20,
                     handle_half_word: handle_half_word,
                 },
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
          

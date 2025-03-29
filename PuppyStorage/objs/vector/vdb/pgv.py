@@ -146,7 +146,7 @@ class PostgresVectorDatabase(VectorDatabase):
         self,
         collection_name: str,
         query_vector: List[float],
-        top_k: int = 5,
+        top_k: int,
         threshold: float = None,
         filters: Dict[str, Any] = None,
         metric: str = "cosine"

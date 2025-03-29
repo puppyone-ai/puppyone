@@ -113,7 +113,7 @@ export type SearchByVectorEdgeJsonType = {
         }|{},
         doc_ids: string[], // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
     id:string
@@ -488,7 +488,10 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                             ...node.data,
                             embedding_view:originalNode?.data?.chunks,
                         },
-                        collection_configs: originalNode?.data?.collection_configs,
+                        collection_configs: {
+                            ...(originalNode?.data as any)?.collection_configs, 
+                            // user_id: "dsadsad" //DEBUG
+                        },
                     }];
                 } else {
                     return [id, {
@@ -538,7 +541,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 },
                 doc_ids: nodeLabels.map(node => node.id),
                 query_id: {[query.id]: query_label},
-                looped: false,
+                // looped: false,
             },
             id: parentId
         }
@@ -721,6 +724,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     // Update the useEffect to set the ref value instead
     useEffect(() => {
+        console.log("getSourceNodeIdWithLabel(parentId)",getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured").map(node => getNode(node.id)))
         sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name).map((node) => ({label:node.label, id:node.id}))
     }, [getSourceNodeIdWithLabel(parentId)])
 
