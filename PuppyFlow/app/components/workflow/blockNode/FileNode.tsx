@@ -9,6 +9,7 @@ import { PuppyUpload } from '../../misc/PuppyUpload'
 import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonConstructUtils'
 import {useFlowsPerUserContext} from "../../states/FlowsPerUserContext"
 import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 import { WarnsContext } from '../../states/WarnMessageContext';
 import { uploadFiles } from '@/app/utils/uploadthing'
 import { SYSTEM_URLS } from "@/config/urls";
@@ -44,21 +45,28 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
   const {userId} = useFlowsPerUserContext()
   const {fetchUserId} = useManageUserWorkspacesUtils()
 
- 
+  // 添加获取连接节点的工具函数
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  
+  // 获取连接的节点
+  const sourceNodes = getSourceNodeIdWithLabel(id)
+  const targetNodes = getTargetNodeIdWithLabel(id)
+  
+  // 根据连接节点动态确定 isInput 和 isOutput
+  const dynamicIsInput = sourceNodes.length === 0 && targetNodes.length > 0
+  const dynamicIsOutput = targetNodes.length === 0 && sourceNodes.length > 0
+  
+  // 使用已有属性或动态计算的值
+  const effectiveIsInput = isInput || dynamicIsInput
+  const effectiveIsOutput = isOutput || dynamicIsOutput
 
   useEffect(() => {
     if (activatedNode?.id === id) {
       setBorderColor("border-[#BF9A78]");
-    } else if (locked) {
-      setBorderColor("border-[#3EDBC9]");
-    } else if (isInput) {
-      setBorderColor("border-[#84EB89]");
-    } else if (isOutput) {
-      setBorderColor("border-[#FF9267]");
-    } else {
+    }  else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
+  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, effectiveIsInput, effectiveIsOutput, id])
 
     // 管理labelContainer的宽度
     useEffect(() => {
@@ -160,7 +168,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     // 计算 measureSpanRef 的宽度，这个就是在计算input element内部内容的真实宽度，记得+4px不然所有内容无法完全的展现在input中，另外若是存在isInput, isOutput, locked，则需要考虑当整体的内容+icon width 溢出最大值时，我们必须设定 inputbox 的width = maxWidth - 21px，不然因为我们设置了 input 的 maxWidth = '100%', 他会把icon 给覆盖掉的，若是没有icon，则不需要担心，因为就算是设计他的宽度=文本宽度，但是一旦整体宽度 > maxWidth, css 会自动把文本宽度给压缩到 maxWidth 的，所以不用担心
     const calculateLabelWidth = () => {
       if (measureSpanRef.current) {
-        if (isInput || isOutput || locked) {
+        if (effectiveIsInput || effectiveIsOutput || locked) {
           if (contentRef.current) {
             if (measureSpanRef.current.offsetWidth + 21 > contentRef.current.clientWidth - 32) {
               // console.log("hello")
@@ -178,7 +186,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     const calculateInputWidth = () => {
       if (contentRef.current) {
         if (editable) {
-          if (isInput || isOutput || locked) {
+          if (effectiveIsInput || effectiveIsOutput || locked) {
             return `${contentRef.current.clientWidth - 53}px`
           }
           else {
@@ -433,10 +441,42 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
       }
     }
 
+  // 添加显示源节点标签的函数
+  const displaySourceNodeLabels = () => {
+    return sourceNodes.map(node => (
+      <button
+        key={`${node.id}-${id}-simple`}
+        onClick={() => {
+          navigator.clipboard.writeText(`{{${node.label}}}`);
+        }}
+        className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
+                 text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
+      >
+        {node.label}
+      </button>
+    ))
+  }
+
+  // 添加显示目标节点标签的函数
+  const displayTargetNodeLabels = () => {
+    return targetNodes.map(node => (
+      <button
+        key={`${node.id}-${id}-simple`}
+        onClick={() => {
+          navigator.clipboard.writeText(`{{${node.label}}}`);
+        }}
+        className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
+                 text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
+      >
+        {node.label}
+      </button>
+    ))
+  }
+
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
         <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
-        {isInput && (
+        {effectiveIsInput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor"/>
@@ -447,7 +487,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           </div>
         )}
         
-        {isOutput && (
+        {effectiveIsOutput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor"/>
@@ -736,6 +776,33 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
             />,
             document.body
         )} */}
+
+      {/* 添加 Source 和 Target 面板到组件底部 */}
+      {/*
+      <div className="absolute left-0 -bottom-[2px] transform translate-y-full w-full flex gap-2 z-10">
+        {sourceNodes.length > 0 && (
+          <div className="w-[48%] bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
+            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
+              Source Nodes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {displaySourceNodeLabels()}
+            </div>
+          </div>
+        )}
+
+        {targetNodes.length > 0 && (
+          <div className="w-[48%] ml-auto bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
+            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
+              Target Nodes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {displayTargetNodeLabels()}
+            </div>
+          </div>
+        )}
+      </div>
+      */}
     </div>
       
 
