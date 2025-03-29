@@ -19,7 +19,7 @@ class StoragerFactory:
     ):
         # host = os.getenv("STORAGE_HOST", "localhost")
         # self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
-        self.base_url = config.get("STORAGE_SERVER_URL", "http://localhost:8000")
+        self.base_url = config.get("STORAGE_SERVER_URL", "http://localhost:8002")
         self.headers = {
             "Content-Type": "application/json"
         }
@@ -92,6 +92,8 @@ class StoragerFactory:
         collection_name: str,
         search_configs: dict
     ) -> List[Dict[str, Any]]:
+        print("COLLECTION NAME: ", collection_name)
+        print("SEARCH CONFIGS: ", search_configs)
         return self._search_embedded_vector(collection_name, search_configs)
 
 

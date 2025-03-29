@@ -26,7 +26,7 @@ export type SearchGoogleEdgeJsonType = {
             inputs: { [key: string]: string },
             query_id: {[key: string]: string},
             extra_configs: {},
-            looped: boolean,
+            // looped: boolean,
             outputs: { [key: string]: string }
         },
 }
@@ -291,7 +291,7 @@ function SearchGoogleConfigMenu({show, parentId}: SearchGoogleConfigProps) {
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                 extra_configs: {},
-                looped: false,
+                // looped: false,
                 outputs: {[resultNode as string]: resultNodeLabel as string}
             },
         }

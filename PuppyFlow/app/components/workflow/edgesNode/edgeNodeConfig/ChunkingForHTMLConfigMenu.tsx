@@ -26,7 +26,7 @@ export type ChunkingHTMLEdgeJsonType = {
         extra_configs: {
             tags: tagType,
         },
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
 }
@@ -44,7 +44,7 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
     // const {getZoom, getViewport, getNode, flowToScreenPosition} = useReactFlow()
-    const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
+    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
     const [resultNode, setResultNode] = useState<string | null>(
         (getNode(parentId)?.data as ChunkingConfigNodeData)?.resultNode ?? null
     )
@@ -53,9 +53,9 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
     const [isComplete, setIsComplete] = useState(true)
 
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect( () => {
         if (!resultNode) return
@@ -209,7 +209,7 @@ function ChunkingForHTMLConfigMenu({show, parentId}: ChunkingForHTMLConfigProps)
                 extra_configs: {
                     tags:tagValue
                 },
-                looped: isLoop,
+                // looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
