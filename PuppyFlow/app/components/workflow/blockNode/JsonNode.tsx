@@ -68,14 +68,14 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
   useEffect(() => {
-    if (locked) {
+    if (activatedNode?.id === id) {
+      setBorderColor("border-[#9B7EDB]");
+    } else if (locked) {
       setBorderColor("border-[#3EDBC9]");
     } else if (isInput) {
       setBorderColor("border-[#84EB89]");
     } else if (isOutput) {
       setBorderColor("border-[#FF9267]");
-    } else if (activatedNode?.id === id) {
-      setBorderColor("border-[#9B7EDB]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }

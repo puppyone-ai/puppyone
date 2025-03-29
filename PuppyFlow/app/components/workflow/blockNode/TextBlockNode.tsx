@@ -19,14 +19,15 @@ export type TextBlockNodeData = {
   isInput: boolean,
   isOutput: boolean,
   editable: boolean,
-
+  inputEdgeNodeID: string[],
+  outputEdgeNodeID: string[],
 }
 
 type TextBlockNodeProps = NodeProps<Node<TextBlockNodeData>>
 
 const TextEditorBlockNote = dynamic(() => import('../../tableComponent/TextEditorBlockNote'), { ssr: false })
 
-function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable } }: TextBlockNodeProps) {
+function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, inputEdgeNodeID, outputEdgeNodeID, editable } }: TextBlockNodeProps) {
 
 
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
@@ -45,17 +46,19 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
 
-
+  // Derive isInput and isOutput from arrays
+  const isInput = inputEdgeNodeID && inputEdgeNodeID.length === 0 && (outputEdgeNodeID && outputEdgeNodeID.length > 0)
+  const isOutput = outputEdgeNodeID && outputEdgeNodeID.length === 0 && (inputEdgeNodeID && inputEdgeNodeID.length > 0)
 
   useEffect(() => {
-    if (locked) {
+    if (activatedNode?.id === id) {
+      setBorderColor("border-main-blue");
+    } else if (locked) {
       setBorderColor("border-[#3EDBC9]");
     } else if (isInput) {
       setBorderColor("border-[#84EB89]");
     } else if (isOutput) {
       setBorderColor("border-[#FF9267]");
-    } else if (activatedNode?.id === id) {
-      setBorderColor("border-main-blue");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
