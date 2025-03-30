@@ -5,7 +5,7 @@ import TestRunBotton from './TestRunBotton'
 import { useState, useEffect } from 'react'
 import { useNodesPerFlowContext } from "../../states/NodesPerFlowContext"
 import SaveButton from './SaveButton'
-import DeployBotton from './DeployBotton'
+import DeployBottonNew from './DeployBottonNew'
 import { Controls } from '@xyflow/react'
 
 function TopRightToolBar() {
@@ -56,7 +56,7 @@ function TopRightToolBar() {
         <MoreOptionsButton showMenu={showMenu} showMenuHandler={showMenuHandler} />
         <TestRunBotton />
       </div>
-      <DeployBotton />
+      <DeployBottonNew />
     </div>
   )
 }

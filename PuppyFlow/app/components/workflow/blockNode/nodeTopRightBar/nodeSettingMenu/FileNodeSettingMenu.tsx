@@ -118,7 +118,7 @@ function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSetti
                 </li>
 
                 <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
-                <li>
+                {/* <li>
                     <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                     onClick={()=> manageNodeasInput(nodeid)}>
                     <div className='flex items-center justify-center'>
@@ -147,7 +147,7 @@ function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSetti
                         {getNode(nodeid)?.data?.isOutput ? "Unset output" :"Set as output"}
                     </div>
                     </button>
-                </li>
+                </li> */}
 
 
                 <li>
