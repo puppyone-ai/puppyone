@@ -27,12 +27,23 @@ type TextBlockNodeProps = NodeProps<Node<TextBlockNodeData>>
 
 const TextEditorBlockNote = dynamic(() => import('../../tableComponent/TextEditorBlockNote'), { ssr: false })
 
-function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, inputEdgeNodeID, outputEdgeNodeID, editable } }: TextBlockNodeProps) {
+function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, inputEdgeNodeID, outputEdgeNodeID, editable, isInput, isOutput } }: TextBlockNodeProps) {
 
 
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
   const { getNode } = useReactFlow()
-  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside } = useNodesPerFlowContext()
+  const { 
+    activatedNode, 
+    isOnConnect, 
+    isOnGeneratingNewNode, 
+    setNodeUneditable, 
+    editNodeLabel, 
+    preventInactivateNode, 
+    allowInactivateNodeWhenClickOutside,
+    manageNodeasInput,
+    manageNodeasOutput,
+    manageNodeasLocked
+  } = useNodesPerFlowContext()
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
   // const [isActivated, setIsActivated] = useState(false)
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
@@ -51,10 +62,30 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const sourceNodes = getSourceNodeIdWithLabel(id)
   const targetNodes = getTargetNodeIdWithLabel(id)
   
-  // Updated logic: determine isInput and isOutput based on lengths
-  const isInput = sourceNodes.length === 0 && targetNodes.length > 0
-  const isOutput = targetNodes.length === 0 && sourceNodes.length > 0
+  // 使用已从 ReactFlow 加载的 isInput, isOutput 状态
+  // 不再使用动态计算的方式：
+  // const isInput = sourceNodes.length === 0 && targetNodes.length > 0
+  // const isOutput = targetNodes.length === 0 && sourceNodes.length > 0
 
+  // 监听连接变化，自动设置节点状态
+  useEffect(() => {
+    const isAutoDetectInput = sourceNodes.length === 0 && targetNodes.length > 0;
+    const isAutoDetectOutput = targetNodes.length === 0 && sourceNodes.length > 0;
+    
+    // 仅当当前状态与自动检测不一致时更新状态
+    if (isAutoDetectInput && !isInput) {
+      manageNodeasInput(id);
+    } else if (isAutoDetectOutput && !isOutput) {
+      manageNodeasOutput(id);
+    } else if (!isAutoDetectInput && !isAutoDetectOutput && (isInput || isOutput)) {
+      // 如果既不是输入也不是输出，但当前有一个标记，则移除标记
+      if (isInput) manageNodeasInput(id);
+      if (isOutput) manageNodeasOutput(id);
+    }
+  }, [sourceNodes.length, targetNodes.length, isInput, isOutput, id]);
+
+
+  
   useEffect(() => {
     if (activatedNode?.id === id) {
       setBorderColor("border-main-blue");
@@ -270,13 +301,28 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     return '100%'
   }
 
+  // 添加切换节点状态的功能
+  const toggleNodeInput = () => {
+    manageNodeasInput(id);
+  }
+
+  const toggleNodeOutput = () => {
+    manageNodeasOutput(id);
+  }
+
+  const toggleNodeLocked = () => {
+    manageNodeasLocked(id);
+  }
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       {/* Add tags for input, output and locked states */}
       <div className="absolute -top-[28px] h-[24px]  left-0 z-10 flex gap-1.5">
         {isInput && (
-          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
+          <div 
+            className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black cursor-pointer"
+            onClick={toggleNodeInput}
+          >
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor" />
               <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
@@ -287,7 +333,10 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
 
         {isOutput && (
-          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
+          <div 
+            className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black cursor-pointer"
+            onClick={toggleNodeOutput}
+          >
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor" />
               <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
@@ -298,7 +347,10 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
 
         {locked && (
-          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
+          <div 
+            className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black cursor-pointer"
+            onClick={toggleNodeLocked}
+          >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor" />
