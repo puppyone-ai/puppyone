@@ -62,7 +62,8 @@ You are an artificial intelligence assistant and you need to engage in a helpful
             messages=messages,
             api_key=os.environ.get("PERPLEXITY_API_KEY"),
             base_url=os.environ.get("PERPLEXITY_BASE_URL"),
-            model=self.extra_configs.get("model", "sonar")
+            model=self.extra_configs.get("model", "sonar"),
+            hoster="litellm"
         )
 
     @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
