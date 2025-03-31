@@ -20,7 +20,7 @@ export type SearchPerplexityEdgeJsonType = {
     // id: string,
     type: "search",
     data: {
-        search_type: "qa",
+        search_type: "qa" ,
         sub_search_type: "perplexity",
         inputs: { [key: string]: string },
         query_id: {[key: string]: string},
