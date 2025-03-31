@@ -1,0 +1,77 @@
+{
+
+    "blocks": {
+    
+        "wlXTGC": {
+    
+            "label": "wlXTGC",
+    
+            "type": "structured",
+    
+            "data": {
+    
+                "content": ""
+    
+            }
+    
+        },
+    
+        "YF8I6F": {
+    
+            "label": "YF8I6F",
+    
+            "type": "text",
+    
+            "data": {
+    
+                "content": "超级碗"
+    
+            },
+    
+            "looped": false
+    
+        }
+    
+    },
+    
+    "edges": {
+    
+        "search-1743419773843": {
+    
+            "type": "search",
+    
+            "data": {
+    
+                "search_type": "web",
+    
+                "sub_search_type": "google",
+    
+                "top_k": 5,
+    
+                "inputs": {
+    
+                    "YF8I6F": "YF8I6F"
+    
+                },
+    
+                "query_id": {
+    
+                    "YF8I6F": "YF8I6F"
+    
+                },
+    
+                "extra_configs": {},
+    
+                "outputs": {
+    
+                    "wlXTGC": "wlXTGC"
+    
+                }
+    
+            }
+    
+        }
+    
+    }
+    
+}
