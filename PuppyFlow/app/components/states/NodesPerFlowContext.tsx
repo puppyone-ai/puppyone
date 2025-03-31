@@ -147,15 +147,21 @@ export function NodesPerFlowUtils() {
 
     // for individual node
     const manageNodeasInput = useCallback((nodeId: string) => {
-        setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, isInput: !node.data.isInput, isOutput: false, locked: false}} : node))
+        setNodes(nodes => nodes.map(node => node.id === nodeId ? 
+            {...node, data: {...node.data, isInput: !node.data.isInput, isOutput: false}}
+        : node))
     }, [])
 
     const manageNodeasOutput = useCallback((nodeId: string) => {
-        setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, isOutput: !node.data.isOutput, isInput: false, locked: false}} : node))
+        setNodes(nodes => nodes.map(node => node.id === nodeId ? 
+            {...node, data: {...node.data, isOutput: !node.data.isOutput, isInput: false}}
+        : node))
     }, [])
 
     const manageNodeasLocked = useCallback((nodeId: string) => {
-        setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, locked: !node.data.locked, isInput: false, isOutput: false}} : node))
+        setNodes(nodes => nodes.map(node => node.id === nodeId ? 
+            {...node, data: {...node.data, locked: !node.data.locked}}
+        : node))
     }, [])
 
     const setNodeEditable = useCallback((nodeId: string) => {
