@@ -21,6 +21,7 @@ export type ChunkingConfigNodeData = {
         handle_half_word: boolean | undefined,
     }
     resultNode: string | null,
+    resultNodes: string[] | null,
 }
 
 type ChunkingConfigNodeProps = NodeProps<Node<ChunkingConfigNodeData>>
@@ -29,7 +30,6 @@ function ChunkingConfig({data: {subMenuType}, isConnectable, id}: ChunkingConfig
 
     const {isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll} = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const {getNode} = useReactFlow()
     
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
