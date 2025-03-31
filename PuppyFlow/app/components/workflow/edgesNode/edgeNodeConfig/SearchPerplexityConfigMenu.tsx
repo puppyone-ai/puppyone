@@ -20,7 +20,7 @@ export type SearchPerplexityEdgeJsonType = {
     // id: string,
     type: "search",
     data: {
-        search_type: "llm",
+        search_type: "qa" ,
         sub_search_type: "perplexity",
         inputs: { [key: string]: string },
         query_id: { [key: string]: string },
@@ -390,13 +390,15 @@ function SearchPerplexityConfigMenu({ show, parentId }: SearchPerplexityConfigPr
 
         const edgejson: SearchPerplexityEdgeJsonType = {
             type: "search",
-            data: {
-                search_type: "llm",
-                sub_search_type: "perplexity",
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                query_id: sourceNodeIdWithLabelGroup.length > 0 ? { [sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label } : {},
-                extra_configs: { model: model },
-                outputs: Object.fromEntries(targetNodeIdWithLabelGroup.map(node => ([node.id, node.label])))
+
+            data: { 
+                search_type:"qa", 
+                sub_search_type:"perplexity",
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+                query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
+                extra_configs: {model: model},
+                // looped: false,
+                outputs: {[resultNode as string]: resultNodeLabel as string}
             },
         };
 

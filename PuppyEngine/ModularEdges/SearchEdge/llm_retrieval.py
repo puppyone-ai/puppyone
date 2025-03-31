@@ -89,7 +89,8 @@ Output:
             messages=messages,
             model="gpt-4o",
             temperature=0.9,
-            max_tokens=1024
+            max_tokens=1024,
+            hoster="litellm"
         )
 
         # Parse the response string as a list of dictionaries
