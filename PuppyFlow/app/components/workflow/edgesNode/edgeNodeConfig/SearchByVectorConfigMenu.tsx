@@ -11,6 +11,82 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
 import {JsonNodeData} from '../../blockNode/JsonNode'
 
+const CustomDropdown = ({ options, onSelect, selectedValue, isOpen, setIsOpen }:any) => {
+
+    const handleSelect = (nodeId: string, label: string) => {
+        onSelect({id:nodeId, label:label});
+        setIsOpen(false); // Close dropdown after selection
+    };
+  
+    // Inline styles
+    const dropdownContainerStyle: React.CSSProperties  = {
+        position: 'relative',
+        cursor: 'pointer',
+    };
+  
+    const dropdownHeaderStyle = {
+        padding: '8px',
+        backgroundColor: '#333', // Background color
+        color: 'white', // Text color
+        border: '1px solid #6D7177', // Border color
+        borderRadius: '4px', // Rounded corners
+    };
+  
+    const dropdownListStyle: React.CSSProperties = {
+        position: 'absolute',
+        top: '150%',
+        left: 0,
+        right: 0,
+        backgroundColor: 'black', // Background color for dropdown items
+        border: '1px solid #6D7177', // Border color
+        borderRadius: '4px', // Rounded corners
+        zIndex: 1000, // Ensure dropdown is above other elements
+        height: 'auto', // Max height for dropdown
+        width:'100px',
+        overflowY: 'auto', // Scroll if too many items
+        overflowX:'hidden',
+        color:'white'
+    };
+  
+    const dropdownItemStyle = {
+        padding: '8px',
+        color: 'white', // Text color for items
+        cursor: 'pointer',
+    };
+  
+    return (
+        <div className="relative">
+            {isOpen ? (
+                <ul className='absolute top-1 left-0 w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start z-50'>
+                    {options.length > 0 ? (
+                        options.map((node:any, index:number) => (
+                            <>
+                                <li
+                                key={node.id}
+                                className='w-full'
+                            >
+                                <button 
+                                    className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                                    onClick={() => handleSelect(node.id, node.data.label)}
+                                >
+                                    <span className="px-[4px]  bg-[#6D7177] rounded-[4px] font-semibold text-[12px] text-black">
+                                        {node.data.label || node.id}
+                                    </span>
+                                </button>
+                            </li>
+                            </>
+                        ))
+                    ) : (
+                        <li className='w-full'>
+                            <span className='w-full text-center text-[#CDCDCD] text-[12px] font-[400]'>Not available</span>
+                        </li>
+                    )}
+                </ul>
+            ):<></>}
+        </div>
+    );
+  };
+
 
 type SearchByVectorConfigProps = {
     show: boolean,
@@ -37,7 +113,7 @@ export type SearchByVectorEdgeJsonType = {
         }|{},
         doc_ids: string[], // 用于储藏vectordb的id
         query_id: { [key: string]: string }, // 用于储藏query的id
-        looped: boolean,
+        // looped: boolean,
         outputs: { [key: string]: string }
     },
     id:string
@@ -102,6 +178,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             console.warn('Failed to copy:', err);
         });
     };
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     useEffect(() => {
         onQueryChange(query)
@@ -289,19 +366,79 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <button 
-                key={`${node.id}-${parentId}`} 
-                onClick={() => copyToClipboard(node.label)}
-                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
-                         border-[1px] text-[10px] font-medium transition-all duration-200
-                         ${copiedLabel === node.label 
-                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
-                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
-            >
-                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
-            </button>
-        ))
+        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => {
+            // Get the node type from the node data
+            const nodeInfo = getNode(node.id)
+            const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
+            
+            // Define colors based on node type
+            let colorClasses = {
+                text: {
+                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+                },
+                file: {
+                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
+                },
+                structured: {
+                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
+                }
+            }
+            
+            // Define SVG icons for each node type, using the provided references
+            const nodeIcons = {
+                text: (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                ),
+                file: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5"/>
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                ),
+                structured: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    </svg>
+                )
+            }
+            
+            // Choose the appropriate color classes based on node type
+            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
+            
+            // Choose the appropriate icon based on node type
+            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
+            
+            return (
+                <button 
+                    key={`${node.id}-${parentId}`} 
+                    onClick={() => copyToClipboard(node.label)}
+                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
+                             border-[1px] text-[10px] font-medium transition-all duration-200
+                             ${copiedLabel === node.label 
+                               ? colors.active
+                               : colors.default}`}
+                >
+                    <div className="flex-shrink-0">
+                        {icon}
+                    </div>
+                    <span className="truncate max-w-[100px]">
+                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+                    </span>
+                </button>
+            )
+        })
     }
 
     const constructJsonData = (): ConstructedSearchByVectorJsonData | Error => {
@@ -351,7 +488,10 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                             ...node.data,
                             embedding_view:originalNode?.data?.chunks,
                         },
-                        collection_configs: originalNode?.data?.collection_configs,
+                        collection_configs: {
+                            ...(originalNode?.data as any)?.collection_configs, 
+                            // user_id: "dsadsad" //DEBUG
+                        },
                     }];
                 } else {
                     return [id, {
@@ -401,7 +541,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                 },
                 doc_ids: nodeLabels.map(node => node.id),
                 query_id: {[query.id]: query_label},
-                looped: false,
+                // looped: false,
             },
             id: parentId
         }
@@ -584,6 +724,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
 
     // Update the useEffect to set the ref value instead
     useEffect(() => {
+        console.log("getSourceNodeIdWithLabel(parentId)",getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured").map(node => getNode(node.id)))
         sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(parentId).filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name).map((node) => ({label:node.label, id:node.id}))
     }, [getSourceNodeIdWithLabel(parentId)])
 
@@ -636,9 +777,11 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         <li className='flex flex-col gap-2'>
             <div className='flex items-center gap-2'>
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
-                <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
+                <div className='flex items-center gap-1'>
+                  <span className='text-[9px] text-[#6D7177] px-[4px] py-[1.5px] rounded bg-[#282828]'>Auto</span>
+                </div>
             </div>
-            <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+            <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 border-dashed hover:border-[#6D7177]/50 transition-colors'>
                 {displaySourceNodeLabels()}
             </div>
         </li>
@@ -646,7 +789,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         <li className='flex flex-col gap-2'>
             <div className='flex items-center gap-2'>
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Query</label>
-                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
             </div>
             <select 
                 ref={queryRef} 
@@ -668,7 +811,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
         <li className='flex flex-col gap-2'>
             <div className='flex items-center gap-2'>
                 <label className='text-[13px] font-semibold text-[#6D7177]'>Database with Vector Indexing</label>
-                <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
             </div>
            
             {/* start of node labels */}
@@ -695,6 +838,30 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
                                 </button>
                             </div>
                         ))}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                                    className='w-[28px] h-[28px] flex items-center justify-center rounded-md
+                                              bg-[#252525] border border-[#6D7177]/30 
+                                              text-[#6D7177] 
+                                              hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
+                                              transition-colors'
+                                >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
+                                    </svg>
+                                </button>
+                                <CustomDropdown
+                                    options={sourceNodeLabelsRef.current.map(item => ({ 
+                                        id: item.id, 
+                                        data: { label: item.label || item.id } 
+                                    }))}
+                                    onSelect={(item: {id: string, label: string}) => addNodeLabel({id: item.id, label: item.label})}
+                                    selectedValue={null}
+                                    isOpen={isDropdownOpen}
+                                    setIsOpen={setIsDropdownOpen}
+                                />
+                            </div>
 
                     </div>
                 </div>
@@ -723,7 +890,7 @@ function SearchByVectorConfigMenu({show, parentId}: SearchByVectorConfigProps) {
             <div className='flex items-center justify-between'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
-                    <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
                 </div>
                 <button 
                     onClick={() => setShowSettings(!showSettings)}

@@ -48,13 +48,18 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (locked) {
+      setBorderColor("border-[#3EDBC9]");
+    } else if (isInput) {
+      setBorderColor("border-[#84EB89]");
+    } else if (isOutput) {
+      setBorderColor("border-[#FF9267]");
+    } else if (activatedNode?.id === id) {
       setBorderColor("border-main-blue");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
-
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
 
 
@@ -317,29 +322,10 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
-    if (locked) return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4" y="12" width="12" height="7" fill="#3EDBC9" />
-        <rect x="6" y="6" width="8" height="11" rx="4" stroke="#3EDBC9" stroke-width="2" />
-      </svg>
-    )
-    else if (isInput) return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M8.5 14V10L11.1667 12L8.5 14Z" fill="#6C98D5" stroke="#6C98D5" />
-        <path d="M9 11.9961L4 12.001" stroke="#6C98D5" stroke-width="2" />
-        <path d="M13.5 7H9.5V5.5H15.5V18.5H9.5V17H13.5H14V16.5V7.5V7H13.5Z" fill="#6C98D5" stroke="#6C98D5" />
-      </svg>
-    )
-    else if (isOutput) return (
-      <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12.5 14V10L15.1667 12L12.5 14Z" fill="#FF9267" stroke="#FF9267" />
-        <path d="M13 11.9961L8 12.001" stroke="#FF9267" stroke-width="2" />
-        <path d="M6.5 7H10.5V5.5H4.5V18.5H10.5V17H6.5H6V16.5V7.5V7H6.5Z" fill="#FF9267" stroke="#FF9267" />
-      </svg>
-    )
-    else return (
+    // Always return the text icon regardless of isInput, isOutput, or locked
+    return (
       <svg width="20" height="24" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-        <path d="M3 8H17" className="stroke-[#A4C8F0]  group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
+        <path d="M3 8H17" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
         <path d="M3 12H15" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
         <path d="M3 16H13" className="stroke-[#A4C8F0] group-active:stroke-[#4599DF]" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
@@ -357,6 +343,41 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+      {/* Add tags for input, output and locked states */}
+      <div className="absolute -top-[28px] h-[24px]  left-0 z-10 flex gap-1.5">
+        {isInput && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
+            <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor"/>
+              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>INPUT</span>
+          </div>
+        )}
+        
+        {isOutput && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
+            <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor"/>
+              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>OUTPUT</span>
+          </div>
+        )}
+        
+        {locked && (
+          <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor"/>
+            </svg>
+            <span>LOCKED</span>
+          </div>
+        )}
+      </div>
+      
       <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[240px] min-h-[176px] rounded-[16px] px-[8px] pt-[8px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden flex flex-col`}>
 
         {/* the top bar of a block */}
@@ -395,8 +416,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
                   font-plus-jakarta-sans bg-transparent h-[18px] 
-                  focus:outline-none truncate w-full
-                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]'}
+                  focus:outline-none truncate w-full text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]
                 `}
                 value={nodeLabel}
                 readOnly={!editable}
@@ -413,7 +433,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                   flex items-center justify-start 
                   font-[600] text-[12px] leading-[18px] 
                   font-plus-jakarta-sans truncate w-fit
-                  ${locked ? 'text-[#3EDBC9] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]' : 'text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]'}
+                  text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#4599DF]
                 `}
               >
                 {nodeLabel}

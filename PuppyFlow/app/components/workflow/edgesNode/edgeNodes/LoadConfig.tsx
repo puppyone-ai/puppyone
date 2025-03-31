@@ -1,6 +1,6 @@
 import { Handle, Position, NodeProps, Node, } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
-import React, {useState} from 'react'
+import React, {useState, useEffect} from 'react'
 import LoadConfigMenu from '../edgeNodeConfig/LoadConfigMenu'
 type LoadConfigNodeProps = NodeProps<Node>
 
@@ -8,6 +8,19 @@ function LoadConfig({isConnectable, id}: LoadConfigNodeProps) {
 
     const {isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll} = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
+
+    useEffect(() => {
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+        }
+        
+        return () => {
+            if (activatedEdge === id) {
+                clearEdgeActivation()
+            }
+        }
+    }, [])
 
     const onClickButton = () => {
         if (isOnGeneratingNewNode) return

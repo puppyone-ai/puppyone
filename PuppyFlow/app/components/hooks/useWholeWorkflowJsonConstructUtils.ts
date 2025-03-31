@@ -152,7 +152,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       chunking_mode: "auto",
                       extra_configs: {},
-                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                   },
                   
@@ -173,7 +173,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                           overlap: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.overlap ?? 20,
                           handle_half_word: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.handle_half_word ?? false,
                       },
-                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                   },
                 } as ChunkingByLengthEdgeJsonType
@@ -190,7 +190,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       chunking_mode: "character",
                       sub_chunking_mode: "character",
                       extra_configs: {delimiters: delimiterConfig},
-                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                       
                   },
@@ -210,7 +210,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                             model: (nodeInfo.data as ChunkingConfigNodeData)?.extra_configs?.model ?? "gpt-4o",
                             prompt: (nodeInfo.data as ChunkingConfigNodeData)?.content as string ?? ""
                         },
-                        looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                        // looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
                         outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: (getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string)}
                     },
                   } as ChunkingLLMEdgeJsonType
@@ -229,7 +229,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       extra_configs: {
                           tags: tagValue
                       },
-                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: (getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string)}
                   },
                  
@@ -249,7 +249,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       extra_configs: {
                           tags: tagValue
                       },
-                      looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ChunkingConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ChunkingConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ChunkingConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ChunkingConfigNodeData).resultNode as string}
                       
                   },
@@ -261,17 +261,17 @@ export default function useWholeWorkflowJsonConstructUtils() {
             case "generate":
               break     
             case "llm":
-              const messageContent = cleanJsonString(nodeInfo.data.content as string)
               sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeInfo.id)
+              const id = sourceNodeIdWithLabelGroup[0].label||sourceNodeIdWithLabelGroup[0].id
               edgejson = {
                 // id: nodeInfo.id,
                 type: "llm",
                 data: {
-                    messages: messageContent !== "error" ? messageContent : [
+                    messages: [
                         {"role": "system", 
                          "content": "You are an AI"},
                         {"role": "user", 
-                        "content": "Answer the question by {{input_ID}}"}
+                        "content": `Answer the question by {{${id}}}`}
                        ],
                     model: (nodeInfo.data as LLMConfigNodeData)?.model ?? "gpt-4o",
                     base_url: (nodeInfo.data as LLMConfigNodeData)?.base_url ?? "",
@@ -279,7 +279,6 @@ export default function useWholeWorkflowJsonConstructUtils() {
                     temperature: 0.7,
                     structured_output: (nodeInfo.data as LLMConfigNodeData)?.structured_output ?? false,
                     inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                    looped: (nodeInfo.data as LLMConfigNodeData).looped ?? false,
                     outputs: {[(nodeInfo.data as LLMConfigNodeData).resultNode as string]: getNode((nodeInfo.data as LLMConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as LLMConfigNodeData).resultNode as string}
                     
                 },
@@ -297,7 +296,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       modify_type: "copy",
                       extra_configs: {}, 
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                      looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyCopyEdgeJsonType
@@ -328,7 +327,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                                     ]
                       },
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                      looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyGetEdgeJsonType
@@ -344,7 +343,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                     extra_configs: {},
                     content: cleanJsonString(nodeInfo.data.content as string),
                     inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                    looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                    // looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
                     outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyStructuredEdgeJsonType
@@ -359,7 +358,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       extra_configs: {},
                       content: nodeInfo.data.content as string,
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
-                      looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as ModifyConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as ModifyConfigNodeData).resultNode as string]: getNode((nodeInfo.data as ModifyConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as ModifyConfigNodeData).resultNode as string}
                   },
                 } as ModifyTextEdgeJsonType
@@ -409,7 +408,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       },
                       doc_ids: (getNode(nodeInfo.id)?.data as SearchConfigNodeData)?.nodeLabels?.map((node: {id: string, label: string}) => node.id),
                       query_id: {[query_id as string]: query_label as string},
-                      looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
                   },
                   id:nodeInfo.id
                 } as SearchByVectorEdgeJsonType
@@ -428,7 +427,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                       extra_configs: {model: (nodeInfo.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"},
-                      looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
                 } as SearchPerplexityEdgeJsonType
@@ -445,7 +444,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                       extra_configs: {},
-                      looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
+                      // looped: (nodeInfo.data as SearchConfigNodeData).looped ?? false,
                       outputs: {[(nodeInfo.data as SearchConfigNodeData).resultNode as string]: getNode((nodeInfo.data as SearchConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as SearchConfigNodeData).resultNode as string}
                   },
                 } as SearchGoogleEdgeJsonType
@@ -460,7 +459,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                 data: {  
                     inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                     code: (nodeInfo.data as CodeConfigNodeData).code as string ?? `def func(${sourceNodeIdWithLabelGroup.map(node => `arg_${node.label}`).join(",")}):\n    # write your code here\n    return`,
-                    looped: (nodeInfo.data as CodeConfigNodeData).looped ?? false,
+                    // looped: (nodeInfo.data as CodeConfigNodeData).looped ?? false,
                     outputs: {[(nodeInfo.data as CodeConfigNodeData).resultNode as string]: getNode((nodeInfo.data as CodeConfigNodeData).resultNode as string)?.data?.label as string ?? (nodeInfo.data as CodeConfigNodeData).resultNode as string}
                 },
               } as CodeEdgeJsonType
@@ -481,7 +480,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                     content: chooseContent ? {[chooseContent as string]: (getNode(chooseContent as string)?.data?.label as string ?? chooseContent as string)} : undefined,
                     inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                     outputs: chooseOutputs ? Object.fromEntries(chooseOutputs.map((node: string) => ([node, (getNode(node)?.data?.label as string ?? node as string)]))) : {},
-                    looped: false,
+                    // looped: false,
                     ON: chooseON ? Object.fromEntries(chooseON.map((node: string) => ([node, (getNode(node)?.data?.label as string ?? node as string)]))) : {},
                     OFF: chooseOFF ? Object.fromEntries(chooseOFF.map((node: string) => ([node, (getNode(node)?.data?.label as string ?? node as string)]))) : {}
                 },
