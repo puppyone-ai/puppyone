@@ -18,6 +18,7 @@ pillow
 cohere
 openai
 litellm
+instructor
 langdetect
 scikit-learn
 pyyaml # for transformers
