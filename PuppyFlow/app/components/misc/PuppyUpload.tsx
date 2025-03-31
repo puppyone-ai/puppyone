@@ -181,7 +181,7 @@ export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setU
                             }}
                         >
                             <div className='h-[24px] w-[24px] flex items-center justify-center rounded-md
-                                bg-[#252525] border-[1px] text-[10px] border-[#6D7177]/30
+                                bg-[#252525] border-[1px] text-[12px] border-[#6D7177]/30
                                 hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
                                 transition-colors gap-[8px] px-[7px]'>
                                 <svg width="8" height="8" viewBox="0 0 14 14">

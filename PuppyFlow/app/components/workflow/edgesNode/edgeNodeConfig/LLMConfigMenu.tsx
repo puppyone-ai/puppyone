@@ -46,134 +46,134 @@ type ConstructedLLMJsonData = {
 
 // Add these new types for the prompt structure
 type PromptNode = {
-  id: string,
-  role: "system" | "user" | "assistant",
-  content: string
+    id: string,
+    role: "system" | "user" | "assistant",
+    content: string
 }
 
 // Add the new PromptEditor component
-const PromptEditor = ({ prompts, setPrompts }: { 
-  prompts: PromptNode[], 
-  setPrompts: React.Dispatch<React.SetStateAction<PromptNode[]>> 
+const PromptEditor = ({ prompts, setPrompts }: {
+    prompts: PromptNode[],
+    setPrompts: React.Dispatch<React.SetStateAction<PromptNode[]>>
 }) => {
-  
-  const addNode = () => {
-    setPrompts((prevPrompts) => [
-      ...prevPrompts,
-      {
-        id: nanoid(6),
-        role: "user",
-        content: ""
-      }
-    ]);
-  };
 
-  const deleteNode = (nodeId: string) => {
-    setPrompts((prevPrompts) => prevPrompts.filter(node => node.id !== nodeId));
-  };
+    const addNode = () => {
+        setPrompts((prevPrompts) => [
+            ...prevPrompts,
+            {
+                id: nanoid(6),
+                role: "user",
+                content: ""
+            }
+        ]);
+    };
 
-  const updateNodeContent = (nodeId: string, content: string) => {
-    setPrompts((prevPrompts) => prevPrompts.map(node => 
-      node.id === nodeId ? { ...node, content } : node
-    ));
-  };
+    const deleteNode = (nodeId: string) => {
+        setPrompts((prevPrompts) => prevPrompts.filter(node => node.id !== nodeId));
+    };
 
-  const updateNodeRole = (nodeId: string, role: "system" | "user" | "assistant") => {
-    setPrompts((prevPrompts) => prevPrompts.map(node => 
-      node.id === nodeId ? { ...node, role } : node
-    ));
-  };
+    const updateNodeContent = (nodeId: string, content: string) => {
+        setPrompts((prevPrompts) => prevPrompts.map(node =>
+            node.id === nodeId ? { ...node, content } : node
+        ));
+    };
 
-  const renderNode = (node: PromptNode) => {
-    return (
-      <div key={node.id} className="relative group mb-1">
-        <div className="flex items-center gap-2">
-          <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
-            <input 
-              value={node.content}
-              onChange={(e) => updateNodeContent(node.id, e.target.value)}
-              className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
+    const updateNodeRole = (nodeId: string, role: "system" | "user" | "assistant") => {
+        setPrompts((prevPrompts) => prevPrompts.map(node =>
+            node.id === nodeId ? { ...node, role } : node
+        ));
+    };
+
+    const renderNode = (node: PromptNode) => {
+        return (
+            <div key={node.id} className="relative group mb-1">
+                <div className="flex items-center gap-2">
+                    <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
+                        <input
+                            value={node.content}
+                            onChange={(e) => updateNodeContent(node.id, e.target.value)}
+                            className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
                        text-[#CDCDCD] text-[12px] font-medium appearance-none'
-              placeholder="Enter message content..."
-            />
-            
-            {/* Role selector */}
-            <div 
-              className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
+                            placeholder="Enter message content..."
+                        />
+
+                        {/* Role selector */}
+                        <div
+                            className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
                          px-2 rounded-[4px] cursor-pointer transition-colors
-                         ${node.role === 'system' 
-                           ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50' 
-                           : node.role === 'user'
-                           ? 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50'
-                           : 'bg-[#254430] border border-[#4DFF9B]/30 hover:border-[#4DFF9B]/50'}`}
-              onClick={() => {
-                const roles: Array<"system" | "user" | "assistant"> = ["system", "user", "assistant"];
-                const currentIndex = roles.indexOf(node.role);
-                const nextRole = roles[(currentIndex + 1) % roles.length];
-                updateNodeRole(node.id, nextRole);
-              }}
-            >
-              <div className={`text-[10px] font-semibold min-w-[24px] text-center
-                             ${node.role === 'system' 
-                               ? 'text-[#9B6DFF]' 
-                               : node.role === 'user'
-                               ? 'text-[#FF9B4D]'
-                               : 'text-[#4DFF9B]'}`}>
-                {node.role}
-              </div>
+                         ${node.role === 'system'
+                                    ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50'
+                                    : node.role === 'user'
+                                        ? 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50'
+                                        : 'bg-[#254430] border border-[#4DFF9B]/30 hover:border-[#4DFF9B]/50'}`}
+                            onClick={() => {
+                                const roles: Array<"system" | "user" | "assistant"> = ["system", "user", "assistant"];
+                                const currentIndex = roles.indexOf(node.role);
+                                const nextRole = roles[(currentIndex + 1) % roles.length];
+                                updateNodeRole(node.id, nextRole);
+                            }}
+                        >
+                            <div className={`text-[10px] font-semibold min-w-[24px] text-center
+                             ${node.role === 'system'
+                                    ? 'text-[#9B6DFF]'
+                                    : node.role === 'user'
+                                        ? 'text-[#FF9B4D]'
+                                        : 'text-[#4DFF9B]'}`}>
+                                {node.role}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={() => deleteNode(node.id)}
+                        className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                    </button>
+                </div>
             </div>
-          </div>
+        );
+    };
 
-          <button 
-            onClick={() => deleteNode(node.id)}
-            className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  return (
-    <div className='flex flex-col gap-2'>
-      {prompts.length === 0 ? (
-        <button
-          onClick={() => setPrompts([{ id: nanoid(6), role: "system", content: "You are an AI" }])}
-          className='w-full h-[32px] flex items-center justify-center gap-2 rounded-[6px] 
+    return (
+        <div className='flex flex-col gap-2'>
+            {prompts.length === 0 ? (
+                <button
+                    onClick={() => setPrompts([{ id: nanoid(6), role: "system", content: "You are an AI" }])}
+                    className='w-full h-[32px] flex items-center justify-center gap-2 rounded-[6px] 
                    border border-[#6D7177]/30 bg-[#252525] text-[#CDCDCD] text-[12px] font-medium 
                    hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] transition-colors'
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D7177">
-            <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-          Create First Message
-        </button>
-      ) : (
-        <div className="flex flex-col gap-1">
-          {prompts.map((prompt) => renderNode(prompt))}
-          
-          {/* Replace the full-width button with a small plus button */}
-          <div className="flex items-center mt-1">
-            <button
-              onClick={addNode}
-              className='w-6 h-6 flex items-center justify-center rounded-md
+                >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D7177">
+                        <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    Create First Message
+                </button>
+            ) : (
+                <div className="flex flex-col gap-1">
+                    {prompts.map((prompt) => renderNode(prompt))}
+
+                    {/* Replace the full-width button with a small plus button */}
+                    <div className="flex items-center mt-1">
+                        <button
+                            onClick={addNode}
+                            className='w-6 h-6 flex items-center justify-center rounded-md
                         bg-[#252525] border-[1px] border-[#6D7177]/30
                         text-[#6D7177]
                         hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
                         transition-colors'
-            >
-              <svg width="10" height="10" viewBox="0 0 14 14">
-                <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
-              </svg>
-            </button>
-          </div>
+                        >
+                            <svg width="10" height="10" viewBox="0 0 14 14">
+                                <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 };
 
 const open_router_supported_models = [
@@ -198,7 +198,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
     // const {totalCount, addCount, addNode, allowActivateNode, clear} = useNodeContext()
     const { allowActivateOtherNodesWhenConnectEnd, clearAll } = useNodesPerFlowContext()
-    const { getSourceNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
@@ -230,10 +230,10 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         if (existingNode?.data?.content) {
             try {
                 // 尝试解析 content 字段
-                const contentData = typeof existingNode.data.content === 'string' 
-                    ? JSON.parse(existingNode.data.content) 
+                const contentData = typeof existingNode.data.content === 'string'
+                    ? JSON.parse(existingNode.data.content)
                     : existingNode.data.content;
-                
+
                 // 确保它是一个数组
                 if (Array.isArray(contentData)) {
                     return contentData.map((msg: any) => ({
@@ -251,7 +251,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 ];
             }
         }
-        
+
         // 如果没有现有数据，返回默认消息
         return [
             { id: nanoid(6), role: "system", content: "You are an AI" },
@@ -271,12 +271,12 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         });
     };
 
-    const lastNodeWithLabel = useRef<string|undefined>(undefined)
+    const lastNodeWithLabel = useRef<string | undefined>(undefined)
 
     useEffect(
-        ()=>{
-            console.log("lastNodeWithLabel",lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
-            if(lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label){
+        () => {
+            console.log("lastNodeWithLabel", lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
+            if (lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label) {
                 return
             }
             console.log("update llm config")
@@ -303,7 +303,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             }))
 
             setTimeout(() => {
-                console.log("updated llm config",getNode(parentId)?.data.content)
+                console.log("updated llm config", getNode(parentId)?.data.content)
             }, 500)
         },
         [getEdges()]
@@ -326,259 +326,176 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     }, [isStructured_output])
 
     useEffect(() => {
-        if (!resultNode) return
-        if (isComplete) return
-        console.log(resultNode, "send data")
-        // const addNodeAndSetFlag = async () => {
-        //   await addNode(resultNode); // 假设 addNode 返回一个 Promise
-        //   setIsAddContext(true);
-        // };
+        if (isComplete) return;
 
-        const addNewNodeEdgeIntoFlow = async () => {
-            const parentEdgeNode = getNode(parentId)
-            if (!parentEdgeNode) return
-            const location = {
-                // 120 - 24 = 96 is half of the height of the targetNode - chunk node
-                x: parentEdgeNode.position.x + 160,
-                y: parentEdgeNode.position.y - 96,
+        const runWithTargetNodes = async () => {
+            // Get target nodes
+            const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+
+            if (targetNodeIdWithLabelGroup.length === 0 && !isAddFlow) {
+                // No target nodes, need to create one
+                await createNewTargetNode();
+                setIsAddFlow(true);
+            } else if (isAddFlow) {
+                // Target nodes exist, send data
+                await sendDataToTargets();
             }
+        };
 
-            const newNode = {
-                id: resultNode,
-                position: location,
-                data: {
-                    content: "",
-                    label: resultNode,
-                    isLoading: true,
-                    locked: false,
-                    isInput: false,
-                    isOutput: false,
-                    editable: false,
-                },
-                type: isStructured_output ? "structured" : "text",
+        runWithTargetNodes();
+    }, [isAddFlow, isComplete, parentId]);
+
+    const createNewTargetNode = async () => {
+        const parentEdgeNode = getNode(parentId);
+        if (!parentEdgeNode) return;
+
+        const newTargetId = nanoid(6);
+
+        const location = {
+            x: parentEdgeNode.position.x + 160,
+            y: parentEdgeNode.position.y - 64,
+        };
+
+        const newNode = {
+            id: newTargetId,
+            position: location,
+            data: {
+                content: "",
+                label: newTargetId,
+                isLoading: true,
+                locked: false,
+                isInput: false,
+                isOutput: false,
+                editable: false,
+            },
+            type: isStructured_output ? "structured" : "text",
+        };
+
+        const newEdge = {
+            id: `connection-${Date.now()}`,
+            source: parentId,
+            target: newTargetId,
+            type: "floating",
+            data: {
+                connectionType: "CTT",
+            },
+            markerEnd: markerEnd,
+        };
+
+        await Promise.all([
+            new Promise(resolve => {
+                setNodes(prevNodes => {
+                    resolve(null);
+                    return [...prevNodes, newNode];
+                });
+            }),
+            new Promise(resolve => {
+                setEdges(prevEdges => {
+                    resolve(null);
+                    return [...prevEdges, newEdge];
+                });
+            }),
+        ]);
+    };
+
+    const sendDataToTargets = async () => {
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        if (targetNodeIdWithLabelGroup.length === 0) return;
+
+        // Mark all target nodes as loading
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (targetNodeIdWithLabelGroup.some(targetNode => targetNode.id === node.id)) {
+                return { ...node, data: { ...node.data, content: "", isLoading: true } };
             }
+            return node;
+        }));
 
-            const newEdge = {
-                id: `connection-${Date.now()}`,
-                source: parentId,
-                target: resultNode,
-                type: "floating",
-                data: {
-                    connectionType: "CTT",
-                },
-                markerEnd: markerEnd,
-            }
-
-            // setNodes(prevNodes => {
-            //     return [...prevNodes, newNode];
-            // });
-
-            // setEdges(prevEdges => {
-            //     return [...prevEdges, newEdge];
-            // });
-            // setIsAddFlow(true)  
-
-            await Promise.all([
-                new Promise(resolve => {
-                    setNodes(prevNodes => {
-                        resolve(null);
-                        return [...prevNodes, newNode];
-                    })
-                }),
-                new Promise(resolve => {
-                    setEdges(prevEdges => {
-                        resolve(null);
-                        return [...prevEdges, newEdge];
-                    })
-                }),
-            ]);
-
-            onResultNodeChange(resultNode)
-            setIsAddFlow(true)
-            // 不可以和 setEdge, setNodes 发生冲突一定要一先一后
-            // clearActivation()
-        }
-
-        const sendData = async () => {
-            try {
-                const jsonData = constructJsonData()
-                console.log(jsonData)
-                const response = await fetch(`${backend_IP_address_for_sendingData}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(jsonData)
-                })
-
-                if (!response.ok) {
-                    reportError(resultNode, `HTTP Error: ${response.status}`)
-                }
-
-                console.log(response)
-                const result = await response.json();  // 解析响应的 JSON 数据
-                console.log('Success:', result);
-                await streamResult(result.task_id, resultNode);
-
-            } catch (error) {
-                console.warn(error)
-                window.alert(error)
-            } finally {
-                resetLoadingUI(resultNode)
-                setIsComplete(true)
-            }
-        }
-        if (!isAddFlow && !isComplete) {
-            addNewNodeEdgeIntoFlow()
-        }
-        else if (isAddFlow && !isComplete) {
-            sendData()
-        }
-    }, [resultNode, isAddFlow, isComplete])
-
-    // 修改 useEffect，只更新 content 字段
-    useEffect(() => {
         try {
-            const contentJson = JSON.stringify(
-                prompts.map(({ role, content }) => ({ role, content }))
-            );
-            
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return { 
-                        ...node, 
-                        data: { 
-                            ...node.data, 
-                            content: contentJson // 只更新 content 字段
-                        } 
-                    };
-                }
-                return node;
-            }));
-        } catch (e) {
-            console.error("Error updating content JSON:", e);
-        }
-    }, [prompts, setNodes, parentId]);
-
-    const onFocus: () => void = () => {
-        const curRef = menuRef.current
-        if (curRef && !curRef.classList.contains("nodrag")) {
-            curRef.classList.add("nodrag")
-        }
-    }
-
-    const onBlur: () => void = () => {
-        const curRef = menuRef.current
-        if (curRef) {
-            curRef.classList.remove("nodrag")
-        }
-    }
-
-    const displaySourceNodeLabels = () => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => {
-            // Get the node type from the node data
-            const nodeInfo = getNode(node.id)
-            const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
-            
-            // Define colors based on node type
-            let colorClasses = {
-                text: {
-                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
-                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+            const jsonData = constructJsonData();
+            console.log(jsonData);
+            const response = await fetch(`${backend_IP_address_for_sendingData}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                file: {
-                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
-                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
-                },
-                structured: {
-                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
-                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
-                }
-            }
-            
-            // Define SVG icons for each node type, using the provided references
-            const nodeIcons = {
-                text: (
-                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
-                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
-                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                ),
-                file: (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5"/>
-                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                ),
-                structured: (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
-                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
-                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
-                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
-                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
-                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
-                    </svg>
-                )
-            }
-            
-            // Choose the appropriate color classes based on node type
-            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
-            
-            // Choose the appropriate icon based on node type
-            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
-            
-            return (
-                <button 
-                    key={`${node.id}-${parentId}`} 
-                    onClick={() => copyToClipboard(node.label)}
-                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
-                             border-[1px] text-[10px] font-medium transition-all duration-200
-                             ${copiedLabel === node.label 
-                               ? colors.active
-                               : colors.default}`}
-                >
-                    <div className="flex-shrink-0">
-                        {icon}
-                    </div>
-                    <span className="truncate max-w-[100px]">
-                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
-                    </span>
-                </button>
-            )
-        })
-    }
+                body: JSON.stringify(jsonData)
+            });
 
+            if (!response.ok) {
+                // Report error for all target nodes
+                targetNodeIdWithLabelGroup.forEach(node => {
+                    reportError(node.id, `HTTP Error: ${response.status}`);
+                });
+            }
+
+            console.log(response);
+            const result = await response.json();
+            console.log('Success:', result);
+
+            // Stream results to all target nodes
+            await Promise.all(targetNodeIdWithLabelGroup.map(node =>
+                streamResult(result.task_id, node.id)
+            ));
+        } catch (error) {
+            console.warn(error);
+            window.alert(error);
+        } finally {
+            // Reset loading state for all target nodes
+            targetNodeIdWithLabelGroup.forEach(node => {
+                resetLoadingUI(node.id);
+            });
+            setIsComplete(true);
+        }
+    };
+
+    const onDataSubmit = async () => {
+        // Clear activation
+        await new Promise(resolve => {
+            clearAll();
+            resolve(null);
+        });
+
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        console.log(targetNodeIdWithLabelGroup, "target nodes");
+
+        // Check if there are target nodes
+        if (targetNodeIdWithLabelGroup.length === 0) {
+            // No target nodes, need to create one
+            setIsAddFlow(false);
+        } else {
+            // Target nodes exist, update them
+            setIsAddFlow(true);
+        }
+
+        setIsComplete(false);
+    };
 
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
-        console.log("Current model:", model);  // 添加这行
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        let resultNodeLabel
-        if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
-            resultNodeLabel = getNode(resultNode)?.data?.label as string
-        }
-        else {
-            resultNodeLabel = resultNode as string
-        }
-        console.log("constructJsonData LLM", getNode(resultNode as string))
-        let blocks: { [key: string]: NodeJsonType } = {
-            [resultNode as string]: {
-                label: resultNodeLabel as string,
-                type: isStructured_output ? "structured" : "text",
-                data: { content: "" },
-                // looped: (getNode(resultNode as string) as any)?.looped ? true : false,
-            }
-        }
-        
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId)
+
+        // 创建包含所有连接节点的 blocks
+        let blocks: { [key: string]: NodeJsonType } = {}
+
+        // 添加源节点的信息
         transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
+        // 添加目标节点的信息
+        targetNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
+            blocks[nodeId] = {
+                label: nodeLabel,
+                type: isStructured_output ? "structured" : "text",
+                data: { content: "" }
+            }
+        })
+
+        // 创建 edges
         let edges: { [key: string]: LLMEdgeJsonType } = {}
 
-        // 直接使用 content 字段
+        // 获取消息内容
         const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
         console.log(messageContent)
+        
         const edgejson: LLMEdgeJsonType = {
             type: "llm",
             data: {
@@ -598,12 +515,12 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 temperature: 0.7,
                 structured_output: isStructured_output,
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                outputs: { [resultNode as string]: resultNodeLabel as string }
+                outputs: Object.fromEntries(targetNodeIdWithLabelGroup.map(node => ([node.id, node.label])))
             },
         }
 
         edges[parentId] = edgejson
-        console.log("LLMCONFIG",blocks, edges)
+        console.log("LLMCONFIG", blocks, edges)
 
         return {
             blocks,
@@ -611,36 +528,170 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }
 
-    const onDataSubmit = async () => {
-        // click 第一步： clearActivation
-        await new Promise(resolve => {
-            clearAll()
-            resolve(null)
-        });
+    const onFocus: () => void = () => {
+        const curRef = menuRef.current
+        if (curRef && !curRef.classList.contains("nodrag")) {
+            curRef.classList.add("nodrag")
+        }
+    }
 
-        // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
-        if (!resultNode || !getNode(resultNode)) {
-            const newResultNodeId = nanoid(6)
-            // onResultNodeChange(newResultNodeId)
-            setResultNode(newResultNodeId)
-            setIsAddFlow(false)
+    const onBlur: () => void = () => {
+        const curRef = menuRef.current
+        if (curRef) {
+            curRef.classList.remove("nodrag")
         }
-        // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
-        else {
-            const newNodeType = isStructured_output ? "structured" : "text"
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === resultNode) {
-                    return { ...node, type: newNodeType, data: { ...node.data, content: "", isLoading: true } }
+    }
+
+    const displaySourceNodeLabels = () => {
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
+        return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => {
+            // Get the node type from the node data
+            const nodeInfo = getNode(node.id)
+            const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
+
+            // Define colors based on node type
+            let colorClasses = {
+                text: {
+                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+                },
+                file: {
+                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
+                },
+                structured: {
+                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
                 }
-                return node
-            }))
-            // allowActivateNode()
-            // clear()
-            // clearActivation()
-            // inactivateNode(parentId)
-        }
-        setIsComplete(false)
-    };
+            }
+
+            // Define SVG icons for each node type, using the provided references
+            const nodeIcons = {
+                text: (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                ),
+                file: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5" />
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                ),
+                structured: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    </svg>
+                )
+            }
+
+            // Choose the appropriate color classes based on node type
+            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
+
+            // Choose the appropriate icon based on node type
+            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
+
+            return (
+                <button
+                    key={`${node.id}-${parentId}`}
+                    onClick={() => copyToClipboard(node.label)}
+                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
+                             border-[1px] text-[10px] font-medium transition-all duration-200
+                             ${copiedLabel === node.label
+                            ? colors.active
+                            : colors.default}`}
+                >
+                    <div className="flex-shrink-0">
+                        {icon}
+                    </div>
+                    <span className="truncate max-w-[100px]">
+                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+                    </span>
+                </button>
+            )
+        })
+    }
+
+    const displayTargetNodeLabels = () => {
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId)
+        return targetNodeIdWithLabelGroup.map((node: { id: string, label: string }) => {
+            // Get the node type from the node data
+            const nodeInfo = getNode(node.id)
+            const nodeType = nodeInfo?.type || 'text'
+
+            // 使用与 displaySourceNodeLabels 相同的样式配置
+            let colorClasses = {
+                text: {
+                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+                },
+                file: {
+                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
+                },
+                structured: {
+                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
+                }
+            }
+
+            // 使用相同的图标
+            const nodeIcons = {
+                text: (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                ),
+                file: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5" />
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                ),
+                structured: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    </svg>
+                )
+            }
+
+            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
+            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
+
+            return (
+                <button
+                    key={`${node.id}-${parentId}`}
+                    onClick={() => copyToClipboard(node.label)}
+                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
+                             border-[1px] text-[10px] font-medium transition-all duration-200
+                             ${copiedLabel === node.label
+                            ? colors.active
+                            : colors.default}`}
+                >
+                    <div className="flex-shrink-0">
+                        {icon}
+                    </div>
+                    <span className="truncate max-w-[100px]">
+                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+                    </span>
+                </button>
+            )
+        })
+    }
 
     const onModelChange = (newModel: string) => {
         setNodes(prevNodes => prevNodes.map(node => {
@@ -696,8 +747,26 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }));
     }, [model]);
 
+    // 需要使用prompts内容更新节点的content
+    useEffect(() => {
+        // 当prompts变化时，更新节点内容
+        const updatedContent = JSON.stringify(
+            prompts.map(prompt => ({
+                role: prompt.role,
+                content: prompt.content
+            }))
+        );
+        
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return { ...node, data: { ...node.data, content: updatedContent } };
+            }
+            return node;
+        }));
+    }, [prompts]);
+
     return (
-        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[416px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`} >
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box ${show ? "" : "hidden"} shadow-lg`}>
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -728,7 +797,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                         onClick={onDataSubmit}>
                         <span>
                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                                <path d="M8 5L0 10V0L8 5Z" fill="black"/>
+                                <path d="M8 5L0 10V0L8 5Z" fill="black" />
                             </svg>
                         </span>
                         <span>
@@ -738,14 +807,25 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 </div>
             </li>
 
-            <li className='flex flex-col gap-2'>
-                <div className='flex items-center gap-2'>
-                    <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
-                    <span className='text-[9px] text-[#6D7177] px-[4px] py-[1.5px] rounded bg-[#282828]'>Auto</span>
+            {/* Add Input/Output section with labels outside */}
+            <li className='flex flex-row gap-[12px]'>
+                {/* Input section - left side */}
+                <div className='flex-1 flex flex-col gap-1'>
+                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                    <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
+                        <div className='flex flex-wrap gap-2'>
+                            {displaySourceNodeLabels()}
+                        </div>
+                    </div>
                 </div>
-                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                    <div className='flex flex-wrap gap-2'>
-                        {displaySourceNodeLabels()}
+                
+                {/* Output section - right side */}
+                <div className='flex-1 flex flex-col gap-1'>
+                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                    <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
+                        <div className='flex flex-wrap gap-2'>
+                            {displayTargetNodeLabels()}
+                        </div>
                     </div>
                 </div>
             </li>
@@ -785,21 +865,21 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 <div className='flex items-center gap-2'>
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
                     <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
-                    <button 
+                    <button
                         onClick={() => setShowSettings(!showSettings)}
                         className='ml-auto text-[12px] font-medium text-[#6D7177] hover:text-[#CDCDCD] transition-colors flex items-center gap-1'
                     >
                         {showSettings ? 'Hide' : 'Show'}
-                        <svg 
-                            className={`w-4 h-4 transition-transform duration-200 ${showSettings ? 'rotate-180' : ''}`} 
+                        <svg
+                            className={`w-4 h-4 transition-transform duration-200 ${showSettings ? 'rotate-180' : ''}`}
                             viewBox="0 0 24 24"
                         >
-                            <path 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round" 
-                                strokeWidth="2" 
+                            <path
+                                fill="none"
+                                stroke="currentColor"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
                                 d="M19 9l-7 7-7-7"
                             />
                         </svg>
@@ -812,7 +892,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                                 <label className='text-[12px] font-medium text-[#6D7177]'>Model</label>
                             </div>
                             <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                                <select 
+                                <select
                                     value={model}
                                     onChange={(e) => setModel(e.target.value)}
                                     className='w-full h-full bg-[#252525] border-none outline-none px-3
@@ -826,7 +906,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                                 </select>
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                        <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     </svg>
                                 </div>
                             </div>
@@ -835,15 +915,15 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 )}
             </li>
 
-            
+
         </ul>
     )
 }
 
 export default LLMConfigMenu
 
-export const DEFAULT_LLM_MESSAGE=
-`[
+export const DEFAULT_LLM_MESSAGE =
+    `[
     {"role": "system",
      "content": "You are an AI"},
     {"role": "user",

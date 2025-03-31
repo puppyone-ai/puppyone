@@ -98,6 +98,17 @@ function useJsonConstructUtils() {
         return getEdges().filter(edge => edge.target === parentId).map(edge => edge.source).map(childnodeid => ({id: childnodeid, label: (getNode(childnodeid)?.data?.label as string | undefined) ?? childnodeid})).sort((a, b) => Number(a.id) - Number(b.id));
     }, [getEdges])
 
+    const getTargetNodeIdWithLabel = useCallback((parentId: string) => {
+        return getEdges()
+            .filter(edge => edge.source === parentId)
+            .map(edge => edge.target)
+            .map(childnodeid => ({
+                id: childnodeid, 
+                label: (getNode(childnodeid)?.data?.label as string | undefined) ?? childnodeid
+            }))
+            .sort((a, b) => Number(a.id) - Number(b.id));
+    }, [getEdges])
+
     /* 
         Editor 中获取的JSONString 有空格和空行符号，为了传输给后端没有这些符号，通过这个公式处理
     */
@@ -656,7 +667,7 @@ function useJsonConstructUtils() {
                 reader.onerror = () => reject(new Error('读取文件时发生错误'));
                 reader.readAsText(file);
               } else {
-                reject(new Error('��选择文件'));
+                reject(new Error('未选择文件'));
               }
             };
           } else {
@@ -666,7 +677,7 @@ function useJsonConstructUtils() {
       }, []);
     
 
-    return {transformBlocksFromSourceNodeIdWithLabelGroup, getSourceNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
+    return {transformBlocksFromSourceNodeIdWithLabelGroup, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, cleanJsonString, streamResult, streamResultForMultipleNodes, updateUI, updateUIForMultipleNodes, reportError, resetLoadingUI, resetLoadingUIForMultipleNodes, constructWholeJsonWorkflow, downloadJsonToLocal, uploadJsonFromLocal}
 
 
 }
