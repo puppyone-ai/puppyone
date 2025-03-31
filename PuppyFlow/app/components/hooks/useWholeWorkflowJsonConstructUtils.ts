@@ -3,7 +3,7 @@ import useJsonConstructUtils, {NodeJsonType, FileData} from './useJsonConstructU
 import { useReactFlow } from '@xyflow/react'
 import {ChunkingAutoEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ChunkingAutoConfigMenu'
 import {CodeEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/CodeConfigMenu'
-import {LLMEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/NewLLM'
+import {LLMEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/LLMConfigMenu'
 import {ModifyCopyEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyCopyConfigMenu'
 import {ModifyGetEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyGetConfigMenu'
 import {ModifyStructuredEdgeJsonType} from '../workflow/edgesNode/edgeNodeConfig/ModifyStructuredConfigMenu'
@@ -422,7 +422,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   // id: nodeInfo.id,
                   type: "search",
                   data: { 
-                      search_type:"llm", 
+                      search_type:"qa", 
                       sub_search_type:"perplexity",
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},

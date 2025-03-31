@@ -6,8 +6,7 @@ PuppyFlow/node_modules/
 **.msi
 pandoc-3.3-windows-x86_64.msi
 pandoc-3.5-windows-x86_64.msi
-PuppyEngine/testpdf.pdf-0-0.png
-PuppyEngine/testpdf.pdf-1-0.png
+PuppyEngine/**.png
 
 **/__pycache__/
 __pycache__/

@@ -499,14 +499,14 @@ function Workflow() {
   useEffect(() => {
     //edgesIds are same in get edges and edgesIds sueing math set compare
     //check sets fully include each other to compare
-    console.log(getEdges().map((edge) => edge.id), edgesIds, "edgesIds")
+    //console.log(getEdges().map((edge) => edge.id), edgesIds, "edgesIds")
     if (!array1HasExtraElements(getEdges().map((edge) => edge.id), edgesIds) && !array1HasExtraElements(edgesIds, getEdges().map((edge) => edge.id))) {
       return
     }
 
     setEdgesIds(getEdges().map((edge) => edge.id))
 
-    console.log(getEdges(), "edges from workflow")
+    //console.log(getEdges(), "edges from workflow")
     // filter out edges that have a source node of type "file" "text" "structured" "choose"
     const filteredEdges = getEdges().filter((edge) => {
       const sourceNode = getNode(edge.source)
