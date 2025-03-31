@@ -422,7 +422,7 @@ export default function useWholeWorkflowJsonConstructUtils() {
                   // id: nodeInfo.id,
                   type: "search",
                   data: { 
-                      search_type:"llm", 
+                      search_type:"qa", 
                       sub_search_type:"perplexity",
                       inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                       query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},

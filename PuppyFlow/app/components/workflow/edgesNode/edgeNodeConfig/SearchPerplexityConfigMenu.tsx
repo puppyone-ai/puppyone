@@ -20,7 +20,7 @@ export type SearchPerplexityEdgeJsonType = {
     // id: string,
     type: "search",
     data: {
-        search_type: "llm",
+        search_type: "qa" ,
         sub_search_type: "perplexity",
         inputs: { [key: string]: string },
         query_id: {[key: string]: string},
@@ -284,7 +284,7 @@ function SearchPerplexityConfigMenu({show, parentId}: SearchPerplexityConfigProp
             // id: parentId,
             type: "search",
             data: { 
-                search_type:"llm", 
+                search_type:"qa", 
                 sub_search_type:"perplexity",
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
                 query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
