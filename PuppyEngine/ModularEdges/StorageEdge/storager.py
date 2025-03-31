@@ -9,14 +9,17 @@ import logging
 import requests
 from typing import List, Dict, Any
 from Utils.puppy_exception import global_exception_handler
+from Utils.config import config
+from Utils.logger import log_info, log_error
 
 
 class StoragerFactory:
     def __init__(
         self
     ):
-        host = os.getenv("STORAGE_HOST", "localhost")
-        self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
+        # host = os.getenv("STORAGE_HOST", "localhost")
+        # self.base_url = os.getenv("STORAGE_SERVER_LOCALHOST") if host == "localhost" else os.getenv("STORAGE_SERVER_URL")
+        self.base_url = config.get("STORAGE_SERVER_URL", "http://localhost:8002")
         self.headers = {
             "Content-Type": "application/json"
         }
@@ -63,11 +66,21 @@ class StoragerFactory:
         search_configs: dict
     ) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/vector/search/{collection_name}"
-        response = requests.get(
+        log_info(f"Sending request to: {url}")
+        log_info(f"Request method: POST")
+        log_info(f"Request headers: {self.headers}")
+        log_info(f"Request body: {search_configs}")
+        
+        response = requests.post(
             url,
-            data=json.dumps(search_configs),
+            json=search_configs,
             headers=self.headers
         )
+        
+        log_info(f"Response status: {response.status_code}")
+        log_info(f"Response headers: {response.headers}")
+        log_info(f"Response url: {response.url}")
+        
         response.raise_for_status()
         results = response.json()
         logging.info(f"Embedding Search Results: {results}")

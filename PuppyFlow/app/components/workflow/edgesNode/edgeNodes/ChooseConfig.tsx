@@ -27,6 +27,22 @@ function ChooseConfig({isConnectable, id, data}: ChooseConfigNodeProps) {
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const {getNode} = useReactFlow()
    
+    // 添加组件挂载时自动展开菜单的效果
+    useEffect(() => {
+        // 组件挂载时自动激活边缘
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+        }
+        
+        // 组件卸载时清除激活状态
+        return () => {
+            if (activatedEdge === id) {
+                clearEdgeActivation()
+            }
+        }
+    }, []) // 空依赖数组确保只在挂载时执行一次
+    
     const onClickButton = () => {
         if (isOnGeneratingNewNode) return
         if (activatedEdge === id) {

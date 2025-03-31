@@ -22,19 +22,18 @@ type messageType = {
     content: string,
 }
 
-type modelType = "gpt-4o" | "gpt-4o-mini" | "gpt-4"
+
 export interface LLMEdgeJsonType {
     // id: string,
     type: "llm",
     data: {
         messages: messageType[],
-        model: modelType,
+        model: string,
         base_url: string,
         max_tokens: number,
         temperature: number,
         inputs: { [key: string]: string },
         structured_output: boolean,
-        looped: boolean,
         outputs: { [key: string]: string }
     }
 
@@ -177,6 +176,23 @@ const PromptEditor = ({ prompts, setPrompts }: {
   );
 };
 
+const open_router_supported_models = [
+    "openai/o1-pro",
+    "openai/o3-mini-high",
+    "openai/o3-mini",
+    "openai/o1",
+    "openai/o1-mini",
+    "openai/gpt-4.5-preview",
+    "openai/gpt-4o-2024-11-20",
+    "openai/gpt-4o-mini",
+    "openai/gpt-4-turbo",
+    "deepseek/deepseek-chat-v3-0324:free",
+    "deepseek/deepseek-r1-zero:free",
+    "anthropic/claude-3.5-haiku",
+    "anthropic/claude-3.5-sonnet",
+    "anthropic/claude-3.7-sonnet",
+]
+
 function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getZoom, getViewport, getNode, flowToScreenPosition, getEdges, setNodes, setEdges, getNodes } = useReactFlow()
@@ -186,8 +202,8 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const modelRef = useRef<HTMLSelectElement>(null)
     const baseUrlRef = useRef<HTMLInputElement>(null)
     const structured_outputRef = useRef<HTMLSelectElement>(null)
-    const [model, setModel] = useState<"gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo">(
-        (getNode(parentId)?.data?.model as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo") || "gpt-4o"
+    const [model, setModel] = useState<string>(
+        (getNode(parentId)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
@@ -201,9 +217,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [isStructured_output, setStructured_output] = useState(
         (getNode(parentId)?.data as LLMConfigNodeData)?.structured_output ?? false
     )
-    const [isLoop, setIsLoop] = useState(
-        (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
-    )
+    // const [isLoop, setIsLoop] = useState(
+    //     (getNode(parentId)?.data as LLMConfigNodeData)?.looped ?? false
+    // )
 
     // 添加设置面板的展开/折叠状态
     const [showSettings, setShowSettings] = useState(false)
@@ -255,8 +271,16 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         });
     };
 
+    const lastNodeWithLabel = useRef<string|undefined>(undefined)
+
     useEffect(
         ()=>{
+            console.log("lastNodeWithLabel",lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
+            if(lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label){
+                return
+            }
+            console.log("update llm config")
+            lastNodeWithLabel.current = getSourceNodeIdWithLabel(parentId)[0]?.label
             const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
             const content = JSON.stringify(
                 [
@@ -270,21 +294,24 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     }
                 ]
             )
-            if(getNode(parentId)?.data.content as string === DEFAULT_LLM_MESSAGE){
-                setNodes(prevNodes => prevNodes.map(node => {
-                    if (node.id === parentId) {
-                        return { ...node, data: { ...node.data, content: content } }
-                    }
-                    return node
-                }))
-            }
+
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === parentId) {
+                    return { ...node, data: { ...node.data, content: content } }
+                }
+                return node
+            }))
+
+            setTimeout(() => {
+                console.log("updated llm config",getNode(parentId)?.data.content)
+            }, 500)
         },
-        []
+        [getEdges()]
     )
 
-    useEffect(() => {
-        onLoopChange(isLoop)
-    }, [isLoop])
+    // useEffect(() => {
+    //     onLoopChange(isLoop)
+    // }, [isLoop])
 
     useEffect(() => {
         onModelChange(model)
@@ -449,23 +476,84 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
     const displaySourceNodeLabels = () => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => (
-            <button 
-                key={`${node.id}-${parentId}`} 
-                onClick={() => copyToClipboard(node.label)}
-                className={`flex items-center justify-center px-[8px] h-[20px] rounded-[4px] 
-                         border-[1px] text-[10px] font-medium transition-all duration-200
-                         ${copiedLabel === node.label 
-                           ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]' 
-                           : 'bg-[#252525] border-[#3B9BFF]/30 text-[#3B9BFF]/90 hover:bg-[#3B9BFF]/5'}`}
-            >
-                {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
-            </button>
-        ))
+        return sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => {
+            // Get the node type from the node data
+            const nodeInfo = getNode(node.id)
+            const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
+            
+            // Define colors based on node type
+            let colorClasses = {
+                text: {
+                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+                },
+                file: {
+                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
+                },
+                structured: {
+                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
+                }
+            }
+            
+            // Define SVG icons for each node type, using the provided references
+            const nodeIcons = {
+                text: (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                ),
+                file: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5"/>
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                ),
+                structured: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    </svg>
+                )
+            }
+            
+            // Choose the appropriate color classes based on node type
+            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
+            
+            // Choose the appropriate icon based on node type
+            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
+            
+            return (
+                <button 
+                    key={`${node.id}-${parentId}`} 
+                    onClick={() => copyToClipboard(node.label)}
+                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
+                             border-[1px] text-[10px] font-medium transition-all duration-200
+                             ${copiedLabel === node.label 
+                               ? colors.active
+                               : colors.default}`}
+                >
+                    <div className="flex-shrink-0">
+                        {icon}
+                    </div>
+                    <span className="truncate max-w-[100px]">
+                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+                    </span>
+                </button>
+            )
+        })
     }
 
 
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
+        console.log("Current model:", model);  // 添加这行
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
         let resultNodeLabel
         if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
@@ -480,7 +568,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 label: resultNodeLabel as string,
                 type: isStructured_output ? "structured" : "text",
                 data: { content: "" },
-                looped: (getNode(resultNode as string) as any)?.looped ? true : false,
+                // looped: (getNode(resultNode as string) as any)?.looped ? true : false,
             }
         }
         
@@ -490,10 +578,11 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
         // 直接使用 content 字段
         const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
+        console.log(messageContent)
         const edgejson: LLMEdgeJsonType = {
             type: "llm",
             data: {
-                messages: messageContent !== "error" ? messageContent : [
+                messages: [
                     {
                         "role": "system",
                         "content": "You are an AI"
@@ -503,19 +592,18 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                         "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
                     }
                 ],
-                model: model as modelType,
+                model: model as string,
                 base_url: baseUrl,
                 max_tokens: 4096,
                 temperature: 0.7,
                 structured_output: isStructured_output,
                 inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => ([node.id, node.label]))),
-                looped: isLoop,
                 outputs: { [resultNode as string]: resultNodeLabel as string }
             },
         }
 
         edges[parentId] = edgejson
-        console.log(blocks, edges)
+        console.log("LLMCONFIG",blocks, edges)
 
         return {
             blocks,
@@ -554,7 +642,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         setIsComplete(false)
     };
 
-    const onModelChange = (newModel: "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo") => {
+    const onModelChange = (newModel: string) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, model: newModel } }
@@ -653,9 +741,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
-                    <div className='w-2 h-2 rounded-full bg-[#3B9BFF]'></div>
+                    <span className='text-[9px] text-[#6D7177] px-[4px] py-[1.5px] rounded bg-[#282828]'>Auto</span>
                 </div>
-                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2'>
                         {displaySourceNodeLabels()}
                     </div>
@@ -665,7 +753,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Messages</label>
-                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
                 <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
                     <PromptEditor prompts={prompts} setPrompts={setPrompts} />
@@ -674,7 +762,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Structured Output</label>
-                    <div className='w-2 h-2 rounded-full bg-[#39BC66]'></div>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
                 <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <PuppyDropdown
@@ -696,7 +784,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
-                    <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
                     <button 
                         onClick={() => setShowSettings(!showSettings)}
                         className='ml-auto text-[12px] font-medium text-[#6D7177] hover:text-[#CDCDCD] transition-colors flex items-center gap-1'
@@ -726,15 +814,15 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                             <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                                 <select 
                                     value={model}
-                                    onChange={(e) => setModel(e.target.value as "gpt-4o" | "gpt-4o-mini" | "gpt-4-turbo")}
-                                    className='w-full h-full bg-transparent border-none outline-none px-3
+                                    onChange={(e) => setModel(e.target.value)}
+                                    className='w-full h-full bg-[#252525] border-none outline-none px-3
                                              text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
                                     onMouseDownCapture={onFocus}
                                     onBlur={onBlur}
                                 >
-                                    <option value="gpt-4o">gpt-4o</option>
-                                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                                    <option value="gpt-4-turbo">gpt-4</option>
+                                    {open_router_supported_models.map((model) => (
+                                        <option key={model} value={model}>{model}</option>
+                                    ))}
                                 </select>
                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                                     <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
