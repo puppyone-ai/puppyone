@@ -551,6 +551,24 @@ function Modify2StructuredConfigMenu({ show, parentId }: ModifyCopyConfigProps) 
                 </div>
             </li>
 
+            {/* Add the Mode selector menu here */}
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                </div>
+                <div className='flex gap-2 bg-[#252525] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                        options={[INTO_DICT_TYPE, INTO_LIST_TYPE, JSON_TYPE, BY_LEN_TYPE, BY_CHAR_TYPE]}
+                        onSelect={(option:string) => {
+                            setExecMode(option)
+                        }}
+                        selectedValue={execMode}
+                        listWidth={"200px"}
+                    />
+                </div>
+            </li>
+
             {execMode === INTO_DICT_TYPE && (
                 <li className='flex flex-col gap-2'>
                     <div className='flex items-center gap-2'>
