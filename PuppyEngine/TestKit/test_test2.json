@@ -40,7 +40,7 @@
                     {"role": "user", "content": "change the name in {{b}} into {{c}}"}
                 ],
                 "sys_prompt": "",
-                "model": "gpt-4o",
+                "model": "openai/gpt-4o-mini",
                 "base_url": "",
                 "max_tokens": 2048,
                 "temperature": 0.7,
