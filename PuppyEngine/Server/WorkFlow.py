@@ -646,7 +646,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_google_search.json":
+        if file_name != "test_new_llm.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
