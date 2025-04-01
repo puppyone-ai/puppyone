@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
+import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
+import useWholeWorkflowJsonConstructUtils from '@/app/components/hooks/useWholeWorkflowJsonConstructUtils';
+import { SYSTEM_URLS } from '@/config/urls';
 
 interface DeployAsApiProps {
   selectedInputs: any[];
@@ -58,11 +61,206 @@ function DeployAsApi({
   apiConfig,
   setSelectedInputs,
   setSelectedOutputs,
-  handleDeploy,
   setActivePanel
 }: DeployAsApiProps) {
-  const { getNodes } = useReactFlow();
+  const { getNodes, getNode } = useReactFlow();
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false);
+  const [selectedLang, setSelectedLang] = useState("shell");
+  const [isDeploying, setIsDeploying] = useState(false);
+  
+  const { setWorkspaces, selectedFlowId, workspaces } = useFlowsPerUserContext();
+  const { constructWholeWorkflowJsonData } = useWholeWorkflowJsonConstructUtils();
+  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+
+  const [localApiConfig, setLocalApiConfig] = useState(apiConfig);
+  
+  const PYTHON = "python";
+  const SHELL = "shell";
+  const JAVASCRIPT = "javascript";
+  
+  const input_text_gen = (inputs: string[], lang: string) => {
+    if (lang == JAVASCRIPT) {
+      const inputData = inputs.map((input, index) => (
+        `        "${input}": "${getNode(input)?.data.content}", //${getNode(input)?.data.label}`
+      ));
+      return inputData.join('\n');
+    } else {
+      const inputData = inputs.map(
+        (input, index) => (
+          `     #${getNode(input)?.data.label} \n` + `     "${input}":` + ((getNode(input)?.data.content as string)?.trim() || "\"\"") + `,`
+        )
+      );
+      return inputData.join('\n');
+    }
+  };
+
+  const populatetext = (api_id: string, api_key: string, language: string) => {
+    const py =
+      `import requests
+
+api_url = "<${API_SERVER_URL}/execute_workflow/${api_id}>"
+
+api_key = "${api_key}"
+
+headers = {
+    "Authorization": f"Bearer ${api_key}",
+    "Content-Type": "application/json"
+}
+
+data = {
+    "inputs": {
+${input_text_gen(selectedInputs.map(item => item.id), PYTHON)}
+    },
+    "outputs": {
+${input_text_gen(selectedOutputs.map(item => item.id), PYTHON)}
+    }
+}
+
+response = requests.post(api_url, headers=headers, json=data)
+
+if response.status_code == 200:
+    print("Results:", response.json())
+else:
+    print("Error:", response.status_code, response.json())
+`;
+    if (language === PYTHON) {
+      return py;
+    }
+
+    const sh =
+      `curl -X POST "<${API_SERVER_URL}/execute_workflow/${api_id}>" \\
+-H "Authorization: Bearer ${api_key}" \\
+-H "Content-Type: application/json" \\
+-d '{
+    "inputs": {
+${input_text_gen(selectedInputs.map(item => item.id), SHELL)}
+    },
+    "outputs"{
+${input_text_gen(selectedOutputs.map(item => item.id), SHELL)}   
+    }
+}'
+`;
+    if (language === SHELL) {
+      return sh;
+    }
+
+    const js = `const axios = require('axios');
+
+const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
+
+const data = {
+    "inputs": {
+${input_text_gen(selectedInputs.map(item => item.id), JAVASCRIPT)}
+    },
+    "outputs"{
+${input_text_gen(selectedOutputs.map(item => item.id), JAVASCRIPT)}   
+    }
+};
+
+axios.post(apiUrl, data, {
+    headers: {
+        "Authorization": "Bearer ${api_key}",
+        "Content-Type": "application/json"
+    }
+})
+.then(response => {
+    console.log("Results:", response.data);
+})
+.catch(error => {
+    if (error.response) {
+        console.error("Error:", error.response.status, error.response.data);
+    } else {
+        console.error("Error:", error.message);
+    }
+});
+`;
+    if (language === JAVASCRIPT) {
+      return js;
+    }
+  };
+
+  const [showApiExample, setShowApiExample] = useState(!!localApiConfig?.id);
+  
+  const handleDeploy = async () => {
+    setIsDeploying(true);
+    
+    try {
+      const inputIds = selectedInputs.map(item => item.id);
+      const outputIds = selectedOutputs.map(item => item.id);
+      
+      const res = await fetch(
+        API_SERVER_URL + "/config_api",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            workflow_json: constructWholeWorkflowJsonData(),
+            inputs: inputIds,
+            outputs: outputIds,
+          })
+        }
+      );
+
+      const content = await res.json();
+
+      if (!res.ok) {
+        throw new Error(`Response status: ${res.status}`);
+      }
+
+      const { api_id, api_key } = content;
+      const newApiConfig = { id: api_id, key: api_key };
+      
+      setLocalApiConfig(newApiConfig);
+      
+      setWorkspaces(prev => prev.map(w =>
+        w.flowId === selectedFlowId ? { 
+          ...w, 
+          deploy: { 
+            selectedInputs, 
+            selectedOutputs, 
+            apiConfig: newApiConfig 
+          } 
+        } : w
+      ));
+      
+      console.log("API配置成功:", api_id, api_key);
+      setShowApiExample(true);
+    } catch (error) {
+      console.error("Failed to deploy API:", error);
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+  
+  const renderApiCodeExample = () => {
+    if (!localApiConfig?.id || !showApiExample) return null;
+    
+    return (
+      <div className="mt-6 border-t border-[#404040] pt-6">
+        <div className="bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]">
+          <div 
+            className="border-[1px] border-[#6D7177] text-[#6D7177] rounded-[4px] w-fit fit-content text-[12px] pr-[3px] pl-[3px] cursor-pointer"
+            onClick={() => setIsLangSelectorOpen(prev => !prev)}
+          >
+            {selectedLang}
+          </div>
+          
+          <LanguageDropdown
+            isOpen={isLangSelectorOpen}
+            setIsOpen={setIsLangSelectorOpen}
+            options={[SHELL, PYTHON, JAVASCRIPT]}
+            onSelect={setSelectedLang}
+          />
+          
+          <div className="relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] mt-[8px] bg-[#1C1D1F]">
+            <pre className="text-[#CDCDCD] text-[10px] p-4 overflow-auto max-h-[200px]">
+              {populatetext(localApiConfig.id, localApiConfig.key, selectedLang)}
+            </pre>
+          </div>
+        </div>
+      </div>
+    );
+  };
   
   return (
     <div className="py-[16px] px-[16px]">
@@ -78,9 +276,7 @@ function DeployAsApi({
         <h2 className="text-[#CDCDCD] text-[16px]">Deploy as API</h2>
       </div>
 
-      {/* 两列布局 - 添加分隔线和背景色区分 */}
       <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
-        {/* 左列 - Inputs */}
         <div className="p-4 bg-[#1A1A1A]">
           <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
             <div className="flex items-center justify-between">
@@ -122,15 +318,13 @@ function DeployAsApi({
           </h3>
           
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
-            {/* 可用输入节点列表 - 保持原有逻辑 */}
             {getNodes()
               .filter((item) => (item.type === 'text' || item.type === 'structured'))
               .filter(item => item.data?.isInput === true)
               .map(node => {
                 const isSelected = selectedInputs?.some(item => item.id === node.id);
-                const nodeType = node.type || 'text'; // 默认为 text 类型
+                const nodeType = node.type || 'text';
                 
-                // 为不同类型的节点定义颜色
                 const colorClasses = {
                   text: {
                     active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]',
@@ -146,7 +340,6 @@ function DeployAsApi({
                   }
                 };
                 
-                // 为不同类型的节点定义图标
                 const nodeIcons = {
                   text: (
                     <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
@@ -207,7 +400,6 @@ function DeployAsApi({
                 );
               })}
             
-            {/* 如果没有可用输入节点 */}
             {getNodes()
               .filter((item) => (item.type === 'text' || item.type === 'structured'))
               .filter(item => item.data?.isInput === true)
@@ -219,7 +411,6 @@ function DeployAsApi({
           </div>
       </div>
 
-        {/* 右列 - Outputs */}
         <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
           <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
             <div className="flex items-center justify-between">
@@ -261,7 +452,6 @@ function DeployAsApi({
           </h3>
           
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
-            {/* 可用输出节点列表 */}
             {getNodes()
               .filter((item) => (item.type === 'text' || item.type === 'structured'))
               .filter(item => item.data?.isOutput === true)
@@ -269,7 +459,6 @@ function DeployAsApi({
                 const isSelected = selectedOutputs?.some(item => item.id === node.id);
                 const nodeType = node.type || 'text';
                 
-                // 为不同类型的节点定义颜色
                 const colorClasses = {
                   text: {
                     active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]',
@@ -285,7 +474,6 @@ function DeployAsApi({
                   }
                 };
                 
-                // 使用与 input 相同的图标
                 const nodeIcons = {
                   text: (
                     <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
@@ -346,7 +534,6 @@ function DeployAsApi({
                 );
               })}
             
-            {/* 如果没有可用输出节点 */}
             {getNodes()
               .filter((item) => (item.type === 'text' || item.type === 'structured'))
               .filter(item => item.data?.isOutput === true)
@@ -359,7 +546,6 @@ function DeployAsApi({
         </div>
       </div>
 
-      {/* Advanced Settings Submenu */}
       <div className="mb-6">
         <button
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
@@ -381,7 +567,6 @@ function DeployAsApi({
           </span>
         </button>
         
-        {/* Collapsible content */}
         <div className={`overflow-hidden transition-all duration-200 ${isAdvancedOpen ? 'max-h-[200px] opacity-100' : 'max-h-0 opacity-0'}`}>
           <div className="space-y-4 pt-2">
             <div>
@@ -407,7 +592,8 @@ function DeployAsApi({
         </div>
       </div>
 
-      {/* 新的部署区域设计 */}
+      {renderApiCodeExample()}
+
       <div className="pt-6 border-t border-[#404040]">
         <div className="flex flex-col items-center text-center">
           <h3 className="text-[#CDCDCD] text-[16px] font-medium mb-4">Ready to Deploy?</h3>
@@ -421,14 +607,21 @@ function DeployAsApi({
                     : 'bg-[#2A2A2A] border-[1.5px] border-[#404040] text-[#808080] cursor-not-allowed opacity-50'
                 }`}
               onClick={handleDeploy}
-              disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0)}
+              disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M20 4H4V20H20V4Z" className="stroke-current" strokeWidth="2"/>
-                <path d="M4 8H20" className="stroke-current" strokeWidth="2"/>
-                <path d="M8 8V20" className="stroke-current" strokeWidth="2"/>
-              </svg>
-              Deploy as API
+              {isDeploying ? (
+                <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M20 4H4V20H20V4Z" className="stroke-current" strokeWidth="2"/>
+                  <path d="M4 8H20" className="stroke-current" strokeWidth="2"/>
+                  <path d="M8 8V20" className="stroke-current" strokeWidth="2"/>
+                </svg>
+              )}
+              {isDeploying ? "Deploying..." : "Deploy as API"}
             </button>
             
             {!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) && (
