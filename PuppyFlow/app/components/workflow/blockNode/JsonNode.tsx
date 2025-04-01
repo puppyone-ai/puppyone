@@ -256,7 +256,7 @@ const TreePathEditor = ({ paths, setPaths }: {
   );
 };
 
-function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput: isInputProp, isOutput: isOutputProp, editable, index_name } }: JsonBlockNodeProps) {
+function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name } }: JsonBlockNodeProps) {
   const { fetchUserId } = useManageUserWorkspacesUtils()
   const { userId } = useFlowsPerUserContext()
 
@@ -264,7 +264,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
-  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll } = useNodesPerFlowContext()
+  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll, manageNodeasInput, manageNodeasOutput } = useNodesPerFlowContext()
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow()
   // for linking to handle bar, it will be highlighed.
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
@@ -287,18 +287,25 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   // Get connected nodes
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
-
-  // Get connected nodes
   const sourceNodes = getSourceNodeIdWithLabel(id)
   const targetNodes = getTargetNodeIdWithLabel(id)
 
-  // Determine dynamic isInput and isOutput based on connections
-  const dynamicIsInput = sourceNodes.length === 0 && targetNodes.length > 0
-  const dynamicIsOutput = targetNodes.length === 0 && sourceNodes.length > 0
-
-  // Use either the prop value or the dynamic value
-  const isInput = isInputProp || dynamicIsInput
-  const isOutput = isOutputProp || dynamicIsOutput
+  // 添加自动检测和同步状态的 useEffect
+  useEffect(() => {
+    const isAutoDetectInput = sourceNodes.length === 0 && targetNodes.length > 0;
+    const isAutoDetectOutput = targetNodes.length === 0 && sourceNodes.length > 0;
+    
+    // 仅当当前状态与自动检测不一致时更新状态
+    if (isAutoDetectInput && !isInput) {
+      manageNodeasInput(id);
+    } else if (isAutoDetectOutput && !isOutput) {
+      manageNodeasOutput(id);
+    } else if (!isAutoDetectInput && !isAutoDetectOutput && (isInput || isOutput)) {
+      // 如果既不是输入也不是输出，但当前有一个标记，则移除标记
+      if (isInput) manageNodeasInput(id);
+      if (isOutput) manageNodeasOutput(id);
+    }
+  }, [sourceNodes.length, targetNodes.length, isInput, isOutput, id]);
 
   useEffect(() => {
     setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, paths: paths } } : node))
@@ -319,7 +326,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   useEffect(() => {
     if (activatedNode?.id === id) {
-      setBorderColor("border-main-blue");
+      setBorderColor("border-[#9B7EDB]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
@@ -1013,7 +1020,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden shadow-[0_8px_16px_rgba(0,0,0,0.04),0_4px_24px_rgba(255,255,255,0.04)]`}>
 
 
         {/* the top bar of a block */}
