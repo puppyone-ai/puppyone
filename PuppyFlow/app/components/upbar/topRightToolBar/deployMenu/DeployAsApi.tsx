@@ -82,10 +82,43 @@ function DeployAsApi({
       <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
         {/* 左列 - Inputs */}
         <div className="p-4 bg-[#1A1A1A]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-4 flex items-center justify-between border-b border-[#333333] pb-2">
-            <span className="flex items-center">
-              Inputs
-            </span>
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Inputs</span>
+            </div>
+            <div className="flex items-center mt-2 gap-2">
+              <span className="text-[12px] text-[#808080]">type:</span>
+              <div className="flex items-center gap-1">
+                <div 
+                  className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help"
+                  title="Text Block"
+                >
+                  <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                    className="text-[#3B9BFF]" 
+                  >
+                    <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+
+                <div 
+                  className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 transition-colors cursor-help"
+                  title="Structured Block"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                    className="text-[#9B7EDB]" 
+                  >
+                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                    <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                    <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                    <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                    <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </h3>
           
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
@@ -188,10 +221,43 @@ function DeployAsApi({
 
         {/* 右列 - Outputs */}
         <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-4 flex items-center justify-between border-b border-[#333333] pb-2">
-            <span className="flex items-center">
-              Outputs
-            </span>
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Outputs</span>
+            </div>
+            <div className="flex items-center mt-2 gap-2">
+              <span className="text-[12px] text-[#808080]">type:</span>
+              <div className="flex items-center gap-1">
+                <div 
+                  className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help"
+                  title="Text Block"
+                >
+                  <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                    className="text-[#3B9BFF]" 
+                  >
+                    <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </div>
+
+                <div 
+                  className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 transition-colors cursor-help"
+                  title="Structured Block"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                    className="text-[#9B7EDB]" 
+                  >
+                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                    <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                    <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                    <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                    <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </h3>
           
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
