@@ -398,7 +398,7 @@ function SearchPerplexityConfigMenu({ show, parentId }: SearchPerplexityConfigPr
                 query_id: sourceNodeIdWithLabelGroup.length > 0 ? {[sourceNodeIdWithLabelGroup[0].id]: sourceNodeIdWithLabelGroup[0].label} : {},
                 extra_configs: {model: model},
                 // looped: false,
-                outputs: {[resultNode as string]: resultNodeLabel as string}
+                outputs: {[resultNode as string]: resultNode as string}
             },
         };
 
