@@ -399,8 +399,21 @@ function DeployAsChatbot({
                     ${chatbotConfig.deployTo === option.id ? 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]' : ''}`}
                   onClick={() => {
                     if (chatbotInputs?.length > 0 && chatbotOutputs?.length > 0) {
+                      setSelectedInputs((prev) => {
+                        console.log("Setting inputs:", chatbotInputs);
+                        return chatbotInputs;
+                      });
+                      
+                      setSelectedOutputs((prev) => {
+                        console.log("Setting outputs:", chatbotOutputs);
+                        return chatbotOutputs;
+                      });
+                      
                       setChatbotConfig(prev => ({ ...prev, deployTo: option.id }));
-                      handleDeploy();
+                      
+                      setTimeout(() => {
+                        handleDeploy();
+                      }, 100);
                     }
                   }}
                   disabled={!(chatbotInputs?.length > 0 && chatbotOutputs?.length > 0)}
