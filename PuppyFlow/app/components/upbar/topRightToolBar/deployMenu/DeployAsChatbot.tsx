@@ -124,13 +124,27 @@ function DeployAsChatbot({
       
       <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
         <div className="p-4 bg-[#1A1A1A]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-4 flex items-center justify-between border-b border-[#333333] pb-2">
-            <span className="flex items-center">User Messages</span>
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>User Messages</span>
+            </div>
+            <div className="flex items-center mt-2 gap-2">
+              <span className="text-[12px] text-[#808080]">type:</span>
+              <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#404040]">
+                <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                  className="text-[#3B9BFF]" 
+                >
+                  <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
           </h3>
           
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
             {getNodes()
-              .filter((item) => (item.type === 'text' || item.type === 'structured' || item.type === 'block'))
+              .filter((item) => item.type === 'text')
               .filter(item => item.data?.isInput === true)
               .map(node => {
                 const isSelected = chatbotInputs?.some(item => item.id === node.id);
@@ -189,13 +203,9 @@ function DeployAsChatbot({
                     }`}
                     onClick={() => {
                       if (isSelected) {
-                        setChatbotInputs(prev => prev.filter(el => el.id !== node.id));
+                        setChatbotInputs([]);
                       } else {
-                        setChatbotInputs(prev => {
-                          return prev?.length === 0 
-                            ? [{ id: node.id, label: node.data.label }] 
-                            : [...prev, { id: node.id, label: node.data.label }];
-                        });
+                        setChatbotInputs([{ id: node.id, label: node.data.label }]);
                       }
                     }}
                   >
@@ -215,13 +225,30 @@ function DeployAsChatbot({
         </div>
 
         <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-4 flex items-center justify-between border-b border-[#333333] pb-2">
-            <span className="flex items-center">Bot Responses</span>
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Bot Responses</span>
+            </div>
+            <div className="flex items-center mt-2 gap-2">
+              <span className="text-[12px] text-[#808080]">type:</span>
+              <div 
+                className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help"
+                title="Text Block"
+              >
+                <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" 
+                  className="text-[#3B9BFF]" 
+                >
+                  <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
           </h3>
           
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
             {getNodes()
-              .filter((item) => (item.type === 'text' || item.type === 'structured' || item.type === 'block'))
+              .filter((item) => item.type === 'text')
               .filter(item => item.data?.isOutput === true)
               .map(node => {
                 const isSelected = chatbotOutputs?.some(item => item.id === node.id);
@@ -280,13 +307,9 @@ function DeployAsChatbot({
                     }`}
                     onClick={() => {
                       if (isSelected) {
-                        setChatbotOutputs(prev => prev.filter(el => el.id !== node.id));
+                        setChatbotOutputs([]);
                       } else {
-                        setChatbotOutputs(prev => {
-                          return prev?.length === 0 
-                            ? [{ id: node.id, label: node.data.label }] 
-                            : [...prev, { id: node.id, label: node.data.label }];
-                        });
+                        setChatbotOutputs([{ id: node.id, label: node.data.label }]);
                       }
                     }}
                   >
