@@ -280,7 +280,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           const uploadResponse = await fetch(upload_url, {
             method: 'PUT',
             headers: {
-              'Content-Type': file.type,
+              'Content-Type': content_type_header,
             },
             body: file,
           });
