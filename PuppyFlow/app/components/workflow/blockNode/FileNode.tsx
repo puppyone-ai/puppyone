@@ -248,7 +248,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           if(fileExtension === "txt") {
             fileExtension = "text";
           }
-
+          if(fileExtension === "md") {
+            fileExtension = "markdown";
+          }
           // Step 1: Get presigned URL and UUID
           const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
             {
@@ -321,6 +323,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               }
               if(fileExtension === "txt") {
                 fileExtension = "text";
+              }
+              if(fileExtension === "md") {
+                fileExtension = "markdown";
               }
         
               try {
