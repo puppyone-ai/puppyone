@@ -240,7 +240,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           // Get file extension
           const fileName = file.name;
           let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"];
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application"];
 
           if (!supportedFileExtensions.includes(fileExtension)) {
             fileExtension = "application";
