@@ -50,6 +50,8 @@ except PuppyException as e:
     # 但在生产环境中可能需要更严格的错误处理
 
 type_header_mapping = {
+    "md": "text/markdown", 
+    "markdown": "text/markdown", 
     "text": "text/plain",
     "html": "text/html",
     "css": "text/css",
