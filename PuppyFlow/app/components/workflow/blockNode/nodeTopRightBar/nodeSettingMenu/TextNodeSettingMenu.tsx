@@ -104,7 +104,7 @@ function TextNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: TextNodeSetti
         leaveTo="transform opacity-0 translate-y-[-10px]"
     >
         <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
-             <li>
+             {/* <li>
                 <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                 onClick={()=> manageNodeasInput(nodeid)}>
                 <div className='flex items-center justify-center'>
@@ -133,7 +133,7 @@ function TextNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: TextNodeSetti
                     {getNode(nodeid)?.data?.isOutput ? "Unset output" :"Set as output"}
                 </div>
                 </button>
-            </li> 
+            </li> */}
             <li>
                 <button className='flex flex-row items-center justify-start  gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none  text-[#CDCDCD] hover:text-white'
                 onClick={()=> manageNodeasLocked(nodeid)}>
