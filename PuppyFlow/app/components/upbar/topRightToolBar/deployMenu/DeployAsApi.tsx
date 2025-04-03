@@ -99,7 +99,7 @@ function DeployAsApi({
     const py =
       `import requests
 
-api_url = "<${API_SERVER_URL}/execute_workflow/${api_id}>"
+api_url = "${API_SERVER_URL}/execute_workflow/${api_id}"
 
 api_key = "${api_key}"
 
@@ -111,9 +111,6 @@ headers = {
 data = {
     "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), PYTHON)}
-    },
-    "outputs": {
-${input_text_gen(selectedOutputs.map(item => item.id), PYTHON)}
     }
 }
 
@@ -129,16 +126,13 @@ else:
     }
 
     const sh =
-      `curl -X POST "<${API_SERVER_URL}/execute_workflow/${api_id}>" \\
+      `curl -X POST "${API_SERVER_URL}/execute_workflow/${api_id}" \\
 -H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
     "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), SHELL)}
     },
-    "outputs"{
-${input_text_gen(selectedOutputs.map(item => item.id), SHELL)}   
-    }
 }'
 `;
     if (language === SHELL) {
@@ -147,15 +141,12 @@ ${input_text_gen(selectedOutputs.map(item => item.id), SHELL)}
 
     const js = `const axios = require('axios');
 
-const apiUrl = "<${API_SERVER_URL}/execute_workflow/${api_id}>";
+const apiUrl = "${API_SERVER_URL}/execute_workflow/${api_id}";
 
 const data = {
     "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), JAVASCRIPT)}
     },
-    "outputs"{
-${input_text_gen(selectedOutputs.map(item => item.id), JAVASCRIPT)}   
-    }
 };
 
 axios.post(apiUrl, data, {
