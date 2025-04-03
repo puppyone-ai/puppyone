@@ -17,8 +17,7 @@ function DeployBotton() {
   const { constructWholeWorkflowJsonData } = useWholeWorkflowJsonConstructUtils()
   const { getNodes } = useReactFlow()
 
-  const [selectedInputs, setSelectedInputs] = useState<any[]>([])
-  const [selectedOutputs, setSelectedOutputs] = useState<any[]>([])
+  // 仅保留顶层菜单所需的状态
   const [hovered, setHovered] = useState(false)
   const [activePanel, setActivePanel] = useState<string | null>(null)
   
@@ -59,193 +58,29 @@ function DeployBotton() {
     },
   ];
 
-  interface ApiConfig {
-    id: string;
-    key: string;
-  }
-
-  const [apiConfig, setApiConfig] = useState<ApiConfig | undefined>(undefined)
-
-  const lastSelectedFlowIdRef = useRef<string | null>(null);
-  const initializedRef = useRef<boolean>(false);
-
-  // 状态管理
-  const [selectedNodes, setSelectedNodes] = useState<{ [key: string]: string }>({
-    input: '',
-    output: ''
-  });
-
-  const [nodeOptionsByType, setNodeOptionsByType] = useState<{ [key: string]: any[] }>({
-    input: [],
-    output: []
-  });
-
-  // 初始化选择所有节点
-  const initializeNodeSelections = () => {
-    // 获取所有输入节点并设置为选中
-    const allInputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isInput === true)
-      .map(node => ({ id: node.id, label: node.data.label }))
-    
-    // 获取所有输出节点并设置为选中  
-    const allOutputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isOutput === true)
-      .map(node => ({ id: node.id, label: node.data.label }))
-    
-    // 设置选中的输入和输出节点
-    setSelectedInputs(allInputNodes)
-    setSelectedOutputs(allOutputNodes)
-  }
-
-  useEffect(() => {
-    if (lastSelectedFlowIdRef.current !== selectedFlowId) {
-      console.log("Workflow has changed")
-      lastSelectedFlowIdRef.current = selectedFlowId
-      
-      // 检查当前工作流是否已有保存的选择
-      const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId)
-      
-      if (currentWorkspace?.deploy?.selectedInputs && currentWorkspace?.deploy?.selectedOutputs) {
-        // 有保存的选择，使用保存的选择
-        setSelectedInputs(currentWorkspace.deploy.selectedInputs)
-        setSelectedOutputs(currentWorkspace.deploy.selectedOutputs)
-        setApiConfig(currentWorkspace.deploy.apiConfig)
-      } else {
-        // 没有保存的选择，初始化所有节点为选中
-        initializeNodeSelections()
-      }
-    }
-  }, [selectedFlowId, getNodes])
-
-  // 组件加载后自动选择所有节点
-  useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true
-      
-      // 如果当前工作流没有保存的选择，初始化所有节点为选中
-      const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId)
-      if (!currentWorkspace?.deploy?.selectedInputs || !currentWorkspace?.deploy?.selectedOutputs) {
-        initializeNodeSelections()
-      }
-    }
-  }, [])
-
-  // 更新节点选项
-  useEffect(() => {
-    // 获取输入节点选项
-    const inputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isInput === true)
-      .map(node => ({ id: node.id, data: { label: node.data.label } }));
-    
-    // 获取输出节点选项
-    const outputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isOutput === true)
-      .map(node => ({ id: node.id, data: { label: node.data.label } }));
-    
-    // 更新节点选项状态
-    setNodeOptionsByType({
-      input: inputNodes,
-      output: outputNodes
-    });
-  }, [getNodes, selectedFlowId]);
-
-  // 保存部署配置到工作区
-  useEffect(() => {
-    if (selectedFlowId && (selectedInputs.length > 0 || selectedOutputs.length > 0 || apiConfig)) {
-      const updatedWorkspaces = workspaces.map(workspace => {
-        if (workspace.flowId === selectedFlowId) {
-          return {
-            ...workspace,
-            deploy: {
-              selectedInputs,
-              selectedOutputs,
-              apiConfig
-            }
-          };
-        }
-        return workspace;
-      });
-      
-      setWorkspaces(updatedWorkspaces);
-    }
-  }, [selectedInputs, selectedOutputs, apiConfig, selectedFlowId]);
-
-  // 部署API的核心函数
-  const handleDeploy = async () => {
-    try {
-      const res = await fetch(
-        API_SERVER_URL + "/config_api",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            workflow_json: constructWholeWorkflowJsonData(),
-            inputs: selectedInputs.map(item => item.id),
-            outputs: selectedOutputs.map(item => item.id),
-          })
-        }
-      )
-
-      const content = await res.json();
-
-      if (!res.ok) {
-        throw new Error(`Response status: ${res.status}`);
-      }
-
-      const { api_id, api_key } = content
-      setApiConfig({ id: api_id, key: api_key })
-      console.log(api_id, api_key)
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  // 语言选项常量
-  const PYTHON = "python"
-  const SHELL = "shell"
-  const JAVASCRIPT = "javascript"
-  const languageOptions = [PYTHON, SHELL, JAVASCRIPT];
-  const [selectedLang, setSelectedLang] = useState(SHELL)
-  const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false)
-
-  // API部署专用状态
-  const [apiInputs, setApiInputs] = useState<any[]>([]);
-  const [apiOutputs, setApiOutputs] = useState<any[]>([]);
-
   // 渲染选择的面板
   const renderActivePanel = () => {
     switch (activePanel) {
       case 'api':
         return (
           <DeployAsApi
-            selectedInputs={selectedInputs}
-            selectedOutputs={selectedOutputs}
-            setSelectedInputs={setSelectedInputs}
-            setSelectedOutputs={setSelectedOutputs}
-            apiConfig={apiConfig || { id: "", key: "" }}
+            selectedFlowId={selectedFlowId}
+            workspaces={workspaces}
+            setWorkspaces={setWorkspaces}
+            constructWholeWorkflowJsonData={constructWholeWorkflowJsonData}
+            API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
-            selectedNodes={selectedNodes}
-            nodeOptionsByType={nodeOptionsByType}
-            selectedLanguage={selectedLang}
-            handleLanguageSelect={setSelectedLang}
-            languageOptions={languageOptions}
-            languageDropdownOpen={isLangSelectorOpen}
-            setLanguageDropdownOpen={setIsLangSelectorOpen}
-            handleDeploy={handleDeploy}
           />
         );
       case 'chatbot':
         return (
           <DeployAsChatbot
-            selectedInputs={selectedInputs}
-            selectedOutputs={selectedOutputs}
-            setSelectedInputs={setSelectedInputs}
-            setSelectedOutputs={setSelectedOutputs}
+            selectedFlowId={selectedFlowId}
+            workspaces={workspaces}
+            setWorkspaces={setWorkspaces}
+            constructWholeWorkflowJsonData={constructWholeWorkflowJsonData}
+            API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
-            handleDeploy={handleDeploy}
           />
         );
       case 'dashboard':
@@ -277,7 +112,6 @@ function DeployBotton() {
                 </div>
               ))}
             </div>
-
           </div>
         );
     }
