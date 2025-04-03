@@ -87,19 +87,21 @@ const PromptEditor = ({ prompts, setPrompts }: {
     const renderNode = (node: PromptNode) => {
         return (
             <div key={node.id} className="relative group mb-1">
-                <div className="flex items-center gap-2">
-                    <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
-                        <input
+                <div className="flex items-start gap-2">
+                    <div className="flex-1 relative min-h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
+                        <textarea
                             value={node.content}
                             onChange={(e) => updateNodeContent(node.id, e.target.value)}
-                            className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
-                       text-[#CDCDCD] text-[12px] font-medium appearance-none'
+                            className='w-full bg-transparent border-none outline-none pl-[72px] pr-2 py-2
+                       text-[#CDCDCD] text-[12px] font-medium appearance-none resize-y min-h-[32px] nodrag'
                             placeholder="Enter message content..."
+                            rows={1}
+                            onMouseDown={(e) => e.stopPropagation()}
                         />
 
                         {/* Role selector */}
                         <div
-                            className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
+                            className={`absolute left-[6px] top-[8px] h-[20px] flex items-center 
                          px-2 rounded-[4px] cursor-pointer transition-colors
                          ${node.role === 'system'
                                     ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50'
@@ -126,7 +128,7 @@ const PromptEditor = ({ prompts, setPrompts }: {
 
                     <button
                         onClick={() => deleteNode(node.id)}
-                        className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                        className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors mt-[4px]'
                     >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
@@ -275,7 +277,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
     useEffect(
         () => {
-            console.log("lastNodeWithLabel", lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
             if (lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label) {
                 return
             }
@@ -449,6 +450,19 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     };
 
     const onDataSubmit = async () => {
+        // 在提交前输出当前节点的内容和prompts数据
+        console.log("Current prompts:", prompts);
+        console.log("Current node content:", getNode(parentId)?.data.content);
+        
+        // 如果需要，还可以先手动构建一次JSON看看结果
+        const promptsJson = JSON.stringify(
+            prompts.map(prompt => ({
+                role: prompt.role,
+                content: prompt.content
+            }))
+        );
+        console.log("Constructed prompts JSON:", promptsJson);
+        
         // Clear activation
         await new Promise(resolve => {
             clearAll();
@@ -471,9 +485,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     };
 
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId)
-
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        
         // 创建包含所有连接节点的 blocks
         let blocks: { [key: string]: NodeJsonType } = {}
 
@@ -492,23 +506,27 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         // 创建 edges
         let edges: { [key: string]: LLMEdgeJsonType } = {}
 
-        // 获取消息内容
-        const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
-        console.log(messageContent)
+        // 直接从节点的 promptsData 获取消息
+        const nodeData = getNode(parentId)?.data;
+        let messages = [];
         
+        if (nodeData?.promptsData && Array.isArray(nodeData.promptsData)) {
+            // 优先使用节点的 promptsData
+            messages = nodeData.promptsData;
+            console.log("Using node's promptsData:", messages);
+        } else {
+            // 直接使用当前组件的 prompts 状态
+            messages = prompts.map(p => ({
+                role: p.role,
+                content: p.content
+            }));
+            console.log("Using current prompts state:", messages);
+        }
+
         const edgejson: LLMEdgeJsonType = {
             type: "llm",
             data: {
-                messages: [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
-                    }
-                ],
+                messages: messages,
                 model: model as string,
                 base_url: baseUrl,
                 max_tokens: 4096,
@@ -756,7 +774,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 content: prompt.content
             }))
         );
-        
+
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, content: updatedContent } };
@@ -841,7 +859,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Output section - right side */}
                 <div className='flex-1 flex flex-col gap-1'>
                     <div className='flex items-center gap-2'>
