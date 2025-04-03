@@ -508,8 +508,17 @@ function ModifyTextConfigMenu({ show, parentId }: ModifyTextConfigProps) {
             <li className='flex flex-row gap-[12px]'>
                 {/* Input section - left side */}
                 <div className='flex-1 flex flex-col gap-1'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
-
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Text icon */}
+                            <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                        </div>
+                    </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                         <div className='flex flex-wrap gap-2'>
                             {displaySourceNodeLabels()}
@@ -519,7 +528,17 @@ function ModifyTextConfigMenu({ show, parentId }: ModifyTextConfigProps) {
 
                 {/* Output section - right side */}
                 <div className='flex-1 flex flex-col gap-1'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Text icon */}
+                            <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                        </div>
+                    </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                         <div className='flex flex-wrap gap-2'>
                             {displayTargetNodeLabels()}
