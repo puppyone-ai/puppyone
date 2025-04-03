@@ -884,26 +884,22 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 <div className='flex-1 flex flex-col gap-1'>
                     <div className='flex items-center gap-2'>
                         <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
-                        <div className='flex items-center gap-[4px]'>
-                            {/* Text icon with neutral frame - smaller SVG */}
-                            <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
-                                <svg width="10" height="10" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                    <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                    <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                </svg>
-                            </div>
-                            {/* Structured icon with neutral frame - smaller SVG */}
-                            <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
-                                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
-                                    <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
-                                    <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
-                                    <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
-                                    <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
-                                </svg>
-                            </div>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Text icon - 增大尺寸 */}
+                            <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                            {/* Structured icon - 增大尺寸 */}
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                            </svg>
                         </div>
                     </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
@@ -917,28 +913,24 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 <div className='flex-1 flex flex-col gap-1'>
                     <div className='flex items-center gap-2'>
                         <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
-                        <div className='flex items-center gap-[4px] pl-[4px]'>
+                        <div className='flex items-center gap-[6px] pl-[4px]'>
                             {/* Output types with neutral frames - smaller SVGs */}
                             <div className='flex items-center gap-[4px]'>
-                                {/* Text icon with neutral frame - smaller SVG */}
-                                <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
-                                    <svg width="10" height="10" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                        <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                        <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                    </svg>
-                                </div>
-                                {/* Structured icon with neutral frame - smaller SVG - still using conditional opacity */}
-                                <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]' >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
-                                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
-                                        <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
-                                        <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
-                                        <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
-                                        <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
-                                    </svg>
-                                </div>
+                                {/* Text icon */}
+                                <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                                {/* Structured icon */}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                    <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                    <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                    <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                    <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                                </svg>
                             </div>
                         </div>
                     </div>
