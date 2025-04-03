@@ -24,7 +24,6 @@ class ConditionerFactory(EdgeFactoryBase):
         Returns:
             Dict[str, Any]: A dictionary of case names with results.
         """
-        print("here: ", init_configs, extra_configs)
 
         content_blocks = init_configs.get("content_blocks", {})
         cases = init_configs.get("cases", {})
