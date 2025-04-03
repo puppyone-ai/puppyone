@@ -122,10 +122,13 @@ class ChatService:
             str: The response content.
         """
 
-        if self.structured_output:
-            response_content = response.content
-        else:
-            response_content = response.choices[0].message.content
+        try:
+            if self.structured_output:
+                response_content = response.content
+            else:
+                response_content = response.choices[0].message.content
+        except Exception as e:
+            raise PuppyException(3701, "Error Parsing LLM Client Response", str(e))
 
         if self.printing:
             print(response_content + "\n")

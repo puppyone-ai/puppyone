@@ -96,7 +96,8 @@ class EdgeConfigParser(ABC):
         return is_loop, init_configs, extra_configs
 
     def get_looped_configs(
-        self
+        self,
+        handle_structured: bool = True
     ) -> List[Dict[str, Any]]:
         """
         Get looped configs from block configs
@@ -111,10 +112,13 @@ class EdgeConfigParser(ABC):
             is_looped = info.get("looped", False)
 
             if is_looped and isinstance(content, (list, dict)):
-                looped_values[key] = (
-                    [str(item) for item in content] if isinstance(content, list) 
-                    else [str({k: v}) for k, v in content.items()]
-                )
+                if handle_structured:
+                    looped_values[key] = (
+                        [str(item) for item in content] if isinstance(content, list) 
+                        else [str({k: v}) for k, v in content.items()]
+                    )
+                else:
+                    looped_values[key] = content
             else:
                 non_looped_values[key] = content  # Keep original content
 
@@ -133,7 +137,6 @@ class EdgeConfigParser(ABC):
         self,
         text_content: str,
         variable_values: Dict[str, Any],
-        keep_new_content_type: bool = False,
         escape_inner_chars: bool = False
     ) -> Any:
         placeholders = re.findall(self.placeholder_pattern, text_content)
@@ -142,6 +145,7 @@ class EdgeConfigParser(ABC):
                 block_id for block_id, block_info in self.block_configs.items() 
                 if block_info.get("label") == content_block_label
             ]
+
             if replace_block_id:
                 replaced_content = variable_values.get(replace_block_id[0], "")
                 content_to_match = f"{{{{{content_block_label}}}}}"
@@ -151,9 +155,10 @@ class EdgeConfigParser(ABC):
 
                 if escape_inner_chars:
                     replaced_content = self._escape_markdown(str(replaced_content))
-                text_content = replaced_content if keep_new_content_type else text_content.replace(content_to_match, str(replaced_content))
+                text_content = text_content.replace(content_to_match, str(replaced_content))
             else:
                 raise ValueError(f"Block {content_block_label} not found")
+
         return text_content
     
     def _escape_markdown(
@@ -434,7 +439,7 @@ class ModifyConfigParser(EdgeConfigParser):
         self,
         variable_replace_field: str = "content"
     ) -> ParsedEdgeParams:
-        variables = self.get_looped_configs()
+        variables = self.get_looped_configs(handle_structured=False)
         modify_type = self.edge_configs.get("modify_type", "")
 
         init_configs = [{
@@ -442,7 +447,6 @@ class ModifyConfigParser(EdgeConfigParser):
             variable_replace_field: self.replace_placeholders(
                 text_content=self.edge_configs.get(variable_replace_field),
                 variable_values=variable,
-                keep_new_content_type=True if modify_type == "edit_structured" else False,
                 escape_inner_chars=False
             )
         } for variable in variables]
