@@ -240,7 +240,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           // Get file extension
           const fileName = file.name;
           let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "application"];
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application"];
 
           if (!supportedFileExtensions.includes(fileExtension)) {
             fileExtension = "application";
@@ -248,7 +248,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           if(fileExtension === "txt") {
             fileExtension = "text";
           }
-
+          if(fileExtension === "md") {
+            fileExtension = "markdown";
+          }
           // Step 1: Get presigned URL and UUID
           const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
             {
@@ -280,7 +282,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           const uploadResponse = await fetch(upload_url, {
             method: 'PUT',
             headers: {
-              'Content-Type': file.type,
+              'Content-Type': content_type_header,
             },
             body: file,
           });
@@ -322,6 +324,9 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               if(fileExtension === "txt") {
                 fileExtension = "text";
               }
+              if(fileExtension === "md") {
+                fileExtension = "markdown";
+              }
         
               try {
                   // Step 1: Get presigned URL and UUID
@@ -356,7 +361,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
                   const uploadResponse = await fetch(upload_url, {
                     method: 'PUT',
                     headers: {
-                      'Content-Type': file.type,
+                      'Content-Type': content_type_header,
                     },
                     body: file,
                   });

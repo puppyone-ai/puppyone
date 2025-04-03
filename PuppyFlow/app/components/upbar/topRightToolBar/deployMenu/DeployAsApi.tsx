@@ -325,9 +325,6 @@ headers = {
 data = {
     "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), PYTHON)}
-    },
-    "outputs": {
-${input_text_gen(selectedOutputs.map(item => item.id), PYTHON)}
     }
 }
 
@@ -350,9 +347,6 @@ else:
     "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), SHELL)}
     },
-    "outputs"{
-${input_text_gen(selectedOutputs.map(item => item.id), SHELL)}   
-    }
 }'
 `;
     if (language === SHELL) {
@@ -367,9 +361,6 @@ const data = {
     "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), JAVASCRIPT)}
     },
-    "outputs"{
-${input_text_gen(selectedOutputs.map(item => item.id), JAVASCRIPT)}   
-    }
 };
 
 axios.post(apiUrl, data, {
