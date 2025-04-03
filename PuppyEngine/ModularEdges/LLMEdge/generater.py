@@ -160,12 +160,14 @@ def lite_llm_chat(
             api_key=kwargs.get("api_key"),
             api_base=kwargs.get("api_base")
         )
+        kwargs["is_openrouter"] = False
     else:
         kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_lite_llm_settings(
             model=kwargs.get("model"),
             api_key=kwargs.get("api_key"),
             base_url=kwargs.get("base_url")
         )
+        kwargs["is_openrouter"] = False
 
     # Initialize the ChatService with the configured settings
     chat_service = ChatService(**kwargs)
