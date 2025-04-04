@@ -1283,7 +1283,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                                             </div>
 
                                                             {/* 第二个元素：条件选择 */}
-                                                            <div className='border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
+                                                            <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
                                                                 <PuppyDropdown
                                                                     options={getConditionSelections(getNode(cases[case_index].conditions[conditions_index].id)?.type || 'text')}
                                                                     onSelect={(value: string) => {
@@ -1431,7 +1431,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                                         showDropdownIcon={false}
                                                     />
                                                 </div>
-                                                <div className='border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
+                                                <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
                                                     <span className='text-[#6D7177] text-[12px] font-medium'> copy to</span>
                                                 </div>
                                                 <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
