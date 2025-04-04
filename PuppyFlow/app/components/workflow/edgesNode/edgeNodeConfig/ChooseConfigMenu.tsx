@@ -86,81 +86,6 @@ type ConstructedChooseJsonData = {
 }
 
 
-const CustomDropdown = ({ options, onSelect, selectedValue }: any) => {
-    const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
-
-    const handleSelect = (nodeId: string, label: string) => {
-        onSelect(nodeId, label);
-        setIsOpen(false); // Close dropdown after selection
-    };
-
-    // Inline styles
-    const dropdownContainerStyle: React.CSSProperties = {
-        position: 'relative',
-        cursor: 'pointer',
-    };
-
-    const dropdownHeaderStyle = {
-        padding: '8px',
-        backgroundColor: '#333', // Background color
-        color: 'white', // Text color
-        border: '1px solid #6D7177', // Border color
-        borderRadius: '4px', // Rounded corners
-    };
-
-    const dropdownListStyle: React.CSSProperties = {
-        position: 'absolute',
-        top: '150%',
-        left: 0,
-        right: 0,
-        backgroundColor: 'black', // Background color for dropdown items
-        border: '1px solid #6D7177', // Border color
-        borderRadius: '4px', // Rounded corners
-        zIndex: 1000, // Ensure dropdown is above other elements
-        height: 'auto', // Max height for dropdown
-        width: '100px',
-        overflowY: 'auto', // Scroll if too many items
-        overflowX: 'hidden',
-        color: 'white'
-    };
-
-    const dropdownItemStyle = {
-        padding: '8px',
-        color: 'white', // Text color for items
-        cursor: 'pointer',
-    };
-
-    return (
-        <div style={dropdownContainerStyle}>
-            <div className={`overflow-hidden text-[12px] text-nowrap font-[700] ${selectedValue ? "text-[#000] " : "text-white"} leading-normal tracking-[0.84px] px-[4px] flex items-center justify-center h-[16px] rounded-[6px] border-[#6D7177] ${selectedValue ? "border-[3px]" : "border-[0px]"} ${selectedValue ? "bg-[#6D7177]" : ""}`} onClick={() => {
-
-                setIsOpen(prev => {
-                    console.log("open", prev)
-                    return !prev
-                })
-            }}>
-                {selectedValue || "Select a node"} {/* Display selected label or placeholder */}
-            </div>
-            {isOpen ? (
-                <ul style={dropdownListStyle}>
-                    {console.log("options", options)}
-                    {options.map((node: any) => (
-                        <li
-                            key={node.id}
-                            style={dropdownItemStyle}
-                            onClick={() => handleSelect(node.id, node.label)}
-                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
-                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
-                        >
-                            {node.label || node.id}
-                        </li>
-                    ))}
-                </ul>
-            ) : <></>}
-        </div>
-    );
-};
-
 function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode, getNodes, setNodes, setEdges, getEdges } = useReactFlow()
@@ -1456,7 +1381,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                 <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Action</label>
 
                                 {case_value.actions.map((action_value, action_index) => (
-                                    <div className='inline-flex space-x-[12px] items-center justify-start w-full'>
+                                    <div key={action_index} className='inline-flex space-x-[12px] items-center justify-start w-full'>
                                         <ul className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'>
                                             <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
                                                 {/* 第一个元素：节点选择 */}
