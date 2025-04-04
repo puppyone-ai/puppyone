@@ -963,8 +963,42 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
 
     const [AND, OR] = ["and", "or"]
 
+    const onCaseAdd = () => {
+        console.log("outputs", outputs)
+        // 获取可用的源节点
+        const sourceNodes = getSourceNodeIdWithLabel(parentId);
+        const defaultSourceNode = sourceNodes.length > 0 ? sourceNodes[0] : {id: '', label: ''};
+        
+        setCases(prevCases => [
+            ...prevCases,
+            {
+                conditions: [
+                    {
+                        id: defaultSourceNode.id,
+                        label: defaultSourceNode.label,
+                        condition: '',
+                        cond_v: 'condition',
+                        cond_input: "",
+                        operation: AND,
+                        type: defaultSourceNode.id ? getNode(defaultSourceNode.id)?.type : undefined
+                    }
+                ],
+                actions: [
+                    {
+                        from_id: defaultSourceNode.id,
+                        from_label: defaultSourceNode.label,
+                        outputs: outputs.length > 0 ? [outputs[0]] : []
+                    }
+                ]
+            }
+        ])
+    }
+
     const onConditionAdd = (index: number) => () => {
         console.log("hello", index)
+        const sourceNodes = getSourceNodeIdWithLabel(parentId);
+        const defaultSourceNode = sourceNodes.length > 0 ? sourceNodes[0] : {id: '', label: ''};
+        
         setCases(prevCases => {
             console.log(prevCases)
             return prevCases.map((caseItem, caseIndex) => {
@@ -974,11 +1008,12 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                         conditions: [
                             ...caseItem.conditions,
                             {
-                                id: "",
-                                label: "",
+                                id: defaultSourceNode.id,
+                                label: defaultSourceNode.label,
                                 condition: `condition${caseItem.conditions.length + 1}`,
                                 cond_v: 'condition',
-                                operation: AND
+                                operation: AND,
+                                type: defaultSourceNode.id ? getNode(defaultSourceNode.id)?.type : undefined
                             }
                         ]
                     }
@@ -990,6 +1025,9 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
 
     const onActionAdd = (index: number) => () => {
         console.log("hello", index)
+        const sourceNodes = getSourceNodeIdWithLabel(parentId);
+        const defaultSourceNode = sourceNodes.length > 0 ? sourceNodes[0] : {id: '', label: ''};
+        
         setCases(prevCases => {
             return prevCases.map((caseItem, caseIndex) => {
                 if (caseIndex === index) {
@@ -998,9 +1036,9 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                         actions: [
                             ...caseItem.actions,
                             {
-                                from_id: '',
-                                from_label: '',
-                                outputs: []
+                                from_id: defaultSourceNode.id,
+                                from_label: defaultSourceNode.label,
+                                outputs: outputs.length > 0 ? [outputs[0]] : []
                             }
                         ]
                     }
@@ -1010,32 +1048,6 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
         })
     }
 
-
-    const onCaseAdd = () => {
-        console.log("outputs", outputs)
-        setCases(prevCases => [
-            ...prevCases,
-            {
-                conditions: [
-                    {
-                        id: '',
-                        label: '',
-                        condition: '',
-                        cond_v: 'condition',
-                        cond_input: "",
-                        operation: AND
-                    }
-                ],
-                actions: [
-                    {
-                        from_id: '',
-                        from_label: '',
-                        outputs: []
-                    }
-                ]
-            }
-        ])
-    }
 
     const getConditionSelections = (type: string) => {
         console.log("GetConditionSelections", type)
@@ -1419,7 +1431,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                 <div className='flex justify-start mt-[8px]'>
                                     <button
                                         onClick={onConditionAdd(case_index)}
-                                        className='h-6 px-2 flex items-center gap-1 rounded-md
+                                        className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                                 bg-[#252525] border-[1px] border-[#6D7177]/30
                                                 text-[#6D7177] text-[10px] font-medium
                                                 hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
@@ -1428,7 +1440,6 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                         <svg width="10" height="10" viewBox="0 0 14 14">
                                             <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
                                         </svg>
-                                        <span>Add Condition</span>
                                     </button>
                                 </div>
                             </div>
@@ -1449,7 +1460,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                         <ul className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'>
                                             <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
                                                 {/* 第一个元素：节点选择 */}
-                                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
                                                     <PuppyDropdown
                                                         options={getSourceNodeIdWithLabel(parentId)}
                                                         onSelect={(node: { id: string, label: string }) => {
@@ -1496,9 +1507,9 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                                     />
                                                 </div>
                                                 <div className='border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
-                                                    <span className='text-[#6D7177] text-[12px] font-medium'>TO</span>
+                                                    <span className='text-[#6D7177] text-[12px] font-medium'> copy to</span>
                                                 </div>
-                                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
                                                     <PuppyDropdown
                                                         options={outputs.map(
                                                             (id) => {
@@ -1574,7 +1585,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                 <div className='flex justify-start mt-[8px]'>
                                     <button
                                         onClick={onActionAdd(case_index)}
-                                        className='h-6 px-2 flex items-center gap-1 rounded-md
+                                        className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                                 bg-[#252525] border-[1px] border-[#6D7177]/30
                                                 text-[#6D7177] text-[10px] font-medium
                                                 hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
@@ -1583,7 +1594,6 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
                                         <svg width="10" height="10" viewBox="0 0 14 14">
                                             <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
                                         </svg>
-                                        <span>Add Action</span>
                                     </button>
                                 </div>
                             </div>
@@ -1597,7 +1607,7 @@ function ChooseConfigMenu({ show, parentId }: ChooseConfigProps) {
             <div className='flex items-center'>
                 <button
                     onClick={onCaseAdd}
-                    className='h-6 px-2 flex items-center gap-1 rounded-md
+                    className='h-[26px] px-2 flex items-center gap-1 rounded-md
                             bg-[#252525] border-[1px] border-[#6D7177]/30
                             text-[#6D7177] text-[10px] font-medium
                             hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
