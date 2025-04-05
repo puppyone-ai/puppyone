@@ -37,11 +37,6 @@ function ChunkingAutoConfigMenu({ show, parentId }: ChunkingAutoConfigProps) {
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, cleanJsonString, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const { clearAll } = useNodesPerFlowContext()
-
-    // const [isLoop, setIsLoop] = useState((getNode(parentId)?.data as ChunkingConfigNodeData)?.looped ?? false)
-    const [resultNode, setResultNode] = useState<string | null>(
-        (getNode(parentId)?.data as ChunkingConfigNodeData)?.resultNode ?? null
-    )
     // const [isAddContext, setIsAddContext] = useState(true)
 
     const [isAddFlow, setIsAddFlow] = useState(true)
