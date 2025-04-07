@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useContext } from "react"
 
 
-export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", buttonHeight="32px", buttonBgColor="transparent", menuBgColor="#1A1A1A", mapValueTodisplay=(v:string)=>v}:any) => {
+export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", buttonHeight="32px", buttonBgColor="transparent", menuBgColor="#1A1A1A", mapValueTodisplay=(v:string)=>v, showDropdownIcon=true }:any) => {
     const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
     const handleSelect = (data:any) => {
@@ -50,32 +50,33 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
         style={dropdownContainerStyle} 
         className={`flex px-[8px] ${containerClassnames}`}
         onClick={() => {
-            setIsOpen(prev => {
-                console.log("open",prev)
-                return !prev})
-            }}
+            setIsOpen(prev => !prev)
+        }}
         >
             <div  className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${(optionBadge && selectedValue)?"text-[#000] ":"text-white"} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue)?"border-[3px]":"border-[0px]"} ${(optionBadge && selectedValue)?"bg-[#6D7177]":""}`} 
                  style={{ 
                      height: buttonHeight,
-                     backgroundColor: optionBadge && selectedValue ? "#6D7177" : buttonBgColor // 使用传入的按钮背景色，但如果optionBadge和selectedValue都为true，则保持原有的背景色
+                     backgroundColor: optionBadge && selectedValue ? "#6D7177" : buttonBgColor,
+                     width: 'fit-content',
+                     minWidth: 'min-content'
                  }}>
                 <span>{mapValueTodisplay(selectedValue || "Select a value")}</span>  {/* Display selected label or placeholder */}
-                {/* Down Arrow SVG */}
-                <svg 
-                    xmlns="http://www.w3.org/2000/svg" 
-                    width="16" 
-                    height="16" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    stroke="currentColor" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round" 
-                    className={`transition-transform duration-300 ease-in-out ${isOpen ? 'rotate-180' : ''}`}
-                >
-                    <path d="M6 9l6 6 6-6" />
-                </svg>
+                {showDropdownIcon && (
+                    <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        strokeWidth="2" 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        className={`transition-transform duration-300 ease-in-out ${isOpen ? 'rotate-180' : ''}`}
+                    >
+                        <path d="M6 9l6 6 6-6" />
+                    </svg>
+                )}
             </div>
             {isOpen ? (
                 <ul style={dropdownListStyle}>

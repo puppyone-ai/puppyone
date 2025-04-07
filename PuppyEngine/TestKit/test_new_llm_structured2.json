@@ -1,52 +1,84 @@
 {
     "blocks": {
-        "l4GFvk": {
-            "label": "l4GFvk",
+        "-zj273": {
+            "label": "-zj273",
             "type": "structured",
             "data": {
-                "content": ""
+                "content": ["What's an AI agent?"]
             },
             "looped": false
         },
-        "T1HoBg": {
-            "label": "T1HoBg",
-            "type": "structured",
+    
+        "F3bwrQ": {
+    
+            "label": "F3bwrQ",
+    
+            "type": "text",
+    
             "data": {
-                "content": [
-                    "apple",
-                    "hammer"
-                ]
-            },
-            "looped": true
-        }
-    },
-    "edges": {
-        "llm-1739191714843": {
-            "type": "llm",
-            "data": {
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": "Do u like eating {{T1HoBg}}"
-                    }
-                ],
-                "model": "openai/gpt-4o-mini",
-                "base_url": "",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-                "structured_output": true,
-                "inputs": {
-                    "T1HoBg": "T1HoBg"
-                },
-                "looped": false,
-                "outputs": {
-                    "l4GFvk": "l4GFvk"
-                }
+    
+                "content": ""
+    
             }
+    
         }
+    
+    },
+    
+    "edges": {
+    
+        "llm-1741380205844": {
+    
+            "type": "llm",
+    
+            "data": {
+    
+                "messages": [
+    
+                    {
+    
+                        "role": "system",
+    
+                        "content": "You are an AI"
+    
+                    },
+    
+                    {
+    
+                        "role": "user",
+    
+                        "content": "answer the question by {{-zj273}}"
+    
+                    }
+    
+                ],
+    
+                "model": "anthropic/claude-3.5-haiku",
+    
+                "base_url": "",
+    
+                "max_tokens": 4096,
+    
+                "temperature": 0.7,
+    
+                "structured_output": false,
+    
+                "inputs": {
+    
+                    "-zj273": "-zj273"
+    
+                },
+    
+                "outputs": {
+    
+                    "F3bwrQ": "F3bwrQ"
+    
+                }
+    
+            }
+    
+        }
+    
     }
+    
 }

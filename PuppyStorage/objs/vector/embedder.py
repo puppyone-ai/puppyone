@@ -1,7 +1,7 @@
 # If you are a VS Code users:
 import os
 import sys
-from typing import List, Union
+from typing import List, Union, Dict, Any
 from io import BytesIO
 from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -15,6 +15,7 @@ from torch import no_grad, Tensor, tensor, mean, matmul
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.config import config
 import threading
+import re
 
 
 class Embedder(ABC):
@@ -138,6 +139,27 @@ class TextEmbedder(Embedder):
             # 将新模型存入缓存
             self._model_cache[self.model_name] = (self._model, self._tokenizer, self._client)
 
+    def _is_natural_language(self, text: str) -> bool:
+        """检查是否为自然语言文本"""
+        # 检查文本是否包含足够的单词/字符比例
+        words = re.findall(r'\b\w+\b|[\u4e00-\u9fff]', text)
+        if not words:
+            return False
+        # 检查随机字符串的特征
+        random_looking = re.match(r'^[A-Za-z0-9]{4,8}$', text) is not None
+        return not random_looking
+
+    def _preprocess_content(self, content: str) -> str:
+        """预处理内容为适合嵌入的格式"""
+        if not isinstance(content, str):
+            content = str(content)
+        
+        # 如果看起来不像自然语言，尝试从metadata中获取描述
+        if not self._is_natural_language(content):
+            return f"Token identifier: {content}"
+        
+        return content.strip()
+
     @global_exception_handler(3201, "Error Generating Embeddings")
     def embed(
         self,
@@ -160,17 +182,23 @@ class TextEmbedder(Embedder):
         ]
         """
 
+        # 预处理所有文档
+        processed_docs = [self._preprocess_content(doc) for doc in docs]
+        
+        if self._provider == "openai":
+            response = self._client.embeddings.create(
+                input=processed_docs,
+                model=self.model_name
+            ).data
+            return [item.embedding for item in response]
+        
         if self._provider == "huggingface":
-            inputs = self._tokenizer(docs, padding=True, truncation=True, return_tensors="pt")
+            inputs = self._tokenizer(processed_docs, padding=True, truncation=True, return_tensors="pt")
             with no_grad():
                 outputs = self._model(**inputs)
             vectors = mean(outputs.last_hidden_state, dim=1).tolist()
         elif self._provider == "sentencetransformers":
-            vectors = self._model.encode(docs, convert_to_tensor=True).tolist()
-        elif self._provider == "openai":
-            docs = [doc.replace("\n", " ") for doc in docs]
-            response = self._client.embeddings.create(input=docs, model=self.model_name).data
-            vectors = [item.embedding for item in response]
+            vectors = self._model.encode(processed_docs, convert_to_tensor=True).tolist()
         else:
             raise PuppyException(3300, "Unsupported Embedding Model Provider", f"Embedder provider {self._provider} is unsupported!")
         return vectors
@@ -259,15 +287,17 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    docs = ["This is a sample text.", "This is another sentence."]
-    with TextEmbedder("BAAI/bge-m3") as embedder:
-        print(embedder.embed(docs))
+    docs = ["6grGax"]
 
-    with TextEmbedder("all-MiniLM-L6-v2") as embedder:
-        print(embedder.embed(docs))
-    
     with TextEmbedder("text-embedding-ada-002") as embedder:
         print(embedder.embed(docs))
+
+    # with TextEmbedder("BAAI/bge-m3") as embedder:
+    #     print(embedder.embed(docs))
+
+    # with TextEmbedder("all-MiniLM-L6-v2") as embedder:
+    #     print(embedder.embed(docs))
+    
 
     TextEmbedder.clear_cache()
 

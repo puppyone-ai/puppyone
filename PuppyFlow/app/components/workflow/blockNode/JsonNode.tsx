@@ -52,11 +52,11 @@ type PathNode = {
 }
 
 // Replace the PathEditor component with this new TreePathEditor
-const TreePathEditor = ({ paths, setPaths }: { 
-  paths: PathNode[], 
-  setPaths: React.Dispatch<React.SetStateAction<PathNode[]>> 
+const TreePathEditor = ({ paths, setPaths }: {
+  paths: PathNode[],
+  setPaths: React.Dispatch<React.SetStateAction<PathNode[]>>
 }) => {
-  
+
   const addNode = (parentId: string) => {
     setPaths((prevPaths) => {
       const newPaths = JSON.parse(JSON.stringify(prevPaths));
@@ -144,7 +144,7 @@ const TreePathEditor = ({ paths, setPaths }: {
 
   const renderNode = (node: PathNode, level = 0) => {
     const isLeafNode = node.children.length === 0;
-    
+
     return (
       <div key={node.id} className="relative group">
         <div
@@ -153,11 +153,11 @@ const TreePathEditor = ({ paths, setPaths }: {
         >
           {/* SVG connector lines for non-root nodes */}
           {level > 0 && (
-            <svg 
+            <svg
               className="absolute -left-[16px] top-[-6px]"
-              width="17" 
-              height="21" 
-              viewBox="0 0 17 21" 
+              width="17"
+              height="21"
+              viewBox="0 0 17 21"
               fill="none"
             >
               <path
@@ -169,51 +169,51 @@ const TreePathEditor = ({ paths, setPaths }: {
               />
             </svg>
           )}
-          
+
           <div className="flex items-center gap-2 mb-1.5">
             <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
-              <input 
+              <input
                 value={node.value}
                 onChange={(e) => updateNodeValue(node.id, e.target.value)}
                 className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
                          text-[#CDCDCD] text-[12px] font-medium appearance-none'
                 placeholder={node.key === 'num' ? 'Enter number...' : 'Enter key...'}
               />
-              
+
               {/* Floating type selector */}
-              <div 
+              <div
                 className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
                            px-2 rounded-[4px] cursor-pointer transition-colors
-                           ${node.key === 'key' 
-                             ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50 hover:bg-[#2D2544]/80' 
-                             : 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 hover:bg-[#443425]/80'}`}
+                           ${node.key === 'key'
+                    ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50 hover:bg-[#2D2544]/80'
+                    : 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 hover:bg-[#443425]/80'}`}
                 onClick={() => {
                   updateNodeKey(node.id, node.key === 'key' ? 'num' : 'key');
                 }}
               >
                 <div className={`text-[10px] font-semibold min-w-[24px] text-center
-                               ${node.key === 'key' 
-                                 ? 'text-[#9B6DFF]' 
-                                 : 'text-[#FF9B4D]'}`}>
+                               ${node.key === 'key'
+                    ? 'text-[#9B6DFF]'
+                    : 'text-[#FF9B4D]'}`}>
                   {node.key}
                 </div>
               </div>
             </div>
 
-            <button 
+            <button
               onClick={() => deleteNode(node.id)}
               className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
+                <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </button>
           </div>
         </div>
-        
+
         <div className="relative">
           {node.children.map((child) => renderNode(child, level + 1))}
-          
+
           {isLeafNode && level < 5 && (
             <div className="flex items-center" style={{ marginLeft: `${level * 32 + 32}px` }}>
               <button
@@ -225,7 +225,7 @@ const TreePathEditor = ({ paths, setPaths }: {
                           transition-colors'
               >
                 <svg width="10" height="10" viewBox="0 0 14 14">
-                  <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2"/>
+                  <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
                 </svg>
               </button>
             </div>
@@ -245,7 +245,7 @@ const TreePathEditor = ({ paths, setPaths }: {
                    hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] transition-colors'
         >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6D7177">
-            <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
           </svg>
           Create Root Node
         </button>
@@ -264,7 +264,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
-  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll } = useNodesPerFlowContext()
+  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll, manageNodeasInput, manageNodeasOutput } = useNodesPerFlowContext()
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow()
   // for linking to handle bar, it will be highlighed.
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
@@ -285,6 +285,28 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [paths, setPaths] = useState<PathNode[]>(getNode(id)?.data?.paths as PathNode[] || []);
   const [originalPaths, setOriginalPaths] = useState<PathNode[]>([]);
 
+  // Get connected nodes
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  const sourceNodes = getSourceNodeIdWithLabel(id)
+  const targetNodes = getTargetNodeIdWithLabel(id)
+
+  // 添加自动检测和同步状态的 useEffect
+  useEffect(() => {
+    const isAutoDetectInput = sourceNodes.length === 0 && targetNodes.length > 0;
+    const isAutoDetectOutput = targetNodes.length === 0 && sourceNodes.length > 0;
+    
+    // 仅当当前状态与自动检测不一致时更新状态
+    if (isAutoDetectInput && !isInput) {
+      manageNodeasInput(id);
+    } else if (isAutoDetectOutput && !isOutput) {
+      manageNodeasOutput(id);
+    } else if (!isAutoDetectInput && !isAutoDetectOutput && (isInput || isOutput)) {
+      // 如果既不是输入也不是输出，但当前有一个标记，则移除标记
+      if (isInput) manageNodeasInput(id);
+      if (isOutput) manageNodeasOutput(id);
+    }
+  }, [sourceNodes.length, targetNodes.length, isInput, isOutput, id]);
+
   useEffect(() => {
     setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, paths: paths } } : node))
   }, [paths])
@@ -303,13 +325,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   };
 
   useEffect(() => {
-    if (locked) {
-      setBorderColor("border-[#3EDBC9]");
-    } else if (isInput) {
-      setBorderColor("border-[#84EB89]");
-    } else if (isOutput) {
-      setBorderColor("border-[#FF9267]");
-    } else if (activatedNode?.id === id) {
+    if (activatedNode?.id === id) {
       setBorderColor("border-[#9B7EDB]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
@@ -700,84 +716,84 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       }
 
       console.log("embeddingNodeData.data.paths", paths)
-    //   [
-    //     {
-    //         "id": "ZUnysh",
-    //         "key": "num",
-    //         "value": "0",
-    //         "children": [
-    //             {
-    //                 "id": "xGb8MB",
-    //                 "key": "key",
-    //                 "value": "hello",
-    //                 "children": []
-    //             }
-    //         ]
-    //     }
-    // ]
-    // recursively access above data structure, get value step by step, return list of values from outer to deepest level
-    const getValuesFromPaths = (paths: PathNode[]): any[] => {
-      const result: any[] = [];
-      
-      const traverse = (node: PathNode, currentPath: any[] = []) => {
-        // Convert value based on key type
-        const value = node.key === 'num' 
-          ? Number(node.value) 
-          : node.value;
-        
-        // Add current value to path
-        const newPath = [...currentPath, value];
-        
-        if (node.children.length === 0) {
-          // Leaf node - add complete path to results
-          result.push(newPath);
-        } else {
-          // Continue traversing children
-          for (const child of node.children) {
-            traverse(child, newPath);
-          }
-        }
-      };
-      
-      // Start traversal for each root path
-      for (const path of paths) {
-        traverse(path);
-      }
-      
-      return result;
-    };
-    
-    console.log("paths", getValuesFromPaths(paths))
+      //   [
+      //     {
+      //         "id": "ZUnysh",
+      //         "key": "num",
+      //         "value": "0",
+      //         "children": [
+      //             {
+      //                 "id": "xGb8MB",
+      //                 "key": "key",
+      //                 "value": "hello",
+      //                 "children": []
+      //             }
+      //         ]
+      //     }
+      // ]
+      // recursively access above data structure, get value step by step, return list of values from outer to deepest level
+      const getValuesFromPaths = (paths: PathNode[]): any[] => {
+        const result: any[] = [];
 
-    const pathsParsed = getValuesFromPaths(paths)
-    
-    // Since getValuesFromPaths returns an array of path arrays,
-    // we need to select which path to use - here we'll use the first one if available
-    let embedbykey = embeddingNodeData.data.content
-    
-    if (pathsParsed.length > 0) {
-      try {
-        // Get the first complete path (from root to leaf)
-        const pathToUse = pathsParsed[0];
-        
-        // Traverse through the content object using each path segment
-        for (const pathSegment of pathToUse) {
-          if (embedbykey && typeof embedbykey === 'object') {
-            embedbykey = embedbykey[pathSegment];
-            console.log("Accessing with key:", pathSegment, "Result:", embedbykey);
+        const traverse = (node: PathNode, currentPath: any[] = []) => {
+          // Convert value based on key type
+          const value = node.key === 'num'
+            ? Number(node.value)
+            : node.value;
+
+          // Add current value to path
+          const newPath = [...currentPath, value];
+
+          if (node.children.length === 0) {
+            // Leaf node - add complete path to results
+            result.push(newPath);
           } else {
-            console.log("Cannot access property", pathSegment, "on", embedbykey);
-            break;
+            // Continue traversing children
+            for (const child of node.children) {
+              traverse(child, newPath);
+            }
           }
+        };
+
+        // Start traversal for each root path
+        for (const path of paths) {
+          traverse(path);
         }
-        
-        console.log("Final embedbykey result:", embedbykey);
-      } catch (error) {
-        console.error("Error accessing path in content:", error);
-        // Fallback to using the entire content
-        embedbykey = embeddingNodeData.data.content;
+
+        return result;
+      };
+
+      console.log("paths", getValuesFromPaths(paths))
+
+      const pathsParsed = getValuesFromPaths(paths)
+
+      // Since getValuesFromPaths returns an array of path arrays,
+      // we need to select which path to use - here we'll use the first one if available
+      let embedbykey = embeddingNodeData.data.content
+
+      if (pathsParsed.length > 0) {
+        try {
+          // Get the first complete path (from root to leaf)
+          const pathToUse = pathsParsed[0];
+
+          // Traverse through the content object using each path segment
+          for (const pathSegment of pathToUse) {
+            if (embedbykey && typeof embedbykey === 'object') {
+              embedbykey = embedbykey[pathSegment];
+              console.log("Accessing with key:", pathSegment, "Result:", embedbykey);
+            } else {
+              console.log("Cannot access property", pathSegment, "on", embedbykey);
+              break;
+            }
+          }
+
+          console.log("Final embedbykey result:", embedbykey);
+        } catch (error) {
+          console.error("Error accessing path in content:", error);
+          // Fallback to using the entire content
+          embedbykey = embeddingNodeData.data.content;
+        }
       }
-    }
 
       const embeddingViewData = traverseJson(embedbykey)
 
@@ -913,7 +929,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   useEffect(
     () => {
-      if(getNode(id)?.data.index_name){
+      if (getNode(id)?.data.index_name) {
         setVectorIndexingStatus('completed')
       }
     }, []
@@ -937,6 +953,36 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     // Additional logic for applying the paths could go here
   };
 
+  const displaySourceNodeLabels = () => {
+    return sourceNodes.map(node => (
+      <button
+        key={`${node.id}-${id}-simple`}
+        onClick={() => {
+          navigator.clipboard.writeText(`{{${node.label}}}`);
+        }}
+        className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
+                 text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
+      >
+        {node.label}
+      </button>
+    ))
+  }
+
+  const displayTargetNodeLabels = () => {
+    return targetNodes.map(node => (
+      <button
+        key={`${node.id}-${id}-simple`}
+        onClick={() => {
+          navigator.clipboard.writeText(`{{${node.label}}}`);
+        }}
+        className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
+                 text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
+      >
+        {node.label}
+      </button>
+    ))
+  }
+
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       {/* Add tags for input, output and locked states */}
@@ -944,37 +990,37 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         {isInput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor"/>
-              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="16" y="7" width="3" height="12" rx="1" fill="currentColor" />
+              <path d="M5 13H14" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M10 9L14 13L10 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span>INPUT</span>
           </div>
         )}
-        
+
         {isOutput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
             <svg width="16" height="16" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor"/>
-              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
-              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <rect x="7" y="7" width="3" height="12" rx="1" fill="currentColor" />
+              <path d="M12 13H21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M17 9L21 13L17 17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span>OUTPUT</span>
           </div>
         )}
-        
+
         {locked && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor"/>
-          </svg>
-          <span>LOCKED</span>
-        </div>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              <rect x="4" y="7" width="8" height="6" rx="1" fill="currentColor" />
+            </svg>
+            <span>LOCKED</span>
+          </div>
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden shadow-[0_8px_16px_rgba(0,0,0,0.04),0_4px_24px_rgba(255,255,255,0.04)]`}>
 
 
         {/* the top bar of a block */}
@@ -1037,17 +1083,17 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
 
             {/* Path Editor Button */}
-            <div 
+            <div
               className={`cursor-pointer flex justify-center items-center w-[24px] h-[24px] rounded-[8px] hover:bg-[#3E3E41] ${activatedNode?.id === id ? 'opacity-100' : 'opacity-0'}`}
               onClick={handleOpenPathEditor}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                <path d="M3 8H13" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"/>
-                <path d="M8 13L8 3" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"/>
-                <path d="M5 5L3 3L5 5Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"/>
-                <path d="M11 5L13 3L11 5Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"/>
-                <path d="M5 11L3 13L5 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"/>
-                <path d="M11 11L13 13L11 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"/>
+                <path d="M3 8H13" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
+                <path d="M8 13L8 3" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
+                <path d="M5 5L3 3L5 5Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
+                <path d="M11 5L13 3L11 5Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
+                <path d="M5 11L3 13L5 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
+                <path d="M11 11L13 13L11 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
               </svg>
             </div>
 
@@ -1262,31 +1308,31 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           <div className="absolute z-20 mt-1 left-0 right-0 mx-[8px] p-3 bg-[#1E1E1E] border border-[#404040] rounded-[8px] shadow-lg">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-[14px] font-semibold text-[#CDCDCD]">JSON Path Editor</h3>
-              <button 
+              <button
                 onClick={handleCancelPathEditor}
                 className="p-1 rounded-full hover:bg-[#3E3E41] text-[#6D7177] hover:text-[#CDCDCD]"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
                 </svg>
               </button>
             </div>
             <TreePathEditor paths={paths} setPaths={setPaths} />
-            
+
             {/* Add action buttons */}
             <div className="flex justify-end items-center gap-2 mt-3 pt-2 border-t border-[#404040]">
-              <button 
+              <button
                 onClick={handleCancelPathEditor}
                 className="px-3 py-1.5 rounded-[6px] text-[12px] font-medium text-[#CDCDCD] hover:bg-[#3E3E41] transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleAcceptPathEditor}
                 disabled={hasEmptyValues(paths)}
                 className={`px-3 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors
-                  ${hasEmptyValues(paths) 
-                    ? 'bg-[#252525] text-[#6D7177] border border-[#404040] cursor-not-allowed' 
+                  ${hasEmptyValues(paths)
+                    ? 'bg-[#252525] text-[#6D7177] border border-[#404040] cursor-not-allowed'
                     : 'bg-[#2D2544] text-[#9B6DFF] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50 hover:bg-[#2D2544]/80'}`}
               >
                 Apply
@@ -1478,6 +1524,33 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
       </div>
+
+      {/* Add the source/target nodes display at the bottom of the component */}
+      
+      {/*
+      <div className="absolute left-0 -bottom-[2px] transform translate-y-full w-full flex gap-2 z-10">
+        {sourceNodes.length > 0 && (
+          <div className="w-[48%] bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
+            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
+              Source Nodes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {displaySourceNodeLabels()}
+            </div>
+          </div>
+        )}
+        {targetNodes.length > 0 && (
+          <div className="w-[48%] ml-auto bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
+            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
+              Target Nodes
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {displayTargetNodeLabels()}
+            </div>
+          </div>
+        )}
+      </div>
+      */}
     </div >
 
   )
