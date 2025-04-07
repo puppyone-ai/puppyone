@@ -44,7 +44,7 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
     const {getEdges} = useReactFlow()
     // const {getZoom, getViewport, getNode, flowToScreenPosition} = useReactFlow()
     const {getNode, setNodes, setEdges} = useReactFlow()
-    const {getSourceNodeIdWithLabel, transformBlocksFromSourceNodeIdWithLabelGroup, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
+    const {getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, transformBlocksFromSourceNodeIdWithLabelGroup, streamResult, reportError, resetLoadingUI} = useJsonConstructUtils()
     // const {addNode, addCount, allowActivateNode, clear, totalCount} = useNodeContext()
     const {clearAll} = useNodesPerFlowContext()
     const [sub_chunk_mode, setSubChunkMode] = useState<sub_chunking_mode_names>(
@@ -94,7 +94,6 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
         onChunkSizeChange(chunk_size)
     }, [chunk_size])
 
-
     useEffect(() => {
         onOverlapChange(overlap)
     }, [overlap])
@@ -107,106 +106,128 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
     //     onLoopChange(isLoop)
     // }, [isLoop])
 
-    useEffect( () => {
-        if (!resultNode) return
-        if (isComplete) return
-    
-        const addNewNodeEdgeIntoFlow = async () => {
-            const parentEdgeNode = getNode(parentId)
-            if (!parentEdgeNode) return
-            const location = {
-                // 120 - 24 = 96 is half of the height of the targetNode - chunk node
-                x: parentEdgeNode.position.x + 160,
-                y: parentEdgeNode.position.y - 96,
-            }
+    useEffect(() => {
+        if (isComplete) return;
 
-            const newNode = {
-                id: resultNode,
-                position: location,
-                data: { 
-                    content: "", 
-                    label: resultNode,
-                    isLoading: true,
-                    locked: false,
-                    isInput: false,
-                    isOutput: false,
-                    editable: false,
+        const runWithTargetNodes = async () => {
+            // Get target nodes
+            const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+
+            if (targetNodeIdWithLabelGroup.length === 0 && !isAddFlow) {
+                // No target nodes, need to create one
+                await createNewTargetNode();
+                setIsAddFlow(true);
+            } else if (isAddFlow) {
+                // Target nodes exist, send data
+                await sendDataToTargets();
+            }
+        };
+
+        runWithTargetNodes();
+    }, [isAddFlow, isComplete, parentId]);
+
+    const createNewTargetNode = async () => {
+        const parentEdgeNode = getNode(parentId);
+        if (!parentEdgeNode) return;
+
+        const newTargetId = nanoid(6);
+
+        const location = {
+            x: parentEdgeNode.position.x + 160,
+            y: parentEdgeNode.position.y - 64,
+        };
+
+        const newNode = {
+            id: newTargetId,
+            position: location,
+            data: {
+                content: "",
+                label: newTargetId,
+                isLoading: true,
+                locked: false,
+                isInput: false,
+                isOutput: false,
+                editable: false,
+            },
+            type: 'structured',
+        };
+
+        const newEdge = {
+            id: `connection-${Date.now()}`,
+            source: parentId,
+            target: newTargetId,
+            type: "floating",
+            data: {
+                connectionType: "CTT",
+            },
+            markerEnd: markerEnd,
+        };
+
+        await Promise.all([
+            new Promise(resolve => {
+                setNodes(prevNodes => {
+                    resolve(null);
+                    return [...prevNodes, newNode];
+                });
+            }),
+            new Promise(resolve => {
+                setEdges(prevEdges => {
+                    resolve(null);
+                    return [...prevEdges, newEdge];
+                });
+            }),
+        ]);
+    };
+
+    const sendDataToTargets = async () => {
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        if (targetNodeIdWithLabelGroup.length === 0) return;
+
+        // Mark all target nodes as loading
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (targetNodeIdWithLabelGroup.some(targetNode => targetNode.id === node.id)) {
+                return { ...node, data: { ...node.data, content: "", isLoading: true } };
+            }
+            return node;
+        }));
+
+        try {
+            const jsonData = constructJsonData();
+            console.log(jsonData);
+            const response = await fetch(`${backend_IP_address_for_sendingData}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                type: 'structured',
+                body: JSON.stringify(jsonData)
+            });
+
+            if (!response.ok) {
+                // Report error for all target nodes
+                targetNodeIdWithLabelGroup.forEach(node => {
+                    reportError(node.id, `HTTP Error: ${response.status}`);
+                });
             }
 
-            const newEdge = {
-                id: `connection-${Date.now()}`,
-                source: parentId,
-                target: resultNode,
-                type: "floating",
-                data: {
-                    connectionType: "CTT",
-                },
-                markerEnd: markerEnd,
-            }
+            console.log(response);
+            const result = await response.json();
+            console.log('Success:', result);
 
-            await Promise.all([
-                new Promise(resolve => {
-                    setNodes(prevNodes => {
-                        resolve(null);
-                        return [...prevNodes, newNode];
-                    })
-                }),
-                new Promise(resolve => {
-                    setEdges(prevEdges => {
-                        resolve(null);
-                        return [...prevEdges, newEdge];
-                    })
-                }),
-            ]);
-
-            onResultNodeChange(resultNode)
-            setIsAddFlow(true)
-            // 不可以和 setEdge, setNodes 发生冲突一定要一先一后
-            // clearActivation()
+            // Stream results to all target nodes
+            await Promise.all(targetNodeIdWithLabelGroup.map(node =>
+                streamResult(result.task_id, node.id)
+            ));
+        } catch (error) {
+            console.warn(error);
+            window.alert(error);
+        } finally {
+            // Reset loading state for all target nodes
+            targetNodeIdWithLabelGroup.forEach(node => {
+                resetLoadingUI(node.id);
+            });
+            setIsComplete(true);
         }
-
-        const sendData = async  () => {
-            try {
-                const jsonData = constructJsonData()
-                console.log(jsonData)
-                const response = await fetch(`${backend_IP_address_for_sendingData}`, {
-                    method:'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(jsonData)
-                })
-
-                if (!response.ok) {
-                    reportError(resultNode, `HTTP Error: ${response.status}`)
-                }
-                
-                console.log(response)
-                const result = await response.json();  // 解析响应的 JSON 数据
-                console.log('Success:', result);
-                console.log(resultNode, "your result node")
-                await streamResult(result.task_id, resultNode);
-                
-                } catch (error) {
-                    console.warn(error)
-                    window.alert(error)
-                }
-                finally {
-                    resetLoadingUI(resultNode)
-                    setIsComplete(true)
-                }
-        }
-    
-        if (!isAddFlow && !isComplete) {
-            addNewNodeEdgeIntoFlow()
-        }
-        else if (isAddFlow && !isComplete) {
-            sendData()
-        }
-      }, [resultNode, isAddFlow, isComplete])
-
+    };
 
     const onFocus: () => void = () => {
         const curRef = menuRef.current
@@ -299,32 +320,106 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
         })
     }
 
+    const displayTargetNodeLabels = () => {
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId)
+        return targetNodeIdWithLabelGroup.map((node: { id: string, label: string }) => {
+            // Get the node type from the node data
+            const nodeInfo = getNode(node.id)
+            const nodeType = nodeInfo?.type || 'text'
+
+            // Define colors based on node type
+            let colorClasses = {
+                text: {
+                    active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#3B9BFF]/50 text-[#3B9BFF] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
+                },
+                file: {
+                    active: 'bg-[#9E7E5F]/20 border-[#9E7E5F] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9E7E5F]/50 text-[#9E7E5F] hover:border-[#9E7E5F]/80 hover:bg-[#9E7E5F]/5'
+                },
+                structured: {
+                    active: 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#39BC66]',
+                    default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
+                }
+            }
+
+            // Define SVG icons for each node type
+            const nodeIcons = {
+                text: (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                ),
+                file: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5" />
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                ),
+                structured: (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    </svg>
+                )
+            }
+
+            const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
+            const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
+
+            return (
+                <button
+                    key={`${node.id}-${parentId}`}
+                    onClick={() => copyToClipboard(node.label)}
+                    className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
+                             border-[1px] text-[10px] font-medium transition-all duration-200
+                             ${copiedLabel === node.label
+                            ? colors.active
+                            : colors.default}`}
+                >
+                    <div className="flex-shrink-0">
+                        {icon}
+                    </div>
+                    <span className="truncate max-w-[100px]">
+                        {copiedLabel === node.label ? 'Copied!' : `{{${node.label}}}`}
+                    </span>
+                </button>
+            )
+        })
+    }
+
     const constructJsonData = (): ConstructedChunkingByLengthJsonData | Error => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        let resultNodeLabel
-        if (resultNode && getNode(resultNode)?.data?.label !== undefined) {
-            resultNodeLabel = getNode(resultNode)?.data?.label as string
-        }
-        else {
-            resultNodeLabel = resultNode as string
-        }
-        let blocks: {[key: string]: NodeJsonType} = {
-            [resultNode as string]: {
-                label: resultNodeLabel as string,
-                type: "structured",
-                data:{content: ""}
-            }
-        }
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId)
 
+        // 创建包含所有连接节点的 blocks
+        let blocks: { [key: string]: NodeJsonType } = {}
+
+        // 添加源节点的信息
         transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup)
 
+        // 添加目标节点的信息
+        targetNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
+            blocks[nodeId] = {
+                label: nodeLabel,
+                type: "structured",
+                data: { content: "" }
+            }
+        })
+
+        // 创建 edges
         let edges: { [key: string]: ChunkingByLengthEdgeJsonType } = {}
 
         const edgejson: ChunkingByLengthEdgeJsonType = {
-            // id: parentId,
             type: "chunk",
-            data: {  
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map((node: {id: string, label: string}) => ([node.id, node.label]))),
+            data: {
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map(node => ([node.id, node.label]))),
                 chunking_mode: "length",
                 sub_chunking_mode: sub_chunk_mode,
                 extra_configs: {
@@ -332,14 +427,12 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
                     overlap: overlap ?? 20,
                     handle_half_word: handle_half_word,
                 },
-                // looped: isLoop,
-                outputs: { [resultNode as string]: resultNodeLabel as string }
+                outputs: Object.fromEntries(targetNodeIdWithLabelGroup.map(node => ([node.id, node.label])))
             },
-         
         }
 
         edges[parentId] = edgejson
-        console.log(blocks, edges)
+        console.log("JSON Data:", { blocks, edges })
 
         return {
             blocks,
@@ -347,260 +440,265 @@ function ChunkingByLengthConfigMenu({show, parentId}: ChunkingByLengthConfigProp
         }
     }
 
-
     const onDataSubmit = async () => {
-           // click 第一步： clearActivation
-           await new Promise(resolve => {
-            clearAll()
-            resolve(null)
+        // Clear activation
+        await new Promise(resolve => {
+            clearAll();
+            resolve(null);
         });
 
-        // click 第二步： 如果 resultNode 不存在，则创建一个新的 resultNode
-        if (!resultNode || !getNode(resultNode)){
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        console.log(targetNodeIdWithLabelGroup, "target nodes");
 
-            const newResultNodeId = nanoid(6)
-            // onResultNodeChange(newResultNodeId)
-            setResultNode(newResultNodeId)
+        // Check if there are target nodes
+        if (targetNodeIdWithLabelGroup.length === 0) {
+            // No target nodes, need to create one
+            setIsAddFlow(false);
+        } else {
+            // Target nodes exist, update them
+            setIsAddFlow(true);
+        }
+
+        setIsComplete(false);
+    };
+
+    const onSubChunkModeChange = (newSubChunkMode: sub_chunking_mode_names) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return { ...node, data: { ...node.data, sub_chunking_mode: newSubChunkMode } }
+            }
+            return node
+        }))
+    }
+
+    const onChunkSizeChange = (newChunkSize: number | undefined) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return { ...node, data: { ...node.data, extra_configs: { ...((node.data as ChunkingConfigNodeData).extra_configs), chunk_size: newChunkSize } } }
+            }
+            return node
+        }))
+    }
+
+    const onOverlapChange = (newOverlap: number | undefined) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return { ...node, data: { ...node.data, extra_configs: { ...((node.data as ChunkingConfigNodeData).extra_configs), overlap: newOverlap } } }
+            }
+            return node
+        }))
+    }
+
+    const onHandleHalfWordChange = (newHandleHalfWord: boolean) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === parentId) {
+                return { ...node, data: { ...node.data, extra_configs: { ...((node.data as ChunkingConfigNodeData).extra_configs), handle_half_word: newHandleHalfWord } } }
+            }
+            return node
+        }))
+    }
+
+    return (
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
+            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <rect x="9" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <rect x="0.5" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <rect x="9" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M5 2.75H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M2.75 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M11.25 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                                <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5"/>
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                            Chunking
+                        </div>
+                    </div>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="10" fill="none" viewBox="0 0 16 10">
+                                <path stroke="#CDCDCD" d="m10 3 2 2-2 2M6 3 4 5l2 2M4 5h7.5"/>
+                                <path stroke="#CDCDCD" strokeWidth="1.5" d="M1 10V0m14 10V0"/>
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                            By length
+                        </div>
+                    </div>
+                </div>
+                <div className='flex flex-row gap-[8px] items-center justify-center'>
+                    <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                        onClick={onDataSubmit}>
+                        <span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                                <path d="M8 5L0 10V0L8 5Z" fill="black"/>
+                            </svg>
+                        </span>
+                        <span>
+                            Run
+                        </span>
+                    </button>
+                </div>
+            </li>
             
-            // setIsAddContext(false)
-            setIsAddFlow(false)
-        }
-        // click 第三步： 如果 resultNode 存在，则更新 resultNode 的 type 和 data
-        else {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === resultNode){
-                    return {...node, data: {...node.data, content: "", isLoading: true}}
-                }
-                return node
-            }))
-        }
-        setIsComplete(false)
-        };
-
-
-        const onSubChunkModeChange = (newSubChunkMode: sub_chunking_mode_names) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, sub_chunking_mode: newSubChunkMode}}
-                }
-                return node
-            }))
-        }
-
-        
-
-        const onChunkSizeChange = (newChunkSize: number | undefined) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, extra_configs: {...((node.data as ChunkingConfigNodeData).extra_configs), chunk_size: newChunkSize}}}
-                }
-                return node
-            }))
-        }
-
-        const onOverlapChange = (newOverlap: number | undefined) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, extra_configs: {...((node.data as ChunkingConfigNodeData).extra_configs), overlap: newOverlap}}}
-                }
-                return node
-            }))
-        }
-
-        const onHandleHalfWordChange = (newHandleHalfWord: boolean) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, extra_configs: {...((node.data as ChunkingConfigNodeData).extra_configs), handle_half_word: newHandleHalfWord}}}
-                }
-                return node
-            }))
-        }
-
-        const onLoopChange = (newLoop: boolean) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, looped: newLoop}}
-                }
-                return node
-            }))
-        }
-
-        const onResultNodeChange = (newResultNode: string) => {
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === parentId) {
-                    return {...node, data: {...node.data, resultNode: newResultNode}}
-                }
-                return node
-            }))
-        }
-
-    
-  return (
-    <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] ${show ? "" : "hidden"} shadow-lg`}>
-        <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="0.5" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <rect x="9" y="0.5" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <rect x="0.5" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <rect x="9" y="9" width="4.5" height="4.5" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M5 2.75H9" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M2.75 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M11.25 5V9" stroke="#CDCDCD" strokeWidth="1.5"/>
-                    <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5"/>
-                </svg>
-                </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                Chunking
-                </div>
-                </div>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="10" fill="none" viewBox="0 0 16 10">
-                        <path stroke="#CDCDCD" d="m10 3 2 2-2 2M6 3 4 5l2 2M4 5h7.5"/>
-                        <path stroke="#CDCDCD" strokeWidth="1.5" d="M1 10V0m14 10V0"/>
-                        </svg>
+            {/* Side-by-side Input/Output section with labels outside */}
+            <li className='flex flex-row gap-[12px]'>
+                {/* Input section - left side */}
+                <div className='flex-1 flex flex-col gap-1'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Text icon */}
+                            <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                        </div>
                     </div>
-                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    By length
+                    <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
+                        <div className='flex flex-wrap gap-2'>
+                            {displaySourceNodeLabels()}
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div className='flex flex-row gap-[8px] items-center justify-center'>
                 
-                <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                onClick={onDataSubmit}>
-                <span>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                    <path d="M8 5L0 10V0L8 5Z" fill="black"/>
-                    </svg>
-                </span>
-                <span>
-                    Run
-                </span>
-                </button>
-            </div>
-        </li>
-        <li className='flex flex-col gap-2'>
-            <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>Input Variables</label>
-                <span className='text-[9px] text-[#6D7177] px-[4px] py-[1.5px] rounded bg-[#282828]'>Auto</span>
-            </div>
-            <div className='flex gap-2 p-[5px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <div className='flex flex-wrap gap-2'>
-                    {displaySourceNodeLabels()}
+                {/* Output section - right side */}
+                <div className='flex-1 flex flex-col gap-1'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Structured icon */}
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                            </svg>
+                        </div>
+                    </div>
+                    <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
+                        <div className='flex flex-wrap gap-2'>
+                            {displayTargetNodeLabels()}
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </li>
-        <li className='flex flex-col gap-2'>
-            <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-            </div>
-            <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                    options={["size"]}
-                    selectedValue={sub_chunk_mode}
-                    onSelect={(value: string) => {
-                        setSubChunkMode(value as sub_chunking_mode_names);
-                    }}
-                    buttonHeight="32px"
-                    buttonBgColor="transparent"
-                    menuBgColor="#1A1A1A"
-                    listWidth="100%"
-                    containerClassnames="w-full"
-                    mapValueTodisplay={(v: string) => v === "size" ? "by size" : v}
-                />
-            </div>
-        </li>
-        <li className='flex flex-col gap-2'>
-            <div className='flex items-center justify-between'>
+            </li>
+            
+            <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
-                    <label className='text-[13px] font-semibold text-[#6D7177]'>Settings</label>
-                    <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>Mode</label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
-                <button 
-                    onClick={() => setShowSettings(!showSettings)}
-                    className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
-                >
-                    {showSettings ? 'Hide' : 'Show'}
-                    <svg 
-                        className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`} 
-                        fill="none" 
-                        viewBox="0 0 24 24" 
-                        stroke="currentColor"
+                <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                        options={["size"]}
+                        selectedValue={sub_chunk_mode}
+                        onSelect={(value: string) => {
+                            setSubChunkMode(value as sub_chunking_mode_names);
+                        }}
+                        buttonHeight="32px"
+                        buttonBgColor="transparent"
+                        menuBgColor="#1A1A1A"
+                        listWidth="100%"
+                        containerClassnames="w-full"
+                        mapValueTodisplay={(v: string) => v === "size" ? "by size" : v}
+                    />
+                </div>
+            </li>
+            <li className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[12px] font-semibold text-[#6D7177]'>Settings</label>
+                        <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+                    </div>
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
                     >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </button>
-            </div>
+                        {showSettings ? 'Hide' : 'Show'}
+                        <svg
+                            className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                </div>
 
-            {showSettings && (
-                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                    <div className='flex flex-col gap-1'>
-                        <label className='text-[12px] text-[#6D7177]'>Chunk Size</label>
-                        <input 
-                            ref={chunk_sizeRef}
-                            value={chunk_size}
-                            onChange={() => {
-                                if (chunk_sizeRef.current) {
-                                    setChunk_size(chunk_sizeRef.current.value === "" ? undefined : Number(chunk_sizeRef.current.value))
-                                }
-                            }}
-                            type='number'
-                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                {showSettings && (
+                    <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                        <div className='flex flex-col gap-1'>
+                            <label className='text-[12px] text-[#6D7177]'>Chunk Size</label>
+                            <input
+                                ref={chunk_sizeRef}
+                                value={chunk_size}
+                                onChange={() => {
+                                    if (chunk_sizeRef.current) {
+                                        setChunk_size(chunk_sizeRef.current.value === "" ? undefined : Number(chunk_sizeRef.current.value))
+                                    }
+                                }}
+                                type='number'
+                                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
                                      border-[1px] border-[#6D7177]/30 
                                      text-[12px] text-[#CDCDCD]
                                      hover:border-[#6D7177]/50 focus:border-[#39BC66] transition-colors'
-                            onMouseDownCapture={onFocus}
-                            onBlur={onBlur}
-                        />
-                    </div>
-                    <div className='flex flex-col gap-1'>
-                        <label className='text-[12px] text-[#6D7177]'>Overlap</label>
-                        <input 
-                            ref={overlapRef}
-                            value={overlap}
-                            onChange={() => {
-                                if (overlapRef.current) {
-                                    setOverlap(overlapRef.current.value === "" ? undefined : Number(overlapRef.current.value))
-                                }
-                            }}
-                            type='number'
-                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                onMouseDownCapture={onFocus}
+                                onBlur={onBlur}
+                            />
+                        </div>
+                        <div className='flex flex-col gap-1'>
+                            <label className='text-[12px] text-[#6D7177]'>Overlap</label>
+                            <input
+                                ref={overlapRef}
+                                value={overlap}
+                                onChange={() => {
+                                    if (overlapRef.current) {
+                                        setOverlap(overlapRef.current.value === "" ? undefined : Number(overlapRef.current.value))
+                                    }
+                                }}
+                                type='number'
+                                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
                                      border-[1px] border-[#6D7177]/30 
                                      text-[12px] text-[#CDCDCD]
                                      hover:border-[#6D7177]/50 focus:border-[#39BC66] transition-colors'
-                            onMouseDownCapture={onFocus}
-                            onBlur={onBlur}
-                        />
-                    </div>
-                    <div className='flex flex-col gap-1'>
-                        <label className='text-[12px] text-[#6D7177]'>Handle Half Word</label>
-                        <select 
-                            ref={handle_half_wordRef}
-                            value={handle_half_word === true ? "True" : "False"}
-                            onChange={() => {
-                                if (handle_half_wordRef.current) {
-                                    setHandle_half_word(handle_half_wordRef.current.value === "True" ? true : false)
-                                }
-                            }}
-                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                                onMouseDownCapture={onFocus}
+                                onBlur={onBlur}
+                            />
+                        </div>
+                        <div className='flex flex-col gap-1'>
+                            <label className='text-[12px] text-[#6D7177]'>Handle Half Word</label>
+                            <select
+                                ref={handle_half_wordRef}
+                                value={handle_half_word === true ? "True" : "False"}
+                                onChange={() => {
+                                    if (handle_half_wordRef.current) {
+                                        setHandle_half_word(handle_half_wordRef.current.value === "True" ? true : false)
+                                    }
+                                }}
+                                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] 
                                      border-[1px] border-[#6D7177]/30 
                                      text-[12px] text-[#CDCDCD] appearance-none cursor-pointer 
                                      hover:border-[#6D7177]/50 transition-colors'
-                        >
-                            <option value="True">True</option>
-                            <option value="False">False</option>
-                        </select>
+                            >
+                                <option value="True">True</option>
+                                <option value="False">False</option>
+                            </select>
+                        </div>
                     </div>
-                </div>
-            )}
-        </li>
-    </ul>
-  )
+                )}
+            </li>
+        </ul>
+    )
 }
 
 export default ChunkingByLengthConfigMenu

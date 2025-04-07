@@ -3,20 +3,22 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from typing import Any
+from typing import Any, Dict
 import litellm
+import instructor
+from pydantic import BaseModel
 from openai import OpenAI
 from litellm import completion
 from Utils.puppy_exception import PuppyException, global_exception_handler
-
-
-litellm._turn_on_debug()
 
 
 openai_client = OpenAI(
   base_url=os.environ.get("OPENROUTER_BASE_URL"),
   api_key=os.environ.get("OPENROUTER_API_KEY"),
 )
+
+class Content(BaseModel):
+    content: Dict[str, Any]
 
 
 class ChatService:
@@ -31,7 +33,7 @@ class ChatService:
         temperature (float, optional): The temperature of the LLM. The higher the temperature, the more random the output. The default is 0.1 for stable responses.
         max_tokens (int, optional): The maximum number of tokens to generate. The default is 4096.
         printing (bool, optional): Whether to print the response. The default is False.
-        stream (bool, optional): Whether to stream the response. The default is True.
+        stream (bool, optional): Whether to stream the response. The default is False.
         top_p (float, optional): Nucleus sampling probability.
         n (int, optional: Number of chat completion choices to generate. The default is 1.
         presence_penalty (float, optional): Penalty for new tokens based on their presence.
@@ -52,7 +54,7 @@ class ChatService:
         temperature: float = 0.1, 
         max_tokens: int = 2048,
         printing: bool = False, 
-        stream: bool = True,
+        stream: bool = False,
         **kwargs
     ):
         if not model:
@@ -93,7 +95,14 @@ class ChatService:
         data.pop("is_openrouter", None)
         data.pop("base_url", None)
         data.pop("api_key", None)
-        response = openai_client.chat.completions.create(**data) if self.is_openrouter else completion(**data)
+        
+        self.structured_output = data.pop("structured_output", None)
+        if self.structured_output:
+            openai_client_json = instructor.from_openai(openai_client, mode=instructor.Mode.JSON)
+            response = openai_client_json.chat.completions.create(**data, response_model=Content) if self.is_openrouter else completion(**data)
+        else:
+            response = openai_client.chat.completions.create(**data) if self.is_openrouter else completion(**data)
+
         if self.stream:
             return self._handle_stream_response(response)
         else:
@@ -113,7 +122,14 @@ class ChatService:
             str: The response content.
         """
 
-        response_content = response.choices[0].message.content
+        try:
+            if self.structured_output:
+                response_content = response.content
+            else:
+                response_content = response.choices[0].message.content
+        except Exception as e:
+            raise PuppyException(3701, "Error Parsing LLM Client Response", str(e))
+
         if self.printing:
             print(response_content + "\n")
         return response_content

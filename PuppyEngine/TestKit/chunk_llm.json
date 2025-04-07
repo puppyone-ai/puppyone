@@ -25,7 +25,7 @@
                 "chunking_mode": "llm",
                 "sub_chunking_mode": "llm",
                 "extra_configs": {
-                    "model": "gpt-4o-2024-08-06",
+                    "model": "openai/gpt-4o-mini",
                     "prompt": ""
                 }
             }

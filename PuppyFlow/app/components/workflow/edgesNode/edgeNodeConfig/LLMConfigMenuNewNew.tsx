@@ -52,9 +52,14 @@ type PromptNode = {
 }
 
 // Add the new PromptEditor component
-const PromptEditor = ({ prompts, setPrompts }: {
+const PromptEditor = ({ 
+    prompts, 
+    setPrompts,
+    sourceNodeLabels = [] // 默认为空数组
+}: {
     prompts: PromptNode[],
-    setPrompts: React.Dispatch<React.SetStateAction<PromptNode[]>>
+    setPrompts: React.Dispatch<React.SetStateAction<PromptNode[]>>,
+    sourceNodeLabels?: { label: string, type: string }[]
 }) => {
 
     const addNode = () => {
@@ -85,29 +90,15 @@ const PromptEditor = ({ prompts, setPrompts }: {
     };
 
     const renderNode = (node: PromptNode) => {
+        // 简化的单一文本输入框实现
         return (
             <div key={node.id} className="relative group mb-1">
                 <div className="flex items-start gap-2">
                     <div className="flex-1 relative min-h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
-                        <textarea
-                            value={node.content}
-                            onChange={(e) => updateNodeContent(node.id, e.target.value)}
-                            className='w-full bg-transparent border-none outline-none pl-[72px] pr-2 py-2
-                       text-[#CDCDCD] text-[12px] font-medium appearance-none resize-y min-h-[32px] nodrag'
-                            placeholder="Enter message content..."
-                            rows={1}
-                            onMouseDown={(e) => e.stopPropagation()}
-                        />
-
-                        {/* Role selector */}
+                        {/* 角色选择器 */}
                         <div
                             className={`absolute left-[6px] top-[8px] h-[20px] flex items-center 
-                         px-2 rounded-[4px] cursor-pointer transition-colors
-                         ${node.role === 'system'
-                                    ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50'
-                                    : node.role === 'user'
-                                        ? 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50'
-                                        : 'bg-[#254430] border border-[#4DFF9B]/30 hover:border-[#4DFF9B]/50'}`}
+                            px-2 rounded-[4px] cursor-pointer transition-colors z-30 bg-[#252525] border border-[#6D7177]/30 hover:border-[#6D7177]/50`}
                             onClick={() => {
                                 const roles: Array<"system" | "user" | "assistant"> = ["system", "user", "assistant"];
                                 const currentIndex = roles.indexOf(node.role);
@@ -115,15 +106,56 @@ const PromptEditor = ({ prompts, setPrompts }: {
                                 updateNodeRole(node.id, nextRole);
                             }}
                         >
-                            <div className={`text-[10px] font-semibold min-w-[24px] text-center
-                             ${node.role === 'system'
-                                    ? 'text-[#9B6DFF]'
-                                    : node.role === 'user'
-                                        ? 'text-[#FF9B4D]'
-                                        : 'text-[#4DFF9B]'}`}>
+                            <div className={`text-[10px] font-semibold min-w-[24px] text-center text-[#CDCDCD]`}>
                                 {node.role}
                             </div>
                         </div>
+                        
+                        <textarea
+                            value={node.content}
+                            onChange={(e) => updateNodeContent(node.id, e.target.value)}
+                            className="w-full bg-transparent border-none outline-none pl-[80px] pr-2 py-2
+                            text-[#CDCDCD] text-[12px]  appearance-none resize-y min-h-[32px] nodrag"
+                            placeholder="Enter message content..."
+                            rows={1}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            style={{ caretColor: '#CDCDCD' }}
+                            onInput={(e) => {
+                                // 自动调整高度
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${target.scrollHeight}px`;
+                            }}
+                        />
+                        
+                        {/* 高亮层逻辑更新 */}
+                        <div 
+                            className="absolute inset-0 pl-[80px] pr-2 py-2 pointer-events-none text-[#CDCDCD] 
+                            text-[12px] overflow-hidden whitespace-pre-wrap break-words"
+                            dangerouslySetInnerHTML={{
+                                __html: node.content
+                                    .replace(/&/g, '&amp;')
+                                    .replace(/</g, '&lt;')
+                                    .replace(/>/g, '&gt;')
+                                    .replace(/\{\{([^{}]+)\}\}/g, (match, label) => {
+                                        // 查找匹配的节点及其类型
+                                        const sourceNode = sourceNodeLabels.find(item => item.label.trim() === label.trim());
+                                        
+                                        if (sourceNode) {
+                                            // 根据节点类型应用不同的高亮颜色
+                                            if (sourceNode.type === 'structured') {
+                                                // 紫色主题 - 对应 structured 节点
+                                                return `<span class="text-[#9B7EDB] rounded-sm">${match}</span>`;
+                                            } else {
+                                                // 蓝色主题 - 对应 text 节点（默认）
+                                                return `<span class="text-[#3B9BFF] rounded-sm">${match}</span>`;
+                                            }
+                                        }
+                                        // 如果不是源节点标签，则不添加高亮
+                                        return match;
+                                    })
+                            }}
+                        />
                     </div>
 
                     <button
@@ -560,8 +592,29 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         }
     }
 
+    // 在 LLMConfigMenu 组件中，增强 sourceNodeLabels 状态以包含类型信息
+    const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([]);
+
+    // 在 useEffect 中更新状态时，一并存储节点类型
+    useEffect(() => {
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
+        // 收集标签和类型
+        const labelsWithTypes = sourceNodeIdWithLabelGroup.map(node => {
+            const nodeInfo = getNode(node.id);
+            const nodeType = nodeInfo?.type || 'text'; // 默认为 text
+            return { 
+                label: node.label,
+                type: nodeType
+            };
+        });
+        setSourceNodeLabels(labelsWithTypes);
+    }, [parentId, getSourceNodeIdWithLabel]);
+
+    // 修改 displaySourceNodeLabels 函数，使用更新后的状态结构
     const displaySourceNodeLabels = () => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
+        
+        // 不再更新状态，只返回 JSX
         return sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => {
             // Get the node type from the node data
             const nodeInfo = getNode(node.id)
@@ -831,26 +884,22 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 <div className='flex-1 flex flex-col gap-1'>
                     <div className='flex items-center gap-2'>
                         <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
-                        <div className='flex items-center gap-[4px]'>
-                            {/* Text icon with neutral frame - smaller SVG */}
-                            <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
-                                <svg width="10" height="10" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                    <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                    <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                </svg>
-                            </div>
-                            {/* Structured icon with neutral frame - smaller SVG */}
-                            <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
-                                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
-                                    <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
-                                    <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
-                                    <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
-                                    <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
-                                </svg>
-                            </div>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Text icon - 增大尺寸 */}
+                            <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                            {/* Structured icon - 增大尺寸 */}
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                            </svg>
                         </div>
                     </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
@@ -864,28 +913,24 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 <div className='flex-1 flex flex-col gap-1'>
                     <div className='flex items-center gap-2'>
                         <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
-                        <div className='flex items-center gap-[4px] pl-[4px]'>
+                        <div className='flex items-center gap-[6px] pl-[4px]'>
                             {/* Output types with neutral frames - smaller SVGs */}
                             <div className='flex items-center gap-[4px]'>
-                                {/* Text icon with neutral frame - smaller SVG */}
-                                <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
-                                    <svg width="10" height="10" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                        <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                        <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                                    </svg>
-                                </div>
-                                {/* Structured icon with neutral frame - smaller SVG - still using conditional opacity */}
-                                <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]' >
-                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
-                                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
-                                        <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
-                                        <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
-                                        <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
-                                        <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
-                                    </svg>
-                                </div>
+                                {/* Text icon */}
+                                <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                                {/* Structured icon */}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                    <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                    <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                    <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                    <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                                </svg>
                             </div>
                         </div>
                     </div>
@@ -903,7 +948,11 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                     <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
                 <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                    <PromptEditor prompts={prompts} setPrompts={setPrompts} />
+                    <PromptEditor 
+                        prompts={prompts} 
+                        setPrompts={setPrompts} 
+                        sourceNodeLabels={sourceNodeLabels}
+                    />
                 </div>
             </li>
             <li className='flex flex-col gap-2'>

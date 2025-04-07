@@ -85,29 +85,68 @@ const PromptEditor = ({ prompts, setPrompts }: {
     };
 
     const renderNode = (node: PromptNode) => {
+        // 简化的变量高亮实现，使用等宽字体并移除图标
+        const renderHighlightedContent = (content: string) => {
+            if (!content) return null;
+            
+            // 分割文本以识别 {{...}} 格式的变量
+            const parts = content.split(/(\{\{[^{}]+\}\})/g);
+            
+            return (
+                <div className="whitespace-pre-wrap break-words">
+                    {parts.map((part, index) => {
+                        // 检查是否为变量标签 {{...}}
+                        const varMatch = part.match(/^\{\{([^{}]+)\}\}$/);
+                        
+                        if (varMatch) {
+                            // 简化设计：只使用背景色，不添加图标
+                            return (
+                                <span 
+                                    key={index} 
+                                    className="relative bg-[#3B9BFF]/20 text-[#CDCDCD] rounded-sm px-0"
+                                >
+                                    {part}
+                                </span>
+                            );
+                        }
+                        return <span key={index}>{part}</span>;
+                    })}
+                </div>
+            );
+        };
+
         return (
             <div key={node.id} className="relative group mb-1">
                 <div className="flex items-start gap-2">
                     <div className="flex-1 relative min-h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
+                        {/* 高亮变量层 - 使用等宽字体确保精确重叠 */}
+                        <div 
+                            className="absolute inset-0 pl-[72px] pr-2 py-2 pointer-events-none text-[#CDCDCD] text-[12px] font-mono overflow-auto"
+                        >
+                            {renderHighlightedContent(node.content)}
+                        </div>
+                        
+                        {/* 实际文本输入框 - 同样使用等宽字体 */}
                         <textarea
                             value={node.content}
                             onChange={(e) => updateNodeContent(node.id, e.target.value)}
-                            className='w-full bg-transparent border-none outline-none pl-[72px] pr-2 py-2
-                       text-[#CDCDCD] text-[12px] font-medium appearance-none resize-y min-h-[32px] nodrag'
+                            className="w-full bg-transparent border-none outline-none pl-[72px] pr-2 py-2
+                            text-[#CDCDCD] text-[12px] font-mono appearance-none resize-y min-h-[32px] nodrag"
                             placeholder="Enter message content..."
                             rows={1}
                             onMouseDown={(e) => e.stopPropagation()}
+                            style={{ caretColor: '#CDCDCD' }}
                         />
 
-                        {/* Role selector */}
+                        {/* 角色选择器 */}
                         <div
                             className={`absolute left-[6px] top-[8px] h-[20px] flex items-center 
-                         px-2 rounded-[4px] cursor-pointer transition-colors
-                         ${node.role === 'system'
-                                    ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50'
-                                    : node.role === 'user'
-                                        ? 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50'
-                                        : 'bg-[#254430] border border-[#4DFF9B]/30 hover:border-[#4DFF9B]/50'}`}
+                            px-2 rounded-[4px] cursor-pointer transition-colors z-30
+                            ${node.role === 'system'
+                                ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50'
+                                : node.role === 'user'
+                                    ? 'bg-[#443425] border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50'
+                                    : 'bg-[#254430] border border-[#4DFF9B]/30 hover:border-[#4DFF9B]/50'}`}
                             onClick={() => {
                                 const roles: Array<"system" | "user" | "assistant"> = ["system", "user", "assistant"];
                                 const currentIndex = roles.indexOf(node.role);
@@ -116,7 +155,7 @@ const PromptEditor = ({ prompts, setPrompts }: {
                             }}
                         >
                             <div className={`text-[10px] font-semibold min-w-[24px] text-center
-                             ${node.role === 'system'
+                                ${node.role === 'system'
                                     ? 'text-[#9B6DFF]'
                                     : node.role === 'user'
                                         ? 'text-[#FF9B4D]'
