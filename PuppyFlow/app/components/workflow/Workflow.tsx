@@ -33,6 +33,8 @@ import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
 import LLMConfig from './edgesNode/edgeNodes/LLMConfig'
 import SearchConfig from './edgesNode/edgeNodes/SearchConfig'
 import FileNode from './blockNode/FileNode'
+
+import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
 import ResultBlockNode from './blockNode/ResultNode'
 import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge'
@@ -43,6 +45,16 @@ import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine'
 // import useManageNodeStateUtils from '../hooks/useManageNodeStateUtils'
 import { useNodesPerFlowContext } from '../states/NodesPerFlowContext'
 import FloatingEdge from './connectionLineStyles/FloatingEdge'
+import ChunkingByLength from './edgesNode/edgeNodesNew/ChunkingByLength'
+import ChunkingByCharacter from './edgesNode/edgeNodesNew/ChunkingByCharacter'
+import ChunkingAuto from './edgesNode/edgeNodesNew/ChunkingAuto'
+import Retrieving from './edgesNode/edgeNodesNew/Retrieving'
+import Convert2Text from './edgesNode/edgeNodesNew/Convert2Text'
+import Convert2Structured from './edgesNode/edgeNodesNew/Convert2Structured'
+import EditText from './edgesNode/edgeNodesNew/EditText'
+import EditStructured from './edgesNode/edgeNodesNew/EditStructured'
+import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
+import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -58,6 +70,17 @@ const nodeTypes = {
   'search': SearchConfig,
   'modify': ModifyConfig,
   'choose': ChooseConfig,
+  'copy': CopyEdgeNode,
+  'chunkingByLength': ChunkingByLength,
+  'chunkingByCharacter': ChunkingByCharacter,
+  'chunkingAuto': ChunkingAuto,
+  'retrieving': Retrieving,
+  'convert2text': Convert2Text,
+  'convert2structured': Convert2Structured,
+  'editText': EditText,
+  'editStructured': EditStructured,
+  'searchGoogle': SearchGoogle,
+  'searchPerplexity': SearchPerplexity,
 }
 
 const edgeTypes = {
