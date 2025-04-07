@@ -1,28 +1,28 @@
 'use client'
-import React, { useCallback, useEffect, useState, useRef} from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import { initialNodes } from './InitialNodes'
-import {ReactFlow,
-    addEdge, 
-    Background, 
-    Connection,
-    Edge,
-    Node,
-    useEdgesState,
-    useNodesState, 
-    BackgroundVariant,
-    MarkerType,
-    Position, 
-    useReactFlow,
-    ConnectionLineType,
-    ConnectionMode,
-    Controls} from '@xyflow/react'
+import {
+  ReactFlow,
+  addEdge,
+  Background,
+  Connection,
+  Edge,
+  Node,
+  useEdgesState,
+  useNodesState,
+  BackgroundVariant,
+  MarkerType,
+  Position,
+  useReactFlow,
+  ConnectionLineType,
+  ConnectionMode,
+  Controls
+} from '@xyflow/react'
 import TextBlockNode from './blockNode/TextBlockNode'
 import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
 import WebLinkNode from './blockNode/WebLinkNode'
-import AddNodeButton from '../upbar/topLeftToolBar/AddNodeButton'
 import Upbar from '../upbar/Upbar'
-import ModeController from '../upbar/topRightToolBar/ModeControllerButton'
 import JsonBlockNode from './blockNode/JsonNode'
 import LoadConfig from './edgesNode/edgeNodes/LoadConfig'
 import ChunkingConfig from './edgesNode/edgeNodes/ChunkingConfig'
@@ -32,10 +32,9 @@ import ChooseConfig from './edgesNode/edgeNodes/ChooseConfig'
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
 import LLMConfig from './edgesNode/edgeNodes/LLMConfig'
 import SearchConfig from './edgesNode/edgeNodes/SearchConfig'
-import SwitchNode from './blockNode/SwitchNode'
 import FileNode from './blockNode/FileNode'
-import VectorNode from './blockNode/VectorNode'
-import VectorDatabaseNode from './blockNode/VectorDatabaseNode'
+
+import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
 import ResultBlockNode from './blockNode/ResultNode'
 import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge'
@@ -46,25 +45,42 @@ import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine'
 // import useManageNodeStateUtils from '../hooks/useManageNodeStateUtils'
 import { useNodesPerFlowContext } from '../states/NodesPerFlowContext'
 import FloatingEdge from './connectionLineStyles/FloatingEdge'
+import ChunkingByLength from './edgesNode/edgeNodesNew/ChunkingByLength'
+import ChunkingByCharacter from './edgesNode/edgeNodesNew/ChunkingByCharacter'
+import ChunkingAuto from './edgesNode/edgeNodesNew/ChunkingAuto'
+import Retrieving from './edgesNode/edgeNodesNew/Retrieving'
+import Convert2Text from './edgesNode/edgeNodesNew/Convert2Text'
+import Convert2Structured from './edgesNode/edgeNodesNew/Convert2Structured'
+import EditText from './edgesNode/edgeNodesNew/EditText'
+import EditStructured from './edgesNode/edgeNodesNew/EditStructured'
+import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
+import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
 
 const nodeTypes = {
-    'text': TextBlockNode,
-    'none': ResultBlockNode,
-    'switch': SwitchNode,
-    'file': FileNode,
-    'weblink': WebLinkNode,
-    'structured': JsonBlockNode,
-    'vector': VectorNode,
-    'vector_database': VectorDatabaseNode,
-    'load': LoadConfig,
-    'chunk': ChunkingConfig,
-    'code': CodeConfig,
-    'generate': GenerateConfig,
-    'llm': LLMConfig,
-    'search': SearchConfig,
-    // 'embedding': EmbeddingConfig,
-    'modify': ModifyConfig,
-    'choose': ChooseConfig,
+  'text': TextBlockNode,
+  'none': ResultBlockNode,
+  'file': FileNode,
+  'weblink': WebLinkNode,
+  'structured': JsonBlockNode,
+  'load': LoadConfig,
+  'chunk': ChunkingConfig,
+  'code': CodeConfig,
+  'generate': GenerateConfig,
+  'llm': LLMConfig,
+  'search': SearchConfig,
+  'modify': ModifyConfig,
+  'choose': ChooseConfig,
+  'copy': CopyEdgeNode,
+  'chunkingByLength': ChunkingByLength,
+  'chunkingByCharacter': ChunkingByCharacter,
+  'chunkingAuto': ChunkingAuto,
+  'retrieving': Retrieving,
+  'convert2text': Convert2Text,
+  'convert2structured': Convert2Structured,
+  'editText': EditText,
+  'editStructured': EditStructured,
+  'searchGoogle': SearchGoogle,
+  'searchPerplexity': SearchPerplexity,
 }
 
 const edgeTypes = {
@@ -77,6 +93,11 @@ const fitViewOptions = {
   maxZoom: 0.7,
 
 }
+
+// This section defines custom hooks for controlling zoom and pan behavior
+// in the ReactFlow canvas. The zoom is only enabled when Ctrl key is pressed,
+// and panning is only enabled when the middle mouse button is pressed.
+// This provides a more controlled navigation experience for users.
 
 function useCtrlZoom() {
   const [canZoom, setCanZoom] = useState(false);
@@ -126,113 +147,18 @@ function useMiddleMousePan() {
   return canPan;
 }
 
-function Workflow() {
 
+
+function Workflow() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-  // const [newConnectedEdge, setNewConnectedEdge] = useState<Edge | null>(null)
-  // const connectingNodeId = useRef<string | null>(null)
-  // const connectingHandleId = useRef<string | null>(null)
-  // const {setHandleConnected, preventActivateNode, allowActivateNode, isOnConnect, searchNode, addNode, nodes: newNodes, activateNode, preventInactivateNode,
-  //   inactivateNode, clear, activateHandle, addCount, totalCount, activateEdgeNode
-  // } = useNodeContext()
-  const {screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport} = useReactFlow()
-  const {zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode} = useManageReactFlowUtils()
-  const {activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode} = useNodesPerFlowContext()
+  const { screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport } = useReactFlow()
+  const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } = useManageReactFlowUtils()
+  const { activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
 
-  const onWheel = useCallback((event: WheelEvent) => {
-    event.preventDefault();
-    
-    if (event.ctrlKey) {
-      // 如果按住 Ctrl，保持原有的缩放行为
-      return;
-    }
-
-    // 获取当前视口位置
-    const viewport = getViewport();
-    
-    // 根据滚轮方向移动画布，deltaY 为正时向下滚动，为负时向上滚动
-    setViewport({
-      x: viewport.x,
-      y: viewport.y - event.deltaY,
-      zoom: viewport.zoom
-    });
-  }, [getViewport, setViewport]);
-
-  // useEffect(() => {
-  //   console.log(getZoom())
-  // }, [getZoom()])
-  
-  // useEffect(() => {
-  //   // 定义事件处理函数
-  //   const handleTouchStart = (event) => {
-  //     // 这里可以调用你的 onConnectStart 函数
-  //     onConnectStart(event, { handleType: 'source' });
-  //   };
-
-  //   // 添加被动事件监听器
-  //   document.addEventListener('touchstart', handleTouchStart, { passive: true });
-
-  //   // 在组件卸载时移除事件监听器
-  //   return () => {
-  //     document.removeEventListener('touchstart', handleTouchStart);
-  //   };
-  // }, [])
-
-
-  // useEffect(() => {
-  //   const onMouseUp = (event: MouseEvent) => {
-  //     console.log(event)
-  //     allowActivateNode()
-  //   }
-
-  //   document.addEventListener('mouseup', onMouseUp)
-  //   // 清理函数，用于移除事件监听器
-  //   return () => {
-  //     document.removeEventListener('mouseup', onMouseUp);
-  //   };
-  // }, [])
-
-
-
-
-  // useEffect(() => {
-  //   if (!newConnectedEdge) return
-  //   // console.log(newConnectedEdge, newNodes, edges, "start to connect handle")
-  //   let currentReferenceNode = searchNode(newConnectedEdge.source);
-  //   // console.log(currentReferenceNode)
-  //   if (!currentReferenceNode) return
-  //   // 防止是因为删除edge产生的副作用
-  //   if (!getEdge(newConnectedEdge.id)) return
-
-  //   if (newConnectedEdge.sourceHandle) {
-  //     let sourceHandlePosition: Position | null
-  //     switch (newConnectedEdge.sourceHandle) {
-  //       case `${newConnectedEdge.source}-a`:
-  //         sourceHandlePosition = Position.Top
-  //         break
-  //       case `${newConnectedEdge.source}-b`:
-  //         sourceHandlePosition = Position.Right
-  //         break
-  //       case `${newConnectedEdge.source}-c`:
-  //         sourceHandlePosition = Position.Bottom
-  //         break
-  //       case `${newConnectedEdge.source}-d`:
-  //         sourceHandlePosition = Position.Left
-  //         break
-  //       default:
-  //         sourceHandlePosition = null
-  //     }
-  //     // console.log(`connected handle is ${sourceHandlePosition}`, searchNode(newConnectedEdge.source))
-  //     if (sourceHandlePosition) {
-  //       setHandleConnected(newConnectedEdge.source, sourceHandlePosition)
-  //     }
-  //   }
-    
-  // }, [edges, newConnectedEdge])
 
   // 设置鼠标样式
   useEffect(() => {
@@ -242,137 +168,51 @@ function Workflow() {
     }
   }, [isOnGeneratingNewNode]);
 
-  const [connectionLineStyle, setConnectionLineStyle] = useState<React.CSSProperties>({
-    strokeWidth: "4px",
-    stroke: "#FFA73D",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-    borderRadius: 50,
-  })
 
   const onConnect = useCallback((connection: Connection) => {
-    // console.log(connection, "connection start")
-    // if (!connection.source) return
-    // allowActivateNode()
-    // connectingNodeId.current = null
-    // connectingHandleId.current = null
     if (isOnGeneratingNewNode) return
     const targetIsEdgeNode = judgeNodeIsEdgeNode(connection.target)
     const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source)
     if (targetIsEdgeNode && sourceIsEdgeNode ||
       !targetIsEdgeNode && !sourceIsEdgeNode
     ) return
-    const edge: Edge = {...connection, 
-                        id: `connection-${Date.now()}`, 
-                        type: 'floating', 
-                        data: {
-                          connectionType: !sourceIsEdgeNode && targetIsEdgeNode ? 'STC' : 'CTT'
-                        },
-                        markerEnd: !sourceIsEdgeNode && targetIsEdgeNode ? undefined : markerEnd
-                      }
-    
-    
-    setEdges((prevEdges:Edge[]) => addEdge(edge, prevEdges))
-    // console.log(edge, "you are  generating edge")
-   
-    // setNewConnectedEdge(edge)
-  
-    
+    const edge: Edge = {
+      ...connection,
+      id: `connection-${Date.now()}`,
+      type: 'floating',
+      data: {
+        connectionType: !sourceIsEdgeNode && targetIsEdgeNode ? 'STC' : 'CTT'
+      },
+      markerEnd: !sourceIsEdgeNode && targetIsEdgeNode ? undefined : markerEnd
+    }
+
+
+    setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges))
     allowActivateOtherNodesWhenConnectEnd()
-    // console.log(edges)
 
   }, [setEdges])
 
-  const onConnectStart = (event: MouseEvent | TouchEvent, {nodeId, handleId, handleType }: { nodeId:string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
+
+  const onConnectStart = (event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
     if (isOnGeneratingNewNode) return
     event.preventDefault()
     event.stopPropagation()
     if (nodeId) preventInactivateNode()
     preventActivateOtherNodesWhenConnectStart()
-    
-    // console.log(isOnConnect)
-    // if (handleType === 'target') {
-    //   setConnectionLineStyle({
-    //     strokeWidth: "4px",
-    //     stroke: "transparent",
-    //     strokeLinecap: "round",
-    //     strokeLinejoin: "round",
-    //     borderRadius: 50,
-    //   })
-    // }
-    // else {
-    //   setConnectionLineStyle({
-    //     strokeWidth: "4px",
-    //     stroke: "#FFA73D",
-    //     strokeLinecap: "round",
-    //     strokeLinejoin: "round",
-    //     borderRadius: 50,
-    //   })
-    //   // connectingNodeId.current = nodeId
-    //   // connectingHandleId.current = handleId
-    // }
   }
 
   const onConnectEnd = (event: MouseEvent | TouchEvent) => {
     if (isOnGeneratingNewNode) return
     event.preventDefault()
     event.stopPropagation()
-    // console.log(event.target)
-    // if (connectingNodeId.current && connectingHandleId.current) {
-    //   const target = event.target as unknown as HTMLElement
-    //   if (!target) {
-    //     connectingNodeId.current = null 
-    //     connectingHandleId.current = null
-    //   }
-    //   else {
-    //     const targetIsPane = target.classList.contains('react-flow__pane');
-    //     if (targetIsPane && event instanceof MouseEvent) {
-    //     const id = `${totalCount + 1}`
-    //     const newNode = {
-    //       id,
-    //       position: screenToFlowPosition({
-    //         x: event.clientX,
-    //         y: event.clientY,
-    //       }),
-    //       type: "textBlock",
-    //       data: {
-    //             textContent: ""
-    //       }
-    //     }
-    //     addCount()
-    //     addNode(newNode.id)
-    //     setNodes(nds => nds.concat(newNode))
-    //     setEdges((eds) => eds.concat({
-    //       id: `edge${connectingNodeId.current}-${newNode.id}-${Date.now()}`,
-    //       source: connectingNodeId.current!,
-    //       target: newNode.id,
-    //       type: 'LLM',
-    //       sourceHandle: connectingHandleId.current!,
-    //       markerEnd: {
-    //           type: MarkerType.Arrow,
-    //           width: 10,
-    //           height: 30,
-    //           color: "#4599DF"
-    //         },
-    //   })) 
-
-    //     const handlePosition = connectingHandleId.current === `${connectingNodeId.current}-a`? Position.Top :  connectingHandleId.current === `${connectingNodeId.current}-b` ? Position.Right :
-    //     connectingHandleId.current === `${connectingNodeId.current}-c` ? Position.Bottom : connectingHandleId.current === `${connectingNodeId.current}-d` ? Position.Left : null
-    //     if (handlePosition) setHandleConnected(connectingNodeId.current, handlePosition)
-    //     allowActivateNode()
-    //   }
-      
-    //   }
-
-    // }
     allowActivateOtherNodesWhenConnectEnd()
 
   }
 
-  const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id:string) => {
+  const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id: string) => {
     // console.log("start to node on Mouse Enter", id)
     // if (isOnGeneratingNewNode) return
-    
+
     setNodes((nds) => {
       const nodeIndex = nds.findIndex((node) => node.id === id);
       const node = nds[nodeIndex];
@@ -381,7 +221,7 @@ function Workflow() {
       newNodes.push(node);
       return newNodes;
     });
-    
+
     // const target = event.target as unknown as HTMLElement
     // if (target.id === "edgeMenu") {
     //   return
@@ -390,7 +230,7 @@ function Workflow() {
     // then activate node
     // console.log(`reenter this node`)
     // console.log(id, "activate node")
-    
+
     activateNode(id)
 
   };
@@ -401,33 +241,33 @@ function Workflow() {
     if (preventInactivated || isOnGeneratingNewNode) return
     // console.log("start to node on Mouse Leave", id)
     inactivateNode(id)
-    
+
   }
 
   const onNodeClick = (id: string) => {
-      // const targetNode = searchNode(id)
-      // console.log(targetNode)
-      // if (!targetNode) return
-      // if (!targetNode.activated) activateNode(id)
-      if (isOnGeneratingNewNode) return
-      // console.log("start to node on Click", id)
-      if (!judgeNodeIsEdgeNode(id)) {
-        clearEdgeActivation()
-      }
-      activateNode(id)
-      preventInactivateNode()
-      
-      // else {
-      //   if (activatedNode === id) {
-      //     console.log(id, "inactivate node")
-      //     inactivateNode(id)
-      //   }
-      //   else {
-      //     console.log(id, "activate node")
-      //     activateNode(id)
-      //   }
-      // }
-      // activateEdgeNode(id)
+    // const targetNode = searchNode(id)
+    // console.log(targetNode)
+    // if (!targetNode) return
+    // if (!targetNode.activated) activateNode(id)
+    if (isOnGeneratingNewNode) return
+    // console.log("start to node on Click", id)
+    if (!judgeNodeIsEdgeNode(id)) {
+      clearEdgeActivation()
+    }
+    activateNode(id)
+    preventInactivateNode()
+
+    // else {
+    //   if (activatedNode === id) {
+    //     console.log(id, "inactivate node")
+    //     inactivateNode(id)
+    //   }
+    //   else {
+    //     console.log(id, "activate node")
+    //     activateNode(id)
+    //   }
+    // }
+    // activateEdgeNode(id)
   }
 
   const onPaneClick = () => {
@@ -442,7 +282,7 @@ function Workflow() {
     const handleWheel = (e: any) => {
       e.preventDefault();
       const viewport = getViewport();
-      
+
       setViewport({
         x: viewport.x,
         y: viewport.y - e.deltaY,
@@ -454,7 +294,7 @@ function Workflow() {
       if (e.touches.length === 2) {
         e.preventDefault();
         const viewport = getViewport();
-        
+
         setViewport({
           x: viewport.x,
           y: viewport.y - e.touches[0].clientY,
@@ -487,13 +327,15 @@ function Workflow() {
 
     // Check if any element in set1 is not in set2
     for (const item of set1) {
-        if (!set2.has(item)) {
-            return true; // array1 has an element that array2 doesn't have
-        }
+      if (!set2.has(item)) {
+        return true; // array1 has an element that array2 doesn't have
+      }
     }
 
     return false; // All elements in array1 are present in array2
-}
+  }
+
+
 
 
   useEffect(() => {
@@ -512,14 +354,14 @@ function Workflow() {
       const sourceNode = getNode(edge.source)
       return sourceNode?.type !== "file" && sourceNode?.type !== "text" && sourceNode?.type !== "structured" && sourceNode?.type !== "choose"
     })
-    
+
     const inputBlockEdges = getEdges().filter((edge) => {
       const sourceNode = getNode(edge.source)
       return sourceNode?.type === "file" || sourceNode?.type === "text" || sourceNode?.type === "structured" || sourceNode?.type === "choose"
     })
     // map inputBlockEdges to {target node id: {source node id: {type: "", resultNode: ""}}} use object from to map list into object
     const inputBlockEdgesMap = inputBlockEdges.map((edge) => {
-      return [edge.target, {source: edge.source, type: getNode(edge.source)?.type}]
+      return [edge.target, { source: edge.source, type: getNode(edge.source)?.type }]
     })
     // console.log(inputBlockEdgesMap, "input block edges map")
     // convert inputBlockEdgesMap to object
@@ -530,7 +372,7 @@ function Workflow() {
     // console.log(filteredEdges, "filtered edges")
     // map filtered edges to [{source node{id:"", type:""， resultNode:""}, target node:{id:"", type:""}}]
     const mappedEdges = filteredEdges.map((edge) => {
-      return {source: {id: edge.source, type: getNode(edge.source)?.type, resultNode: getNode(edge.source)?.data.resultNode, subType: getNode(edge.source)?.data.subMenuType}, target: {id: edge.target, type: getNode(edge.target)?.type, label: getNode(edge.target)?.data.label}}
+      return { source: { id: edge.source, type: getNode(edge.source)?.type, resultNode: getNode(edge.source)?.data.resultNode, subType: getNode(edge.source)?.data.subMenuType }, target: { id: edge.target, type: getNode(edge.target)?.type, label: getNode(edge.target)?.data.label } }
     })
     // console.log(mappedEdges, "mapped edges")
     // if the source node doesn't have a resultNode but have a target, then add the target node as a resultNode
@@ -539,28 +381,28 @@ function Workflow() {
     // 2. the resultNode should be same type with source node of the source node  except for modify 2 structured and modify 2 text
 
     const resultnodesToUpdate = mappedEdges.map((edge) => {
-      if(edge.source.type === "load") {
+      if (edge.source.type === "load") {
         if (!edge.source.resultNode && edge.target.type === "structured") {
-          return [edge.source.id, {id: edge.target.id, label: edge.target.label}]
+          return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
         }
       }
       else if (edge.source.type === "modify-convert2structured") {
         if (!edge.source.resultNode && edge.target.type === "structured") {
-          return [edge.source.id, {id: edge.target.id, label: edge.target.label}]
+          return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
         }
       }
       else if (edge.source.type === "modify-convert2text") {
         if (!edge.source.resultNode && edge.target.type === "text") {
-          return [edge.source.id, {id: edge.target.id, label: edge.target.label}]
+          return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
         }
       }
-      
+
       if (!edge.source.resultNode && edge.target.type === inputBlockEdgesMapObject[edge.source.id].type) {
-        return [edge.source.id, {id: edge.target.id, label: edge.target.label}]
+        return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
       }
 
-      return [edge.source.id, {id: "", label: ""}]
-      
+      return [edge.source.id, { id: "", label: "" }]
+
     })
     console.log(resultnodesToUpdate, "result nodes to update")
 
@@ -575,9 +417,9 @@ function Workflow() {
             // Apply the update to this node
             console.log(updateInfo[1], "update info[1]")
             return {
-              ...node, 
+              ...node,
               data: {
-                ...node.data, 
+                ...node.data,
                 resultNode: typeof updateInfo[1] === 'object' && updateInfo[1] !== null ? (updateInfo[1].label || updateInfo[1].id) : undefined
               }
             };
@@ -589,67 +431,63 @@ function Workflow() {
 
   }, [getEdges()])
 
+
+
+
   return (
-    
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
-        <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
+      <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
         <ReactFlow id="flowChart"
-        style={{
-          width: "100%",
-          height: "100%",
-        }}
-        connectionLineComponent={CustomConnectionLine}
-        //  connectionLineStyle={connectionLineStyle}
-        //  connectionRadius={100}
-         nodes={nodes}
-         edges={edges}
-         nodeTypes={nodeTypes}
-         edgeTypes={edgeTypes}
-         fitViewOptions={fitViewOptions}
-         onNodesChange={onNodesChange}
-         onEdgesChange={onEdgesChange}
-         onConnect={onConnect}
-         nodesDraggable={!isOnGeneratingNewNode}
-         nodesConnectable={!isOnGeneratingNewNode}
-         elementsSelectable={!isOnGeneratingNewNode}
-         onNodeMouseEnter={(event, node) => {
-          bringToFront(event, node.id)
-          // if (node.type === "text") {
-          //   lockZoom()
-          // }
-         }}
-         onNodeMouseLeave={(event, node) => {
-          onNodeMouseLeave(node.id)
-          // if (node.type === "text") {
-          //   freeZoom()
-          // }
-         }}
-         onNodeClick={(event, node) => onNodeClick(node.id)}
-        //  onDelete={onDelete}
-         onConnectStart={onConnectStart}
-         onConnectEnd={onConnectEnd}
-         onPaneClick={onPaneClick}
-         snapToGrid={true}
-         snapGrid={[16, 16]}
-         fitView
-        
-         minZoom={0.2}           // 最小缩放级别
-         maxZoom={1.5} 
-         zoomOnScroll={canZoom}
-         zoomOnPinch={true}
-         panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
-         panOnScroll={true}          // 重新启用默认的滚动行为
-         panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
-         selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
-         className="nocursor"             // 可选：添加自定义样式
-         
-         >
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+          connectionLineComponent={CustomConnectionLine}
+          //  connectionLineStyle={connectionLineStyle}
+          //  connectionRadius={100}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitViewOptions={fitViewOptions}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          nodesDraggable={!isOnGeneratingNewNode}
+          nodesConnectable={!isOnGeneratingNewNode}
+          elementsSelectable={!isOnGeneratingNewNode}
+          onNodeMouseEnter={(event, node) => {
+            bringToFront(event, node.id)
+          }}
+          onNodeMouseLeave={(event, node) => {
+            onNodeMouseLeave(node.id)
+          }}
+          onNodeClick={(event, node) => onNodeClick(node.id)}
+          //  onDelete={onDelete}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
+          onPaneClick={onPaneClick}
+          snapToGrid={true}
+          snapGrid={[16, 16]}
+          fitView
+
+          minZoom={0.2}           // 最小缩放级别
+          maxZoom={1.5}
+          zoomOnScroll={canZoom}
+          zoomOnPinch={true}
+          panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
+          panOnScroll={true}          // 重新启用默认的滚动行为
+          panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
+          selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
+          className="nocursor"             // 可选：添加自定义样式
+
+        >
           <Upbar />
-          <Background color="#646464" variant={BackgroundVariant.Dots} gap={16}/>
+          <Background color="#646464" variant={BackgroundVariant.Dots} gap={16} />
           <div className="absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]">
-            <a 
-              href="https://www.puppyagent.com/" 
-              target="_blank" 
+            <a
+              href="https://www.puppyagent.com/"
+              target="_blank"
               rel="noopener noreferrer"
               className="hover:text-[#808080] transition-colors"
             >
@@ -657,7 +495,7 @@ function Workflow() {
             </a>
           </div>
         </ReactFlow>
-        </div>
+      </div>
     </div>
 
   )
