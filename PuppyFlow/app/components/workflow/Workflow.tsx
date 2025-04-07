@@ -55,6 +55,7 @@ import EditText from './edgesNode/edgeNodesNew/EditText'
 import EditStructured from './edgesNode/edgeNodesNew/EditStructured'
 import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
 import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
+import LLM from './edgesNode/edgeNodesNew/LLM'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -81,6 +82,7 @@ const nodeTypes = {
   'editStructured': EditStructured,
   'searchGoogle': SearchGoogle,
   'searchPerplexity': SearchPerplexity,
+  'llmnew': LLM,
 }
 
 const edgeTypes = {
