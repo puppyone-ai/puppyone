@@ -420,7 +420,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     // - `user_id (string)`: **REQUIRED** - User identifier
     // - `content_id (string)`: **REQUIRED** - Content identifier
     // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
-      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/delete`,
+      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/storage/delete`,
         {
           method: 'DELETE',
           headers: {
