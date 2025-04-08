@@ -3,17 +3,16 @@ import sys
 import uuid
 import time
 import logging
+import random
+import string
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import APIRouter,Request
-from fastapi.responses import JSONResponse
-from botocore.exceptions import NoCredentialsError
-from botocore.config import Config
-from boto3 import client
+from fastapi import APIRouter, Request, Response, UploadFile, File, Form, Query
+from fastapi.responses import JSONResponse, StreamingResponse
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
-
+from storage import S3StorageAdapter, LocalStorageAdapter
 
 # 仅配置 boto3 日志，不修改全局设置
 boto3_logger = logging.getLogger('boto3')
@@ -23,31 +22,10 @@ botocore_logger.setLevel(logging.WARNING)  # 只记录警告和错误
 
 # Create router
 file_router = APIRouter(prefix="/file", tags=["file"])
+storage_router = APIRouter(prefix="/storage", tags=["storage"])
 
-# Initialize the S3 client for Cloudflare R2
-s3_client = client(
-    's3',
-    endpoint_url=config.get("CLOUDFLARE_R2_ENDPOINT"),
-    aws_access_key_id=config.get("CLOUDFLARE_R2_ACCESS_KEY_ID"),
-    aws_secret_access_key=config.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY"),
-    region_name="auto",
-    config=Config(
-        signature_version='s3v4',
-        retries={'max_attempts': 3},
-        connect_timeout=5,
-        read_timeout=60
-    )
-)
-
-# 使用您的自定义日志函数
-try:
-    # 不使用list_buckets，而是检查特定存储桶
-    response = s3_client.head_bucket(Bucket=config.get("CLOUDFLARE_R2_BUCKET"))
-    log_info(f"Successfully connected to R2 bucket: {config.get('CLOUDFLARE_R2_BUCKET')}")
-except PuppyException as e:
-    log_error(f"Error connecting to R2: {e}")
-    # 连接错误不会中断服务，API仍将尝试处理请求
-    # 但在生产环境中可能需要更严格的错误处理
+# 获取存储适配器
+storage_adapter = S3StorageAdapter() if config.get("STORAGE_TYPE", "S3") == "S3" else LocalStorageAdapter()
 
 type_header_mapping = {
     "md": "text/markdown", 
@@ -70,41 +48,35 @@ type_header_mapping = {
     "application": "application/octet-stream"
 }
 
+def generate_short_id(length: int = 8) -> str:
+    """生成指定长度的随机字符串作为短ID"""
+    characters = string.ascii_lowercase + string.digits
+    return ''.join(random.choice(characters) for _ in range(length))
+
 @global_exception_handler(error_code=4001, error_message="Failed to generate file URLs")
 @file_router.post("/generate_urls/{content_type}")
-async def generate_file_urls(request: Request, content_type: str = "text"):
+@file_router.get("/generate_urls")
+async def generate_file_urls(request: Request, content_type: str = None):
     try:
         data = await request.json()
         user_id = data.get("user_id", "Rose123")
         content_name = data.get("content_name", "new_content")
-        content_type_header = type_header_mapping.get(content_type, "application/octet-stream")
         
-        # Generate unique identifier for file
-        content_id = str(uuid.uuid4())
+        # 修改为在获取不到值时抛出 ValueError
+        if content_type and content_type not in type_header_mapping:
+            raise ValueError(f"不支持的内容类型: {content_type}")
         
-        # Build file storage path
+        content_type_header = type_header_mapping.get(content_type, "application/octet-stream") if content_type else data.get("content_type", "application/octet-stream")
+        
+        # 如果从 data 中获取 content_type 也不存在，抛出异常
+        if not content_type and "content_type" not in data:
+            raise ValueError("缺少必要参数: content_type")
+        
+        content_id = generate_short_id()  # 使用短ID替代UUID
         key = f"{user_id}/{content_id}/{content_name}"
         
-        # Generate presigned upload URL
-        upload_url = s3_client.generate_presigned_url(
-            'put_object',
-            Params={
-                'Bucket': config.get("CLOUDFLARE_R2_BUCKET"),
-                'Key': key,
-                'ContentType': content_type_header 
-            },
-            ExpiresIn=300  # Upload URL valid for 5 minutes
-        )
-        
-        # Generate presigned download URL
-        download_url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={
-                'Bucket': config.get("CLOUDFLARE_R2_BUCKET"),
-                'Key': key
-            },
-            ExpiresIn=86400  # Download URL valid for 24 hours
-        )
+        upload_url = storage_adapter.generate_upload_url(key, content_type_header)
+        download_url = storage_adapter.generate_download_url(key)
         
         log_info(f"Generated file URLs for user {user_id}: {key}")
         return JSONResponse(
@@ -120,79 +92,103 @@ async def generate_file_urls(request: Request, content_type: str = "text"):
             }, 
             status_code=200
         )
-    except NoCredentialsError:
-        log_error("Failed to get Cloudflare R2 credentials")
-        return JSONResponse(content={"error": "Credentials not available"}, status_code=403)
-    except PuppyException as e:
+    except Exception as e:
         log_error(f"Error generating file URLs: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-    
-
 
 @global_exception_handler(error_code=4002, error_message="Failed to delete file")
-@file_router.delete("/delete")
+@storage_router.delete("/delete")
 async def delete_file(request: Request):
     try:
-        # 从请求体获取参数
         data = await request.json()
         user_id = data.get("user_id")
         content_id = data.get("content_id")
         content_name = data.get("content_name")
         
-        # 验证必要参数
-        if not user_id or not content_id or not content_name:
-            missing_params = []
-            if not user_id: missing_params.append("user_id")
-            if not content_id: missing_params.append("content_id")
-            if not content_name: missing_params.append("content_name")
-            
+        if not all([user_id, content_id, content_name]):
+            missing_params = [param for param, value in 
+                            {"user_id": user_id, "content_id": content_id, "content_name": content_name}.items() 
+                            if not value]
             log_error(f"删除文件时缺少必要参数: {', '.join(missing_params)}")
             return JSONResponse(
                 content={"error": f"缺少必要参数: {', '.join(missing_params)}"},
                 status_code=400
             )
         
-        # 构建文件存储路径
         key = f"{user_id}/{content_id}/{content_name}"
         
-        # 检查文件是否存在
-        try:
-            s3_client.head_object(
-                Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
-                Key=key
-            )
-        except:
+        if not storage_adapter.check_file_exists(key):
             log_error(f"文件不存在: {key}")
             return JSONResponse(
                 content={"error": f"文件 {content_name} 不存在"},
                 status_code=404
             )
         
-        # 删除特定文件
-        s3_client.delete_object(
-            Bucket=config.get("CLOUDFLARE_R2_BUCKET"),
-            Key=key
-        )
-        
-        log_info(f"已删除用户 {user_id} 的文件: {key}")
-        return JSONResponse(
-            content={
-                "message": f"已成功删除文件: {content_name}",
-                "user_id": user_id,
-                "content_id": content_id,
-                "deleted_at": int(time.time())
-            },
-            status_code=200
-        )
-    except NoCredentialsError:
-        log_error("无法获取Cloudflare R2凭证")
-        return JSONResponse(content={"error": "凭证不可用"}, status_code=403)
-    except PuppyException as e:
-        log_error(f"删除文件时出错: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
+        if storage_adapter.delete_file(key):
+            log_info(f"已删除用户 {user_id} 的文件: {key}")
+            return JSONResponse(
+                content={
+                    "message": f"已成功删除文件: {content_name}",
+                    "user_id": user_id,
+                    "content_id": content_id,
+                    "deleted_at": int(time.time())
+                },
+                status_code=200
+            )
+        else:
+            return JSONResponse(
+                content={"error": "删除文件失败"},
+                status_code=500
+            )
     except Exception as e:
-        log_error(f"删除文件时发生未预期的错误: {str(e)}")
-        return JSONResponse(content={"error": "服务器内部错误"}, status_code=500)
+        log_error(f"删除文件时发生错误: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@global_exception_handler(error_code=4003, error_message="Failed to upload file")
+@storage_router.post("/upload/{temp_id}")
+async def upload_file(
+    temp_id: str,
+    key: str = Query(...),
+    content_type: str = Query(...),
+    file: UploadFile = File(...)
+):
+    try:
+        file_data = await file.read()
+        if storage_adapter.save_file(key, file_data, content_type):
+            return JSONResponse(
+                content={"message": "文件上传成功", "key": key},
+                status_code=200
+            )
+        else:
+            return JSONResponse(
+                content={"error": "文件上传失败"},
+                status_code=500
+            )
+    except Exception as e:
+        log_error(f"上传文件时发生错误: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@global_exception_handler(error_code=4004, error_message="Failed to download file")
+@storage_router.get("/download/{key:path}")
+async def download_file(key: str):
+    try:
+        file_data, content_type = storage_adapter.get_file(key)
+        if file_data is None:
+            return JSONResponse(
+                content={"error": "文件不存在"},
+                status_code=404
+            )
+        
+        return StreamingResponse(
+            iter([file_data]),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename={os.path.basename(key)}"
+            }
+        )
+    except Exception as e:
+        log_error(f"下载文件时发生错误: {str(e)}")
+        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     import asyncio

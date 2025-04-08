@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field, conlist
 from typing import List, Optional, Dict, Any
 
 # TODO: Maybe only need to use multi-modal embedding in the future?
-from objs.vector.embedder import TextEmbedder 
-from objs.vector.vector_db_factory import VectorDatabaseFactory
+from vector.embedder import TextEmbedder 
+from vector.vector_db_factory import VectorDatabaseFactory
 
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
