@@ -13,6 +13,7 @@ qdrant_client
 weaviate-client
 psycopg2-binary
 pinecone
+chromadb
 
 # Server
 boto3

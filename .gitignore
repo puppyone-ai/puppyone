@@ -69,3 +69,6 @@ json_received.json
 
 # vs code
 .vscode/
+
+# Local Storage
+PuppyStorage/local_storage/
