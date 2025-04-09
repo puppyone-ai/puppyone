@@ -11,6 +11,7 @@ from objs.vector.vdb.vdb_base import VectorDatabase
 # from Objs.Vector.Vdb.pinecone_db_client import PineconeVectorDatabase
 # from Objs.Vector.Vdb.weaviate_db_client import WeaviateVectorDatabase
 from objs.vector.vdb.pgv import PostgresVectorDatabase
+from objs.vector.vdb.chroma import ChromaVectorDatabase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,7 +23,8 @@ class VectorDatabaseFactory:
         # "qdrant": QdrantVectorDatabase,  # wrenching
         # "pinecone": PineconeVectorDatabase,  # wrenching
         # "weaviate": WeaviateVectorDatabase,  # wrenching
-        "pgvector": PostgresVectorDatabase  # live
+        "pgvector": PostgresVectorDatabase,  # live
+        "chroma": ChromaVectorDatabase  # local
     }
 
     @classmethod
@@ -118,15 +120,28 @@ if __name__ == "__main__":
     
     # Pgvector Test
     pgvector_db = VectorDatabaseFactory.get_database("pgvector")
-    pgvector_db.register_collection("test_collection")
-    pgvector_db.save_embeddings(
-        collection_id="test_collection",
+    pgvector_db.store_vectors(
+        collection_name="test_collection",
         vectors=embeddings,
         contents=documents,
     )
     pgvector_results = pgvector_db.search_vectors(
-        collection_id="test_collection",
+        collection_name="test_collection",
         query_vector=query_vector,
         top_k=5,
     )
     print("Pgvector Search Results:", pgvector_results)
+    
+    # ChromaDB Test
+    chroma_db = VectorDatabaseFactory.get_database("chroma")
+    chroma_db.store_vectors(
+        collection_name="test_collection",
+        vectors=embeddings,
+        contents=documents,
+    )
+    chroma_results = chroma_db.search_vectors(
+        collection_name="test_collection",
+        query_vector=query_vector,
+        top_k=5,
+    )
+    print("ChromaDB Search Results:", chroma_results)

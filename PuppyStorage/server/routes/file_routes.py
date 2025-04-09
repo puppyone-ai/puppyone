@@ -13,6 +13,8 @@ from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
 from storage import S3StorageAdapter, LocalStorageAdapter
+from pydantic import BaseModel, Field, validator
+from typing import Optional, Dict, Any, Literal
 
 # 仅配置 boto3 日志，不修改全局设置
 boto3_logger = logging.getLogger('boto3')
@@ -25,7 +27,7 @@ file_router = APIRouter(prefix="/file", tags=["file"])
 storage_router = APIRouter(prefix="/storage", tags=["storage"])
 
 # 获取存储适配器
-storage_adapter = S3StorageAdapter() if config.get("STORAGE_TYPE", "S3") == "S3" else LocalStorageAdapter()
+storage_adapter = LocalStorageAdapter() if config.get("STORAGE_TYPE") == "local" else S3StorageAdapter()
 
 type_header_mapping = {
     "md": "text/markdown", 
@@ -53,44 +55,71 @@ def generate_short_id(length: int = 8) -> str:
     characters = string.ascii_lowercase + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
+class FileUrlRequest(BaseModel):
+    user_id: str = Field(default="public")
+    content_name: str
+    content_type: Optional[str] = Field(default=None)
+
+    @validator('content_type')
+    def validate_content_type(cls, v, values, **kwargs):
+        # 检查是否缺少content_type
+        if not v and 'content_type' not in kwargs.get('path_params', {}):
+            raise ValueError("缺少必要参数: content_type")
+        
+        # 检查content_type是否有效
+        if v and v not in type_header_mapping:
+            raise ValueError(f"不支持的内容类型: {v}")
+            
+        return v
+
+class FileUrlResponse(BaseModel):
+    upload_url: str
+    download_url: str
+    content_id: str
+    content_type_header: str
+    expires_at: Dict[str, int]
+
+class FileDeleteRequest(BaseModel):
+    user_id: str
+    content_id: str
+    content_name: str
+
+class FileDeleteResponse(BaseModel):
+    message: str
+    user_id: str
+    content_id: str
+    deleted_at: int
+
+class FileUploadResponse(BaseModel):
+    message: str
+    key: str
+
 @global_exception_handler(error_code=4001, error_message="Failed to generate file URLs")
 @file_router.post("/generate_urls/{content_type}")
 @file_router.get("/generate_urls")
 async def generate_file_urls(request: Request, content_type: str = None):
     try:
         data = await request.json()
-        user_id = data.get("user_id", "Rose123")
-        content_name = data.get("content_name", "new_content")
+        file_request = FileUrlRequest(**data, path_params={'content_type': content_type})
         
-        # 修改为在获取不到值时抛出 ValueError
-        if content_type and content_type not in type_header_mapping:
-            raise ValueError(f"不支持的内容类型: {content_type}")
+        content_type_header = type_header_mapping.get(content_type, "application/octet-stream") if content_type else file_request.content_type or "application/octet-stream"
         
-        content_type_header = type_header_mapping.get(content_type, "application/octet-stream") if content_type else data.get("content_type", "application/octet-stream")
-        
-        # 如果从 data 中获取 content_type 也不存在，抛出异常
-        if not content_type and "content_type" not in data:
-            raise ValueError("缺少必要参数: content_type")
-        
-        content_id = generate_short_id()  # 使用短ID替代UUID
-        key = f"{user_id}/{content_id}/{content_name}"
+        content_id = generate_short_id()
+        key = f"{file_request.user_id}/{content_id}/{file_request.content_name}"
         
         upload_url = storage_adapter.generate_upload_url(key, content_type_header)
         download_url = storage_adapter.generate_download_url(key)
         
-        log_info(f"Generated file URLs for user {user_id}: {key}")
-        return JSONResponse(
-            content={
-                "upload_url": upload_url,
-                "download_url": download_url,
-                "content_id": content_id,
-                "content_type_header": content_type_header,
-                "expires_at": {
-                    "upload": int(time.time()) + 300,
-                    "download": int(time.time()) + 86400
-                }
-            }, 
-            status_code=200
+        log_info(f"Generated file URLs for user {file_request.user_id}: {key}")
+        return FileUrlResponse(
+            upload_url=upload_url,
+            download_url=download_url,
+            content_id=content_id,
+            content_type_header=content_type_header,
+            expires_at={
+                "upload": int(time.time()) + 300,
+                "download": int(time.time()) + 86400
+            }
         )
     except Exception as e:
         log_error(f"Error generating file URLs: {str(e)}")
@@ -101,39 +130,24 @@ async def generate_file_urls(request: Request, content_type: str = None):
 async def delete_file(request: Request):
     try:
         data = await request.json()
-        user_id = data.get("user_id")
-        content_id = data.get("content_id")
-        content_name = data.get("content_name")
+        delete_request = FileDeleteRequest(**data)
         
-        if not all([user_id, content_id, content_name]):
-            missing_params = [param for param, value in 
-                            {"user_id": user_id, "content_id": content_id, "content_name": content_name}.items() 
-                            if not value]
-            log_error(f"删除文件时缺少必要参数: {', '.join(missing_params)}")
-            return JSONResponse(
-                content={"error": f"缺少必要参数: {', '.join(missing_params)}"},
-                status_code=400
-            )
-        
-        key = f"{user_id}/{content_id}/{content_name}"
+        key = f"{delete_request.user_id}/{delete_request.content_id}/{delete_request.content_name}"
         
         if not storage_adapter.check_file_exists(key):
             log_error(f"文件不存在: {key}")
             return JSONResponse(
-                content={"error": f"文件 {content_name} 不存在"},
+                content={"error": f"文件 {delete_request.content_name} 不存在"},
                 status_code=404
             )
         
         if storage_adapter.delete_file(key):
-            log_info(f"已删除用户 {user_id} 的文件: {key}")
-            return JSONResponse(
-                content={
-                    "message": f"已成功删除文件: {content_name}",
-                    "user_id": user_id,
-                    "content_id": content_id,
-                    "deleted_at": int(time.time())
-                },
-                status_code=200
+            log_info(f"已删除用户 {delete_request.user_id} 的文件: {key}")
+            return FileDeleteResponse(
+                message=f"已成功删除文件: {delete_request.content_name}",
+                user_id=delete_request.user_id,
+                content_id=delete_request.content_id,
+                deleted_at=int(time.time())
             )
         else:
             return JSONResponse(
@@ -155,9 +169,9 @@ async def upload_file(
     try:
         file_data = await file.read()
         if storage_adapter.save_file(key, file_data, content_type):
-            return JSONResponse(
-                content={"message": "文件上传成功", "key": key},
-                status_code=200
+            return FileUploadResponse(
+                message="文件上传成功",
+                key=key
             )
         else:
             return JSONResponse(

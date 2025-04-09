@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field, conlist
+from pydantic import BaseModel, Field, conlist, validator
 from typing import List, Optional, Dict, Any
 
 # TODO: Maybe only need to use multi-modal embedding in the future?
@@ -16,6 +16,7 @@ from vector.vector_db_factory import VectorDatabaseFactory
 
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
+from utils.config import config
 
 # Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
@@ -69,11 +70,17 @@ class SearchRequest(BaseModel):
     set_name: str  # 必需的集合名称
     user_id: str = Field(default="public")  # 使用 Field 确保默认值为字符串
     model: str = Field(default="text-embedding-ada-002")
-    vdb_type: str = Field(default="pgvector")
+    vdb_type: str = Field(default="pgvector" if config["STORAGE_TYPE"] == "Remote" else None)
     top_k: int = Field(default=5, ge=1)  # 确保 top_k 至少为 1
     threshold: Optional[float] = Field(default=None)
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
     metric: str = Field(default="cosine")
+
+    @validator('vdb_type')
+    def validate_vdb_type(cls, v, values):
+        if config["STORAGE_TYPE"] == "Local":
+            return "chroma"
+        return v
 
     class Config:
         json_schema_extra = {

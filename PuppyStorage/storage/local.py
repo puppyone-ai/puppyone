@@ -6,12 +6,15 @@ from utils.config import config
 from utils.logger import log_info, log_error
 from storage.base import StorageAdapter
 
-LOCAL_STORAGE_PATH = config.get("LOCAL_STORAGE_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "storage_files"))
+LOCAL_STORAGE_PATH = config.get("LOCAL_STORAGE_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "local_storage"))
 LOCAL_SERVER_URL = config.get("LOCAL_SERVER_URL", "http://localhost:8002")
 
 class LocalStorageAdapter(StorageAdapter):
     def __init__(self):
-        self.base_path = LOCAL_STORAGE_PATH
+        # 设置本地持久化目录
+        self.base_path = os.path.join(LOCAL_STORAGE_PATH, "storage_files")
+        
+        # 确保目录存在
         os.makedirs(self.base_path, exist_ok=True)
         log_info(f"本地存储路径: {self.base_path}")
         
@@ -102,4 +105,86 @@ class LocalStorageAdapter(StorageAdapter):
             return file_data, content_type
         except Exception as e:
             log_error(f"获取本地文件失败: {str(e)}")
-            return None, None 
+            return None, None
+
+if __name__ == "__main__":
+    import unittest
+    import tempfile
+    import os
+    import shutil
+    
+    class TestLocalStorageAdapter(unittest.TestCase):
+        def setUp(self):
+            # 创建临时目录作为测试存储路径
+            self.temp_dir = tempfile.mkdtemp()
+            self.original_storage_path = LOCAL_STORAGE_PATH
+            # 修改配置中的存储路径为临时目录
+            import utils.config
+            utils.config.config["LOCAL_STORAGE_PATH"] = self.temp_dir
+            self.adapter = LocalStorageAdapter()
+            
+        def tearDown(self):
+            # 恢复原始存储路径
+            import utils.config
+            utils.config.config["LOCAL_STORAGE_PATH"] = self.original_storage_path
+            # 清理临时目录
+            shutil.rmtree(self.temp_dir)
+            
+        def test_save_and_get_file(self):
+            # 测试保存和获取文件
+            test_data = b"Hello, World!"
+            test_key = "test/test_file.txt"
+            content_type = "text/plain"
+            
+            # 保存文件
+            result = self.adapter.save_file(test_key, test_data, content_type)
+            self.assertTrue(result)
+            
+            # 检查文件是否存在
+            self.assertTrue(self.adapter.check_file_exists(test_key))
+            
+            # 获取文件
+            retrieved_data, retrieved_type = self.adapter.get_file(test_key)
+            self.assertEqual(test_data, retrieved_data)
+            self.assertEqual(content_type, retrieved_type)
+            
+        def test_delete_file(self):
+            # 测试删除文件
+            test_data = b"Test data for deletion"
+            test_key = "test/delete_test.txt"
+            
+            # 保存文件
+            self.adapter.save_file(test_key, test_data, "text/plain")
+            
+            # 删除文件
+            result = self.adapter.delete_file(test_key)
+            self.assertTrue(result)
+            
+            # 检查文件是否已被删除
+            self.assertFalse(self.adapter.check_file_exists(test_key))
+            
+        def test_generate_urls(self):
+            # 测试生成上传和下载URL
+            test_key = "test/url_test.txt"
+            content_type = "text/plain"
+            
+            # 生成上传URL
+            upload_url = self.adapter.generate_upload_url(test_key, content_type)
+            self.assertIn(LOCAL_SERVER_URL, upload_url)
+            self.assertIn(test_key, upload_url)
+            self.assertIn(content_type, upload_url)
+            
+            # 生成下载URL
+            download_url = self.adapter.generate_download_url(test_key)
+            self.assertIn(LOCAL_SERVER_URL, download_url)
+            self.assertIn(test_key, download_url)
+            
+        def test_get_nonexistent_file(self):
+            # 测试获取不存在的文件
+            nonexistent_key = "test/nonexistent.txt"
+            data, content_type = self.adapter.get_file(nonexistent_key)
+            self.assertIsNone(data)
+            self.assertIsNone(content_type)
+    
+    # 运行测试
+    unittest.main() 
