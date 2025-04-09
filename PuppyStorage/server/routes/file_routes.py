@@ -16,12 +16,6 @@ from storage import S3StorageAdapter, LocalStorageAdapter
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
 
-# 仅配置 boto3 日志，不修改全局设置
-boto3_logger = logging.getLogger('boto3')
-boto3_logger.setLevel(logging.WARNING)  # 只记录警告和错误
-botocore_logger = logging.getLogger('botocore')
-botocore_logger.setLevel(logging.WARNING)  # 只记录警告和错误
-
 # Create router
 file_router = APIRouter(prefix="/file", tags=["file"])
 storage_router = APIRouter(prefix="/storage", tags=["storage"])
@@ -208,17 +202,27 @@ if __name__ == "__main__":
     import asyncio
     import requests
     import json
+    import logging
+    from datetime import datetime
 
-    print("Starting direct test of file URL generation function...")
+    # 配置日志
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    logger = logging.getLogger("file_routes_test")
+
+    logger.info("开始测试文件URL生成和上传/下载功能...")
     
-    # Test multiple file types
+    # 测试用例
     test_cases = [
-        {"content_type": "text", "content_name": "test_document.txt", "test_content": "This is a plain text document"},
-        {"content_type": "json", "content_name": "test_data.json", "test_content": '{"name": "Test", "value": 123}'},
-        {"content_type": "html", "content_name": "test_page.html", "test_content": "<html><body><h1>Test Page</h1></body></html>"}
+        {"content_type": "text", "content_name": "test_document.txt", "test_content": "这是一个纯文本文档"},
+        {"content_type": "json", "content_name": "test_data.json", "test_content": '{"name": "测试", "value": 123}'},
+        {"content_type": "html", "content_name": "test_page.html", "test_content": "<html><body><h1>测试页面</h1></body></html>"},
+        {"content_type": "md", "content_name": "test_markdown.md", "test_content": "# 测试Markdown\n\n这是一个测试文档。"}
     ]
     
-    # Create a mock request class
+    # 创建模拟请求类
     class MockRequest:
         def __init__(self, data):
             self.data = data
@@ -227,83 +231,120 @@ if __name__ == "__main__":
             return self.data
     
     async def test_file_type(case):
-        print(f"\nTesting file type: {case['content_type']}, filename: {case['content_name']}")
-        
-        # Create mock request with all required parameters
-        request = MockRequest({
-            "user_id": "test_user",
-            "content_name": case["content_name"]
-        })
-        
-        # Call the function with path parameter
-        result = await generate_file_urls(request=request, content_type=case["content_type"])
-        
-        # Extract content from JSONResponse
-        content = result.body.decode()
-        data = json.loads(content)
-        
-        print(f"Successfully obtained URLs! File ID: {data['content_id']}")
-        
-        upload_url = data["upload_url"]
-        download_url = data["download_url"]
-        content_type_header = data["content_type_header"]
-        
-        # Upload test file using the presigned URL
-        print(f"Uploading test {case['content_type']} file...")
+        logger.info(f"\n测试文件类型: {case['content_type']}, 文件名: {case['content_name']}")
         
         try:
-            upload_response = requests.put(
-                upload_url,
-                data=case["test_content"].encode('utf-8'),
-                headers={"Content-Type": content_type_header}
-            )
+            # 创建模拟请求，包含所有必要参数
+            request = MockRequest({
+                "user_id": f"test_user_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                "content_name": case["content_name"]
+            })
             
-            if upload_response.status_code >= 200 and upload_response.status_code < 300:
-                print("File uploaded successfully!")
-            else:
-                print(f"File upload failed! Status code: {upload_response.status_code}")
-                print(f"Error message: {upload_response.text}")
-
-        except Exception as e:
-            print(f"File upload failed: {str(e)}")
-        
-        # Wait to ensure upload completes
-        time.sleep(1)
-        
-        # Download and verify file
-        print("Downloading and verifying file...")
-        try:
-            download_response = requests.get(download_url)
+            # 调用函数并传入路径参数
+            result = await generate_file_urls(request=request, content_type=case["content_type"])
             
-            if download_response.status_code != 200:
-                print(f"File download failed! Status code: {download_response.status_code}")
-                return False
+            # 直接使用 Pydantic 模型的属性
+            logger.info(f"成功获取URL! 文件ID: {result.content_id}")
+            
+            upload_url = result.upload_url
+            download_url = result.download_url
+            content_type_header = result.content_type_header
+            
+            # 使用预签名URL上传测试文件
+            logger.info(f"上传测试 {case['content_type']} 文件...")
+            
+            try:
+                # 上传时指定正确的编码
+                upload_response = requests.put(
+                    upload_url,
+                    data=case["test_content"].encode('utf-8'),
+                    headers={
+                        "Content-Type": content_type_header,
+                        "Content-Encoding": "utf-8"
+                    }
+                )
                 
-            downloaded_content = download_response.text
-            print(f"File downloaded successfully!")
+                if upload_response.status_code >= 200 and upload_response.status_code < 300:
+                    logger.info("文件上传成功!")
+                else:
+                    logger.error(f"文件上传失败! 状态码: {upload_response.status_code}")
+                    logger.error(f"错误信息: {upload_response.text}")
+                    return False
+
+            except Exception as e:
+                logger.error(f"文件上传失败: {str(e)}")
+                return False
             
-            if downloaded_content == case["test_content"]:
-                print("✅ File content verification successful!")
-                return True
-            else:
-                print("❌ File content mismatch!")
+            # 等待确保上传完成
+            logger.info("等待上传完成...")
+            await asyncio.sleep(2)
+            
+            # 下载并验证文件
+            logger.info("下载并验证文件...")
+            try:
+                download_response = requests.get(download_url)
+                
+                if download_response.status_code != 200:
+                    logger.error(f"文件下载失败! 状态码: {download_response.status_code}")
+                    logger.error(f"错误信息: {download_response.text}")
+                    return False
+                    
+                # 使用正确的编码解码下载的内容
+                downloaded_content = download_response.content.decode('utf-8')
+                logger.info("文件下载成功!")
+                
+                if downloaded_content == case["test_content"]:
+                    logger.info("✅ 文件内容验证成功!")
+                    return True
+                else:
+                    logger.error("❌ 文件内容不匹配!")
+                    logger.error(f"预期内容: {case['test_content'][:50]}...")
+                    logger.error(f"实际内容: {downloaded_content[:50]}...")
+                    return False
+            except Exception as e:
+                logger.error(f"文件下载失败: {str(e)}")
                 return False
         except Exception as e:
-            print(f"File download failed: {str(e)}")
+            logger.error(f"测试过程中发生错误: {str(e)}")
             return False
     
-    # Run all test cases
+    # 运行所有测试用例
     async def run_tests():
         results = []
         for case in test_cases:
             result = await test_file_type(case)
             results.append((case["content_type"], result))
         
-        # Print summary
-        print("\n====== Test Summary ======")
+        # 打印摘要
+        logger.info("\n====== 测试摘要 ======")
+        success_count = 0
         for file_type, result in results:
-            status = "✅ PASSED" if result else "❌ FAILED"
-            print(f"{file_type}: {status}")
+            status = "✅ 通过" if result else "❌ 失败"
+            logger.info(f"{file_type}: {status}")
+            if result:
+                success_count += 1
+        
+        logger.info(f"总计: {len(results)} 个测试, {success_count} 个通过, {len(results) - success_count} 个失败")
+        
+        # 测试文件删除功能
+        if success_count > 0:
+            logger.info("\n测试文件删除功能...")
+            try:
+                # 获取第一个成功的测试用例
+                successful_case = next((case for case, (_, result) in zip(test_cases, results) if result), None)
+                if successful_case:
+                    # 创建删除请求
+                    delete_request = MockRequest({
+                        "user_id": "test_user",
+                        "content_id": "test_id",  # 这里需要替换为实际的content_id
+                        "content_name": successful_case["content_name"]
+                    })
+                    
+                    # 调用删除函数
+                    delete_result = await delete_file(request=delete_request)
+                    logger.info(f"删除结果: {delete_result}")
+            except Exception as e:
+                logger.error(f"测试删除功能时发生错误: {str(e)}")
     
-    # Execute tests
+    # 执行测试
     asyncio.run(run_tests())

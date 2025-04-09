@@ -2,6 +2,13 @@ import os
 import shutil
 import uuid
 import time
+import sys
+
+# 添加项目根目录到Python路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
 from utils.config import config
 from utils.logger import log_info, log_error
 from storage.base import StorageAdapter
@@ -111,22 +118,46 @@ if __name__ == "__main__":
     import unittest
     import tempfile
     import os
+    import sys
     import shutil
+    
+    # 确保测试时也能正确导入模块
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
     
     class TestLocalStorageAdapter(unittest.TestCase):
         def setUp(self):
             # 创建临时目录作为测试存储路径
             self.temp_dir = tempfile.mkdtemp()
-            self.original_storage_path = LOCAL_STORAGE_PATH
-            # 修改配置中的存储路径为临时目录
+            
+            # 保存原始配置
             import utils.config
-            utils.config.config["LOCAL_STORAGE_PATH"] = self.temp_dir
+            self.original_storage_path = utils.config.config.get("LOCAL_STORAGE_PATH")
+            self.original_server_url = utils.config.config.get("LOCAL_SERVER_URL")
+            
+            # 设置测试配置
+            os.environ["LOCAL_STORAGE_PATH"] = self.temp_dir
+            os.environ["LOCAL_SERVER_URL"] = "http://test-server:8000"
+            
+            # 创建适配器实例
             self.adapter = LocalStorageAdapter()
             
         def tearDown(self):
-            # 恢复原始存储路径
-            import utils.config
-            utils.config.config["LOCAL_STORAGE_PATH"] = self.original_storage_path
+            # 恢复原始配置
+            if self.original_storage_path is not None:
+                os.environ["LOCAL_STORAGE_PATH"] = self.original_storage_path
+            else:
+                if "LOCAL_STORAGE_PATH" in os.environ:
+                    del os.environ["LOCAL_STORAGE_PATH"]
+                    
+            if self.original_server_url is not None:
+                os.environ["LOCAL_SERVER_URL"] = self.original_server_url
+            else:
+                if "LOCAL_SERVER_URL" in os.environ:
+                    del os.environ["LOCAL_SERVER_URL"]
+            
             # 清理临时目录
             shutil.rmtree(self.temp_dir)
             

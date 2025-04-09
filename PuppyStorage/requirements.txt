@@ -1,5 +1,6 @@
 python-dotenv
 PyYAML
+python-multipart
 
 # Embedding
 openai
