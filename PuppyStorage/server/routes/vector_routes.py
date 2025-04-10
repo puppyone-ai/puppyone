@@ -70,7 +70,7 @@ class SearchRequest(BaseModel):
     set_name: str  # 必需的集合名称
     user_id: str = Field(default="public")  # 使用 Field 确保默认值为字符串
     model: str = Field(default="text-embedding-ada-002")
-    vdb_type: str = Field(default="pgvector" if config["STORAGE_TYPE"] == "Remote" else None)
+    vdb_type: str = Field(default="pgvector" if config.get("STORAGE_TYPE") == "Remote" else None)
     top_k: int = Field(default=5, ge=1)  # 确保 top_k 至少为 1
     threshold: Optional[float] = Field(default=None)
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -78,7 +78,7 @@ class SearchRequest(BaseModel):
 
     @validator('vdb_type')
     def validate_vdb_type(cls, v, values):
-        if config["STORAGE_TYPE"] == "Local":
+        if config.get("STORAGE_TYPE") == "Local":
             return "chroma"
         return v
 
@@ -140,8 +140,8 @@ async def embed(embed_request: EmbedRequest, user_id: str = None):
         )
 
 @global_exception_handler(error_code=3002, error_message="Failed to delete vector collection")
-@vector_router.delete("/delete/{collection_name}")
-@vector_router.delete("/delete")
+@vector_router.post("/delete/{collection_name}")
+@vector_router.post("/delete")
 async def delete_vdb_collection(
     delete_request: DeleteRequest,
     collection_name: str = None
@@ -204,98 +204,4 @@ async def search_vdb_collection(
     except PuppyException as e:
         log_error(f"Unexpected Error in Vector Search: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
-if __name__ == "__main__":
-    import asyncio
-    import json
-    from typing import Dict, Any, Optional
-    
-    # Create a mock Request class
-    query = "What does the fox say?"
-    documents = [
-        "🎵 Ring-ding-ding-ding-dingeringeding! 🎵",
-        "🎵 Wa-pa-pa-pa-pa-pa-pow! 🎵",
-        "🎵 Hatee-hatee-hatee-ho! 🎵"
-    ]
-
-    class MockRequest:
-        def __init__(self, json_data: Dict[str, Any]):
-            self._json_data = json_data
-            
-        async def json(self) -> Dict[str, Any]:
-            return self._json_data
-    
-    # Test embedding API
-    async def test_embed():
-        print("===== Testing Embedding API =====")
         
-        # Prepare test data
-        chunks = [{"content": doc, "metadata": {"index": i}} for i, doc in enumerate(documents)]
-        data = {
-            "chunks": chunks,
-            "model": "text-embedding-ada-002",
-            "set_name": "fox_song",
-            "user_id": "rose123",
-            "vdb_type": "pgvector"
-        }
-        
-        # Call API
-        mock_request = MockRequest(data)
-        response = await embed(embed_request=mock_request)
-        print(f"Embedding Response: {response.body.decode()}")
-        return json.loads(response.body)["collection_name"]
-    
-    # Test search API
-    async def test_search(collection_name: str):
-        print("\n===== Testing Search API =====")
-        # Prepare test data
-        data = {
-            "query": "What does the fox say?",
-            "top_k": 3,
-            "vdb_type": "pgvector",
-            "user_id": "rose123",
-            "model": "text-embedding-ada-002",
-            "set_name": "fox_song"
-        }
-        
-        # Call API
-        mock_request = MockRequest(data)
-        response = await search_vdb_collection(search_request=mock_request)
-        print(f"Search Response: {response.body.decode()}")
-        return response
-    
-    # Test delete API
-    async def test_delete():
-        print("\n===== Testing Delete API =====")
-        # Prepare test data
-        data = {
-            "vdb_type": "pgvector",
-            "user_id": "test_user",
-            "model": "text-embedding-ada-002",
-            "set_name": "fox_song"
-        }
-        
-        # Call API
-        mock_request = MockRequest(data)
-        response = await delete_vdb_collection(delete_request=mock_request)
-        print(f"Delete Response: {response.body.decode()}")
-        return response
-    
-    # Run all tests
-    async def run_tests():
-        try:
-            # Test embedding
-            collection_name = await test_embed()
-            
-            # Test search
-            await test_search(collection_name)
-            
-            # Test delete
-            await test_delete()
-            
-            print("\n===== All Tests Completed =====")
-        except Exception as e:
-            print(f"Error occurred during tests: {str(e)}")
-    
-    # Execute tests
-    asyncio.run(run_tests())

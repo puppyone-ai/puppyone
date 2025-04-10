@@ -28,3 +28,8 @@ grpcio-tools
 protobuf
 protoc-gen-openapiv2
 googleapis-common-protos
+
+# Test
+pytest 
+httpx
+

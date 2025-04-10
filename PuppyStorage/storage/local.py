@@ -34,13 +34,8 @@ class LocalStorageAdapter(StorageAdapter):
             os.makedirs(directory, exist_ok=True)
 
     def generate_upload_url(self, key: str, content_type: str, expires_in: int = 300) -> str:
-        # 生成一个唯一的临时上传路径
-        temp_id = str(uuid.uuid4())
-        temp_path = os.path.join(self.base_path, "temp", temp_id)
-        self._ensure_directory_exists(temp_path)
-        
-        # 返回一个特殊的URL，用于上传文件
-        return f"{LOCAL_SERVER_URL}/storage/upload/{temp_id}?key={key}&content_type={content_type}"
+        # 直接返回上传URL，使用key作为路径参数
+        return f"{LOCAL_SERVER_URL}/storage/upload/{key}?content_type={content_type}"
 
     def generate_download_url(self, key: str, expires_in: int = 86400) -> str:
         # 返回一个用于下载文件的URL
@@ -49,11 +44,14 @@ class LocalStorageAdapter(StorageAdapter):
     def delete_file(self, key: str) -> bool:
         try:
             file_path = self._get_file_path(key)
-            if os.path.exists(file_path):
-                if os.path.isfile(file_path):
-                    os.remove(file_path)
-                else:
-                    shutil.rmtree(file_path)
+            if not os.path.exists(file_path):
+                log_error(f"文件不存在: {file_path}")
+                return False
+                
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+            else:
+                shutil.rmtree(file_path)
             return True
         except Exception as e:
             log_error(f"删除本地文件失败: {str(e)}")
@@ -115,107 +113,28 @@ class LocalStorageAdapter(StorageAdapter):
             return None, None
 
 if __name__ == "__main__":
-    import unittest
-    import tempfile
-    import os
-    import sys
-    import shutil
+    # 创建适配器实例并运行测试
+    adapter = LocalStorageAdapter()
+    print(f"本地存储适配器已初始化，存储路径: {adapter.base_path}")
     
-    # 确保测试时也能正确导入模块
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    parent_dir = os.path.dirname(current_dir)
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
+    # 简单的测试示例
+    test_key = "test/test_file.txt"
+    test_data = b"Hello, World!"
+    content_type = "text/plain"
     
-    class TestLocalStorageAdapter(unittest.TestCase):
-        def setUp(self):
-            # 创建临时目录作为测试存储路径
-            self.temp_dir = tempfile.mkdtemp()
-            
-            # 保存原始配置
-            import utils.config
-            self.original_storage_path = utils.config.config.get("LOCAL_STORAGE_PATH")
-            self.original_server_url = utils.config.config.get("LOCAL_SERVER_URL")
-            
-            # 设置测试配置
-            os.environ["LOCAL_STORAGE_PATH"] = self.temp_dir
-            os.environ["LOCAL_SERVER_URL"] = "http://test-server:8000"
-            
-            # 创建适配器实例
-            self.adapter = LocalStorageAdapter()
-            
-        def tearDown(self):
-            # 恢复原始配置
-            if self.original_storage_path is not None:
-                os.environ["LOCAL_STORAGE_PATH"] = self.original_storage_path
-            else:
-                if "LOCAL_STORAGE_PATH" in os.environ:
-                    del os.environ["LOCAL_STORAGE_PATH"]
-                    
-            if self.original_server_url is not None:
-                os.environ["LOCAL_SERVER_URL"] = self.original_server_url
-            else:
-                if "LOCAL_SERVER_URL" in os.environ:
-                    del os.environ["LOCAL_SERVER_URL"]
-            
-            # 清理临时目录
-            shutil.rmtree(self.temp_dir)
-            
-        def test_save_and_get_file(self):
-            # 测试保存和获取文件
-            test_data = b"Hello, World!"
-            test_key = "test/test_file.txt"
-            content_type = "text/plain"
-            
-            # 保存文件
-            result = self.adapter.save_file(test_key, test_data, content_type)
-            self.assertTrue(result)
-            
-            # 检查文件是否存在
-            self.assertTrue(self.adapter.check_file_exists(test_key))
-            
-            # 获取文件
-            retrieved_data, retrieved_type = self.adapter.get_file(test_key)
-            self.assertEqual(test_data, retrieved_data)
-            self.assertEqual(content_type, retrieved_type)
-            
-        def test_delete_file(self):
-            # 测试删除文件
-            test_data = b"Test data for deletion"
-            test_key = "test/delete_test.txt"
-            
-            # 保存文件
-            self.adapter.save_file(test_key, test_data, "text/plain")
-            
-            # 删除文件
-            result = self.adapter.delete_file(test_key)
-            self.assertTrue(result)
-            
-            # 检查文件是否已被删除
-            self.assertFalse(self.adapter.check_file_exists(test_key))
-            
-        def test_generate_urls(self):
-            # 测试生成上传和下载URL
-            test_key = "test/url_test.txt"
-            content_type = "text/plain"
-            
-            # 生成上传URL
-            upload_url = self.adapter.generate_upload_url(test_key, content_type)
-            self.assertIn(LOCAL_SERVER_URL, upload_url)
-            self.assertIn(test_key, upload_url)
-            self.assertIn(content_type, upload_url)
-            
-            # 生成下载URL
-            download_url = self.adapter.generate_download_url(test_key)
-            self.assertIn(LOCAL_SERVER_URL, download_url)
-            self.assertIn(test_key, download_url)
-            
-        def test_get_nonexistent_file(self):
-            # 测试获取不存在的文件
-            nonexistent_key = "test/nonexistent.txt"
-            data, content_type = self.adapter.get_file(nonexistent_key)
-            self.assertIsNone(data)
-            self.assertIsNone(content_type)
+    # 保存文件
+    result = adapter.save_file(test_key, test_data, content_type)
+    print(f"保存文件结果: {'成功' if result else '失败'}")
     
-    # 运行测试
-    unittest.main() 
+    # 检查文件是否存在
+    exists = adapter.check_file_exists(test_key)
+    print(f"文件存在: {exists}")
+    
+    # 获取文件
+    retrieved_data, retrieved_type = adapter.get_file(test_key)
+    print(f"获取文件成功: {retrieved_data == test_data}")
+    print(f"内容类型匹配: {retrieved_type == content_type}")
+    
+    # 删除文件
+    delete_result = adapter.delete_file(test_key)
+    print(f"删除文件结果: {'成功' if delete_result else '失败'}") 

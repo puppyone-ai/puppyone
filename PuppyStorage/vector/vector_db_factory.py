@@ -5,13 +5,13 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import os
 import logging
-from objs.vector.vdb.vdb_base import VectorDatabase
+from vector.vdb.vdb_base import VectorDatabase
 # from Objs.Vector.Vdb.zilliz_db_client import ZillizVectorDatabase
 # from Objs.Vector.Vdb.qdrant_db_client import QdrantVectorDatabase
 # from Objs.Vector.Vdb.pinecone_db_client import PineconeVectorDatabase
 # from Objs.Vector.Vdb.weaviate_db_client import WeaviateVectorDatabase
-from objs.vector.vdb.pgv import PostgresVectorDatabase
-from objs.vector.vdb.chroma import ChromaVectorDatabase
+from vector.vdb.pgv import PostgresVectorDatabase
+from vector.vdb.chroma import ChromaVectorDatabase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

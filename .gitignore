@@ -71,4 +71,4 @@ json_received.json
 .vscode/
 
 # Local Storage
-PuppyStorage/local_storage/
+**/local_storage/
