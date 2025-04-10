@@ -1,14 +1,14 @@
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import uuid
 from typing import List, Dict, Any
 
 import vecs
 
-from objs.vector.vdb.vdb_base import VectorDatabase
+from vector.vdb.vdb_base import VectorDatabase
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.config import config
 from utils.logger import log_info, log_error, log_warning
@@ -48,8 +48,8 @@ class PostgresVectorDatabase(VectorDatabase):
         self._metric_value = {
             "cosine": "cosine_distance",
             "l1": "l1_distance",
-            "l2": "l2_distance",
-            "inner_product": "inner_product"
+            "l2": "l2_distance"
+            # inner_product 不被 vecs 库支持
         }
         
     def _ensure_index(self, collection, metric):
@@ -147,24 +147,28 @@ class PostgresVectorDatabase(VectorDatabase):
         collection_name: str,
         query_vector: List[float],
         top_k: int,
-        threshold: float = None,
-        filters: Dict[str, Any] = None,
-        metric: str = "cosine"
+        **kwargs
     ) -> List[Dict[str, Any]]:
         """
-        Search in vector database
+        在向量数据库中搜索
         
         Args:
-            collection_id: Collection ID
-            query_vector: Query vector
-            top_k: Number of results to return
-            threshold: Similarity threshold
-            filters: Metadata filters
-            metric: Similarity measure method
-            
+            collection_name: 集合名称
+            query_vector: 查询向量
+            top_k: 返回结果数量
+            **kwargs: 额外参数，支持：
+                - threshold: 相似度阈值
+                - filters: 元数据过滤条件
+                - metric: 相似度计算方法 (cosine, l1, l2, inner_product)
+                
         Returns:
-            List[Dict]: List of search results
+            搜索结果列表
         """
+        # 获取参数
+        threshold = kwargs.get("threshold")
+        filters = kwargs.get("filters")
+        metric = kwargs.get("metric", "cosine")
+        
         # 1. Get collection
         try:   
             collection = self.client.get_or_create_collection(
@@ -181,15 +185,22 @@ class PostgresVectorDatabase(VectorDatabase):
         
         # 3. Execute query
         measure = self._metric_value.get(metric, "cosine_distance")
+        
+        # 准备查询参数
+        query_params = {
+            "data": query_vector,
+            "limit": top_k,
+            "measure": measure,
+            "include_value": True,
+            "include_metadata": True,
+        }
+        
+        # 只有在过滤器非空且有效时才添加filters条件
+        if filters and isinstance(filters, dict) and len(filters) > 0:
+            query_params["filters"] = filters
+        
         try:
-            records = collection.query(
-                data=query_vector,
-                limit=top_k,
-                filters=filters,
-                measure=measure,
-                include_value=True,
-                include_metadata=True,
-            )
+            records = collection.query(**query_params)
         except PuppyException as e:
             # Check if error is related to dimension mismatch
             if "dimension" in str(e).lower():
@@ -205,8 +216,7 @@ class PostgresVectorDatabase(VectorDatabase):
             score = record[1]
             # Skip if there's a threshold and score is below threshold
             if threshold and (
-                (measure.endswith("distance") and score > threshold) or
-                (measure == "inner_product" and score < threshold)
+                (measure.endswith("distance") and score > threshold)
             ):
                 continue
             
@@ -223,56 +233,35 @@ class PostgresVectorDatabase(VectorDatabase):
         
         return results
 
-    @global_exception_handler(2403, "Error Cleaning Postgres Vector Database")
-    def delete_vectors(
-        self,
-        collection_name: str,
-        ids: List[str] = None
-    ) -> None:
-        """
-        Delete specified collection. If collection does not exist,
-        log a warning and continue without error.
-
-        Args:
-            collection_id: Collection ID
-            ids: List of IDs to delete
-        """
-        try:
-            collection = self.client.get_or_create_collection(name=collection_name)
-            collection.delete(ids=ids)
-            log_info(f"Cleaned collection: {collection_name}")
-        except PuppyException as e:
-            # Check if the error is because collection does not exist
-            if "provide a dimension" in str(e).lower():
-                log_warning(f"Collection '{collection_name}' does not exist, nothing to clean")
-            else:
-                # For other errors, log and raise
-                log_error(f"Failed to clean collection '{collection_name}': {str(e)}")
-                raise
-
     @global_exception_handler(2404, "Error Deleting Postgres Vector Database")
     def delete_collection(
         self,
-        collection_name: str  
-    ) -> None:
+        collection_name: str,
+        **kwargs
+    ) -> bool:
         """
-        Delete specified collection. If collection does not exist,
-        log a warning and continue without error.
+        删除指定集合
 
         Args:
-            collection_name: Collection Name
+            collection_name: 集合名称
+            **kwargs: 额外参数
+            
+        Returns:
+            操作是否成功
         """
         try:
             self.client.delete_collection(collection_name)
             log_info(f"Deleted collection: {collection_name}")
+            return True
         except PuppyException as e:
             # Check if the error is because collection doesn't exist
             if "provide a dimension" in str(e).lower():
                 log_warning(f"Collection '{collection_name}' does not exist, nothing to delete")
+                return True
             else:
                 # For other errors, log and raise
                 log_error(f"Failed to delete collection '{collection_name}': {str(e)}")
-                raise
+                return False
 
 if __name__ == "__main__":
 
@@ -282,27 +271,28 @@ if __name__ == "__main__":
     vectors = rng.random((10, 512)).tolist()
     documents = [f"Document content {i}" for i in range(10)]
     query_vector = rng.random(512).tolist()
+    
+    # 生成带有短UUID后缀的集合名称
+    collection_name = f"test_collection_{str(uuid.uuid4())[:8]}"
+    print(f"使用集合名称: {collection_name}")
 
     # Pgvector Test
     db = PostgresVectorDatabase()
 
-    # db.clean_vectors(
-    #     collection_name="test_collection"
-    # )
-
     db.store_vectors(
-        collection_name="test_collection",
+        collection_name=collection_name,
         vectors=vectors,
         contents=documents,
         metadata=[{"content": content} for content in documents]
     )
     
     # 测试不同度量方式的搜索
-    metrics = ["cosine", "l1", "l2", "inner_product"]
+    # 注意：移除了inner_product，因为vecs库不支持此度量方式
+    metrics = ["cosine", "l1", "l2"]
     for metric in metrics:
         print(f"\n使用 {metric} 度量方式搜索:")
         pgvector_results = db.search_vectors(
-            collection_name="test_collection",
+            collection_name=collection_name,
             query_vector=query_vector,
             top_k=5,
             metric=metric
@@ -310,7 +300,7 @@ if __name__ == "__main__":
         print(f"{metric} 搜索结果:", pgvector_results)
 
     db.delete_collection(
-        collection_name="test_collection"
+        collection_name=collection_name
     )
 
     print(db.client.list_collections())
