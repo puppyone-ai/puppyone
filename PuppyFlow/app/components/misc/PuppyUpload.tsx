@@ -163,7 +163,6 @@ export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setU
                                     onClick={(e) => {
                                         e.stopPropagation(); // Prevent opening file dialog
                                         handleDelete(file, index)
-                                        setUploadedFiles(uploadedFiles.filter((_: { fileName: string, task_id: string, fileType: string }, i: number) => i !== index));
                                     }}
                                     className="text-gray-400 hover:text-red-400 w-[24px] h-[24px] flex items-center justify-center"
                                 >
