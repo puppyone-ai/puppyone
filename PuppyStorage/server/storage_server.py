@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from utils.puppy_exception import PuppyException
 from utils.logger import log_info, log_error
-from server.routes.file_routes import file_router
+from server.routes.file_routes import file_router, storage_router
 from server.routes.vector_routes import vector_router
 
 
@@ -42,7 +42,7 @@ try:
 
     app.include_router(vector_router)
     app.include_router(file_router)
-
+    app.include_router(storage_router)
 except PuppyException as e:
     log_error(f"Server Initialization Error: {str(e)}")
 
