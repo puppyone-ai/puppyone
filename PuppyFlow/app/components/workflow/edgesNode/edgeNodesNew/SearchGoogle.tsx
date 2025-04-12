@@ -4,11 +4,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGoogle } from '@fortawesome/free-brands-svg-icons'
 import useJsonConstructUtils, { NodeJsonType, FileData } from '../../../hooks/useJsonConstructUtils'
-import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
-import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
-import { nanoid } from 'nanoid'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useSearchGoogleLogic from './hook/useSearchGoogleLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type SearchConfigNodeData = {
     nodeLabels?: { label: string, id: string }[],
@@ -51,7 +48,10 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
     
     // 使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useSearchGoogleLogic(id)
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: "structured"
+    });
 
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
@@ -131,6 +131,11 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
         zIndex: !isOnConnect ? "-1" : "1",
     };
 
+    // 修改 onDataSubmit 函数（如果存在的话）
+    const onDataSubmit = () => {
+        handleDataSubmit();
+    }
+
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
@@ -197,7 +202,7 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
                         <div className='w-[57px] h-[26px]'>
                             <button 
                                 className='w-full h-full rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]' 
-                                onClick={handleDataSubmit}
+                                onClick={onDataSubmit}
                                 disabled={isLoading}
                             >
                                 <span>

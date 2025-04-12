@@ -3,7 +3,7 @@ import React, {useState, useEffect, useRef} from 'react'
 import useJsonConstructUtils, { NodeJsonType } from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useCopyEdgeLogic from './hook/useCopyLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 // 前端节点配置数据（原 ModifyConfigNodeData）
 export type CopyNodeFrontendConfig = {
@@ -43,11 +43,15 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
     const menuRef = useRef<HTMLUListElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     
-    // 使用自定义Hook来处理逻辑
+    // 使用新的 BaseEdgeNodeLogic
     const { 
         isLoading,
         handleDataSubmit 
-    } = useCopyEdgeLogic(id);
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'text',  // 默认目标节点类型       // 指定为 copy 类型
+        // 可以选择不提供 constructJsonData，使用默认实现
+    });
     
     // 初始化和清理
     useEffect(() => {

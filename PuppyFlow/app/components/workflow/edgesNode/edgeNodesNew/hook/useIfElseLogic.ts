@@ -1,62 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import useJsonConstructUtils, { backend_IP_address_for_sendingData, NodeJsonType } from '../../../../hooks/useJsonConstructUtils';
+import useJsonConstructUtils, { backend_IP_address_for_sendingData } from '../../../../hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
 import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
 import { nanoid } from 'nanoid';
-import { ModifyConfigNodeData } from '../Convert2Structured';
+import { ChooseConfigNodeData, ChooseEdgeJsonType, ConstructedChooseJsonData, TransformedCase, TransformedCases } from '../ifelse';
 
-// 类型定义
-export type Modify2SturcturedJsonType = {
-    type: "modify",
-    data: {
-        content: string,
-        modify_type: "convert2structured",
-        extra_configs: {
-            conversion_mode: string,
-            action_type: "default" | "json",
-            list_separator?: string[],
-            length_separator?: number,
-            dict_key?: string,
-        }
-        inputs: { [key: string]: string },
-        outputs: { [key: string]: string }
-    },
-}
-
-export type ConstructedModifyCopyJsonData = {
-    blocks: { [key: string]: NodeJsonType },
-    edges: { [key: string]: Modify2SturcturedJsonType }
-}
-
-// Hook 返回值类型定义
-export interface Convert2StructuredLogicReturn {
+// Hook return type definition
+export interface IfElseLogicReturn {
     isLoading: boolean;
-    handleDataSubmit: (
-        execMode: string,
-        deliminator: string,
-        bylen: number,
-        wrapInto: string
-    ) => Promise<void>;
+    handleDataSubmit: (cases: any[], switchValue?: string, contentValue?: string, onValue?: string[], offValue?: string[]) => Promise<void>;
 }
 
-// 自定义 Hook
-export default function useConvert2StructuredLogic(parentId: string): Convert2StructuredLogicReturn {
+export default function useIfElseLogic(parentId: string): IfElseLogicReturn {
     const { getNode, setNodes, setEdges } = useReactFlow();
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, streamResult, reportError, resetLoadingUI, transformBlocksFromSourceNodeIdWithLabelGroup } = useJsonConstructUtils();
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
     const { clearAll } = useNodesPerFlowContext();
 
+    // State management
     const [isAddFlow, setIsAddFlow] = useState(true);
     const [isComplete, setIsComplete] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const [currentRunParams, setCurrentRunParams] = useState<{
-        execMode: string,
-        deliminator: string,
-        bylen: number,
-        wrapInto: string
+        cases: any[];
+        switchValue?: string;
+        contentValue?: string;
+        onValue?: string[];
+        offValue?: string[];
     } | null>(null);
 
-    // 执行流程
+    // Execution flow
     useEffect(() => {
         if (isComplete || !currentRunParams) return;
 
@@ -80,7 +53,7 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
         runWithTargetNodes();
     }, [isAddFlow, isComplete, parentId, currentRunParams]);
 
-    // 创建新的目标节点
+    // Create new target node
     const createNewTargetNode = async () => {
         const parentEdgeNode = getNode(parentId);
         if (!parentEdgeNode) return;
@@ -104,7 +77,7 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
                 isOutput: false,
                 editable: false,
             },
-            type: 'structured',
+            type: 'text',
         };
 
         const newEdge = {
@@ -133,6 +106,7 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
             }),
         ]);
 
+        // Update parent node to reference the result node
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, resultNode: newTargetId } };
@@ -141,16 +115,18 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
         }));
     };
 
-    // 向目标节点发送数据
+    // Send data to target nodes
     const sendDataToTargets = async (params: {
-        execMode: string,
-        deliminator: string,
-        bylen: number,
-        wrapInto: string
+        cases: any[];
+        switchValue?: string;
+        contentValue?: string;
+        onValue?: string[];
+        offValue?: string[];
     }) => {
         const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
         if (targetNodeIdWithLabelGroup.length === 0) return;
 
+        // Mark all target nodes as loading
         setNodes(prevNodes => prevNodes.map(node => {
             if (targetNodeIdWithLabelGroup.some(targetNode => targetNode.id === node.id)) {
                 return { ...node, data: { ...node.data, content: "", isLoading: true } };
@@ -173,16 +149,18 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
                 targetNodeIdWithLabelGroup.forEach(node => {
                     reportError(node.id, `HTTP Error: ${response.status}`);
                 });
+                return;
             }
 
             const result = await response.json();
             console.log('Success:', result);
 
+            // Stream results to all target nodes
             await Promise.all(targetNodeIdWithLabelGroup.map(node =>
                 streamResult(result.task_id, node.id)
             ));
         } catch (error) {
-            console.warn(error);
+            console.error(error);
             window.alert(error);
         } finally {
             targetNodeIdWithLabelGroup.forEach(node => {
@@ -192,65 +170,100 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
         }
     };
 
-    // 构建JSON数据
-    const constructJsonData = (params: {
-        execMode: string,
-        deliminator: string,
-        bylen: number,
-        wrapInto: string
-    }): ConstructedModifyCopyJsonData => {
-        const { execMode, deliminator, bylen, wrapInto } = params;
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+    // Transform conditions for JSON structure
+    const transformCases = (inputCases: any[]): { cases: TransformedCases } => {
+        const transformedCases: TransformedCases = {};
 
-        let blocks: { [key: string]: NodeJsonType } = {};
+        inputCases.forEach((caseItem, index) => {
+            const caseId = `case_${index + 1}`;
+            const transformedConditions = caseItem.conditions.map((cond: any) => ({
+                block: cond.id,
+                condition: cond.condition,
+                parameters: { value: cond.cond_v },
+                operation: cond.operation || "equals"
+            }));
 
-        transformBlocksFromSourceNodeIdWithLabelGroup(blocks, sourceNodeIdWithLabelGroup);
-
-        targetNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
-            blocks[nodeId] = {
-                label: nodeLabel,
-                type: "structured",
-                data: { content: "" }
+            const actionItem = caseItem.actions[0]; // Assuming single action
+            transformedCases[caseId] = {
+                conditions: transformedConditions,
+                then: {
+                    from: actionItem.from_id,
+                    to: actionItem.outputs[0] // Assuming single output
+                }
             };
         });
 
-        let edges: { [key: string]: Modify2SturcturedJsonType } = {};
+        return { cases: transformedCases };
+    };
 
-        const edgejson: Modify2SturcturedJsonType = {
-            type: "modify",
+    // Construct JSON data
+    const constructJsonData = (params: {
+        cases: any[];
+        switchValue?: string;
+        contentValue?: string;
+        onValue?: string[];
+        offValue?: string[];
+    }): ConstructedChooseJsonData => {
+        const { cases, switchValue, contentValue, onValue, offValue } = params;
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+
+        // Create blocks
+        let blocks: { [key: string]: any } = {};
+
+        // Add source and target node information
+        [...sourceNodeIdWithLabelGroup, ...targetNodeIdWithLabelGroup].forEach(({ id, label }) => {
+            const node = getNode(id);
+            const nodeType = node?.type || 'text'; // Default to text if type not found
+            blocks[id] = {
+                label,
+                type: nodeType,
+                data: { content: node?.data?.content || "" }
+            };
+        });
+
+        // Create edges
+        let edges: { [key: string]: ChooseEdgeJsonType } = {};
+        
+        // Transform cases
+        const transformedCasesData = transformCases(cases);
+        
+        edges[parentId] = {
+            type: "ifelse",
             data: {
-                content: `{{${sourceNodeIdWithLabelGroup[0]?.label || sourceNodeIdWithLabelGroup[0]?.id}}}`,
-                modify_type: "convert2structured",
-                extra_configs: {
-                    conversion_mode: execMode === "split by length" ? "split_by_length" : (
-                        execMode === "split by character" ? "split_by_character" : (
-                            execMode === "wrap into list" ? "parse_as_list" : (
-                                execMode === "wrap into dict" ? "wrap_into_dict" : "parse_as_json"
-                            )
-                        )
-                    ),
-                    action_type: execMode === "JSON" ? "json" : "default",
-                    ...(execMode === "split by character" ? { list_separator: JSON.parse(deliminator) } : {}),
-                    ...(execMode === "wrap into dict" ? { dict_key: wrapInto } : {}),
-                    ...(execMode === "split by length" ? { length_separator: bylen } : {})
-                },
-                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map(node => ([node.id, node.label]))),
-                outputs: Object.fromEntries(targetNodeIdWithLabelGroup.map(node => ([node.id, node.label])))
-            },
+                inputs: Object.fromEntries(sourceNodeIdWithLabelGroup.map(node => [node.id, node.label])),
+                outputs: Object.fromEntries(targetNodeIdWithLabelGroup.map(node => [node.id, node.label])),
+                ...transformedCasesData
+            }
         };
 
-        edges[parentId] = edgejson;
+        // Add optional properties if they exist
+        if (switchValue) {
+            edges[parentId].data.switch = { value: switchValue };
+        }
+        
+        if (contentValue) {
+            edges[parentId].data.content = { value: contentValue };
+        }
+        
+        if (onValue && onValue.length > 0) {
+            edges[parentId].data.ON = Object.fromEntries(onValue.map((val, idx) => [`on_${idx}`, val]));
+        }
+        
+        if (offValue && offValue.length > 0) {
+            edges[parentId].data.OFF = Object.fromEntries(offValue.map((val, idx) => [`off_${idx}`, val]));
+        }
 
         return { blocks, edges };
     };
 
-    // 数据提交主函数
+    // Main data submit function
     const handleDataSubmit = async (
-        execMode: string,
-        deliminator: string,
-        bylen: number,
-        wrapInto: string
+        cases: any[],
+        switchValue?: string,
+        contentValue?: string,
+        onValue?: string[],
+        offValue?: string[]
     ) => {
         setIsLoading(true);
         try {
@@ -260,10 +273,11 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
             });
 
             setCurrentRunParams({
-                execMode,
-                deliminator,
-                bylen,
-                wrapInto
+                cases,
+                switchValue,
+                contentValue,
+                onValue,
+                offValue
             });
 
             const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
@@ -285,4 +299,4 @@ export default function useConvert2StructuredLogic(parentId: string): Convert2St
         isLoading,
         handleDataSubmit
     };
-}
+} 

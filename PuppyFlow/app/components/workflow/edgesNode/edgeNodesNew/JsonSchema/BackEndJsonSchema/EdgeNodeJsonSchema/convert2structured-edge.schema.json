@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Convert to Structured Edge Node",
+  "description": "用于将文本转换为结构化数据的边节点 Schema",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["modify"],
+      "description": "节点类型，必须为 'modify'"
+    },
+    "data": {
+      "type": "object",
+      "required": ["content", "modify_type", "extra_configs", "inputs", "outputs"],
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "包含输入节点引用的内容模板"
+        },
+        "modify_type": {
+          "type": "string",
+          "enum": ["convert2structured"],
+          "description": "修改类型，必须为 'convert2structured'"
+        },
+        "extra_configs": {
+          "type": "object",
+          "required": ["conversion_mode", "action_type"],
+          "properties": {
+            "conversion_mode": {
+              "type": "string",
+              "enum": [
+                "parse_as_json",
+                "parse_as_list",
+                "wrap_into_dict",
+                "split_by_length",
+                "split_by_character"
+              ],
+              "description": "转换模式，指定如何转换文本为结构化数据"
+            },
+            "action_type": {
+              "type": "string",
+              "enum": ["default", "json"],
+              "description": "操作类型"
+            },
+            "list_separator": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "当conversion_mode为'split_by_character'时使用的分隔符列表"
+            },
+            "length_separator": {
+              "type": "number",
+              "minimum": 1,
+              "description": "当conversion_mode为'split_by_length'时使用的长度值"
+            },
+            "dict_key": {
+              "type": "string",
+              "description": "当conversion_mode为'wrap_into_dict'时使用的字典键名"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "conversion_mode": { "enum": ["split_by_character"] }
+                },
+                "required": ["conversion_mode"]
+              },
+              "then": {
+                "required": ["list_separator"]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "conversion_mode": { "enum": ["split_by_length"] }
+                },
+                "required": ["conversion_mode"]
+              },
+              "then": {
+                "required": ["length_separator"]
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "conversion_mode": { "enum": ["wrap_into_dict"] }
+                },
+                "required": ["conversion_mode"]
+              },
+              "then": {
+                "required": ["dict_key"]
+              }
+            }
+          ]
+        },
+        "inputs": {
+          "type": "object",
+          "description": "输入节点映射，键为节点ID，值为节点标签",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1
+        },
+        "outputs": {
+          "type": "object",
+          "description": "输出节点映射，键为节点ID，值为节点标签",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1
+        }
+      }
+    }
+  },
+
+  
+  "examples": [
+    {
+      "type": "modify",
+      "data": {
+        "content": "{{inputNodeLabel}}",
+        "modify_type": "convert2structured",
+        "extra_configs": {
+          "conversion_mode": "parse_as_json",
+          "action_type": "json"
+        },
+        "inputs": {
+          "node-123": "输入文本"
+        },
+        "outputs": {
+          "node-456": "结构化数据"
+        }
+      }
+    },
+    {
+      "type": "modify",
+      "data": {
+        "content": "{{inputNodeLabel}}",
+        "modify_type": "convert2structured",
+        "extra_configs": {
+          "conversion_mode": "split_by_character",
+          "action_type": "default",
+          "list_separator": [",", ";", ".", "\n"]
+        },
+        "inputs": {
+          "node-123": "输入文本"
+        },
+        "outputs": {
+          "node-456": "分割后的列表"
+        }
+      }
+    },
+    {
+      "type": "modify",
+      "data": {
+        "content": "{{inputNodeLabel}}",
+        "modify_type": "convert2structured",
+        "extra_configs": {
+          "conversion_mode": "wrap_into_dict",
+          "action_type": "default",
+          "dict_key": "content"
+        },
+        "inputs": {
+          "node-123": "输入文本"
+        },
+        "outputs": {
+          "node-456": "字典结果"
+        }
+      }
+    }
+  ]
+} 

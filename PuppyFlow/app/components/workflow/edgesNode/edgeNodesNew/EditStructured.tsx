@@ -5,7 +5,7 @@ import InputOutputDisplay from './components/InputOutputDisplay'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { PuppyDropdown } from "../../../misc/PuppyDropDown"
 import { nanoid } from 'nanoid'
-import useEditStructuredLogic from './hook/useEditStructuredLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -73,8 +73,11 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
     
     const [paramv, setParamv] = useState("")
     
-    // 使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useEditStructuredLogic(id)
+    // 使用通用 Hook 替换专用 Hook
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'structured'
+    });
 
     // Add this new state for tree path structure - 现在可以安全使用 getConfigDataa
     const [pathTree, setPathTree] = useState<PathNode[]>(() => {
@@ -172,10 +175,28 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
         }
     }
     
-    // 执行函数
+    // 修改提交函数，增加数据保存逻辑
     const onDataSubmit = () => {
         const flatPath = flattenPathTree(pathTree);
-        handleDataSubmit(execMode, flatPath, paramv);
+        
+        // 先保存当前状态到节点数据
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === id) {
+                return { 
+                    ...node, 
+                    data: { 
+                        ...node.data, 
+                        type: execMode,
+                        getConfigData: flatPath,
+                        paramv: paramv
+                    } 
+                };
+            }
+            return node;
+        }));
+        
+        // 然后调用通用处理函数
+        handleDataSubmit();
     }
 
     // 在组件顶部定义共享样式

@@ -55,6 +55,7 @@ import EditText from './edgesNode/edgeNodesNew/EditText'
 import EditStructured from './edgesNode/edgeNodesNew/EditStructured'
 import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
 import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
+import IfElse from './edgesNode/edgeNodesNew/ifelse'
 import LLM from './edgesNode/edgeNodesNew/LLM'
 
 const nodeTypes = {
@@ -83,6 +84,7 @@ const nodeTypes = {
   'searchGoogle': SearchGoogle,
   'searchPerplexity': SearchPerplexity,
   'llmnew': LLM,
+  'ifelse': IfElse,
 }
 
 const edgeTypes = {
