@@ -4,10 +4,10 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useLLMLogic from './hook/useLLMLogic'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
 import PromptEditor, { PromptMessage } from './components/promptEditor'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type LLMConfigNodeData = {
     looped: boolean | undefined,
@@ -68,9 +68,6 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
 
     // 在 LLMConfigMenu 组件中，增强 sourceNodeLabels 状态以包含类型信息
     const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([]);
-
-    // 使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useLLMLogic(id)
 
     // 使用useRef来存储最新的消息内容，避免不必要的渲染
     const messagesRef = useRef<PromptMessage[]>([]);
@@ -171,15 +168,21 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         }));
     }, [sourceNodeLabels]);
     
-    // 数据提交处理
+    // Replace the useBaseEdgeNodeLogic call with minimal parameters
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: "text"
+    });
+
+    // 修改数据提交处理
     const onDataSubmit = useCallback(() => {
         // 使用当前消息引用，过滤掉助手消息
         const filteredMessages = messagesRef.current
             .filter(msg => msg.role !== "assistant");
         
         // 调用执行逻辑
-        handleDataSubmit(filteredMessages, model, baseUrl, isStructured_output);
-    }, [handleDataSubmit, model, baseUrl, isStructured_output]);
+        handleDataSubmit();
+    }, [handleDataSubmit]);
 
     // 状态同步逻辑
     useEffect(() => {

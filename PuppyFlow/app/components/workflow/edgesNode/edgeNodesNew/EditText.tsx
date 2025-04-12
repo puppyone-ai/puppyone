@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { PuppyDropdown } from "../../../misc/PuppyDropDown"
-import useEditTextLogic from './hook/useEditTextLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -59,7 +59,10 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
     )
     
     // 使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useEditTextLogic(id)
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: "text"
+    });
 
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
@@ -135,7 +138,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
     
     // 执行函数
     const onDataSubmit = () => {
-        handleDataSubmit(textContent, retMode, configNum);
+        handleDataSubmit();
     }
 
     // 在组件顶部定义共享样式
