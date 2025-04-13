@@ -1,0 +1,67 @@
+{
+    "label": "FWt2B4",
+    "type": "structured",
+    "data": {
+        "content": [
+            "a smart choice for companies.\n\nAdvanced Reasoning\nContextual understanding and logical reasoning\nGrok 3 uses smart methods to improve its thinking skills. It learns from live internet data and trains on text, code, and images. This helps it understand context and give better answers. It also uses trial-and-error learning to solve problems. Special modes like 'Think Mode' and 'Big Brain Mode' make it even better at tough tasks.\n\nLearns from live internet data.\nTrains on different types of information.\nUses trial-and",
+            "tion.\nUses trial-and-error to fix mistakes.\nThinks step-by-step to solve problems.\nPerformance in coding, mathematics, and general knowledge\nGrok 3 is great at tests like MMLU, GSM8K, and HumanEval. It scores 92.7%, 89.3%, and 86.5% on these tests. Its math skills are much better now, with scores between 93% and 96%. These results show how Grok 3 handles hard tasks in many areas.\n\nTask\tGrok 3 Score\tImprovement from Grok 2\nMMLU (Language Skills)\t92.7%\tBig improvement\nGSM8K (Math Skills)\t89.3%\tBig improvement\nHumanEv",
+            "de for problem-solving and decision-making\nBig Brain mode uses extra computing power for hard problems. It's perfect for tasks like studying big datasets or solving tricky math. This feature is great for research and coding, showing how advanced Grok 3 really is.\n\nGrok 3 Competitive Analysis and Benchmarks\nGrok 3 Competitive Analysis and Benchmarks\nImage Source: Unsplash\nBenchmark Metrics\nPerformance in MMLU, GSM8K, and HumanEval\nGrok 3 shows big improvements in important AI tests. It performs well in MMLU, GSM8K,",
+            "are better at making jokes and solving tough logic problems.\n\nReal-World Applications\nIndustry-specific use cases and adaptability\nGrok 3 is useful in many industries because it can adapt well.\n\nCode Analysis and Generation: Helps programmers find and fix errors.\nReal-Time Data Analysis: Gives useful insights from market trends.\nScientific Research: Improves studies like DNA analysis and engineering tests.\nCustomer Service Automation: Makes replies faster and more accurate.\nFor companies needing advanced AI, Grok 3"
+        ],
+        "embedding_view": [
+            {
+                "content": "a smart choice for companies.\n\nAdvanced Reasoning\nContextual understanding and logical reasoning\nGrok 3 uses smart methods to improve its thinking skills. It learns from live internet data and trains on text, code, and images. This helps it understand context and give better answers. It also uses trial-and-error learning to solve problems. Special modes like 'Think Mode' and 'Big Brain Mode' make it even better at tough tasks.\n\nLearns from live internet data.\nTrains on different types of information.\nUses trial-and",
+                "metadata": {
+                    "id": "0",
+                    "list_0": 0,
+                    "path": [
+                        0
+                    ],
+                    "info": []
+                }
+            },
+            {
+                "content": "tion.\nUses trial-and-error to fix mistakes.\nThinks step-by-step to solve problems.\nPerformance in coding, mathematics, and general knowledge\nGrok 3 is great at tests like MMLU, GSM8K, and HumanEval. It scores 92.7%, 89.3%, and 86.5% on these tests. Its math skills are much better now, with scores between 93% and 96%. These results show how Grok 3 handles hard tasks in many areas.\n\nTask\tGrok 3 Score\tImprovement from Grok 2\nMMLU (Language Skills)\t92.7%\tBig improvement\nGSM8K (Math Skills)\t89.3%\tBig improvement\nHumanEv",
+                "metadata": {
+                    "id": "1",
+                    "list_0": 1,
+                    "path": [
+                        1
+                    ],
+                    "info": []
+                }
+            },
+            {
+                "content": "de for problem-solving and decision-making\nBig Brain mode uses extra computing power for hard problems. It's perfect for tasks like studying big datasets or solving tricky math. This feature is great for research and coding, showing how advanced Grok 3 really is.\n\nGrok 3 Competitive Analysis and Benchmarks\nGrok 3 Competitive Analysis and Benchmarks\nImage Source: Unsplash\nBenchmark Metrics\nPerformance in MMLU, GSM8K, and HumanEval\nGrok 3 shows big improvements in important AI tests. It performs well in MMLU, GSM8K,",
+                "metadata": {
+                    "id": "2",
+                    "list_0": 2,
+                    "path": [
+                        2
+                    ],
+                    "info": []
+                }
+            },
+            {
+                "content": "are better at making jokes and solving tough logic problems.\n\nReal-World Applications\nIndustry-specific use cases and adaptability\nGrok 3 is useful in many industries because it can adapt well.\n\nCode Analysis and Generation: Helps programmers find and fix errors.\nReal-Time Data Analysis: Gives useful insights from market trends.\nScientific Research: Improves studies like DNA analysis and engineering tests.\nCustomer Service Automation: Makes replies faster and more accurate.\nFor companies needing advanced AI, Grok 3",
+                "metadata": {
+                    "id": "3",
+                    "list_0": 3,
+                    "path": [
+                        3
+                    ],
+                    "info": []
+                }
+            }
+        ]
+    },
+    "looped": false,
+    "collection_configs": {
+        "set_name": "FWt2B4",
+        "model": "text-embedding-ada-002",
+        "vdb_type": "pgvector",
+        "user_id": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181",
+        "collection_name": "public5c46f9069047e011"
+    }
+    
+}

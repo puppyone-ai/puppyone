@@ -1,0 +1,134 @@
+{
+    "blocks": [
+      {
+        "id": "m44vBO",
+        "position": {
+          "x": 912,
+          "y": 528
+        },
+        "data": {
+          "content": "",
+          "label": "m44vBO",
+          "isLoading": false,
+          "locked": false,
+          "isInput": true,
+          "isOutput": false,
+          "editable": false
+        },
+        "type": "text",
+        "measured": {
+          "width": 240,
+          "height": 176
+        }
+      },
+      {
+        "id": "h0wIUT",
+        "position": {
+          "x": 1392,
+          "y": 528
+        },
+        "data": {
+          "content": "",
+          "label": "h0wIUT",
+          "isLoading": false,
+          "locked": false,
+          "isInput": false,
+          "isOutput": true,
+          "editable": false
+        },
+        "type": "text",
+        "measured": {
+          "width": 240,
+          "height": 176
+        },
+        "selected": false,
+        "dragging": false
+      },
+      {
+        "id": "choose-1744553161711",
+        "type": "choose",
+        "position": {
+          "x": 1232,
+          "y": 592
+        },
+        "data": {
+          "subMenuType": null,
+          "content": "",
+          "switch": null,
+          "ON": [],
+          "OFF": [],
+          "cases": [
+            {
+              "conditions": [
+                {
+                  "id": "m44vBO",
+                  "label": "m44vBO",
+                  "condition": "",
+                  "cond_v": "contains",
+                  "cond_input": "fuck",
+                  "operation": "and",
+                  "type": "text"
+                },
+                {
+                  "id": "m44vBO",
+                  "label": "m44vBO",
+                  "condition": "condition2",
+                  "cond_v": "doesn't contain",
+                  "operation": "and",
+                  "type": "text",
+                  "cond_input": "ni"
+                }
+              ],
+              "actions": [
+                {
+                  "from_id": "m44vBO",
+                  "from_label": "m44vBO",
+                  "outputs": [
+                    "h0wIUT"
+                  ]
+                }
+              ]
+            }
+          ],
+          "resultNodes": [
+            "h0wIUT"
+          ]
+        },
+        "measured": {
+          "width": 80,
+          "height": 48
+        },
+        "selected": true,
+        "dragging": false
+      }
+    ],
+    "edges": [
+      {
+        "id": "connection-1744553161714",
+        "source": "m44vBO",
+        "target": "choose-1744553161711",
+        "type": "floating"
+      },
+      {
+        "id": "connection-1744553163739",
+        "source": "choose-1744553161711",
+        "target": "h0wIUT",
+        "type": "floating",
+        "data": {
+          "connectionType": "CTT"
+        },
+        "markerEnd": {
+          "type": "arrowclosed",
+          "width": 8,
+          "height": 20,
+          "color": "#CDCDCD",
+          "strokeWidth": 0.1
+        }
+      }
+    ],
+    "viewport": {
+      "x": -662.3737071778714,
+      "y": 41.17600985882939,
+      "zoom": 1.0593094681210196
+    }
+  }

@@ -3,7 +3,7 @@ import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowCont
 import React, { useState, useEffect, useRef } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
-import useConvert2TextLogic from './hook/useConvert2TextLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type ModifyConfigNodeData = {
     content: string | null,
@@ -17,6 +17,15 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const { getNode } = useReactFlow()
+
+    // 使用基础 edge node 逻辑，只传入最小必要参数
+    const { 
+        isLoading,
+        handleDataSubmit 
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'text'
+    });
 
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
@@ -130,23 +139,22 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
             </button>
             
             {/* Config Menu */}
-            {isMenuOpen && <Convert2TextConfigMenu show={true} parentId={id} />}
+            {isMenuOpen && <Convert2TextConfigMenu show={true} parentId={id} isLoading={isLoading} handleDataSubmit={handleDataSubmit} />}
         </div>
     )
 }
 
 type Convert2TextConfigProps = {
-    show: boolean,
-    parentId: string,
+    show: boolean;
+    parentId: string;
+    isLoading: boolean;
+    handleDataSubmit: () => Promise<void>;
 }
 
-function Convert2TextConfigMenu({ show, parentId }: Convert2TextConfigProps) {
+function Convert2TextConfigMenu({ show, parentId, isLoading, handleDataSubmit }: Convert2TextConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
-    
-    // 使用自定义 hook 处理逻辑
-    const { isLoading, handleDataSubmit } = useConvert2TextLogic(parentId)
 
     return (
         <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg`}>

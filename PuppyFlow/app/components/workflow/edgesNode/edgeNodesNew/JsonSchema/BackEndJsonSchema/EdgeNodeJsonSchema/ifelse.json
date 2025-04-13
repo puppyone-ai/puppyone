@@ -1,0 +1,37 @@
+{
+    "type": "ifelse",
+    "data": {
+        "cases": {
+            "case1": {
+                "conditions": [
+                    {
+                        "block": "m44vBO",
+                        "condition": "contain",
+                        "parameters": {
+                            "value": "fuck"
+                        },
+                        "operation": "and"
+                    },
+                    {
+                        "block": "m44vBO",
+                        "condition": "not_contain",
+                        "parameters": {
+                            "value": "ni"
+                        },
+                        "operation": "/"
+                    }
+                ],
+                "then": {
+                    "from": "m44vBO",
+                    "to": "h0wIUT"
+                }
+            }
+        },
+        "inputs": {
+            "m44vBO": "m44vBO"
+        },
+        "outputs": {
+            "h0wIUT": "h0wIUT"
+        }
+    }
+}
