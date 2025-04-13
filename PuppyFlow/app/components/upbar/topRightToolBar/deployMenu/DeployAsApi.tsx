@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
 import useWholeWorkflowJsonConstructUtils from '@/app/components/hooks/useWholeWorkflowJsonConstructUtils';
+// Import the builder utilities
+import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
+import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { SYSTEM_URLS } from '@/config/urls';
 import dynamic from 'next/dynamic';
 const MonacoEditor = dynamic(import('@monaco-editor/react'), { ssr: false });
@@ -18,6 +21,18 @@ interface DeployAsApiProps {
   constructWholeWorkflowJsonData: () => any;
   API_SERVER_URL: string;
   setActivePanel: (panel: string | null) => void;
+}
+
+// Define interfaces for better type safety
+interface BlockNode {
+  label: string;
+  type: string;
+  data: any;
+  [key: string]: any; // For any additional properties
+}
+
+interface EdgeNode {
+  [key: string]: any;
 }
 
 const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }: any) => {
@@ -84,8 +99,12 @@ function DeployAsApi({
   API_SERVER_URL,
   setActivePanel
 }: DeployAsApiProps) {
-  const { getNodes, getNode } = useReactFlow();
-
+  const { getNodes, getNode, getEdges } = useReactFlow();
+  
+  // Use the builder hooks
+  const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
+  const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
+  
   // 创建一个单一的状态来管理API信息
   const [apiDeployment, setApiDeployment] = useState<{
     id: string | null;
@@ -240,7 +259,67 @@ function DeployAsApi({
     };
   }, []);
 
-  // 部署API的核心函数
+// Create a function similar to constructAllNodesJson
+const constructWorkflowJson = () => {
+  try {
+    // Get all nodes and edges
+    const allNodes = getNodes();
+    const reactFlowEdges = getEdges();
+    
+    // Create blocks and edges objects with proper type definitions
+    let blocks: { [key: string]: BlockNode } = {};
+    let edges: { [key: string]: EdgeNode } = {};
+    
+    // Define block node types
+    const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+    
+    // Process all nodes
+    allNodes.forEach(node => {
+      const nodeId = node.id;
+      const nodeLabel = node.data?.label || nodeId;
+      
+      if (blockNodeTypes.includes(node.type || '')) {
+        try {
+          // Use block node builder function
+          const blockJson = buildBlockNodeJson(nodeId);
+          
+          // Ensure node label is correct
+          blocks[nodeId] = {
+            ...blockJson,
+            label: String(nodeLabel)
+          };
+        } catch (e) {
+          console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
+          
+          // Fallback to default behavior
+          blocks[nodeId] = {
+            label: String(nodeLabel),
+            type: node.type || '',
+            data: {...node.data}
+          };
+        }
+      } else {
+        // Edge node
+        try {
+          // Build edge JSON and add to edges object
+          const edgeJson = buildEdgeNodeJson(nodeId);
+          edges[nodeId] = edgeJson;
+        } catch (e) {
+          console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
+        }
+      }
+    });
+    
+    return { blocks, edges };
+  } catch (error) {
+    console.error(`Error building workflow JSON: ${error}`);
+    
+    // If there's an error, fall back to the original function
+    return constructWholeWorkflowJsonData();
+  }
+};
+
+  // Update the handleDeploy function to use our new constructWorkflowJson function
   const handleDeploy = async () => {
     setIsDeploying(true);
     try {
@@ -249,7 +328,7 @@ function DeployAsApi({
         {
           method: "POST",
           body: JSON.stringify({
-            workflow_json: constructWholeWorkflowJsonData(),
+            workflow_json: constructWorkflowJson(), // Use our new function instead
             inputs: selectedInputs.map(item => item.id),
             outputs: selectedOutputs.map(item => item.id),
           })
@@ -295,16 +374,16 @@ function DeployAsApi({
 
   const input_text_gen = (inputs: string[], lang: string) => {
     if (lang == JAVASCRIPT) {
-      const inputData = inputs.map((input, index) => (
-        `        "${input}": "${getNode(input)?.data.content}", //${getNode(input)?.data.label}`
-      ));
+      const inputData = inputs.map((input, index) => {
+        const isLast = index === inputs.length - 1;
+        return `        "${input}": "${getNode(input)?.data.content}"${isLast ? '' : ','} `;
+      });
       return inputData.join('\n');
     } else {
-      const inputData = inputs.map(
-        (input, index) => (
-          `     #${getNode(input)?.data.label} \n` + `     "${input}":` + ((getNode(input)?.data.content as string)?.trim() || "\"\"") + `,`
-        )
-      );
+      const inputData = inputs.map((input, index) => {
+        const isLast = index === inputs.length - 1;
+        return `     "${input}": "${(getNode(input)?.data.content as string)?.trim() || ''}"${isLast ? '' : ','}`;
+      });
       return inputData.join('\n');
     }
   };
@@ -358,9 +437,9 @@ ${input_text_gen(selectedInputs.map(item => item.id), SHELL)}
 const apiUrl = "${API_SERVER_URL}/execute_workflow/${api_id}";
 
 const data = {
-    "inputs": {
+    inputs: {
 ${input_text_gen(selectedInputs.map(item => item.id), JAVASCRIPT)}
-    },
+    }
 };
 
 axios.post(apiUrl, data, {
@@ -556,8 +635,8 @@ axios.post(apiUrl, data, {
                   <div
                     key={node.id}
                     className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                        ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                        : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
+                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
+                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
                       }`}
                     onClick={() => handleInputClick(node)}
                   >
@@ -679,8 +758,8 @@ axios.post(apiUrl, data, {
                   <div
                     key={node.id}
                     className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                        ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                        : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
+                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
+                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
                       }`}
                     onClick={() => handleOutputClick(node)}
                   >
@@ -753,8 +832,8 @@ axios.post(apiUrl, data, {
                         <div
                           key={lang}
                           className={`px-3 py-2 text-[13px] cursor-pointer transition-colors flex items-center gap-2 ${selectedLang === lang
-                              ? 'bg-[#3B9BFF]/20 text-[#3B9BFF]'
-                              : 'text-[#CDCDCD] hover:bg-[#333333]'
+                            ? 'bg-[#3B9BFF]/20 text-[#3B9BFF]'
+                            : 'text-[#CDCDCD] hover:bg-[#333333]'
                             }`}
                           onClick={() => {
                             setSelectedLang(lang);

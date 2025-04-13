@@ -4,9 +4,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useIfElseLogic from './hook/useIfElseLogic'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type ChooseConfigNodeData = {
     looped?: boolean | undefined,
@@ -105,8 +105,14 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
     // Source node labels with type info
     const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([])
 
-    // Using the logic hook
-    const { isLoading, handleDataSubmit } = useIfElseLogic(id)
+    // Replace the useIfElseLogic hook with useBaseEdgeNodeLogic
+    const { 
+        isLoading,
+        handleDataSubmit 
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'ifelse',  // Specify the node type as ifelse
+    });
 
     // Initialize component
     useEffect(() => {
@@ -338,10 +344,30 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
         return [];
     };
 
-    // Data submission
+    // Replace the data submission function
     const onDataSubmit = useCallback(() => {
-        handleDataSubmit(cases, switchValue, contentValue, onValue, offValue)
-    }, [handleDataSubmit, cases, switchValue, contentValue, onValue, offValue])
+        // Instead of passing cases data directly to the hook, 
+        // update the node data which will be read by buildIfElseNodeJson
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === id) {
+                return { 
+                    ...node, 
+                    data: { 
+                        ...node.data, 
+                        cases: cases,
+                        switch: switchValue,
+                        content: contentValue,
+                        ON: onValue,
+                        OFF: offValue
+                    } 
+                }
+            }
+            return node
+        }));
+        
+        // Call the new handleDataSubmit without parameters
+        handleDataSubmit();
+    }, [handleDataSubmit, cases, switchValue, contentValue, onValue, offValue, setNodes, id]);
 
     // Handle style for the component
     const handleStyle = {
@@ -428,14 +454,22 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                         </div>
                         <div className='flex flex-row gap-[8px] items-center justify-center'>
                             <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                                onClick={onDataSubmit}>
+                                onClick={onDataSubmit}
+                                disabled={isLoading}>
                                 <span>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                                        <path d="M8 5L0 10V0L8 5Z" fill="black" />
-                                    </svg>
+                                    {isLoading ? (
+                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                                            <path d="M8 5L0 10V0L8 5Z" fill="black" />
+                                        </svg>
+                                    )}
                                 </span>
                                 <span>
-                                    Run
+                                    {isLoading ? 'Running' : 'Run'}
                                 </span>
                             </button>
                         </div>

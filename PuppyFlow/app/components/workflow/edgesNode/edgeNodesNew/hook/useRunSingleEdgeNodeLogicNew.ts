@@ -31,6 +31,7 @@ export function useBaseEdgeNodeLogic({
     targetNodeType: string;
     constructJsonData?: () => BaseConstructedJsonData;
 }): BaseEdgeNodeLogicReturn {
+    
     // Basic hooks
     const { getNode, setNodes, setEdges } = useReactFlow();
     const {
@@ -46,24 +47,6 @@ export function useBaseEdgeNodeLogic({
     const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
     const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
-    // Get the node data based on parentId
-    const nodeData = getNode(parentId)?.data;
-    const nodeType = getNode(parentId)?.type as EdgeNodeType;
-
-    // Extract parameters from node data
-    const messages = useMemo(() => {
-        if (nodeData?.content) {
-            try {
-                return typeof nodeData.content === 'string'
-                    ? JSON.parse(nodeData.content)
-                    : nodeData.content;
-            } catch (e) {
-                console.warn("Failed to parse node content for messages:", e);
-                return [];
-            }
-        }
-        return [];
-    }, [nodeData]);
 
     // State management
     const [isAddFlow, setIsAddFlow] = useState(true);
@@ -115,7 +98,7 @@ export function useBaseEdgeNodeLogic({
                 isLoading: true,
                 locked: false,
                 isInput: false,
-                isOutput: false,
+                isOutput: true,
                 editable: false,
             },
             type: 'text',
@@ -190,11 +173,14 @@ export function useBaseEdgeNodeLogic({
             }
 
             const result = await response.json();
-            console.log('Success:', result);
+            console.log('Backend Response:', result);
 
             // 流式处理结果
-            await Promise.all(targetNodeIdWithLabelGroup.map(node =>
-                streamResult(result.task_id, node.id)
+            const streamPromises = await Promise.all(targetNodeIdWithLabelGroup.map(node =>
+                streamResult(result.task_id, node.id).then(res => {
+                    console.log(`NODE ${node.id} STREAM COMPLETE:`, res);
+                    return res;
+                })
             ));
         } catch (error) {
             console.warn(error);

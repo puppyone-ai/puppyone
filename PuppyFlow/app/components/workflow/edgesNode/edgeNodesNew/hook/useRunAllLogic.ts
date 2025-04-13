@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import useJsonConstructUtils, {
     backend_IP_address_for_sendingData,
@@ -6,36 +6,26 @@ import useJsonConstructUtils, {
     NodeJsonType
 } from '../../../../hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
-import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
-import { nanoid } from 'nanoid';
 import { 
     useEdgeNodeBackEndJsonBuilder,
     EdgeNodeType,
     BaseConstructedJsonData,
-
 } from './useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from './useBlockNodeBackEndJsonBuilder';
 
 // Hook 返回值类型
 export interface BaseEdgeNodeLogicReturn {
-    isLoading: boolean;
     handleDataSubmit: (...args: any[]) => Promise<void>;
 }
 
 export function useBaseEdgeNodeLogic({
-    parentId,
-    targetNodeType,
     constructJsonData: customConstructJsonData,
 }: {
-    parentId: string;
-    targetNodeType: string;
     constructJsonData?: () => BaseConstructedJsonData;
-}): BaseEdgeNodeLogicReturn {
+} = {}): BaseEdgeNodeLogicReturn {
     // Basic hooks
-    const { getNode, setNodes, setEdges } = useReactFlow();
+    const { getNode, setNodes, getNodes, getEdges } = useReactFlow();
     const {
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
         streamResult,
         reportError,
         resetLoadingUI
@@ -46,124 +36,40 @@ export function useBaseEdgeNodeLogic({
     const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
     const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
-    // Get the node data based on parentId
-    const nodeData = getNode(parentId)?.data;
-    const nodeType = getNode(parentId)?.type as EdgeNodeType;
-
-    // Extract parameters from node data
-    const messages = useMemo(() => {
-        if (nodeData?.content) {
-            try {
-                return typeof nodeData.content === 'string'
-                    ? JSON.parse(nodeData.content)
-                    : nodeData.content;
-            } catch (e) {
-                console.warn("Failed to parse node content for messages:", e);
-                return [];
-            }
-        }
-        return [];
-    }, [nodeData]);
-
     // State management
-    const [isAddFlow, setIsAddFlow] = useState(true);
     const [isComplete, setIsComplete] = useState(true);
-    const [isLoading, setIsLoading] = useState(false);
+
+
+
 
     // 执行流程
     useEffect(() => {
         if (isComplete) return;
 
-        const runWithTargetNodes = async () => {
+        const processAllNodes = async () => {
             try {
-                const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
-
-                if (targetNodeIdWithLabelGroup.length === 0 && !isAddFlow) {
-                    await createNewTargetNode();
-                    setIsAddFlow(true);
-                } else if (isAddFlow) {
-                    await sendDataToTargets();
-                }
+                await sendDataToTargets();
             } catch (error) {
-                console.error("Error in runWithTargetNodes:", error);
-            } finally {
-                setIsLoading(false);
+                console.error("Error in processAllNodes:", error);
             }
         };
 
-        runWithTargetNodes();
-    }, [isAddFlow, isComplete, parentId]);
+        processAllNodes();
+    }, [isComplete]);
 
-    // 创建新的目标节点
-    const createNewTargetNode = async () => {
-        const parentEdgeNode = getNode(parentId);
-        if (!parentEdgeNode) return;
-
-        const newTargetId = nanoid(6);
-
-        const location = {
-            x: parentEdgeNode.position.x + 160,
-            y: parentEdgeNode.position.y - 64,
-        };
-
-        const newNode = {
-            id: newTargetId,
-            position: location,
-            data: {
-                content: "",
-                label: newTargetId,
-                isLoading: true,
-                locked: false,
-                isInput: false,
-                isOutput: false,
-                editable: false,
-            },
-            type: 'text',
-        };
-
-        const newEdge = {
-            id: `connection-${Date.now()}`,
-            source: parentId,
-            target: newTargetId,
-            type: "floating",
-            data: {
-                connectionType: "CTT",
-            },
-            markerEnd: markerEnd,
-        };
-
-        await Promise.all([
-            new Promise(resolve => {
-                setNodes(prevNodes => {
-                    resolve(null);
-                    return [...prevNodes, newNode];
-                });
-            }),
-            new Promise(resolve => {
-                setEdges(prevEdges => {
-                    resolve(null);
-                    return [...prevEdges, newEdge];
-                });
-            }),
-        ]);
-
-        // 更新父节点引用
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === parentId) {
-                return { ...node, data: { ...node.data, resultNode: newTargetId } };
-            }
-            return node;
-        }));
-    };
 
     // 发送数据到目标节点
     const sendDataToTargets = async () => {
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
-        if (targetNodeIdWithLabelGroup.length === 0) return;
+        // 获取所有节点
+        const allNodes = getNodes();
+        
+        if (allNodes.length === 0) return;
 
-        // 设置所有目标节点为加载状态
+        // 仅设置结果节点（text、none类型）为加载状态，排除输入节点
         setNodes(prevNodes => prevNodes.map(node => {
-            if (targetNodeIdWithLabelGroup.some(targetNode => targetNode.id === node.id)) {
+            // 检查是否为结果类型节点且不是输入节点
+            if ((node.type === 'text' ||  node.type === 'structured') && 
+                !node.data.isInput && !node.data.locked) {
                 return { ...node, data: { ...node.data, content: "", isLoading: true } };
             }
             return node;
@@ -171,8 +77,8 @@ export function useBaseEdgeNodeLogic({
 
         try {
             // 优先使用自定义的 JSON 构建函数，如果没有则使用默认的
-            const jsonData = customConstructJsonData ? customConstructJsonData() : defaultConstructJsonData();
-            console.log("JSON Data:", jsonData);
+            const jsonData = customConstructJsonData ? customConstructJsonData() : constructAllNodesJson();
+            console.log("发送到后端的 JSON 数据:", jsonData);
 
             const response = await fetch(`${backend_IP_address_for_sendingData}`, {
                 method: 'POST',
@@ -183,139 +89,130 @@ export function useBaseEdgeNodeLogic({
             });
 
             if (!response.ok) {
-                targetNodeIdWithLabelGroup.forEach(node => {
+                // 只向结果节点报告错误
+                allNodes.filter(node => node.type === 'text' || node.type === 'structured').forEach(node => {
                     reportError(node.id, `HTTP Error: ${response.status}`);
                 });
                 return;
             }
 
             const result = await response.json();
-            console.log('Success:', result);
+            console.log('从后端接收到的响应:', result);
 
-            // 流式处理结果
-            await Promise.all(targetNodeIdWithLabelGroup.map(node =>
-                streamResult(result.task_id, node.id)
-            ));
+            // 处理后端返回的数据并更新节点
+            if (result && result.task_id) {
+                // 如果后端返回了任务ID，使用流式处理
+                // 筛选出所有结果类型节点
+                const resultNodes = allNodes.filter(node => 
+                    (node.type === 'text' || node.type === 'structured')
+                );
+                
+                await Promise.all(resultNodes.map(node =>
+                    streamResult(result.task_id, node.id).then(res => {
+                        console.log(`[全局运行] 节点 ${node.id} (类型: ${node.type}) 流式处理完成:`, res);
+                        return res;
+                    })
+                ));
+            }
+            
         } catch (error) {
-            console.warn(error);
+            console.error("处理API响应时出错:", error);
             window.alert(error);
         } finally {
-            targetNodeIdWithLabelGroup.forEach(node => {
+            // 只重置非输入的结果节点的加载UI
+            allNodes.filter(node => 
+                (node.type === 'text' || node.type === 'structured') && 
+                !node.data.isInput
+            ).forEach(node => {
                 resetLoadingUI(node.id);
             });
             setIsComplete(true);
         }
     };
 
-    // Modify defaultConstructJsonData to use the extracted parameters
-    const defaultConstructJsonData = (): BaseConstructedJsonData => {
-        // 获取源节点和目标节点
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
-        
+    // 构建包含所有节点的JSON数据
+    const constructAllNodesJson = (): BaseConstructedJsonData => {
         try {
+            // 获取所有节点和边
+            const allNodes = getNodes();
+            const reactFlowEdges = getEdges();
+            
             // 创建blocks对象
             let blocks: { [key: string]: NodeJsonType } = {};
+            let edges: { [key: string]: any } = {};
             
-            // 添加源节点信息 - 使用 buildBlockNodeJson
-            sourceNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
-                try {
-                    // 使用区块节点构建函数
-                    const blockJson = buildBlockNodeJson(nodeId);
-                    
-                    // 确保节点标签正确
-                    blocks[nodeId] = {
-                        ...blockJson,
-                        label: nodeLabel
-                    };
-                } catch (e) {
-                    console.warn(`无法使用blockNodeBuilder构建节点 ${nodeId}:`, e);
-                    
-                    // 回退到默认行为
-                    blocks[nodeId] = {
-                        label: nodeLabel,
-                        type: getNode(nodeId)?.type as string,
-                        data: getNode(nodeId)?.data as any
-                    };
+            // 定义哪些节点类型属于 block 节点
+            const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+            
+            // 处理所有节点
+            allNodes.forEach(node => {
+                const nodeId = node.id;
+                // 确保 nodeLabel 是字符串类型
+                const nodeLabel = node.data?.label || nodeId;
+                
+                // 根据节点类型决定如何构建JSON
+                if (blockNodeTypes.includes(node.type || '')) {
+                    try {
+                        // 使用区块节点构建函数
+                        const blockJson = buildBlockNodeJson(nodeId);
+                        
+                        // 确保节点标签正确
+                        blocks[nodeId] = {
+                            ...blockJson,
+                            label: String(nodeLabel) // 确保 label 是字符串
+                        };
+                    } catch (e) {
+                        console.warn(`无法使用blockNodeBuilder构建节点 ${nodeId}:`, e);
+                        
+                        // 回退到默认行为
+                        blocks[nodeId] = {
+                            label: String(nodeLabel), // 确保 label 是字符串
+                            type: node.type || '',
+                            data: {...node.data} as BasicNodeData // 确保复制数据而不是引用
+                        };
+                    }
+                } else {
+                    // 非 block 节点 (edge节点)
+                    try {
+                        // 构建边的JSON并添加到edges对象中
+                        const edgeJson = buildEdgeNodeJson(nodeId);
+                        edges[nodeId] = edgeJson;
+                    } catch (e) {
+                        console.warn(`无法构建边节点 ${nodeId} 的JSON:`, e);
+                    }
                 }
             });
             
-            // 添加目标节点信息
-            targetNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
-                // 获取节点类型
-                const nodeType = getNode(nodeId)?.type as string;
-                
-                // 设置基本结构
-                blocks[nodeId] = {
-                    label: nodeLabel,
-                    type: nodeType,
-                    data: { content: "" }
-                };
-            });
-            
-            // 构建边的JSON - 使用 buildEdgeNodeJson
-            const edgeJson = buildEdgeNodeJson(parentId);
-            
             return {
                 blocks,
-                edges: { [parentId]: edgeJson }
+                edges
             };
         } catch (error) {
-            console.error(`构建节点 JSON 时出错: ${error}`);
+            console.error(`构建全节点 JSON 时出错: ${error}`);
             
-            // 如果出错，回退到简单的默认结构
+            // 如果出错，返回空结构
             return {
-                blocks: {
-                    // 添加源节点和目标节点的基本信息
-                    ...Object.fromEntries(sourceNodeIdWithLabelGroup.map(({ id, label }) => [
-                        id, { 
-                            label, 
-                            type: getNode(id)?.type as string, 
-                            data: getNode(id)?.data as BasicNodeData 
-                        }
-                    ])),
-                    ...Object.fromEntries(targetNodeIdWithLabelGroup.map(({ id, label }) => [
-                        id, { 
-                            label, 
-                            type: targetNodeType, 
-                            data: { content: "" } 
-                        }
-                    ])),
-                },
+                blocks: {},
                 edges: {}
             };
         }
     };
 
-    // 使用自定义或默认的 constructJsonData
-    const finalConstructJsonData = customConstructJsonData || defaultConstructJsonData();
-
     // 数据提交主函数
     const handleDataSubmit = async (...args: any[]) => {
-        setIsLoading(true);
         try {
             await new Promise(resolve => {
                 clearAll();
                 resolve(null);
             });
-
-            const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
-
-            if (targetNodeIdWithLabelGroup.length === 0) {
-                setIsAddFlow(false);
-            } else {
-                setIsAddFlow(true);
-            }
-
+            
             setIsComplete(false);
         } catch (error) {
             console.error("Error submitting data:", error);
-            setIsLoading(false);
         }
     };
 
     return {
-        isLoading,
         handleDataSubmit
     };
 }
