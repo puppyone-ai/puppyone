@@ -7,7 +7,6 @@ import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type ModifyConfigNodeData = {
     content: string | null,
-    resultNode: string | null
 }
 
 type Convert2TextNodeProps = NodeProps<Node<ModifyConfigNodeData>>

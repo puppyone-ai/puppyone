@@ -12,10 +12,8 @@ export type ChooseConfigNodeData = {
     looped?: boolean | undefined,
     content: string | null,
     switch?: string | undefined,
-    resultNodes: string[] | null,
     ON?: string[] | undefined,
     OFF?: string[] | undefined,
-    resultNode: string | null,
 }
 
 type ChooseConfigNodeProps = NodeProps<Node<ChooseConfigNodeData>>

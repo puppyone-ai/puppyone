@@ -19,7 +19,6 @@ export type ModifyConfigNodeData = {
             path: (string | number)[]
         }
     },
-    resultNode: string | null
 }
 
 type ModifyConfigNodeProps = NodeProps<Node<ModifyConfigNodeData>>

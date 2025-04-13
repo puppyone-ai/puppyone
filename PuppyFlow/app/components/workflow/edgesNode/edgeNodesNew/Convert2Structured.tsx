@@ -22,7 +22,6 @@ export type ModifyConfigNodeData = {
         dict_key?: string, 
         length_separator?: number
     },
-    resultNode: string | null,
     execMode: string | null
 }
 
@@ -43,11 +42,6 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
     const BY_LEN_TYPE = "split by length" 
     const BY_CHAR_TYPE = "split by character"
     
-    // 状态管理
-    const [showSettings, setShowSettings] = useState(false)
-    const [resultNode, setResultNode] = useState<string | null>(
-        (getNode(id)?.data as ModifyConfigNodeData)?.resultNode ?? null
-    )
     
     // 加载配置值
     const [execMode, setExecMode] = useState(

@@ -22,7 +22,6 @@ export type SearchConfigNodeData = {
         model: "llama-3.1-sonar-small-128k-online" | "llama-3.1-sonar-large-128k-online" | "llama-3.1-sonar-huge-128k-online" | undefined,
         threshold: number | undefined
     },
-    resultNode: string | null
 }
 
 type SearchPerplexityNodeProps = NodeProps<Node<SearchConfigNodeData>>
@@ -35,11 +34,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
 
-    // 状态管理
-    const [resultNode, setResultNode] = useState<string | null>(
-        (getNode(id)?.data as SearchConfigNodeData)?.resultNode ?? null
-    )
-    
+
     // 模型配置
     const [model, setModel] = useState<perplexityModelNames>(
         (getNode(id)?.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"
@@ -103,13 +98,12 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
                             ...((node.data as SearchConfigNodeData).extra_configs),
                             model: model
                         },
-                        resultNode: resultNode
                     }
                 };
             }
             return node;
         }));
-    }, [id, setNodes, model, resultNode]);
+    }, [id, setNodes, model]);
 
     const onClickButton = () => {
         setIsMenuOpen(!isMenuOpen)
