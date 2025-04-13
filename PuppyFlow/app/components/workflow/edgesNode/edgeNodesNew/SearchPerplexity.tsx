@@ -8,7 +8,7 @@ import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstr
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { nanoid } from 'nanoid'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useSearchPerplexityLogic, { perplexityModelNames } from './hook/useSearchPerplexityLogic'
+import { useBaseEdgeNodeLogic, perplexityModelNames } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '../../../misc/PuppyDropDown'
 export type SearchConfigNodeData = {
     nodeLabels?: { label: string, id: string }[],
@@ -49,7 +49,10 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
     
     // 使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useSearchPerplexityLogic(id)
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: "structured"
+    });
 
     useEffect(() => {
         if (!isOnGeneratingNewNode) {

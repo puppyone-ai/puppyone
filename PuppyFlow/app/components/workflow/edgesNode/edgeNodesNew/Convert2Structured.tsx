@@ -5,7 +5,7 @@ import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import { PuppyDropdown } from '../../../misc/PuppyDropDown'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useConvert2StructuredLogic from './hook/useConvert2StructuredLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -22,7 +22,8 @@ export type ModifyConfigNodeData = {
         dict_key?: string, 
         length_separator?: number
     },
-    resultNode: string | null
+    resultNode: string | null,
+    execMode: string | null
 }
 
 type ModifyConfigNodeProps = NodeProps<Node<ModifyConfigNodeData>>
@@ -49,12 +50,14 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
     )
     
     // 加载配置值
+    const [execMode, setExecMode] = useState(
+        (getNode(id)?.data as any)?.execMode || JSON_TYPE
+    )
     const [wrapInto, setWrapInto] = useState(
         typeof (getNode(id)?.data?.extra_configs as any)?.dict_key === 'string' 
             ? (getNode(id)?.data?.extra_configs as any)?.dict_key 
             : ""
     )
-    const [execMode, setExecMode] = useState(JSON_TYPE)
     const [deliminator, setDeliminator] = useState(
         typeof (getNode(id)?.data?.extra_configs as any)?.list_separator === 'string' 
             ? (getNode(id)?.data?.extra_configs as any)?.list_separator 
@@ -66,8 +69,14 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
             : 10
     )
     
-    // 只使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useConvert2StructuredLogic(id)
+    // 使用基础 edge node 逻辑，只传入最小必要参数
+    const { 
+        isLoading,
+        handleDataSubmit 
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'structured'
+    });
 
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
@@ -99,34 +108,29 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
 
     // 状态同步到 ReactFlow
     useEffect(() => {
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                // 确保 node.data 存在并且是对象类型
-                const nodeData = typeof node.data === 'object' && node.data !== null 
-                    ? node.data 
-                    : {};
-                
-                // 确保 extra_configs 存在并且是对象类型
-                const existingExtraConfigs = typeof nodeData.extra_configs === 'object' && nodeData.extra_configs !== null
-                    ? nodeData.extra_configs
-                    : {};
-                    
-                return {
-                    ...node, 
-                    data: {
-                        ...nodeData,
-                        extra_configs: {
-                            ...existingExtraConfigs,
-                            list_separator: deliminator,
-                            dict_key: wrapInto,
-                            length_separator: bylen
+        const node = getNode(id);
+        if (node) {
+            setNodes(prevNodes => prevNodes.map(n => {
+                if (n.id === id) {
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            // 保存 execMode 到 data 对象中
+                            execMode: execMode,
+                            extra_configs: {
+                                ...(n.data?.extra_configs || {}),
+                                list_separator: deliminator,
+                                dict_key: wrapInto,
+                                length_separator: bylen
+                            }
                         }
-                    }
-                };
-            }
-            return node;
-        }));
-    }, [id, setNodes, deliminator, bylen, wrapInto]);
+                    };
+                }
+                return n;
+            }));
+        }
+    }, [execMode, deliminator, bylen, wrapInto, id, setNodes, getNode]);
 
     const onClickButton = () => {
         setIsMenuOpen(!isMenuOpen)
@@ -143,7 +147,7 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
     
     // 执行函数
     const onDataSubmit = () => {
-        handleDataSubmit(execMode, deliminator, bylen, wrapInto);
+        handleDataSubmit();
     }
 
     // 在组件顶部定义共享样式
@@ -217,17 +221,6 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
                     <ul ref={menuRef} className="absolute top-[58px] left-0 text-white w-[384px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
                         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                             <div className='flex flex-row gap-[12px]'>
-                                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                            <path d="M2 10H10" stroke="#CDCDCD" strokeWidth="1.5" />
-                                            <path d="M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                        </svg>
-                                    </div>
-                                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                                        Modify
-                                    </div>
-                                </div>
                                 <div className='flex flex-row gap-[8px] justify-center items-center'>
                                     <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">

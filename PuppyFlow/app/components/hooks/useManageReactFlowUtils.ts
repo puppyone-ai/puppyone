@@ -1,6 +1,40 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 
+// 定义两个常量数组来存储节点类型
+const EDGE_NODE_TYPES = [
+  'load',
+  'chunk',
+  'code',
+  'generate',
+  'llm',
+  'search',
+  'embedding',
+  'modify',
+  'choose',
+  'copy',
+  'chunkingByLength',
+  'chunkingByCharacter',
+  'chunkingAuto',
+  'retrieving',
+  'convert2text',
+  'convert2structured',
+  'editText',
+  'editStructured',
+  'searchGoogle',
+  'searchPerplexity',
+  'llmnew',
+  'ifelse'
+] as const;
+
+const BLOCK_NODE_TYPES = [
+  'text',
+  'file',
+  'weblink',
+  'structured',
+  'none'
+] as const;
+
 export default function useManageReactFlowUtils() {
   const [zoomOnScroll, setZoomOnScroll] = useState(true);
   const reactFlowInstance = useReactFlow();
@@ -25,7 +59,7 @@ export default function useManageReactFlowUtils() {
   // judge if the node is a node or ConfigNode
   const judgeNodeIsEdgeNode = useCallback((nodeId: string) => {
     const nodeType = getNode(nodeId)?.type
-    return nodeType === 'load' || nodeType === 'chunk' || nodeType === 'code' || nodeType === 'generate' || nodeType === 'llm' || nodeType === 'search' || nodeType === 'embedding' || nodeType === 'modify' || nodeType === 'choose'
+    return EDGE_NODE_TYPES.includes(nodeType as any)
   }, [])
  
 
@@ -35,7 +69,10 @@ export default function useManageReactFlowUtils() {
     lockZoom,
     freeZoom,
     getResultNodes,
-    judgeNodeIsEdgeNode
+    judgeNodeIsEdgeNode,
+    // 导出这些类型列表以供其他地方使用
+    EDGE_NODE_TYPES,
+    BLOCK_NODE_TYPES
   };
 }
 

@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useChunkingAutoLogic from './hook/useChunkingAutoLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 // 前端节点配置数据
 export type ChunkingConfigNodeData = {
@@ -32,11 +32,14 @@ function ChunkingAuto({ data: { subMenuType }, isConnectable, id }: ChunkingAuto
     const menuRef = useRef<HTMLUListElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     
-    // 使用自定义Hook来处理逻辑
+    // 使用通用的 BaseEdgeNodeLogic
     const { 
         isLoading,
         handleDataSubmit 
-    } = useChunkingAutoLogic(id)
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'structured'  // 只传递必要的参数
+    });
     
     // 初始化和清理
     useEffect(() => {
