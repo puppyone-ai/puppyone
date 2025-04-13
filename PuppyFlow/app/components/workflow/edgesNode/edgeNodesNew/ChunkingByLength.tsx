@@ -4,8 +4,8 @@ import { useReactFlow } from '@xyflow/react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useChunkingByLengthLogic, { SubChunkingModeNames } from './hook/useChunkingByLengthLogic'
 import { PuppyDropdown } from '../../../misc/PuppyDropDown'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 // 前端节点配置数据
 export type ChunkingConfigNodeData = {
@@ -33,22 +33,50 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
     const menuRef = useRef<HTMLUListElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
 
-    // 使用自定义Hook来处理逻辑
-    const {
-        subChunkMode,
-        setSubChunkMode,
-        chunkSize,
-        setChunkSize,
-        overlap,
-        setOverlap,
-        handleHalfWord,
-        setHandleHalfWord,
+    // 状态管理
+    const [subChunkMode, setSubChunkMode] = useState<"size" | "tokenizer">(
+        (getNode(id)?.data as ChunkingConfigNodeData)?.sub_chunking_mode ?? "size"
+    );
+    const [chunkSize, setChunkSize] = useState<number | undefined>(
+        (getNode(id)?.data as ChunkingConfigNodeData)?.extra_configs?.chunk_size ?? 200
+    );
+    const [overlap, setOverlap] = useState<number | undefined>(
+        (getNode(id)?.data as ChunkingConfigNodeData)?.extra_configs?.overlap ?? 20
+    );
+    const [handleHalfWord, setHandleHalfWord] = useState(
+        (getNode(id)?.data as ChunkingConfigNodeData)?.extra_configs?.handle_half_word ?? false
+    );
+
+    // 使用基础 edge node 逻辑
+    const { 
         isLoading,
-        handleDataSubmit
-    } = useChunkingByLengthLogic(id)
+        handleDataSubmit 
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'structured'
+    });
 
     // 添加展开/收起状态
-    const [showSettings, setShowSettings] = useState(false)
+    const [showSettings, setShowSettings] = useState(false);
+
+    // 更新节点数据
+    useEffect(() => {
+        const node = getNode(id);
+        if (node) {
+            const nodeData = node.data as ChunkingConfigNodeData;
+            const newData = {
+                ...nodeData,
+                sub_chunking_mode: subChunkMode,
+                extra_configs: {
+                    ...nodeData.extra_configs,
+                    chunk_size: chunkSize,
+                    overlap: overlap,
+                    handle_half_word: handleHalfWord
+                }
+            };
+            node.data = newData;
+        }
+    }, [subChunkMode, chunkSize, overlap, handleHalfWord]);
 
     // 初始化和清理
     useEffect(() => {
@@ -197,7 +225,7 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
                         options={["size"]}
                                     selectedValue={subChunkMode}
                         onSelect={(value: string) => {
-                                        setSubChunkMode(value as SubChunkingModeNames);
+                                        setSubChunkMode(value as "size" | "tokenizer");
                         }}
                         buttonHeight="32px"
                         buttonBgColor="transparent"
