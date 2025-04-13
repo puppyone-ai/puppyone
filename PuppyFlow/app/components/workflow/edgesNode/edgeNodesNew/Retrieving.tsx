@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useRetrievingLogic from './hook/useRetrievingLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 
 export type RetrievingConfigNodeData = {
@@ -60,8 +60,12 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
             .map((node) => ({ label: node.label, id: node.id }))
     )
     
-    // 只使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useRetrievingLogic(id)
+    // 使用 useBaseEdgeNodeLogic hook 替换原有的运行逻辑
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: "structured",
+
+    });
     
     // 状态同步逻辑 - 保留在主组件中
     useEffect(() => {
@@ -223,9 +227,9 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         ))
     }
     
-    // 执行逻辑
+    // 修改 onDataSubmit 函数
     const onDataSubmit = () => {
-        handleDataSubmit(query, top_k, threshold, nodeLabels);
+        handleDataSubmit();
     }
 
     // 在组件顶部定义共享样式

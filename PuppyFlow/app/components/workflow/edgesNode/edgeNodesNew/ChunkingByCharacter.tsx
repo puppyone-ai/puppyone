@@ -4,7 +4,7 @@ import { useReactFlow } from '@xyflow/react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useChunkingByCharacterLogic, { commonDelimiters } from './hook/useChunkingByCharacterLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 // 前端节点配置数据
 export type ChunkingConfigNodeData = {
@@ -24,25 +24,90 @@ export type ChunkingConfigNodeData = {
 
 type ChunkingByCharacterProps = NodeProps<Node<ChunkingConfigNodeData>>
 
+// 添加 commonDelimiters 常量定义（放在组件外部）
+const commonDelimiters = [
+    { label: "Comma (,)", value: "," },
+    { label: "Semicolon (;)", value: ";" },
+    { label: "Enter (\\n)", value: "\n" },
+    { label: "Tab (\\t)", value: "\t" },
+    { label: "Space", value: " " },
+    { label: "Period (.)", value: "." },
+    { label: "Pipe (|)", value: "|" },
+    { label: "Dash (-)", value: "-" }
+];
+
 function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: ChunkingByCharacterProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode } = useReactFlow()
+    const { getNode, setNodes } = useReactFlow()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const newDelimiterRef = useRef<HTMLInputElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     
-    // 使用自定义Hook来处理逻辑
+    // 使用 delimiters 状态
+    const [delimiters, setDelimiters] = useState<string[]>(() => {
+        // 尝试从不同的可能位置读取 delimiters 数据
+        const nodeData = getNode(id)?.data;
+        if (nodeData?.delimiters && Array.isArray(nodeData.delimiters)) {
+            return nodeData.delimiters;
+        }
+        if (nodeData?.content) {
+            try {
+                const parsedContent = typeof nodeData.content === 'string' ? 
+                    JSON.parse(nodeData.content) : nodeData.content;
+                if (Array.isArray(parsedContent)) {
+                    return parsedContent;
+                }
+            } catch (e) {
+                console.warn("Failed to parse delimiters:", e);
+            }
+        }
+        return [",", ";", "\n"]; // 默认值
+    });
+
+    // 每当 delimiters 变化时，更新节点数据
+    useEffect(() => {
+        const node = getNode(id);
+        if (node) {
+            // 更新节点数据，将 delimiters 保存到 node.data 对象中
+            setNodes(nodes => nodes.map(n => {
+                if (n.id === id) {
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            delimiters: delimiters, // 保存 delimiters 数组
+                            content: JSON.stringify(delimiters) // 为了向后兼容也保存在 content 中
+                        }
+                    };
+                }
+                return n;
+            }));
+        }
+    }, [delimiters, id, getNode, setNodes]);
+
+    // 使用基础 edge node 逻辑，简化参数
     const { 
-        delimiters, 
-        setDelimiters,
         isLoading,
-        handleDataSubmit,
-        addDelimiter,
-        removeDelimiter
-    } = useChunkingByCharacterLogic(id)
-    
+        handleDataSubmit 
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'structured'
+    });
+
+    // 添加新的分隔符
+    const addDelimiter = (value: string) => {
+        if (value && !delimiters.includes(value)) {
+            setDelimiters([...delimiters, value]);
+        }
+    };
+
+    // 删除分隔符
+    const removeDelimiter = (index: number) => {
+        setDelimiters(delimiters.filter((_, i) => i !== index));
+    };
+
     // 状态管理
     const [showDelimiterInput, setShowDelimiterInput] = useState(false)
 
