@@ -105,13 +105,12 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
     };
 
     return (
-        <>
-            {/* Main button */}
+        <div className='p-[3px] w-[80px] h-[48px]'>
             <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-[80px] h-[48px] flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px]`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px]`}
             >
-                Chunking
+                Chunking <br /> By Length
                 {/* Source handles */}
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
@@ -303,7 +302,7 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
         </ul>
                 </div>
             )}
-        </>
+        </div>
     )
 }
 

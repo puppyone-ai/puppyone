@@ -83,14 +83,14 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
     };
 
     return (
-        <>
+        <div className='p-[3px] w-[80px] h-[48px]'>
             <div className="relative">
                 {/* Run button as a small square floating above the node */}
 
                 {/* Main node button */}
                 <button 
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className={`w-[80px] h-[48px] flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                    className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
                     title="Copy Node"
                 >
                     Copy
@@ -198,7 +198,7 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
                     </ul>
                 </div>
             )}
-        </>
+        </div>
     )
 }
 
