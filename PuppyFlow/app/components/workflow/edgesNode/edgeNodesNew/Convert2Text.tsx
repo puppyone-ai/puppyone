@@ -79,7 +79,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
     };
 
     return (
-        <div className='w-[80px] h-[48px]'>
+        <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
                 className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] 
                 ${isOnConnect && isTargetHandleTouched || activatedEdge === id 
@@ -90,7 +90,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
                 ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`} 
                 onClick={onClickButton}
             >
-                Convert
+                Convert to<br /> Text
 
                 {/* Source Handles */}
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
