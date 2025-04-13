@@ -15,7 +15,6 @@ export type LLMConfigNodeData = {
     model: "gpt-4o" | "gpt-4" | "gpt-4o-mini" | undefined,
     structured_output: boolean | undefined,
     base_url: string | undefined,
-    resultNode: string | null
 }
 
 type LLMConfigNodeProps = NodeProps<Node<LLMConfigNodeData>>

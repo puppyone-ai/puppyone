@@ -20,7 +20,6 @@ export type ModifyConfigNodeData = {
         retMode?: string,
         configNum?: number
     },
-    resultNode: string | null
 }
 
 type ModifyConfigNodeProps = NodeProps<Node<ModifyConfigNodeData>>

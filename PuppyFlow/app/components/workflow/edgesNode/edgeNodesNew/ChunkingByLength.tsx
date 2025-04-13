@@ -19,8 +19,6 @@ export type ChunkingConfigNodeData = {
         overlap: number | undefined,
         handle_half_word: boolean | undefined,
     }
-    resultNode: string | null,
-    resultNodes: string[] | null,
 }
 
 type ChunkingByLengthProps = NodeProps<Node<ChunkingConfigNodeData>>
