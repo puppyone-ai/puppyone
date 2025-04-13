@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import { useBaseEdgeNodeLogic } from './hook/useBaseEdgeNodeLogic'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 
 export type RetrievingConfigNodeData = {
@@ -60,15 +60,11 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
             .map((node) => ({ label: node.label, id: node.id }))
     )
     
-    // 替换 useRetrievingLogic 为 useBaseEdgeNodeLogic
+    // 使用 useBaseEdgeNodeLogic hook 替换原有的运行逻辑
     const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
         parentId: id,
         targetNodeType: "structured",
-        nodeType: "retrieving",
-        query,
-        nodeLabels,
-        top_k,
-        threshold
+
     });
     
     // 状态同步逻辑 - 保留在主组件中

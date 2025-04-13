@@ -207,12 +207,54 @@ export type EditStructuredEdgeJsonType = {
     },
 }
 
-// 更新联合类型
+// 定义 Retrieving 节点的后端 JSON 类型
+export type RetrievingEdgeJsonType = {
+    type: "search";
+    data: {
+        search_type: "vector";
+        top_k: number;
+        inputs: { [key: string]: string };
+        threshold: number;
+        extra_configs: {
+            provider?: "openai";
+            model?: "text-embedding-ada-002";
+            db_type?: "pgvector" | "pinecone";
+            collection_name?: string;
+        } | {};
+        query_id: { [key: string]: string };
+        outputs: { [key: string]: string };
+    };
+}
+
+// Add the ifelse case
+export type IfElseEdgeJsonType = {
+    type: "ifelse",
+    data: {
+        cases: {
+            [key: string]: {
+                conditions: {
+                    block: string;
+                    condition: string;
+                    parameters: { [key: string]: string | number };
+                    operation: string;
+                }[];
+                then: {
+                    from: string;
+                    to: string;
+                };
+            };
+        };
+        inputs: { [key: string]: string };
+        outputs: { [key: string]: string };
+    };
+};
+
+// 修改 BaseEdgeJsonType 以包含 RetrievingEdgeJsonType
 export type BaseEdgeJsonType = CopyEdgeJsonType | ChunkingAutoEdgeJsonType |
     ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType |
     Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType |
     SearchByVectorEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
-    LLMEdgeJsonType | EditStructuredEdgeJsonType;
+    LLMEdgeJsonType | EditStructuredEdgeJsonType | RetrievingEdgeJsonType | IfElseEdgeJsonType;
 
 // 构造的数据类型
 export type BaseConstructedJsonData = {
@@ -263,7 +305,6 @@ export function useEdgeNodeBackEndJsonBuilder() {
     // 基础hooks
     const { getNode } = useReactFlow();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils();
-
 
     // 修改构建节点JSON的主函数，只返回边的JSON
     const buildEdgeNodeJson = (nodeId: string): EdgeNodeJsonData => {
@@ -328,10 +369,13 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 edgeJson = buildEditStructuredNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
                 break;
                 
-            {/*
             case "retrieving":
-                return buildRetrievingNodeJson(nodeId, blocks, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
-            */}
+                edgeJson = buildRetrievingNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
+                break;
+                
+            case "ifelse":
+                edgeJson = buildIfElseNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
+                break;
                 
             default:
                 throw new Error(`不支持的节点类型: ${nodeType}`);
@@ -791,9 +835,6 @@ export function useEdgeNodeBackEndJsonBuilder() {
         };
     };
 
-
-    
-    
     const buildEditStructuredNodeJson = (
         nodeId: string, 
         sourceNodes: { id: string, label: string }[], 
@@ -852,78 +893,200 @@ export function useEdgeNodeBackEndJsonBuilder() {
         };
     };
 
-
-    {/*
+    // 使用正确的实现，不引入外部类型
     const buildRetrievingNodeJson = (
-        nodeId: string,
-        blocks: { [key: string]: NodeJsonType },
-        sourceNodes: { id: string, label: string }[],
+        nodeId: string, 
+        sourceNodes: { id: string, label: string }[], 
         targetNodes: { id: string, label: string }[]
-    ): ConstructedJsonData => {
+    ): RetrievingEdgeJsonType => {
+        // 从 React Flow 获取节点数据
         const nodeData = getNode(nodeId)?.data;
         
-        // 构建输入节点数据
-        const construct_input_nodes_data_from_ids = (blocks: { [key: string]: NodeJsonType }) => {
-            const data = Object.entries(blocks).map(([id, node]) => {
-                const originalNode = getNode(id);
-                
-                if (originalNode?.type === "structured") {
-                    return [id, {
-                        ...node,
-                        data: {
-                            ...node.data,
-                            embedding_view: originalNode?.data?.chunks,
-                        },
-                        collection_configs: {
-                            ...(originalNode?.data as any)?.collection_configs,
-                        },
-                    }];
-                } else {
-                    return [id, {
-                        ...node,
-                    }];
-                }
-            });
-            
-            return Object.fromEntries(data);
-        };
+        // 准备输入映射
+        const inputs: { [key: string]: string } = {};
+        sourceNodes.forEach(node => {
+            inputs[node.id] = node.label;
+        });
         
-        const final_blocks = construct_input_nodes_data_from_ids(blocks);
+        // 准备输出映射
+        const outputs: { [key: string]: string } = {};
+        targetNodes.forEach(node => {
+            outputs[node.id] = node.label;
+        });
         
-        // 安全地处理query相关的值
-        const query = nodeData?.query;
-        const queryId = query?.id || "";
-        const queryLabel = query?.id
-            ? (getNode(query.id)?.data?.label as string || query.label || queryId)
-            : "";
+        // 准备查询 ID 映射
+        const queryId: { [key: string]: string } = {};
+        // 安全地访问可能不存在的属性
+        const queryIdData = nodeData?.query_id as { id?: string, label?: string } | undefined;
+        if (queryIdData && typeof queryIdData.id === 'string' && typeof queryIdData.label === 'string') {
+            queryId[queryIdData.id] = queryIdData.label;
+        }
         
-        // 获取其他必要数据
-        const nodeLabels = nodeData?.nodeLabels;
-        const top_k = nodeData?.top_k ?? 5;
-        const threshold = nodeData?.threshold ?? 0.7;
+        // 安全地获取阈值，默认为 0.7
+        let threshold = 0.7;
+        const extraConfigs = nodeData?.extra_configs as { threshold?: number } | undefined;
+        if (extraConfigs && typeof extraConfigs.threshold === 'number') {
+            threshold = extraConfigs.threshold;
+        }
         
-        const edgeJson: SearchByVectorEdgeJsonType = {
+        // 安全地获取 top_k，默认为 5
+        let top_k = 5;
+        if (nodeData && typeof nodeData.top_k === 'number') {
+            top_k = nodeData.top_k;
+        }
+        
+        return {
             type: "search",
             data: {
                 search_type: "vector",
-                inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
-                outputs: Object.fromEntries(targetNodes.map(node => ([node.id, node.label]))),
-                top_k: top_k
+                top_k: top_k,
+                inputs: inputs,
                 threshold: threshold,
-                extra_configs: {},
-                doc_ids: nodeLabels?.map(node => node.id) ?? [],
-                query_id: queryId ? { [queryId]: queryLabel } : {}
-            },
-            id: nodeId
-        };
-        
-        return {
-            blocks: final_blocks,
-            edges: { [nodeId]: edgeJson }
+                extra_configs: {
+                    provider: "openai",
+                    model: "text-embedding-ada-002",
+                    db_type: "pgvector"
+                },
+                query_id: queryId,
+                outputs: outputs
+            }
         };
     };
-    */}
+
+    const buildIfElseNodeJson = (
+        nodeId: string, 
+        sourceNodes: { id: string, label: string }[], 
+        targetNodes: { id: string, label: string }[]
+    ): IfElseEdgeJsonType => {
+        // Get the node data from ReactFlow
+        const nodeData = getNode(nodeId)?.data;
+        
+        // Check if nodeData.cases exists and is an array
+        if (!nodeData || !nodeData.cases || !Array.isArray(nodeData.cases) || nodeData.cases.length === 0) {
+            // Return a default structure if no cases defined or cases is not an array
+            return {
+                type: "ifelse",
+                data: {
+                    cases: {},
+                    inputs: sourceNodes.reduce((acc, node) => ({ ...acc, [node.id]: node.label }), {}),
+                    outputs: targetNodes.reduce((acc, node) => ({ ...acc, [node.id]: node.label }), {})
+                }
+            };
+        }
+        
+        // Transform the conditions to the backend format
+        const transformedCases: {
+            [key: string]: {
+                conditions: {
+                    block: string;
+                    condition: string;
+                    parameters: { [key: string]: string | number };
+                    operation: string;
+                }[];
+                then: {
+                    from: string;
+                    to: string;
+                };
+            };
+        } = {};
+        
+        // Map frontend condition types to backend condition types
+        const conditionMap: { [key: string]: string } = {
+            // For text nodes
+            "contains": "contain",
+            "doesn't contain": "not_contain",
+            "is greater than [N] characters": "greater_than_n_chars",
+            "is less than [N] characters": "less_than_n_chars",
+            "is empty": "is_empty",
+            "is not empty": "is_not_empty",
+            "is True": "is",
+            "is False": "is_not",
+            
+            // For structured nodes
+            "is list": "is_list",
+            "is dict": "is_dict",
+            "is greater than [N]": "greater_than_n",
+            "is less than [N]": "less_than_n"
+        };
+        
+        // Process each case
+        nodeData.cases.forEach((caseItem: any, index: number) => {
+            const caseKey = `case${index + 1}`;
+            
+            // Verify that conditions array exists and is valid
+            if (!caseItem.conditions || !Array.isArray(caseItem.conditions)) {
+                return; // Skip this case if conditions are invalid
+            }
+            
+            // Process conditions
+            const conditions = caseItem.conditions.map((condition: any, condIndex: number) => {
+                // Convert the frontend condition to backend condition format
+                const backendCondition = conditionMap[condition.cond_v] || condition.cond_v;
+                
+                // Operation should be "/" if it's the last condition in the group
+                const isLastCondition = condIndex === caseItem.conditions.length - 1;
+                const operation = isLastCondition ? "/" : condition.operation.toLowerCase();
+                
+                return {
+                    block: condition.id,
+                    condition: backendCondition,
+                    parameters: {
+                        value: condition.cond_input || ""
+                    },
+                    operation: operation
+                };
+            });
+            
+            // Verify that actions array exists
+            if (!caseItem.actions || !Array.isArray(caseItem.actions) || caseItem.actions.length === 0) {
+                return; // Skip this case if actions are invalid
+            }
+            
+            // Process actions (take the first action as the main action)
+            const action = caseItem.actions[0];
+            
+            // If action.outputs is not an array or is empty, use a fallback
+            const outputId = Array.isArray(action.outputs) && action.outputs.length > 0 
+                ? action.outputs[0] 
+                : targetNodes[0]?.id || "";
+            
+            transformedCases[caseKey] = {
+                conditions,
+                then: {
+                    from: action.from_id || sourceNodes[0]?.id || "",
+                    to: outputId
+                }
+            };
+        });
+        
+        // If no valid cases were processed, we might end up with an empty object
+        // Make sure we have at least one case if there were cases in the input
+        if (Object.keys(transformedCases).length === 0 && nodeData.cases.length > 0) {
+            // Create a default case using the first source and target nodes
+            transformedCases["case1"] = {
+                conditions: [{
+                    block: sourceNodes[0]?.id || "",
+                    condition: "contain",
+                    parameters: { value: "" },
+                    operation: "/"
+                }],
+                then: {
+                    from: sourceNodes[0]?.id || "",
+                    to: targetNodes[0]?.id || ""
+                }
+            };
+        }
+        
+        return {
+            type: "ifelse",
+            data: {
+                cases: transformedCases,
+                inputs: sourceNodes.reduce((acc, node) => ({ ...acc, [node.id]: node.label }), {}),
+                outputs: targetNodes.reduce((acc, node) => ({ ...acc, [node.id]: node.label }), {})
+            }
+        };
+    };
     
     // 返回构建JSON的主函数
-    return { buildEdgeNodeJson };
+    return { buildEdgeNodeJson, buildRetrievingNodeJson, buildIfElseNodeJson };
 }

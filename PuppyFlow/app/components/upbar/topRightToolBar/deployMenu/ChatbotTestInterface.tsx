@@ -78,10 +78,7 @@ const ChatbotTestInterface = ({
     try {
       const requestData = {
         inputs: {
-          [inputNodeId]: inputMessage,
-        },
-        outputs: {
-          [outputNodeId]: "",
+          [inputNodeId]: inputMessage
         }
       };
       
@@ -92,7 +89,9 @@ const ChatbotTestInterface = ({
         }
       });
       
-      const botResponse = response.data?.outputs?.[outputNodeId] || "No response from the bot";
+      const botResponse = response.data?.outputs?.[outputNodeId] || 
+                          response.data?.[outputNodeId] || 
+                          "No response from the bot";
       
       const botMessage: ChatMessage = {
         role: 'assistant',
