@@ -11,7 +11,8 @@ from dotenv import load_dotenv
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    force=True  # 确保覆盖其他模块的日志配置
 )
 logger = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ class WorkflowRunner:
         logger.info(f"Processed {batch_count} batches, "
                    f"generated {sum(len(out) for out in outputs)} output blocks")
 
-        workflow.clear_workflow()
+        workflow.cleanup_resources()
 
     def process_files(
         self,
@@ -197,13 +198,9 @@ class WorkflowRunner:
         """
         Process multiple workflow files
         """
-
         for file_path in files:
-            if file_path.name != "test_modify_flow.json":
-                continue
-
             logger.info(f"\n{'=' * 25} {file_path.name} {'=' * 25}")
-
+            
             if data := self._process_json_file(file_path):
                 self.run_workflow(data)
 
@@ -239,13 +236,17 @@ def get_files_to_process(
     """
     Determine which files to process based on arguments
     """
-
+    
     if args.file:
-        if not args.file.is_file():
+        logger.info(f"Processing single file: {args.file}")
+        if not args.file.exists():
             logger.error(f"File not found: '{args.file}'")
             sys.exit(1)
+        if not args.file.is_file():
+            logger.error(f"'{args.file}' is not a file")
+            sys.exit(1)
         return [args.file]
-
+    
     if not args.dir.is_dir():
         logger.error(f"Directory not found: '{args.dir}'")
         sys.exit(1)

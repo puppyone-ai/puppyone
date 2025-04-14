@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from Server.WorkFlow import WorkFlow
+from Server.JsonValidation import JsonValidator
 from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error
 
@@ -115,6 +116,18 @@ class DataStore:
             # Update the blocks list
             self.data_store[task_id]["blocks"] = block_map
 
+    def cleanup_task(self, task_id: str):
+        """安全清理任务相关资源"""
+        with self.lock:
+            if task_id in self.data_store:
+                # 获取 workflow 实例
+                workflow = self.data_store[task_id].get("workflow")
+                if workflow:
+                    # 确保 workflow 资源被清理
+                    workflow.cleanup_resources()
+                
+                # 删除存储的数据
+                del self.data_store[task_id]
 
 try:
     app = FastAPI()
@@ -160,25 +173,24 @@ async def get_data(
                         f"Workflow with task_id {task_id} not found"
                     )
 
-                for yielded_blocks in workflow.process():
-                    if not yielded_blocks:
-                        continue
-                    yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
+                # 使用上下文管理器自动管理资源
+                with workflow:
+                    for yielded_blocks in workflow.process():
+                        if not yielded_blocks:
+                            continue
+                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
-                log_info("Execution complete")
-                yield f"data: {json.dumps({'is_complete': True})}\n\n"
+                    yield f"data: {json.dumps({'is_complete': True})}\n\n"
 
-                # Ensure the thread executor is shutdown before deleting the data store
-                if hasattr(workflow, 'thread_executor'):
-                    workflow.thread_executor.shutdown(wait=True)
-
-                # Delete the data store resource
-                with data_store.lock:
-                    if task_id in data_store.data_store:
-                        del data_store.data_store[task_id]
+                # workflow 退出上下文后自动清理，这里只需要清理 data_store
+                if task_id in data_store.data_store:
+                    del data_store.data_store[task_id]
+                
             except PuppyException as e:
                 log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                if task_id in data_store.data_store:
+                    del data_store.data_store[task_id]
 
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     except PuppyException as e:
