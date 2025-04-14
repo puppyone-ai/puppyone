@@ -115,6 +115,18 @@ class DataStore:
             # Update the blocks list
             self.data_store[task_id]["blocks"] = block_map
 
+    def cleanup_task(self, task_id: str):
+        """安全清理任务相关资源"""
+        with self.lock:
+            if task_id in self.data_store:
+                # 获取 workflow 实例
+                workflow = self.data_store[task_id].get("workflow")
+                if workflow:
+                    # 确保 workflow 资源被清理
+                    workflow.cleanup_resources()
+                
+                # 删除存储的数据
+                del self.data_store[task_id]
 
 try:
     app = FastAPI()
@@ -165,20 +177,16 @@ async def get_data(
                         continue
                     yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
-                log_info("Execution complete")
                 yield f"data: {json.dumps({'is_complete': True})}\n\n"
 
-                # Ensure the thread executor is shutdown before deleting the data store
-                if hasattr(workflow, 'thread_executor'):
-                    workflow.thread_executor.shutdown(wait=True)
 
-                # Delete the data store resource
-                with data_store.lock:
-                    if task_id in data_store.data_store:
-                        del data_store.data_store[task_id]
+                data_store.cleanup_task(task_id)
+                
             except PuppyException as e:
                 log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+                data_store.cleanup_task(task_id)
 
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     except PuppyException as e:
