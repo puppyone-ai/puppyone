@@ -1,0 +1,171 @@
+{
+    "blocks": {
+        "r1IFqW": {
+            "label": "r1IFqW",
+            "type": "text",
+            "data": {
+                "content": "给我一篇100字左右的短文"
+            },
+            "looped": false
+        },
+        "_BMfDR": {
+            "label": "_BMfDR",
+            "type": "structured",
+            "data": {
+                "content": {
+                    "主题": [
+                        "都市生活的压力与匆忙",
+                        "关注生活中细微的美好",
+                        "回归自然，感受阳光与空气",
+                        "发现平凡生活中的快乐与温暖",
+                        "心灵的安静与祥和"
+                    ]
+                },
+                "embedding_view": []
+            },
+            "looped": false,
+            "collection_configs": {
+                "set_name": "_BMfDR",
+                "model": "text-embedding-ada-002",
+                "vdb_type": "pgvector",
+                "user_id": "",
+                "collection_name": "publicm023go4mas"
+            }
+        },
+        "AvZ9JB": {
+            "label": "AvZ9JB",
+            "type": "structured",
+            "data": {
+                "content": {
+                    "主题": [
+                        "都市生活的压力与匆忙",
+                        "关注生活中细微的美好",
+                        "回归自然，感受阳光与空气",
+                        "发现平凡生活中的快乐与温暖",
+                        "心灵的安静与祥和"
+                    ]
+                },
+                "embedding_view": []
+            },
+            "looped": false,
+            "collection_configs": {
+                "set_name": "AvZ9JB",
+                "model": "text-embedding-ada-002",
+                "vdb_type": "pgvector",
+                "user_id": "",
+                "collection_name": "public5zjbjt4z5qg"
+            }
+        },
+        "W9ErWN": {
+            "label": "W9ErWN",
+            "type": "text",
+            "data": {
+                "content": "这篇文章展现了哪些主题"
+            },
+            "looped": false
+        },
+        "wR0JWe": {
+            "label": "wR0JWe",
+            "type": "text",
+            "data": {
+                "content": "这篇文章展现了哪些主题"
+            },
+            "looped": false
+        },
+        "NAadwU": {
+            "label": "NAadwU",
+            "type": "text",
+            "data": {
+                "content": "在繁忙的都市生活中，我们常常忽略了身边美好的风景。走出家门，感受阳光的温暖，倾听鸟儿清脆的歌声，呼吸新鲜的空气，内心便变得安静祥和。生活并非只有匆忙与压力，还有简单的快乐与温暖。停下脚步，细细品味，我们才会发现，平凡中也藏着无限的美好与感动。"
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "llmnew-1744618510236": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an AI"
+                    },
+                    {
+                        "role": "user",
+                        "content": " {{r1IFqW}}"
+                    }
+                ],
+                "model": "openai/gpt-4.5-preview",
+                "base_url": "",
+                "max_tokens": 2000,
+                "temperature": 0.7,
+                "inputs": {
+                    "r1IFqW": "r1IFqW"
+                },
+                "structured_output": false,
+                "outputs": {
+                    "NAadwU": "NAadwU"
+                }
+            }
+        },
+        "llmnew-1744618546802": {
+            "type": "llm",
+            "data": {
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an AI"
+                    },
+                    {
+                        "role": "user",
+                        "content": "answer the question by {{NAadwU}}"
+                    },
+                    {
+                        "role": "user",
+                        "content": "{{W9ErWN}}"
+                    }
+                ],
+                "model": "openai/gpt-4.5-preview",
+                "base_url": "",
+                "max_tokens": 2000,
+                "temperature": 0.7,
+                "inputs": {
+                    "NAadwU": "NAadwU",
+                    "W9ErWN": "W9ErWN"
+                },
+                "structured_output": true,
+                "outputs": {
+                    "_BMfDR": "_BMfDR"
+                }
+            }
+        },
+        "copy-1744619366406": {
+            "type": "modify",
+            "data": {
+                "modify_type": "copy",
+                "content": "{{_BMfDR}}",
+                "extra_configs": {},
+                "inputs": {
+                    "_BMfDR": "_BMfDR"
+                },
+                "outputs": {
+                    "AvZ9JB": "AvZ9JB"
+                }
+            }
+        },
+        "copy-1744619377720": {
+            "type": "modify",
+            "data": {
+                "modify_type": "copy",
+                "content": "{{W9ErWN}}",
+                "extra_configs": {},
+                "inputs": {
+                    "W9ErWN": "W9ErWN"
+                },
+                "outputs": {
+                    "wR0JWe": "wR0JWe"
+                }
+            }
+        }
+    }
+}
