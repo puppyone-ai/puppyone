@@ -3,12 +3,11 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from typing import Any, Dict
-import litellm
 import instructor
-from pydantic import BaseModel
 from openai import OpenAI
+from typing import Any, Dict
 from litellm import completion
+from pydantic import BaseModel
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
