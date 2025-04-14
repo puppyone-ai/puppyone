@@ -87,19 +87,21 @@ const PromptEditor = ({ prompts, setPrompts }: {
     const renderNode = (node: PromptNode) => {
         return (
             <div key={node.id} className="relative group mb-1">
-                <div className="flex items-center gap-2">
-                    <div className="flex-1 relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
-                        <input
+                <div className="flex items-start gap-2">
+                    <div className="flex-1 relative min-h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors overflow-hidden">
+                        <textarea
                             value={node.content}
                             onChange={(e) => updateNodeContent(node.id, e.target.value)}
-                            className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
-                       text-[#CDCDCD] text-[12px] font-medium appearance-none'
+                            className='w-full bg-transparent border-none outline-none pl-[72px] pr-2 py-2
+                       text-[#CDCDCD] text-[12px] font-medium appearance-none resize-y min-h-[32px] nodrag'
                             placeholder="Enter message content..."
+                            rows={1}
+                            onMouseDown={(e) => e.stopPropagation()}
                         />
 
                         {/* Role selector */}
                         <div
-                            className={`absolute left-[6px] top-1/2 -translate-y-1/2 h-[20px] flex items-center 
+                            className={`absolute left-[6px] top-[8px] h-[20px] flex items-center 
                          px-2 rounded-[4px] cursor-pointer transition-colors
                          ${node.role === 'system'
                                     ? 'bg-[#2D2544] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50'
@@ -126,7 +128,7 @@ const PromptEditor = ({ prompts, setPrompts }: {
 
                     <button
                         onClick={() => deleteNode(node.id)}
-                        className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                        className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors mt-[4px]'
                     >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
@@ -275,7 +277,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
 
     useEffect(
         () => {
-            console.log("lastNodeWithLabel", lastNodeWithLabel.current, getSourceNodeIdWithLabel(parentId)[0]?.label)
             if (lastNodeWithLabel.current === getSourceNodeIdWithLabel(parentId)[0]?.label) {
                 return
             }
@@ -449,6 +450,19 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     };
 
     const onDataSubmit = async () => {
+        // 在提交前输出当前节点的内容和prompts数据
+        console.log("Current prompts:", prompts);
+        console.log("Current node content:", getNode(parentId)?.data.content);
+        
+        // 如果需要，还可以先手动构建一次JSON看看结果
+        const promptsJson = JSON.stringify(
+            prompts.map(prompt => ({
+                role: prompt.role,
+                content: prompt.content
+            }))
+        );
+        console.log("Constructed prompts JSON:", promptsJson);
+        
         // Clear activation
         await new Promise(resolve => {
             clearAll();
@@ -471,9 +485,9 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     };
 
     const constructJsonData = (): ConstructedLLMJsonData | Error => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId)
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId)
-
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        
         // 创建包含所有连接节点的 blocks
         let blocks: { [key: string]: NodeJsonType } = {}
 
@@ -492,23 +506,27 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         // 创建 edges
         let edges: { [key: string]: LLMEdgeJsonType } = {}
 
-        // 获取消息内容
-        const messageContent = cleanJsonString(getNode(parentId)?.data.content as string)
-        console.log(messageContent)
+        // 直接从节点的 promptsData 获取消息
+        const nodeData = getNode(parentId)?.data;
+        let messages = [];
         
+        if (nodeData?.promptsData && Array.isArray(nodeData.promptsData)) {
+            // 优先使用节点的 promptsData
+            messages = nodeData.promptsData;
+            console.log("Using node's promptsData:", messages);
+        } else {
+            // 直接使用当前组件的 prompts 状态
+            messages = prompts.map(p => ({
+                role: p.role,
+                content: p.content
+            }));
+            console.log("Using current prompts state:", messages);
+        }
+
         const edgejson: LLMEdgeJsonType = {
             type: "llm",
             data: {
-                messages: [
-                    {
-                        "role": "system",
-                        "content": "You are an AI"
-                    },
-                    {
-                        "role": "user",
-                        "content": `answer the question by {{${sourceNodeIdWithLabelGroup.map((node: { id: string, label: string }) => (node.label))[0]}}}`
-                    }
-                ],
+                messages: messages,
                 model: model as string,
                 base_url: baseUrl,
                 max_tokens: 4096,
@@ -568,20 +586,20 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             // Define SVG icons for each node type, using the provided references
             const nodeIcons = {
                 text: (
-                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                    <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
                         <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                         <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                         <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 ),
                 file: (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
                         <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5" />
                         <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 ),
                 structured: (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
                         <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
                         <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
                         <path d="M9 9H11V11H9V9Z" className="fill-current" />
@@ -645,20 +663,20 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             // 使用相同的图标
             const nodeIcons = {
                 text: (
-                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                    <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
                         <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                         <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                         <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 ),
                 file: (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
                         <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5" />
                         <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 ),
                 structured: (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
                         <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
                         <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
                         <path d="M9 9H11V11H9V9Z" className="fill-current" />
@@ -756,7 +774,7 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
                 content: prompt.content
             }))
         );
-        
+
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, content: updatedContent } };
@@ -811,17 +829,66 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             <li className='flex flex-row gap-[12px]'>
                 {/* Input section - left side */}
                 <div className='flex-1 flex flex-col gap-1'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                        <div className='flex items-center gap-[4px]'>
+                            {/* Text icon with neutral frame - smaller SVG */}
+                            <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
+                                <svg width="10" height="10" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                </svg>
+                            </div>
+                            {/* Structured icon with neutral frame - smaller SVG */}
+                            <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                    <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                    <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                    <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                    <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                         <div className='flex flex-wrap gap-2'>
                             {displaySourceNodeLabels()}
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Output section - right side */}
                 <div className='flex-1 flex flex-col gap-1'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                        <div className='flex items-center gap-[4px] pl-[4px]'>
+                            {/* Output types with neutral frames - smaller SVGs */}
+                            <div className='flex items-center gap-[4px]'>
+                                {/* Text icon with neutral frame - smaller SVG */}
+                                <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]'>
+                                    <svg width="10" height="10" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                        <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                        <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                                    </svg>
+                                </div>
+                                {/* Structured icon with neutral frame - smaller SVG - still using conditional opacity */}
+                                <div className='w-[16px] h-[16px] flex items-center justify-center rounded-[4px] border-[0.5px] border-[#404040] bg-[#252525]' >
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                        <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                        <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                        <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                        <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                         <div className='flex flex-wrap gap-2'>
                             {displayTargetNodeLabels()}
@@ -841,15 +908,15 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
             </li>
             <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
-                    <label className='text-[13px] font-semibold text-[#6D7177]'>Structured Output</label>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>Output type</label>
                     <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
                 <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <PuppyDropdown
-                        options={["True", "False"]}
-                        selectedValue={isStructured_output ? "True" : "False"}
+                        options={["text", "structured text"]}
+                        selectedValue={isStructured_output ? "structured text" : "text"}
                         onSelect={(value: string) => {
-                            setStructured_output(value === "True");
+                            setStructured_output(value === "structured text");
                             onBlur && onBlur();
                         }}
                         buttonHeight="32px"

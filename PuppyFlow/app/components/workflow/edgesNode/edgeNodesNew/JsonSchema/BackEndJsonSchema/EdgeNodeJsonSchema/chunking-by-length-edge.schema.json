@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Chunking By Length Edge Node",
+  "description": "用于按长度分块的边节点 Schema",
+  "type": "object",
+  "required": ["type", "data"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "enum": ["chunk"],
+      "description": "节点类型，必须为 'chunk'"
+    },
+    "data": {
+      "type": "object",
+      "required": ["chunking_mode", "sub_chunking_mode", "extra_configs", "inputs", "outputs"],
+      "properties": {
+        "chunking_mode": {
+          "type": "string",
+          "enum": ["length"],
+          "description": "分块模式，必须为 'length'"
+        },
+        "sub_chunking_mode": {
+          "type": "string",
+          "enum": ["size", "tokenizer"],
+          "description": "子分块模式，可以是 'size' 或 'tokenizer'"
+        },
+        "extra_configs": {
+          "type": "object",
+          "required": ["chunk_size", "overlap", "handle_half_word"],
+          "properties": {
+            "chunk_size": {
+              "type": "number",
+              "minimum": 1,
+              "description": "每个块的大小"
+            },
+            "overlap": {
+              "type": "number",
+              "minimum": 0,
+              "description": "块之间的重叠大小"
+            },
+            "handle_half_word": {
+              "type": "boolean",
+              "description": "是否处理半个词的情况"
+            }
+          }
+        },
+        "inputs": {
+          "type": "object",
+          "description": "输入节点映射，键为节点ID，值为节点标签",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1
+        },
+        "outputs": {
+          "type": "object",
+          "description": "输出节点映射，键为节点ID，值为节点标签",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "minProperties": 1
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "type": "chunk",
+      "data": {
+        "chunking_mode": "length",
+        "sub_chunking_mode": "size",
+        "extra_configs": {
+          "chunk_size": 200,
+          "overlap": 20,
+          "handle_half_word": false
+        },
+        "inputs": {
+          "node-123": "inputnodeLabel"
+        },
+        "outputs": {
+          "node-456": "outputnodeLabel"
+        }
+      }
+    }
+  ]
+} 

@@ -1,0 +1,212 @@
+import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
+import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
+import React, { useState, useEffect, useRef } from 'react'
+import InputOutputDisplay from './components/InputOutputDisplay'
+import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
+import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
+
+export type ModifyConfigNodeData = {
+    content: string | null,
+    resultNode: string | null
+}
+
+type Convert2TextNodeProps = NodeProps<Node<ModifyConfigNodeData>>
+
+function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
+    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+    const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
+    const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const { getNode } = useReactFlow()
+
+    // 使用基础 edge node 逻辑，只传入最小必要参数
+    const { 
+        isLoading,
+        handleDataSubmit 
+    } = useBaseEdgeNodeLogic({
+        parentId: id,
+        targetNodeType: 'text'
+    });
+
+    useEffect(() => {
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+            setIsMenuOpen(true)
+        }
+
+        return () => {
+            if (activatedEdge === id) {
+                clearEdgeActivation()
+            }
+        }
+    }, [])
+
+    // 添加 effect 来监听 activatedEdge 的变化
+    useEffect(() => {
+        // 当 activatedEdge 不再是当前节点时，关闭菜单
+        if (activatedEdge !== id && isMenuOpen) {
+            setIsMenuOpen(false)
+        }
+    }, [activatedEdge, id])
+
+    const onClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 切换菜单状态
+        const newMenuState = !isMenuOpen
+        setIsMenuOpen(newMenuState)
+        
+        // 同步 activatedEdge 状态
+        if (newMenuState) {
+            clearAll()
+            activateEdge(id)
+        } else {
+            clearEdgeActivation()
+        }
+    }
+
+    // 定义 handle 样式
+    const handleStyle = {
+        position: "absolute" as const,
+        width: "calc(100%)",
+        height: "calc(100%)",
+        top: "0",
+        left: "0",
+        borderRadius: "0",
+        transform: "translate(0px, 0px)",
+        background: "transparent",
+        border: "3px solid transparent",
+        zIndex: !isOnConnect ? "-1" : "1",
+    };
+
+    return (
+        <div className='w-[80px] h-[48px]'>
+            <button 
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] 
+                ${isOnConnect && isTargetHandleTouched || activatedEdge === id 
+                    ? "border-main-orange text-main-orange" 
+                    : "border-[#CDCDCD] text-[#CDCDCD]"} 
+                bg-[#181818] hover:border-main-orange hover:text-main-orange 
+                flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] 
+                ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`} 
+                onClick={onClickButton}
+            >
+                Convert
+
+                {/* Source Handles */}
+                <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
+                <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
+                <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
+                <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
+                
+                {/* Target Handles */}
+                <Handle
+                    id={`${id}-a`}
+                    type="target"
+                    position={Position.Top}
+                    style={handleStyle}
+                    isConnectable={isConnectable}
+                    onMouseEnter={() => setIsTargetHandleTouched(true)}
+                    onMouseLeave={() => setIsTargetHandleTouched(false)}
+                />
+                <Handle
+                    id={`${id}-b`}
+                    type="target"
+                    position={Position.Right}
+                    style={handleStyle}
+                    isConnectable={isConnectable}
+                    onMouseEnter={() => setIsTargetHandleTouched(true)}
+                    onMouseLeave={() => setIsTargetHandleTouched(false)}
+                />
+                <Handle
+                    id={`${id}-c`}
+                    type="target"
+                    position={Position.Bottom}
+                    style={handleStyle}
+                    isConnectable={isConnectable}
+                    onMouseEnter={() => setIsTargetHandleTouched(true)}
+                    onMouseLeave={() => setIsTargetHandleTouched(false)}
+                />
+                <Handle
+                    id={`${id}-d`}
+                    type="target"
+                    position={Position.Left}
+                    style={handleStyle}
+                    isConnectable={isConnectable}
+                    onMouseEnter={() => setIsTargetHandleTouched(true)}
+                    onMouseLeave={() => setIsTargetHandleTouched(false)}
+                />
+            </button>
+            
+            {/* Config Menu */}
+            {isMenuOpen && <Convert2TextConfigMenu show={true} parentId={id} isLoading={isLoading} handleDataSubmit={handleDataSubmit} />}
+        </div>
+    )
+}
+
+type Convert2TextConfigProps = {
+    show: boolean;
+    parentId: string;
+    isLoading: boolean;
+    handleDataSubmit: () => Promise<void>;
+}
+
+function Convert2TextConfigMenu({ show, parentId, isLoading, handleDataSubmit }: Convert2TextConfigProps) {
+    const menuRef = useRef<HTMLUListElement>(null)
+    const { getNode } = useReactFlow()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+
+    return (
+        <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg`}>
+            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                        <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                <path d="M12 2L2 12" stroke="#CDCDCD" strokeWidth="1.5" />
+                                <path d="M12 2L8 2" stroke="#CDCDCD" strokeWidth="1.5" />
+                                <path d="M12 2L12 6" stroke="#CDCDCD" strokeWidth="1.5" />
+                                <path d="M2 12L6 12" stroke="#CDCDCD" strokeWidth="1.5" />
+                                <path d="M2 12L2 8" stroke="#CDCDCD" strokeWidth="1.5" />
+                            </svg>
+                        </div>
+                        <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                            Convert to Text
+                        </div>
+                    </div>
+                </div>
+                <div className='flex flex-row gap-[8px] items-center justify-center'>
+                    <button 
+                        className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]' 
+                        onClick={handleDataSubmit}
+                        disabled={isLoading}
+                    >
+                        <span>
+                            {isLoading ? (
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                                    <path d="M8 5L0 10V0L8 5Z" fill="black" />
+                                </svg>
+                            )}
+                        </span>
+                        <span>{isLoading ? 'Running' : 'Run'}</span>
+                    </button>
+                </div>
+            </li>
+            <li>
+                <InputOutputDisplay
+                    parentId={parentId}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                />
+            </li>
+        </ul>
+    )
+}
+
+export default Convert2Text

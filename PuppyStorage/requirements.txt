@@ -1,5 +1,6 @@
 python-dotenv
 PyYAML
+python-multipart
 
 # Embedding
 openai
@@ -13,6 +14,7 @@ qdrant_client
 weaviate-client
 psycopg2-binary
 pinecone
+chromadb
 
 # Server
 boto3
@@ -26,3 +28,8 @@ grpcio-tools
 protobuf
 protoc-gen-openapiv2
 googleapis-common-protos
+
+# Test
+pytest 
+httpx
+
