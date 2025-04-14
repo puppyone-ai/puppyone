@@ -637,6 +637,15 @@ class WorkFlow():
 
         return self.blocks[target_block_id]["type"]
 
+    def __enter__(self):
+        """上下文管理器入口"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """上下文管理器退出时自动清理资源"""
+        self.cleanup_resources()
+        return False  # 让异常继续传播
+
 
 if __name__ == "__main__":
     from dotenv import load_dotenv

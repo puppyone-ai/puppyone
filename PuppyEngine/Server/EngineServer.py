@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from Server.WorkFlow import WorkFlow
+from Server.JsonValidation import JsonValidator
 from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error
 
@@ -172,21 +173,24 @@ async def get_data(
                         f"Workflow with task_id {task_id} not found"
                     )
 
-                for yielded_blocks in workflow.process():
-                    if not yielded_blocks:
-                        continue
-                    yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
+                # 使用上下文管理器自动管理资源
+                with workflow:
+                    for yielded_blocks in workflow.process():
+                        if not yielded_blocks:
+                            continue
+                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
-                yield f"data: {json.dumps({'is_complete': True})}\n\n"
+                    yield f"data: {json.dumps({'is_complete': True})}\n\n"
 
-
-                data_store.cleanup_task(task_id)
+                # workflow 退出上下文后自动清理，这里只需要清理 data_store
+                if task_id in data_store.data_store:
+                    del data_store.data_store[task_id]
                 
             except PuppyException as e:
                 log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-                data_store.cleanup_task(task_id)
+                if task_id in data_store.data_store:
+                    del data_store.data_store[task_id]
 
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     except PuppyException as e:
