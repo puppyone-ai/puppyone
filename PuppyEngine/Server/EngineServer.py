@@ -161,6 +161,8 @@ async def get_data(
                     )
 
                 for yielded_blocks in workflow.process():
+                    if not yielded_blocks:
+                        continue
                     yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
 
                 log_info("Execution complete")
@@ -174,7 +176,7 @@ async def get_data(
                 with data_store.lock:
                     if task_id in data_store.data_store:
                         del data_store.data_store[task_id]
-            except Exception as e:
+            except PuppyException as e:
                 log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 

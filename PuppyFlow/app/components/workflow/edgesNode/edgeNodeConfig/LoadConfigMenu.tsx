@@ -223,7 +223,7 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
             // Get the node type from the node data
             const nodeInfo = getNode(node.id)
             const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
-            
+
             // Define colors based on node type
             let colorClasses = {
                 text: {
@@ -239,20 +239,20 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
                     default: 'bg-[#252525] border-[#9B7EDB]/50 text-[#9B7EDB] hover:border-[#9B7EDB]/80 hover:bg-[#B0A4E3]/5'
                 }
             }
-            
+
             // Define SVG icons for each node type, using the provided references
             const nodeIcons = {
                 text: (
                     <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
-                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
-                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 ),
                 file: (
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5"/>
-                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round"/>
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-current" strokeWidth="1.5" />
+                        <path d="M8 13.5H16" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                     </svg>
                 ),
                 structured: (
@@ -266,22 +266,22 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
                     </svg>
                 )
             }
-            
+
             // Choose the appropriate color classes based on node type
             const colors = colorClasses[nodeType as keyof typeof colorClasses] || colorClasses.text
-            
+
             // Choose the appropriate icon based on node type
             const icon = nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text
-            
+
             return (
-                <button 
-                    key={`${node.id}-${parentId}`} 
+                <button
+                    key={`${node.id}-${parentId}`}
                     onClick={() => copyToClipboard(node.label)}
                     className={`flex items-center gap-[4px] px-[8px] h-[20px] rounded-[4px] 
                              border-[1px] text-[10px] font-medium transition-all duration-200
-                             ${copiedLabel === node.label 
-                               ? colors.active
-                               : colors.default}`}
+                             ${copiedLabel === node.label
+                            ? colors.active
+                            : colors.default}`}
                 >
                     <div className="flex-shrink-0">
                         {icon}
@@ -390,11 +390,11 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
 
         // 获取源节点内容，用于构建文件配置
         const nodeContent = getNode(sourceNodeIdWithLabelGroup[0]?.id)?.data?.content
-        const fileConfigs = Array.isArray(nodeContent) 
+        const fileConfigs = Array.isArray(nodeContent)
             ? nodeContent.map(file => ({
                 file_path: file.download_url,
                 file_type: file.fileType
-              }))
+            }))
             : []
 
         // 创建 edges
@@ -430,11 +430,11 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
                 <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                         <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="10" viewBox="0 0 13 10" fill="none">
-                            <rect x="0.75" y="0.75" width="5.5" height="8.5" stroke="#D9D9D9" strokeWidth="1.5" />
-                            <path d="M13 5L9 2.6906V7.3094L13 5ZM9 5.4H9.4V4.6H9V5.4Z" fill="#D9D9D9" />
-                            <path d="M6 5H10" stroke="#D9D9D9" strokeWidth="1.5" />
-                        </svg>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="10" viewBox="0 0 13 10" fill="none">
+                                <rect x="0.75" y="0.75" width="5.5" height="8.5" stroke="#D9D9D9" strokeWidth="1.5" />
+                                <path d="M13 5L9 2.6906V7.3094L13 5ZM9 5.4H9.4V4.6H9V5.4Z" fill="#D9D9D9" />
+                                <path d="M6 5H10" stroke="#D9D9D9" strokeWidth="1.5" />
+                            </svg>
                         </div>
                         <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
                             Load
@@ -442,7 +442,7 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
                     </div>
                 </div>
                 <div className='flex flex-row gap-[8px] items-center justify-center'>
-                    <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]' 
+                    <button className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                         onClick={onDataSubmit}>
                         <span>
                             <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -453,21 +453,43 @@ function LoadConfigMenu({ show, parentId }: LoadConfigProps) {
                     </button>
                 </div>
             </li>
-                        {/* Side-by-side Input/Output section with labels outside */}
-                        <li className='flex flex-row gap-[12px]'>
+            {/* Side-by-side Input/Output section with labels outside */}
+            <li className='flex flex-row gap-[12px]'>
                 {/* Input section - left side */}
                 <div className='flex-1 flex flex-col gap-1'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* File icon */}
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F]" strokeWidth="1.5" />
+                                <path d="M8 13.5H16" className="stroke-[#9E7E5F]" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                        </div>
+                    </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                         <div className='flex flex-wrap gap-2'>
                             {displaySourceNodeLabels()}
                         </div>
                     </div>
                 </div>
-                
+
                 {/* Output section - right side */}
                 <div className='flex-1 flex flex-col gap-1'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                    <div className='flex items-center gap-2'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
+                        <div className='flex items-center gap-[6px]'>
+                            {/* Structured icon */}
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                                <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                                <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                            </svg>
+                        </div>
+                    </div>
                     <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                         <div className='flex flex-wrap gap-2'>
                             {displayTargetNodeLabels()}
