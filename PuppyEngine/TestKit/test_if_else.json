@@ -41,10 +41,12 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": {
-                            "from": "3NFJok",
-                            "to": "g_ncBD"
-                        }
+                        "then": [
+                            {
+                                "from": "3NFJok",
+                                "to": "g_ncBD"
+                            }
+                        ]
                     },
                     "case2": {
                         "conditions": [
@@ -57,10 +59,12 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": {
-                            "from": "3NFJok",
-                            "to": "WUzxLi"
-                        }
+                        "then": [
+                            {
+                                "from": "3NFJok",
+                                "to": "WUzxLi"
+                            }
+                        ]
                     }
                 },
                 "inputs": {
