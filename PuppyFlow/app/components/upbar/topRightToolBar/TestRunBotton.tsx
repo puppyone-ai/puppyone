@@ -1,17 +1,18 @@
 import React, { useState } from 'react'
-import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJsonConstructUtils'
 import { useBaseEdgeNodeLogic } from '../../workflow/edgesNode/edgeNodesNew/hook/useRunAllLogic'
 import { useReactFlow } from '@xyflow/react'
 
 function TestRunBotton() {
   const [hovered, setHovered] = useState(false)
-  const { sendWholeWorkflowJsonDataToBackend, isComplete, setIsComplete } = useWholeWorkflowJsonConstructUtils()
+  const [isComplete, setIsComplete] = useState(true)
   const { getNodes } = useReactFlow()
   
   // 初始化 useBaseEdgeNodeLogic
   // 注意：这里我们传入一个临时ID作为parentId，因为我们是全局运行
   // 实际中，你可能需要动态找到一个主节点或根节点作为parentId
   const { handleDataSubmit, } = useBaseEdgeNodeLogic({
+    onComplete: () => setIsComplete(true),
+    onStart: () => setIsComplete(false)
   })
 
   const onDataSubmit = async () => {
@@ -29,7 +30,7 @@ function TestRunBotton() {
     }
 
     try {
-      // 更新状态 - 设置为处理中
+      // 设置为处理中
       setIsComplete(false)
       
       // 执行处理逻辑
@@ -39,9 +40,6 @@ function TestRunBotton() {
     } catch (error) {
       console.error('Error processing nodes:', error)
       alert('An error occurred while processing nodes. See console for details.')
-    } finally {
-      // 无论成功还是失败，都需要重置完成状态
-      setIsComplete(true)
     }
   }
 
