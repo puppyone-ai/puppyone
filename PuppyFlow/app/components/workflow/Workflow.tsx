@@ -340,102 +340,16 @@ function Workflow() {
   }
 
 
-
-
   useEffect(() => {
-    //edgesIds are same in get edges and edgesIds sueing math set compare
-    //check sets fully include each other to compare
-    //console.log(getEdges().map((edge) => edge.id), edgesIds, "edgesIds")
-    if (!array1HasExtraElements(getEdges().map((edge) => edge.id), edgesIds) && !array1HasExtraElements(edgesIds, getEdges().map((edge) => edge.id))) {
+    // 检查边缘集合是否真的改变了
+    if (!array1HasExtraElements(getEdges().map((edge) => edge.id), edgesIds) && 
+        !array1HasExtraElements(edgesIds, getEdges().map((edge) => edge.id))) {
       return
     }
 
     setEdgesIds(getEdges().map((edge) => edge.id))
 
-    //console.log(getEdges(), "edges from workflow")
-    // filter out edges that have a source node of type "file" "text" "structured" "choose"
-    const filteredEdges = getEdges().filter((edge) => {
-      const sourceNode = getNode(edge.source)
-      return sourceNode?.type !== "file" && sourceNode?.type !== "text" && sourceNode?.type !== "structured" && sourceNode?.type !== "choose"
-    })
-
-    const inputBlockEdges = getEdges().filter((edge) => {
-      const sourceNode = getNode(edge.source)
-      return sourceNode?.type === "file" || sourceNode?.type === "text" || sourceNode?.type === "structured" || sourceNode?.type === "choose"
-    })
-    // map inputBlockEdges to {target node id: {source node id: {type: "", resultNode: ""}}} use object from to map list into object
-    const inputBlockEdgesMap = inputBlockEdges.map((edge) => {
-      return [edge.target, { source: edge.source, type: getNode(edge.source)?.type }]
-    })
-    // console.log(inputBlockEdgesMap, "input block edges map")
-    // convert inputBlockEdgesMap to object
-    // map target block(edge block) id to source block(input block) id and type
-    const inputBlockEdgesMapObject = Object.fromEntries(inputBlockEdgesMap)
-    // console.log(inputBlockEdgesMapObject, "input block edges map object")
-
-    // console.log(filteredEdges, "filtered edges")
-    // map filtered edges to [{source node{id:"", type:""， resultNode:""}, target node:{id:"", type:""}}]
-    const mappedEdges = filteredEdges.map((edge) => {
-      return { source: { id: edge.source, type: getNode(edge.source)?.type, resultNode: getNode(edge.source)?.data.resultNode, subType: getNode(edge.source)?.data.subMenuType }, target: { id: edge.target, type: getNode(edge.target)?.type, label: getNode(edge.target)?.data.label } }
-    })
-    // console.log(mappedEdges, "mapped edges")
-    // if the source node doesn't have a resultNode but have a target, then add the target node as a resultNode
-    // rules 
-    // 1. if the source node is a load node, then the resultNode should be structured then can be resultnode 
-    // 2. the resultNode should be same type with source node of the source node  except for modify 2 structured and modify 2 text
-
-    const resultnodesToUpdate = mappedEdges.map((edge) => {
-      if (edge.source.type === "load") {
-        if (!edge.source.resultNode && edge.target.type === "structured") {
-          return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
-        }
-      }
-      else if (edge.source.type === "modify-convert2structured") {
-        if (!edge.source.resultNode && edge.target.type === "structured") {
-          return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
-        }
-      }
-      else if (edge.source.type === "modify-convert2text") {
-        if (!edge.source.resultNode && edge.target.type === "text") {
-          return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
-        }
-      }
-
-      if (!edge.source.resultNode && edge.target.type === inputBlockEdgesMapObject[edge.source.id].type) {
-        return [edge.source.id, { id: edge.target.id, label: edge.target.label }]
-      }
-
-      return [edge.source.id, { id: "", label: "" }]
-
-    })
-    console.log(resultnodesToUpdate, "result nodes to update")
-
-    //update edges one by one
-    setNodes(prevNodes => {
-      return prevNodes.map(node => {
-        if (typeof node !== 'string' && 'id' in node) {
-          // Find if this node needs to be updated
-          const updateInfo = resultnodesToUpdate.find(item => item && item[0] === node.id);
-          console.log(updateInfo, "update info")
-          if (updateInfo) {
-            // Apply the update to this node
-            console.log(updateInfo[1], "update info[1]")
-            return {
-              ...node,
-              data: {
-                ...node.data,
-                resultNode: typeof updateInfo[1] === 'object' && updateInfo[1] !== null ? (updateInfo[1].label || updateInfo[1].id) : undefined
-              }
-            };
-          }
-        }
-        return node;
-      });
-    })
-
   }, [getEdges()])
-
-
 
 
   return (
