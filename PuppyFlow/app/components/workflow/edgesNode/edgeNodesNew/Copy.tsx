@@ -84,7 +84,6 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
 
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
-            <div className="relative">
                 {/* Run button as a small square floating above the node */}
 
                 {/* Main node button */}
@@ -138,7 +137,7 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
                         onMouseLeave={() => setIsTargetHandleTouched(false)}
                     />
                 </button>
-            </div>
+
 
             {/* Configuration Menu (integrated directly) */}
             {isMenuOpen && (
