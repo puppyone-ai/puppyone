@@ -287,34 +287,16 @@ class WorkFlow():
     ) -> List[str]:
         return [bid for bid, state in self.block_states.items() if state == "processed"]
 
-    def clear_workflow(
-        self
-    ) -> None:
-        """
-        Clear the workflow
-        """
-
-        self.blocks = {}
-        self.edges = {}
-        self.block_states = {}
-        self.edge_states = {}
-        self.edge_to_inputs_mapping = {}
-        self.edge_to_outputs_mapping = {}
-
     @global_exception_handler(5202, "Error Processing Workflow", True)
-    def process(
-        self
-    ) -> Generator[Dict[str, Any], None, None]:
+    def process(self) -> Generator[Dict[str, Any], None, None]:
         """
         Process the workflow with concurrent edge execution
         """
-
         try:
             logger.info("Starting workflow processing")
-
-            # while there is still edges to process
+            
+            # 处理工作流
             parallel_batch = self._find_parallel_batches()
-            # print(f"Parallel batch: {parallel_batch}")
             batch_count = 0
 
             while parallel_batch:
@@ -325,29 +307,41 @@ class WorkFlow():
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
 
                 processed_block_ids = self._process_batch_results(parallel_batch)
-                # print(f"Processed block ids: {processed_block_ids}")
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
                 }
-                # print(f"Processed blocks: {processed_blocks}")
-
-                if self.step_mode:
-                    print(f"\nBatch #{batch_count} completed.")
-                    print(f"Processed blocks: {processed_block_ids}")
-                    for block_id in processed_block_ids:
-                        content = self.blocks.get(block_id, {}).get("data", {}).get("content", "")
-                        if isinstance(content, str) and len(content) > 100:
-                            content = content[:100] + "..."
-                        print(f"Block {block_id} content: {content}")
 
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
-                # print(f"Next Parallel batch: {parallel_batch}")
-
+            
         finally:
-            self._log_final_states()
+            # 确保在处理完成后自动清理资源
+            self.cleanup_resources()
             logger.info("Workflow processing completed")
+
+    def cleanup_resources(self):
+        """
+        清理工作流相关资源
+        """
+        try:
+            # 关闭线程池
+            if hasattr(self, 'thread_executor') and self.thread_executor:
+                self.thread_executor.shutdown(wait=True)
+                self.thread_executor = None
+            
+            # 清理其他资源
+            self.blocks.clear()
+            self.edges.clear()
+            self.block_states.clear()
+            self.edge_states.clear()
+            self.edge_to_inputs_mapping.clear()
+            self.edge_to_outputs_mapping.clear()
+            
+            # 打破可能的循环引用
+            self.state_lock = None
+        except Exception as e:
+            logger.error(f"Error during workflow cleanup: {str(e)}")
 
     def _find_parallel_batches(
         self
@@ -643,6 +637,15 @@ class WorkFlow():
 
         return self.blocks[target_block_id]["type"]
 
+    def __enter__(self):
+        """上下文管理器入口"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """上下文管理器退出时自动清理资源"""
+        self.cleanup_resources()
+        return False  # 让异常继续传播
+
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
@@ -650,7 +653,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_files.json":
+        if file_name != "test_loop_structured_get.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
@@ -667,4 +670,4 @@ if __name__ == "__main__":
 
         logger.info("Final blocks state: %s", workflow.blocks)
         logger.info("All outputs: %s", outputs)
-        workflow.clear_workflow()
+        workflow.cleanup_resources()
