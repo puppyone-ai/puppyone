@@ -23,9 +23,12 @@ class DataStore:
         self.data_store = defaultdict(lambda: {
             "blocks": {}, 
             "edges": {},
-            "workflow": None  # Add workflow storage
+            "workflow": None,
+            "cleanup_status": False,
+            "processing_status": False  # 添加处理状态标记
         })
         self.lock = Lock()
+        self.task_locks = {}  # 每个任务一个锁
 
     def get_data(
         self,
@@ -41,9 +44,18 @@ class DataStore:
         self,
         task_id: str
     ) -> WorkFlow:
-        """Get workflow object for task"""
+        """获取工作流并检查处理状态"""
         with self.lock:
-            return self.data_store.get(task_id, {}).get("workflow")
+            task_data = self.data_store.get(task_id, {})
+            if task_data.get("processing_status", False):
+                # 返回None表示该工作流已在处理中
+                return None
+            
+            workflow = task_data.get("workflow")
+            if workflow:
+                # 标记为处理中，防止重复处理
+                task_data["processing_status"] = True
+            return workflow
 
     def set_workflow(
         self,
@@ -117,17 +129,45 @@ class DataStore:
             self.data_store[task_id]["blocks"] = block_map
 
     def cleanup_task(self, task_id: str):
-        """安全清理任务相关资源"""
+        """安全清理任务资源，防止重复清理"""
+        with self.lock:
+            # 1. 检查任务是否存在
+            if task_id not in self.data_store:
+                log_info(f"Task {task_id} not found or already cleaned up")
+                return
+            
+            # 2. 检查任务是否有清理状态标记
+            task_data = self.data_store[task_id]
+            if task_data.get("_cleaning", False):
+                log_info(f"Task {task_id} already being cleaned up")
+                return
+            
+            # 3. 标记开始清理
+            task_data["_cleaning"] = True
+        
+        # 4. 获取工作流对象并清理
+        workflow = self.data_store[task_id].get("workflow")
+        if workflow:
+            try:
+                log_info(f"Cleaning up workflow resources for task {task_id}")
+                workflow.cleanup_resources()
+            except Exception as e:
+                log_error(f"Error cleaning up workflow: {str(e)}")
+        
+        # 5. 最后移除任务数据
         with self.lock:
             if task_id in self.data_store:
-                # 获取 workflow 实例
-                workflow = self.data_store[task_id].get("workflow")
-                if workflow:
-                    # 确保 workflow 资源被清理
-                    workflow.cleanup_resources()
-                
-                # 删除存储的数据
                 del self.data_store[task_id]
+                log_info(f"Task {task_id} completely cleaned up")
+
+    def mark_processing_done(
+        self,
+        task_id: str
+    ) -> None:
+        """标记处理完成"""
+        with self.lock:
+            if task_id in self.data_store:
+                self.data_store[task_id]["processing_status"] = False
 
 try:
     app = FastAPI()
@@ -162,48 +202,57 @@ async def health_check():
 async def get_data(
     task_id: str
 ):
+    """流式返回工作流处理结果，确保每个工作流只执行一次"""
+    log_info(f"Getting data for task {task_id}")
     try:
         def stream_data():
+            processed = False           
             try:
+                # 获取工作流，如果返回None表示已在处理中
                 workflow = data_store.get_workflow(task_id)
                 if not workflow:
-                    raise PuppyException(
-                        7303,
-                        "Workflow Not Found",
-                        f"Workflow with task_id {task_id} not found"
-                    )
+                    log_error(f"Workflow for task {task_id} is either not found or already being processed")
+                    yield f"data: {json.dumps({'error': 'Workflow not found or already being processed'})}\n\n"
+                    return
 
-                # 使用上下文管理器自动管理资源
-                with workflow:
-                    for yielded_blocks in workflow.process():
-                        if not yielded_blocks:
-                            continue
-                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
+                # 执行工作流
+                for blocks in workflow.process():
+                    print(f"Received blocks: {blocks}")
+                    yield f"data: {json.dumps({'data': blocks, 'is_complete': False})}\n\n"
 
-                    yield f"data: {json.dumps({'is_complete': True})}\n\n"
+                # 标记处理完成
+                processed = True
+                log_info(f"Workflow processed successfully for task {task_id}")
+                yield f"data: {json.dumps({'is_complete': True})}\n\n"
 
-                # workflow 退出上下文后自动清理，这里只需要清理 data_store
-                if task_id in data_store.data_store:
-                    del data_store.data_store[task_id]
-                
-            except PuppyException as e:
-                log_error(f"Error during streaming: {str(e)}")
+            except Exception as e:
+                log_error(f"Error in stream_data for task {task_id}: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                if task_id in data_store.data_store:
-                    del data_store.data_store[task_id]
 
-        return StreamingResponse(stream_data(), media_type="text/event-stream")
-    except PuppyException as e:
-        log_error(f"Error Getting Data from Server: {str(e)}")
-        raise PuppyException(6100, "Error Getting Data from Server", str(e))
+            # finally:
+            #     if processed:
+            #         log_info(f"Cleaning up task {task_id} after successful processing")
+            #         data_store.cleanup_task(task_id)
+
+        # 返回流式响应，并设置合理的超时
+        return StreamingResponse(
+            stream_data(), 
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+        )
+
     except Exception as e:
-        log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyException(6300, "Server Internal Error", str(e))
+        log_error(f"Error in get_data endpoint: {str(e)}")
+        return JSONResponse(
+            content={"error": f"Server error: {str(e)}"},
+            status_code=500
+        )
 
 @app.post("/send_data")
 async def send_data(
     request: Request
 ):
+    log_info("Sending data to server")
     try:
         data = await request.json()
         task_id = str(uuid.uuid4())
@@ -212,6 +261,7 @@ async def send_data(
             edges = data.get("edges", {})
             data_store.set_data(task_id, blocks, edges)
             data_store.set_workflow(task_id, WorkFlow(data))  # Store workflow in DataStore
+            log_info(f"Data sent to server for task {task_id}")
             return JSONResponse(content={"data": data, "task_id": task_id}, status_code=200)
 
         return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
