@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Union, Tuple
 from Utils.puppy_exception import global_exception_handler
+import json
 
 
 @dataclass
@@ -260,6 +261,75 @@ class LLMConfigParser(EdgeConfigParser):
         )
 
 
+class GeneratorConfigParser(EdgeConfigParser):
+    @global_exception_handler(3003, "Error Parsing Generator Edge")
+    def parse(
+        self,
+        variable_replace_field: str = None
+    ) -> ParsedEdgeParams:
+        # Get required data from edge configs
+        self.edge_configs.pop("inputs", None)
+        self.edge_configs.pop("outputs", None)
+        variables = self.get_looped_configs()
+
+        init_configs = []
+        extra_configs = []
+
+        for variable in variables:
+            config = {**self.edge_configs}
+
+            # Process queries - convert block IDs to actual content and format
+            queries = self._process_field_content(self.edge_configs.get("queries", []), variable)
+            formatted_query = self._format_numbered_items(queries, "Query")
+
+            # Process docs - convert block IDs to actual content and format
+            docs = self._process_field_content(self.edge_configs.get("docs", []), variable)
+            formatted_context = self._format_numbered_items(docs, "Document")
+
+            # Replace the fields in the config
+            config.pop("queries", None)
+            config.pop("docs", None)
+            config["query"] = formatted_query
+            config["context"] = formatted_context
+
+            init_configs.append(config)
+            extra_configs.append({})
+
+        is_loop = len(variables) > 1
+
+        return ParsedEdgeParams(
+            init_configs=init_configs,
+            extra_configs=extra_configs,
+            is_loop=is_loop
+        )
+    
+    def _process_field_content(self, field_ids, variable_values):
+        """Convert a list of block IDs to actual content strings"""
+        result = []
+        for block_id in field_ids:
+            if block_id in variable_values:
+                content = variable_values[block_id]
+                if isinstance(content, (list, dict)):
+                    # Convert structured content to string
+                    content = json.dumps(content)
+                result.append(str(content))
+        return result
+    
+    def _format_numbered_items(self, items, prefix="Item"):
+        """Format a list of items with numbered prefixes"""
+        if not items:
+            return ""
+            
+        if len(items) == 1:
+            return items[0]
+            
+        formatted_items = []
+        for i, item in enumerate(items, 1):
+            formatted_items.append(f"{prefix} {i}: {item}")
+        
+        return "\n\n".join(formatted_items)
+
+
 class ChunkConfigParser(EdgeConfigParser):
     @global_exception_handler(3004, "Error Parsing Chunk Edge")
     def parse(
@@ -490,6 +560,7 @@ class ConfigParserFactory:
         "load": LoadConfigParser,
         "save": SaveConfigParser,
         "llm": LLMConfigParser,
+        "generator": GeneratorConfigParser,
         "chunk": ChunkConfigParser,
         "search": SearchConfigParser,
         "rerank": RerankConfigParser,
