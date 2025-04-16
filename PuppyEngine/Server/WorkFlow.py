@@ -314,7 +314,7 @@ class WorkFlow():
 
             # while there is still edges to process
             parallel_batch = self._find_parallel_batches()
-            print(f"Parallel batch: {parallel_batch}")
+            # print(f"Parallel batch: {parallel_batch}")
             batch_count = 0
 
             while parallel_batch:
@@ -325,12 +325,12 @@ class WorkFlow():
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
 
                 processed_block_ids = self._process_batch_results(parallel_batch)
-                print(f"Processed block ids: {processed_block_ids}")
+                # print(f"Processed block ids: {processed_block_ids}")
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
                 }
-                print(f"Processed blocks: {processed_blocks}")
+                # print(f"Processed blocks: {processed_blocks}")
 
                 if self.step_mode:
                     print(f"\nBatch #{batch_count} completed.")
@@ -343,7 +343,7 @@ class WorkFlow():
 
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
-                print(f"Next Parallel batch: {parallel_batch}")
+                # print(f"Next Parallel batch: {parallel_batch}")
 
         finally:
             self._log_final_states()

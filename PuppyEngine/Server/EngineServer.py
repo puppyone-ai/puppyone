@@ -282,8 +282,7 @@ async def get_data(
                 status_code=409  # 冲突状态码
             )
         
-        def stream_data():
-            processed = False           
+        def stream_data():          
             try:
                 # 获取工作流，如果返回None表示已在处理中
                 workflow = data_store.get_workflow(task_id)
