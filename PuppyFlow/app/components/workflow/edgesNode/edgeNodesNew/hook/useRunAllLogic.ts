@@ -20,13 +20,18 @@ export interface BaseEdgeNodeLogicReturn {
 
 export function useBaseEdgeNodeLogic({
     constructJsonData: customConstructJsonData,
+    onComplete,
+    onStart
 }: {
     constructJsonData?: () => BaseConstructedJsonData;
+    onComplete?: () => void;
+    onStart?: () => void;
 } = {}): BaseEdgeNodeLogicReturn {
     // Basic hooks
     const { getNode, setNodes, getNodes, getEdges } = useReactFlow();
     const {
         streamResult,
+        streamResultForMultipleNodes,
         reportError,
         resetLoadingUI
     } = useJsonConstructUtils();
@@ -107,12 +112,12 @@ export function useBaseEdgeNodeLogic({
                     (node.type === 'text' || node.type === 'structured')
                 );
                 
-                await Promise.all(resultNodes.map(node =>
-                    streamResult(result.task_id, node.id).then(res => {
-                        console.log(`[全局运行] 节点 ${node.id} (类型: ${node.type}) 流式处理完成:`, res);
-                        return res;
-                    })
-                ));
+                // 使用streamResultForMultipleNodes替代对每个节点调用streamResult
+                const resultNodeIds = resultNodes.map(node => node.id);
+                await streamResultForMultipleNodes(result.task_id, resultNodeIds).then(res => {
+                    console.log(`[全局运行] 所有节点流式处理完成:`, res);
+                    return res;
+                });
             }
             
         } catch (error) {
@@ -127,6 +132,8 @@ export function useBaseEdgeNodeLogic({
                 resetLoadingUI(node.id);
             });
             setIsComplete(true);
+            // 添加回调
+            if (onComplete) onComplete();
         }
     };
 
@@ -206,6 +213,8 @@ export function useBaseEdgeNodeLogic({
                 resolve(null);
             });
             
+            // 添加回调
+            if (onStart) onStart();
             setIsComplete(false);
         } catch (error) {
             console.error("Error submitting data:", error);

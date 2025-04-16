@@ -22,7 +22,6 @@ export type SearchConfigNodeData = {
         model: "llama-3.1-sonar-small-128k-online" | "llama-3.1-sonar-large-128k-online" | "llama-3.1-sonar-huge-128k-online" | undefined,
         threshold: number | undefined
     },
-    resultNode: string | null
 }
 
 type SearchPerplexityNodeProps = NodeProps<Node<SearchConfigNodeData>>
@@ -35,11 +34,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
 
-    // 状态管理
-    const [resultNode, setResultNode] = useState<string | null>(
-        (getNode(id)?.data as SearchConfigNodeData)?.resultNode ?? null
-    )
-    
+
     // 模型配置
     const [model, setModel] = useState<perplexityModelNames>(
         (getNode(id)?.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"
@@ -103,13 +98,12 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
                             ...((node.data as SearchConfigNodeData).extra_configs),
                             model: model
                         },
-                        resultNode: resultNode
                     }
                 };
             }
             return node;
         }));
-    }, [id, setNodes, model, resultNode]);
+    }, [id, setNodes, model]);
 
     const onClickButton = () => {
         setIsMenuOpen(!isMenuOpen)
@@ -142,7 +136,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[12px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
             >
                 Perplexity
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
@@ -189,7 +183,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
 
             {/* Configuration Menu */}
             {isMenuOpen && (
-                <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg`}>
+                <ul ref={menuRef} className={`absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[10px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg`}>
                     <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                         <div className='flex flex-row gap-[12px]'>
                             <div className='flex flex-row gap-[8px] justify-center items-center'>

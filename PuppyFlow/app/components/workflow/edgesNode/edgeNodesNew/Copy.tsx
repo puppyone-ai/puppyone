@@ -18,7 +18,6 @@ export type CopyNodeFrontendConfig = {
             path:(string|number)[]
         }
     },
-    resultNode: string | null
 }
 
 // 后端 API 请求数据（原 ModifyCopyEdgeJsonType）
@@ -84,57 +83,61 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
     };
 
     return (
-        <>
-            {/* Main button */}
-            <button 
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-[80px] h-[48px] flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px]`}
-            >
-                Copy
-                {/* Source handles */}
-                <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
-                <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
-                <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
-                <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
-                
-                {/* Target handles */}
-                <Handle
-                    id={`${id}-a`}
-                    type="target"
-                    position={Position.Top}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-                <Handle
-                    id={`${id}-b`}
-                    type="target"
-                    position={Position.Right}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-                <Handle
-                    id={`${id}-c`}
-                    type="target"
-                    position={Position.Bottom}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-                <Handle
-                    id={`${id}-d`}
-                    type="target"
-                    position={Position.Left}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-            </button>
+        <div className='p-[3px] w-[80px] h-[48px]'>
+                {/* Run button as a small square floating above the node */}
+
+                {/* Main node button */}
+                <button 
+                    onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                    title="Copy Node"
+                >
+                    Copy
+                    {/* Source handles */}
+                    <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
+                    <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
+                    <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
+                    <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
+                    
+                    {/* Target handles */}
+                    <Handle
+                        id={`${id}-a`}
+                        type="target"
+                        position={Position.Top}
+                        style={handleStyle}
+                        isConnectable={isConnectable}
+                        onMouseEnter={() => setIsTargetHandleTouched(true)}
+                        onMouseLeave={() => setIsTargetHandleTouched(false)}
+                    />
+                    <Handle
+                        id={`${id}-b`}
+                        type="target"
+                        position={Position.Right}
+                        style={handleStyle}
+                        isConnectable={isConnectable}
+                        onMouseEnter={() => setIsTargetHandleTouched(true)}
+                        onMouseLeave={() => setIsTargetHandleTouched(false)}
+                    />
+                    <Handle
+                        id={`${id}-c`}
+                        type="target"
+                        position={Position.Bottom}
+                        style={handleStyle}
+                        isConnectable={isConnectable}
+                        onMouseEnter={() => setIsTargetHandleTouched(true)}
+                        onMouseLeave={() => setIsTargetHandleTouched(false)}
+                    />
+                    <Handle
+                        id={`${id}-d`}
+                        type="target"
+                        position={Position.Left}
+                        style={handleStyle}
+                        isConnectable={isConnectable}
+                        onMouseEnter={() => setIsTargetHandleTouched(true)}
+                        onMouseLeave={() => setIsTargetHandleTouched(false)}
+                    />
+                </button>
+
 
             {/* Configuration Menu (integrated directly) */}
             {isMenuOpen && (
@@ -194,7 +197,7 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
                     </ul>
                 </div>
             )}
-        </>
+        </div>
     )
 }
 

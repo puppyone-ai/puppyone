@@ -15,7 +15,6 @@ export type LLMConfigNodeData = {
     model: "gpt-4o" | "gpt-4" | "gpt-4o-mini" | undefined,
     structured_output: boolean | undefined,
     base_url: string | undefined,
-    resultNode: string | null
 }
 
 type LLMConfigNodeProps = NodeProps<Node<LLMConfigNodeData>>
@@ -315,11 +314,11 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     ]
 
     return (
-        <>
+        <div className='p-[3px] w-[80px] h-[48px]'>
             {/* Main button */}
             <button
                 onClick={onClickButton}
-                className={`w-[80px] h-[48px] flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
             >
                 LLM
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
@@ -535,7 +534,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                     </ul>
                 </div>
             )}
-        </>
+        </div>
     );
 }
 
