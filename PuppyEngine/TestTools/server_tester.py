@@ -39,31 +39,65 @@ def test_get_data(
     task_id: str,
     base_url: str
 ):
+    """测试获取工作流数据，正确处理SSE响应"""
     url = f"{base_url}/get_data/{task_id}"
     retries = 3
+    
     for attempt in range(retries):
         try:
+            print(f"\n正在从 {url} 获取数据...")
             response = requests.get(url, stream=True)
             response.raise_for_status()
-            print("Get Data Response Status Code:", response.status_code)
-            parse_results(response)
+            print(f"响应状态码: {response.status_code}")
+            print("\n开始接收流式响应:")
+            print("-" * 50)
+            
+            # 调用专用函数解析SSE格式的结果
+            print(f"Response: {response}")
+            parse_sse_results(response)
+            print("-" * 50)
+            print("流式响应接收完成")
             break
+            
         except ChunkedEncodingError as e:
-            print(f"ChunkedEncodingError: {e}, attempt {attempt + 1} of {retries}")
+            print(f"分块编码错误: {e}, 第 {attempt + 1} 次尝试 (共 {retries} 次)")
             if attempt == retries - 1:
                 raise
+        except Exception as e:
+            print(f"处理响应时出错: {e}")
+            break
 
-def parse_results(
-    response
-):
+def parse_sse_results(response):
+    """正确解析Server-Sent Events格式的响应"""
     for line in response.iter_lines(decode_unicode=True):
+        print(f"Received line: {line}")
+        # 跳过空行
+        if not line:
+            continue
+            
+        # 处理SSE格式的数据行
         if line.startswith("data:"):
-            line = line.replace("data: ", "", 1)
-            data = json.loads(line)
-            if data.get("is_complete"):
-                print("All edges processed.")
-            else:
-                print("Intermediate data:", data.get("data"))
+            # 正确提取JSON部分
+            json_data = line[line.find("{"):]
+            try:
+                # 解析每个事件的JSON数据
+                data = json.loads(json_data)
+                print(f"Received data: {data}")
+                # 根据数据类型进行特定处理
+                if "error" in data:
+                    print(f"❌ 错误: {data['error']}")
+                elif data.get("is_complete") is True:
+                    print("✅ 处理完成: 所有边缘处理完毕")
+                else:
+                    # 打印中间数据的概要信息
+                    output_blocks = data.get("data", {})
+                    block_ids = list(output_blocks.keys()) if isinstance(output_blocks, dict) else []
+                    print(f"📦 收到输出块 ({len(block_ids)}个): {', '.join(block_ids)}")
+                    
+            except json.JSONDecodeError as e:
+                print(f"❌ JSON解析错误: {e}, 原始数据: {line}")
+            except Exception as e:
+                print(f"❌ 处理事件时出错: {e}")
 
 
 if __name__ == "__main__":
@@ -79,8 +113,8 @@ if __name__ == "__main__":
     for file_name in os.listdir(directory):
         if not file_name.endswith('.json'):
             print(f"ERROR: Invalid test case format: {file_name} \nJson format required")
-        # if file_name != "test_vdb_search.json":
-        #     continue
+        if file_name != "test_files.json":
+            continue
 
         file_path = os.path.join(directory, file_name)
         print(f"========================= {file_name} =========================")
