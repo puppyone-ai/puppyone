@@ -66,16 +66,16 @@ system_prompts:
 user_prompts:
   default: |
     Provided Context:
-    {{context}}
+    {context}
 
     User's Question:
-    {{query}}
+    {query}
   task_prompt: |
     Task Description:
-    {{task_description}}
+    {task_description}
 
     User's Question:
-    {{query}}
+    {query}
   data_prompt: |
     Data:
-    {{data}}
+    {data}

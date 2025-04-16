@@ -7,7 +7,7 @@ import os
 import sys
 import json
 from typing import List, Tuple
-from ModularEdges.LLMEdge.generater import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
 from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 

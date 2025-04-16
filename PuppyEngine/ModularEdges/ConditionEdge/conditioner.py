@@ -35,12 +35,13 @@ class ConditionerFactory(EdgeFactoryBase):
 
         for _, case_data in cases.items():
             conditions = case_data.get("conditions", [])
-            then_clause = case_data.get("then", {})
+            then_clauses = case_data.get("thens", [])
 
             satisfied = instance._evaluate_conditions(conditions, content_blocks)
             if satisfied:
-                results[then_clause.get("from")] = then_clause.get("to")
-        
+                for then_clause in then_clauses:
+                    results[then_clause.get("from")] = then_clause.get("to")
+
         # Rearrange the results to contains the actual content
         rearranged_results = {}
         for from_block, to_block in results.items():
@@ -150,10 +151,16 @@ if __name__ == "__main__":
                     "operation": "/"
                 }
             ],
-            "then": {
-                "from": "1",
-                "to": "3"
-            }
+            "thens": [
+                {
+                    "from": "1",
+                    "to": "3"
+                },
+                {
+                    "from": "2",
+                    "to": "4"
+                }
+            ]
         },
         "case2": {
             "conditions": [
