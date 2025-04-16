@@ -1,19 +1,19 @@
 import React, { useEffect, useRef, useState, useContext } from "react"
 
 
-export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=false, listWidth="100px", containerClassnames="", buttonHeight="32px", buttonBgColor="transparent", menuBgColor="#1A1A1A", mapValueTodisplay=(v:string)=>v, showDropdownIcon=true }:any) => {
+export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge = false, listWidth = "100px", containerClassnames = "", buttonHeight = "32px", buttonBgColor = "transparent", menuBgColor = "#1A1A1A", mapValueTodisplay = (v: string) => v, showDropdownIcon = true }: any) => {
     const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
-    const handleSelect = (data:any) => {
+    const handleSelect = (data: any) => {
         onSelect(data);
         setIsOpen(false); // Close dropdown after selection
     };
 
     // Inline styles
-    const dropdownContainerStyle: React.CSSProperties  = {
+    const dropdownContainerStyle: React.CSSProperties = {
         position: 'relative',
         cursor: 'pointer',
-        width: '100%',
+        width: '100%'
     };
 
     const dropdownHeaderStyle = {
@@ -32,10 +32,10 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
         borderRadius: '8px', // Rounded corners
         zIndex: 1000, // Ensure dropdown is above other elements
         height: 'auto', // Max height for dropdown
-        width:`${listWidth}`,
+        width: `${listWidth}`,
         overflowY: 'auto', // Scroll if too many items
-        overflowX:'hidden',
-        color:'white'
+        overflowX: 'hidden',
+        color: 'white'
     };
 
     const dropdownItemStyle = {
@@ -46,32 +46,32 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
     };
 
     return (
-        <div 
-        style={dropdownContainerStyle} 
-        className={`flex px-[8px] ${containerClassnames}`}
-        onClick={() => {
-            setIsOpen(prev => !prev)
-        }}
+        <div
+            style={dropdownContainerStyle}
+            className={`flex px-[8px] ${containerClassnames}`}
+            onClick={() => {
+                setIsOpen(prev => !prev)
+            }}
         >
-            <div  className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${(optionBadge && selectedValue)?"text-[#000] ":"text-white"} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue)?"border-[3px]":"border-[0px]"} ${(optionBadge && selectedValue)?"bg-[#6D7177]":""}`} 
-                 style={{ 
-                     height: buttonHeight,
-                     backgroundColor: optionBadge && selectedValue ? "#6D7177" : buttonBgColor,
-                     width: 'fit-content',
-                     minWidth: 'min-content'
-                 }}>
+            <div className={`flex-grow overflow-hidden text-[12px] text-nowrap font-normal ${(optionBadge && selectedValue) ? "text-[#000] " : "text-white"} leading-normal flex items-center justify-between h-[16px] rounded-[6px] border-[#6D7177] ${(optionBadge && selectedValue) ? "border-[3px]" : "border-[0px]"} ${(optionBadge && selectedValue) ? "bg-[#6D7177]" : ""}`}
+                style={{
+                    height: buttonHeight,
+                    backgroundColor: optionBadge && selectedValue ? "#6D7177" : buttonBgColor,
+                    width: 'fit-content',
+                    minWidth: 'min-content'
+                }}>
                 <span>{mapValueTodisplay(selectedValue || "Select a value")}</span>  {/* Display selected label or placeholder */}
                 {showDropdownIcon && (
-                    <svg 
-                        xmlns="http://www.w3.org/2000/svg" 
-                        width="16" 
-                        height="16" 
-                        viewBox="0 0 24 24" 
-                        fill="none" 
-                        stroke="currentColor" 
-                        strokeWidth="2" 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                         className={`transition-transform duration-300 ease-in-out ${isOpen ? 'rotate-180' : ''}`}
                     >
                         <path d="M6 9l6 6 6-6" />
@@ -80,8 +80,8 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
             </div>
             {isOpen ? (
                 <ul style={dropdownListStyle}>
-                    {console.log("options",options)}
-                    {options.map((option:string,index:number) => (
+                    {console.log("options", options)}
+                    {options.map((option: string, index: number) => (
                         <li
                             key={index}
                             style={dropdownItemStyle}
@@ -96,7 +96,7 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge=fa
                         </li>
                     ))}
                 </ul>
-            ):<></>}
+            ) : <></>}
         </div>
     );
 };

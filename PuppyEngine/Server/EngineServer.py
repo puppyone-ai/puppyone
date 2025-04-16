@@ -1,3 +1,43 @@
+"""
+Engine Server - FastAPI Implementation with Concurrency Controls
+
+Core Design Patterns:
+--------------------
+1. Task-Level Locking Mechanism:
+   - Each task_id gets a dedicated lock to prevent concurrent processing
+   - Non-blocking lock acquisition prevents deadlocks
+   - Returns 409 Conflict when a task is already being processed
+   - Ensures resources aren't modified by multiple requests simultaneously
+
+2. Streaming Response Architecture:
+   - Nested stream_data() generator provides separation of concerns:
+     * Outer function (get_data): Request validation, parameter processing, lock management
+     * Inner function (stream_data): Data generation, error handling, resource cleanup
+   - Enables clean coupling between async FastAPI handlers and sync workflow processing
+   - Delays execution until the response is consumed by the client
+
+3. Resource Management:
+   - Centralized cleanup in finally blocks ensures resources are released in all scenarios
+   - Context managers (with workflow:) handle proper workflow cleanup
+   - Hierarchical cleanup: workflow resources first, then task data, finally task locks
+   - Exception handling at multiple levels prevents resource leaks
+
+4. Concurrency Safety:
+   - DataStore uses fine-grained locks for concurrent access safety
+   - Workflow object assumes single-threaded access after task lock acquisition
+   - State machine transitions protected by internal locks
+
+Engineering Considerations:
+--------------------------
+- CPU cache effects may cause concurrent requests to execute in unpredictable order
+- Lock acquisition before workflow processing prevents race conditions
+- Timeout mechanisms could be added for long-running workflows
+- Error responses are normalized to maintain consistent API contract
+
+The server implements a straightforward synchronous workflow processor with concurrent
+request handling capabilities through FastAPI's asynchronous model.
+"""
+
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -28,7 +68,8 @@ class DataStore:
             "processing_status": False  # 添加处理状态标记
         })
         self.lock = Lock()
-        self.task_locks = {}  # 每个任务一个锁
+        self.task_locks = {}  # 每个task_id的专用锁
+        self.task_locks_lock = Lock()  # 保护task_locks字典的访问
 
     def get_data(
         self,
@@ -128,6 +169,36 @@ class DataStore:
             # Update the blocks list
             self.data_store[task_id]["blocks"] = block_map
 
+    def acquire_task_lock(self, task_id: str, blocking: bool = True, timeout: float = None) -> bool:
+        """获取特定任务的锁
+        
+        Args:
+            task_id: 任务ID
+            blocking: 是否阻塞等待锁释放
+            timeout: 等待超时时间(秒)，None表示无限等待
+            
+        Returns:
+            bool: 是否成功获取锁
+        """
+        with self.task_locks_lock:
+            # 如果任务锁不存在，创建一个新锁
+            if task_id not in self.task_locks:
+                self.task_locks[task_id] = Lock()
+            
+            # 使用指定的阻塞模式和超时时间尝试获取锁
+            acquired = self.task_locks[task_id].acquire(blocking=blocking, timeout=timeout)
+            return acquired
+    
+    def release_task_lock(self, task_id: str) -> None:
+        """释放特定任务的锁"""
+        with self.task_locks_lock:
+            if task_id in self.task_locks:
+                try:
+                    self.task_locks[task_id].release()
+                except RuntimeError:
+                    # 锁可能已经被释放，忽略异常
+                    pass
+                
     def cleanup_task(self, task_id: str):
         """安全清理任务资源，防止重复清理"""
         with self.lock:
@@ -158,16 +229,11 @@ class DataStore:
         with self.lock:
             if task_id in self.data_store:
                 del self.data_store[task_id]
-                log_info(f"Task {task_id} completely cleaned up")
-
-    def mark_processing_done(
-        self,
-        task_id: str
-    ) -> None:
-        """标记处理完成"""
-        with self.lock:
-            if task_id in self.data_store:
-                self.data_store[task_id]["processing_status"] = False
+        
+        # 清理任务锁
+        with self.task_locks_lock:
+            if task_id in self.task_locks:
+                del self.task_locks[task_id]
 
 try:
     app = FastAPI()
@@ -200,53 +266,63 @@ async def health_check():
 
 @app.get("/get_data/{task_id}")
 async def get_data(
-    task_id: str
+    task_id: str,
+    wait: bool = True,  # 新参数：是否等待锁释放
+    timeout: float = 60.0  # 新参数：等待超时时间(秒)
 ):
-    """流式返回工作流处理结果，确保每个工作流只执行一次"""
-    log_info(f"Getting data for task {task_id}")
     try:
+        # 尝试获取任务锁，根据wait参数决定是否阻塞等待
+        if not data_store.acquire_task_lock(task_id, blocking=wait, timeout=timeout if wait else None):
+            return JSONResponse(
+                content={
+                    "error": "Task already being processed", 
+                    "code": 7304,
+                    "message": f"Task {task_id} is currently being processed and wait timed out or was not requested"
+                }, 
+                status_code=409  # 冲突状态码
+            )
+        
         def stream_data():
             processed = False           
             try:
                 # 获取工作流，如果返回None表示已在处理中
                 workflow = data_store.get_workflow(task_id)
                 if not workflow:
-                    log_error(f"Workflow for task {task_id} is either not found or already being processed")
-                    yield f"data: {json.dumps({'error': 'Workflow not found or already being processed'})}\n\n"
-                    return
-
-                # 执行工作流
-                for blocks in workflow.process():
-                    print(f"Received blocks: {blocks}")
-                    yield f"data: {json.dumps({'data': blocks, 'is_complete': False})}\n\n"
-
-                # 标记处理完成
-                processed = True
-                log_info(f"Workflow processed successfully for task {task_id}")
-                yield f"data: {json.dumps({'is_complete': True})}\n\n"
-
+                    raise PuppyException(
+                        7303,
+                        "Workflow Not Found",
+                        f"Workflow with task_id {task_id} not found"
+                    )
+                
+                # 使用上下文管理器自动管理资源
+                with workflow:
+                    for yielded_blocks in workflow.process():
+                        if not yielded_blocks:
+                            continue
+                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
+                    
+                    yield f"data: {json.dumps({'is_complete': True})}\n\n"
+                
             except Exception as e:
-                log_error(f"Error in stream_data for task {task_id}: {str(e)}")
+                log_error(f"Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-            # finally:
-            #     if processed:
-            #         log_info(f"Cleaning up task {task_id} after successful processing")
-            #         data_store.cleanup_task(task_id)
-
-        # 返回流式响应，并设置合理的超时
-        return StreamingResponse(
-            stream_data(), 
-            media_type="text/event-stream",
-            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
-        )
-
+            finally:
+                # 所有资源清理集中在finally中
+                try:
+                    data_store.cleanup_task(task_id)
+                except Exception as e:
+                    log_error(f"Error during task cleanup: {str(e)}")
+                
+                # 确保锁一定被释放
+                data_store.release_task_lock(task_id)
+        
+        return StreamingResponse(stream_data(), media_type="text/event-stream")
+    
     except Exception as e:
-        log_error(f"Error in get_data endpoint: {str(e)}")
-        return JSONResponse(
-            content={"error": f"Server error: {str(e)}"},
-            status_code=500
-        )
+        # 确保在异常情况下也释放锁
+        data_store.release_task_lock(task_id)
+        log_error(f"Error Getting Data from Server: {str(e)}")
+        raise PuppyException(6100, "Error Getting Data from Server", str(e))
 
 @app.post("/send_data")
 async def send_data(

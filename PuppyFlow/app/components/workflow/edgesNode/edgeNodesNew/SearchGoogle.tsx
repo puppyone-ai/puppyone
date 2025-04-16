@@ -19,7 +19,6 @@ export type SearchConfigNodeData = {
         model: "llama-3.1-sonar-small-128k-online" | "llama-3.1-sonar-large-128k-online" | "llama-3.1-sonar-huge-128k-online" | undefined,
         threshold: number | undefined
     },
-    resultNode: string | null
 }
 
 type SearchConfigNodeProps = NodeProps<Node<SearchConfigNodeData>>
@@ -34,9 +33,6 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
 
     // 状态管理
     const [showSettings, setShowSettings] = useState(false)
-    const [resultNode, setResultNode] = useState<string | null>(
-        (getNode(id)?.data as SearchConfigNodeData)?.resultNode ?? null
-    )
     
     // 加载配置值
     const [top_k, setTop_k] = useState<number | undefined>(
@@ -96,13 +92,12 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
                     data: {
                         ...nodeData,
                         top_k: top_k,
-                        resultNode: resultNode
                     }
                 };
             }
             return node;
         }));
-    }, [id, setNodes, top_k, resultNode]);
+    }, [id, setNodes, top_k]);
 
     const onClickButton = () => {
         setIsMenuOpen(!isMenuOpen)
@@ -140,7 +135,7 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[12px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
             >
                 Google
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />

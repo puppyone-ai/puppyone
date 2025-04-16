@@ -20,7 +20,6 @@ export type ModifyConfigNodeData = {
         retMode?: string,
         configNum?: number
     },
-    resultNode: string | null
 }
 
 type ModifyConfigNodeProps = NodeProps<Node<ModifyConfigNodeData>>
@@ -156,13 +155,12 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
     };
 
     return (
-        <>
-            {/* Main button */}
+        <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
                 onClick={onClickButton}
-                className={`w-[80px] h-[48px] flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
             >
-                Edit Text
+                Edit <br /> Text
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
                 <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
@@ -323,7 +321,7 @@ example: hello, {{parent_nodeid}}`}
                     </ul>
                 </div>
             )}
-        </>
+        </div>
     )
 }
 
