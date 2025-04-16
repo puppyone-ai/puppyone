@@ -1,0 +1,105 @@
+{
+    "blocks": {
+
+        "VXGRdC": {
+
+            "label": "VXGRdC",
+
+            "type": "file",
+
+            "data": {
+
+                "content": [
+
+                    {
+
+                        "fileName": "NIPS-2017-attention-is-all-you-need-Paper.pdf",
+
+                        "task_id": "kcg6xsvo",
+
+                        "fileType": "pdf",
+
+                        "download_url": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/8f3dbdc0-e742-4c6e-b041-a52fb32a2181/kcg6xsvo/NIPS-2017-attention-is-all-you-need-Paper.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=30e648d86eab17dd0be922bb121cf8aa%2F20250416%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250416T084927Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=bf525bc745ef6799164aa1af13bac460585b300e8441085eee5a69f1310e366e",
+
+                        "content_type_header": "application/pdf",
+
+                        "expires_at": {
+
+                            "upload": 1744793667,
+
+                            "download": 1744879767
+
+                        }
+
+                    }
+
+                ]
+
+            },
+
+            "looped": false
+
+        },
+
+        "yig49V": {
+
+            "label": "yig49V",
+
+            "type": "structured",
+
+            "data": {
+
+                "content": ""
+
+            }
+
+        }
+
+    },
+
+    "edges": {
+
+        "load-1744793253007": {
+
+            "type": "load",
+
+            "data": {
+
+                "block_type": "file",
+
+                "content": "VXGRdC",
+
+                "extra_configs": {
+
+                    "file_configs": [
+
+                        {
+
+                            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/8f3dbdc0-e742-4c6e-b041-a52fb32a2181/kcg6xsvo/NIPS-2017-attention-is-all-you-need-Paper.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=30e648d86eab17dd0be922bb121cf8aa%2F20250416%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250416T084927Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=bf525bc745ef6799164aa1af13bac460585b300e8441085eee5a69f1310e366e",
+
+                            "file_type": "pdf"
+
+                        }
+
+                    ]
+
+                },
+
+                "inputs": {
+
+                    "VXGRdC": "VXGRdC"
+
+                },
+
+                "outputs": {
+
+                    "yig49V": "yig49V"
+
+                }
+
+            }
+
+        }
+
+    }
+}
