@@ -172,14 +172,14 @@ async def delete_file(key: str):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @global_exception_handler(error_code=4003, error_message="Failed to upload file")
-@storage_router.post("/upload/{key:path}")
+@storage_router.put("/upload/{key:path}")
 async def upload_file(
+    request: Request,
     key: str,  # 从路径参数获取
-    content_type: str = Query(...),
-    file: UploadFile = File(...)
+    content_type: str = Query(...)
 ):
     try:
-        file_data = await file.read()
+        file_data = await request.body()
         if storage_adapter.save_file(key, file_data, content_type):
             return FileUploadResponse(
                 message="文件上传成功",
