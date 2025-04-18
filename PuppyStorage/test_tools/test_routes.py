@@ -8,7 +8,7 @@ from datetime import datetime
 import requests
 
 # 添加项目根目录到Python路径
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from server.routes.file_routes import file_router, storage_router
 from server.routes.vector_routes import vector_router
@@ -82,9 +82,10 @@ def test_file_routes():
         else:
             # 对于本地存储，使用测试客户端上传
             key = f"{user_id}/{url_data['content_id']}/{case['content_name']}"
-            upload_response = client.post(
+            # 使用PUT方法而不是POST方法，直接提供文本内容作为请求体
+            upload_response = client.put(
                 f"/storage/upload/{key}",
-                files={"file": (case['content_name'], case["test_content"])},
+                data=case["test_content"],
                 params={"content_type": url_data['content_type_header']}
             )
         
@@ -254,9 +255,10 @@ def test_storage_routes():
     
     # 直接上传文件，使用现有的/storage/upload/{key}路由
     print("\n测试直接上传文件...")
-    upload_response = client.post(
+    # 修改为PUT请求并以文本形式直接发送内容
+    upload_response = client.put(
         f"/storage/upload/{key}",
-        files={"file": (test_filename, test_content)},
+        data=test_content,
         params={"content_type": "text/plain"}  # 必须提供content_type参数
     )
     
