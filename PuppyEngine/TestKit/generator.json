@@ -1,0 +1,48 @@
+{
+    "blocks": {
+        "1": {
+            "label":"a",
+            "type": "text",
+            "data": {
+                "content": "What are the products of the company PuppyAgent?"
+            }
+        },
+        "2": {
+            "label":"b",
+            "type": "text",
+            "data": {
+                "content": "PuppyAgent is an AI Startup that serves a SaaS platform `PuppyAgent` for Enterprise Knowledge Bse Workflow Builder"
+            }
+        },
+        "3": {
+            "label": "c",
+            "type": "text",
+            "data": {
+                "content": "PuppyAgent open sourced an AI Agent framework called `Puppys`"
+            }
+        },
+        "4": {
+            "label": "d",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "generator-1727235281399": {
+            "type": "generator",
+            "data": {
+                "queries": ["1"],
+                "docs": ["2", "3"],
+                "hoster": "openrouter",
+                "model": "openai/gpt-4o-mini",
+                "max_tokens": 2048,
+                "structured_output": false,
+                "inputs": {"1": "a", "2": "b", "3": "c"},
+                "outputs": {"4": "d"}
+            }
+        }
+    },
+    "version": "0.1"
+}
