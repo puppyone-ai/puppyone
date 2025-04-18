@@ -13,7 +13,8 @@ from utils.config import config
 from utils.logger import log_info, log_error
 from storage.base import StorageAdapter
 
-LOCAL_STORAGE_PATH = config.get("LOCAL_STORAGE_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "local_storage"))
+# 使用新的路径管理系统获取存储路径
+LOCAL_STORAGE_PATH = config.get_path("STORAGE_ROOT")
 LOCAL_SERVER_URL = config.get("LOCAL_SERVER_URL", "http://localhost:8002")
 
 class LocalStorageAdapter(StorageAdapter):
