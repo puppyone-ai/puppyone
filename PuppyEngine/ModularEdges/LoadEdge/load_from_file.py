@@ -200,35 +200,54 @@ class FileToTextParser:
     ) -> None:
         """
         Process complex file types (images, audio, etc.) using multiprocessing
+        if multiple cores are available, otherwise process sequentially
 
         Args:
             configs_with_indices: List of (index, config) tuples
             results: List to store results (modified in-place)
             errors: List to store errors (modified in-place)
         """
+        
+        # Only use multiprocessing if we have more than one CPU core
+        cpu_count = multiprocessing.cpu_count()
+        current_process = multiprocessing.current_process()
+        logger.info(f"CPU Count: {cpu_count}, Current process: {current_process} with daemon: {current_process.daemon}")
+        if cpu_count > 1 and not current_process.daemon:
+            num_processes = max(1, min(cpu_count - 1, 4))
+            
+            # Use 'spawn' context for better Windows compatibility
+            ctx = multiprocessing.get_context('spawn')
+            with ctx.Pool(processes=num_processes) as pool:
+                # Prepare arguments for each file
+                args_list = [
+                    (config.get('file_path'), 
+                     config.get('file_type', ''), 
+                     config.get('config', {})) 
+                    for _, config in configs_with_indices
+                ]
 
-        # Determine optimal number of processes
-        num_processes = max(1, min(multiprocessing.cpu_count() - 1, 4))
+                # Use map_async with timeout to handle keyboard interrupts
+                process_results = pool.map_async(self._process_file_wrapper, args_list).get(timeout=3600)
 
-        # Use 'spawn' context for better Windows compatibility
-        ctx = multiprocessing.get_context('spawn')
-        with ctx.Pool(processes=num_processes) as pool:
-            # Prepare arguments for each file
-            args_list = [
-                (config.get('file_path'), 
-                 config.get('file_type', ''), 
-                 config.get('config', {})) 
-                for _, config in configs_with_indices
-            ]
-
-            # Use map_async with timeout to handle keyboard interrupts
-            process_results = pool.map_async(self._process_file_wrapper, args_list).get(timeout=3600)
-
-            # Collect results
-            for (idx, _), result in zip(configs_with_indices, process_results):
-                results[idx] = result
-                if isinstance(result, str) and result.startswith("Failed to parse file:"):
-                    errors.append((idx, "See log for details", ""))
+                # Collect results
+                for (idx, _), result in zip(configs_with_indices, process_results):
+                    results[idx] = result
+                    if isinstance(result, str) and result.startswith("Failed to parse file:"):
+                        errors.append((idx, "See log for details", ""))
+        else:
+            # Process files sequentially on single-core systems
+            logger.info("Running in single-core mode - processing files sequentially")
+            for idx, config in configs_with_indices:
+                try:
+                    file_path = config.get('file_path')
+                    file_type = config.get('file_type', '')
+                    parse_config = config.get('config', {})
+                    results[idx] = self.parse(file_path, file_type, **parse_config)
+                except Exception as e:
+                    error_details = traceback.format_exc()
+                    logger.error(f"Error processing {file_path}: {str(e)}\n{error_details}")
+                    results[idx] = f"Failed to parse file: {os.path.basename(file_path)}"
+                    errors.append((idx, e, error_details))
 
     def _process_file_wrapper(
         self,

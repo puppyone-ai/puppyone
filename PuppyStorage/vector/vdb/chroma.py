@@ -11,7 +11,8 @@ from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error, log_warning
 from utils.config import config
 
-LOCAL_STORAGE_PATH = config.get("LOCAL_STORAGE_PATH", os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "local_storage"))
+# 使用新的路径管理系统获取存储路径
+LOCAL_STORAGE_PATH = config.get_path("STORAGE_ROOT")
 
 class ChromaVectorDatabase(VectorDatabase):
     """

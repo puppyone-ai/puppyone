@@ -63,10 +63,12 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": {
-                            "from": "1",
-                            "to": "3"
-                        }
+                        "then": [
+                                {
+                                "from": "1",
+                                "to": "3"
+                            }
+                        ]
                     },
                     "case2": {
                         "conditions": [
@@ -83,10 +85,12 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": {
-                            "from": "2",
-                            "to": "4"
-                        }
+                        "then": [
+                            {
+                                "from": "2",
+                                "to": "4"
+                            }
+                        ]
                     }
                 },
                 "inputs":{"1": "a", "2": "b"},
