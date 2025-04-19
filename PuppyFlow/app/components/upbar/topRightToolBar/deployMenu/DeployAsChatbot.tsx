@@ -8,7 +8,6 @@ interface DeployAsChatbotProps {
   selectedFlowId: string | null;
   workspaces: any[];
   setWorkspaces: (workspaces: any[]) => void;
-  constructWholeWorkflowJsonData: () => any;
   API_SERVER_URL: string;
   setActivePanel: (panel: string | null) => void;
 }
@@ -29,7 +28,6 @@ function DeployAsChatbot({
   selectedFlowId,
   workspaces,
   setWorkspaces,
-  constructWholeWorkflowJsonData,
   API_SERVER_URL,
   setActivePanel
 }: DeployAsChatbotProps) {
@@ -175,7 +173,7 @@ function DeployAsChatbot({
       console.error(`Error building workflow JSON: ${error}`);
       
       // If there's an error, fall back to the original function
-      return constructWholeWorkflowJsonData();
+      return
     }
   };
 
