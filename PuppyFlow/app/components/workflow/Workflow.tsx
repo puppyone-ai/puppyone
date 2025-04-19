@@ -57,6 +57,7 @@ import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
 import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
 import IfElse from './edgesNode/edgeNodesNew/ifelse'
 import LLM from './edgesNode/edgeNodesNew/LLM'
+import Generate from './edgesNode/edgeNodesNew/Generate'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -67,7 +68,6 @@ const nodeTypes = {
   'load': LoadConfig,
   'chunk': ChunkingConfig,
   'code': CodeConfig,
-  'generate': GenerateConfig,
   'llm': LLMConfig,
   'search': SearchConfig,
   'modify': ModifyConfig,
@@ -85,6 +85,7 @@ const nodeTypes = {
   'searchPerplexity': SearchPerplexity,
   'llmnew': LLM,
   'ifelse': IfElse,
+  'generate': Generate,
 }
 
 const edgeTypes = {
