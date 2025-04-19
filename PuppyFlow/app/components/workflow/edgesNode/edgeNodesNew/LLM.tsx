@@ -297,7 +297,6 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
 
     // 支持的模型列表
     const open_router_supported_models = [
-        "openai/o1-pro",
         "openai/o3-mini-high",
         "openai/o3-mini",
         "openai/o1",
