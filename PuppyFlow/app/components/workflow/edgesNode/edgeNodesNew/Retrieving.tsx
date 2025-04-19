@@ -8,12 +8,11 @@ import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 
 export type RetrievingConfigNodeData = {
-    nodeLabels?: { id: string, label: string }[],
+    dataSource?: { id: string, label: string }[],
     subMenuType: string | null,
     top_k: number | undefined,
     content: string | null,
     query_id: { id: string, label: string } | undefined,
-    vector_db?: { id: string, label: string } | undefined,
     structuredWithVectorIndexing: string[],
     extra_configs: {
         model: "llama-3.1-sonar-small-128k-online" | "llama-3.1-sonar-large-128k-online" | "llama-3.1-sonar-huge-128k-online" | undefined,
@@ -35,9 +34,6 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const [query, setQuery] = useState<{ id: string, label: string }>(
         (getNode(id)?.data as RetrievingConfigNodeData)?.query_id ?? { id: "", label: "" }
     )
-    const [vectorDB, setVectorDB] = useState<{ id: string, label: string }>(
-        (getNode(id)?.data as RetrievingConfigNodeData)?.vector_db ?? { id: "", label: "" }
-    )
     const [top_k, setTop_k] = useState<number | undefined>(
         (getNode(id)?.data as RetrievingConfigNodeData)?.top_k ?? 5
     )
@@ -45,8 +41,8 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         (getNode(id)?.data as RetrievingConfigNodeData)?.extra_configs?.threshold ?? 0.7
     )
     const [showSettings, setShowSettings] = useState(false)
-    const [nodeLabels, setNodeLabels] = useState<{ label: string, id: string }[]>(
-        (getNode(id)?.data as RetrievingConfigNodeData)?.nodeLabels ?? []
+    const [dataSource, setDataSource] = useState<{ label: string, id: string }[]>(
+        (getNode(id)?.data as RetrievingConfigNodeData)?.dataSource ?? []
     )
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
     
@@ -54,7 +50,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const queryRef = useRef<HTMLSelectElement>(null)
     const thresholdRef = useRef<HTMLInputElement>(null)
     const topkRef = useRef<HTMLInputElement>(null)
-    const sourceNodeLabelsRef = useRef<{ label: string, id: string }[]>(
+    const sourceNodeLabelsVectorIndexed = useRef<{ label: string, id: string }[]>(
         getSourceNodeIdWithLabel(id)
             .filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name)
             .map((node) => ({ label: node.label, id: node.id }))
@@ -73,10 +69,6 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     }, [query])
 
     useEffect(() => {
-        onVectorDBChange(vectorDB)
-    }, [vectorDB])
-
-    useEffect(() => {
         onTopKChange(top_k)
     }, [top_k])
 
@@ -84,9 +76,9 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         onThresholdChange(threshold)
     }, [threshold])
     
-    // 更新sourceNodeLabelsRef
+    // 更新sourceNodeLabelsVectorIndexed
     useEffect(() => {
-        sourceNodeLabelsRef.current = getSourceNodeIdWithLabel(id)
+        sourceNodeLabelsVectorIndexed.current = getSourceNodeIdWithLabel(id)
             .filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name)
             .map((node) => ({ label: node.label, id: node.id }))
     }, [getSourceNodeIdWithLabel(id)])
@@ -143,15 +135,6 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         }))
     }
 
-    const onVectorDBChange = (newVectorDB: { id: string, label: string }) => {
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { ...node, data: { ...node.data, vector_db: newVectorDB } }
-            }
-            return node
-        }))
-    }
-
     const onTopKChange = (newTopK: number | undefined) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
@@ -171,28 +154,28 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     }
     
     // Node标签管理
-    const updateNodeLabelsInParent = (labels: { label: string, id: string }[]) => {
+    const updateDataSourceInParent = (dataSource: { label: string, id: string }[]) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { ...node, data: { ...node.data, nodeLabels: labels } };
+                return { ...node, data: { ...node.data, dataSource: dataSource } };
             }
             return node;
         }));
     };
 
     const addNodeLabel = (label: { label: string, id: string }) => {
-        if (label && !nodeLabels.some(nodeLabel => nodeLabel.id === label.id)) {
-            const newNodeLabels = [...nodeLabels, label];
-            setNodeLabels(newNodeLabels);
-            updateNodeLabelsInParent(newNodeLabels);
+        if (label && !dataSource.some(nodeLabel => nodeLabel.id === label.id)) {
+            const newDataSource = [...dataSource, label];
+            setDataSource(newDataSource);
+            updateDataSourceInParent(newDataSource);
         }
     };
 
     const removeNodeLabel = (index: number) => {
-        const newNodeLabels = [...nodeLabels];
-        newNodeLabels.splice(index, 1);
-        setNodeLabels(newNodeLabels);
-        updateNodeLabelsInParent(newNodeLabels);
+        const newDataSource = [...dataSource];
+        newDataSource.splice(index, 1);
+        setDataSource(newDataSource);
+        updateDataSourceInParent(newDataSource);
     };
     
     // UI助手函数
@@ -377,26 +360,26 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
 
                         <li className='flex flex-col gap-2'>
                             <div className='flex items-center gap-2'>
-                                <label className='text-[13px] font-semibold text-[#6D7177]'>Database with Vector Indexing</label>
+                                <label className='text-[13px] font-semibold text-[#6D7177]'>Data Source with Vector Indexing</label>
                                 <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                             </div>
 
                             {/* start of node labels */}
-                            <div className='bg-[#1E1E1E] rounded-[8px] p-2 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                            <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                                 <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
-                                    {nodeLabels.map((label, index) => (
+                                    {dataSource.map((label, index) => (
                                         <div key={index}
-                                            className='flex items-center bg-[#252525] rounded-md 
-                                                    border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 
+                                            className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
+                                                    border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 
                                                     transition-colors group'
                                         >
-                                            <span className='text-[12px] text-[#FF9B4D] px-2 py-1'>
-                                                {label.label}
+                                            <span className='text-[10px] text-[#9B7EDB] px-1 '>
+                                                {`{{${label.label}}}`}
                                             </span>
                                             <button
                                                 onClick={() => removeNodeLabel(index)}
                                                 className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
-                                                        px-1 py-1 opacity-0 group-hover:opacity-100'
+                                                        px-1 opacity-0 group-hover:opacity-100'
                                             >
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                     <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -405,9 +388,9 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                             </button>
                                         </div>
                                     ))}
-                                    <div className="relative">
+                                    <div className="relative w-[26px] h-[26px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30">
                                         <PuppyDropdown
-                                            options={sourceNodeLabelsRef.current.map(item => ({
+                                            options={sourceNodeLabelsVectorIndexed.current.map(item => ({
                                                 id: item.id,
                                                 label: item.label
                                             }))}
@@ -415,15 +398,27 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                             selectedValue={null}
                                             optionBadge={false}
                                             listWidth="200px"
-                                            buttonHeight="28px"
-                                            buttonBgColor="#252525"
-                                            menuBgColor="#252525"
-                                            containerClassnames="w-[28px]"
+                                            buttonHeight="26px"
+                                            buttonBgColor="transparent"
+                                            menuBgColor="#1A1A1A"
+                                            containerClassnames="w-[26px]"
                                             showDropdownIcon={false}
                                             mapValueTodisplay={(value: string | { id: string, label: string } | null) => {
-                                                if (value === null || value === undefined) return '+';
+                                                if (value === null || value === undefined) return (
+                                                    <span className="flex items-center justify-center w-full h-full">
+                                                        <svg width="10" height="10" viewBox="0 0 14 14">
+                                                            <path d="M7 0v14M0 7h14" stroke="#6D7177" strokeWidth="2" />
+                                                        </svg>
+                                                    </span>
+                                                );
                                                 if (typeof value === 'string') {
-                                                    return '+';
+                                                    return (
+                                                        <span className="flex items-center justify-center w-full h-full">
+                                                            <svg width="10" height="10" viewBox="0 0 14 14">
+                                                                <path d="M7 0v14M0 7h14" stroke="#6D7177" strokeWidth="2" />
+                                                            </svg>
+                                                        </span>
+                                                    );
                                                 }
                                                 return value.label || value.id;
                                             }}
@@ -431,25 +426,6 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                     </div>
                                 </div>
                             </div>
-
-                            <div className='mt-1'>
-                                <div className='text-[11px] text-[#6D7177] mb-2'>Available Database Blocks:</div>
-                                <div className='flex flex-wrap gap-2'>
-                                    {sourceNodeLabelsRef.current.map((labelOption: { label: string, id: string }) => (
-                                        <button
-                                            key={labelOption.id}
-                                            onClick={() => addNodeLabel({ label: labelOption.label, id: labelOption.id })}
-                                            className={`px-2 py-1 rounded-md text-[11px] transition-colors
-                                                    ${nodeLabels.some(nodeLabel => nodeLabel.id === labelOption.id)
-                                                    ? 'bg-[#252525] text-[#CDCDCD] border border-[#6D7177]/50'
-                                                    : 'bg-[#1E1E1E] text-[#6D7177] border border-[#6D7177]/30 hover:bg-[#252525] hover:text-[#CDCDCD]'}`}
-                                        >
-                                            {labelOption.label || labelOption.id}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                            {/* end of node labels */}
                         </li>
 
                         <li className='flex flex-col gap-2'>
@@ -475,7 +451,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                             </div>
 
                             {showSettings && (
-                                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                                <div className='flex flex-col p-[8px] gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
                                     <div className='flex flex-col gap-1'>
                                         <label className='text-[12px] text-[#6D7177]'>Result Number</label>
                                         <input
