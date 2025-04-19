@@ -199,7 +199,7 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px]`}
             >
-                Chunking <br /> By Character
+                Chunk <br /> By Character
                 {/* Source handles */}
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
@@ -263,7 +263,7 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
                                         </svg>
                                     </div>
                                     <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                                        Chunking By Character
+                                        Chunk By Character
                                     </div>
                                 </div>
                             </div>
