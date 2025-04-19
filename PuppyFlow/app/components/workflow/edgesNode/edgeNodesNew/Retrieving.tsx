@@ -235,7 +235,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                 onClick={onClickButton}
                 className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
             >
-                Retrieving
+                Retrieve
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
                 <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
@@ -297,7 +297,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                         </svg>
                                     </div>
                                     <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                                         Retrieving by Vector
+                                         Retrieve by Vector
                                     </div>
                                 </div>
                             </div>
