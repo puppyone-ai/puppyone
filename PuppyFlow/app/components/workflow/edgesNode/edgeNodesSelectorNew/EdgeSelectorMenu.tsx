@@ -469,7 +469,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                         </svg>
 
                                     </div>
-                                    <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>Chunking</div>
+                                    <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>Chunk</div>
                                 </div>
                                 <div className='h-full w-[7px] flex items-center justify-center mr-[9px]'>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="7" height="10" viewBox="0 0 7 10" fill="none">
@@ -504,7 +504,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                             <path d="M13.0003 7.49953L7 7.5" stroke="#CDCDCD" strokeWidth="1.5" />
                                         </svg>
                                     </div>
-                                    <div className='text-[14px] flex items-center justify-center h-full'>Retrieving</div>
+                                    <div className='text-[14px] flex items-center justify-center h-full'>Retrieve</div>
                                 </div>
                                 <div className='h-full w-[7px] flex items-center justify-center mr-[9px]'>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="7" height="10" viewBox="0 0 7 10" fill="none">
@@ -538,7 +538,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                             <path d="M11.0711 11.0711L2.92893 2.92893" stroke="#CDCDCD" strokeWidth="1.5" />
                                         </svg>
                                     </div>
-                                    <div className='text-[14px] flex items-center justify-center h-full'>Generating</div>
+                                    <div className='text-[14px] flex items-center justify-center h-full'>Generate</div>
                                 </div>
                             </button>
 
@@ -731,7 +731,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                             <path d="M5 11.25H9" stroke="#CDCDCD" strokeWidth="1.5" />
                                         </svg>
                                     </div>
-                                    <div className='text-[14px]  flex items-center justify-center h-full'>Chunking</div>
+                                    <div className='text-[14px]  flex items-center justify-center h-full'>Chunk</div>
                                 </div>
                                 <div className='h-full w-[7px] flex items-center justify-center mr-[9px]'>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="7" height="10" viewBox="0 0 7 10" fill="none">
@@ -768,7 +768,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                             <path d="M13.0003 7.49953L7 7.5" stroke="#CDCDCD" strokeWidth="1.5" />
                                         </svg>
                                     </div>
-                                    <div className='text-[14px] flex items-center justify-center h-full'>Retrieving</div>
+                                    <div className='text-[14px] flex items-center justify-center h-full'>Retrieve</div>
                                 </div>
                                 <div className='h-full w-[7px] flex items-center justify-center mr-[9px]'>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="7" height="10" viewBox="0 0 7 10" fill="none">
@@ -802,7 +802,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                             <path d="M11.0711 11.0711L2.92893 2.92893" stroke="#CDCDCD" strokeWidth="1.5" />
                                         </svg>
                                     </div>
-                                    <div className='text-[14px] flex items-center justify-center h-full'>Generating</div>
+                                    <div className='text-[14px] flex items-center justify-center h-full'>Generate</div>
                                 </div>
                             </button>
                         </li>
