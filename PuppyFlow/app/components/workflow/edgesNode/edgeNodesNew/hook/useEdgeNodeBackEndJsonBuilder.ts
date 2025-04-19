@@ -250,12 +250,28 @@ export type IfElseEdgeJsonType = {
     };
 };
 
-// 修改 BaseEdgeJsonType 以包含 RetrievingEdgeJsonType
+// 添加 Generate 类型
+export type GenerateEdgeJsonType = {
+    type: "generator",
+    data: {
+        queries: string[],
+        docs: string[],
+        prompt_template: string,
+        model: string,
+        inputs: { [key: string]: string },
+        outputs: { [key: string]: string },
+        structured_output: boolean,
+        base_url?: string
+    }
+}
+
+// 修改 BaseEdgeJsonType 以包含 GenerateEdgeJsonType
 export type BaseEdgeJsonType = CopyEdgeJsonType | ChunkingAutoEdgeJsonType |
     ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType |
     Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType |
     SearchByVectorEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
-    LLMEdgeJsonType | EditStructuredEdgeJsonType | RetrievingEdgeJsonType | IfElseEdgeJsonType;
+    LLMEdgeJsonType | EditStructuredEdgeJsonType | RetrievingEdgeJsonType | IfElseEdgeJsonType |
+    GenerateEdgeJsonType;
 
 // 构造的数据类型
 export type BaseConstructedJsonData = {
@@ -376,6 +392,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 
             case "ifelse":
                 edgeJson = buildIfElseNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
+                break;
+                
+            case "generate":
+                edgeJson = buildGenerateNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
                 break;
                 
             default:
@@ -894,6 +914,42 @@ export function useEdgeNodeBackEndJsonBuilder() {
         };
     };
 
+    const buildGenerateNodeJson = (
+        nodeId: string, 
+        sourceNodes: { id: string, label: string }[], 
+        targetNodes: { id: string, label: string }[]
+    ): GenerateEdgeJsonType => {
+        const nodeData = getNode(nodeId)?.data;
+        
+        // 获取查询节点ID
+        const queryNode = nodeData?.query_ids as { id: string, label: string } | undefined;
+        const queryIds = queryNode ? [queryNode.id] : [];
+        
+        // 获取文档节点ID
+        const docNode = nodeData?.document_ids as { id: string, label: string } | undefined;
+        const docIds = docNode ? [docNode.id] : [];
+        
+        // 获取其他必要参数
+        const promptTemplate = (nodeData?.promptTemplate as string) || "default";
+        const model = (nodeData?.model as string) || "openai/gpt-4o-mini";
+        const structuredOutput = !!nodeData?.structured_output;
+        const baseUrl = (nodeData?.base_url as string) || undefined;
+        
+        return {
+            type: "generator",
+            data: {
+                queries: queryIds,
+                docs: docIds,
+                prompt_template: promptTemplate,
+                model: model,
+                inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
+                outputs: Object.fromEntries(targetNodes.map(node => ([node.id, node.label]))),
+                structured_output: structuredOutput,
+                ...(baseUrl && baseUrl.trim() !== "" ? { base_url: baseUrl } : {})
+            }
+        };
+    };
+
     // 使用正确的实现，不引入外部类型
     const buildRetrievingNodeJson = (
         nodeId: string, 
@@ -1098,6 +1154,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 outputs: targetNodes.reduce((acc, node) => ({ ...acc, [node.id]: node.label }), {})
             }
         };
+        
     };
     
     // 返回构建JSON的主函数
