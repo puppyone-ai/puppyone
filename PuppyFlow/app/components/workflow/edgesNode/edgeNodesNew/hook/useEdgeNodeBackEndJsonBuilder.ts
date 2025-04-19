@@ -222,6 +222,7 @@ export type RetrievingEdgeJsonType = {
             collection_name?: string;
         } | {};
         query_id: { [key: string]: string };
+        doc_ids: string[];
         outputs: { [key: string]: string };
     };
 }
@@ -935,6 +936,17 @@ export function useEdgeNodeBackEndJsonBuilder() {
             top_k = nodeData.top_k;
         }
         
+        // 从dataSource中提取ID列表
+        const docIds: string[] = [];
+        const dataSourceArray = nodeData?.dataSource as { id: string, label: string }[] | undefined;
+        if (dataSourceArray && Array.isArray(dataSourceArray)) {
+            dataSourceArray.forEach(source => {
+                if (source && typeof source.id === 'string') {
+                    docIds.push(source.id);
+                }
+            });
+        }
+        
         return {
             type: "search",
             data: {
@@ -948,6 +960,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     db_type: "pgvector"
                 },
                 query_id: queryId,
+                doc_ids: docIds,
                 outputs: outputs
             }
         };
@@ -1088,5 +1101,5 @@ export function useEdgeNodeBackEndJsonBuilder() {
     };
     
     // 返回构建JSON的主函数
-    return { buildEdgeNodeJson, buildRetrievingNodeJson, buildIfElseNodeJson };
+    return { buildEdgeNodeJson};
 }
