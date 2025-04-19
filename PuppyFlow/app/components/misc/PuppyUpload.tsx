@@ -158,13 +158,13 @@ export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setU
                                 key={index}
                                 className="bg-[#4B4944] h-[32px] hover:bg-[#5A574F] text-[#CDCDCD] text-[12px] font-regular rounded-md pl-[12px] pr-[4px] flex justify-between items-center"
                             >
-                                <span>{file.fileName?.replace(/^file_/, '') || file.task_id + '.' + file.fileType || 'Unnamed file'}</span>
+                                <span className="truncate max-w-[calc(100%-28px)] overflow-hidden text-ellipsis">{file.fileName?.replace(/^file_/, '') || file.task_id + '.' + file.fileType || 'Unnamed file'}</span>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation(); // Prevent opening file dialog
                                         handleDelete(file, index)
                                     }}
-                                    className="text-gray-400 hover:text-red-400 w-[24px] h-[24px] flex items-center justify-center"
+                                    className="text-gray-400 hover:text-red-400 w-[24px] h-[24px] flex items-center justify-center flex-shrink-0"
                                 >
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                         <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
