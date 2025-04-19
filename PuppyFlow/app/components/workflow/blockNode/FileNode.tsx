@@ -760,7 +760,6 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           onMouseLeave={() => setIsTargetHandleTouched(false)}
         />
        
-            
       </div>
       {/* {ReactDOM.createPortal(
             <input
