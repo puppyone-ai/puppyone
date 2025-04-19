@@ -205,7 +205,6 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     
     // 支持的模型列表
     const supported_models = [
-        "openai/o1-pro",
         "openai/o3-mini-high",
         "openai/o3-mini",
         "openai/o1",

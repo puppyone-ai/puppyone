@@ -256,11 +256,14 @@ export type GenerateEdgeJsonType = {
     data: {
         queries: string[],
         docs: string[],
-        prompt_template: string,
+        sys_prompt_template: string,
+        user_prompt_template: string,
+        hoster: string,
         model: string,
         inputs: { [key: string]: string },
         outputs: { [key: string]: string },
         structured_output: boolean,
+        max_tokens?: number,
         base_url?: string
     }
 }
@@ -313,6 +316,7 @@ export type BaseEdgeNodeConfig = {
     llmModel?: string;
     baseUrl?: string;
     structuredOutput?: boolean;
+    max_tokens?: number;
 }
 
 // 修改返回的数据结构，只返回边缘节点相关的JSON
@@ -940,8 +944,11 @@ export function useEdgeNodeBackEndJsonBuilder() {
             data: {
                 queries: queryIds,
                 docs: docIds,
-                prompt_template: promptTemplate,
+                sys_prompt_template: promptTemplate,
+                user_prompt_template: promptTemplate,
+                hoster: "openrouter",
                 model: model,
+                max_tokens: 2048,
                 inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
                 outputs: Object.fromEntries(targetNodes.map(node => ([node.id, node.label]))),
                 structured_output: structuredOutput,
