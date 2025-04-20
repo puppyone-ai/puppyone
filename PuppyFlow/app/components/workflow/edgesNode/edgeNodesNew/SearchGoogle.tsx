@@ -213,7 +213,7 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
                                     )}
                                 </span>
                                 <span>
-                                    {isLoading ? 'Running' : 'Run'}
+                                    {isLoading ? '' : 'Run'}
                                 </span>
                             </button>
                         </div>

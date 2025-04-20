@@ -32,7 +32,7 @@ import ChooseConfig from './edgesNode/edgeNodes/ChooseConfig'
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
 import LLMConfig from './edgesNode/edgeNodes/LLMConfig'
 import SearchConfig from './edgesNode/edgeNodes/SearchConfig'
-import FileNode from './blockNode/FileNode'
+import FileNode from './blockNode/FileNodeNewNew'
 
 import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
