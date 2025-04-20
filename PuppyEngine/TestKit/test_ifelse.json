@@ -90,10 +90,12 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": {
-                            "from": "1Bd411",
-                            "to": "iv-ilB"
-                        }
+                        "then": [
+                            {
+                                "from": "1Bd411",
+                                "to": "iv-ilB"
+                            }
+                        ]
                     },
                     "case2": {
                         "conditions": [
@@ -106,10 +108,12 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": {
-                            "from": "nnPISg",
-                            "to": "FqbFsH"
-                        }
+                        "then": [
+                            {
+                                "from": "nnPISg",
+                                "to": "FqbFsH"
+                            }
+                        ]
                     }
                 },
                 "inputs": {

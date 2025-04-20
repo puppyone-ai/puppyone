@@ -2,7 +2,6 @@
 
 import { Menu, Transition } from '@headlessui/react'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
-import useWholeWorkflowJsonConstructUtils from '../../hooks/useWholeWorkflowJsonConstructUtils'
 import { useReactFlow } from '@xyflow/react'
 import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
 import { SYSTEM_URLS } from '@/config/urls'
@@ -14,7 +13,6 @@ import Dashboard from './deployMenu/Dashboard'
 function DeployBotton() {
   const { setWorkspaces, selectedFlowId, workspaces } = useFlowsPerUserContext()
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
-  const { constructWholeWorkflowJsonData } = useWholeWorkflowJsonConstructUtils()
   const { getNodes } = useReactFlow()
 
   // 仅保留顶层菜单所需的状态
@@ -67,7 +65,6 @@ function DeployBotton() {
             selectedFlowId={selectedFlowId}
             workspaces={workspaces}
             setWorkspaces={setWorkspaces}
-            constructWholeWorkflowJsonData={constructWholeWorkflowJsonData}
             API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
           />
@@ -78,7 +75,6 @@ function DeployBotton() {
             selectedFlowId={selectedFlowId}
             workspaces={workspaces}
             setWorkspaces={setWorkspaces}
-            constructWholeWorkflowJsonData={constructWholeWorkflowJsonData}
             API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
           />

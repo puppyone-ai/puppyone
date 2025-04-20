@@ -7,7 +7,7 @@ import re
 import json
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
-from ModularEdges.LLMEdge.generater import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
 from Utils.puppy_exception import global_exception_handler
 
 

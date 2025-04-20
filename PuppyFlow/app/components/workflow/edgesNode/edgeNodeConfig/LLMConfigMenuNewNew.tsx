@@ -242,9 +242,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(parentId)?.data as LLMConfigNodeData)?.base_url ?? ""
     )
-    const [resultNode, setResultNode] = useState<string | null>(
-        (getNode(parentId)?.data as LLMConfigNodeData)?.resultNode ?? null
-    )
     // const [isAddContext, setIsAddContext] = useState(true)
     const [isAddFlow, setIsAddFlow] = useState(true)
     const [isComplete, setIsComplete] = useState(true)
@@ -786,24 +783,6 @@ function LLMConfigMenu({ show, parentId }: LLMConfigProps) {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, structured_output: newStructuredOutput } }
-            }
-            return node
-        }))
-    }
-
-    const onResultNodeChange = (newResultNode: string) => {
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === parentId) {
-                return { ...node, data: { ...node.data, resultNode: newResultNode } }
-            }
-            return node
-        }))
-    }
-
-    const onLoopChange = (newLoop: boolean) => {
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === parentId) {
-                return { ...node, data: { ...node.data, looped: newLoop } }
             }
             return node
         }))
