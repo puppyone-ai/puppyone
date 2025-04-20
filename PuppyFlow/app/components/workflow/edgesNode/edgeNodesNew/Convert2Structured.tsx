@@ -249,7 +249,7 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>

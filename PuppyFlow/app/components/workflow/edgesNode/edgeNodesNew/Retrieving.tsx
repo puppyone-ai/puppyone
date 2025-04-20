@@ -320,7 +320,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>

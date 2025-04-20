@@ -158,7 +158,7 @@ function ChunkingAuto({ data: { subMenuType }, isConnectable, id }: ChunkingAuto
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>

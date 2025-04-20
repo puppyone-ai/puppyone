@@ -286,7 +286,7 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>
