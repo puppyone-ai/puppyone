@@ -192,7 +192,7 @@ function Convert2TextConfigMenu({ show, parentId, isLoading, handleDataSubmit }:
                                 </svg>
                             )}
                         </span>
-                        <span>{isLoading ? 'Running' : 'Run'}</span>
+                        <span>{isLoading ? '' : 'Run'}</span>
                     </button>
                 </div>
             </li>

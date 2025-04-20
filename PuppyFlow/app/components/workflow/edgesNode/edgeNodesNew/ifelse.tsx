@@ -466,7 +466,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                     )}
                                 </span>
                                 <span>
-                                    {isLoading ? 'Running' : 'Run'}
+                                    {isLoading ? '' : 'Run'}
                                 </span>
                             </button>
                         </div>

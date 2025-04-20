@@ -179,7 +179,7 @@ function CopyEdgeNode({data: {subMenuType}, isConnectable, id}: ModifyConfigNode
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>

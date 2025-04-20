@@ -1,19 +1,12 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React, { useRef, useEffect, useState, ReactElement, useContext } from 'react'
+import React, { useRef, useEffect, useState, useContext } from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import ReactDOM from 'react-dom'
-import { PuppyUpload } from '../../misc/PuppyUpload'
-import { PuppyStorage_IP_address_for_uploadingFile } from '../../hooks/useJsonConstructUtils'
-import { useFlowsPerUserContext } from "../../states/FlowsPerUserContext"
-import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
+import { useFileUpload, UploadedFile } from './hooks/useFileUpload'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
-import { WarnsContext } from '../../states/WarnMessageContext';
-import { uploadFiles } from '@/app/utils/uploadthing'
-import { SYSTEM_URLS } from "@/config/urls";
-// import {WarnsContext,WarnsContainer} from "puppyui"
 
 export type FileNodeData = {
   content: string,
@@ -29,10 +22,8 @@ export type FileNodeData = {
 type FileNodeProps = NodeProps<Node<FileNodeData>>
 
 function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput, editable }, type, isConnectable, id }: FileNodeProps) {
-
-  // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
   const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside } = useNodesPerFlowContext()
-  const { getEdges, setNodes, getNode } = useReactFlow()
+  const { getNode, setNodes } = useReactFlow()
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -42,8 +33,33 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
   const [isLocalEdit, setIsLocalEdit] = useState(false)
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
-  const { userId } = useFlowsPerUserContext()
-  const { fetchUserId } = useManageUserWorkspacesUtils()
+
+  // 从节点加载初始文件
+  const initialFiles = React.useMemo(() => {
+    const node = getNode(id);
+    return Array.isArray(node?.data?.content) ? node.data.content : [];
+  }, [id, getNode]);
+
+  // 文件变更时同步到节点
+  const handleFilesChange = React.useCallback((files: UploadedFile[]) => {
+    setNodes(nodes => nodes.map(node => 
+      node.id === id ? { ...node, data: { ...node.data, content: files } } : node
+    ));
+  }, [id, setNodes]);
+
+  // 使用分离后的文件上传hook
+  const {
+    uploadedFiles, 
+    isOnUploading, 
+    inputRef,
+    handleInputChange,
+    handleFileDrop,
+    handleDelete
+  } = useFileUpload({
+    nodeId: id,
+    initialFiles,
+    onFilesChange: handleFilesChange
+  });
 
   // 添加获取连接节点的工具函数
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
@@ -70,16 +86,13 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
 
   // 管理labelContainer的宽度
   useEffect(() => {
-
     const onLabelContainerBlur = () => {
-
       if (labelContainerRef.current) {
         setNodeUneditable(id)
       }
     }
 
     if (labelContainerRef.current) {
-
       document.addEventListener("click", (e: MouseEvent) => {
         if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
           onLabelContainerBlur()
@@ -107,57 +120,46 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
     }
   }, [editable, id]);
 
-
-
-
   // 管理 label onchange， 注意：若是当前的workflow中已经存在同样的id，那么不回重新对于这个node进行initialized，那么此时label就是改变了也不会rendering 最新的值，所以我们必须要通过这个useEffect来确保label的值是最新的，同时需要update measureSpanRef 中需要被测量的内容
   useEffect(() => {
     const currentLabel = getNode(id)?.data?.label as string | undefined
     if (currentLabel !== undefined && currentLabel !== nodeLabel && !isLocalEdit) {
-
       setNodeLabel(currentLabel)
       if (measureSpanRef.current) {
         measureSpanRef.current.textContent = currentLabel
       }
     }
-  }, [label, id, isLocalEdit])
+  }, [label, id, isLocalEdit, getNode])
 
-
-  const onFocus: () => void = () => {
+  const onFocus = () => {
     preventInactivateNode()
     const curRef = componentRef.current
     if (curRef && !curRef.classList.contains("nodrag")) {
       curRef.classList.add("nodrag")
     }
-
   }
 
-  const onBlur: () => void = () => {
-
+  const onBlur = () => {
     allowInactivateNodeWhenClickOutside()
     const curRef = componentRef.current
     if (curRef) {
       curRef.classList.remove("nodrag")
     }
     if (isLocalEdit) {
-      //  管理 node label onchange，只有 onBlur 的时候，才会更新 label
-      // setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, label: nodeLabel } } : node))
       editNodeLabel(id, nodeLabel)
       setIsLocalEdit(false)
     }
   }
 
-
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
     return (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F]  group-active:stroke-[#BF9A78]" strokeWidth="1.5" />
-        <path d="M8 13.5H16" className="stroke-[#9E7E5F]  group-active:stroke-[#BF9A78]" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F] group-active:stroke-[#BF9A78]" strokeWidth="1.5" />
+        <path d="M8 13.5H16" className="stroke-[#9E7E5F] group-active:stroke-[#BF9A78]" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     )
   }
-
 
   // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
   const calculateMaxLabelContainerWidth = () => {
@@ -167,239 +169,8 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
     return '100%'
   }
 
-  const getuserid = async (): Promise<string> => {
-    if (userId.trim() !== "") {
-      return userId
-    }
-    const res = await fetchUserId() as string
-    return res
-  }
-
-  const { warns, setWarns } = useContext(WarnsContext) as any;
-
-  const handleInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || files.length === 0) return;
-
-    setIsOnUploading(true);
-
-    try {
-      // Process each file sequentially
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        // Get file extension
-        const fileName = file.name;
-        let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-        const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application", "csv", "xlsx", "xls"];
-
-        if (!supportedFileExtensions.includes(fileExtension)) {
-          fileExtension = "application";
-        }
-        if (fileExtension === "txt") {
-          fileExtension = "text";
-        }
-        if (fileExtension === "md") {
-          fileExtension = "markdown";
-        }
-        // Step 1: Get presigned URL and UUID
-        const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              user_id: `${await getuserid()}`,
-              content_name: fileName
-            })
-          }
-        );
-
-        if (!response.ok) {
-          setWarns((prev: string[]) => [...prev, { time: Date.now(), text: `Fetch temporary upload info Error: ${response.status}` }]);
-          continue; // Skip this file and try the next one
-        }
-
-        const data = await response.json();
-        console.log(data);
-        const upload_url = data.upload_url;
-        const download_url = data.download_url;
-        const content_id = data.content_id;
-        const content_type_header = data.content_type_header;
-        const expires_at = data.expires_at;
-
-        // Step 2: Upload file to S3
-        const uploadResponse = await fetch(upload_url, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': content_type_header,
-          },
-          body: file,
-        });
-
-        if (uploadResponse.ok) {
-          console.log(`File ${fileName} uploaded successfully`);
-          saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
-        } else {
-          console.error(`Failed to upload file ${fileName}`);
-          setWarns((prev: string[]) => [...prev, { time: Date.now(), text: `Failed to upload file ${fileName}` }]);
-        }
-      }
-    } catch (error) {
-      console.error('Error during upload process', error);
-    } finally {
-      setIsOnUploading(false); // Make sure to set loading state to false when all uploads are done
-    }
-  };
-
-  // New handleDrop function to process dropped files
-  const handleDrop = async (files: FileList | File[]) => {
-    if (!files || files.length === 0) return;
-
-    setIsOnUploading(true);
-
-    try {
-      // Process all dropped files sequentially
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-
-        // Get file extension
-        const fileName = file.name;
-        let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-        const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application", "csv", "xlsx", "xls"];
-
-        if (!supportedFileExtensions.includes(fileExtension)) {
-          fileExtension = "application";
-        }
-        if (fileExtension === "txt") {
-          fileExtension = "text";
-        }
-        if (fileExtension === "md") {
-          fileExtension = "markdown";
-        }
-
-        try {
-          // Step 1: Get presigned URL and UUID
-          const response = await fetch(`${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                user_id: `${await getuserid()}`,
-                content_name: fileName
-              })
-            }
-          );
-
-          if (!response.ok) {
-            setWarns((prev: string[]) => [...prev, { time: Date.now(), text: `Fetch temporary upload info Error: ${response.status}` }]);
-            console.error(`Failed to get upload URL for file ${fileName}`);
-            continue; // Skip this file and try the next one
-          }
-
-          const data = await response.json();
-          console.log(data);
-          const upload_url = data.upload_url;
-          const download_url = data.download_url;
-          const content_id = data.content_id;
-          const content_type_header = data.content_type_header;
-          const expires_at = data.expires_at;
-
-          // Step 2: Upload file to S3
-          const uploadResponse = await fetch(upload_url, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': content_type_header,
-            },
-            body: file,
-          });
-
-          if (uploadResponse.ok) {
-            console.log(`File ${fileName} uploaded successfully`);
-            saveFileInformation(fileName, download_url, content_id, fileExtension, content_type_header, expires_at);
-          } else {
-            console.error(`Failed to upload file ${fileName}`);
-            setWarns((prev: string[]) => [...prev, { time: Date.now(), text: `Failed to upload file ${fileName}` }]);
-          }
-        } catch (error) {
-          console.error(`Error uploading file ${file.name}:`, error);
-          setWarns((prev: string[]) => [...prev, { time: Date.now(), text: `Error uploading file ${file.name}` }]);
-        }
-      }
-    } catch (error) {
-      console.error('Error in file processing:', error);
-    } finally {
-      setIsOnUploading(false); // Make sure to set loading state to false when all uploads are done
-    }
-  };
-
-
-  const saveFileInformation = (fileName: string, download_url: string, task_id: string, fileType: string, content_type_header: string, expires_at: string) => {
-    setNodes(prevNodes => prevNodes.map(node => node.id === id ? {
-      ...node, data: {
-        ...node.data, content: Array.isArray(node.data?.content)
-          ? [...(node.data.content.filter((item: any) => item.task_id !== task_id)),
-          { fileName: fileName, task_id: task_id, fileType: fileType, download_url: download_url, content_type_header: content_type_header, expires_at: expires_at }]
-          : [{ fileName: fileName, task_id: task_id, fileType: fileType, download_url: download_url, content_type_header: content_type_header, expires_at: expires_at }]
-      }
-    } : node));
-    setTimeout(() => {
-      console.log("updated file node", getNode(id))
-    }, 1000)
-  }
-
-
-  const [uploadedFiles, setUploadedFiles] = useState<{ fileName: string, task_id: string, fileType: string }[]>([]);
-  const [isOnUploading, setIsOnUploading] = useState(false);
-
-  useEffect(() => {
-    const currentNode = getNode(id);
-    if (currentNode?.data?.content && Array.isArray(currentNode.data.content)) {
-      console.log("currentNode", currentNode)
-
-      setUploadedFiles(currentNode.data.content);
-    }
-  }, [getNode(id)]);
-
-
-  const handleDelete = async (file: { fileName: string | undefined, fileType: string, task_id: string }, index: number) => {
-
-    //   - **Request Body Parameters:**
-    // - `user_id (string)`: **REQUIRED** - User identifier
-    // - `content_id (string)`: **REQUIRED** - Content identifier
-    // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
-    const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/storage/delete`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          user_id: `${await getuserid()}`,
-          content_id: file.task_id,
-          content_name: file.fileName
-        })
-      }
-    );
-
-    // console.log("delete res",response)
-    // if the response is ok, then delete the file
-    if (response.ok) {
-      setNodes(prevNodes => prevNodes.map(node => {
-        if (node.id === id) {
-          return { ...node, data: { ...node.data, content: uploadedFiles.filter((_: { fileName: string, task_id: string, fileType: string }, i: number) => i !== index) } }
-        }
-        return node
-      }))
-    }
-  }
-
-
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px]  ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
         {effectiveIsInput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
@@ -504,10 +275,206 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
 
         <div className="flex flex-col w-full h-full rounded-[8px]               
         border-dashed border-[1px] border-gray-500
-        hover:border-[#9E7E5F]  active:border-[#9E7E5F] ">
-          <PuppyUpload handleInputChange={handleInputChange} uploadedFiles={uploadedFiles} setUploadedFiles={setUploadedFiles} handleDrop={handleDrop} isOnUploading={isOnUploading} handleDelete={handleDelete} />
-        </div>
+        hover:border-[#9E7E5F] active:border-[#9E7E5F]">
+          
+          {/* 文件上传UI组件 */}
+          <div
+            className={`cursor-pointer h-full w-full px-[8px] py-[8px] mx-auto rounded-[8px] hover:bg-gray-800/40
+             transition-all duration-200`}
+            onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.classList.add('bg-gray-800/20', 'border-blue-400');
+            }}
+            onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.currentTarget.classList.remove('bg-gray-800/42', 'border-blue-400');
+            }}
+            onDrop={handleFileDrop}
+          >
+            {/* Loading overlay */}
+            {isOnUploading && (
+                <div className="absolute inset-0 bg-gray-900/80 backdrop-blur-[2px] rounded-[8px] flex flex-col items-center justify-center z-10">
+                    <div className="relative flex items-center justify-center">
+                        {/* 背景圆环 */}
+                        <svg className="w-12 h-12 text-gray-700/50" viewBox="0 0 44 44">
+                            <circle 
+                                cx="22" 
+                                cy="22" 
+                                r="20" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2"
+                            />
+                        </svg>
+                        
+                        {/* 动态进度圆环 */}
+                        <svg className="absolute w-12 h-12 animate-[spin_2s_linear_infinite] text-[#9E7E5F]" viewBox="0 0 44 44">
+                            <circle 
+                                cx="22" 
+                                cy="22" 
+                                r="20" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeDasharray="16 84"
+                            />
+                        </svg>
+                        
+                        {/* 中心上传图标 */}
+                        <svg 
+                            className="absolute w-5 h-5 text-[#9E7E5F]" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor"
+                        >
+                            <path 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round" 
+                                strokeWidth={1.5}
+                                d="M7 10l5-5 5 5M12 5v10"
+                            />
+                        </svg>
+                    </div>
+                    <div className="mt-4 flex flex-col items-center">
+                        <p className="text-[#9E7E5F] font-medium text-[13px]">Uploading</p>
+                        <p className="text-gray-500 text-[11px] mt-1">Please wait...</p>
+                    </div>
+                </div>
+            )}
 
+            {uploadedFiles.length === 0 ? (
+                <div 
+                    className="text-center py-[8px] flex flex-col items-center justify-center h-full w-full cursor-pointer"
+                    onClick={() => inputRef.current?.click()}
+                >
+                    {/* Upload Icon */}
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-8 w-8 mx-auto text-gray-400 group-hover:text-[#9E7E5F] transition-colors duration-300 mb-3"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                    >
+                        {/* 文件轮廓 - 更锋利的角度 */}
+                        <path
+                            strokeLinecap="square"
+                            strokeLinejoin="miter"
+                            strokeWidth={1.2}
+                            d="M8 3h6l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                        />
+                        {/* 文件折角 - 更锋利的转角 */}
+                        <path
+                            strokeLinecap="butt"
+                            strokeLinejoin="miter"
+                            strokeWidth={1.2}
+                            d="M14 3v4h4"
+                        />
+                        {/* 上传箭头 - 更细的线条 */}
+                        <path
+                            strokeLinecap="square"
+                            strokeLinejoin="miter"
+                            strokeWidth={1.2}
+                            d="M12 15V10m0 0l-2.5 2.5M12 10l2.5 2.5"
+                        />
+                    </svg>
+
+                    <p className="text-[12px] text-gray-500">Drag and drop files here, or</p>
+                    <p className="text-[12px] text-gray-500">Click to upload</p>
+                </div>
+            ) : (
+                <div 
+                    className="flex flex-col w-full gap-[8px] h-full"
+                    onClick={(e) => {
+                        // 确保只有点击空白区域时触发
+                        if (e.currentTarget === e.target) {
+                            inputRef.current?.click();
+                        }
+                    }}
+                >
+                    {uploadedFiles.map((file: UploadedFile, index: number) => (
+                        <div
+                            key={index}
+                            className="bg-[#3C3B37] min-h-[32px] hover:bg-[#5A574F] text-[#CDCDCD] text-[14px] font-regular rounded-md pl-[12px] flex justify-between items-center"
+                        >
+                            <div 
+                                className="flex-1 py-2 cursor-pointer flex items-center"
+                                onClick={(e) => {
+                                    e.stopPropagation(); // 防止触发父元素的点击事件
+                                    // 检查download_url是否存在
+                                    if (file.download_url) {
+                                        // 在新窗口中打开下载链接
+                                        window.open(file.download_url, '_blank');
+                                    }
+                                }}
+                            >
+                                {/* 添加文件图标 */}
+                                <svg 
+                                    className="w-4 h-4 mr-2 text-gray-400 flex-shrink-0" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor"
+                                >
+                                    <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={1.5}
+                                        d="M8 3h6l4 4v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"
+                                    />
+                                    <path 
+                                        strokeLinecap="round" 
+                                        strokeLinejoin="round" 
+                                        strokeWidth={1.5}
+                                        d="M14 3v4h4"
+                                    />
+                                </svg>
+                                
+                                {/* 文件名 */}
+                                <span className="truncate overflow-hidden text-ellipsis">
+                                    {file.fileName?.replace(/^file_/, '') || file.task_id + '.' + file.fileType || 'Unnamed file'}
+                                </span>
+                            </div>
+                            
+                            {/* 删除按钮 */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation(); // 防止触发文件的点击事件
+                                    handleDelete(file, index);
+                                }}
+                                className="text-gray-400 hover:text-red-400 w-[32px] h-[32px] flex items-center justify-center flex-shrink-0"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                    <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
+                                </svg>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+          </div>
+          
+          {/* 添加隐藏的文件输入框 */}
+          {ReactDOM.createPortal(
+            <input
+                type="file"
+                ref={inputRef}
+                onChange={handleInputChange}
+                onClick={(e) => e.stopPropagation()}
+                accept=".json, .pdf, .txt, .docx, .csv, .xlsx, .markdown, .md, .mdx"
+                multiple
+                className="opacity-0 absolute top-0 left-0 w-full h-full cursor-pointer"
+                style={{
+                    position: 'fixed',
+                    top: '-100%',
+                    left: '-100%',
+                    zIndex: 9999,
+                }}
+            />,
+            document.body
+          )}
+        </div>
 
         <NodeResizeControl
           minWidth={240}
@@ -545,6 +512,7 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
           </div>
         </NodeResizeControl>
 
+        {/* Handle components for ReactFlow */}
         <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
           isConnectable={isConnectable} position={Position.Top} />
         <WhiteBallHandle id={`${id}-b`} type="source" sourceNodeId={id}
@@ -634,36 +602,8 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
           onMouseEnter={() => setIsTargetHandleTouched(true)}
           onMouseLeave={() => setIsTargetHandleTouched(false)}
         />
-
       </div>
-      {/*
-      <div className="absolute left-0 -bottom-[2px] transform translate-y-full w-full flex gap-2 z-10">
-        {sourceNodes.length > 0 && (
-          <div className="w-[48%] bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
-            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
-              Source Nodes
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {displaySourceNodeLabels()}
-            </div>
-          </div>
-        )}
-
-        {targetNodes.length > 0 && (
-          <div className="w-[48%] ml-auto bg-[#101010] rounded-lg border border-[#333333] p-1.5 shadow-lg">
-            <div className="text-xs text-[#A4C8F0] font-semibold pb-1 mb-1">
-              Target Nodes
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {displayTargetNodeLabels()}
-            </div>
-          </div>
-        )}
-      </div>
-      */}
     </div>
-
-
   )
 }
 
