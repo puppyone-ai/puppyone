@@ -58,6 +58,7 @@ import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
 import IfElse from './edgesNode/edgeNodesNew/ifelse'
 import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
+import Load from './edgesNode/edgeNodesNew/Load'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -65,7 +66,6 @@ const nodeTypes = {
   'file': FileNode,
   'weblink': WebLinkNode,
   'structured': JsonBlockNode,
-  'load': LoadConfig,
   'chunk': ChunkingConfig,
   'code': CodeConfig,
   'llm': LLMConfig,
@@ -86,6 +86,7 @@ const nodeTypes = {
   'llmnew': LLM,
   'ifelse': IfElse,
   'generate': Generate,
+  'load': Load,
 }
 
 const edgeTypes = {

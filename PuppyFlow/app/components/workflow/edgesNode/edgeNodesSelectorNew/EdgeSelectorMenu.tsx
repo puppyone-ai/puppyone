@@ -889,7 +889,6 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                         </li>
 
                         {/*
-
                         <li className="w-full relative">
                             <button className={`w-full h-[38px] ${selectedSubMenu === 6 ? "bg-main-orange text-[#1C1D1F]" : "bg-[#3E3E41] text-[#CDCDCD]"} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`}
                                 onMouseEnter={() => manageTextNodeSubMenu("Codesub1")}

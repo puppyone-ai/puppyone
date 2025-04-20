@@ -14,7 +14,7 @@ export type BaseNodeData = {
 }
 
 // 定义基础类型
-export type EdgeNodeType = "copy" | "chunkingAuto" | "chunkingByCharacter" | "chunkingByLength" | "convert2structured" | "convert2text" | "editText" | string;
+export type EdgeNodeType = "copy" | "chunkingAuto" | "chunkingByCharacter" | "chunkingByLength" | "convert2structured" | "convert2text" | "editText" | "load" | string;
 
 // Copy 操作的数据类型
 export type CopyEdgeJsonType = {
@@ -268,13 +268,31 @@ export type GenerateEdgeJsonType = {
     }
 }
 
-// 修改 BaseEdgeJsonType 以包含 GenerateEdgeJsonType
+// 在类型定义部分添加 LoadEdgeJsonType
+export type LoadEdgeJsonType = {
+    type: "load";
+    data: {
+        block_type: string,
+        content: string,
+        extra_configs: {
+            file_configs: Array<{
+                file_path: string,
+                file_type: string,
+                configs?: Record<string, any>
+            }>
+        },
+        inputs: Record<string, string>,
+        outputs: Record<string, string>
+    }
+}
+
+// 将 LoadEdgeJsonType 添加到 BaseEdgeJsonType 联合类型中
 export type BaseEdgeJsonType = CopyEdgeJsonType | ChunkingAutoEdgeJsonType |
     ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType |
     Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType |
     SearchByVectorEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
     LLMEdgeJsonType | EditStructuredEdgeJsonType | RetrievingEdgeJsonType | IfElseEdgeJsonType |
-    GenerateEdgeJsonType;
+    GenerateEdgeJsonType | LoadEdgeJsonType;
 
 // 构造的数据类型
 export type BaseConstructedJsonData = {
@@ -400,6 +418,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 
             case "generate":
                 edgeJson = buildGenerateNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
+                break;
+                
+            case "load":
+                edgeJson = buildLoadNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
                 break;
                 
             default:
@@ -1162,6 +1184,44 @@ export function useEdgeNodeBackEndJsonBuilder() {
             }
         };
         
+    };
+    
+    // 添加构建 Load 节点 JSON 的辅助函数
+    const buildLoadNodeJson = (
+        nodeId: string, 
+        sourceNodes: { id: string, label: string }[], 
+        targetNodes: { id: string, label: string }[]
+    ): LoadEdgeJsonType => {
+        // 获取源节点内容（文件数据）
+        const sourceNode = sourceNodes[0]; // 通常只有一个源节点
+        if (!sourceNode) {
+            throw new Error("Load 节点需要至少一个源节点");
+        }
+        
+        // 获取源节点内容，用于构建文件配置
+        const nodeContent = getNode(sourceNode.id)?.data?.content;
+        
+        // 构建文件配置
+        const fileConfigs = Array.isArray(nodeContent)
+            ? nodeContent.map(file => ({
+                file_path: file.download_url,
+                file_type: file.fileType
+            }))
+            : [];
+        
+        // 创建 Load 节点的 JSON
+        return {
+            type: "load",
+            data: {
+                block_type: "file",
+                content: sourceNode.id,
+                extra_configs: {
+                    file_configs: fileConfigs
+                },
+                inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
+                outputs: Object.fromEntries(targetNodes.map(node => ([node.id, node.label])))
+            }
+        };
     };
     
     // 返回构建JSON的主函数
