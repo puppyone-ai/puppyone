@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import os
 import json
 from typing import List, Dict
-from ModularEdges.LLMEdge.generater import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
 from ModularEdges.RerankEdge.base_reranker import BaseReranker
 from Utils.puppy_exception import global_exception_handler
 

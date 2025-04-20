@@ -1,0 +1,79 @@
+[
+    {
+        "id": "FWt2B4",
+        "position": {
+            "x": 5232,
+            "y": 720
+        },
+        "data": {
+            "content": "[\n    \"a smart choice for companies.\\n\\nAdvanced Reasoning\\nContextual understanding and logical reasoning\\nGrok 3 uses smart methods to improve its thinking skills. It learns from live internet data and trains on text, code, and images. This helps it understand context and give better answers. It also uses trial-and-error learning to solve problems. Special modes like 'Think Mode' and 'Big Brain Mode' make it even better at tough tasks.\\n\\nLearns from live internet data.\\nTrains on different types of information.\\nUses trial-and\",\n    \"tion.\\nUses trial-and-error to fix mistakes.\\nThinks step-by-step to solve problems.\\nPerformance in coding, mathematics, and general knowledge\\nGrok 3 is great at tests like MMLU, GSM8K, and HumanEval. It scores 92.7%, 89.3%, and 86.5% on these tests. Its math skills are much better now, with scores between 93% and 96%. These results show how Grok 3 handles hard tasks in many areas.\\n\\nTask\\tGrok 3 Score\\tImprovement from Grok 2\\nMMLU (Language Skills)\\t92.7%\\tBig improvement\\nGSM8K (Math Skills)\\t89.3%\\tBig improvement\\nHumanEv\",\n    \"de for problem-solving and decision-making\\nBig Brain mode uses extra computing power for hard problems. It's perfect for tasks like studying big datasets or solving tricky math. This feature is great for research and coding, showing how advanced Grok 3 really is.\\n\\nGrok 3 Competitive Analysis and Benchmarks\\nGrok 3 Competitive Analysis and Benchmarks\\nImage Source: Unsplash\\nBenchmark Metrics\\nPerformance in MMLU, GSM8K, and HumanEval\\nGrok 3 shows big improvements in important AI tests. It performs well in MMLU, GSM8K,\",\n    \"are better at making jokes and solving tough logic problems.\\n\\nReal-World Applications\\nIndustry-specific use cases and adaptability\\nGrok 3 is useful in many industries because it can adapt well.\\n\\nCode Analysis and Generation: Helps programmers find and fix errors.\\nReal-Time Data Analysis: Gives useful insights from market trends.\\nScientific Research: Improves studies like DNA analysis and engineering tests.\\nCustomer Service Automation: Makes replies faster and more accurate.\\nFor companies needing advanced AI, Grok 3\"\n]",
+            "label": "FWt2B4",
+            "isLoading": false,
+            "locked": false,
+            "isInput": false,
+            "isOutput": false,
+            "editable": false,
+            "paths": [],
+            "chunks": [
+                {
+                    "content": "a smart choice for companies.\n\nAdvanced Reasoning\nContextual understanding and logical reasoning\nGrok 3 uses smart methods to improve its thinking skills. It learns from live internet data and trains on text, code, and images. This helps it understand context and give better answers. It also uses trial-and-error learning to solve problems. Special modes like 'Think Mode' and 'Big Brain Mode' make it even better at tough tasks.\n\nLearns from live internet data.\nTrains on different types of information.\nUses trial-and",
+                    "metadata": {
+                        "id": "0",
+                        "list_0": 0,
+                        "path": [
+                            0
+                        ],
+                        "info": []
+                    }
+                },
+                {
+                    "content": "tion.\nUses trial-and-error to fix mistakes.\nThinks step-by-step to solve problems.\nPerformance in coding, mathematics, and general knowledge\nGrok 3 is great at tests like MMLU, GSM8K, and HumanEval. It scores 92.7%, 89.3%, and 86.5% on these tests. Its math skills are much better now, with scores between 93% and 96%. These results show how Grok 3 handles hard tasks in many areas.\n\nTask\tGrok 3 Score\tImprovement from Grok 2\nMMLU (Language Skills)\t92.7%\tBig improvement\nGSM8K (Math Skills)\t89.3%\tBig improvement\nHumanEv",
+                    "metadata": {
+                        "id": "1",
+                        "list_0": 1,
+                        "path": [
+                            1
+                        ],
+                        "info": []
+                    }
+                }
+            ],
+            "index_name": "public5c46f9069047e011",
+            "collection_configs": {
+                "set_name": "FWt2B4",
+                "model": "text-embedding-ada-002",
+                "vdb_type": "pgvector",
+                "user_id": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181",
+                "collection_name": "public5c46f9069047e011"
+            }
+        }
+    },
+    {
+        "id": "Nk6mGG",
+        "position": {
+            "x": 4848,
+            "y": 480
+        },
+        "data": {
+            "content": "[\n    \"ge across various applications.\\n\\nCan Claude 3.7 handle real-world challenges?\\n\\nClaude 3.7 excels in real-world scenarios, from solving graduate-level reasoning tasks to automating complex coding workflows. Its advanced reasoning and coding capabilities make it a reliable tool for tackling diverse challenges in education, development, and enterprise environments.\",\n    \"ins a reliable partner for developers. As you explore its capabilities, you'll find that Claude 3.7 Sonnet is not just a tool but a glimpse into the future of innovation.\\n\\nFAQ\\nWhat makes Claude 3.7 Sonnet unique compared to other AI models?\\n\\nClaude 3.7 Sonnet combines a hybrid reasoning model, extended thinking mode, and transparent chain of thought. These features allow it to balance speed and depth, excel in complex problem-solving, and provide clear, step-by-step reasoning. Its versatility sets it apart from tra\",\n    \"ng, and problem-solving. Its hybrid reasoning model and extended thinking capabilities allow you to tackle complex challenges with precision. By breaking down problems into manageable steps, the model mirrors human thought processes, ensuring clarity and accuracy.\\n\\nFor developers, Claude 3.7 Sonnet offers unmatched productivity tools. It produces robust, bug-free code and handles intricate programming tasks with ease. The introduction of Claude Code, a command-line tool, empowers you to delegate coding tasks direct\",\n    \"del can tutor students by showing how answers are derived. In customer support, it resolves simple tickets instantly while escalating complex issues with full reasoning logs. By offering clear and auditable workflows, Claude 3.7 Sonnet ensures you can trust its outputs, whether you're automating insights in data science or refining nuanced arguments in content creation.\\n\\nClaude 3.7's AI-Powered Coding Capabilities\\nEnhanced Code Generation\\nClaude 3.7 redefines how you approach coding tasks with its enhanced code gen\",\n    \"ng, and problem-solving. Its hybrid reasoning model and extended thinking capabilities allow you to tackle complex challenges with precision. By breaking down problems into manageable steps, the model mirrors human thought processes, ensuring clarity and accuracy.\\n\\nFor developers, Claude 3.7 Sonnet offers unmatched productivity tools. It produces robust, bug-free code and handles intricate programming tasks with ease. The introduction of Claude Code, a command-line tool, empowers you to delegate coding tasks direct\"\n]",
+            "label": "Nk6mGG",
+            "isLoading": false,
+            "locked": false,
+            "isInput": false,
+            "isOutput": false,
+            "editable": false,
+            "paths": []
+        },
+        "type": "structured",
+        "looped": false,
+        "measured": {
+            "width": 288,
+            "height": 304
+        },
+        "selected": false,
+        "width": 288,
+        "height": 304,
+        "resizing": false,
+        "dragging": false
+    }
+]

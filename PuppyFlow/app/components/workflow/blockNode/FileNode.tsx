@@ -240,7 +240,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           // Get file extension
           const fileName = file.name;
           let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application"];
+          const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application", "csv", "xlsx", "xls"];
 
           if (!supportedFileExtensions.includes(fileExtension)) {
             fileExtension = "application";
@@ -316,7 +316,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
               // Get file extension
               const fileName = file.name;
               let fileExtension = fileName.substring(fileName.lastIndexOf('.') + 1);
-              const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application"];
+              const supportedFileExtensions = ["json", "txt", "html", "css", "js", "png", "jpg", "gif", "svg", "mp3", "wav", "mp4", "webm", "pdf", "zip", "md", "markdown", "application", "csv", "xlsx", "xls"];
 
               if (!supportedFileExtensions.includes(fileExtension)) {
                 fileExtension = "application";
@@ -420,7 +420,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
     // - `user_id (string)`: **REQUIRED** - User identifier
     // - `content_id (string)`: **REQUIRED** - Content identifier
     // - `content_name (string)`: **REQUIRED** - Name of the file to be deleted
-      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/delete`,
+      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/storage/delete`,
         {
           method: 'DELETE',
           headers: {
@@ -515,7 +515,7 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
       </div>
       
       <div id={id} ref={contentRef}
-        className={`flex flex-col w-full h-full border-[1.5px] border-solid border-[1.5px] min-w-[240px] min-h-[176px] p-[8px] rounded-[16px] flex justify-start ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden shadow-[0_8px_16px_rgba(0,0,0,0.04),0_4px_24px_rgba(255,255,255,0.04)]`}>
+        className={`flex flex-col w-full h-full border-[1.5px] border-solid border-[1.5px] min-w-[240px] min-h-[176px] p-[8px] rounded-[16px] flex justify-start ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}>
           
         {/* the top bar of a block */}
         <div ref={labelContainerRef} 
@@ -760,7 +760,6 @@ function FileNode({data: {content, label, isLoading, locked, isInput, isOutput, 
           onMouseLeave={() => setIsTargetHandleTouched(false)}
         />
        
-            
       </div>
       {/* {ReactDOM.createPortal(
             <input

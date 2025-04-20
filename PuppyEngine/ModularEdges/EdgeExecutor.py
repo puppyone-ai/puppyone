@@ -15,6 +15,7 @@ from ModularEdges.CodeEdge import CoderFactory
 from ModularEdges.SaveEdge import SaverFactory
 from ModularEdges.LoadEdge import LoaderFactory
 from ModularEdges.ChunkEdge import ChunkerFactory
+from ModularEdges.LLMEdge import GeneratorFactory
 from ModularEdges.SearchEdge import SearcherFactory
 from ModularEdges.ModifyEdge import ModifierFactory
 from ModularEdges.RerankEdge import RerankerFactory
@@ -63,6 +64,7 @@ class EdgeExecutor:
             "modify": ModifierFactory,
             "rerank": RerankerFactory,
             "ifelse": ConditionerFactory,
+            "generator": GeneratorFactory,
             "query_rewrite": QueryRewriterFactory
         }
 

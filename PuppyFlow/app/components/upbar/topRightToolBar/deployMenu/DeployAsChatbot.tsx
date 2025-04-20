@@ -1,25 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import ChatbotTestInterface from './ChatbotTestInterface';
+import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
+import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 
 interface DeployAsChatbotProps {
   selectedFlowId: string | null;
   workspaces: any[];
   setWorkspaces: (workspaces: any[]) => void;
-  constructWholeWorkflowJsonData: () => any;
   API_SERVER_URL: string;
   setActivePanel: (panel: string | null) => void;
+}
+
+// Define interfaces for better type safety
+interface BlockNode {
+  label: string;
+  type: string;
+  data: any;
+  [key: string]: any; // For any additional properties
+}
+
+interface EdgeNode {
+  [key: string]: any;
 }
 
 function DeployAsChatbot({
   selectedFlowId,
   workspaces,
   setWorkspaces,
-  constructWholeWorkflowJsonData,
   API_SERVER_URL,
   setActivePanel
 }: DeployAsChatbotProps) {
-  const { getNodes } = useReactFlow();
+  const { getNodes, getEdges } = useReactFlow();
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   
   const [selectedInputs, setSelectedInputs] = useState<any[]>([]);
@@ -43,6 +55,10 @@ function DeployAsChatbot({
 
   const [showChatbotTest, setShowChatbotTest] = useState(false);
 
+  // Use the builder hooks
+  const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
+  const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
+  
   const initializeNodeSelections = () => {
     const allInputNodes = getNodes()
       .filter((item) => item.type === 'text')
@@ -101,6 +117,66 @@ function DeployAsChatbot({
     }
   }, [selectedInputs, selectedOutputs, chatbotConfig, selectedFlowId]);
 
+  // Create a function similar to constructAllNodesJson
+  const constructWorkflowJson = () => {
+    try {
+      // Get all nodes and edges
+      const allNodes = getNodes();
+      const reactFlowEdges = getEdges();
+      
+      // Create blocks and edges objects with proper type definitions
+      let blocks: { [key: string]: BlockNode } = {};
+      let edges: { [key: string]: EdgeNode } = {};
+      
+      // Define block node types
+      const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+      
+      // Process all nodes
+      allNodes.forEach(node => {
+        const nodeId = node.id;
+        const nodeLabel = node.data?.label || nodeId;
+        
+        if (blockNodeTypes.includes(node.type || '')) {
+          try {
+            // Use block node builder function
+            const blockJson = buildBlockNodeJson(nodeId);
+            
+            // Ensure node label is correct
+            blocks[nodeId] = {
+              ...blockJson,
+              label: String(nodeLabel)
+            };
+          } catch (e) {
+            console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
+            
+            // Fallback to default behavior
+            blocks[nodeId] = {
+              label: String(nodeLabel),
+              type: node.type || '',
+              data: {...node.data}
+            };
+          }
+        } else {
+          // Edge node
+          try {
+            // Build edge JSON and add to edges object
+            const edgeJson = buildEdgeNodeJson(nodeId);
+            edges[nodeId] = edgeJson;
+          } catch (e) {
+            console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
+          }
+        }
+      });
+      
+      return { blocks, edges };
+    } catch (error) {
+      console.error(`Error building workflow JSON: ${error}`);
+      
+      // If there's an error, fall back to the original function
+      return
+    }
+  };
+
   const handleDeploy = async () => {
     setIsDeploying(true);
     try {
@@ -109,7 +185,7 @@ function DeployAsChatbot({
         {
           method: "POST",
           body: JSON.stringify({
-            workflow_json: constructWholeWorkflowJsonData(),
+            workflow_json: constructWorkflowJson(), // Use our new function
             inputs: selectedInputs.map(item => item.id),
             outputs: selectedOutputs.map(item => item.id),
           })
