@@ -196,7 +196,7 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>

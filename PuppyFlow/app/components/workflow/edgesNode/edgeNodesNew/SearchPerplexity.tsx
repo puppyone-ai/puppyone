@@ -214,7 +214,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
                                     )}
                                 </span>
                                 <span>
-                                    {isLoading ? 'Running' : 'Run'}
+                                    {isLoading ? '' : 'Run'}
                                 </span>
                             </button>
                         </div>
