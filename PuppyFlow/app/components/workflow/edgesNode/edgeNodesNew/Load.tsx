@@ -132,9 +132,8 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
 
             {/* Configuration Menu (integrated directly) */}
             {isMenuOpen && (
-                <div className="absolute top-[8px] left-0 w-[80px]">
                     <ul 
-                        className="absolute top-[58px] left-0 text-white w-[352px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg"
+                        className="absolute top-[64px] text-white w-[352px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg"
                     >
                         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                             <div className='flex flex-row gap-[12px]'>
@@ -183,10 +182,11 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
                                 getNode={getNode}
                                 getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                                supportedInputTypes={['file']}
+                                supportedOutputTypes={['structured']}
                             />
                         </li>
                     </ul>
-                </div>
             )}
         </div>
     )
