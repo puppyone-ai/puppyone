@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import multiprocessing
 from pydub import AudioSegment
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Union
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
@@ -689,23 +689,31 @@ class FileToTextParser:
         self,
         file_path: str,
         **kwargs
-    ) -> str:
+    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
-        Parses a CSV file and returns its content as a string.
+        Parses a CSV file and returns its content in specified format.
 
         Args:
             file_path (str): The path to the CSV file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
+            - mode (str): Output format mode. One of:
+                - 'string': CSV format string (default)
+                - 'column': Dict with column names as keys and column values as lists
+                - 'row': List of dicts, each dict representing a row with column names as keys
         Returns:
-            str: The parsed CSV content.
+            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed CSV content in specified format
         """
-
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
+        mode = kwargs.get("mode", "string")
+
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
+        
+        if mode not in ["string", "column", "row"]:
+            raise ValueError("Mode must be one of: 'string', 'column', 'row'")
 
         csv_file = file_path
         if self._is_file_url(file_path):
@@ -716,31 +724,45 @@ class FileToTextParser:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
-        return df.to_csv(index=False)
+
+        if mode == "string":
+            return df.to_csv(index=False)
+        elif mode == "column":
+            return df.to_dict(orient='list')
+        else:  # mode == "row"
+            return df.to_dict(orient='records')
 
     @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
         self,
         file_path: str,
         **kwargs
-    ) -> str:
+    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
-        Parses an XLSX file and returns its content as a string.
+        Parses an XLSX file and returns its content in specified format.
 
         Args:
             file_path (str): The path to the XLSX file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
+            - mode (str): Output format mode. One of:
+                - 'string': CSV format string (default)
+                - 'column': Dict with column names as keys and column values as lists
+                - 'row': List of dicts, each dict representing a row with column names as keys
 
         Returns:
-            str: The parsed XLSX content.
+            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed XLSX content in specified format
         """
-
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
+        mode = kwargs.get("mode", "string")
+
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
+
+        if mode not in ["string", "column", "row"]:
+            raise ValueError("Mode must be one of: 'string', 'column', 'row'")
 
         xlsx_file = file_path
         if self._is_file_url(file_path):
@@ -752,7 +774,12 @@ class FileToTextParser:
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
 
-        return df.to_csv(index=False)
+        if mode == "string":
+            return df.to_csv(index=False)
+        elif mode == "column":
+            return df.to_dict(orient='list')
+        else:  # mode == "row"
+            return df.to_dict(orient='records')
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
@@ -897,7 +924,8 @@ if __name__ == "__main__":
             "file_type": "csv",
             "config": {
                 "column_range": [0, 3],
-                "row_range": [0, 5]
+                "row_range": [0, 5],
+                "mode": "column"
             }
         },  
         {
@@ -905,7 +933,8 @@ if __name__ == "__main__":
             "file_type": "xlsx",
             "config": {
                 "column_range": [0, 3],
-                "row_range": [0, 5]
+                "row_range": [0, 5],
+                "mode": "row"
             }
         },
         {
