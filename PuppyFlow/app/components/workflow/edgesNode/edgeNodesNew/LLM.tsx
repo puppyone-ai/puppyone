@@ -6,7 +6,7 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
-import PromptEditor, { PromptMessage } from './components/promptEditor'
+import PromptEditor, { PromptMessage } from '../../components/promptEditor'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 
 export type LLMConfigNodeData = {
