@@ -233,13 +233,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     )
   }
 
-  const EditLabel = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (labelRef.current) {
-      setIsLocalEdit(true)
-      setNodeLabel(labelRef.current.value)
-    }
-  }
-
   // 计算 labelContainer 的 最大宽度，最大宽度是由外部的container 的宽度决定的，同时需要减去 32px, 因为右边有一个menuIcon, 需要 - 他的宽度和右边的padding
   const calculateMaxLabelContainerWidth = () => {
     if (contentRef.current) {
@@ -248,12 +241,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     return '100%'
   }
 
-  const calculateMaxLabelContainerWidthN = () => {
-    if (contentRef.current) {
-      return `${contentRef.current.clientWidth - 15.6}px`
-    }
-    return '100%'
-  }
 
   // height by default: 304px, inner-box: 240px, resize-control: 304px, without embedding
   // height with embedding: 336px, inner-box: 272px, resize-control: 336px
@@ -265,9 +252,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // TODO dialogue selection of content atttribute(key onl y, no index) 
   // embeding view switch button
   const [showSettingMenu, setShowSettingMenu] = useState(false)
-  const handleInputViewClick = () => {
-    setVectorIndexingStatus('notStarted');
-  };
 
   const handleEmbedViewClick = () => {
     console.log(getNode(id)?.data?.content)
@@ -740,36 +724,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     setShowPathEditor(false);
     // Additional logic for applying the paths could go here
   };
-
-  const displaySourceNodeLabels = () => {
-    return sourceNodes.map(node => (
-      <button
-        key={`${node.id}-${id}-simple`}
-        onClick={() => {
-          navigator.clipboard.writeText(`{{${node.label}}}`);
-        }}
-        className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
-                 text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
-      >
-        {node.label}
-      </button>
-    ))
-  }
-
-  const displayTargetNodeLabels = () => {
-    return targetNodes.map(node => (
-      <button
-        key={`${node.id}-${id}-simple`}
-        onClick={() => {
-          navigator.clipboard.writeText(`{{${node.label}}}`);
-        }}
-        className="px-1.5 py-0.5 rounded text-[11px] bg-[#1A1A1A] border border-[#333333] 
-                 text-gray-300 hover:bg-[#252525] hover:text-white transition-colors"
-      >
-        {node.label}
-      </button>
-    ))
-  }
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>

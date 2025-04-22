@@ -1,18 +1,24 @@
 import React, { useState } from 'react';
 import { Node } from '@xyflow/react';
 
+type NodeType = 'text' | 'file' | 'structured';
+
 interface InputOutputDisplayProps {
     parentId: string;
     getNode: (id: string) => Node | undefined;
     getSourceNodeIdWithLabel: (id: string) => Array<{ id: string, label: string }>;
     getTargetNodeIdWithLabel: (id: string) => Array<{ id: string, label: string }>;
+    supportedInputTypes?: NodeType[];
+    supportedOutputTypes?: NodeType[];
 }
 
 export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
     parentId,
     getNode,
     getSourceNodeIdWithLabel,
-    getTargetNodeIdWithLabel
+    getTargetNodeIdWithLabel,
+    supportedInputTypes = ['text', 'file', 'structured'],
+    supportedOutputTypes = ['text', 'file', 'structured']
 }) => {
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
@@ -86,31 +92,60 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
         );
     };
 
+    // 根据支持的类型过滤图标
+    const renderTypeIcons = (types: NodeType[]) => {
+        return (
+            <div className='flex items-center gap-[6px]'>
+                {types.includes('text') && (
+                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                )}
+                {types.includes('structured') && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+                        <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+                        <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+                        <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+                        <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+                        <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+                    </svg>
+                )}
+                {types.includes('file') && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F]" strokeWidth="1.5" />
+                        <path d="M8 13.5H16" className="stroke-[#9E7E5F]" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                )}
+            </div>
+        );
+    };
+
+    // 过滤源节点，只显示支持的类型
+    const filteredSourceNodes = getSourceNodeIdWithLabel(parentId).filter(node => {
+        const nodeType = getNode(node.id)?.type as NodeType || 'text';
+        return supportedInputTypes.includes(nodeType);
+    });
+
+    // 过滤目标节点，只显示支持的类型
+    const filteredTargetNodes = getTargetNodeIdWithLabel(parentId).filter(node => {
+        const nodeType = getNode(node.id)?.type as NodeType || 'text';
+        return supportedOutputTypes.includes(nodeType);
+    });
+
     return (
         <div className='flex flex-row gap-[12px]'>
             {/* Input section */}
             <div className='flex-1 flex flex-col gap-1'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Input</label>
-                    <div className='flex items-center gap-[6px]'>
-                        <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                            <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                            <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
-                            <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
-                            <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
-                            <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
-                            <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
-                            <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
-                        </svg>
-                    </div>
+                    {renderTypeIcons(supportedInputTypes)}
                 </div>
                 <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                     <div className='flex flex-wrap gap-2'>
-                        {getSourceNodeIdWithLabel(parentId).map(node => (
+                        {filteredSourceNodes.map(node => (
                             <NodeLabel 
                                 key={node.id} 
                                 node={node} 
@@ -125,25 +160,11 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
             <div className='flex-1 flex flex-col gap-1'>
                 <div className='flex items-center gap-2'>
                     <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Output</label>
-                    <div className='flex items-center gap-[6px]'>
-                        <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                            <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                            <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
-                        </svg>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
-                            <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
-                            <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
-                            <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
-                            <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
-                            <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
-                        </svg>
-                    </div>
+                    {renderTypeIcons(supportedOutputTypes)}
                 </div>
                 <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                     <div className='flex flex-wrap gap-2'>
-                        {getTargetNodeIdWithLabel(parentId).map(node => (
+                        {filteredTargetNodes.map(node => (
                             <NodeLabel 
                                 key={node.id} 
                                 node={node} 

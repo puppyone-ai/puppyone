@@ -432,7 +432,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
             </button>
             {/* Configuration Menu (integrated directly) */}
             {isMenuOpen && (
-                    <ul ref={menuRef} className="w-[535px] absolute top-[58px] left-[0px] text-white rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
+                    <ul ref={menuRef} className="w-[535px] absolute top-[64px] text-white rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
                     <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                         <div className='flex flex-row gap-[12px]'>
                             <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -466,7 +466,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                     )}
                                 </span>
                                 <span>
-                                    {isLoading ? 'Running' : 'Run'}
+                                    {isLoading ? '' : 'Run'}
                                 </span>
                             </button>
                         </div>
@@ -479,6 +479,8 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                             getNode={getNode}
                             getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                            supportedInputTypes={['text', 'structured']}
+                            supportedOutputTypes={['text', 'structured']}
                         />
                     </li>
 
