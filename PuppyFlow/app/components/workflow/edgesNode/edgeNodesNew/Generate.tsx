@@ -270,7 +270,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
 
             {/* Configuration Menu */}
             {isMenuOpen && (
-                    <ul ref={menuRef} className="absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
+                    <ul ref={menuRef} className="absolute top-[64px] text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
                         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                             <div className='flex flex-row gap-[12px]'>
                                 <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -315,6 +315,8 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
                                 getNode={getNode}
                                 getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                                supportedInputTypes={['text', 'structured']}
+                                supportedOutputTypes={['text', 'structured']}
                             />
                         </li>
 
