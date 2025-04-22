@@ -32,7 +32,7 @@ import ChooseConfig from './edgesNode/edgeNodes/ChooseConfig'
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
 import LLMConfig from './edgesNode/edgeNodes/LLMConfig'
 import SearchConfig from './edgesNode/edgeNodes/SearchConfig'
-import FileNode from './blockNode/FileNode'
+import FileNode from './blockNode/FileNodeNew'
 
 import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
@@ -57,6 +57,8 @@ import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
 import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
 import IfElse from './edgesNode/edgeNodesNew/ifelse'
 import LLM from './edgesNode/edgeNodesNew/LLM'
+import Generate from './edgesNode/edgeNodesNew/Generate'
+import Load from './edgesNode/edgeNodesNew/Load'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -64,10 +66,8 @@ const nodeTypes = {
   'file': FileNode,
   'weblink': WebLinkNode,
   'structured': JsonBlockNode,
-  'load': LoadConfig,
   'chunk': ChunkingConfig,
   'code': CodeConfig,
-  'generate': GenerateConfig,
   'llm': LLMConfig,
   'search': SearchConfig,
   'modify': ModifyConfig,
@@ -85,6 +85,8 @@ const nodeTypes = {
   'searchPerplexity': SearchPerplexity,
   'llmnew': LLM,
   'ifelse': IfElse,
+  'generate': Generate,
+  'load': Load,
 }
 
 const edgeTypes = {

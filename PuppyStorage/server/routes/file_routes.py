@@ -1,3 +1,46 @@
+"""
+Storage Strategy Design Notes:
+
+This module implements a dual-mode storage strategy based on the STORAGE_TYPE configuration:
+- When STORAGE_TYPE=Remote: Uses S3 (Cloudflare R2) with presigned URLs
+- When STORAGE_TYPE=Local: Uses local filesystem with direct server routes
+
+Implementation Considerations:
+1. Performance: Direct presigned URLs eliminate extra HTTP redirects
+2. Architecture: Simpler server-side code without proxy/redirect logic
+3. Native Design: Follows the intended S3/R2 usage pattern
+
+Client Integration Notes:
+- Clients must check URL types returned by /file/generate_urls endpoint
+- When using S3 storage, clients should upload directly to the presigned URL
+- When using local storage, clients should use the /storage/upload endpoint
+
+API Structure:
+1. /file routes: Handle metadata and URL generation
+   - /file/generate_urls: Creates upload/download URLs for both storage types
+   
+2. /storage routes: Handle direct file operations
+   - /storage/upload/{key}: Uploads file to local storage (not used with S3)
+   - /storage/download/{key}: Downloads file from storage
+   - /storage/delete/{key}: Deletes file from either storage type
+
+File Path Convention:
+- Files are identified using a "{user_id}/{content_id}/{content_name}" pattern
+- content_id is auto-generated as a short random string
+- This creates a hierarchical structure that supports multi-user environments
+
+Client Workflow:
+1. Call /file/generate_urls to get upload/download URLs and content_id
+2. For S3: Use the presigned upload_url directly to upload the file
+   For Local: Use the /storage/upload/{key} endpoint with the provided key
+3. Store the download_url for future access
+4. Use /storage/delete/{key} to remove files when needed
+
+This design prioritizes performance and architectural simplicity over client API
+consistency. Storage backends can be switched by changing the STORAGE_TYPE
+environment variable, but client code must handle both workflows.
+"""
+
 import os
 import sys
 import uuid
@@ -172,14 +215,14 @@ async def delete_file(key: str):
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @global_exception_handler(error_code=4003, error_message="Failed to upload file")
-@storage_router.post("/upload/{key:path}")
+@storage_router.put("/upload/{key:path}")
 async def upload_file(
+    request: Request,
     key: str,  # 从路径参数获取
-    content_type: str = Query(...),
-    file: UploadFile = File(...)
+    content_type: str = Query(...)
 ):
     try:
-        file_data = await file.read()
+        file_data = await request.body()
         if storage_adapter.save_file(key, file_data, content_type):
             return FileUploadResponse(
                 message="文件上传成功",

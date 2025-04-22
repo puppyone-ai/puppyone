@@ -45,7 +45,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
     const MODIFY_REPL_TYPE = "replace"
     const MODIFY_GET_ALL_KEYS = "get_keys"
     const MODIFY_GET_ALL_VAL = "get_values"
-    
+
     // 首先定义 getConfigDataa 函数，避免在使用前访问错误
     const getConfigDataa = (): Array<{ key: string, value: string }> =>
         (getNode(id)?.data.getConfigData as Array<{ key: string, value: string }>) || [
@@ -54,24 +54,24 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                 value: ""
             },
         ];
-        
+
     // 辅助函数 - 设置配置数据
     const setGetConfigDataa = (resolveData: (data: { key: string; value: string; }[]) => { key: string; value: string; }[]) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { ...node, data: { ...node.data, getConfigData: resolveData(getConfigDataa()) } }; 
+                return { ...node, data: { ...node.data, getConfigData: resolveData(getConfigDataa()) } };
             }
             return node;
         }))
     }
-    
+
     // 状态管理
     const [execMode, setExecMode] = useState(
         getNode(id)?.data.type as string || MODIFY_GET_TYPE
     )
-    
+
     const [paramv, setParamv] = useState("")
-    
+
     // 使用通用 Hook 替换专用 Hook
     const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
         parentId: id,
@@ -150,7 +150,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
     useEffect(() => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { ...node, data: { ...node.data, type: execMode } }; 
+                return { ...node, data: { ...node.data, type: execMode } };
             }
             return node;
         }))
@@ -163,7 +163,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
 
     const onClickButton = () => {
         setIsMenuOpen(!isMenuOpen)
-        
+
         if (isOnGeneratingNewNode) return
         if (activatedEdge === id) {
             clearEdgeActivation()
@@ -173,27 +173,27 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
             activateEdge(id)
         }
     }
-    
+
     // 修改提交函数，增加数据保存逻辑
     const onDataSubmit = () => {
         const flatPath = flattenPathTree(pathTree);
-        
+
         // 先保存当前状态到节点数据
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { 
-                    ...node, 
-                    data: { 
-                        ...node.data, 
+                return {
+                    ...node,
+                    data: {
+                        ...node.data,
                         type: execMode,
                         getConfigData: flatPath,
                         paramv: paramv
-                    } 
+                    }
                 };
             }
             return node;
         }));
-        
+
         // 然后调用通用处理函数
         handleDataSubmit();
     }
@@ -232,7 +232,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
 
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
-            <button 
+            <button
                 onClick={onClickButton}
                 className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
             >
@@ -241,7 +241,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
                 <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
                 <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
-                
+
                 <Handle
                     id={`${id}-a`}
                     type="target"
@@ -282,109 +282,109 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
 
             {/* Configuration Menu */}
             {isMenuOpen && (
-                <div className="absolute top-[8px] left-0 w-[80px]">
-                    <ul ref={menuRef} className="absolute top-[58px] left-0 text-white w-[416px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
-                        <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-                            <div className='flex flex-row gap-[12px]'>
-                                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                            <path d="M8.5 2.5L11.5 5.5L5 12H2V9L8.5 2.5Z" stroke="#CDCDCD" strokeWidth="1.5" />
-                                            <path d="M8.5 2.5L9.5 1.5L12.5 4.5L11.5 5.5" stroke="#CDCDCD" strokeWidth="1.5" />
-                                        </svg>
-                                    </div>
-                                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                                        Edit Structured
-                                    </div>
+                <ul ref={menuRef} className="absolute top-[64px] text-white w-[416px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
+                    <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                        <div className='flex flex-row gap-[12px]'>
+                            <div className='flex flex-row gap-[8px] justify-center items-center'>
+                                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                        <path d="M8.5 2.5L11.5 5.5L5 12H2V9L8.5 2.5Z" stroke="#CDCDCD" strokeWidth="1.5" />
+                                        <path d="M8.5 2.5L9.5 1.5L12.5 4.5L11.5 5.5" stroke="#CDCDCD" strokeWidth="1.5" />
+                                    </svg>
+                                </div>
+                                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                                    Edit Structured
                                 </div>
                             </div>
-                            <div className='flex flex-row gap-[8px] items-center justify-center'>
-                                <button 
-                                    className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                                    onClick={onDataSubmit}
-                                    disabled={isLoading}
-                                >
-                                    <span>
-                                        {isLoading ? (
-                                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                                                <path d="M8 5L0 10V0L8 5Z" fill="black" />
-                                            </svg>
-                                        )}
-                                    </span>
-                                    <span>
-                                        {isLoading ? 'Running' : 'Run'}
-                                    </span>
-                                </button>
-                            </div>
-                        </li>
-                        
-                        <li>
-                            <InputOutputDisplay
-                                parentId={id}
-                                getNode={getNode}
-                                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                            />
-                        </li>
+                        </div>
+                        <div className='flex flex-row gap-[8px] items-center justify-center'>
+                            <button
+                                className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                                onClick={onDataSubmit}
+                                disabled={isLoading}
+                            >
+                                <span>
+                                    {isLoading ? (
+                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
+                                            <path d="M8 5L0 10V0L8 5Z" fill="black" />
+                                        </svg>
+                                    )}
+                                </span>
+                                <span>
+                                    {isLoading ? '' : 'Run'}
+                                </span>
+                            </button>
+                        </div>
+                    </li>
 
+                    <li>
+                        <InputOutputDisplay
+                            parentId={id}
+                            getNode={getNode}
+                            getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                            getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                            supportedInputTypes={['structured']}
+                            supportedOutputTypes={['structured']}
+                        />
+                    </li>
+
+                    <li className='flex flex-col gap-2'>
+                        <div className='flex items-center gap-2'>
+                            <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                            <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                        </div>
+                        <div className='flex gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                            <PuppyDropdown
+                                options={[MODIFY_GET_TYPE, MODIFY_DEL_TYPE, MODIFY_REPL_TYPE, MODIFY_GET_ALL_KEYS, MODIFY_GET_ALL_VAL]}
+                                onSelect={(option: string) => setExecMode(option)}
+                                selectedValue={execMode}
+                                listWidth={"200px"}
+                                mapValueTodisplay={(v: string) => {
+                                    if (v === MODIFY_GET_ALL_KEYS) return "get all keys"
+                                    if (v === MODIFY_GET_ALL_VAL) return "get all values"
+                                    return v
+                                }}
+                            />
+                        </div>
+                    </li>
+
+                    {!(execMode === MODIFY_GET_ALL_KEYS || execMode === MODIFY_GET_ALL_VAL) && (
                         <li className='flex flex-col gap-2'>
                             <div className='flex items-center gap-2'>
-                                <label className='text-[13px] font-semibold text-[#6D7177]'>Mode</label>
+                                <label className='text-[13px] font-semibold text-[#6D7177]'>Path</label>
                                 <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                             </div>
-                            <div className='flex gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                                <PuppyDropdown
-                                    options={[MODIFY_GET_TYPE, MODIFY_DEL_TYPE, MODIFY_REPL_TYPE, MODIFY_GET_ALL_KEYS, MODIFY_GET_ALL_VAL]}
-                                    onSelect={(option: string) => setExecMode(option)}
-                                    selectedValue={execMode}
-                                    listWidth={"200px"}
-                                    mapValueTodisplay={(v: string) => {
-                                        if (v === MODIFY_GET_ALL_KEYS) return "get all keys"
-                                        if (v === MODIFY_GET_ALL_VAL) return "get all values"
-                                        return v
-                                    }}
-                                />
+                            <div className='flex flex-col gap-4 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                                <TreePathEditor paths={pathTree} setPaths={setPathTree} />
                             </div>
                         </li>
+                    )}
 
-                        {!(execMode === MODIFY_GET_ALL_KEYS || execMode === MODIFY_GET_ALL_VAL) && (
-                            <li className='flex flex-col gap-2'>
-                                <div className='flex items-center gap-2'>
-                                    <label className='text-[13px] font-semibold text-[#6D7177]'>Path</label>
-                                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-                                </div>
-                                <div className='flex flex-col gap-4 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                                    <TreePathEditor paths={pathTree} setPaths={setPathTree} />
-                                </div>
-                            </li>
-                        )}
-
-                        {execMode === MODIFY_REPL_TYPE && (
-                            <li className='flex flex-col gap-2'>
-                                <div className='flex items-center gap-2'>
-                                    <label className='text-[12px] font-medium text-[#6D7177]'>Replace With</label>
-                                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-                                </div>
-                                <input
-                                    value={paramv}
-                                    onChange={(e) => setParamv(e.target.value)}
-                                    type='string'
-                                    className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                    {execMode === MODIFY_REPL_TYPE && (
+                        <li className='flex flex-col gap-2'>
+                            <div className='flex items-center gap-2'>
+                                <label className='text-[12px] font-medium text-[#6D7177]'>Replace With</label>
+                                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                            </div>
+                            <input
+                                value={paramv}
+                                onChange={(e) => setParamv(e.target.value)}
+                                type='string'
+                                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
                                         text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
                                         hover:border-[#6D7177]/50 transition-colors'
-                                    autoComplete='off'
-                                    onFocus={onFocus}
-                                    onBlur={onBlur}
-                                />
-                            </li>
-                        )}
-                    </ul>
-                </div>
+                                autoComplete='off'
+                                onFocus={onFocus}
+                                onBlur={onBlur}
+                            />
+                        </li>
+                    )}
+                </ul>
             )}
         </div>
     )
