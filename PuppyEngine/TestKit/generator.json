@@ -37,6 +37,8 @@
                 "docs": ["2", "3"],
                 "hoster": "openrouter",
                 "model": "openai/gpt-4o-mini",
+                "sys_prompt_template": "default",
+                "user_prompt_template": "default",
                 "max_tokens": 2048,
                 "structured_output": false,
                 "inputs": {"1": "a", "2": "b", "3": "c"},
