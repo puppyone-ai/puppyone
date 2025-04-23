@@ -23,7 +23,7 @@ import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
 import WebLinkNode from './blockNode/WebLinkNode'
 import Upbar from '../upbar/Upbar'
-import JsonBlockNode from './blockNode/JsonNode'
+import JsonBlockNode from './blockNode/JsonNodeNew'
 import LoadConfig from './edgesNode/edgeNodes/LoadConfig'
 import ChunkingConfig from './edgesNode/edgeNodes/ChunkingConfig'
 import CodeConfig from './edgesNode/edgeNodes/CodeConfig'
