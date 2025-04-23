@@ -1,5 +1,5 @@
 'use client'
-import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
+import { NodeProps, Node,  Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
 import React, { useRef, useEffect, useState, ReactElement, Fragment } from 'react'
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
@@ -17,6 +17,7 @@ import { useFlowsPerUserContext } from "../../states/FlowsPerUserContext"
 import { nanoid } from 'nanoid'
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
+import IndexingMenu from '../components/IndexingMenu'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -24,6 +25,36 @@ type vdb_typeNames = "pgvector"
 
 // 添加这个类型定义
 type VectorIndexingStatus = 'notStarted' | 'processing' | 'completed';
+
+// 定义基本的 IndexingItem 类型
+interface BaseIndexingItem {
+  type: string; // 用于区分不同类型的索引项
+  content: string;
+}
+
+// Vector 类型的索引项
+interface VectorIndexingItem extends BaseIndexingItem {
+  type: 'vector';
+  path: string[];
+  chunks: any[]; // 修改为任意类型的列表
+  index_name: string;
+  collection_configs: {
+    set_name: string;
+    model: string;
+    vdb_type: string;
+    user_id: string;
+    collection_name: string;
+  }
+}
+
+// 可以添加其他类型的索引项
+interface OtherIndexingItem extends BaseIndexingItem {
+  type: 'other';
+  // 其他特定属性
+}
+
+// 联合类型，包含所有可能的索引项类型
+type IndexingItem = VectorIndexingItem | OtherIndexingItem;
 
 export type JsonNodeData = {
   content: string,
@@ -33,6 +64,8 @@ export type JsonNodeData = {
   isInput: boolean,
   isOutput: boolean,
   editable: boolean,
+  indexingList: IndexingItem[],
+
   // embedding configurations
   model?: modelNames | undefined,
   method?: methodNames | undefined,
@@ -44,7 +77,7 @@ type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
 // 注意：PathNode 类型已经在 TreePathEditor 组件中导出，这里不需要重复定义
 
-function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name } }: JsonBlockNodeProps) {
+function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name, indexingList = [] } }: JsonBlockNodeProps) {
   const { fetchUserId } = useManageUserWorkspacesUtils()
   const { userId } = useFlowsPerUserContext()
 
@@ -263,179 +296,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   };
 
 
-  useEffect(() => {
-    if (vectorIndexingStatus !== 'notStarted') {
-
-    } else {
-      setShowSettingMenu(false)
-    }
-  }, [vectorIndexingStatus])
-
-  const handleAddTagPage = async () => {
-    setVectorIndexingStatus('processing')
-    const response = await onEmbeddingClick()
-    if (response == undefined) {
-      //retry
-      await onEmbeddingClick()
-    }
-    setTimeout(() => {
-      const newnode = getNode(id)
-      if (newnode?.data.index_name) {
-        setVectorIndexingStatus('completed')
-      }
-    }, 600);
-  }
-
-  interface EmbeddingItem {
-    content: string;
-    metadata: {
-      id?: string;
-      [key: string]: any;
-    }
-  }
-  function traverseJson(
-    data: any,
-    result: EmbeddingItem[] = [],
-    path: string[] = [],
-    idCounter: { value: number } = { value: 0 }
-  ): EmbeddingItem[] {
-    if (typeof data === 'string') {
-      // We found a leaf string, create an embedding item
-      const metadata: Record<string, any> = {
-        id: String(idCounter.value++)
-      };
-
-      // Convert path to metadata keys
-      path.forEach((step, index) => {
-        if (step.startsWith('key_')) {
-          metadata[`key_${index}`] = step.substring(4);
-        } else if (step.startsWith('list_')) {
-          metadata[`list_${index}`] = parseInt(step.substring(5));
-        }
-      });
-
-      path.forEach((step, _) => {
-        if (step.startsWith('key_')) {
-          if (!metadata.path) {
-            metadata.path = []
-          }
-          metadata[`path`].push(step.substring(4));
-        } else if (step.startsWith('list_')) {
-          if (!metadata.path) {
-            metadata.path = []
-          }
-          metadata[`path`].push(parseInt(step.substring(5)));
-        }
-      });
-
-      result.push({
-        content: data,
-        metadata: metadata
-      });
-    }
-    else if (Array.isArray(data)) {
-      // Traverse each array element
-      data.forEach((item, index) => {
-        traverseJson(item, result, [...path, `list_${index}`], idCounter);
-      });
-    }
-    else if (data && typeof data === 'object') {
-      // Traverse each object property
-      Object.entries(data).forEach(([key, value]) => {
-        traverseJson(value, result, [...path, `key_${key}`], idCounter);
-      });
-    }
-
-    return result;
-  }
-
-  function removeItemFromData(data: any, path: (string | number)[]) {
-    //remove the item content itself from data according to path
-    /**
-     * example:
-     * data:
-    {
-      "name": "John",
-      "details": {
-        "hobbies": [
-          "reading",
-          "gaming"
-        ],
-        "address": {
-          "street": "123 Main St",
-          "city": "Springfield"
-        }
-      }
-    }
-    path: ["details", "hobbies", "0"]
-    result:
-    {
-      "name": "John",
-      "details": {
-        "hobbies": [
-          "gaming"
-        ],
-        "address": {
-          "street": "123 Main St",
-          "city": "Springfield"
-        }
-      }
-    }
-      * 
-      */
-    if (!path) return data;
-    if (path.length === 0) return data;
-
-    const clone = JSON.parse(JSON.stringify(data));
-    let current = clone;
-    if (Array.isArray(current) && path.length === 1) {
-      return []
-    }
-    if (path.length === 1) {
-      delete current[path[path.length - 1]];
-      return clone
-    }
-
-    for (let i = 0; i < path.length - 2; i++) {
-      current = current[path[i]];
-    }
-    console.log("current", current)
-
-    const secondLastKey = path[path.length - 2];
-    const lastKey = path[path.length - 1];
-    if (!isNaN(Number(lastKey))) {
-      if (Array.isArray(current)) {
-        current.splice(Number(secondLastKey), 1);
-      } else {
-        delete current[secondLastKey];
-      }
-      console.log("current1", current)
-    } else {
-      console.log(secondLastKey)
-      console.log("current2", current)
-      current = current[secondLastKey]
-      delete current[lastKey];
-      console.log("current3", current)
-    }
-    console.log(clone)
-    return clone;
-  }
-
-  const constructMetadataInfo = (data: any, embeddingViewData: EmbeddingItem[]) => {
-
-    embeddingViewData.forEach((item, index) => {
-      if (item.metadata.path) {
-        // then append modified data to EmbeddingItem
-        const path = item.metadata.path
-        const result = removeItemFromData(data, path)
-        item.metadata.info = result
-
-      }
-    })
-
-    return embeddingViewData
-  }
-
   const getNodePromise = (id: string): any => {
     return new Promise((resolve) => {
       setTimeout(() => {
@@ -445,228 +305,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     });
   };
 
-
-  const constructStructuredNodeEmbeddingData = async () => {
-
-    const node = await getNodePromise(id);
-
-    const nodeContent = (node?.type === "structured" || node?.type === "none" && node?.data?.subType === "structured") ? cleanJsonString(node?.data.content as string | any) : node?.data.content as string
-
-    if (nodeContent === "error") return "error"
-    const embeddingData = {
-      ...node?.data,
-      content: nodeContent,
-      vdb_type: "pgvector",
-      model: "text-embedding-ada-002",
-      // method: "cosine",
-      set_name: id
-    }
-    const embeddingNode = {
-      ...node,
-      data: embeddingData,
-    }
-    return embeddingNode
-  }
-
-  const onEmbeddingClick = async () => {
-    /**
-     * 1. clear menu
-     * 2. construct embeddingNodeData
-     * 3. construct embeddingViewData
-     * 4. setNodes
-     */
-
-
-    // 2. construct embeddingNodeData
-    try {
-
-      const embeddingNodeData = await constructStructuredNodeEmbeddingData()
-      console.log("embeddingnode data", embeddingNodeData)
-
-      if (embeddingNodeData === "error") {
-        throw new Error("Invalid node data")
-      }
-
-      console.log("embeddingNodeData.data.paths", paths)
-      //   [
-      //     {
-      //         "id": "ZUnysh",
-      //         "key": "num",
-      //         "value": "0",
-      //         "children": [
-      //             {
-      //                 "id": "xGb8MB",
-      //                 "key": "key",
-      //                 "value": "hello",
-      //                 "children": []
-      //             }
-      //         ]
-      //     }
-      // ]
-      // recursively access above data structure, get value step by step, return list of values from outer to deepest level
-      const getValuesFromPaths = (paths: PathNode[]): any[] => {
-        const result: any[] = [];
-
-        const traverse = (node: PathNode, currentPath: any[] = []) => {
-          // Convert value based on key type
-          const value = node.key === 'num'
-            ? Number(node.value)
-            : node.value;
-
-          // Add current value to path
-          const newPath = [...currentPath, value];
-
-          if (node.children.length === 0) {
-            // Leaf node - add complete path to results
-            result.push(newPath);
-          } else {
-            // Continue traversing children
-            for (const child of node.children) {
-              traverse(child, newPath);
-            }
-          }
-        };
-
-        // Start traversal for each root path
-        for (const path of paths) {
-          traverse(path);
-        }
-
-        return result;
-      };
-
-      console.log("paths", getValuesFromPaths(paths))
-
-      const pathsParsed = getValuesFromPaths(paths)
-
-      // Since getValuesFromPaths returns an array of path arrays,
-      // we need to select which path to use - here we'll use the first one if available
-      let embedbykey = embeddingNodeData.data.content
-
-      if (pathsParsed.length > 0) {
-        try {
-          // Get the first complete path (from root to leaf)
-          const pathToUse = pathsParsed[0];
-
-          // Traverse through the content object using each path segment
-          for (const pathSegment of pathToUse) {
-            if (embedbykey && typeof embedbykey === 'object') {
-              embedbykey = embedbykey[pathSegment];
-              console.log("Accessing with key:", pathSegment, "Result:", embedbykey);
-            } else {
-              console.log("Cannot access property", pathSegment, "on", embedbykey);
-              break;
-            }
-          }
-
-          console.log("Final embedbykey result:", embedbykey);
-        } catch (error) {
-          console.error("Error accessing path in content:", error);
-          // Fallback to using the entire content
-          embedbykey = embeddingNodeData.data.content;
-        }
-      }
-
-      const embeddingViewData = traverseJson(embedbykey)
-
-      const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
-      console.log(embeddingViewData)
-      console.log(embeddingViewDataWithInfo)
-
-      setNodes(prevNodes => prevNodes.map(
-        (node) => {
-          if (node.id === id) {
-            return { ...node, data: { ...node.data, chunks: embeddingViewDataWithInfo } }
-          }
-          return node
-        }
-      ))
-
-      const getuserid = async (): Promise<string | null> => {
-        if (!userId || userId.trim() === "") {
-          const res = await fetchUserId()
-          if (res) {
-            return res
-          } else {
-            return null
-          }
-        }
-        return userId
-      }
-
-      const transformPayload = async (originalPayload: any) => {
-        console.log("originalPayload", originalPayload)
-        return {
-          chunks: originalPayload.data.chunks,
-          create_new: true, // Indicates that a new entry is being created
-          vdb_type: originalPayload.data.vdb_type,
-          model: originalPayload.data.model,
-          method: originalPayload.data.method,
-          set_name: originalPayload.data.set_name
-        };
-      };
-
-      const payloaddata = await transformPayload(embeddingNodeData)
-
-      console.log("payload", payloaddata)
-
-      if (payloaddata.chunks == undefined) {
-        setVectorIndexingStatus('notStarted')
-        return undefined
-      }
-
-      // Make sure to await the transformPayload call
-      const response = await fetch(`${PuppyStorage_IP_address_for_embedding}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payloaddata)
-      })
-
-      if (!response.ok) {
-        setVectorIndexingStatus('notStarted')
-        throw new Error(`HTTP Error: ${response.status}`)
-      }
-
-      // // 5. updateNode
-      const index_name_response = await response.json()
-      console.log("index_name_response", index_name_response)
-      const user_id = await getuserid()
-      if (index_name_response.collection_name) {
-        setNodes(prevNodes => prevNodes.map(node => node.id === id ? {
-          ...node,
-          data: {
-            ...node.data,
-            index_name: index_name_response.collection_name,
-            collection_configs: {
-              set_name: index_name_response.set_name,
-              model: payloaddata.model,
-              // method: payloaddata.method,
-              vdb_type: payloaddata.vdb_type,
-              user_id: user_id || "dsadasd",
-              collection_name: index_name_response.collection_name
-            },
-          }
-        } : node))
-
-        // 确保嵌入状态保持
-        setVectorIndexingStatus('completed')
-
-        setTimeout(() => {
-          const newnode = getNode(id)
-          console.log("updated json node status after received index_name", newnode)
-        }, 1200);
-
-      }
-
-    } catch (error) {
-      console.error("Error fetching embedding:", error);
-      setVectorIndexingStatus('notStarted')
-    } finally {
-      clearAll()
-    }
-  }
 
   useEffect(
     () => {
@@ -723,6 +361,32 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     // Paths are already updated in state, just close the editor
     setShowPathEditor(false);
     // Additional logic for applying the paths could go here
+  };
+
+  // 添加点击外部关闭菜单的逻辑
+  useEffect(() => {
+    if (!showSettingMenu) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      // 检查点击是否在菜单外部
+      const targetElement = e.target as HTMLElement;
+      if (showSettingMenu && !targetElement.closest('.indexing-menu-container')) {
+        setShowSettingMenu(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSettingMenu]);
+
+  const handleRemoveIndex = (index: number) => {
+    const newIndexingList = [...indexingList];
+    newIndexingList.splice(index, 1);
+    setNodes(nodes => nodes.map(node => 
+      node.id === id ? { ...node, data: { ...node.data, indexingList: newIndexingList }} : node
+    ));
   };
 
   return (
@@ -824,185 +488,29 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             {/* NodeToolBar */}
             <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
 
-            {/* Path Editor Button */}
+            {/* Indexing Menu Button */}
             <div
-              className={`cursor-pointer flex justify-center items-center w-[24px] h-[24px] rounded-[8px] hover:bg-[#3E3E41] ${activatedNode?.id === id ? 'opacity-100' : 'opacity-0'}`}
-              onClick={handleOpenPathEditor}
+              className={`indexing-menu-trigger flex items-center justify-center min-w-[24px] min-h-[24px] rounded-[8px] cursor-pointer ${(activatedNode?.id === id) ? 'opacity-100' : 'opacity-0'} hover:bg-[#3E3E41]`}
+              onClick={() => {
+                setShowSettingMenu(!showSettingMenu);
+              }}
+              title="Indexing Menu"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                <path d="M3 8H13" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                <path d="M8 13L8 3" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                <path d="M5 5L3 3L5 5Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                <path d="M11 5L13 3L11 5Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                <path d="M5 11L3 13L5 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                <path d="M11 11L13 13L11 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
+                <path 
+                  d="M2 4C2 2.89543 2.89543 2 4 2H8L10 4H12C13.1046 4 14 4.89543 14 6V12C14 13.1046 13.1046 14 12 14H4C2.89543 14 2 13.1046 2 12V4Z" 
+                  stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"}
+                  strokeWidth="1.5"
+                  className={indexingList.length > 0 ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
+                />
+                <path 
+                  d="M6 7H10M6 10H10" 
+                  stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"} 
+                  strokeWidth="1.5" 
+                  strokeLinecap="round"
+                  className={indexingList.length > 0 ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
+                />
               </svg>
-            </div>
-
-            {/*View Mode Switching Bar at the bottom*/}
-            <div className={`cursor-pointer flex justify-center items-center w-[24px] h-[24px] rounded-[8px] hover:bg-[#3E3E41] ${vectorIndexingStatus !== 'notStarted' ? 'opacity-100' : (activatedNode?.id === id ? 'opacity-100' : 'opacity-0')}`}>
-
-              {vectorIndexingStatus !== 'notStarted' ?
-
-                <div>
-                  <button style={{
-                    paddingTop: '1px',
-                    cursor: 'pointer',
-                  }}
-                    className={`h-[24px] w-[24px] text-[12px] text-[#A4A4A4] font-semibold flex items-center justify-center gap-[8px]`}
-                    onClick={handleEmbedViewClick}
-                  >
-                    {vectorIndexingStatus === 'processing' ? (
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 16 16"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                        style={{
-                          animation: "rotate 1.5s linear infinite",
-                        }}
-                      >
-                        <style>
-                          {`
-                            @keyframes rotate {
-                              from {
-                                transform: rotate(0deg);
-                              }
-                              to {
-                                transform: rotate(360deg);
-                              }
-                            }
-                          `}
-                        </style>
-                        <circle cx="8" cy="8" r="7" stroke="#CDCDCD" strokeWidth="1.5" strokeOpacity="0.2" />
-                        <path
-                          d="M8 1A7 7 0 0 1 15 8"
-                          stroke="#CDCDCD"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="2" y="2" width="12" height="12" rx="3" stroke="#FF6B00" strokeWidth="1.5" fill="none" />
-                        <text x="8" y="11.5" fontFamily="Arial" fontSize="9" fontWeight="bold" fill="#FF6B00" textAnchor="middle">I</text>
-                        <line x1="5.5" y1="5" x2="10.5" y2="5" stroke="#FF6B00" strokeWidth="1.5" />
-                        <line x1="5.5" y1="11" x2="10.5" y2="11" stroke="#FF6B00" strokeWidth="1.5" />
-                      </svg>
-                    )}
-                  </button>
-
-
-                  <Transition
-                    show={!!showSettingMenu}
-                    as={Fragment}
-                    enter="transition ease-out duration-100"
-                    enterFrom="transform opacity-0 translate-y-[-10px]"
-                    enterTo="transform opacity-100 translate-y-0"
-                    leave="transition ease-in duration-75"
-                    leaveFrom="transform opacity-100 translate-y-0"
-                    leaveTo="transform opacity-0 translate-y-[-10px]"
-                  >
-                    <div style={{ position: "fixed", zIndex: 20000 }}>
-                      <ul className='flex flex-col absolute top-[26px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-[0px] z-[20000]'>
-                        <li>
-                          <button className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
-                            onClick={
-                              async () => {
-                                setVectorIndexingStatus('processing')
-                                setShowSettingMenu(false)
-                                const embeddingNodeData = await constructStructuredNodeEmbeddingData()
-                                console.log("embeddingnode data", embeddingNodeData)
-
-                                if (embeddingNodeData === "error") {
-                                  throw new Error("Invalid node data")
-                                }
-
-                                const embeddingViewData = traverseJson(embeddingNodeData.data.content)
-
-                                const embeddingViewDataWithInfo = constructMetadataInfo(embeddingNodeData.data.content, embeddingViewData)
-
-                                setNodes(prevNodes => prevNodes.map(node => {
-                                  if (node.id === id) {
-                                    return {
-                                      ...node, data: {
-                                        ...node.data,
-                                        chunks: JSON.stringify(embeddingViewDataWithInfo, null, 2)
-                                      }
-                                    }
-                                  }
-                                  return node
-                                }))
-
-                                setUserInput("embedding view")
-                                const response = await onEmbeddingClick()
-                                if (response == undefined) {
-                                  //retry
-                                  await onEmbeddingClick()
-                                }
-                                setTimeout(() => {
-                                  const newnode = getNode(id)
-                                  if (newnode?.data.index_name) {
-                                    setVectorIndexingStatus('completed')
-                                  }
-                                }, 600);
-                              }
-                            }
-                          >
-                            <div className='renameButton flex items-center justify-center'>
-                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 8H12.2C13.8802 8 14.7202 8 15.362 8.32698C15.9265 8.6146 16.3854 9.07354 16.673 9.63803C17 10.2798 17 11.1198 17 12.8V16" stroke="#6D7177" stroke-width="1.5" />
-                                <path d="M12 16H11.8C10.1198 16 9.27976 16 8.63803 15.673C8.07354 15.3854 7.6146 14.9265 7.32698 14.362C7 13.7202 7 12.8802 7 11.2V8" stroke="#6D7177" stroke-width="1.5" />
-                                <path d="M14 13.9998L17.0305 17.0303L20.0609 13.9998" stroke="#6D7177" stroke-width="1.5" />
-                                <path d="M10.061 10.0305L7.03058 7L4.00012 10.0305" stroke="#6D7177" stroke-width="1.5" />
-                              </svg>
-                            </div>
-                            <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                              Update
-                            </div>
-                          </button>
-                        </li>
-                        <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
-                        <li>
-                          <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
-                            onClick={
-                              () => {
-                                console.log("on embedding tab delete")
-                                setVectorIndexingStatus('notStarted')
-                              }
-                            }
-                          >
-                            <div className='flex items-center justify-center'>
-                              <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M19 7L7 19" stroke="currentColor" strokeWidth="2" />
-                                <path d="M19 19L7 7" stroke="currentColor" strokeWidth="2" />
-                              </svg>
-                            </div>
-                            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                              Delete
-                            </div>
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  </Transition>
-                </div>
-
-                :
-
-                <div
-                  onClick={handleAddTagPage}
-                  className='cursor-pointer flex justify-center items-center w-[24px] h-[24px] rounded-[8px] hover:bg-[#3E3E41]'
-                >
-                  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                    <path d="M11 6L11 16" stroke="#6D7177" strokeWidth="1.5" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                    <path d="M6 11L16 10.9839" stroke="#6D7177" strokeWidth="1.5" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
-                  </svg>
-                </div>
-
-              }
-
             </div>
 
             {/* Loop Button */}
@@ -1037,51 +545,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           </div>
         </div>
 
-        {/* Path Editor Dropdown */}
-        <Transition
-          show={showPathEditor}
-          enter="transition ease-out duration-100"
-          enterFrom="transform opacity-0 scale-95"
-          enterTo="transform opacity-100 scale-100"
-          leave="transition ease-in duration-75"
-          leaveFrom="transform opacity-100 scale-100"
-          leaveTo="transform opacity-0 scale-95"
-        >
-          <div className="absolute z-20 mt-1 left-0 right-0 mx-[8px] p-3 bg-[#1E1E1E] border border-[#404040] rounded-[8px] shadow-lg">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-[14px] font-semibold text-[#CDCDCD]">JSON Path Editor</h3>
-              <button
-                onClick={handleCancelPathEditor}
-                className="p-1 rounded-full hover:bg-[#3E3E41] text-[#6D7177] hover:text-[#CDCDCD]"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-            <TreePathEditor paths={paths} setPaths={setPaths} />
-
-            {/* Add action buttons */}
-            <div className="flex justify-end items-center gap-2 mt-3 pt-2 border-t border-[#404040]">
-              <button
-                onClick={handleCancelPathEditor}
-                className="px-3 py-1.5 rounded-[6px] text-[12px] font-medium text-[#CDCDCD] hover:bg-[#3E3E41] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAcceptPathEditor}
-                disabled={hasEmptyValues(paths)}
-                className={`px-3 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors
-                  ${hasEmptyValues(paths)
-                    ? 'bg-[#252525] text-[#6D7177] border border-[#404040] cursor-not-allowed'
-                    : 'bg-[#2D2544] text-[#9B6DFF] border border-[#9B6DFF]/30 hover:border-[#9B6DFF]/50 hover:bg-[#2D2544]/80'}`}
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </Transition>
+        
 
         {/* JSON Editor */}
         {isLoading ? <SkeletonLoadingIcon /> :
@@ -1293,6 +757,16 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
       */}
+
+      {/* 使用IndexingMenu组件 */}
+      <IndexingMenu 
+        id={id}
+        showMenu={showSettingMenu}
+        indexingList={indexingList}
+        onClose={() => setShowSettingMenu(false)}
+        onAddIndex={handleOpenPathEditor}
+        onRemoveIndex={handleRemoveIndex}
+      />
     </div >
 
   )
