@@ -541,7 +541,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           <div className={`rounded-[8px] ${borderColor} border-[1px]`}
             style={{
               border: "1px solid rgba(109, 113, 119, 0.5)",
-              background: "linear-gradient(180deg, #1E2025 0%, #1A1B1F 100%)",
+              background: "#1C1D1F",
               boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
             }}
           >
