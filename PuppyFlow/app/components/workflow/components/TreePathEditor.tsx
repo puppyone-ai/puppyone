@@ -134,7 +134,7 @@ const TreePathEditor: React.FC<TreePathEditorProps> = ({ paths, setPaths }) => {
                 value={node.value}
                 onChange={(e) => updateNodeValue(node.id, e.target.value)}
                 className='w-full h-full bg-transparent border-none outline-none pl-[72px] pr-2
-                         text-[#CDCDCD] text-[12px] font-medium appearance-none'
+                         text-[#CDCDCD] text-[12px] appearance-none'
                 placeholder={node.key === 'num' ? 'Enter number...' : 'Enter key...'}
               />
 
