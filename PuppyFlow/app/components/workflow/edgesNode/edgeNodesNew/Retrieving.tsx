@@ -7,8 +7,29 @@ import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 
+// 首先定义一个索引项接口 - 移到组件外部
+interface IndexingItem {
+    type: string;
+    status: string;
+    index_name: string;
+    collection_configs?: {
+        collection_name: string;
+        // 其他配置...
+    };
+    // 其他属性...
+}
+
+// 添加一个简化版的索引项接口
+interface SimplifiedIndexItem {
+    index_name: string;
+    collection_configs?: {
+        collection_name: string;
+        // 其他配置...
+    };
+}
+
 export type RetrievingConfigNodeData = {
-    dataSource?: { id: string, label: string }[],
+    dataSource?: { id: string, label: string, indexItem?: SimplifiedIndexItem }[],
     subMenuType: string | null,
     top_k: number | undefined,
     content: string | null,
@@ -41,7 +62,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         (getNode(id)?.data as RetrievingConfigNodeData)?.extra_configs?.threshold ?? 0.7
     )
     const [showSettings, setShowSettings] = useState(false)
-    const [dataSource, setDataSource] = useState<{ label: string, id: string }[]>(
+    const [dataSource, setDataSource] = useState<{ label: string, id: string, indexItem?: SimplifiedIndexItem }[]>(
         (getNode(id)?.data as RetrievingConfigNodeData)?.dataSource ?? []
     )
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -50,11 +71,39 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const queryRef = useRef<HTMLSelectElement>(null)
     const thresholdRef = useRef<HTMLInputElement>(null)
     const topkRef = useRef<HTMLInputElement>(null)
-    const sourceNodeLabelsVectorIndexed = useRef<{ label: string, id: string }[]>(
-        getSourceNodeIdWithLabel(id)
-            .filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name)
-            .map((node) => ({ label: node.label, id: node.id }))
-    )
+
+    // 接着定义一个新的 ref 用于存储扁平化的索引项列表
+    const flattenedIndexItems = useRef<{ 
+        nodeId: string, 
+        nodeLabel: string, 
+        indexItem: IndexingItem 
+    }[]>([]);
+
+    // 更新扁平化的索引项列表
+    useEffect(() => {
+        const items: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }[] = [];
+        
+        getSourceNodeIdWithLabel(id).forEach(node => {
+            const nodeInfo = getNode(node.id);
+            if (nodeInfo?.type === "structured") {
+                const indexingList = nodeInfo?.data?.indexingList as IndexingItem[] | undefined;
+                
+                if (Array.isArray(indexingList)) {
+                    indexingList.forEach(item => {
+                        if (item.type === "vector" && item.status === "done") {
+                            items.push({
+                                nodeId: node.id,
+                                nodeLabel: node.label,
+                                indexItem: item
+                            });
+                        }
+                    });
+                }
+            }
+        });
+        
+        flattenedIndexItems.current = items;
+    }, [getSourceNodeIdWithLabel(id)]);
 
     // 使用 useBaseEdgeNodeLogic hook 替换原有的运行逻辑
     const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
@@ -75,13 +124,6 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     useEffect(() => {
         onThresholdChange(threshold)
     }, [threshold])
-
-    // 更新sourceNodeLabelsVectorIndexed
-    useEffect(() => {
-        sourceNodeLabelsVectorIndexed.current = getSourceNodeIdWithLabel(id)
-            .filter(node => getNode(node.id)?.type === "structured" && getNode(node.id)?.data.index_name)
-            .map((node) => ({ label: node.label, id: node.id }))
-    }, [getSourceNodeIdWithLabel(id)])
 
     // 组件初始化
     useEffect(() => {
@@ -154,7 +196,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     }
 
     // Node标签管理
-    const updateDataSourceInParent = (dataSource: { label: string, id: string }[]) => {
+    const updateDataSourceInParent = (dataSource: { label: string, id: string, indexItem?: SimplifiedIndexItem }[]) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
                 return { ...node, data: { ...node.data, dataSource: dataSource } };
@@ -163,9 +205,25 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         }));
     };
 
-    const addNodeLabel = (label: { label: string, id: string }) => {
-        if (label && !dataSource.some(nodeLabel => nodeLabel.id === label.id)) {
-            const newDataSource = [...dataSource, label];
+    // 修改 addNodeLabel 函数
+    const addNodeLabel = (option: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }) => {
+        // 使用连入的 JSON Block 的 nodeId 作为 id
+        const nodeId = option.nodeId;
+        
+        // 检查是否已经添加了相同 nodeId 的数据源
+        if (!dataSource.some(item => item.id === nodeId)) {
+            const simplifiedIndexItem: SimplifiedIndexItem = {
+                index_name: option.indexItem.index_name,
+                collection_configs: option.indexItem.collection_configs
+            };
+            
+            const newItem = { 
+                id: nodeId,  // 使用原始的 nodeId
+                label: option.nodeLabel,
+                indexItem: simplifiedIndexItem
+            };
+            
+            const newDataSource = [...dataSource, newItem];
             setDataSource(newDataSource);
             updateDataSourceInParent(newDataSource);
         }
@@ -361,21 +419,22 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
 
                     <li className='flex flex-col gap-2'>
                         <div className='flex items-center gap-2'>
-                            <label className='text-[13px] font-semibold text-[#6D7177]'>Data Source with Vector Indexing</label>
+                            <label className='text-[13px] font-semibold text-[#6D7177]'>Indexed Structured Data</label>
                             <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                         </div>
 
                         {/* start of node labels */}
                         <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                             <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
-                                {dataSource.map((label, index) => (
+                                {dataSource.map((item, index) => (
                                     <div key={index}
                                         className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
                                                     border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 
                                                     transition-colors group'
                                     >
-                                        <span className='text-[10px] text-[#9B7EDB] px-1 '>
-                                            {`{{${label.label}}}`}
+                                        <span className='text-[10px] px-1'>
+                                            <span className='text-[#9B7EDB]'>{`{{${item.label}}}`}</span>
+                                            <span className='text-[#CDCDCD]'>-{item.indexItem?.index_name}</span>
                                         </span>
                                         <button
                                             onClick={() => removeNodeLabel(index)}
@@ -391,20 +450,24 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                 ))}
                                 <div className="relative w-[26px] h-[26px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30">
                                     <PuppyDropdown
-                                        options={sourceNodeLabelsVectorIndexed.current.map(item => ({
-                                            id: item.id,
-                                            label: item.label
+                                        options={flattenedIndexItems.current.map(item => ({
+                                            nodeId: item.nodeId,
+                                            nodeLabel: item.nodeLabel,
+                                            indexItem: item.indexItem,
+                                            displayText: item.nodeLabel
                                         }))}
-                                        onSelect={(item: { id: string, label: string }) => addNodeLabel({ id: item.id, label: item.label })}
+                                        onSelect={(option: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }) => 
+                                            addNodeLabel(option)
+                                        }
                                         selectedValue={null}
                                         optionBadge={false}
-                                        listWidth="200px"
+                                        listWidth="250px"
                                         buttonHeight="26px"
                                         buttonBgColor="transparent"
                                         menuBgColor="#1A1A1A"
                                         containerClassnames="w-[26px]"
                                         showDropdownIcon={false}
-                                        mapValueTodisplay={(value: string | { id: string, label: string } | null) => {
+                                        mapValueTodisplay={(value: null | undefined | string | { nodeId: string, nodeLabel: string, indexItem: IndexingItem } | any) => {
                                             if (value === null || value === undefined) return (
                                                 <span className="flex items-center justify-center w-full h-full">
                                                     <svg width="10" height="10" viewBox="0 0 14 14">
@@ -412,17 +475,23 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                                     </svg>
                                                 </span>
                                             );
-                                            if (typeof value === 'string') {
-                                                return (
-                                                    <span className="flex items-center justify-center w-full h-full">
-                                                        <svg width="10" height="10" viewBox="0 0 14 14">
-                                                            <path d="M7 0v14M0 7h14" stroke="#6D7177" strokeWidth="2" />
-                                                        </svg>
-                                                    </span>
-                                                );
-                                            }
-                                            return value.label || value.id;
+                                            
+                                            return (
+                                                <span className="flex items-center justify-center w-full h-full">
+                                                    <svg width="10" height="10" viewBox="0 0 14 14">
+                                                        <path d="M7 0v14M0 7h14" stroke="#6D7177" strokeWidth="2" />
+                                                    </svg>
+                                                </span>
+                                            );
                                         }}
+                                        renderOption={(option: { nodeId: string, nodeLabel: string, indexItem: IndexingItem, displayText: string }) => (
+                                            <div className="px-2 py-1 rounded cursor-pointer">
+                                                <div className="text-[11px] text-[#9B7EDB]">{`{{${option.nodeLabel}}}`}</div>
+                                                <div className="text-[9px] text-[#6D7177] truncate">
+                                                    {option.indexItem.index_name}
+                                                </div>
+                                            </div>
+                                        )}
                                     />
                                 </div>
                             </div>
