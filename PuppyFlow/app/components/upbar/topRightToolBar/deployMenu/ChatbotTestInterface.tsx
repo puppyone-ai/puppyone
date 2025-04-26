@@ -77,9 +77,7 @@ const ChatbotTestInterface = ({
     
     try {
       const requestData = {
-        inputs: {
           [inputNodeId]: inputMessage
-        }
       };
       
       const response = await axios.post(apiEndpoint, requestData, {

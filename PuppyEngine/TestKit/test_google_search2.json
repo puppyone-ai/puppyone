@@ -1,0 +1,74 @@
+{
+    "blocks": {
+
+        "0WVYZn": {
+
+            "label": "0WVYZn",
+
+            "type": "text",
+
+            "data": {
+
+                "content": "hows the easter view"
+
+            },
+
+            "looped": false
+
+        },
+
+        "3fkmkI": {
+
+            "label": "3fkmkI",
+
+            "type": "text",
+
+            "data": {
+
+                "content": ""
+
+            }
+
+        }
+
+    },
+    "edges": {
+
+        "searchGoogle-1745244235483": {
+
+            "type": "search",
+
+            "data": {
+
+                "search_type": "web",
+
+                "sub_search_type": "google",
+
+                "top_k": 5,
+
+                "inputs": {
+
+                    "0WVYZn": "0WVYZn"
+
+                },
+
+                "query_id": {
+
+                    "0WVYZn": "0WVYZn"
+
+                },
+
+                "extra_configs": {},
+
+                "outputs": {
+
+                    "3fkmkI": "3fkmkI"
+
+                }
+
+            }
+
+        }
+
+    }
+}
