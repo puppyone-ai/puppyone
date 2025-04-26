@@ -25,15 +25,23 @@ class WebSearchStrategy(SearchStrategy):
         """
 
         sub_search_type = self.extra_configs.get("sub_search_type", "google")
+        top_k = self.extra_configs.get("top_k", 10)
         if sub_search_type == "google":
-            return self.google_search()
+            return self.google_search(top_k=top_k)
         elif sub_search_type == "ddg":
-            return self.duckduckgo_search()
+            ddg_search_type = self.extra_configs.get("ddg_search_type", "text")
+            ddg_extra_configs = self.extra_configs.get("ddg_extra_configs", {})
+            return self.duckduckgo_search(
+                top_k=top_k,
+                ddg_search_type=ddg_search_type,
+                ddg_extra_configs=ddg_extra_configs
+            )
         raise ValueError(f"Unsupported Web Search Type: {sub_search_type}!")
 
     @global_exception_handler(3501, "Error Searching Using Google Search")
     def google_search(
-        self
+        self,
+        top_k: int = 10
     ) -> List[dict]:
         """
         Perform a search using the Google Custom Search API.
@@ -44,6 +52,7 @@ class WebSearchStrategy(SearchStrategy):
             "q": self.query,
             "key": os.environ.get("GCP_API_KEY"),
             "cx": os.environ.get("CSE_ID"),
+            "num": top_k
         }
 
         response = requests.get(url, params=params)
@@ -53,7 +62,10 @@ class WebSearchStrategy(SearchStrategy):
 
     @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
     def duckduckgo_search(
-        self
+        self,
+        top_k: int = 10,
+        ddg_search_type: str = "text",
+        ddg_extra_configs: dict = {}
     ) -> List[dict]:
         """
         Perform a search using the DuckDuckGo API.
@@ -68,21 +80,18 @@ class WebSearchStrategy(SearchStrategy):
         - translate
         - maps
         """
-        ddg_search_type = self.extra_configs.get("ddg_search_type", "text")
-        ddg_max_results = self.extra_configs.get("ddg_max_results", 10)
-        ddg_extra_configs = self.extra_configs.get("ddg_extra_configs", {})
 
         match ddg_search_type:
             case "text":
-                results = DDGS().text(self.query, max_results=ddg_max_results)
+                results = DDGS().text(self.query, max_results=top_k)
             case "answers":
                 results = DDGS().answers(self.query)
             case "images":
-                results = DDGS().images(self.query, max_results=ddg_max_results)
+                results = DDGS().images(self.query, max_results=top_k)
             case "videos":
-                results = DDGS().videos(self.query, max_results=ddg_max_results)
+                results = DDGS().videos(self.query, max_results=top_k)
             case "news":
-                results = DDGS().news(self.query, max_results=ddg_max_results)
+                results = DDGS().news(self.query, max_results=top_k)
             case "suggestions":
                 results = DDGS().suggestions(self.query)
             case "translate":

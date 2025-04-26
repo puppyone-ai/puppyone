@@ -387,13 +387,15 @@ class SearchConfigParser(EdgeConfigParser):
             extra_configs = [{
                 **original_extra_configs,
                 "documents": variable.get(doc_ids[0], ""),
-                "collection_configs": [collection_configs_list[i]]
+                "collection_configs": [collection_configs_list[i]],
+                "top_k": self.edge_configs.get("top_k", 10)
             } for i, variable in enumerate(variables)]
         else:
             extra_configs = [{
                 **original_extra_configs,
                 "documents": self.block_configs.get(doc_ids[0], {}).get("content", "") if doc_ids else "",
-                "collection_configs": collection_configs_list if doc_ids else []
+                "collection_configs": collection_configs_list if doc_ids else [],
+                "top_k": self.edge_configs.get("top_k", 10)
             }]
 
         return ParsedEdgeParams(
