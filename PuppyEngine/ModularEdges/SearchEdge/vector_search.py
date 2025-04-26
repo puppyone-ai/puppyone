@@ -29,25 +29,24 @@ class VectorRetrievalStrategy(BaseRetriever):
         """
 
         # Handle multiple collection configs
-        collection_configs = self.extra_configs.get("collection_configs", [])
-        collection_name_set = set([config.get("collection_name", "") for config in collection_configs])
-        if len(collection_name_set) > 1:
-            search_results = []
-            for collection_config in collection_configs:
-                collection_name = collection_config.get("collection_name", "")
-                if collection_name in collection_name_set:
-                    collection_name_set.remove(collection_name)
+        data_sources = self.extra_configs.get("data_sources", [])
+        if not data_sources:
+            raise ValueError("No data sources provided")
 
+        if len(data_sources) > 1:
+            search_results = []
+            for data_source in data_sources:
+                collection_configs = data_source.get("index_item", {}).get("collection_configs", {})
                 search_results.extend(StorageClient.execute(
-                    collection_name=collection_name,
+                    collection_name=collection_configs.get("collection_name", ""),
                     search_configs={
                         "query": self.query,
-                        "model": collection_config.get("model", "text-embedding-ada-002"),
-                        "vdb_type": collection_config.get("db_type", "pgvector"),
+                        "model": collection_configs.get("model", "text-embedding-ada-002"),
+                        "vdb_type": collection_configs.get("vdb_type", "pgvector"),
                         "top_k": self.top_k,
                         "threshold": self.threshold,
-                        "user_id": collection_config.get("user_id", ""),
-                        "set_name": collection_config.get("set_name", ""),
+                        "user_id": collection_configs.get("user_id", ""),
+                        "set_name": collection_configs.get("set_name", ""),
                     }
                 ))
 
@@ -58,20 +57,24 @@ class VectorRetrievalStrategy(BaseRetriever):
             if self.threshold:
                 search_results = [result for result in search_results if result["score"] >= self.threshold]
 
+            search_results = [res.get("metadata", {}).get("retrieval_content", "") for res in search_results]
             return search_results
 
-        return StorageClient.execute(
-            collection_name=collection_configs[0].get("collection_name", ""),
+        collection_configs = data_sources[0].get("index_item", {}).get("collection_configs", {})
+        search_result = StorageClient.execute(
+            collection_name=collection_configs.get("collection_name", ""),
             search_configs={
                 "query": self.query,
-                "model": collection_configs[0].get("model", "text-embedding-ada-002"),
-                "user_id": collection_configs[0].get("user_id", ""),
-                "set_name": collection_configs[0].get("set_name", ""),
-                "vdb_type": collection_configs[0].get("db_type", "pgvector"),
+                "model": collection_configs.get("model", "text-embedding-ada-002"),
+                "user_id": collection_configs.get("user_id", ""),
+                "set_name": collection_configs.get("set_name", ""),
+                "vdb_type": collection_configs.get("vdb_type", "pgvector"),
                 "top_k": self.top_k,
                 "threshold": self.threshold,
             }
         )
+        search_result = search_result.get("metadata", {}).get("retrieval_content", "")
+        return search_result
 
 
 if __name__ == "__main__":
