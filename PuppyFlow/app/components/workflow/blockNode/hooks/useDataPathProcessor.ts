@@ -65,7 +65,7 @@ export function useDataPathProcessor(
       return result;
     } catch (error) {
       console.error('路径解析错误:', error);
-      return '路径错误';
+      return 'Path Error';
     }
   };
 
