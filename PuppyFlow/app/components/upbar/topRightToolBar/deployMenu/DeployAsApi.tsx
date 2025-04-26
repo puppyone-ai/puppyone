@@ -320,12 +320,17 @@ const constructWorkflowJson = () => {
   const handleDeploy = async () => {
     setIsDeploying(true);
     try {
+      console.log("process.env.REACT_APP_API_SERVER_KEY", process.env.NEXT_PUBLIC_API_SERVER_KEY)
       const res = await fetch(
         API_SERVER_URL + "/config_api",
         {
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
+          },
           body: JSON.stringify({
-            workflow_json: constructWorkflowJson(), // Use our new function instead
+            workflow_json: constructWorkflowJson(),
             inputs: selectedInputs.map(item => item.id),
             outputs: selectedOutputs.map(item => item.id),
           })
@@ -399,9 +404,7 @@ headers = {
 }
 
 data = {
-    "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), PYTHON)}
-    }
 }
 
 response = requests.post(api_url, headers=headers, json=data)
@@ -420,9 +423,7 @@ else:
 -H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
-    "inputs": {
 ${input_text_gen(selectedInputs.map(item => item.id), SHELL)}
-    },
 }'
 `;
     if (language === SHELL) {
@@ -434,9 +435,7 @@ ${input_text_gen(selectedInputs.map(item => item.id), SHELL)}
 const apiUrl = "${API_SERVER_URL}/execute_workflow/${api_id}";
 
 const data = {
-    inputs: {
 ${input_text_gen(selectedInputs.map(item => item.id), JAVASCRIPT)}
-    }
 };
 
 axios.post(apiUrl, data, {

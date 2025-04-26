@@ -118,26 +118,7 @@ export type EditTextEdgeJsonType = {
     },
 }
 
-// 添加 Retrieving 类型
-export type SearchByVectorEdgeJsonType = {
-    type: "search",
-    data: {
-        search_type: "vector",
-        top_k: number,
-        inputs: { [key: string]: string },
-        threshold: number,
-        extra_configs: {
-            provider?: "openai",
-            model?: "text-embedding-ada-002",
-            db_type?: "pgvector" | "pinecone",
-            collection_name?: string,
-        } | {},
-        doc_ids: string[],
-        query_id: { [key: string]: string },
-        outputs: { [key: string]: string }
-    },
-    id: string
-}
+
 
 // 添加 SearchGoogle 类型
 export type SearchGoogleEdgeJsonType = {
@@ -222,7 +203,20 @@ export type RetrievingEdgeJsonType = {
             collection_name?: string;
         } | {};
         query_id: { [key: string]: string };
-        doc_ids: string[];
+        data_source: {
+            id: string,
+            label: string,
+            indexItem: {
+                index_name: string,
+                collection_configs: {
+                    set_name: string,
+                    model: string,
+                    vdb_type: string,
+                    user_id: string,
+                    collection_name: string
+                };
+            };
+        }[],
         outputs: { [key: string]: string };
     };
 }
@@ -289,8 +283,7 @@ export type LoadEdgeJsonType = {
 // 将 LoadEdgeJsonType 添加到 BaseEdgeJsonType 联合类型中
 export type BaseEdgeJsonType = CopyEdgeJsonType | ChunkingAutoEdgeJsonType |
     ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType |
-    Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType |
-    SearchByVectorEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
+    Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType   | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
     LLMEdgeJsonType | EditStructuredEdgeJsonType | RetrievingEdgeJsonType | IfElseEdgeJsonType |
     GenerateEdgeJsonType | LoadEdgeJsonType;
 
@@ -1021,16 +1014,21 @@ export function useEdgeNodeBackEndJsonBuilder() {
             top_k = nodeData.top_k;
         }
         
-        // 从dataSource中提取ID列表
-        const docIds: string[] = [];
-        const dataSourceArray = nodeData?.dataSource as { id: string, label: string }[] | undefined;
-        if (dataSourceArray && Array.isArray(dataSourceArray)) {
-            dataSourceArray.forEach(source => {
-                if (source && typeof source.id === 'string') {
-                    docIds.push(source.id);
+        // 直接使用完整的 dataSource 结构，确保保留所有字段包括 indexItem
+        const dataSourceArray = nodeData?.dataSource as {
+            id: string,
+            label: string,
+            indexItem: {
+                index_name: string,
+                collection_configs: {
+                    set_name: string,
+                    model: string,
+                    vdb_type: string,
+                    user_id: string,
+                    collection_name: string
                 }
-            });
-        }
+            }
+        }[] | undefined;
         
         return {
             type: "search",
@@ -1045,7 +1043,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     db_type: "pgvector"
                 },
                 query_id: queryId,
-                doc_ids: docIds,
+                data_source: dataSourceArray || [],
                 outputs: outputs
             }
         };
