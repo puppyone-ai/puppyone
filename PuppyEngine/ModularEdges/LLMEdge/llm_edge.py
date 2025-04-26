@@ -236,7 +236,7 @@ Query: What's the name of the PuppyAgent's agent framework?
     response = lite_llm_chat(
         # free model for testing
         # model="google/gemini-flash-1.5-8b-exp",
-        model="deepseek/deepseek-chat-v3-0324:free",
+        model="openai/o3-mini-high",
         response_format=structure,
         messages=[
             {"role": "user", "content": user_prompt}
@@ -244,7 +244,7 @@ Query: What's the name of the PuppyAgent's agent framework?
         history=[
             {"role": "system", "content": "You are a helpful assistant designed to output JSON."}
         ],
-        max_tokens=100,
+        max_tokens=1000,
         hoster="openrouter"
     )
     print(response)
