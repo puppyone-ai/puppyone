@@ -5,20 +5,17 @@ import React, { useRef, useEffect, useState, ReactElement, Fragment } from 'reac
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import JSONForm from '../../tableComponent/JSONForm'
-import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
-import { json } from 'stream/consumers'
-import { get, set } from 'lodash'
-import { PuppyStorage_IP_address_for_embedding } from '../../hooks/useJsonConstructUtils'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
-import { Transition } from '@headlessui/react'
 import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
 import { useFlowsPerUserContext } from "../../states/FlowsPerUserContext"
-import { nanoid } from 'nanoid'
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
-import IndexingMenu from '../components/IndexingMenu'
+import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu'
 import useIndexingUtils from './hooks/useIndexingUtils'
+import NodeSettingsController from './JsonNodeTopSettingBar/NodeSettingsButton'
+import NodeIndexingButton from './JsonNodeTopSettingBar/NodeIndexingButton'
+import NodeLoopButton from './JsonNodeTopSettingBar/NodeLoopButton'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -107,10 +104,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isEditing, setIsEditing] = useState(false)
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   const [vectorIndexingStatus, setVectorIndexingStatus] = useState<VectorIndexingStatus>('notStarted');
-  const { cleanJsonString } = useJsonConstructUtils()
-  const [isLooped, setIsLooped] = useState<boolean>((getNode(id) as ExtendedNode)?.looped || false); // New state to track the position
-
-
 
   // Get connected nodes
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
@@ -277,34 +270,10 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   }
 
 
-  // height by default: 304px, inner-box: 240px, resize-control: 304px, without embedding
-  // height with embedding: 336px, inner-box: 272px, resize-control: 336px
-
-
   const [userInput, setUserInput] = useState<string | undefined>("input view")
 
-  // TODO Auto resize of content box
-  // TODO dialogue selection of content atttribute(key onl y, no index) 
-  // embeding view switch button
   const [showSettingMenu, setShowSettingMenu] = useState(false)
 
-
-  useEffect(
-    () => {
-      console.log("setisloop step2 onchange", isLooped)
-
-      setNodes(prevNodes => prevNodes.map(
-        (node) => {
-          if (node.id === id) {
-            return { ...node, looped: isLooped }
-          }
-          return node
-        }
-      ))
-
-    }
-    , [isLooped]
-  )
 
   useEffect(
     () => {
@@ -548,64 +517,20 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           </div>
 
           {/* top-right toolbar */}
-          <div className="min-w-[60px] min-h-[24px] flex items-center justify-end gap-[8px]">
+          <div className="min-w-[60px] min-h-[24px] z-[100000] flex items-center justify-end gap-[8px]">
             {/* NodeToolBar */}
-            <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
+            <NodeSettingsController nodeid={id}/>
+            
+            {/* 使用 NodeIndexingButton 组件，传递所需的索引操作函数 */}
+            <NodeIndexingButton 
+              nodeid={id}
+              indexingList={indexingList}
+              onAddIndex={onAddIndex}
+              onRemoveIndex={onRemoveIndex}
+            />
 
-            {/* Indexing Menu Button */}
-            <div
-              className={`indexing-menu-trigger flex items-center justify-center min-w-[24px] min-h-[24px] rounded-[8px] cursor-pointer ${(activatedNode?.id === id) ? 'opacity-100' : 'opacity-0'} hover:bg-[#3E3E41]`}
-              onClick={() => {
-                setShowSettingMenu(!showSettingMenu);
-              }}
-              title="Indexing Menu"
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                <path
-                  d="M2 4C2 2.89543 2.89543 2 4 2H8L10 4H12C13.1046 4 14 4.89543 14 6V12C14 13.1046 13.1046 14 12 14H4C2.89543 14 2 13.1046 2 12V4Z"
-                  stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"}
-                  strokeWidth="1.5"
-                  className={indexingList.length > 0 ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
-                />
-                <path
-                  d="M6 7H10M6 10H10"
-                  stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"}
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  className={indexingList.length > 0 ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
-                />
-              </svg>
-            </div>
-
-            {/* Loop Button */}
-            <div
-              className={`flex items-center justify-center min-w-[24px] min-h-[24px] rounded-[8px] cursor-pointer ${(activatedNode?.id === id || isLooped) ? 'opacity-100' : 'opacity-0'} hover:bg-[#3E3E41]`}
-              onClick={() => {
-                setIsLooped(prev => {
-                  console.log("setislooped step1 click", !prev)
-                  return !prev
-                })
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                <path
-                  d="M10.0661 3.52107C12.3186 4.57139 13.2931 7.24881 12.2427 9.50124C11.1924 11.7537 8.51501 12.7282 6.26258 11.6778C4.92078 11.0521 4.00446 9.95798 3.67606 8.70632"
-                  stroke={isLooped ? "#39BC66" : "#6D7177"}
-                  strokeWidth="1.5"
-                  strokeLinecap="square"
-                  className={isLooped ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
-                />
-                <path
-                  d="M2.5 10L3.5 8L5.5 8.5"
-                  stroke={isLooped ? "#39BC66" : "#6D7177"}
-                  strokeWidth="1.5"
-                  strokeLinecap="square"
-                  className={isLooped ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
-                />
-              </svg>
-            </div>
-
-
+            {/* 使用新的 NodeLoopButton 组件 */}
+            <NodeLoopButton nodeid={id} />
           </div>
         </div>
 
@@ -811,15 +736,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       </div>
       */}
 
-      {/* 使用IndexingMenu组件 */}
-      <IndexingMenu
-        id={id}
-        showMenu={showSettingMenu}
-        indexingList={indexingList}
-        onClose={() => setShowSettingMenu(false)}
-        onAddIndex={onAddIndex}
-        onRemoveIndex={onRemoveIndex}
-      />
     </div >
 
   )
