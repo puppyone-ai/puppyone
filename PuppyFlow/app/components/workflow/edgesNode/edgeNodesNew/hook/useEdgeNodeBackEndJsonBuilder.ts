@@ -203,7 +203,7 @@ export type RetrievingEdgeJsonType = {
             collection_name?: string;
         } | {};
         query_id: { [key: string]: string };
-        dataSource: {
+        data_source: {
             id: string,
             label: string,
             indexItem: {
@@ -1043,7 +1043,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     db_type: "pgvector"
                 },
                 query_id: queryId,
-                dataSource: dataSourceArray || [],
+                data_source: dataSourceArray || [],
                 outputs: outputs
             }
         };
