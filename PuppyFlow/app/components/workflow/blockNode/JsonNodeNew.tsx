@@ -1,5 +1,5 @@
 'use client'
-import { NodeProps, Node,  Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
+import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
 import React, { useRef, useEffect, useState, ReactElement, Fragment } from 'react'
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
@@ -18,24 +18,32 @@ import { nanoid } from 'nanoid'
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
 import IndexingMenu from '../components/IndexingMenu'
+import useIndexingUtils from './hooks/useIndexingUtils'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
 type vdb_typeNames = "pgvector"
 
 // 添加这个类型定义
-type VectorIndexingStatus = 'notStarted' | 'processing' | 'completed';
+type VectorIndexingStatus = 'notStarted' | 'processing' | 'done' | 'error';
 
 // 定义基本的 IndexingItem 类型
-interface BaseIndexingItem {
+export interface BaseIndexingItem {
   type: string; // 用于区分不同类型的索引项
-  content: string;
+}
+
+interface PathSegment {
+  id: string;
+  type: 'key' | 'num';
+  value: string;
 }
 
 // Vector 类型的索引项
-interface VectorIndexingItem extends BaseIndexingItem {
+export interface VectorIndexingItem extends BaseIndexingItem {
   type: 'vector';
-  path: string[];
+  status: VectorIndexingStatus;
+  key_path: PathSegment[];
+  value_path: PathSegment[];
   chunks: any[]; // 修改为任意类型的列表
   index_name: string;
   collection_configs: {
@@ -48,13 +56,13 @@ interface VectorIndexingItem extends BaseIndexingItem {
 }
 
 // 可以添加其他类型的索引项
-interface OtherIndexingItem extends BaseIndexingItem {
+export interface OtherIndexingItem extends BaseIndexingItem {
   type: 'other';
   // 其他特定属性
 }
 
 // 联合类型，包含所有可能的索引项类型
-type IndexingItem = VectorIndexingItem | OtherIndexingItem;
+export type IndexingItem = VectorIndexingItem | OtherIndexingItem;
 
 export type JsonNodeData = {
   content: string,
@@ -102,9 +110,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const { cleanJsonString } = useJsonConstructUtils()
   const [isLooped, setIsLooped] = useState<boolean>((getNode(id) as ExtendedNode)?.looped || false); // New state to track the position
 
-  const [showPathEditor, setShowPathEditor] = useState(false);
-  const [paths, setPaths] = useState<PathNode[]>(getNode(id)?.data?.paths as PathNode[] || []);
-  const [originalPaths, setOriginalPaths] = useState<PathNode[]>([]);
+
 
   // Get connected nodes
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
@@ -115,7 +121,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   useEffect(() => {
     const isAutoDetectInput = sourceNodes.length === 0 && targetNodes.length > 0;
     const isAutoDetectOutput = targetNodes.length === 0 && sourceNodes.length > 0;
-    
+
     // 仅当当前状态与自动检测不一致时更新状态
     if (isAutoDetectInput && !isInput) {
       manageNodeasInput(id);
@@ -127,10 +133,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       if (isOutput) manageNodeasOutput(id);
     }
   }, [sourceNodes.length, targetNodes.length, isInput, isOutput, id]);
-
-  useEffect(() => {
-    setNodes(nodes => nodes.map(node => node.id === id ? { ...node, data: { ...node.data, paths: paths } } : node))
-  }, [paths])
 
   // Validation function to check if any node has an empty value
   const hasEmptyValues = (nodes: PathNode[]): boolean => {
@@ -286,25 +288,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // embeding view switch button
   const [showSettingMenu, setShowSettingMenu] = useState(false)
 
-  const handleEmbedViewClick = () => {
-    console.log(getNode(id)?.data?.content)
-    if (vectorIndexingStatus === 'completed') {
-      setShowSettingMenu((showSettingMenu) => !showSettingMenu)
-    } else if (vectorIndexingStatus === 'notStarted') {
-      setVectorIndexingStatus('processing')
-    }
-  };
-
-
-  const getNodePromise = (id: string): any => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const node = getNode(id);
-        resolve(node);
-      }, 0);
-    });
-  };
-
 
   useEffect(
     () => {
@@ -319,13 +302,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         }
       ))
 
-      setTimeout(
-        () => {
-          console.log("setislooped step3 finish", getNode(id))
-        },
-        2000
-      )
-
     }
     , [isLooped]
   )
@@ -337,36 +313,11 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     , []
   )
 
-  useEffect(
-    () => {
-      if (getNode(id)?.data.index_name) {
-        setVectorIndexingStatus('completed')
-      }
-    }, []
-  )
-
-  const handleOpenPathEditor = () => {
-    // Store the original paths to allow cancellation
-    setOriginalPaths(JSON.parse(JSON.stringify(paths)));
-    setShowPathEditor(true);
-  };
-
-  const handleCancelPathEditor = () => {
-    // Revert to original paths
-    setPaths(originalPaths);
-    setShowPathEditor(false);
-  };
-
-  const handleAcceptPathEditor = () => {
-    // Paths are already updated in state, just close the editor
-    setShowPathEditor(false);
-    // Additional logic for applying the paths could go here
-  };
 
   // 添加点击外部关闭菜单的逻辑
   useEffect(() => {
     if (!showSettingMenu) return;
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       // 检查点击是否在菜单外部
       const targetElement = e.target as HTMLElement;
@@ -374,19 +325,132 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         setShowSettingMenu(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [showSettingMenu]);
 
-  const handleRemoveIndex = (index: number) => {
-    const newIndexingList = [...indexingList];
-    newIndexingList.splice(index, 1);
-    setNodes(nodes => nodes.map(node => 
-      node.id === id ? { ...node, data: { ...node.data, indexingList: newIndexingList }} : node
+  const { handleAddIndex, handleRemoveIndex } = useIndexingUtils();
+
+  // 辅助函数：获取用户ID
+  const getUserId = async (): Promise<string | null> => {
+    if (!userId || userId.trim() === "") {
+      const res = await fetchUserId();
+      if (res) {
+        return res;
+      } else {
+        return null;
+      }
+    }
+    return userId;
+  };
+
+  // 移除原来的 handleRemoveIndex 方法
+  const onRemoveIndex = (index: number) => {
+    const newIndexingList = handleRemoveIndex(index, indexingList);
+    setNodes(nodes => nodes.map(node =>
+      node.id === id ? { ...node, data: { ...node.data, indexingList: newIndexingList } } : node
     ));
+  };
+
+  // 修改后的 onAddIndex 方法
+  const onAddIndex = async (newItem: IndexingItem) => {
+    // 如果是向量索引类型，先创建一个 processing 状态的临时项
+    if (newItem.type === 'vector') {
+      // 创建临时索引项
+      const temporaryItem: VectorIndexingItem = {
+        ...newItem as VectorIndexingItem,
+        status: 'processing',
+        chunks: [],
+        index_name: '', // 初始为空，等待后端返回
+        collection_configs: {
+          set_name: '',
+          model: 'text-embedding-ada-002',
+          vdb_type: 'pgvector',
+          user_id: '',
+          collection_name: ''
+        }
+      };
+      
+      // 先将临时项添加到索引列表
+      const tempIndexingList = [...indexingList, temporaryItem];
+      
+      // 立即更新 UI 显示处理中状态
+      setNodes(nodes => nodes.map(node =>
+        node.id === id ? { 
+          ...node, 
+          data: { 
+            ...node.data, 
+            indexingList: tempIndexingList 
+          } 
+        } : node
+      ));
+      
+      // 调用 handleAddIndex 处理实际的索引创建
+      const finalIndexingList = await handleAddIndex(
+        id, 
+        newItem, 
+        indexingList, 
+        setVectorIndexingStatus,
+        getUserId
+      );
+      
+      // 如果成功获取到更新后的索引列表
+      if (finalIndexingList) {
+        // 找到新添加的索引项(最后一项)并确保其状态被正确更新为'done'
+        const updatedListWithStatus = [...finalIndexingList];
+        const lastIndex = updatedListWithStatus.length - 1;
+        
+        if (lastIndex >= 0 && updatedListWithStatus[lastIndex].type === 'vector') {
+          (updatedListWithStatus[lastIndex] as VectorIndexingItem).status = 'done';
+        }
+        
+        setNodes(nodes => nodes.map(node =>
+          node.id === id ? { 
+            ...node, 
+            data: { 
+              ...node.data, 
+              indexingList: updatedListWithStatus 
+            } 
+          } : node
+        ));
+      } else {
+        // 如果索引创建失败，更新临时项的状态为错误
+        const errorIndexingList = [...tempIndexingList];
+        const errorItemIndex = errorIndexingList.length - 1;
+        
+        if (errorItemIndex >= 0 && errorIndexingList[errorItemIndex].type === 'vector') {
+          (errorIndexingList[errorItemIndex] as VectorIndexingItem).status = 'error';
+          
+          setNodes(nodes => nodes.map(node =>
+            node.id === id ? { 
+              ...node, 
+              data: { 
+                ...node.data, 
+                indexingList: errorIndexingList 
+              } 
+            } : node
+          ));
+        }
+      }
+    } else {
+      // 如果不是向量索引类型，直接处理
+      const newIndexingList = await handleAddIndex(
+        id, 
+        newItem, 
+        indexingList, 
+        setVectorIndexingStatus,
+        getUserId
+      );
+      
+      if (newIndexingList) {
+        setNodes(nodes => nodes.map(node =>
+          node.id === id ? { ...node, data: { ...node.data, indexingList: newIndexingList } } : node
+        ));
+      }
+    }
   };
 
   return (
@@ -497,16 +561,16 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
               title="Indexing Menu"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="group">
-                <path 
-                  d="M2 4C2 2.89543 2.89543 2 4 2H8L10 4H12C13.1046 4 14 4.89543 14 6V12C14 13.1046 13.1046 14 12 14H4C2.89543 14 2 13.1046 2 12V4Z" 
+                <path
+                  d="M2 4C2 2.89543 2.89543 2 4 2H8L10 4H12C13.1046 4 14 4.89543 14 6V12C14 13.1046 13.1046 14 12 14H4C2.89543 14 2 13.1046 2 12V4Z"
                   stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"}
                   strokeWidth="1.5"
                   className={indexingList.length > 0 ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
                 />
-                <path 
-                  d="M6 7H10M6 10H10" 
-                  stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"} 
-                  strokeWidth="1.5" 
+                <path
+                  d="M6 7H10M6 10H10"
+                  stroke={indexingList.length > 0 ? "#39BC66" : "#6D7177"}
+                  strokeWidth="1.5"
                   strokeLinecap="round"
                   className={indexingList.length > 0 ? "" : "group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]"}
                 />
@@ -545,7 +609,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           </div>
         </div>
 
-        
+
 
         {/* JSON Editor */}
         {isLoading ? <SkeletonLoadingIcon /> :
@@ -574,19 +638,8 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
               </div>
             }
-
-
           </div>
         }
-
-
-
-
-
-
-
-
-
 
         <NodeResizeControl
           minWidth={240}
@@ -732,7 +785,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       </div>
 
       {/* Add the source/target nodes display at the bottom of the component */}
-      
+
       {/*
       <div className="absolute left-0 -bottom-[2px] transform translate-y-full w-full flex gap-2 z-10">
         {sourceNodes.length > 0 && (
@@ -759,13 +812,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       */}
 
       {/* 使用IndexingMenu组件 */}
-      <IndexingMenu 
+      <IndexingMenu
         id={id}
         showMenu={showSettingMenu}
         indexingList={indexingList}
         onClose={() => setShowSettingMenu(false)}
-        onAddIndex={handleOpenPathEditor}
-        onRemoveIndex={handleRemoveIndex}
+        onAddIndex={onAddIndex}
+        onRemoveIndex={onRemoveIndex}
       />
     </div >
 

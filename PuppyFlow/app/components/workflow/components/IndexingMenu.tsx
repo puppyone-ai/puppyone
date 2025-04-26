@@ -7,32 +7,38 @@ import { useReactFlow } from '@xyflow/react';
 import AdvancedPathEditor from './TreePathEditorMini';
 import { useDataPathProcessor } from './../blockNode/hooks/useDataPathProcessor';
 
-// 不要从./types导入，而是在组件内部定义所需的接口
-interface BaseIndexingItem {
-    type: string;
-    content: string;
-}
-
-interface VectorIndexingItem extends BaseIndexingItem {
-    type: 'vector';
-    path: string[];
-    index_name: string;
-}
-
-type IndexingItem = VectorIndexingItem | { type: string, content: string };
-
-// 预览数据的接口
-interface PreviewChunk {
-    key: string;
-    value: string;
-}
-
 // 在文件顶部添加 PathSegment 接口定义
 interface PathSegment {
     id: string;
     type: 'key' | 'num';
     value: string;
 }
+
+interface BaseIndexingItem {
+    type: string;
+}
+
+interface VectorIndexingItem extends BaseIndexingItem {
+    type: 'vector';
+    status: 'notStarted' | 'processing' | 'done' | 'error';
+    key_path: PathSegment[];
+    value_path: PathSegment[];
+    chunks: any[];
+    index_name: string;
+    collection_configs: {
+        set_name: string;
+        model: string;
+        vdb_type: string;
+        user_id: string;
+        collection_name: string;
+    }
+}
+
+interface OtherIndexingItem extends BaseIndexingItem {
+    type: 'other';
+}
+
+type IndexingItem = VectorIndexingItem | OtherIndexingItem;
 
 interface IndexingMenuProps {
     id: string;
@@ -46,7 +52,7 @@ interface IndexingMenuProps {
 const IndexingMenu: React.FC<IndexingMenuProps> = ({
     id,
     showMenu,
-    indexingList = [],
+    indexingList,
     onClose,
     onAddIndex,
     onRemoveIndex
@@ -61,11 +67,9 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
     const [valuePath, setValuePath] = useState<PathSegment[]>([]);
 
     // 展开/收起路径编辑器的状态
-    const [showKeyPathEditor, setShowKeyPathEditor] = useState(false);
-    const [showValuePathEditor, setShowValuePathEditor] = useState(false);
+    const [showKeyPathEditor, setShowKeyPathEditor] = useState(true);
+    const [showValuePathEditor, setShowValuePathEditor] = useState(true);
 
-    // 预览状态 - 设置初始预览数据为空
-    const [showPreview, setShowPreview] = useState(true); // 默认显示预览
 
     // 使用我们的hook
     const { getNode } = useReactFlow();
@@ -153,40 +157,28 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
     // 处理保存新索引
     const handleSaveNewIndex = () => {
         if (indexType === 'vector') {
-            if (indexName.trim()) {
-                // 将 PathSegment 转换为字符串
-                const pathString = keyPath.map(segment => segment.value).join('.');
-                if (pathString) {
-                    const newItem: VectorIndexingItem = {
-                        type: 'vector',
-                        content: '',
-                        index_name: indexName,
-                        path: [pathString]
-                    };
-                    onAddIndex(newItem);
-                    setShowSubPage(false);
-                    onClose();
+            const newItem: VectorIndexingItem = {
+                type: 'vector',
+                status: "notStarted",
+                index_name: indexName.trim() || "vector_index_" + nanoid(8),
+                key_path: keyPath,
+                value_path: valuePath,
+                chunks: [],
+                collection_configs: {
+                    set_name: '',
+                    model: '',
+                    vdb_type: '',
+                    user_id: '',
+                    collection_name: ''
                 }
-            } else {
-                // 如果未设置索引名称，使用默认名称
-                const pathString = keyPath.map(segment => segment.value).join('.');
-                if (pathString) {
-                    const newItem: VectorIndexingItem = {
-                        type: 'vector',
-                        content: '',
-                        index_name: "vector_index_" + Math.floor(Math.random() * 1000),
-                        path: [pathString]
-                    };
-                    onAddIndex(newItem);
-                    setShowSubPage(false);
-                    onClose();
-                }
-            }
+            };
+            onAddIndex(newItem);
+            setShowSubPage(false);
+            onClose();
         } else if (indexType === 'default') {
-            // 默认索引只需要基本信息
-            const newItem: BaseIndexingItem = {
-                type: 'default',
-                content: indexName || '默认索引'
+            // 默认索引
+            const newItem: OtherIndexingItem = {
+                type: 'other',
             };
             onAddIndex(newItem);
             setShowSubPage(false);
@@ -218,12 +210,12 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
             leaveFrom="transform opacity-100 translate-y-0"
             leaveTo="transform opacity-0 translate-y-[-10px]"
         >
-            <div className={`absolute top-[40px] ${!showSubPage ? 'right-[-350px] w-[320px]' : 'right-[-540px] w-[420px]'} p-[12px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] shadow-lg shadow-black/20 z-[20000] flex flex-col gap-3`}>
+            <div className={`absolute top-[40px] ${!showSubPage ? 'right-[-350px] w-[360px]' : 'right-[-540px] w-[420px]'} p-[12px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] shadow-lg shadow-black/20 z-[20000] flex flex-col gap-3`}>
                 {/* 主页面 */}
                 {!showSubPage ? (
                     <>
-                        <div className='flex items-center justify-between pb-2 border-b border-[#6D7177]/30'>
-                            <span className='text-[13px] font-medium text-[#CDCDCD]'>Index Management</span>
+                        <div className='flex items-center justify-between pb-[4px] border-b border-[#6D7177]/30'>
+                            <span className='text-[12px] font-medium text-[#9B9B9B]'>Index Management</span>
                             <button
                                 onClick={onClose}
                                 className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#CDCDCD] rounded-full hover:bg-[#3A3A3A] transition-colors'
@@ -237,12 +229,8 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                         <div className='flex flex-col gap-3'>
                             {indexingList.length === 0 ? (
                                 <div className="flex flex-col items-center gap-3 py-6 px-3">
-                                    <div className="w-12 h-12 rounded-full bg-[#2D4425] flex items-center justify-center mb-1">
-                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#39BC66">
-                                            <path d="M19 9l-7 7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                                        </svg>
-                                    </div>
-                                    <p className="text-[13px] text-[#9B9B9B] text-center mb-2">Add an index to organize and retrieve content more efficiently</p>
+
+                                    <p className="text-[12px] text-[#9B9B9B] text-center mb-[4px]">Add an index to organize and retrieve content</p>
                                     <button
                                         onClick={handleAddIndexClick}
                                         className='w-full h-[36px] flex items-center justify-center gap-2 rounded-[6px] 
@@ -265,7 +253,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                             onClick={handleAddIndexClick}
                                             className='px-2 h-[28px] flex items-center gap-1.5 rounded-[6px] 
                                                 bg-[#39BC66] hover:bg-[#45D277] text-white text-[12px] 
-                                                font-medium transition-colors'
+                                                 transition-colors'
                                         >
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                                 <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
@@ -278,29 +266,73 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                         {indexingList.map((item, index) => (
                                             <div key={index} className="relative group mb-3 last:mb-0 bg-[#1E1E1E] rounded-[6px] overflow-hidden hover:bg-[#1E1E1E]/90 transition-colors">
                                                 <div className="flex items-center gap-2 p-2">
-                                                    <div className={`w-1.5 h-[calc(100%-12px)] absolute left-2 top-[6px] rounded-sm ${item.type === 'vector' ? 'bg-[#39BC66]' : 'bg-[#FF9B4D]'}`}></div>
+                                                    {/* 左侧状态指示条，根据状态改变颜色 */}
+                                                    <div className={`w-[4px] h-[calc(100%-12px)] absolute left-2 top-[6px] rounded-sm 
+                                                        ${ (item as VectorIndexingItem).status === 'error' 
+                                                            ? 'bg-[#E53935]' 
+                                                            : (item as VectorIndexingItem).status === 'processing' 
+                                                                ? 'bg-[#FFC107]' 
+                                                                : (item as VectorIndexingItem).status === 'done'
+                                                                    ? 'bg-[#39BC66]'
+                                                                    : 'bg-[#39BC66]'}`}>
+                                                    </div>
 
                                                     <div className='flex-1 pl-4'>
-                                                        <div className={`text-[12px] font-medium mb-1
-                                                            ${item.type === 'vector' ? 'text-[#39BC66]' : 'text-[#FF9B4D]'}`}>
-                                                            {item.type === 'vector' ? (item as VectorIndexingItem).index_name : 'Default Index'}
+                                                        <div className="flex items-center">
+                                                            <div className={`text-[10px] font-medium max-w-[140px] truncate
+                                                                ${item.type === 'vector' && (item as VectorIndexingItem).status === 'error' 
+                                                                    ? 'text-[#E53935]' 
+                                                                    : item.type === 'vector' && (item as VectorIndexingItem).status === 'processing' 
+                                                                        ? 'text-[#FFC107]' 
+                                                                        : 'text-[#39BC66]'}`}>
+                                                                {(item as VectorIndexingItem).index_name}
+                                                            </div>
+                                                            
+                                                            {/* 状态指示器标签 - 使用图标+文字的组合呈现 */}
+                                                            {(item as VectorIndexingItem).status !== 'notStarted' && (
+                                                                <div className={`ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium
+                                                                    ${(item as VectorIndexingItem).status === 'processing' 
+                                                                        ? 'bg-[#FFC107]/10 text-[#FFC107]' 
+                                                                        : (item as VectorIndexingItem).status === 'error'
+                                                                            ? 'bg-[#E53935]/10 text-[#E53935]'
+                                                                            : 'bg-[#39BC66]/10 text-[#39BC66]'
+                                                                    }`}>
+                                                                    {/* 状态图标 */}
+                                                                    {(item as VectorIndexingItem).status === 'processing' && (
+                                                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                            <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" 
+                                                                                strokeWidth="3" strokeLinecap="round" className="animate-spin" style={{animationDuration: '1.5s'}} />
+                                                                        </svg>
+                                                                    )}
+                                                                    {(item as VectorIndexingItem).status === 'error' && (
+                                                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                            <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeWidth="2" strokeLinecap="round" />
+                                                                        </svg>
+                                                                    )}
+                                                                    {(item as VectorIndexingItem).status === 'done' && (
+                                                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                            <path d="M5 13l4 4L19 7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                                                                        </svg>
+                                                                    )}
+                                                                    
+                                                                    {/* 状态文本 */}
+                                                                    <span>
+                                                                        {(item as VectorIndexingItem).status === 'processing' && 'Processing'}
+                                                                        {(item as VectorIndexingItem).status === 'error' && 'Error'}
+                                                                        {(item as VectorIndexingItem).status === 'done' && 'Complete'}
+                                                                    </span>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <div className='text-[11px] text-[#9B9B9B] truncate'>
-                                                            {item.type === 'vector' ? (item as VectorIndexingItem).path.join('.') : item.content}
-                                                        </div>
+                                                        
+                                                        
                                                     </div>
 
                                                     <div className="flex items-center">
-                                                        <div
-                                                            className={`h-[20px] flex items-center px-2 rounded-[4px] mr-2
-                                                                ${item.type === 'vector'
-                                                                    ? 'bg-[#2D4425] border border-[#39BC66]/30'
-                                                                    : 'bg-[#443425] border border-[#FF9B4D]/30'}`}
-                                                        >
-                                                            <div className={`text-[10px] font-semibold
-                                                                ${item.type === 'vector'
-                                                                    ? 'text-[#39BC66]'
-                                                                    : 'text-[#FF9B4D]'}`}>
+                                                        {/* 类型标签 - 使用更简洁、不那么突兀的设计 */}
+                                                        <div className={`h-[18px] flex items-center px-2 rounded-[4px] mr-2
+                                                            bg-[#1A1A1A] border border-[#505050]/30`}>
+                                                            <div className="text-[9px] font-medium text-[#CDCDCD]">
                                                                 {item.type}
                                                             </div>
                                                         </div>
@@ -328,7 +360,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                 ) : (
                     /* 子页面：添加新索引 */
                     <>
-                        <div className='flex w-full items-center justify-between pb-2 border-b border-[#6D7177]/30'>
+                        <div className='flex w-full items-center justify-between pb-[4px] border-b border-[#6D7177]/30'>
                             <button
                                 onClick={handleBackToMain}
                                 className='flex items-center text-[#CDCDCD] hover:text-white'
@@ -382,7 +414,9 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                     <div className='p-2'>
                                         <div className='bg-[#1E1E1E] rounded-[6px] border border-[#404040]/30 overflow-hidden flex flex-col h-[160px] mb-3'>
                                             <div className='px-2 py-1 bg-[#1E1E1E] border-b border-[#404040]/30 flex items-center justify-between'>
-                                                <div className='text-[11px] font-medium text-[#CDCDCD]'>Source Data</div>
+                                                <div className='text-[11px] font-medium text-[#CDCDCD]'>
+                                                    Chunk Raw Data: <span className="text-[#9B7EDB] font-semibold"> # {currentSourceIndex + 1}</span>
+                                                </div>
                                             </div>
                                             <div className='p-2 flex-1 overflow-auto'>
                                                 <div className='text-[10px] text-[#9B9B9B] font-mono h-full'>
@@ -419,15 +453,6 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                                 path={keyPath}
                                                                 onChange={setKeyPath}
                                                             />
-                                                            <button
-                                                                onClick={() => generatePreviewData()}
-                                                                className="text-[10px] mt-2 px-2 py-1 rounded-[4px] flex items-center gap-1 bg-[#39BC66] text-white border border-[#39BC66]/30 hover:bg-[#45D277] ml-auto"
-                                                            >
-                                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                    <path d="M5 3l14 9-14 9V3z" strokeWidth="2" />
-                                                                </svg>
-                                                                Apply
-                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -474,15 +499,6 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                                 path={valuePath}
                                                                 onChange={setValuePath}
                                                             />
-                                                            <button
-                                                                onClick={() => generatePreviewData()}
-                                                                className="text-[10px] mt-2 px-2 py-1 rounded-[4px] flex items-center gap-1 bg-[#39BC66] text-white border border-[#39BC66]/30 hover:bg-[#45D277] ml-auto"
-                                                            >
-                                                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                    <path d="M5 3l14 9-14 9V3z" strokeWidth="2" />
-                                                                </svg>
-                                                                Apply
-                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -491,7 +507,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                     <div className='px-2 py-1 bg-[#1E1E1E] border-b border-[#404040]/30 flex items-center'>
                                                         <div className='text-[11px] font-medium text-[#CDCDCD]'>Return Value</div>
                                                     </div>
-                                                    <div className='p-2 flex-1 overflow-auto text-[10px] text-[#9B9B9B]'>
+                                                    <div className='p-2 flex-1 overflow-auto text-[10px] font-mono text-[#9B9B9B]'>
                                                         {typeof valueResult === 'object'
                                                             ? <pre>{JSON.stringify(valueResult, null, 2)}</pre>
                                                             : String(valueResult)
@@ -507,12 +523,9 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                             {/* 保存按钮 */}
                             <button
                                 onClick={handleSaveNewIndex}
-                                className={`w-full h-[36px] flex items-center justify-center gap-2 rounded-[6px] 
+                                className='w-full h-[36px] flex items-center justify-center gap-2 rounded-[6px] 
                                 text-white text-[13px] font-medium transition-colors mt-2
-                                ${keyPath.length > 0
-                                        ? 'bg-[#39BC66] hover:bg-[#45D277]'
-                                        : 'bg-[#39BC66]/50 cursor-not-allowed'}`}
-                                disabled={keyPath.length === 0}
+                                bg-[#39BC66] hover:bg-[#45D277]'
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <path d="M5 13l4 4L19 7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
