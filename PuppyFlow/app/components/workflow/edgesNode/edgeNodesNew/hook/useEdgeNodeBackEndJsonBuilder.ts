@@ -206,7 +206,7 @@ export type RetrievingEdgeJsonType = {
         data_source: {
             id: string,
             label: string,
-            indexItem: {
+            index_item: {
                 index_name: string,
                 collection_configs: {
                     set_name: string,
@@ -1014,11 +1014,11 @@ export function useEdgeNodeBackEndJsonBuilder() {
             top_k = nodeData.top_k;
         }
         
-        // 直接使用完整的 dataSource 结构，确保保留所有字段包括 indexItem
+        // 直接使用完整的 dataSource 结构，确保保留所有字段包括 index_item
         const dataSourceArray = nodeData?.dataSource as {
             id: string,
             label: string,
-            indexItem: {
+            index_item: {
                 index_name: string,
                 collection_configs: {
                     set_name: string,
