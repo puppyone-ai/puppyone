@@ -30,6 +30,7 @@ class VectorRetrievalStrategy(BaseRetriever):
 
         # Handle multiple collection configs
         data_sources = self.extra_configs.get("data_source", [])
+        print("Data source: ", data_sources)
         if not data_sources:
             raise ValueError("No data sources provided")
 
@@ -73,7 +74,7 @@ class VectorRetrievalStrategy(BaseRetriever):
                 "threshold": self.threshold,
             }
         )
-        search_result = search_result.get("metadata", {}).get("retrieval_content", "")
+        search_result = [res.get("metadata", {}).get("retrieval_content", "") for res in search_result]
         return search_result
 
 
