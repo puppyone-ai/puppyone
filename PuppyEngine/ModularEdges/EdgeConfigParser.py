@@ -379,20 +379,20 @@ class SearchConfigParser(EdgeConfigParser):
         } for variable in variables]
 
         original_extra_configs = self.edge_configs.get("extra_configs", {})
-        data_sources = self.edge_configs.get("data_sources", [])
+        data_sources = self.edge_configs.get("data_source", [])
         is_loop = len(variables) > 1
         if is_loop:
             extra_configs = [{
                 **original_extra_configs,
                 "documents": variable.get(doc_ids[0], ""),
-                "data_sources": data_sources[i] if data_sources else [],
+                "data_source": data_sources[i] if data_sources else [],
                 "top_k": self.edge_configs.get("top_k", 10)
             } for i, variable in enumerate(variables)]
         else:
             extra_configs = [{
                 **original_extra_configs,
                 "documents": self.block_configs.get(doc_ids[0], {}).get("content", "") if doc_ids else "",
-                "data_sources": data_sources,
+                "data_source": data_sources,
                 "top_k": self.edge_configs.get("top_k", 10)
             }]
 
