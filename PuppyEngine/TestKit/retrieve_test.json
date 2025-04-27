@@ -1,0 +1,183 @@
+{
+    "blocks": {
+
+    "qDw3Q5": {
+
+        "label": "qDw3Q5",
+
+        "type": "structured",
+
+        "data": {
+
+            "content": [
+
+                {
+
+                    "name": "FUCK",
+
+                    "skills": [
+
+                        "drink",
+
+                        "play"
+
+                    ]
+
+                },
+
+                {
+
+                    "name": "TANK",
+
+                    "skills": [
+
+                        "fuck",
+
+                        "do"
+
+                    ]
+
+                }
+
+            ]
+
+        },
+
+        "looped": false,
+
+        "collection_configs": [
+
+            {
+
+                "set_name": "collection_qDw3Q5_1745698428800",
+
+                "model": "text-embedding-ada-002",
+
+                "vdb_type": "pgvector",
+
+                "user_id": "default_user",
+
+                "collection_name": "public5c46f906970d4551"
+
+            }
+
+        ]
+
+    },
+
+    "dSVvBB": {
+
+        "label": "dSVvBB",
+
+        "type": "text",
+
+        "data": {
+
+            "content": "FUCK"
+
+        },
+
+        "looped": false,
+
+        "collection_configs": []
+
+    },
+
+    "ERnKxY": {
+
+        "label": "ERnKxY",
+
+        "type": "text",
+
+        "data": {
+
+            "content": ""
+
+        }
+
+    }
+
+},
+
+"edges": {
+
+    "retrieving-1745698454327": {
+
+        "type": "search",
+
+        "data": {
+
+            "search_type": "vector",
+
+            "top_k": 1,
+
+            "inputs": {
+
+                "qDw3Q5": "qDw3Q5",
+
+                "dSVvBB": "dSVvBB"
+
+            },
+
+            "threshold": 0.7,
+
+            "extra_configs": {
+
+                "provider": "openai",
+
+                "model": "text-embedding-ada-002",
+
+                "db_type": "pgvector"
+
+            },
+
+            "query_id": {
+
+                "dSVvBB": "dSVvBB"
+
+            },
+
+            "data_source": [
+
+                {
+
+                    "id": "qDw3Q5",
+
+                    "label": "qDw3Q5",
+
+                    "indexItem": {
+
+                        "index_name": "public5c46f906970d4551",
+
+                        "collection_configs": {
+
+                            "set_name": "collection_qDw3Q5_1745698428800",
+
+                            "model": "text-embedding-ada-002",
+
+                            "vdb_type": "pgvector",
+
+                            "user_id": "default_user",
+
+                            "collection_name": "public5c46f906970d4551"
+
+                        }
+
+                    }
+
+                }
+
+            ],
+
+            "outputs": {
+
+                "ERnKxY": "ERnKxY"
+
+            }
+
+        }
+
+    }
+
+}
+}
