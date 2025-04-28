@@ -77,9 +77,7 @@ const ChatbotTestInterface = ({
     
     try {
       const requestData = {
-        inputs: {
           [inputNodeId]: inputMessage
-        }
       };
       
       const response = await axios.post(apiEndpoint, requestData, {
@@ -138,8 +136,11 @@ const ChatbotTestInterface = ({
       )}
       
       <div 
-        className="h-[400px] overflow-y-auto mb-5 bg-[#202020] rounded-lg p-5 border border-[#333] shadow-inner"
+        className="h-[400px] overflow-y-auto mb-5 bg-[#202020] rounded-lg p-5 border border-[#333] shadow-inner custom-scrollbar"
         onClick={stopPropagation}
+        onScroll={(e) => {
+          e.stopPropagation();
+        }}
       >
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -163,19 +164,20 @@ const ChatbotTestInterface = ({
                     ? 'bg-[#2D7CFF] text-white'
                     : 'bg-[#2a2a2a] text-white border border-[#333]'
                 }`}
+                style={{textAlign: 'left'}}
               >
-                <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                <p className="text-[15px] leading-relaxed whitespace-pre-wrap text-left">{msg.content}</p>
               </div>
             </div>
           ))
         )}
         {isLoading && (
           <div className="flex justify-start mb-4">
-            <div className="px-3 py-2 rounded-xl bg-[#2a2a2a] text-white border border-[#333] min-w-[60px]">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+            <div className="px-4 py-3 rounded-xl bg-[#2a2a2a] text-white border border-[#444] min-w-[80px]">
+              <div className="flex items-center space-x-2 h-5">
+                <div className="w-2 h-2 bg-[#2DFF7C] rounded-full animate-pulse" style={{animationDuration: "1s"}}></div>
+                <div className="w-2 h-2 bg-[#2DFF7C] rounded-full animate-pulse" style={{animationDuration: "1s", animationDelay: "0.3s"}}></div>
+                <div className="w-2 h-2 bg-[#2DFF7C] rounded-full animate-pulse" style={{animationDuration: "1s", animationDelay: "0.6s"}}></div>
               </div>
             </div>
           </div>
@@ -304,43 +306,95 @@ export default ChatbotTestInterface;
   .typing-indicator {
     display: flex;
     align-items: center;
-    height: 17px;
+    height: 24px;
   }
   
   .typing-indicator span {
-    height: 5px;
-    width: 5px;
-    margin: 0 1px;
+    height: 8px;
+    width: 8px;
+    margin: 0 2px;
     background-color: #2DFF7C;
     display: block;
     border-radius: 50%;
-    opacity: 0.4;
+    opacity: 0.5;
   }
   
   .typing-indicator span:nth-child(1) {
-    animation: pulse 1s infinite;
+    animation: pulse 0.8s infinite;
   }
   
   .typing-indicator span:nth-child(2) {
-    animation: pulse 1s infinite 0.2s;
+    animation: pulse 0.8s infinite 0.2s;
   }
   
   .typing-indicator span:nth-child(3) {
-    animation: pulse 1s infinite 0.4s;
+    animation: pulse 0.8s infinite 0.4s;
   }
   
   @keyframes pulse {
     0% {
-      opacity: 0.4;
+      opacity: 0.5;
       transform: scale(1);
     }
     50% {
       opacity: 1;
-      transform: scale(1.2);
+      transform: scale(1.3);
     }
     100% {
-      opacity: 0.4;
+      opacity: 0.5;
       transform: scale(1);
     }
+  }
+
+  @keyframes blink {
+    0%, 100% {
+      opacity: 0.2;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .animate-blink-1 {
+    animation: blink 1.2s ease-in-out infinite;
+  }
+
+  .animate-blink-2 {
+    animation: blink 1.2s ease-in-out infinite 0.4s;
+  }
+
+  .animate-blink-3 {
+    animation: blink 1.2s ease-in-out infinite 0.8s;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+    display: block;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 4px;
+    display: block;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #444;
+    border-radius: 4px;
+    display: block;
+  }
+  
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #555;
+    cursor: pointer;
+  }
+
+  /* 确保在所有浏览器中都显示滚动条 */
+  .custom-scrollbar {
+    -ms-overflow-style: scrollbar; /* IE and Edge */
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #444 #1a1a1a; /* Firefox */
+    overflow-y: scroll !important; /* 强制始终显示滚动条 */
   }
 `}</style> 

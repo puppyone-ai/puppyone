@@ -1,0 +1,84 @@
+{
+    "blocks": {
+        "7zfcLi": {
+            "type": "structured",
+            "data": {
+                "content": ["Jessika, Rubio"]
+            }
+        },
+        "_VCHHb": {
+            "type": "structured",
+            "data": {
+                "content": ["Hi", "There"]
+            }
+        },
+        "xspa_V": {
+            "type": "text",
+            "data": {
+                "content": "fuck"
+            }
+        },
+        "fBEa0S": {
+            "type": "structured",
+            "data": {
+                "content": []
+            }
+        }
+    },
+    "edges": {
+        "retrieving-1745681399046": {
+            "type": "search",
+            "data": {
+                "search_type": "vector",
+                "top_k": 5,
+                "inputs": {
+                    "7zfcLi": "7zfcLi",
+                    "_VCHHb": "_VCHHb",
+                    "xspa_V": "xspa_V"
+                },
+                "threshold": 0.7,
+                "extra_configs": {
+                    "provider": "openai",
+                    "model": "text-embedding-ada-002",
+                    "db_type": "pgvector"
+                },
+                "query_id": {
+                    "xspa_V": "xspa_V"
+                },
+                "data_sources": [
+                    {
+                        "id": "7zfcLi",
+                        "label": "7zfcLi",
+                        "index_item": {
+                            "index_name": "public5c46f906138a8eb5",
+                            "collection_configs": {
+                                "set_name": "collection_7zfcLi_1745682316207",
+                                "model": "text-embedding-ada-002",
+                                "vdb_type": "pgvector",
+                                "user_id": "default_user",
+                                "collection_name": "public5c46f906138a8eb5"
+                            }
+                        }
+                    },
+                    {
+                        "id": "_VCHHb",
+                        "label": "_VCHHb",
+                        "index_item": {
+                            "index_name": "public5c46f906da852eb5",
+                            "collection_configs": {
+                                "set_name": "collection__VCHHb_1745682625322",
+                                "model": "text-embedding-ada-002",
+                                "vdb_type": "pgvector",
+                                "user_id": "default_user",
+                                "collection_name": "public5c46f906da852eb5"
+                            }
+                        }
+                    }
+                ],
+                "outputs": {
+                    "fBEa0S": "fBEa0S"
+                }
+            }
+        }
+    }
+}

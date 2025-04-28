@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useContext } from "react"
 
 
-export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge = false, listWidth = "100px", containerClassnames = "", buttonHeight = "32px", buttonBgColor = "transparent", menuBgColor = "#1A1A1A", mapValueTodisplay = (v: string) => v, showDropdownIcon = true }: any) => {
+export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge = false, listWidth = "100px", containerClassnames = "", buttonHeight = "32px", buttonBgColor = "transparent", menuBgColor = "#1A1A1A", mapValueTodisplay = (v: string) => v, showDropdownIcon = true, renderOption }: any) => {
     const [isOpen, setIsOpen] = useState(false); // State to manage dropdown visibility
 
     const handleSelect = (data: any) => {
@@ -81,7 +81,7 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge = 
             {isOpen ? (
                 <ul style={dropdownListStyle}>
                     {console.log("options", options)}
-                    {options.map((option: string, index: number) => (
+                    {options.map((option: any, index: number) => (
                         <li
                             key={index}
                             style={dropdownItemStyle}
@@ -92,7 +92,7 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge = 
                             onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgb(51, 51, 51)'} // Set hover color
                             onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'} // Reset hover color
                         >
-                            {mapValueTodisplay(option)}
+                            {renderOption ? renderOption(option) : mapValueTodisplay(option)}
                         </li>
                     ))}
                 </ul>
