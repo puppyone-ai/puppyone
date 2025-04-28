@@ -48,13 +48,19 @@ class LLMQASearchStrategy(SearchStrategy):
         messages = [
             {
                 "role": "system",
-                "content": """
+                "content": {
+                    "type": "text",
+                    "text": """
 You are an artificial intelligence assistant and you need to engage in a helpful, detailed, polite conversation with a user.
 """
+                }
             },
             {
                 "role": "user",
-                "content": self.query
+                "content": {
+                    "type": "text",
+                    "text": self.query
+                }
             },
         ]
 
