@@ -73,21 +73,21 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const topkRef = useRef<HTMLInputElement>(null)
 
     // 接着定义一个新的 ref 用于存储扁平化的索引项列表
-    const flattenedIndexItems = useRef<{ 
-        nodeId: string, 
-        nodeLabel: string, 
-        indexItem: IndexingItem 
+    const flattenedIndexItems = useRef<{
+        nodeId: string,
+        nodeLabel: string,
+        indexItem: IndexingItem
     }[]>([]);
 
     // 更新扁平化的索引项列表
     useEffect(() => {
         const items: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }[] = [];
-        
+
         getSourceNodeIdWithLabel(id).forEach(node => {
             const nodeInfo = getNode(node.id);
             if (nodeInfo?.type === "structured") {
                 const indexingList = nodeInfo?.data?.indexingList as IndexingItem[] | undefined;
-                
+
                 if (Array.isArray(indexingList)) {
                     indexingList.forEach(item => {
                         if (item.type === "vector" && item.status === "done") {
@@ -101,7 +101,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                 }
             }
         });
-        
+
         flattenedIndexItems.current = items;
     }, [getSourceNodeIdWithLabel(id)]);
 
@@ -209,20 +209,20 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const addNodeLabel = (option: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }) => {
         // 使用连入的 JSON Block 的 nodeId 作为 id
         const nodeId = option.nodeId;
-        
+
         // 检查是否已经添加了相同 nodeId 的数据源
         if (!dataSource.some(item => item.id === nodeId)) {
             const simplifiedIndexItem: SimplifiedIndexItem = {
                 index_name: option.indexItem.index_name,
                 collection_configs: option.indexItem.collection_configs
             };
-            
-            const newItem = { 
+
+            const newItem = {
                 id: nodeId,  // 使用原始的 nodeId
                 label: option.nodeLabel,
                 index_item: simplifiedIndexItem  // 改为index_item
             };
-            
+
             const newDataSource = [...dataSource, newItem];
             setDataSource(newDataSource);
             updateDataSourceInParent(newDataSource);
@@ -400,21 +400,37 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                             <label className='text-[13px] font-semibold text-[#6D7177]'>Query</label>
                             <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                         </div>
-                        <select
-                            ref={queryRef}
-                            value={query.id}
-                            onChange={() => {
-                                if (queryRef.current && queryRef.current.value !== query.id) {
-                                    const selectedLabel = getNode(queryRef.current.value)?.data?.label as string | undefined ?? queryRef.current.value
-                                    setQuery({ id: queryRef.current.value, label: selectedLabel })
+                        <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                            <PuppyDropdown
+                                options={getSourceNodeIdWithLabel(id)
+                                    .filter(node => getNode(node.id)?.type === "text")
+                                    .map(q => ({
+                                        id: q.id,
+                                        label: q.label
+                                    }))
                                 }
-                            }}
-                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
-                                    text-[#3B9BFF] text-[12px] font-medium appearance-none cursor-pointer 
-                                    hover:border-[#6D7177]/50 transition-colors'
-                        >
-                            {displayQueryLabels()}
-                        </select>
+                                selectedValue={query.id
+                                    ? { id: query.id, label: query.label }
+                                    : null
+                                }
+                                onSelect={(value: { id: string, label: string }) => {
+                                    setQuery({ id: value.id, label: value.label });
+                                }}
+                                buttonHeight="32px"
+                                buttonBgColor="transparent"
+                                menuBgColor="#1A1A1A"
+                                listWidth="100%"
+                                containerClassnames="w-full"
+                                mapValueTodisplay={(value: any) =>
+                                    value && value.label
+                                        ? <span className="text-[#3B9BFF] text-[12px] font-medium">{`{{${value.label}}}`}</span>
+                                        : <span className="text-[#6D7177] text-[12px]">Select a query</span>
+                                }
+                                renderOption={(option: { id: string, label: string }) => (
+                                    <div className="text-[#3B9BFF] text-[12px] font-medium">{`{{${option.label}}}`}</div>
+                                )}
+                            />
+                        </div>
                     </li>
 
                     <li className='flex flex-col gap-2'>
@@ -456,7 +472,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                             indexItem: item.indexItem,
                                             displayText: item.nodeLabel
                                         }))}
-                                        onSelect={(option: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }) => 
+                                        onSelect={(option: { nodeId: string, nodeLabel: string, indexItem: IndexingItem }) =>
                                             addNodeLabel(option)
                                         }
                                         selectedValue={null}
@@ -475,7 +491,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                                     </svg>
                                                 </span>
                                             );
-                                            
+
                                             return (
                                                 <span className="flex items-center justify-center w-full h-full">
                                                     <svg width="10" height="10" viewBox="0 0 14 14">
