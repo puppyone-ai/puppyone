@@ -37,7 +37,7 @@ function FloatingEdge({ id,
         targetPosition: targetPos,
         targetX: tx,
         targetY: ty,
-        borderRadius: 50,
+        borderRadius: 40,
       });
 
     return (
@@ -70,7 +70,7 @@ function FloatingEdge({ id,
         targetPosition: targetPos,
         targetX: tx,
         targetY: ty,
-        borderRadius: 50,
+        borderRadius: 40,
       });
 
     return (

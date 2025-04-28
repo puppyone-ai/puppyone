@@ -14,9 +14,9 @@ class AppConfig:
     def _load(self):
         env_path = Path(__file__).parent.parent / ".env"
         load_dotenv(env_path, override=True)
-        
+
     def get(self, key: str, default=None):
         return os.getenv(key, default)
 
 # 单例配置实例
-config = AppConfig() 
+config = AppConfig()

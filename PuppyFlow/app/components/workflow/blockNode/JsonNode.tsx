@@ -871,6 +871,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
 
             {/* Path Editor Button */}
+            {/* 
             <div
               className={`cursor-pointer flex justify-center items-center w-[24px] h-[24px] rounded-[8px] hover:bg-[#3E3E41] ${activatedNode?.id === id ? 'opacity-100' : 'opacity-0'}`}
               onClick={handleOpenPathEditor}
@@ -884,6 +885,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
                 <path d="M11 11L13 13L11 11Z" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" className="group-hover:stroke-[#CDCDCD] group-active:stroke-[#9B7EDB]" />
               </svg>
             </div>
+            */}
 
             {/*View Mode Switching Bar at the bottom*/}
             <div className={`cursor-pointer flex justify-center items-center w-[24px] h-[24px] rounded-[8px] hover:bg-[#3E3E41] ${vectorIndexingStatus !== 'notStarted' ? 'opacity-100' : (activatedNode?.id === id ? 'opacity-100' : 'opacity-0')}`}>
