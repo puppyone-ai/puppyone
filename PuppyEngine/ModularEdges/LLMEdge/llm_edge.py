@@ -146,6 +146,8 @@ def lite_llm_chat(
     if history:
         messages = history + messages
     kwargs["messages"] = messages
+    print("Messages: ", messages)
+    
 
     hoster = kwargs.pop("hoster", "openrouter")
     if hoster == "openrouter":
