@@ -48,9 +48,7 @@ class LLMQASearchStrategy(SearchStrategy):
         messages = [
             {
                 "role": "system",
-                "content": """
-You are an artificial intelligence assistant and you need to engage in a helpful, detailed, polite conversation with a user.
-"""
+                "content": "You are an artificial intelligence assistant and you need to engage in a helpful, detailed, polite conversation with a user."
             },
             {
                 "role": "user",
