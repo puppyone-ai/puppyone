@@ -304,6 +304,9 @@ class FileToTextParser:
             'csv': 'csv',
             'xlsx': 'xlsx',
             'xls': 'xlsx',
+            'xlsm': 'xlsx',
+            'xlsb': 'xlsx', 
+            'ods': 'xlsx',
             'jpg': 'image',
             'jpeg': 'image',
             'png': 'image',
@@ -707,7 +710,7 @@ class FileToTextParser:
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
-        mode = kwargs.get("mode", "row")
+        mode = kwargs.get("mode", "string")
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
@@ -739,10 +742,10 @@ class FileToTextParser:
         **kwargs
     ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
-        Parses an XLSX file and returns its content in specified format.
+        Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content in specified format.
 
         Args:
-            file_path (str): The path to the XLSX file to be parsed.
+            file_path (str): The path to the Excel file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
@@ -750,13 +753,15 @@ class FileToTextParser:
                 - 'string': CSV format string (default)
                 - 'column': Dict with column names as keys and column values as lists
                 - 'row': List of dicts, each dict representing a row with column names as keys
+            - sheet_name (str or int): The name or index of the sheet to parse. Default is 0.
 
         Returns:
-            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed XLSX content in specified format
+            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "string")
+        sheet_name = kwargs.get("sheet_name", 0)
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
@@ -768,7 +773,7 @@ class FileToTextParser:
         if self._is_file_url(file_path):
             xlsx_file = self._remote_file_to_byte_io(file_path)
 
-        df = pd.read_excel(xlsx_file)
+        df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
@@ -935,6 +940,14 @@ if __name__ == "__main__":
                 "column_range": [0, 3],
                 "row_range": [0, 5],
                 "mode": "row"
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testxlsm.xlsm"),
+            "file_type": "xlsx",
+            "config": {
+                "sheet_name": "Sheet1",
+                "mode": "column"
             }
         },
         {
