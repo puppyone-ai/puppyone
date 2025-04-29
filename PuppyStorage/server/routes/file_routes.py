@@ -84,7 +84,12 @@ type_header_mapping = {
     "webm": "video/webm",
     "pdf": "application/pdf",
     "zip": "application/zip",
-    "application": "application/octet-stream"
+    "application": "application/octet-stream",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "xls": "application/vnd.ms-excel",
+    "xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+    "xlsb": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet"
 }
 
 def generate_short_id(length: int = 8) -> str:
