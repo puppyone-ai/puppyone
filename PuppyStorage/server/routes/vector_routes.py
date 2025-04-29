@@ -4,14 +4,14 @@ import hashlib
 # Modify path to ensure correct module imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Query
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, conlist, validator
 from typing import List, Optional, Dict, Any
 
 # TODO: Maybe only need to use multi-modal embedding in the future?
-from vector.embedder import TextEmbedder 
+from vector.embedder import TextEmbedder, ModelRegistry
 from vector.vector_db_factory import VectorDatabaseFactory
 
 from utils.puppy_exception import PuppyException, global_exception_handler
@@ -20,6 +20,47 @@ from utils.config import config
 
 # Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
+
+# 添加获取可用embedding模型的接口
+@global_exception_handler(error_code=3004, error_message="Failed to list embedding models")
+@vector_router.get("/models")
+async def list_embedding_models(provider: Optional[str] = None):
+    """
+    获取所有可用的嵌入模型列表
+    
+    Args:
+        provider (str, optional): 按提供商筛选模型，例如 'openai', 'huggingface', 'sentencetransformers', 'ollama'
+        
+    Returns:
+        JSON: 包含可用模型和提供商的列表
+    """
+    try:
+        # 获取可用的提供商列表
+        available_providers = ModelRegistry.list_available_providers()
+        
+        # 如果指定了提供商，验证它是否可用
+        if provider and provider not in available_providers:
+            return JSONResponse(
+                content={"error": f"Provider '{provider}' is not available. Available providers: {available_providers}"},
+                status_code=400
+            )
+            
+        # 获取模型列表
+        models = ModelRegistry.list_models(provider_name=provider)
+        
+        # 返回结果
+        return JSONResponse(content={
+            "available_providers": available_providers,
+            "models": models,
+            "total": len(models),
+            "filtered_by_provider": provider
+        }, status_code=200)
+    except Exception as e:
+        log_error(f"Error listing embedding models: {str(e)}")
+        return JSONResponse(
+            content={"error": str(e)},
+            status_code=500
+        )
 
 def _generate_collection_name(user_id: str, model: str, set_name: str) -> str:
     """
