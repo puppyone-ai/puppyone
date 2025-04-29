@@ -384,7 +384,7 @@ class SearchConfigParser(EdgeConfigParser):
         if is_loop:
             extra_configs = [{
                 **original_extra_configs,
-                "documents": variable.get(doc_ids[0], ""),
+                "documents": variable.get(doc_ids[0], "") if doc_ids else "",
                 "data_source": data_sources[i] if data_sources else [],
                 "top_k": self.edge_configs.get("top_k", 10)
             } for i, variable in enumerate(variables)]

@@ -758,8 +758,7 @@ class FileToTextParser:
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
-        mode = kwargs.get("mode", "string")
-        sheet_name = kwargs.get("sheet_name", 0)
+        mode = kwargs.get("mode", "row")
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
