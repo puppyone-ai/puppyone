@@ -87,7 +87,7 @@ import sys
 from typing import List, Union, Dict, Any, Optional, Type
 from io import BytesIO
 from PIL import Image
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from abc import ABC, abstractmethod
 
@@ -413,13 +413,13 @@ class OllamaProvider(ProviderInterface):
         for doc in docs:
             try:
                 response = requests.post(
-                    f"{self.endpoint}/api/embeddings",
-                    json={"model": self.model_name, "prompt": doc},
+                    f"{self.endpoint}/api/embed",
+                    json={"model": self.model_name, "input": doc},
                     timeout=30
                 )
                 response.raise_for_status()
                 data = response.json()
-                results.append(data["embedding"])
+                results.append(data["embeddings"])
             except (requests.RequestException, IOError, KeyError, ValueError) as e:
                 raise PuppyException(3303, "Ollama Embedding Failed", 
                                     f"Failed to get embeddings from Ollama: {str(e)}")
@@ -559,30 +559,33 @@ if __name__ == "__main__":
     from dotenv import load_dotenv
     load_dotenv()
     
-    docs = ["6grGax"]
+    docs = ["Puppy Happy"]
 
-    # 使用工厂方法创建实例
-    try:
-        embedder = TextEmbedder.create("text-embedding-ada-002")
-        print(embedder.embed(docs))
-    except Exception as e:
-        print(f"OpenAI测试失败: {str(e)}")
+    # # 使用工厂方法创建实例
+    # try:
+    #     embedder = TextEmbedder.create("text-embedding-ada-002")
+    #     print(embedder.embed(docs))
+    # except Exception as e:
+    #     print(f"OpenAI测试失败: {str(e)}")
 
-    try:
-        embedder = TextEmbedder.create("BAAI/bge-small-zh-v1.5")
-        print(embedder.embed(docs))
-    except Exception as e:
-        print(f"HuggingFace测试失败: {str(e)}")
+    # try:
+    #     embedder = TextEmbedder.create("BAAI/bge-small-zh-v1.5")
+    #     print(embedder.embed(docs))
+    # except Exception as e:
+    #     print(f"HuggingFace测试失败: {str(e)}")
 
-    try:
-        embedder = TextEmbedder.create("all-MiniLM-L6-v2")
-        print(embedder.embed(docs))
-    except Exception as e:
-        print(f"SentenceTransformer测试失败: {str(e)}")
+    # try:
+    #     embedder = TextEmbedder.create("all-MiniLM-L6-v2")
+    #     print(embedder.embed(docs))
+    # except Exception as e:
+    #     print(f"SentenceTransformer测试失败: {str(e)}")
         
     try:
         # Ollama通常需要本地运行的服务
-        embedder = TextEmbedder.create("llama3.2", endpoint="http://localhost:11434")
+        model_list = OllamaProvider.get_supported_models()
+        print(model_list)
+
+        embedder = TextEmbedder.create("bge-large:latest", endpoint="http://localhost:11434")
         print(embedder.embed(docs))
     except Exception as e:
         print(f"Ollama测试失败: {str(e)}")
