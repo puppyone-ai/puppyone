@@ -708,12 +708,12 @@ class FileToTextParser:
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
-        mode = kwargs.get("mode", "string")
+        mode = kwargs.get("mode", "row")
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-        
-        if mode not in ["string", "column", "row"]:
+
+        if mode not in {"string", "column", "row"}:
             raise ValueError("Mode must be one of: 'string', 'column', 'row'")
 
         csv_file = file_path
@@ -756,6 +756,7 @@ class FileToTextParser:
         Returns:
             Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
         """
+
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "row")
@@ -764,7 +765,7 @@ class FileToTextParser:
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
 
-        if mode not in ["string", "column", "row"]:
+        if mode not in {"string", "column", "row"}:
             raise ValueError("Mode must be one of: 'string', 'column', 'row'")
 
         xlsx_file = file_path
@@ -844,85 +845,80 @@ class FileToTextParser:
         # Need to use VLM in the future
         return f"Video Description with LLM (Frame Skip: {skip_num})"
 
-    @global_exception_handler(1318, "Error Parsing Unknown File Type")
-    def _parse_application(
-        self,
-        file_path: str,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """
-        Generic file handler for unknown or binary file types.
+    # @global_exception_handler(1318, "Error Parsing Unknown File Type")
+    # def _parse_application(
+    #     self,
+    #     file_path: str,
+    #     **kwargs
+    # ) -> Dict[str, Any]:
+    #     """
+    #     Generic file handler for unknown or binary file types.
         
-        Args:
-            file_path (str): Path to the file to be parsed.
-            **kwargs: Additional arguments for specific parsing options.
-                - max_text_size (int): Maximum bytes to read when attempting text parsing, default 4096
-                - include_binary (bool): Whether to include binary content digest, default False
+    #     Args:
+    #         file_path (str): Path to the file to be parsed.
+    #         **kwargs: Additional arguments for specific parsing options.
+    #             - max_text_size (int): Maximum bytes to read when attempting text parsing, default 4096
+    #             - include_binary (bool): Whether to include binary content digest, default False
                 
-        Returns:
-            Dict[str, Any]: Dictionary containing file information, which may include:
-                - file_name: Name of the file
-                - file_size: Size of the file in bytes
-                - is_text: Whether the file appears to be text
-                - text_preview: Preview of text content if is_text=True
-                - binary_preview: Hex digest preview if is_text=False and include_binary=True
-                - mime_type: MIME type if python-magic library is available
-                - detected_type: Basic file type detection if python-magic is unavailable
-                
-        Notes:
-            This method is designed with extensibility in mind:
-            - The **kwargs parameter allows adding new options without changing the interface
-            - Future extensions could include encoding detection, metadata extraction, etc.
+    #     Returns:
+    #         Dict[str, Any]: Dictionary containing file information, which may include:
+    #             - file_name: Name of the file
+    #             - file_size: Size of the file in bytes
+    #             - is_text: Whether the file appears to be text
+    #             - text_preview: Preview of text content if is_text=True
+    #             - binary_preview: Hex digest preview if is_text=False and include_binary=True
+    #             - mime_type: MIME type if python-magic library is available
+    #             - detected_type: Basic file type detection if python-magic is unavailable
             
-            File type detection uses two approaches:
-            - Primary: python-magic library for accurate content-based MIME type detection
-            - Fallback: Basic signature detection for common file types when python-magic is unavailable
-        """
-        max_text_size = kwargs.get("max_text_size", 4096)  # Default to reading first 4KB
-        include_binary = kwargs.get("include_binary", False)
+    #     Notes:
+    #         This method is designed with extensibility in mind:
+    #         - The **kwargs parameter allows adding new options without changing the interface
+    #         - Future extensions could include encoding detection, metadata extraction, etc.
+            
+    #         File type detection uses two approaches:
+    #         - Primary: python-magic library for accurate content-based MIME type detection
+    #         - Fallback: Basic signature detection for common file types when python-magic is unavailable
+    #     """
+    #     max_text_size = kwargs.get("max_text_size", 4096)  # Default to reading first 4KB
+    #     include_binary = kwargs.get("include_binary", False)
         
-        result = {
-            "file_name": os.path.basename(file_path),
-            "is_text": False
-        }
-        
-        # Get file size and read content
-        if self._is_file_url(file_path):
-            response = requests.head(file_path)
-            file_size = int(response.headers.get('Content-Length', 0))
-            content = self._remote_file_to_byte_io(file_path).read(max_text_size)
-        else:
-            file_size = os.path.getsize(file_path)
-            with open(file_path, 'rb') as f:
-                content = f.read(max_text_size)
-        
-        result["file_size"] = file_size
-        
-        # Try to decode as text
-        try:
-            text = content.decode('utf-8')
-            result["is_text"] = True
-            result["text_preview"] = text[:1000] + ("..." if len(text) > 1000 else "")
-        except UnicodeDecodeError:
-            # Binary file
-            if include_binary:
-                # Provide hex digest preview
-                hex_preview = content[:100].hex()
-                result["binary_preview"] = f"{hex_preview[:50]}...{hex_preview[-50:]}" if len(hex_preview) > 100 else hex_preview
-        
-        # File type detection
-        try:
-            import magic  # Use python-magic library if available
-            result["mime_type"] = magic.from_buffer(content, mime=True)
-        except ImportError:
-            # If magic library is unavailable, attempt basic feature detection
-            if content.startswith(b'%PDF'):
-                result["detected_type"] = "pdf"
-            elif content.startswith(b'\x89PNG'):
-                result["detected_type"] = "png"
-            # More signature detections could be added here
-        
-        return result
+    #     result = {
+    #         "file_name": os.path.basename(file_path),
+    #         "is_text": False
+    #     }
+    #     # Get file size and read content
+    #     if self._is_file_url(file_path):
+    #         response = requests.head(file_path)
+    #         file_size = int(response.headers.get('Content-Length', 0))
+    #         content = self._remote_file_to_byte_io(file_path).read(max_text_size)
+    #     else:
+    #         file_size = os.path.getsize(file_path)
+    #         with open(file_path, 'rb') as f:
+    #             content = f.read(max_text_size)  
+    #     result["file_size"] = file_size
+    #     # Try to decode as text
+    #     try:
+    #         text = content.decode('utf-8')
+    #         result["is_text"] = True
+    #         result["text_preview"] = text[:1000] + ("..." if len(text) > 1000 else "")
+    #     except UnicodeDecodeError:
+    #         # Binary file
+    #         if include_binary:
+    #             # Provide hex digest preview
+    #             hex_preview = content[:100].hex()
+    #             result["binary_preview"] = f"{hex_preview[:50]}...{hex_preview[-50:]}" if len(hex_preview) > 100 else hex_preview  
+    #     # File type detection
+    #     try:
+    #         import magic  # Use python-magic library if available
+    #         result["mime_type"] = magic.from_buffer(content, mime=True)
+    #     except ImportError:
+    #         # If magic library is unavailable, attempt basic feature detection
+    #         if content.startswith(b'%PDF'):
+    #             result["detected_type"] = "pdf"
+    #         elif content.startswith(b'\x89PNG'):
+    #             result["detected_type"] = "png"
+    #         # More signature detections could be added here
+    #     return result
 
 
 if __name__ == "__main__":
