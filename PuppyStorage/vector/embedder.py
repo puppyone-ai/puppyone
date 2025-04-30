@@ -396,7 +396,7 @@ class OllamaProvider(ProviderInterface):
     def __init__(self, model_name: str, **kwargs):
         self.model_name = model_name
         # 优先从kwargs获取，其次从环境变量，最后使用默认值
-        self.endpoint = kwargs.get("endpoint") or os.environ.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+        self.endpoint = kwargs.get("endpoint") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
         # 确保endpoint没有尾随斜杠
         self.endpoint = self.endpoint.rstrip("/")
         
@@ -556,8 +556,6 @@ except:
 
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv
-    load_dotenv()
     
     docs = ["Puppy Happy"]
 
