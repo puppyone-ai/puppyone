@@ -29,7 +29,7 @@ interface SimplifiedIndexItem {
 }
 
 export type RetrievingConfigNodeData = {
-    dataSource?: { id: string, label: string, indexItem?: SimplifiedIndexItem }[],
+    dataSource?: { id: string, label: string, index_item?: SimplifiedIndexItem }[],
     subMenuType: string | null,
     top_k: number | undefined,
     content: string | null,
@@ -62,7 +62,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         (getNode(id)?.data as RetrievingConfigNodeData)?.extra_configs?.threshold ?? 0.7
     )
     const [showSettings, setShowSettings] = useState(false)
-    const [dataSource, setDataSource] = useState<{ label: string, id: string, indexItem?: SimplifiedIndexItem }[]>(
+    const [dataSource, setDataSource] = useState<{ label: string, id: string, index_item?: SimplifiedIndexItem }[]>(
         (getNode(id)?.data as RetrievingConfigNodeData)?.dataSource ?? []
     )
     const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -196,7 +196,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     }
 
     // Node标签管理
-    const updateDataSourceInParent = (dataSource: { label: string, id: string, indexItem?: SimplifiedIndexItem }[]) => {
+    const updateDataSourceInParent = (dataSource: { label: string, id: string, index_item?: SimplifiedIndexItem }[]) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
                 return { ...node, data: { ...node.data, dataSource: dataSource } };
@@ -220,7 +220,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
             const newItem = { 
                 id: nodeId,  // 使用原始的 nodeId
                 label: option.nodeLabel,
-                indexItem: simplifiedIndexItem
+                index_item: simplifiedIndexItem  // 改为index_item
             };
             
             const newDataSource = [...dataSource, newItem];
@@ -434,7 +434,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                                     >
                                         <span className='text-[10px] px-1'>
                                             <span className='text-[#9B7EDB]'>{`{{${item.label}}}`}</span>
-                                            <span className='text-[#CDCDCD]'>-{item.indexItem?.index_name}</span>
+                                            <span className='text-[#CDCDCD]'>-{item.index_item?.index_name}</span>
                                         </span>
                                         <button
                                             onClick={() => removeNodeLabel(index)}
