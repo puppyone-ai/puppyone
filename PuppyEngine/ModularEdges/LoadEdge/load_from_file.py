@@ -759,6 +759,7 @@ class FileToTextParser:
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "row")
+        sheet_name = kwargs.get("sheet_name", 0)
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
@@ -1020,10 +1021,9 @@ if __name__ == "__main__":
             }
         },
         {
-            "file_path": os.path.join(file_root_path, "testxlsm.xlsm"),
+            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/6sjaoo75/WPS%20Sheets%20Quick%20Start%20Guide.xlsm?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=30e648d86eab17dd0be922bb121cf8aa%2F20250430%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250430T033928Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=935ed491a5299928fdeebaa17de6eb499069f0b62eb4ddf4ac9d9a89a8fbb74c",
             "file_type": "xlsx",
             "config": {
-                "sheet_name": "Sheet1",
                 "mode": "column"
             }
         },
