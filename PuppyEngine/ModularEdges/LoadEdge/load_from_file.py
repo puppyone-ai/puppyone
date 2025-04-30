@@ -925,7 +925,7 @@ if __name__ == "__main__":
             "config": {
                 "column_range": [0, 3],
                 "row_range": [0, 5],
-                "mode": "column"
+                "mode": "row"
             }
         },  
         {
