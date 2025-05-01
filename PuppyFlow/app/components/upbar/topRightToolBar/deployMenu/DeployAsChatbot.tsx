@@ -87,12 +87,28 @@ function DeployAsChatbot({
         setSelectedInputs(currentWorkspace.deploy.chatbot.selectedInputs)
         setSelectedOutputs(currentWorkspace.deploy.chatbot.selectedOutputs)
         setChatbotConfig(currentWorkspace.deploy.chatbot.config || chatbotConfig)
+
+        if (currentWorkspace.deploy.chatbot.api_id && currentWorkspace.deploy.chatbot.api_key) {
+          setIsDeployed(true);
+          setDeploymentInfo({
+            api_id: currentWorkspace.deploy.chatbot.api_id,
+            api_key: currentWorkspace.deploy.chatbot.api_key,
+            endpoint: currentWorkspace.deploy.chatbot.endpoint || `${API_SERVER_URL}/api/${currentWorkspace.deploy.chatbot.api_id}`,
+            ...currentWorkspace.deploy.chatbot
+          });
+        } else {
+          setIsDeployed(false);
+          setDeploymentInfo(null);
+        }
       } else if (!initializedRef.current) {
         initializeNodeSelections()
         initializedRef.current = true
+
+        setIsDeployed(false);
+        setDeploymentInfo(null);
       }
     }
-  }, [selectedFlowId, getNodes, workspaces])
+  }, [selectedFlowId, getNodes, workspaces, API_SERVER_URL])
 
   useEffect(() => {
     if (selectedFlowId && (selectedInputs.length > 0 || selectedOutputs.length > 0)) {
@@ -184,10 +200,15 @@ function DeployAsChatbot({
         API_SERVER_URL + "/config_api",
         {
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
+          },
           body: JSON.stringify({
-            workflow_json: constructWorkflowJson(), // Use our new function
+            workflow_json: constructWorkflowJson(),
             inputs: selectedInputs.map(item => item.id),
             outputs: selectedOutputs.map(item => item.id),
+            workspace_id: selectedFlowId || "default"
           })
         }
       )
@@ -199,17 +220,41 @@ function DeployAsChatbot({
       }
 
       // 处理返回的 API 配置信息
-      const { api_id, api_key } = content;
+      const { api_id, api_key, endpoint } = content;
       console.log("Deployment successful:", api_id, api_key);
       
-      // 设置为已部署状态并存储部署信息
       setIsDeployed(true);
       setDeploymentInfo({
         api_id,
         api_key,
+        endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
         ...content
       });
-      
+
+      // 新增：把 deploy 信息写回 workspace
+      const updatedWorkspaces = workspaces.map(workspace => {
+        if (workspace.flowId === selectedFlowId) {
+          return {
+            ...workspace,
+            deploy: {
+              ...workspace.deploy,
+              chatbot: {
+                ...(workspace.deploy?.chatbot || {}),
+                selectedInputs,
+                selectedOutputs,
+                config: chatbotConfig,
+                api_id,
+                api_key,
+                endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
+                ...content
+              }
+            }
+          };
+        }
+        return workspace;
+      });
+      setWorkspaces(updatedWorkspaces);
+
     } catch (error) {
       console.error("Failed to deploy:", error);
     } finally {
