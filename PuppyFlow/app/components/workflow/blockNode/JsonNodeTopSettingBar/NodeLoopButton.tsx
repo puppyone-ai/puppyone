@@ -22,7 +22,14 @@ function NodeLoopButton({ nodeid }: NodeLoopButtonProps) {
     setNodes(prevNodes => prevNodes.map(
       (node) => {
         if (node.id === nodeid) {
-          return { ...node, looped: !isLooped }
+          return { 
+            ...node, 
+            looped: !isLooped,
+            data: { 
+              ...node.data, 
+              looped: !isLooped
+            }
+          }
         }
         return node
       }
