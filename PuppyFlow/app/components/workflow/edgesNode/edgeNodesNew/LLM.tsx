@@ -71,77 +71,18 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     // 使用useRef来存储最新的消息内容，避免不必要的渲染
     const messagesRef = useRef<PromptMessage[]>([]);
 
-    // 添加一个状态来存储解析后的消息数据
-    const [parsedMessages, setParsedMessages] = useState<PromptMessage[]>([
-        { role: "system", content: "You are an AI" },
-        { role: "user", content: "Answer the question" }
-    ]);
+    // 初始化 parsedMessages，直接用节点数据
+    const [parsedMessages, setParsedMessages] = useState<PromptMessage[]>(
+        (getNode(id)?.data?.content as PromptMessage[]) || [
+            { role: "system", content: "You are an AI" },
+            { role: "user", content: "Answer the question" }
+        ]
+    );
 
-    // 负责解析节点内容并更新消息状态
-    const parseNodeContent = useCallback(() => {
-        const nodeContent = getNode(id)?.data?.content;
-        if (!nodeContent) return;
-
-        // 直接判断是否为数组
-        if (Array.isArray(nodeContent)) {
-            setParsedMessages(nodeContent);
-            // 同时更新ref引用，用于执行操作
-            messagesRef.current = nodeContent;
-        }
-    }, [id, getNode]);
-
-    // 初始化和节点内容变化时解析消息
-    useEffect(() => {
-        parseNodeContent();
-    }, [parseNodeContent]);
-
-    // 监听来源节点变化，自动更新提示内容
-    const lastNodeWithLabel = useRef<string | undefined>(undefined);
-
-    useEffect(() => {
-        // 检查源节点
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
-        if (sourceNodeIdWithLabelGroup.length === 0) return;
-
-        // 只有当标签变化时才更新
-        const currentLabel = sourceNodeIdWithLabelGroup[0]?.label;
-        if (lastNodeWithLabel.current === currentLabel) {
-            return;
-        }
-
-        console.log("Source node label changed, updating prompt template");
-        lastNodeWithLabel.current = currentLabel;
-
-        if (currentLabel) {
-            // 创建新的提示消息
-            const newMessages: PromptMessage[] = [
-                { role: "system", content: "You are an AI" },
-                { role: "user", content: `answer the question by {{${currentLabel}}}` }
-            ];
-
-            // 直接存对象
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === id) {
-                    return { ...node, data: { ...node.data, content: newMessages } };
-                }
-                return node;
-            }));
-
-            // 更新本地状态
-            setParsedMessages(newMessages);
-            messagesRef.current = newMessages;
-        }
-    }, [id, getSourceNodeIdWithLabel, setNodes]);
-
-    // 处理PromptEditor的变更
+    // 处理 PromptEditor 的变更
     const handleMessagesChange = useCallback((updatedMessages: PromptMessage[]) => {
-        // 更新本地引用
         messagesRef.current = updatedMessages;
-
-        // 更新状态
         setParsedMessages(updatedMessages);
-
-        // 同步到ReactFlow节点，直接存对象
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
                 return { ...node, data: { ...node.data, content: updatedMessages } };
@@ -149,6 +90,9 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
             return node;
         }));
     }, [id, setNodes]);
+
+    // 监听来源节点变化，自动更新提示内容
+    const lastNodeWithLabel = useRef<string | undefined>(undefined);
 
     // 准备变量列表用于高亮显示
     const variables = useMemo(() => {
