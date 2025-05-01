@@ -82,18 +82,11 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         const nodeContent = getNode(id)?.data?.content;
         if (!nodeContent) return;
 
-        try {
-            const parsed = typeof nodeContent === 'string'
-                ? JSON.parse(nodeContent)
-                : nodeContent;
-
-            if (Array.isArray(parsed)) {
-                setParsedMessages(parsed);
-                // 同时更新ref引用，用于执行操作
-                messagesRef.current = parsed;
-            }
-        } catch (e) {
-            console.warn("Failed to parse node content:", e);
+        // 直接判断是否为数组
+        if (Array.isArray(nodeContent)) {
+            setParsedMessages(nodeContent);
+            // 同时更新ref引用，用于执行操作
+            messagesRef.current = nodeContent;
         }
     }, [id, getNode]);
 
@@ -126,11 +119,10 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                 { role: "user", content: `answer the question by {{${currentLabel}}}` }
             ];
 
-            // 更新ReactFlow节点
-            const content = JSON.stringify(newMessages);
+            // 直接存对象
             setNodes(prevNodes => prevNodes.map(node => {
                 if (node.id === id) {
-                    return { ...node, data: { ...node.data, content } };
+                    return { ...node, data: { ...node.data, content: newMessages } };
                 }
                 return node;
             }));
@@ -149,11 +141,10 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         // 更新状态
         setParsedMessages(updatedMessages);
 
-        // 同步到ReactFlow节点
-        const content = JSON.stringify(updatedMessages);
+        // 同步到ReactFlow节点，直接存对象
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { ...node, data: { ...node.data, content } };
+                return { ...node, data: { ...node.data, content: updatedMessages } };
             }
             return node;
         }));
