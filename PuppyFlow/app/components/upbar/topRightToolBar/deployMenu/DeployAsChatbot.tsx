@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import ChatbotTestInterface from './ChatbotTestInterface';
+import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
 import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
+import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
 
 interface DeployAsChatbotProps {
   selectedFlowId: string | null;
@@ -26,138 +28,97 @@ interface EdgeNode {
 
 function DeployAsChatbot({
   selectedFlowId,
-  workspaces,
-  setWorkspaces,
   API_SERVER_URL,
   setActivePanel
 }: DeployAsChatbotProps) {
   const { getNodes, getEdges } = useReactFlow();
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const { workspaces } = useFlowsPerUserContext();
   
-  const [selectedInputs, setSelectedInputs] = useState<any[]>([]);
-  const [selectedOutputs, setSelectedOutputs] = useState<any[]>([]);
-  const [isDeploying, setIsDeploying] = useState(false);
+  // 使用全局 context
+  const { 
+    chatbotState, 
+    setChatbotState,
+    syncToWorkspaces
+  } = useDeployPanelContext();
+
+  // 解构 chatbotState
+  const {
+    selectedInputs,
+    selectedOutputs,
+    chatbotConfig,
+    isDeployed,
+    deploymentInfo,
+    isDeploying,
+    selectedSDK,
+    showChatbotTest
+  } = chatbotState;
   
-  const lastSelectedFlowIdRef = useRef<string | null>(null);
+  // 用于本地 UI 状态管理（不需要保存在全局）
+  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false);
+  
+  // 初始化引用
   const initializedRef = useRef<boolean>(false);
   
-  const [chatbotConfig, setChatbotConfig] = useState({
-    multiTurn: true,
-    welcomeMessage: 'Hello! How can I help you today?',
-    deployTo: 'webui' // Default selection
-  });
-
-  const [isDeployed, setIsDeployed] = useState(false);
-  const [deploymentInfo, setDeploymentInfo] = useState<any>(null);
-
-  // Add new state for selected SDK
-  const [selectedSDK, setSelectedSDK] = useState<string | null>(null);
-
-  const [showChatbotTest, setShowChatbotTest] = useState(false);
-
-  // Use the builder hooks
+  // 使用构建器 hooks
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
   
+  // 初始化节点选择
   const initializeNodeSelections = () => {
     const allInputNodes = getNodes()
       .filter((item) => item.type === 'text')
       .filter(item => item.data?.isInput === true)
-      .map(node => ({ id: node.id, label: node.data.label }))
+      .map(node => ({ id: node.id, label: node.data.label }));
     
     const allOutputNodes = getNodes()
       .filter((item) => item.type === 'text')
       .filter(item => item.data?.isOutput === true)
-      .map(node => ({ id: node.id, label: node.data.label }))
+      .map(node => ({ id: node.id, label: node.data.label }));
     
-    setSelectedInputs(allInputNodes)
-    setSelectedOutputs(allOutputNodes)
-  }
+    setChatbotState(prev => ({
+      ...prev,
+      selectedInputs: allInputNodes,
+      selectedOutputs: allOutputNodes
+    }));
+  };
 
+  // 组件初始化
   useEffect(() => {
-    if (lastSelectedFlowIdRef.current !== selectedFlowId) {
-      console.log("Workflow has changed or component initialized")
-      lastSelectedFlowIdRef.current = selectedFlowId
+    if (!initializedRef.current) {
+      initializedRef.current = true;
       
-      if (!selectedFlowId) return;
-      
-      const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId)
-      
-      if (currentWorkspace?.deploy?.chatbot?.selectedInputs && currentWorkspace?.deploy?.chatbot?.selectedOutputs) {
-        setSelectedInputs(currentWorkspace.deploy.chatbot.selectedInputs)
-        setSelectedOutputs(currentWorkspace.deploy.chatbot.selectedOutputs)
-        setChatbotConfig(currentWorkspace.deploy.chatbot.config || chatbotConfig)
-
-        if (currentWorkspace.deploy.chatbot.api_id && currentWorkspace.deploy.chatbot.api_key) {
-          setIsDeployed(true);
-          setDeploymentInfo({
-            api_id: currentWorkspace.deploy.chatbot.api_id,
-            api_key: currentWorkspace.deploy.chatbot.api_key,
-            endpoint: currentWorkspace.deploy.chatbot.endpoint || `${API_SERVER_URL}/api/${currentWorkspace.deploy.chatbot.api_id}`,
-            ...currentWorkspace.deploy.chatbot
-          });
-        } else {
-          setIsDeployed(false);
-          setDeploymentInfo(null);
-        }
-      } else if (!initializedRef.current) {
-        initializeNodeSelections()
-        initializedRef.current = true
-
-        setIsDeployed(false);
-        setDeploymentInfo(null);
+      // 如果状态为空，初始化所有节点
+      if (selectedInputs.length === 0 && selectedOutputs.length === 0) {
+        initializeNodeSelections();
       }
     }
-  }, [selectedFlowId, getNodes, workspaces, API_SERVER_URL])
+  }, []);
 
-  useEffect(() => {
-    if (selectedFlowId && (selectedInputs.length > 0 || selectedOutputs.length > 0)) {
-      const updatedWorkspaces = workspaces.map(workspace => {
-        if (workspace.flowId === selectedFlowId) {
-          return {
-            ...workspace,
-            deploy: {
-              ...workspace.deploy,
-              chatbot: {
-                selectedInputs,
-                selectedOutputs,
-                config: chatbotConfig
-              }
-            }
-          };
-        }
-        return workspace;
-      });
-      
-      setWorkspaces(updatedWorkspaces);
-    }
-  }, [selectedInputs, selectedOutputs, chatbotConfig, selectedFlowId]);
-
-  // Create a function similar to constructAllNodesJson
+  // 构建工作流 JSON
   const constructWorkflowJson = () => {
     try {
-      // Get all nodes and edges
+      // 获取所有节点和边
       const allNodes = getNodes();
       const reactFlowEdges = getEdges();
       
-      // Create blocks and edges objects with proper type definitions
+      // 创建 blocks 和 edges 对象
       let blocks: { [key: string]: BlockNode } = {};
       let edges: { [key: string]: EdgeNode } = {};
       
-      // Define block node types
+      // 定义块节点类型
       const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
       
-      // Process all nodes
+      // 处理所有节点
       allNodes.forEach(node => {
         const nodeId = node.id;
         const nodeLabel = node.data?.label || nodeId;
         
         if (blockNodeTypes.includes(node.type || '')) {
           try {
-            // Use block node builder function
+            // 使用块节点构建器
             const blockJson = buildBlockNodeJson(nodeId);
             
-            // Ensure node label is correct
+            // 确保节点标签正确
             blocks[nodeId] = {
               ...blockJson,
               label: String(nodeLabel)
@@ -165,7 +126,7 @@ function DeployAsChatbot({
           } catch (e) {
             console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
             
-            // Fallback to default behavior
+            // 回退到默认行为
             blocks[nodeId] = {
               label: String(nodeLabel),
               type: node.type || '',
@@ -173,9 +134,9 @@ function DeployAsChatbot({
             };
           }
         } else {
-          // Edge node
+          // 边缘节点
           try {
-            // Build edge JSON and add to edges object
+            // 构建边缘 JSON 并添加到 edges 对象
             const edgeJson = buildEdgeNodeJson(nodeId);
             edges[nodeId] = edgeJson;
           } catch (e) {
@@ -187,14 +148,18 @@ function DeployAsChatbot({
       return { blocks, edges };
     } catch (error) {
       console.error(`Error building workflow JSON: ${error}`);
-      
-      // If there's an error, fall back to the original function
-      return
+      return;
     }
   };
 
+  // 处理部署
   const handleDeploy = async () => {
-    setIsDeploying(true);
+    // 更新状态为正在部署
+    setChatbotState(prev => ({
+      ...prev,
+      isDeploying: true
+    }));
+    
     try {
       const res = await fetch(
         API_SERVER_URL + "/config_api",
@@ -211,7 +176,7 @@ function DeployAsChatbot({
             workspace_id: selectedFlowId || "default"
           })
         }
-      )
+      );
 
       const content = await res.json();
 
@@ -223,71 +188,104 @@ function DeployAsChatbot({
       const { api_id, api_key, endpoint } = content;
       console.log("Deployment successful:", api_id, api_key);
       
-      setIsDeployed(true);
-      setDeploymentInfo({
-        api_id,
-        api_key,
-        endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
-        ...content
-      });
+      // 更新全局状态
+      setChatbotState(prev => ({
+        ...prev,
+        isDeployed: true,
+        deploymentInfo: {
+          api_id,
+          api_key,
+          endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
+          ...content
+        },
+        isDeploying: false
+      }));
 
-      // 新增：把 deploy 信息写回 workspace
-      const updatedWorkspaces = workspaces.map(workspace => {
-        if (workspace.flowId === selectedFlowId) {
-          return {
-            ...workspace,
-            deploy: {
-              ...workspace.deploy,
-              chatbot: {
-                ...(workspace.deploy?.chatbot || {}),
-                selectedInputs,
-                selectedOutputs,
-                config: chatbotConfig,
-                api_id,
-                api_key,
-                endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
-                ...content
-              }
-            }
-          };
-        }
-        return workspace;
-      });
-      setWorkspaces(updatedWorkspaces);
+      // 触发同步到 workspaces
+      syncToWorkspaces();
 
     } catch (error) {
       console.error("Failed to deploy:", error);
-    } finally {
-      setIsDeploying(false);
+      // 更新状态为部署失败
+      setChatbotState(prev => ({
+        ...prev,
+        isDeploying: false
+      }));
     }
-  }
+  };
 
-  // 处理节点选择
+  // 处理输入节点点击 - 聊天机器人只允许一个输入
   const handleInputClick = (node: any) => {
     const isSelected = selectedInputs.some(item => item.id === node.id);
     
     if (isSelected) {
-      setSelectedInputs([]);
+      setChatbotState(prev => ({
+        ...prev,
+        selectedInputs: []
+      }));
     } else {
-      setSelectedInputs([{ id: node.id, label: node.data.label }]);
+      setChatbotState(prev => ({
+        ...prev,
+        selectedInputs: [{ id: node.id, label: node.data.label }]
+      }));
     }
   };
   
+  // 处理输出节点点击 - 聊天机器人只允许一个输出
   const handleOutputClick = (node: any) => {
     const isSelected = selectedOutputs.some(item => item.id === node.id);
     
     if (isSelected) {
-      setSelectedOutputs([]);
+      setChatbotState(prev => ({
+        ...prev,
+        selectedOutputs: []
+      }));
     } else {
-      setSelectedOutputs([{ id: node.id, label: node.data.label }]);
+      setChatbotState(prev => ({
+        ...prev,
+        selectedOutputs: [{ id: node.id, label: node.data.label }]
+      }));
     }
   };
 
-  // Handle SDK selection
-  const handleViewSDK = (platform: string) => {
+  // 切换多轮对话设置
+  const toggleMultiTurn = () => {
+    setChatbotState(prev => ({
+      ...prev,
+      chatbotConfig: {
+        ...prev.chatbotConfig,
+        multiTurn: !prev.chatbotConfig.multiTurn
+      }
+    }));
+  };
+
+  // 更新欢迎消息
+  const updateWelcomeMessage = (message: string) => {
+    setChatbotState(prev => ({
+      ...prev,
+      chatbotConfig: {
+        ...prev.chatbotConfig,
+        welcomeMessage: message
+      }
+    }));
+  };
+
+  // 处理 SDK 选择
+  const handleViewSDK = (platform: string | null) => {
     if (!isDeployed) return;
-    setSelectedSDK(platform === selectedSDK ? null : platform);
-  }
+    setChatbotState(prev => ({
+      ...prev,
+      selectedSDK: platform
+    }));
+  };
+
+  // 切换聊天机器人测试界面
+  const toggleChatbotTest = (show: boolean) => {
+    setChatbotState(prev => ({
+      ...prev,
+      showChatbotTest: show
+    }));
+  };
 
   const deploymentOptions = [
     {
@@ -324,16 +322,9 @@ function DeployAsChatbot({
       name: 'Deploy to Slack',
       icon: (
         <svg width="21" height="20" viewBox="0 0 21 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-          {/* Pink section */}
           <path d="M4.21948 12.6434C4.21948 13.8059 3.27998 14.7454 2.11755 14.7454C0.955122 14.7454 0.015625 13.8059 0.015625 12.6434C0.015625 11.481 0.955122 10.5415 2.11755 10.5415H4.21948V12.6434ZM5.27044 12.6434C5.27044 11.481 6.20994 10.5415 7.37237 10.5415C8.53479 10.5415 9.47429 11.481 9.47429 12.6434V17.8982C9.47429 19.0607 8.53479 20.0002 7.37237 20.0002C6.20994 20.0002 5.27044 19.0607 5.27044 17.8982V12.6434Z" className="fill-current"/>
-          
-          {/* Blue section */}
           <path d="M7.37266 4.20385C6.21024 3.26435 5.27074 2.10193 5.27074 2.10193C5.27074 0.939497 6.21024 0 7.37266 0C8.53509 0 9.47459 0.939497 9.47459 2.10193V4.20385H7.37266ZM7.37266 5.27074C8.53509 5.27074 9.47459 6.21024 9.47459 7.37267C9.47459 8.53509 8.53509 9.47459 7.37266 9.47459H2.10193C0.939497 9.47459 0 8.53509 0 7.37267C0 6.21024 0.939497 5.27074 2.10193 5.27074H7.37266Z" className="fill-current"/>
-          
-          {/* Green section */}
           <path d="M15.7978 7.37267C15.7978 6.21024 16.7373 5.27074 17.8997 5.27074C19.0621 5.27074 20.0016 6.21024 20.0016 7.37267C20.0016 8.53509 19.0621 9.47459 17.8997 9.47459H15.7978V7.37267ZM14.7468 7.37267C14.7468 8.53509 13.8073 9.47459 12.6449 9.47459C11.4825 9.47459 10.543 8.53509 10.543 7.37267V2.10193C10.543 0.939497 11.4825 0 12.6449 0C13.8073 0 14.7468 0.939497 14.7468 2.10193V7.37267Z" className="fill-current"/>
-          
-          {/* Yellow section */}
           <path d="M12.6449 15.7963C13.8073 15.7963 14.7468 16.7358 14.7468 17.8982C14.7468 19.0607 13.8073 20.0002 12.6449 20.0002C11.4825 20.0002 10.543 19.0607 10.543 17.8982V15.7963H12.6449ZM12.6449 14.7454C11.4825 14.7454 10.543 13.8059 10.543 12.6434C10.543 11.481 11.4825 10.5415 12.6449 10.5415H17.9156C19.0781 10.5415 20.0176 11.481 20.0176 12.6434C20.0176 13.8059 19.0781 14.7454 17.9156 14.7454H12.6449Z" className="fill-current"/>
         </svg>
       )
@@ -344,32 +335,26 @@ function DeployAsChatbot({
       description: 'Add a chat bubble to your website',
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-          {/* 网页框架 - 保持不变 */}
           <rect x="2" y="2" width="20" height="16" rx="2" 
             className="stroke-current" 
             strokeWidth="1.5"
             fill="none"
           />
-          {/* 顶部栏 - 保持不变 */}
           <path d="M2 6h20" 
             className="stroke-current" 
             strokeWidth="1.5"
           />
-          {/* 浏览器按钮 - 保持不变 */}
           <circle cx="4.5" cy="4" r="0.75" className="fill-current"/>
           <circle cx="7.5" cy="4" r="0.75" className="fill-current"/>
           <circle cx="10.5" cy="4" r="0.75" className="fill-current"/>
-          
-          {/* 右下角气泡 - 更大且更靠右 */}
           <circle cx="19.5" cy="18" r="4.5" 
             className="fill-current"
           />
-
         </svg>
       )
     }
   ];
-  
+
   return (
     <div className="py-[16px] px-[16px] max-h-[80vh] overflow-y-auto">
       <div className="flex items-center mb-4">
@@ -608,7 +593,7 @@ function DeployAsChatbot({
                 className={`w-12 h-6 rounded-full transition-colors duration-200 ${
                   chatbotConfig.multiTurn ? 'bg-[#3B9BFF]' : 'bg-[#404040]'
                 }`}
-                onClick={() => setChatbotConfig(prev => ({ ...prev, multiTurn: !prev.multiTurn }))}
+                onClick={toggleMultiTurn}
               >
                 <div className={`w-5 h-5 rounded-full bg-white transform transition-transform duration-200 ${
                   chatbotConfig.multiTurn ? 'translate-x-6' : 'translate-x-1'
@@ -621,7 +606,7 @@ function DeployAsChatbot({
               <input
                 type="text"
                 value={chatbotConfig.welcomeMessage}
-                onChange={(e) => setChatbotConfig(prev => ({ ...prev, welcomeMessage: e.target.value }))}
+                onChange={(e) => updateWelcomeMessage(e.target.value)}
                 className="w-full bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] px-3 py-2 text-[14px] text-[#CDCDCD]"
               />
             </div>
@@ -689,7 +674,7 @@ function DeployAsChatbot({
                   className="w-[210px] h-[48px] rounded-[8px] transition duration-200 
                     flex items-center justify-center gap-2
                     bg-[#3B9BFF] text-white hover:bg-[#2980B9] hover:scale-105"
-                  onClick={() => setShowChatbotTest(true)}
+                  onClick={() => toggleChatbotTest(true)}
                 >
                   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2"/>
@@ -706,7 +691,7 @@ function DeployAsChatbot({
                     apiKey={deploymentInfo?.api_key || ''}
                     apiId={deploymentInfo?.api_id || ''}
                     isModal={true}
-                    onClose={() => setShowChatbotTest(false)}
+                    onClose={() => toggleChatbotTest(false)}
                   />
                 )}
               </>
@@ -761,7 +746,7 @@ function DeployAsChatbot({
                         </div>
                         <button 
                           className="text-[12px] text-[#3B9BFF] hover:underline flex items-center"
-                          onClick={() => setSelectedSDK(null)}
+                          onClick={() => handleViewSDK(null)}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -779,7 +764,7 @@ function DeployAsChatbot({
                             <pre>
                               {`// OpenWebUI Configuration
 {
-  "name": "${workspaces.find(w => w.flowId === selectedFlowId)?.name || 'Custom Chatbot'}",
+  "name": "${workspaces.find(w => w.flowId === selectedFlowId)?.flowTitle || 'Custom Chatbot'}",
   "endpoint": "${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}",
   "type": "puppyflow"
 }`}
@@ -824,7 +809,7 @@ const puppyflowEndpoint = "${deploymentInfo?.endpoint || 'https://api.example.co
                               <pre>
                                 {`// Slack App Configuration
 PUPPYFLOW_ENDPOINT="${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}"
-BOT_NAME="${workspaces.find(w => w.flowId === selectedFlowId)?.name || 'PuppyFlow Bot'}"`}
+BOT_NAME="${workspaces.find(w => w.flowId === selectedFlowId)?.flowTitle || 'PuppyFlow Bot'}"`}
                               </pre>
                             </code>
                           </div>

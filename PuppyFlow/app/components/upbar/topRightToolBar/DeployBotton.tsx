@@ -5,6 +5,7 @@ import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
 import { SYSTEM_URLS } from '@/config/urls'
+import { DeployPanelProvider } from '../../states/DeployPanelContext'
 
 import DeployAsApi from './deployMenu/DeployAsApi'
 import DeployAsChatbot from './deployMenu/DeployAsChatbot'
@@ -143,4 +144,16 @@ function DeployBotton() {
   )
 }
 
-export default DeployBotton
+export default function DeployBottonWrapper() {
+  const { selectedFlowId, workspaces, setWorkspaces } = useFlowsPerUserContext();
+  
+  return (
+    <DeployPanelProvider 
+      flowId={selectedFlowId} 
+      workspaces={workspaces}
+      setWorkspaces={setWorkspaces}
+    >
+      <DeployBotton />
+    </DeployPanelProvider>
+  );
+}
