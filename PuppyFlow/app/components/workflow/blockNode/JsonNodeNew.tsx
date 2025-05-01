@@ -69,6 +69,7 @@ export type JsonNodeData = {
   isInput: boolean,
   isOutput: boolean,
   editable: boolean,
+  looped: boolean,
   indexingList: IndexingItem[],
 
   // embedding configurations
