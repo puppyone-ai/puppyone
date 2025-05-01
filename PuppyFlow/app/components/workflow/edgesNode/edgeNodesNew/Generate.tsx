@@ -92,7 +92,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     
     // 状态管理
     const [model, setModel] = useState<string>(
-        (getNode(id)?.data?.model as string) || "openai/gpt-4o"
+        (getNode(id)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     
     const [structuredOutput, setStructuredOutput] = useState<boolean>(

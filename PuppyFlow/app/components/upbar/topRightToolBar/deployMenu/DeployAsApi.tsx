@@ -182,12 +182,32 @@ function DeployAsApi({
         setSelectedOutputs(currentWorkspace.deploy.selectedOutputs)
         setApiConfig(currentWorkspace.deploy.apiConfig)
         setShowApiExample(!!currentWorkspace.deploy.apiConfig?.id)
+
+        // 新增：同步 apiDeployment 和 deploymentInfo
+        if (currentWorkspace.deploy.apiConfig?.id && currentWorkspace.deploy.apiConfig?.key) {
+          setApiDeployment({
+            id: currentWorkspace.deploy.apiConfig.id,
+            key: currentWorkspace.deploy.apiConfig.key,
+            isDeployed: true
+          });
+          setDeploymentInfo({
+            api_id: currentWorkspace.deploy.apiConfig.id,
+            api_key: currentWorkspace.deploy.apiConfig.key,
+            endpoint: currentWorkspace.deploy.endpoint || `${API_SERVER_URL}/api/${currentWorkspace.deploy.apiConfig.id}`,
+            ...currentWorkspace.deploy
+          });
+        } else {
+          setApiDeployment({ id: null, key: null, isDeployed: false });
+          setDeploymentInfo(null);
+        }
       } else {
         // 没有保存的选择，初始化所有节点为选中
         initializeNodeSelections()
+        setApiDeployment({ id: null, key: null, isDeployed: false });
+        setDeploymentInfo(null);
       }
     }
-  }, [selectedFlowId, getNodes])
+  }, [selectedFlowId, getNodes, workspaces, API_SERVER_URL])
 
   // 组件加载后自动选择所有节点
   useEffect(() => {
@@ -333,6 +353,7 @@ const constructWorkflowJson = () => {
             workflow_json: constructWorkflowJson(),
             inputs: selectedInputs.map(item => item.id),
             outputs: selectedOutputs.map(item => item.id),
+            workspace_id: selectedFlowId || "default"
           })
         }
       )
