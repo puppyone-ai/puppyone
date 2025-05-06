@@ -90,7 +90,7 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": [
+                        "thens": [
                             {
                                 "from": "1Bd411",
                                 "to": "iv-ilB"
@@ -108,7 +108,7 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": [
+                        "thens": [
                             {
                                 "from": "nnPISg",
                                 "to": "FqbFsH"

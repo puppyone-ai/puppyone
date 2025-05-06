@@ -59,7 +59,7 @@
                                 "operation": "/"
                             }
                         ],
-                        "then": [
+                        "thens": [
                             {
                                 "from": "3NFJok",
                                 "to": "WUzxLi"
