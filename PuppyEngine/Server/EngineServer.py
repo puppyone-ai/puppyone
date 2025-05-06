@@ -24,15 +24,79 @@ Core Design Patterns:
 
 4. Concurrency Safety:
    - DataStore uses fine-grained locks for concurrent access safety
+   - Task locks provide exclusive access to prevent race conditions
    - Workflow object assumes single-threaded access after task lock acquisition
-   - State machine transitions protected by internal locks
 
-Engineering Considerations:
---------------------------
-- CPU cache effects may cause concurrent requests to execute in unpredictable order
-- Lock acquisition before workflow processing prevents race conditions
-- Timeout mechanisms could be added for long-running workflows
-- Error responses are normalized to maintain consistent API contract
+5. Retry Mechanism:
+   - Automatic retries for workflow retrieval handle potential timing issues
+   - Short delays between retries allow for asynchronous data processing
+   - Detailed diagnostic information when retries are exhausted
+   - Avoids unnecessary complexity of explicit "ready" state tracking
+
+6. Task ID Association:
+   - WorkFlow instances are associated with their task_id during creation
+   - Each workflow maintains its own data copy for processing independence
+   - Ensures clear object boundaries and simplifies resource management
+   - Prepares for future signature-based authorization mechanisms
+
+7. Data Ownership Model:
+   - Clear separation: DataStore owns task metadata, WorkFlow owns processing data
+   - WorkFlow maintains its own copy of blocks and edges
+   - No shared mutable state between components
+   - Follows object-oriented principles of encapsulation and responsibility
+
+Engineering Decisions:
+---------------------
+1. Minimal State Design:
+   - Task existence and workflow existence are the only states tracked
+   - No explicit "ready" or "processing" flags to avoid state complexity
+   - State transitions are implicit and tied to concrete operations
+   - Follows "Occam's Razor" principle - minimum necessary complexity
+
+2. Error Handling Strategy:
+   - Clear separation between client errors (4xx) and server errors (5xx)
+   - Detailed error messages with context about task state
+   - Structured error responses with error codes and descriptive messages
+   - Comprehensive error logging for diagnosis
+
+3. Validation:
+   - Input validation in send_data ensures data integrity
+   - Workflow creation validation prevents null/invalid workflows
+   - Task existence validation before processing
+
+4. Copy vs Reference Pattern:
+   - Chose copy-based model over reference-based for future extensibility
+   - Each WorkFlow maintains its own data copy allowing for independent operations
+   - Simplifies future implementation of signature-based permissions
+   - Easier to migrate to distributed processing in the future
+   - Reduces tight coupling between system components
+
+Future Expansion Architecture:
+----------------------------
+The system is designed to evolve toward more advanced patterns:
+
+1. Signature-Based Authorization:
+   - Each workflow will have a cryptographic signature for authorization
+   - Signatures will define fine-grained read/write permissions on blocks
+   - Block modifications verified against signature permissions
+   - Support for time-limited or scoped access credentials
+   - Current copy-based design prepares for this security model
+
+2. Event Sourcing Upgrade Path:
+   - Evolution to event-based architecture with command/query separation
+   - Workflows will generate signed update commands
+   - DataStore will validate, merge and apply updates
+   - Central event bus will decouple producers and consumers
+   - Support for conflict resolution and version history
+
+3. Multi-Tenant Data Isolation:
+   - Signature-based data partitioning for multi-tenant scenarios
+   - Cryptographic isolation between different users' workflows
+   - Central data store with logical tenant separation
+   - Cross-tenant workflows with explicit permission boundaries
+
+The copy-based model provides better encapsulation and clearer boundaries for these
+future enhancements, especially for security and distributed processing features.
 
 The server implements a straightforward synchronous workflow processor with concurrent
 request handling capabilities through FastAPI's asynchronous model.
@@ -54,7 +118,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from Server.WorkFlow import WorkFlow
 from Server.JsonValidation import JsonValidator
 from Utils.puppy_exception import PuppyException
-from Utils.logger import log_info, log_error
+from Utils.logger import log_info, log_error, log_warning
 
 class DataStore:
     def __init__(
@@ -64,8 +128,7 @@ class DataStore:
             "blocks": {}, 
             "edges": {},
             "workflow": None,
-            "cleanup_status": False,
-            "processing_status": False  # 添加处理状态标记
+            "cleanup_status": False
         })
         self.lock = Lock()
         self.task_locks = {}  # 每个task_id的专用锁
@@ -85,17 +148,23 @@ class DataStore:
         self,
         task_id: str
     ) -> WorkFlow:
-        """获取工作流并检查处理状态"""
+        """获取工作流"""
         with self.lock:
-            task_data = self.data_store.get(task_id, {})
-            if task_data.get("processing_status", False):
-                # 返回None表示该工作流已在处理中
+            # 检查任务是否存在
+            if task_id not in self.data_store:
+                log_warning(f"Task {task_id} does not exist in data store")
                 return None
+                
+            task_data = self.data_store[task_id]
             
+            # 获取工作流对象
             workflow = task_data.get("workflow")
+            
             if workflow:
-                # 标记为处理中，防止重复处理
-                task_data["processing_status"] = True
+                log_info(f"Retrieved workflow for task {task_id}")
+            else:
+                log_warning(f"Workflow object missing for task {task_id}")
+                
             return workflow
 
     def set_workflow(
@@ -103,10 +172,18 @@ class DataStore:
         task_id: str,
         workflow: WorkFlow
     ) -> None:
-        """Set workflow object for task"""
+        """Set workflow object for task (maintains its own data copy)"""
         with self.lock:
+            log_info(f"Storing workflow for task {task_id}")
+            
+            # 关联任务ID
+            workflow.task_id = task_id
+            
+            # 简单存储工作流对象引用，不改变其内部数据
             self.data_store[task_id]["workflow"] = workflow
-
+            
+            log_info(f"Workflow successfully stored for task {task_id}")
+            
     def set_data(
         self,
         task_id: str,
@@ -204,13 +281,13 @@ class DataStore:
         with self.lock:
             # 1. 检查任务是否存在
             if task_id not in self.data_store:
-                log_info(f"Task {task_id} not found or already cleaned up")
+                log_warning(f"Task {task_id} not found or already cleaned up")
                 return
             
             # 2. 检查任务是否有清理状态标记
             task_data = self.data_store[task_id]
             if task_data.get("_cleaning", False):
-                log_info(f"Task {task_id} already being cleaned up")
+                log_warning(f"Task {task_id} already being cleaned up")
                 return
             
             # 3. 标记开始清理
@@ -224,16 +301,24 @@ class DataStore:
                 workflow.cleanup_resources()
             except Exception as e:
                 log_error(f"Error cleaning up workflow: {str(e)}")
+        else:
+            log_warning(f"No workflow object found during cleanup for task {task_id}")
         
         # 5. 最后移除任务数据
         with self.lock:
             if task_id in self.data_store:
                 del self.data_store[task_id]
+                log_info(f"Task {task_id} data removed from store")
+            else:
+                log_warning(f"Task {task_id} already removed from store during cleanup")
         
         # 清理任务锁
         with self.task_locks_lock:
             if task_id in self.task_locks:
                 del self.task_locks[task_id]
+                log_info(f"Task {task_id} lock released and removed")
+            else:
+                log_warning(f"Task {task_id} lock not found during cleanup")
 
 try:
     app = FastAPI()
@@ -262,35 +347,72 @@ async def health_check():
         return JSONResponse(content={"status": "healthy"}, status_code=200)
     except Exception as e:
         log_error(f"Health check error: {str(e)}!")
-        return JSONResponse(content={"status": "unhealthy", "error": str(e)}, status_code=500)
+        raise PuppyException(6000, "Health Check Failed", str(e))
 
 @app.get("/get_data/{task_id}")
 async def get_data(
     task_id: str,
-    wait: bool = True,  # 新参数：是否等待锁释放
-    timeout: float = 60.0  # 新参数：等待超时时间(秒)
+    wait: bool = True,  # 是否等待锁释放
+    timeout: float = 60.0,  # 等待超时时间(秒)
+    retry_attempts: int = 5,  # 重试次数
+    retry_delay: float = 0.5  # 每次重试间隔(秒)
 ):
     try:
         # 尝试获取任务锁，根据wait参数决定是否阻塞等待
         if not data_store.acquire_task_lock(task_id, blocking=wait, timeout=timeout if wait else None):
-            return JSONResponse(
-                content={
-                    "error": "Task already being processed", 
-                    "code": 7304,
-                    "message": f"Task {task_id} is currently being processed and wait timed out or was not requested"
-                }, 
-                status_code=409  # 冲突状态码
+            raise PuppyException(
+                7304,
+                "Task Lock Acquisition Failed",
+                f"Task {task_id} is currently being processed and wait timed out or was not requested"
             )
         
         def stream_data():          
             try:
-                # 获取工作流，如果返回None表示已在处理中
-                workflow = data_store.get_workflow(task_id)
+                # 尝试获取工作流，如果不存在则重试几次
+                workflow = None
+                attempts = 0
+                
+                while attempts < retry_attempts:
+                    workflow = data_store.get_workflow(task_id)
+                    
+                    if workflow:
+                        break
+                    
+                    # 首次重试使用info级别，后续重试使用warning级别表示可能存在问题    
+                    if attempts == 0:
+                        log_info(f"Workflow for task {task_id} not ready yet, initial retry")
+                    else:
+                        log_warning(f"Workflow for task {task_id} still not ready, retry {attempts+1}/{retry_attempts}")
+                    
+                    attempts += 1
+                    
+                    # 最后一次尝试不需要等待
+                    if attempts < retry_attempts:
+                        import time
+                        time.sleep(retry_delay)
+                
+                # 如果所有重试都失败
                 if not workflow:
+                    # 在记录错误前检查任务是否存在
+                    task_exists = task_id in data_store.data_store
+                    error_msg = f"Workflow with task_id {task_id} not found after {retry_attempts} attempts"
+                    
+                    if task_exists:
+                        # 检查数据结构
+                        task_data = data_store.data_store[task_id]
+                        has_blocks = len(task_data.get("blocks", {})) > 0
+                        has_edges = len(task_data.get("edges", {})) > 0
+                        has_workflow = task_data.get("workflow") is not None
+                        
+                        error_msg += f". Task exists with blocks={has_blocks}, edges={has_edges}, workflow={has_workflow}"
+                    else:
+                        error_msg += f". Task does not exist in data store."
+                    
+                    log_error(error_msg)
                     raise PuppyException(
                         7303,
                         "Workflow Not Found",
-                        f"Workflow with task_id {task_id} not found"
+                        error_msg
                     )
                 
                 # 使用上下文管理器自动管理资源
@@ -302,9 +424,12 @@ async def get_data(
                     
                     yield f"data: {json.dumps({'is_complete': True})}\n\n"
                 
-            except Exception as e:
+            except PuppyException as e:
                 log_error(f"Error during streaming: {str(e)}")
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
+                yield f"data: {json.dumps({'error': str(e), 'code': e.code, 'message': e.message})}\n\n"
+            except Exception as e:
+                log_error(f"Unexpected error during streaming: {str(e)}")
+                yield f"data: {json.dumps({'error': 'Internal server error', 'message': 'An unexpected error occurred'})}\n\n"
             finally:
                 # 所有资源清理集中在finally中
                 try:
@@ -317,35 +442,95 @@ async def get_data(
         
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     
+    except PuppyException as e:
+        # 确保在异常情况下也释放锁
+        data_store.release_task_lock(task_id)
+        log_error(f"PuppyEngine error: {str(e)}")
+        return JSONResponse(
+            content={"error": str(e), "code": e.code, "message": e.message}, 
+            status_code=409 if e.code == 7304 else 400
+        )
     except Exception as e:
         # 确保在异常情况下也释放锁
         data_store.release_task_lock(task_id)
-        log_error(f"Error Getting Data from Server: {str(e)}")
-        raise PuppyException(6100, "Error Getting Data from Server", str(e))
+        log_error(f"Unexpected error: {str(e)}")
+        return JSONResponse(
+            content={"error": "Internal server error", "message": str(e)},
+            status_code=500
+        )
 
 @app.post("/send_data")
 async def send_data(
     request: Request
 ):
     log_info("Sending data to server")
+    task_id = None
     try:
         data = await request.json()
         task_id = str(uuid.uuid4())
-        if data and "blocks" in data and "edges" in data:
-            blocks = data.get("blocks", {})
-            edges = data.get("edges", {})
+        
+        if not data or "blocks" not in data or "edges" not in data:
+            log_warning("Invalid data received: missing blocks or edges")
+            raise PuppyException(
+                6210, 
+                "Invalid Request Format",
+                "Request data must contain 'blocks' and 'edges' fields"
+            )
+            
+        blocks = data.get("blocks", {})
+        edges = data.get("edges", {})
+        
+        if not blocks:
+            log_warning("Invalid data: empty blocks")
+            raise PuppyException(
+                6211,
+                "Empty Blocks",
+                "The 'blocks' field cannot be empty"
+            )
+        
+        log_info(f"Creating new task {task_id} with {len(blocks)} blocks and {len(edges)} edges")
+        
+        try:
+            # 1. 在DataStore中存储数据副本
+            log_info(f"Storing data copy in DataStore for task {task_id}")
             data_store.set_data(task_id, blocks, edges)
-            data_store.set_workflow(task_id, WorkFlow(data))  # Store workflow in DataStore
-            log_info(f"Data sent to server for task {task_id}")
-            return JSONResponse(content={"data": data, "task_id": task_id}, status_code=200)
-
-        return JSONResponse(content={"error": "Exceptionally got invalid data"}, status_code=400)
+            
+            # 2. 创建工作流并传入完整数据和任务ID
+            # WorkFlow将维护自己的数据副本
+            log_info(f"Creating workflow with its own data copy for task {task_id}")
+            workflow = WorkFlow(data, task_id=task_id)
+            
+            # 3. 存储工作流对象引用
+            data_store.set_workflow(task_id, workflow)
+            
+            # 4. 验证数据完整性
+            stored_data = data_store.get_data(task_id)
+            if not stored_data.get("blocks"):
+                log_warning(f"Data validation failed for task {task_id}: Blocks were not stored correctly")
+                raise PuppyException(6202, "Data validation failed", "Blocks were not stored correctly")
+            
+            log_info(f"Task {task_id} successfully created and workflow initialized")
+            return JSONResponse(content={"task_id": task_id}, status_code=200)
+            
+        except Exception as e:
+            log_error(f"Error during task creation {task_id}: {str(e)}")
+            # 清理任何部分创建的数据
+            if task_id:
+                data_store.cleanup_task(task_id)
+            raise
+            
     except PuppyException as e:
-        log_error(f"Error Sending Data to Server: {str(e)}")
-        raise PuppyException(6200, "Error Sending Data to Server", str(e))
+        log_error(f"PuppyEngine error: {str(e)}")
+        return JSONResponse(
+            content={"error": str(e), "code": e.code, "message": e.message}, 
+            status_code=400
+        )
     except Exception as e:
-        log_error(f"Server Internal Error: {str(e)}")
-        raise PuppyException(6300, "Server Internal Error", str(e))
+        log_error(f"Unexpected error: {str(e)}")
+        return JSONResponse(
+            content={"error": f"Internal server error", "message": str(e)}, 
+            status_code=500
+        )
 
 
 if __name__ == "__main__":
