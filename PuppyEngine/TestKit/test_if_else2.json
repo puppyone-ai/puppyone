@@ -1,0 +1,147 @@
+{
+    "blocks": {
+
+    "AlSFkq": {
+
+        "label": "AlSFkq",
+
+        "type": "text",
+
+        "data": {
+
+            "content": "hello? "
+
+        },
+
+        "looped": false,
+
+        "collection_configs": []
+
+    },
+
+    "byQ60E": {
+
+        "label": "byQ60E",
+
+        "type": "text",
+
+        "data": {
+
+            "content": "fuck"
+
+        },
+
+        "looped": false,
+
+        "collection_configs": []
+
+    },
+
+    "4a04Z-": {
+
+        "label": "4a04Z-",
+
+        "type": "text",
+
+        "data": {
+
+            "content": ""
+
+        }
+
+    },
+
+    "fgc3LP": {
+
+        "label": "fgc3LP",
+
+        "type": "text",
+
+        "data": {
+
+            "content": ""
+
+        }
+
+    }
+
+},
+
+"edges": {
+
+    "ifelse-1746114483850": {
+
+        "type": "ifelse",
+
+        "data": {
+
+            "cases": {
+
+                "case1": {
+
+                    "conditions": [
+
+                        {
+
+                            "block": "AlSFkq",
+
+                            "condition": "contain",
+
+                            "parameters": {
+
+                                "value": "hello"
+
+                            },
+
+                            "operation": "/"
+
+                        }
+
+                    ],
+
+                    "thens": [
+
+                        {
+
+                            "from": "AlSFkq",
+
+                            "to": "4a04Z-"
+
+                        },
+
+                        {
+
+                            "from": "byQ60E",
+
+                            "to": "fgc3LP"
+
+                        }
+
+                    ]
+
+                }
+
+            },
+
+            "inputs": {
+
+                "AlSFkq": "AlSFkq",
+
+                "byQ60E": "byQ60E"
+
+            },
+
+            "outputs": {
+
+                "4a04Z-": "4a04Z-",
+
+                "fgc3LP": "fgc3LP"
+
+            }
+
+        }
+
+    }
+
+}
+}
