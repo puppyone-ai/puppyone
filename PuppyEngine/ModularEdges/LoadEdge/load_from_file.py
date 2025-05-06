@@ -787,9 +787,9 @@ class FileToTextParser:
         if mode == "string":
             return df.to_csv(index=False)
         elif mode == "column":
-            return df.to_dict(orient='list')
+            return df.to_json(orient='columns')
         else:  # mode == "row"
-            return df.to_dict(orient='records')
+            return df.to_json(orient='records')
 
     @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
@@ -839,9 +839,9 @@ class FileToTextParser:
         if mode == "string":
             return df.to_csv(index=False)
         elif mode == "column":
-            return df.to_dict(orient='list')
+            return df.to_json(orient='columns')
         else:  # mode == "row"
-            return df.to_dict(orient='records')
+            return df.to_json(orient='records')
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
