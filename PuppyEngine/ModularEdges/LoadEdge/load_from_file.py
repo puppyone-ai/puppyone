@@ -137,31 +137,31 @@ class FileToTextParser:
             logger.error(f"Error in parse_multiple: {str(e)}\n{traceback.format_exc()}")
             raise
 
-    def _group_files_by_type(
-        self, 
-        file_configs: List[Dict[str, Any]]
-    ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
-        """
-        Group file configurations by file type
+    # def _group_files_by_type(
+    #     self, 
+    #     file_configs: List[Dict[str, Any]]
+    # ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
+    #     """
+    #     Group file configurations by file type
 
-        Args:
-            file_configs: List of file configurations
+    #     Args:
+    #         file_configs: List of file configurations
 
-        Returns:
-            Dictionary mapping file types to lists of (index, config) tuples
-        """
+    #     Returns:
+    #         Dictionary mapping file types to lists of (index, config) tuples
+    #     """
 
-        file_type_groups = {}
-        for i, config in enumerate(file_configs):
-            file_path = config.get('file_path')
-            file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
+    #     file_type_groups = {}
+    #     for i, config in enumerate(file_configs):
+    #         file_path = config.get('file_path')
+    #         file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
 
-            if file_type not in file_type_groups:
-                file_type_groups[file_type] = []
+    #         if file_type not in file_type_groups:
+    #             file_type_groups[file_type] = []
 
-            file_type_groups[file_type].append((i, config))
+    #         file_type_groups[file_type].append((i, config))
 
-        return file_type_groups
+    #     return file_type_groups
 
     def _process_simple_files(
         self,
@@ -276,51 +276,51 @@ class FileToTextParser:
             # Return a user-friendly error message
             return f"Failed to parse file: {os.path.basename(file_path)}"
 
-    @global_exception_handler(1317, "Error Determining File Type")
-    def _determine_file_type(
-        self,
-        file_path: str
-    ) -> str:
-        """
-        Determine file type from file extension.
+    # @global_exception_handler(1317, "Error Determining File Type")
+    # def _determine_file_type(
+    #     self,
+    #     file_path: str
+    # ) -> str:
+    #     """
+    #     Determine file type from file extension.
 
-        Args:
-            file_path: Path or URL to the file
+    #     Args:
+    #         file_path: Path or URL to the file
 
-        Returns:
-            File type based on extension, defaults to 'application' for unknown extensions
-        """
+    #     Returns:
+    #         File type based on extension, defaults to 'application' for unknown extensions
+    #     """
 
-        _, ext = os.path.splitext(file_path)
-        ext = ext.lower().lstrip('.')
+    #     _, ext = os.path.splitext(file_path)
+    #     ext = ext.lower().lstrip('.')
 
-        extension_map = {
-            'json': 'json',
-            'txt': 'txt',
-            'md': 'markdown',
-            'pdf': 'pdf',
-            'doc': 'doc',
-            'docx': 'doc',
-            'csv': 'csv',
-            'xlsx': 'xlsx',
-            'xls': 'xlsx',
-            'xlsm': 'xlsx',
-            'xlsb': 'xlsx', 
-            'ods': 'xlsx',
-            'jpg': 'image',
-            'jpeg': 'image',
-            'png': 'image',
-            'gif': 'image',
-            'mp3': 'audio',
-            'wav': 'audio',
-            'mp4': 'video',
-            'avi': 'video',
-            'mov': 'video'
-        }
+    #     extension_map = {
+    #         'json': 'json',
+    #         'txt': 'txt',
+    #         'md': 'markdown',
+    #         'pdf': 'pdf',
+    #         'doc': 'doc',
+    #         'docx': 'doc',
+    #         'csv': 'csv',
+    #         'xlsx': 'xlsx',
+    #         'xls': 'xlsx',
+    #         'xlsm': 'xlsx',
+    #         'xlsb': 'xlsx', 
+    #         'ods': 'xlsx',
+    #         'jpg': 'image',
+    #         'jpeg': 'image',
+    #         'png': 'image',
+    #         'gif': 'image',
+    #         'mp3': 'audio',
+    #         'wav': 'audio',
+    #         'mp4': 'video',
+    #         'avi': 'video',
+    #         'mov': 'video'
+    #     }
 
-        # Use the mapped file type or default to 'application' for unknown types
-        file_type = extension_map.get(ext, 'application')
-        return file_type
+    #     # Use the mapped file type or default to 'application' for unknown types
+    #     file_type = extension_map.get(ext, 'application')
+    #     return file_type
 
     def _normalize_file_type(self, file_type: str) -> str:
         """
