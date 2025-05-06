@@ -297,8 +297,12 @@ class DataStore:
         workflow = self.data_store[task_id].get("workflow")
         if workflow:
             try:
-                log_info(f"Cleaning up workflow resources for task {task_id}")
-                workflow.cleanup_resources()
+                # 检查工作流对象是否已被清理过
+                if not hasattr(workflow, 'blocks') or not workflow.blocks:
+                    log_info(f"Workflow resources for task {task_id} already cleaned up")
+                else:
+                    log_info(f"Cleaning up workflow resources for task {task_id}")
+                    workflow.cleanup_resources()
             except Exception as e:
                 log_error(f"Error cleaning up workflow: {str(e)}")
         else:
@@ -366,7 +370,7 @@ async def get_data(
                 f"Task {task_id} is currently being processed and wait timed out or was not requested"
             )
         
-        def stream_data():          
+        async def stream_data():          
             try:
                 # 尝试获取工作流，如果不存在则重试几次
                 workflow = None
@@ -388,8 +392,8 @@ async def get_data(
                     
                     # 最后一次尝试不需要等待
                     if attempts < retry_attempts:
-                        import time
-                        time.sleep(retry_delay)
+                        import asyncio
+                        await asyncio.sleep(retry_delay)
                 
                 # 如果所有重试都失败
                 if not workflow:
