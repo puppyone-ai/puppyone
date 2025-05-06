@@ -758,15 +758,23 @@ class FileToTextParser:
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
             - mode (str): Output format mode. One of:
-                - 'string': CSV format string (default)
-                - 'column': Dict with column names as keys and column values as lists
-                - 'row': List of dicts, each dict representing a row with column names as keys
+                - 'string': CSV format string
+                - 'column': Pivot mode, column names as main keys, values from index_row as sub-keys
+                - 'row': Pivot mode, values from index_col as main keys, column names as sub-keys
+            - use_header (bool): Whether to use the first row as column headers, default is True
+            - skip_empty (bool): Whether to skip empty values in pivot result, default is True
+            - index_col (str/int): Column to use as main key in row mode, default is first column (0)
+            - index_row (int): Row to use for sub-keys in column mode, default is first data row (0)
         Returns:
             Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed CSV content in specified format
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "row")
+        use_header = kwargs.get("use_header", True)
+        skip_empty = kwargs.get("skip_empty", True)
+        index_col = kwargs.get("index_col", 0)  # Default to using first column as main key
+        index_row = kwargs.get("index_row", 0)  # Default to using first row for column mode sub-keys
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
@@ -778,18 +786,126 @@ class FileToTextParser:
         if self._is_file_url(file_path):
             csv_file = self._remote_file_to_byte_io(file_path)
 
-        df = pd.read_csv(csv_file)
+        # Determine whether to use first row as column headers
+        header_param = 0 if use_header else None
+        df = pd.read_csv(csv_file, header=header_param)
+        
+        # Ensure all column names are strings
+        df.columns = df.columns.astype(str)
+        
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
 
         if mode == "string":
+            # Return CSV format string
             return df.to_csv(index=False)
+        
         elif mode == "column":
-            return df.to_json(orient='columns')
+            # Column pivot mode: column names as main keys, values from index_row as sub-keys
+            if df.empty:
+                return "{}"
+                
+            result = {}
+            
+            # If DataFrame has fewer rows than index_row, return empty result
+            if len(df) <= index_row:
+                return "{}"
+            
+            # Get column names for main keys
+            columns = df.columns.tolist()
+            
+            # If index_col is a number, use position; if string, use column name
+            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
+            
+            # Get values from the specified row to use as sub-keys
+            row_values = df.iloc[index_row]
+            key_values = df[key_col].tolist()
+            
+            # Iterate through each column (except the key column)
+            for col in columns:
+                if col == key_col:
+                    continue
+                    
+                # Use column name as outer key
+                outer_key = str(col)
+                result[outer_key] = {}
+                
+                # Iterate through each row
+                for i, idx in enumerate(df.index):
+                    # Skip the row used for keys in column mode if needed
+                    if skip_empty and i == index_row:
+                        continue
+                        
+                    # Get the key value and data value
+                    sub_key = df.iloc[i][key_col]
+                    value = df.iloc[i][col]
+                    
+                    # Skip empty values
+                    if skip_empty and (pd.isna(sub_key) or sub_key == '' or pd.isna(value) or value == ''):
+                        continue
+                    
+                    # Ensure sub-key is string
+                    sub_key = str(sub_key)
+                    
+                    # Preserve numeric types, convert others to string
+                    if isinstance(value, (int, float)):
+                        if not pd.isna(value):  # Ensure not NaN
+                            result[outer_key][sub_key] = value
+                    else:
+                        result[outer_key][sub_key] = str(value)
+            
+            # Return JSON string
+            return json.dumps(result, ensure_ascii=False)
+            
         else:  # mode == "row"
-            return df.to_json(orient='records')
+            # Row pivot mode: specified column as main keys, column names as sub-keys
+            if df.empty:
+                return "{}"
+            
+            # If index_col is a number, use position; if string, use column name
+            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
+            
+            result = {}
+            # Get all row indices
+            indices = df.index.tolist()
+            # Get all columns except the key column
+            if isinstance(index_col, int):
+                other_cols = [col for i, col in enumerate(df.columns) if i != index_col]
+            else:
+                other_cols = [col for col in df.columns if col != key_col]
+            
+            # Iterate through each row
+            for idx in indices:
+                row = df.iloc[idx]
+                
+                # Use key column value as outer key
+                outer_key = row[key_col]
+                # Skip empty main keys
+                if pd.isna(outer_key) or outer_key == '':
+                    continue
+                
+                # Ensure main key is string type
+                outer_key = str(outer_key)
+                if outer_key not in result:
+                    result[outer_key] = {}
+                
+                # Add other column data as inner key-value pairs
+                for col in other_cols:
+                    value = row[col]
+                    # Skip empty values
+                    if skip_empty and (pd.isna(value) or value == ''):
+                        continue
+                    # Preserve numeric types, convert others to string
+                    if isinstance(value, (int, float)):
+                        if not pd.isna(value):  # Ensure not NaN
+                            result[outer_key][col] = value
+                    else:
+                        result[outer_key][col] = str(value)
+            
+            # Return JSON string
+            return json.dumps(result, ensure_ascii=False)
 
     @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
@@ -806,10 +922,14 @@ class FileToTextParser:
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
             - mode (str): Output format mode. One of:
-                - 'string': CSV format string (default)
-                - 'column': Dict with column names as keys and column values as lists
-                - 'row': List of dicts, each dict representing a row with column names as keys
-            - sheet_name (str or int): The name or index of the sheet to parse. Default is 0.
+                - 'string': CSV format string
+                - 'column': Pivot mode, column names as main keys, values from index_row as sub-keys
+                - 'row': Pivot mode, values from index_col as main keys, column names as sub-keys
+            - sheet_name (str or int): Sheet name or index to parse, default is 0
+            - use_header (bool): Whether to use the first row as column headers, default is True
+            - skip_empty (bool): Whether to skip empty values in pivot result, default is True
+            - index_col (str/int): Column to use as main key in row mode, default is first column (0)
+            - index_row (int): Row to use for sub-keys in column mode, default is first data row (0)
 
         Returns:
             Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
@@ -819,6 +939,10 @@ class FileToTextParser:
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "row")
         sheet_name = kwargs.get("sheet_name", 0)
+        use_header = kwargs.get("use_header", True)
+        skip_empty = kwargs.get("skip_empty", True)
+        index_col = kwargs.get("index_col", 0)  # Default to using first column as main key
+        index_row = kwargs.get("index_row", 0)  # Default to using first row for column mode sub-keys
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
@@ -830,18 +954,126 @@ class FileToTextParser:
         if self._is_file_url(file_path):
             xlsx_file = self._remote_file_to_byte_io(file_path)
 
-        df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
+        # Determine whether to use first row as column headers
+        header_param = 0 if use_header else None
+        df = pd.read_excel(xlsx_file, sheet_name=sheet_name, header=header_param)
+        
+        # Ensure all column names are strings
+        df.columns = df.columns.astype(str)
+        
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
 
         if mode == "string":
+            # Return CSV format string
             return df.to_csv(index=False)
+            
         elif mode == "column":
-            return df.to_json(orient='columns')
+            # Column pivot mode: column names as main keys, values from index_row as sub-keys
+            if df.empty:
+                return "{}"
+                
+            result = {}
+            
+            # If DataFrame has fewer rows than index_row, return empty result
+            if len(df) <= index_row:
+                return "{}"
+            
+            # Get column names for main keys
+            columns = df.columns.tolist()
+            
+            # If index_col is a number, use position; if string, use column name
+            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
+            
+            # Get values from the specified row to use as sub-keys
+            row_values = df.iloc[index_row]
+            key_values = df[key_col].tolist()
+            
+            # Iterate through each column (except the key column)
+            for col in columns:
+                if col == key_col:
+                    continue
+                    
+                # Use column name as outer key
+                outer_key = str(col)
+                result[outer_key] = {}
+                
+                # Iterate through each row
+                for i, idx in enumerate(df.index):
+                    # Skip the row used for keys in column mode if needed
+                    if skip_empty and i == index_row:
+                        continue
+                        
+                    # Get the key value and data value
+                    sub_key = df.iloc[i][key_col]
+                    value = df.iloc[i][col]
+                    
+                    # Skip empty values
+                    if skip_empty and (pd.isna(sub_key) or sub_key == '' or pd.isna(value) or value == ''):
+                        continue
+                    
+                    # Ensure sub-key is string
+                    sub_key = str(sub_key)
+                    
+                    # Preserve numeric types, convert others to string
+                    if isinstance(value, (int, float)):
+                        if not pd.isna(value):  # Ensure not NaN
+                            result[outer_key][sub_key] = value
+                    else:
+                        result[outer_key][sub_key] = str(value)
+            
+            # Return JSON string
+            return json.dumps(result, ensure_ascii=False)
+            
         else:  # mode == "row"
-            return df.to_json(orient='records')
+            # Row pivot mode: specified column as main keys, column names as sub-keys
+            if df.empty:
+                return "{}"
+            
+            # If index_col is a number, use position; if string, use column name
+            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
+            
+            result = {}
+            # Get all row indices
+            indices = df.index.tolist()
+            # Get all columns except the key column
+            if isinstance(index_col, int):
+                other_cols = [col for i, col in enumerate(df.columns) if i != index_col]
+            else:
+                other_cols = [col for col in df.columns if col != key_col]
+            
+            # Iterate through each row
+            for idx in indices:
+                row = df.iloc[idx]
+                
+                # Use key column value as outer key
+                outer_key = row[key_col]
+                # Skip empty main keys
+                if pd.isna(outer_key) or outer_key == '':
+                    continue
+                
+                # Ensure main key is string type
+                outer_key = str(outer_key)
+                if outer_key not in result:
+                    result[outer_key] = {}
+                
+                # Add other column data as inner key-value pairs
+                for col in other_cols:
+                    value = row[col]
+                    # Skip empty values
+                    if skip_empty and (pd.isna(value) or value == ''):
+                        continue
+                    # Preserve numeric types, convert others to string
+                    if isinstance(value, (int, float)):
+                        if not pd.isna(value):  # Ensure not NaN
+                            result[outer_key][col] = value
+                    else:
+                        result[outer_key][col] = str(value)
+            
+            # Return JSON string
+            return json.dumps(result, ensure_ascii=False)
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
