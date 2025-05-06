@@ -653,7 +653,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "test_perplexity2.json":
+        if file_name != "new_llm_bug.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
