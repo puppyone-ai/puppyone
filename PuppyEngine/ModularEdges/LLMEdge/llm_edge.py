@@ -200,7 +200,11 @@ class LLMFactory(EdgeFactoryBase):
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> str:
-        return lite_llm_chat(**init_configs)
+        hoster = init_configs.pop("hoster", "openrouter")
+        if hoster == "openrouter":
+            return openrouter_llm_chat(**init_configs)
+        else:
+            return lite_llm_chat(**init_configs)
 
 
 if __name__ == "__main__":
