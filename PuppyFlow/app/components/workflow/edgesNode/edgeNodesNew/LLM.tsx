@@ -76,12 +76,25 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     const messagesRef = useRef<PromptMessage[]>([]);
 
     // 初始化 parsedMessages，直接用节点数据
-    const [parsedMessages, setParsedMessages] = useState<PromptMessage[]>(
-        (getNode(id)?.data?.content as PromptMessage[]) || [
+    const [parsedMessages, setParsedMessages] = useState<PromptMessage[]>(() => {
+        // 获取当前节点的输入节点
+        const sourceNodes = getSourceNodeIdWithLabel(id);
+        const firstInputNode = sourceNodes[0];
+        
+        // 构建默认消息
+        const defaultMessages = [
             { role: "system", content: "You are an AI" },
-            { role: "user", content: "Answer the question" }
-        ]
-    );
+            { 
+                role: "user", 
+                content: firstInputNode 
+                ? `Answer the question: {{${firstInputNode.label}}}`
+                : "Answer the question"
+            }
+        ];
+
+        // 如果节点已有数据，使用节点数据，否则使用默认消息
+        return (getNode(id)?.data?.content as PromptMessage[]) || defaultMessages;
+    });
 
     // 处理 PromptEditor 的变更
     const handleMessagesChange = useCallback((updatedMessages: PromptMessage[]) => {
