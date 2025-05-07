@@ -15,6 +15,7 @@ export type LLMConfigNodeData = {
     model: "gpt-4o" | "gpt-4" | "gpt-4o-mini" | undefined,
     structured_output: boolean | undefined,
     base_url: string | undefined,
+    max_tokens: number | undefined,
 }
 
 type LLMConfigNodeProps = NodeProps<Node<LLMConfigNodeData>>
@@ -64,6 +65,9 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         (getNode(id)?.data as LLMConfigNodeData)?.structured_output ?? false
     )
     const [showSettings, setShowSettings] = useState(false)
+    const [maxTokens, setMaxTokens] = useState<number>(
+        (getNode(id)?.data?.max_tokens as number) || 4096
+    )
 
     // 在 LLMConfigMenu 组件中，增强 sourceNodeLabels 状态以包含类型信息
     const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([]);
@@ -215,6 +219,21 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
             return node
         }))
     }
+
+    // 添加 onMaxTokensChange 函数
+    const onMaxTokensChange = (newMaxTokens: number) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === id) {
+                return { ...node, data: { ...node.data, max_tokens: newMaxTokens } }
+            }
+            return node
+        }))
+    }
+
+    // 添加 useEffect 来监听 maxTokens 的变化
+    useEffect(() => {
+        onMaxTokensChange(maxTokens)
+    }, [maxTokens])
 
     // 在组件顶部定义共享样式
     const handleStyle = {
@@ -376,6 +395,33 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         />
                     </li>
 
+                                        {/* Model Selection - Moved outside settings */}
+                                        <li className='flex flex-col gap-2'>
+                        <div className='flex items-center gap-2'>
+                            <label className='text-[13px] font-semibold text-[#6D7177]'>Model</label>
+                            <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                        </div>
+                        <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                            <select
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                className='w-full h-full bg-[#252525] border-none outline-none px-3
+                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
+                                onMouseDownCapture={onFocus}
+                                onBlur={onBlur}
+                            >
+                                {open_router_supported_models.map((model) => (
+                                    <option key={model} value={model}>{model}</option>
+                                ))}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </div>
+                        </div>
+                    </li>
+
                     <li className='flex flex-col gap-2'>
                         <div className='flex items-center gap-2'>
                             <label className='text-[13px] font-semibold text-[#6D7177]'>Output type</label>
@@ -399,6 +445,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         </div>
                     </li>
 
+                    {/* Settings section */}
                     <li className='flex flex-col gap-2'>
                         <div className='flex items-center justify-between'>
                             <div className='flex items-center gap-2'>
@@ -424,29 +471,23 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         {showSettings && (
                             <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
                                 <div className='flex flex-col gap-2'>
-                                    <div className='flex items-center gap-2'>
-                                        <label className='text-[12px] font-medium text-[#6D7177]'>Model</label>
-                                    </div>
-                                    <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                                        <select
-                                            value={model}
-                                            onChange={(e) => setModel(e.target.value)}
-                                            className='w-full h-full bg-[#252525] border-none outline-none px-3
-                                             text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
+                                    {/* Max Tokens Input */}
+                                    <div className='flex flex-col gap-1'>
+                                        <label className='text-[12px] font-medium text-[#6D7177]'>Max Tokens</label>
+                                        <input
+                                            type="number"
+                                            value={maxTokens}
+                                            onChange={(e) => setMaxTokens(Number(e.target.value))}
+                                            placeholder="Enter max tokens"
+                                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                                    text-[#CDCDCD] text-[12px] font-medium appearance-none
+                                                    hover:border-[#6D7177]/50 transition-colors'
                                             onMouseDownCapture={onFocus}
                                             onBlur={onBlur}
-                                        >
-                                            {open_router_supported_models.map((model) => (
-                                                <option key={model} value={model}>{model}</option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        </div>
+                                        />
                                     </div>
 
+                                    {/* Base URL Input */}
                                     <div className='flex flex-col gap-1 mt-2'>
                                         <label className='text-[12px] font-medium text-[#6D7177]'>Base URL (Optional)</label>
                                         <input
@@ -455,8 +496,8 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                                             onChange={(e) => setBaseUrl(e.target.value)}
                                             placeholder="Enter base URL if needed"
                                             className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
-                                                        text-[#CDCDCD] text-[12px] font-medium appearance-none
-                                                        hover:border-[#6D7177]/50 transition-colors'
+                                                    text-[#CDCDCD] text-[12px] font-medium appearance-none
+                                                    hover:border-[#6D7177]/50 transition-colors'
                                             onMouseDownCapture={onFocus}
                                             onBlur={onBlur}
                                         />
