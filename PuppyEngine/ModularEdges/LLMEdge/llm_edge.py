@@ -108,7 +108,6 @@ def get_huggingface_llm_settings(
 
 @global_exception_handler(3601, "Error Generating Response Using Lite LLM")
 def lite_llm_chat(
-    history: List[Dict[str, str]] = None,
     **kwargs
 ) -> str:
     """
@@ -121,6 +120,7 @@ def lite_llm_chat(
         - model
         - base_url
         - messages
+        - chat_histories
         - temperature
         - max_tokens
         - printing
@@ -143,8 +143,11 @@ def lite_llm_chat(
 
     # Construct the prompt
     messages = kwargs.get("messages", None)
-    if history:
-        messages = history + messages
+    chat_histories = kwargs.get("chat_histories", None)
+    if chat_histories and isinstance(chat_histories, list) and \
+        len(chat_histories) > 0 and isinstance(chat_histories[0], dict) and\
+            "role" in chat_histories[0] and "content" in chat_histories[0]:
+        messages = chat_histories + messages
     kwargs["messages"] = messages
     # print("Messages: ", messages)
 
