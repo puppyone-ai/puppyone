@@ -912,43 +912,31 @@ class FileToTextParser:
         self,
         file_path: str,
         **kwargs
-    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
+    ) -> str:
         """
-        Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content in specified format.
+        Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content as CSV format string.
 
         Args:
             file_path (str): The path to the Excel file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
-            - mode (str): Output format mode. One of:
-                - 'string': CSV format string
-                - 'column': Pivot mode, column names as main keys, values from index_row as sub-keys
-                - 'row': Pivot mode, values from index_col as main keys, column names as sub-keys
             - sheet_name (str or int): Sheet name or index to parse, default is 0
             - use_header (bool): Whether to use the first row as column headers, default is True
-            - skip_empty (bool): Whether to skip empty values in pivot result, default is True
-            - index_col (str/int): Column to use as main key in row mode, default is first column (0)
-            - index_row (int): Row to use for sub-keys in column mode, default is first data row (0)
+            - na_filter (bool): Whether to detect NA/NaN values, default is True
 
         Returns:
-            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
+            str: Parsed Excel content in CSV format string
         """
 
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
-        mode = kwargs.get("mode", "row")
         sheet_name = kwargs.get("sheet_name", 0)
         use_header = kwargs.get("use_header", True)
-        skip_empty = kwargs.get("skip_empty", True)
-        index_col = kwargs.get("index_col", 0)  # Default to using first column as main key
-        index_row = kwargs.get("index_row", 0)  # Default to using first row for column mode sub-keys
+        na_filter = kwargs.get("na_filter", True)  # Default to detect NA values
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-
-        if mode not in {"string", "column", "row"}:
-            raise ValueError("Mode must be one of: 'string', 'column', 'row'")
 
         xlsx_file = file_path
         if self._is_file_url(file_path):
@@ -956,7 +944,14 @@ class FileToTextParser:
 
         # Determine whether to use first row as column headers
         header_param = 0 if use_header else None
-        df = pd.read_excel(xlsx_file, sheet_name=sheet_name, header=header_param)
+        
+        # Read Excel file
+        df = pd.read_excel(
+            xlsx_file, 
+            sheet_name=sheet_name, 
+            header=header_param,
+            na_filter=na_filter
+        )
         
         # Ensure all column names are strings
         df.columns = df.columns.astype(str)
@@ -966,114 +961,8 @@ class FileToTextParser:
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
 
-        if mode == "string":
-            # Return CSV format string
-            return df.to_csv(index=False)
-            
-        elif mode == "column":
-            # Column pivot mode: column names as main keys, values from index_row as sub-keys
-            if df.empty:
-                return "{}"
-                
-            result = {}
-            
-            # If DataFrame has fewer rows than index_row, return empty result
-            if len(df) <= index_row:
-                return "{}"
-            
-            # Get column names for main keys
-            columns = df.columns.tolist()
-            
-            # If index_col is a number, use position; if string, use column name
-            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
-            
-            # Get values from the specified row to use as sub-keys
-            row_values = df.iloc[index_row]
-            key_values = df[key_col].tolist()
-            
-            # Iterate through each column (except the key column)
-            for col in columns:
-                if col == key_col:
-                    continue
-                    
-                # Use column name as outer key
-                outer_key = str(col)
-                result[outer_key] = {}
-                
-                # Iterate through each row
-                for i, idx in enumerate(df.index):
-                    # Skip the row used for keys in column mode if needed
-                    if skip_empty and i == index_row:
-                        continue
-                        
-                    # Get the key value and data value
-                    sub_key = df.iloc[i][key_col]
-                    value = df.iloc[i][col]
-                    
-                    # Skip empty values
-                    if skip_empty and (pd.isna(sub_key) or sub_key == '' or pd.isna(value) or value == ''):
-                        continue
-                    
-                    # Ensure sub-key is string
-                    sub_key = str(sub_key)
-                    
-                    # Preserve numeric types, convert others to string
-                    if isinstance(value, (int, float)):
-                        if not pd.isna(value):  # Ensure not NaN
-                            result[outer_key][sub_key] = value
-                    else:
-                        result[outer_key][sub_key] = str(value)
-            
-            # Return JSON string
-            return json.dumps(result, ensure_ascii=False)
-            
-        else:  # mode == "row"
-            # Row pivot mode: specified column as main keys, column names as sub-keys
-            if df.empty:
-                return "{}"
-            
-            # If index_col is a number, use position; if string, use column name
-            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
-            
-            result = {}
-            # Get all row indices
-            indices = df.index.tolist()
-            # Get all columns except the key column
-            if isinstance(index_col, int):
-                other_cols = [col for i, col in enumerate(df.columns) if i != index_col]
-            else:
-                other_cols = [col for col in df.columns if col != key_col]
-            
-            # Iterate through each row
-            for idx in indices:
-                row = df.iloc[idx]
-                
-                # Use key column value as outer key
-                outer_key = row[key_col]
-                # Skip empty main keys
-                if pd.isna(outer_key) or outer_key == '':
-                    continue
-                
-                # Ensure main key is string type
-                outer_key = str(outer_key)
-                if outer_key not in result:
-                    result[outer_key] = {}
-                
-                # Add other column data as inner key-value pairs
-                for col in other_cols:
-                    value = row[col]
-                    # Skip empty values
-                    if skip_empty and (pd.isna(value) or value == ''):
-                        continue
-                    # Preserve numeric types, convert others to string
-                    if isinstance(value, (int, float)):
-                        if not pd.isna(value):  # Ensure not NaN
-                            result[outer_key][col] = value
-                    else:
-                        result[outer_key][col] = str(value)
-            
-            # Return JSON string
-            return json.dumps(result, ensure_ascii=False)
+        # Return CSV format string
+        return df.to_csv(index=False)
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
@@ -1221,127 +1110,14 @@ if __name__ == "__main__":
     file_root_path = "ModularEdges/LoadEdge/testfiles"
     file_configs = [
         {
-            "file_path": os.path.join(file_root_path, "testjson.json"),
-            "file_type": "json"
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testtxt.txt"),
-            "file_type": "txt",
-            "config": {
-                "auto_formatting": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testmd.md"),
-            "file_type": "markdown",
-            "config": {
-                "auto_formatting": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testdoc.docx"),
-            "file_type": "doc",
-            "config": {
-                "auto_formatting": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testpdf.pdf"),
-            "file_type": "pdf",
-            "config": {
-                "use_images": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testimg.png"),
-            "file_type": "image",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testimg2.png"),
-            "file_type": "image",
-            "config": {
-                "use_llm": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testaudio.mp3"),
-            "file_type": "audio",
-            "config": {
-                "mode": "accurate"
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testvideo.mp4"),
-            "file_type": "video",
-            "config": {
-                "use_llm": True,
-                "frame_skip": 300
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
-            "file_type": "video",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testcsv.csv"),
-            "file_type": "csv",
-            "config": {
-                "column_range": [0, 3],
-                "row_range": [0, 5],
-                "mode": "row"
-            }
-        },  
-        {
             "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
-            "file_type": "xlsx",
-            "config": {
-                "column_range": [0, 3],
-                "row_range": [0, 5],
-                "mode": "row"
-            }
+            "file_type": "xlsx"
         },
-        {
-            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/6sjaoo75/WPS%20Sheets%20Quick%20Start%20Guide.xlsm?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=30e648d86eab17dd0be922bb121cf8aa%2F20250430%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250430T033928Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=935ed491a5299928fdeebaa17de6eb499069f0b62eb4ddf4ac9d9a89a8fbb74c",
-            "file_type": "xlsx",
-            "config": {
-                "mode": "column"
-            }
-        },
-        {
-            "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
-            "file_type": "doc",
-            "config": {
-                "auto_formatting": True
-            }
-        },
-        {
-            "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
-            "file_type": "pdf",
-            "config": {
-                "use_images": True
-            }
-        },
-        {
-            "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
-            "file_type": "image",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
-            "file_type": "audio",
-            "config": {
-                "mode": "small"
-            }
-        }
+        # 其他测试文件配置...
     ]
     parser = FileToTextParser()
     parsed_content_list = parser.parse_multiple(file_configs)
     print(f"Parsed Content List:\n{parsed_content_list}")
+    print(f"Parsed Config List:\n{file_configs}")
+
+    
