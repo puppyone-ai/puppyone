@@ -146,8 +146,7 @@ def lite_llm_chat(
     if history:
         messages = history + messages
     kwargs["messages"] = messages
-    print("Messages: ", messages)
-    
+    # print("Messages: ", messages)
 
     hoster = kwargs.pop("hoster", "openrouter")
     if hoster == "openrouter":
@@ -200,6 +199,11 @@ class LLMFactory(EdgeFactoryBase):
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> str:
+        # hoster = init_configs.pop("hoster", "openrouter")
+        # if hoster == "openrouter":
+        #     return openrouter_llm_chat(**init_configs)
+        # else:
+        #     return lite_llm_chat(**init_configs)
         return lite_llm_chat(**init_configs)
 
 
