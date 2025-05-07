@@ -856,7 +856,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
         const llmModel = typeof llmNodeData?.model === 'string' ? llmNodeData.model : "anthropic/claude-3.5-haiku";
         const llmBaseUrl = typeof llmNodeData?.base_url === 'string' ? llmNodeData.base_url : "";
         const llmStructuredOutput = !!llmNodeData?.structured_output; // 转换为布尔值
-        
+        const maxTokens = (llmNodeData?.max_tokens as number) || 2000;
         return {
             type: "llm",
             data: {
@@ -866,7 +866,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 ),
                 model: llmModel,
                 base_url: llmBaseUrl,
-                max_tokens: 2000,
+                max_tokens: maxTokens,
                 temperature: 0.7,
                 inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
                 structured_output: llmStructuredOutput,
