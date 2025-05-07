@@ -51,7 +51,7 @@ class ChatService:
         model: str = "gpt-4o-2024-08-06",
         messages: list = None,
         temperature: float = 0.1, 
-        max_tokens: int = 2048,
+        max_tokens: int = 10000,
         printing: bool = False, 
         stream: bool = False,
         **kwargs
