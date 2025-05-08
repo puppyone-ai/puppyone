@@ -177,7 +177,7 @@ if __name__ == "__main__":
                     "operation": "/"
                 }
             ],
-            "then": {
+            "thens": {
                 "from": "2",
                 "to": "4"
             }

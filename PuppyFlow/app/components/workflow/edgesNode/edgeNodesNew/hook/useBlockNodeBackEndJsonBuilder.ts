@@ -12,7 +12,7 @@ export interface BlockNodeJsonData {
         vdb_type: string;
         user_id: string;
         collection_name: string;
-    };
+    }[];
 }
 
 export function useBlockNodeBackEndJsonBuilder() {
@@ -57,7 +57,8 @@ export function useBlockNodeBackEndJsonBuilder() {
             data: {
                 content: nodeData.content || ""
             },
-            looped: !!nodeData.looped // 转换为布尔值
+            looped: !!nodeData.looped, // 转换为布尔值
+            collection_configs: []
         };
     };
     
@@ -85,21 +86,19 @@ export function useBlockNodeBackEndJsonBuilder() {
             }
         }
         
-        // 获取 collection_configs
-        const collectionConfigs = nodeData.collection_configs || {
-            set_name: label,
-            model: "text-embedding-ada-002",
-            vdb_type: "pgvector",
-            user_id: nodeData.user_id || "",
-            collection_name: nodeData.collection_name || `public${Math.random().toString(36).substring(2)}`
-        };
+        // 获取 indexingList 中的所有 collection_configs
+        let collectionConfigs: any[] = [];
+        if (nodeData.indexingList && Array.isArray(nodeData.indexingList) && nodeData.indexingList.length > 0) {
+            collectionConfigs = nodeData.indexingList
+                .filter((item: any) => item.collection_configs)
+                .map((item: any) => item.collection_configs);
+        }
         
         return {
             label,
             type: "structured",
             data: {
                 content: parsedContent,
-                embedding_view: nodeData.chunks || []
             },
             looped: !!nodeData.looped, // 转换为布尔值
             collection_configs: collectionConfigs

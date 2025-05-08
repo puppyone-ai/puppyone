@@ -23,7 +23,7 @@ import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
 import WebLinkNode from './blockNode/WebLinkNode'
 import Upbar from '../upbar/Upbar'
-import JsonBlockNode from './blockNode/JsonNode'
+import JsonBlockNode from './blockNode/JsonNodeNew'
 import LoadConfig from './edgesNode/edgeNodes/LoadConfig'
 import ChunkingConfig from './edgesNode/edgeNodes/ChunkingConfig'
 import CodeConfig from './edgesNode/edgeNodes/CodeConfig'
@@ -32,7 +32,7 @@ import ChooseConfig from './edgesNode/edgeNodes/ChooseConfig'
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
 import LLMConfig from './edgesNode/edgeNodes/LLMConfig'
 import SearchConfig from './edgesNode/edgeNodes/SearchConfig'
-import FileNode from './blockNode/FileNode'
+import FileNode from './blockNode/FileNodeNew'
 
 import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
@@ -58,6 +58,7 @@ import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
 import IfElse from './edgesNode/edgeNodesNew/ifelse'
 import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
+import Load from './edgesNode/edgeNodesNew/Load'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -65,7 +66,6 @@ const nodeTypes = {
   'file': FileNode,
   'weblink': WebLinkNode,
   'structured': JsonBlockNode,
-  'load': LoadConfig,
   'chunk': ChunkingConfig,
   'code': CodeConfig,
   'llm': LLMConfig,
@@ -86,6 +86,7 @@ const nodeTypes = {
   'llmnew': LLM,
   'ifelse': IfElse,
   'generate': Generate,
+  'load': Load,
 }
 
 const edgeTypes = {

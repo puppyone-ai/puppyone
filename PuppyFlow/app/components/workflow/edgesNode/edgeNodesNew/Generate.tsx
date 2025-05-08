@@ -92,7 +92,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     
     // 状态管理
     const [model, setModel] = useState<string>(
-        (getNode(id)?.data?.model as string) || "openai/gpt-4o"
+        (getNode(id)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     
     const [structuredOutput, setStructuredOutput] = useState<boolean>(
@@ -205,14 +205,13 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     
     // 支持的模型列表
     const supported_models = [
-        "openai/o3-mini-high",
-        "openai/o3-mini",
-        "openai/o1",
-        "openai/o1-mini",
-        "openai/gpt-4.5-preview",
-        "openai/gpt-4o-2024-11-20",
         "openai/gpt-4o-mini",
+        "openai/gpt-4o-2024-11-20",
         "openai/gpt-4-turbo",
+        "openai/gpt-4.5-preview",
+        "openai/o1-mini",
+        "openai/o1",
+        "openai/o3-mini",
         "deepseek/deepseek-chat-v3-0324:free",
         "deepseek/deepseek-r1-zero:free",
         "anthropic/claude-3.5-haiku",
@@ -271,7 +270,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
 
             {/* Configuration Menu */}
             {isMenuOpen && (
-                    <ul ref={menuRef} className="absolute top-[58px] left-0 text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
+                    <ul ref={menuRef} className="absolute top-[64px] text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
                         <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                             <div className='flex flex-row gap-[12px]'>
                                 <div className='flex flex-row gap-[8px] justify-center items-center'>
@@ -304,7 +303,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
                                         )}
                                     </span>
                                     <span>
-                                        {isLoading ? 'Running' : 'Run'}
+                                        {isLoading ? '' : 'Run'}
                                     </span>
                                 </button>
                             </div>
@@ -316,6 +315,8 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
                                 getNode={getNode}
                                 getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                                supportedInputTypes={['text', 'structured']}
+                                supportedOutputTypes={['text', 'structured']}
                             />
                         </li>
 
@@ -328,7 +329,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
                             <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                                 <PuppyDropdown
                                     options={getSourceNodeIdWithLabel(id).map(node => node.label)}
-                                    selectedValue={(getNode(id)?.data as GenerateConfigNodeData)?.query_ids?.label || "选择查询"}
+                                    selectedValue={(getNode(id)?.data as GenerateConfigNodeData)?.query_ids?.label}
                                     onSelect={(value: string) => {
                                         const selectedNode = getSourceNodeIdWithLabel(id).find(node => node.label === value);
                                         setNodes(prevNodes => prevNodes.map(node => {
@@ -362,7 +363,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
                             <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                                 <PuppyDropdown
                                     options={getSourceNodeIdWithLabel(id).map(node => node.label)}
-                                    selectedValue={(getNode(id)?.data as GenerateConfigNodeData)?.document_ids?.label || "选择文档"}
+                                    selectedValue={(getNode(id)?.data as GenerateConfigNodeData)?.document_ids?.label || "Choose Document"}
                                     onSelect={(value: string) => {
                                         const selectedNode = getSourceNodeIdWithLabel(id).find(node => node.label === value);
                                         setNodes(prevNodes => prevNodes.map(node => {

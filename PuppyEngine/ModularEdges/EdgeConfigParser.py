@@ -360,14 +360,11 @@ class SearchConfigParser(EdgeConfigParser):
     ) -> ParsedEdgeParams:
         # Handle multiple document sources
         doc_ids = self.edge_configs.get("doc_ids", [])
-        collection_configs_list = []
         if doc_ids:
             doc_contents = []
             for doc_id in doc_ids:
-                content = self.block_configs[doc_id]["embedding_view"]
+                content = self.block_configs[doc_id]["content"]
                 doc_contents.extend(content)
-                collections = [self.block_configs[doc_id]["collection_configs"]] * len(content)
-                collection_configs_list.extend(collections)
 
             self.block_configs[doc_ids[0]]["content"] = doc_contents
             for doc_id in doc_ids[1:]:
@@ -382,18 +379,21 @@ class SearchConfigParser(EdgeConfigParser):
         } for variable in variables]
 
         original_extra_configs = self.edge_configs.get("extra_configs", {})
+        data_sources = self.edge_configs.get("data_source", [])
         is_loop = len(variables) > 1
         if is_loop:
             extra_configs = [{
                 **original_extra_configs,
-                "documents": variable.get(doc_ids[0], ""),
-                "collection_configs": [collection_configs_list[i]]
+                "documents": variable.get(doc_ids[0], "") if doc_ids else "",
+                "data_source": data_sources[i] if data_sources else [],
+                "top_k": self.edge_configs.get("top_k", 10)
             } for i, variable in enumerate(variables)]
         else:
             extra_configs = [{
                 **original_extra_configs,
                 "documents": self.block_configs.get(doc_ids[0], {}).get("content", "") if doc_ids else "",
-                "collection_configs": collection_configs_list if doc_ids else []
+                "data_source": data_sources,
+                "top_k": self.edge_configs.get("top_k", 10)
             }]
 
         return ParsedEdgeParams(

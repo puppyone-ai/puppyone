@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 import multiprocessing
 from pydub import AudioSegment
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Union
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
@@ -137,31 +137,31 @@ class FileToTextParser:
             logger.error(f"Error in parse_multiple: {str(e)}\n{traceback.format_exc()}")
             raise
 
-    def _group_files_by_type(
-        self, 
-        file_configs: List[Dict[str, Any]]
-    ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
-        """
-        Group file configurations by file type
+    # def _group_files_by_type(
+    #     self, 
+    #     file_configs: List[Dict[str, Any]]
+    # ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
+    #     """
+    #     Group file configurations by file type
 
-        Args:
-            file_configs: List of file configurations
+    #     Args:
+    #         file_configs: List of file configurations
 
-        Returns:
-            Dictionary mapping file types to lists of (index, config) tuples
-        """
+    #     Returns:
+    #         Dictionary mapping file types to lists of (index, config) tuples
+    #     """
 
-        file_type_groups = {}
-        for i, config in enumerate(file_configs):
-            file_path = config.get('file_path')
-            file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
+    #     file_type_groups = {}
+    #     for i, config in enumerate(file_configs):
+    #         file_path = config.get('file_path')
+    #         file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
 
-            if file_type not in file_type_groups:
-                file_type_groups[file_type] = []
+    #         if file_type not in file_type_groups:
+    #             file_type_groups[file_type] = []
 
-            file_type_groups[file_type].append((i, config))
+    #         file_type_groups[file_type].append((i, config))
 
-        return file_type_groups
+    #     return file_type_groups
 
     def _process_simple_files(
         self,
@@ -276,24 +276,73 @@ class FileToTextParser:
             # Return a user-friendly error message
             return f"Failed to parse file: {os.path.basename(file_path)}"
 
-    @global_exception_handler(1317, "Error Determining File Type")
-    def _determine_file_type(
-        self,
-        file_path: str
-    ) -> str:
-        """
-        Determine file type from file extension.
+    # @global_exception_handler(1317, "Error Determining File Type")
+    # def _determine_file_type(
+    #     self,
+    #     file_path: str
+    # ) -> str:
+    #     """
+    #     Determine file type from file extension.
 
+    #     Args:
+    #         file_path: Path or URL to the file
+
+    #     Returns:
+    #         File type based on extension, defaults to 'application' for unknown extensions
+    #     """
+
+    #     _, ext = os.path.splitext(file_path)
+    #     ext = ext.lower().lstrip('.')
+
+    #     extension_map = {
+    #         'json': 'json',
+    #         'txt': 'txt',
+    #         'md': 'markdown',
+    #         'pdf': 'pdf',
+    #         'doc': 'doc',
+    #         'docx': 'doc',
+    #         'csv': 'csv',
+    #         'xlsx': 'xlsx',
+    #         'xls': 'xlsx',
+    #         'xlsm': 'xlsx',
+    #         'xlsb': 'xlsx', 
+    #         'ods': 'xlsx',
+    #         'jpg': 'image',
+    #         'jpeg': 'image',
+    #         'png': 'image',
+    #         'gif': 'image',
+    #         'mp3': 'audio',
+    #         'wav': 'audio',
+    #         'mp4': 'video',
+    #         'avi': 'video',
+    #         'mov': 'video'
+    #     }
+
+    #     # Use the mapped file type or default to 'application' for unknown types
+    #     file_type = extension_map.get(ext, 'application')
+    #     return file_type
+
+    def _normalize_file_type(self, file_type: str) -> str:
+        """
+        Normalize the file type to a standard format that matches internal parsing methods.
+        
         Args:
-            file_path: Path or URL to the file
-
+            file_type: The input file type or extension
+            
         Returns:
-            File type based on extension
+            Normalized file type as used by internal parse methods or None if not supported
         """
-
-        _, ext = os.path.splitext(file_path)
-        ext = ext.lower().lstrip('.')
-
+        # 标准类型列表（与extension_map的值保持一致）
+        standard_types = {
+            'json', 'txt', 'markdown', 'pdf', 'doc', 
+            'csv', 'xlsx', 'image', 'audio', 'video', 'application'
+        }
+        
+        # 如果file_type已经是标准类型，直接返回
+        if file_type in standard_types:
+            return file_type
+            
+        # 扩展名映射（与_determine_file_type中的extension_map保持一致）
         extension_map = {
             'json': 'json',
             'txt': 'txt',
@@ -304,6 +353,9 @@ class FileToTextParser:
             'csv': 'csv',
             'xlsx': 'xlsx',
             'xls': 'xlsx',
+            'xlsm': 'xlsx',
+            'xlsb': 'xlsx', 
+            'ods': 'xlsx',
             'jpg': 'image',
             'jpeg': 'image',
             'png': 'image',
@@ -314,17 +366,14 @@ class FileToTextParser:
             'avi': 'video',
             'mov': 'video'
         }
-
-        file_type = extension_map.get(ext)
-        if not file_type:
-            raise PuppyException(1305, "Unknown File Type", f"Cannot determine file type for extension: {ext}")
-
-        return file_type
+        
+        # 返回映射的类型，如果没有映射则返回None
+        return extension_map.get(file_type.lower())
 
     def parse(
         self,
         file_path: str,
-        file_type: str,
+        file_type: str = "",
         **kwargs
     ) -> str:
         """
@@ -332,7 +381,8 @@ class FileToTextParser:
         
         Args:
             file_path (str): The path to the file to be parsed.
-            file_type (str): The type of the file to be parsed.
+            file_type (str, optional): The type of the file to be parsed or its extension. 
+                                      If empty, will be determined from file extension.
             **kwargs: Additional keyword arguments for specific parsing methods.
 
         Returns:
@@ -341,11 +391,20 @@ class FileToTextParser:
         Raises:
             PuppyException: If the file type is unsupported.
         """
+        # 如果未提供file_type或为空字符串，根据文件路径自动判断
+        if not file_type:
+            file_type = self._determine_file_type(file_path)
+        else:
+            # 确保file_type是标准化的内部类型
+            normalized_type = self._normalize_file_type(file_type)
+            if normalized_type is None:
+                raise PuppyException(1301, f"Unsupported File Type: {file_type}")
+            file_type = normalized_type
 
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
-            raise PuppyException(1301, "Unsupported File Type")
+            raise PuppyException(1301, f"Unsupported File Type: {file_type}")
         return parse_method(file_path, **kwargs)
 
     @global_exception_handler(1316, "Error Parsing Remote File")
@@ -689,34 +748,164 @@ class FileToTextParser:
         self,
         file_path: str,
         **kwargs
-    ) -> str:
+    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
-        Parses a CSV file and returns its content as a string.
+        Parses a CSV file and returns its content in specified format.
 
         Args:
             file_path (str): The path to the CSV file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
+            - mode (str): Output format mode. One of:
+                - 'string': CSV format string
+                - 'column': Pivot mode, column names as main keys, values from index_row as sub-keys
+                - 'row': Pivot mode, values from index_col as main keys, column names as sub-keys
+            - use_header (bool): Whether to use the first row as column headers, default is True
+            - skip_empty (bool): Whether to skip empty values in pivot result, default is True
+            - index_col (str/int): Column to use as main key in row mode, default is first column (0)
+            - index_row (int): Row to use for sub-keys in column mode, default is first data row (0)
         Returns:
-            str: The parsed CSV content.
+            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed CSV content in specified format
         """
-
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
+        mode = kwargs.get("mode", "row")
+        use_header = kwargs.get("use_header", True)
+        skip_empty = kwargs.get("skip_empty", True)
+        index_col = kwargs.get("index_col", 0)  # Default to using first column as main key
+        index_row = kwargs.get("index_row", 0)  # Default to using first row for column mode sub-keys
+
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
+
+        if mode not in {"string", "column", "row"}:
+            raise ValueError("Mode must be one of: 'string', 'column', 'row'")
 
         csv_file = file_path
         if self._is_file_url(file_path):
             csv_file = self._remote_file_to_byte_io(file_path)
 
-        df = pd.read_csv(csv_file)
+        # Determine whether to use first row as column headers
+        header_param = 0 if use_header else None
+        df = pd.read_csv(csv_file, header=header_param)
+        
+        # Ensure all column names are strings
+        df.columns = df.columns.astype(str)
+        
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
-        return df.to_csv(index=False)
+
+        if mode == "string":
+            # Return CSV format string
+            return df.to_csv(index=False)
+        
+        elif mode == "column":
+            # Column pivot mode: column names as main keys, values from index_row as sub-keys
+            if df.empty:
+                return "{}"
+                
+            result = {}
+            
+            # If DataFrame has fewer rows than index_row, return empty result
+            if len(df) <= index_row:
+                return "{}"
+            
+            # Get column names for main keys
+            columns = df.columns.tolist()
+            
+            # If index_col is a number, use position; if string, use column name
+            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
+            
+            # Get values from the specified row to use as sub-keys
+            row_values = df.iloc[index_row]
+            key_values = df[key_col].tolist()
+            
+            # Iterate through each column (except the key column)
+            for col in columns:
+                if col == key_col:
+                    continue
+                    
+                # Use column name as outer key
+                outer_key = str(col)
+                result[outer_key] = {}
+                
+                # Iterate through each row
+                for i, idx in enumerate(df.index):
+                    # Skip the row used for keys in column mode if needed
+                    if skip_empty and i == index_row:
+                        continue
+                        
+                    # Get the key value and data value
+                    sub_key = df.iloc[i][key_col]
+                    value = df.iloc[i][col]
+                    
+                    # Skip empty values
+                    if skip_empty and (pd.isna(sub_key) or sub_key == '' or pd.isna(value) or value == ''):
+                        continue
+                    
+                    # Ensure sub-key is string
+                    sub_key = str(sub_key)
+                    
+                    # Preserve numeric types, convert others to string
+                    if isinstance(value, (int, float)):
+                        if not pd.isna(value):  # Ensure not NaN
+                            result[outer_key][sub_key] = value
+                    else:
+                        result[outer_key][sub_key] = str(value)
+            
+            # Return JSON string
+            return json.dumps(result, ensure_ascii=False)
+            
+        else:  # mode == "row"
+            # Row pivot mode: specified column as main keys, column names as sub-keys
+            if df.empty:
+                return "{}"
+            
+            # If index_col is a number, use position; if string, use column name
+            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
+            
+            result = {}
+            # Get all row indices
+            indices = df.index.tolist()
+            # Get all columns except the key column
+            if isinstance(index_col, int):
+                other_cols = [col for i, col in enumerate(df.columns) if i != index_col]
+            else:
+                other_cols = [col for col in df.columns if col != key_col]
+            
+            # Iterate through each row
+            for idx in indices:
+                row = df.iloc[idx]
+                
+                # Use key column value as outer key
+                outer_key = row[key_col]
+                # Skip empty main keys
+                if pd.isna(outer_key) or outer_key == '':
+                    continue
+                
+                # Ensure main key is string type
+                outer_key = str(outer_key)
+                if outer_key not in result:
+                    result[outer_key] = {}
+                
+                # Add other column data as inner key-value pairs
+                for col in other_cols:
+                    value = row[col]
+                    # Skip empty values
+                    if skip_empty and (pd.isna(value) or value == ''):
+                        continue
+                    # Preserve numeric types, convert others to string
+                    if isinstance(value, (int, float)):
+                        if not pd.isna(value):  # Ensure not NaN
+                            result[outer_key][col] = value
+                    else:
+                        result[outer_key][col] = str(value)
+            
+            # Return JSON string
+            return json.dumps(result, ensure_ascii=False)
 
     @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
@@ -725,20 +914,27 @@ class FileToTextParser:
         **kwargs
     ) -> str:
         """
-        Parses an XLSX file and returns its content as a string.
+        Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content as CSV format string.
 
         Args:
-            file_path (str): The path to the XLSX file to be parsed.
+            file_path (str): The path to the Excel file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
+            - sheet_name (str or int): Sheet name or index to parse, default is 0
+            - use_header (bool): Whether to use the first row as column headers, default is True
+            - na_filter (bool): Whether to detect NA/NaN values, default is True
 
         Returns:
-            str: The parsed XLSX content.
+            str: Parsed Excel content in CSV format string
         """
 
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
+        sheet_name = kwargs.get("sheet_name", 0)
+        use_header = kwargs.get("use_header", True)
+        na_filter = kwargs.get("na_filter", True)  # Default to detect NA values
+
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
 
@@ -746,12 +942,26 @@ class FileToTextParser:
         if self._is_file_url(file_path):
             xlsx_file = self._remote_file_to_byte_io(file_path)
 
-        df = pd.read_excel(xlsx_file)
+        # Determine whether to use first row as column headers
+        header_param = 0 if use_header else None
+        
+        # Read Excel file
+        df = pd.read_excel(
+            xlsx_file, 
+            sheet_name=sheet_name, 
+            header=header_param,
+            na_filter=na_filter
+        )
+        
+        # Ensure all column names are strings
+        df.columns = df.columns.astype(str)
+        
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
 
+        # Return CSV format string
         return df.to_csv(index=False)
 
     @global_exception_handler(1314, "Error Describing Image")
@@ -814,6 +1024,81 @@ class FileToTextParser:
         # Need to use VLM in the future
         return f"Video Description with LLM (Frame Skip: {skip_num})"
 
+    # @global_exception_handler(1318, "Error Parsing Unknown File Type")
+    # def _parse_application(
+    #     self,
+    #     file_path: str,
+    #     **kwargs
+    # ) -> Dict[str, Any]:
+    #     """
+    #     Generic file handler for unknown or binary file types.
+        
+    #     Args:
+    #         file_path (str): Path to the file to be parsed.
+    #         **kwargs: Additional arguments for specific parsing options.
+    #             - max_text_size (int): Maximum bytes to read when attempting text parsing, default 4096
+    #             - include_binary (bool): Whether to include binary content digest, default False
+                
+    #     Returns:
+    #         Dict[str, Any]: Dictionary containing file information, which may include:
+    #             - file_name: Name of the file
+    #             - file_size: Size of the file in bytes
+    #             - is_text: Whether the file appears to be text
+    #             - text_preview: Preview of text content if is_text=True
+    #             - binary_preview: Hex digest preview if is_text=False and include_binary=True
+    #             - mime_type: MIME type if python-magic library is available
+    #             - detected_type: Basic file type detection if python-magic is unavailable
+            
+    #     Notes:
+    #         This method is designed with extensibility in mind:
+    #         - The **kwargs parameter allows adding new options without changing the interface
+    #         - Future extensions could include encoding detection, metadata extraction, etc.
+            
+    #         File type detection uses two approaches:
+    #         - Primary: python-magic library for accurate content-based MIME type detection
+    #         - Fallback: Basic signature detection for common file types when python-magic is unavailable
+    #     """
+    #     max_text_size = kwargs.get("max_text_size", 4096)  # Default to reading first 4KB
+    #     include_binary = kwargs.get("include_binary", False)
+        
+    #     result = {
+    #         "file_name": os.path.basename(file_path),
+    #         "is_text": False
+    #     }
+    #     # Get file size and read content
+    #     if self._is_file_url(file_path):
+    #         response = requests.head(file_path)
+    #         file_size = int(response.headers.get('Content-Length', 0))
+    #         content = self._remote_file_to_byte_io(file_path).read(max_text_size)
+    #     else:
+    #         file_size = os.path.getsize(file_path)
+    #         with open(file_path, 'rb') as f:
+    #             content = f.read(max_text_size)  
+    #     result["file_size"] = file_size
+    #     # Try to decode as text
+    #     try:
+    #         text = content.decode('utf-8')
+    #         result["is_text"] = True
+    #         result["text_preview"] = text[:1000] + ("..." if len(text) > 1000 else "")
+    #     except UnicodeDecodeError:
+    #         # Binary file
+    #         if include_binary:
+    #             # Provide hex digest preview
+    #             hex_preview = content[:100].hex()
+    #             result["binary_preview"] = f"{hex_preview[:50]}...{hex_preview[-50:]}" if len(hex_preview) > 100 else hex_preview  
+    #     # File type detection
+    #     try:
+    #         import magic  # Use python-magic library if available
+    #         result["mime_type"] = magic.from_buffer(content, mime=True)
+    #     except ImportError:
+    #         # If magic library is unavailable, attempt basic feature detection
+    #         if content.startswith(b'%PDF'):
+    #             result["detected_type"] = "pdf"
+    #         elif content.startswith(b'\x89PNG'):
+    #             result["detected_type"] = "png"
+    #         # More signature detections could be added here
+    #     return result
+
 
 if __name__ == "__main__":
     import os
@@ -825,118 +1110,14 @@ if __name__ == "__main__":
     file_root_path = "ModularEdges/LoadEdge/testfiles"
     file_configs = [
         {
-            "file_path": os.path.join(file_root_path, "testjson.json"),
-            "file_type": "json"
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testtxt.txt"),
-            "file_type": "txt",
-            "config": {
-                "auto_formatting": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testmd.md"),
-            "file_type": "markdown",
-            "config": {
-                "auto_formatting": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testdoc.docx"),
-            "file_type": "doc",
-            "config": {
-                "auto_formatting": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testpdf.pdf"),
-            "file_type": "pdf",
-            "config": {
-                "use_images": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testimg.png"),
-            "file_type": "image",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testimg2.png"),
-            "file_type": "image",
-            "config": {
-                "use_llm": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testaudio.mp3"),
-            "file_type": "audio",
-            "config": {
-                "mode": "accurate"
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testvideo.mp4"),
-            "file_type": "video",
-            "config": {
-                "use_llm": True,
-                "frame_skip": 300
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
-            "file_type": "video",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testcsv.csv"),
-            "file_type": "csv",
-            "config": {
-                "column_range": [0, 3],
-                "row_range": [0, 5]
-            }
-        },  
-        {
             "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
-            "file_type": "xlsx",
-            "config": {
-                "column_range": [0, 3],
-                "row_range": [0, 5]
-            }
+            "file_type": "xlsx"
         },
-        {
-            "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
-            "file_type": "doc",
-            "config": {
-                "auto_formatting": True
-            }
-        },
-        {
-            "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
-            "file_type": "pdf",
-            "config": {
-                "use_images": True
-            }
-        },
-        {
-            "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
-            "file_type": "image",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
-            "file_type": "audio",
-            "config": {
-                "mode": "small"
-            }
-        }
+        # 其他测试文件配置...
     ]
     parser = FileToTextParser()
     parsed_content_list = parser.parse_multiple(file_configs)
     print(f"Parsed Content List:\n{parsed_content_list}")
+    print(f"Parsed Config List:\n{file_configs}")
+
+    
