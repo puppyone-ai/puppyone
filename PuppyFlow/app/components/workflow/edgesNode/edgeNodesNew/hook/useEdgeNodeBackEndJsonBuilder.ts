@@ -14,7 +14,7 @@ export type BaseNodeData = {
 }
 
 // 定义基础类型
-export type EdgeNodeType = "copy" | "chunkingAuto" | "chunkingByCharacter" | "chunkingByLength" | "convert2structured" | "convert2text" | "editText" | string;
+export type EdgeNodeType = "copy" | "chunkingAuto" | "chunkingByCharacter" | "chunkingByLength" | "convert2structured" | "convert2text" | "editText" | "load" | string;
 
 // Copy 操作的数据类型
 export type CopyEdgeJsonType = {
@@ -118,26 +118,7 @@ export type EditTextEdgeJsonType = {
     },
 }
 
-// 添加 Retrieving 类型
-export type SearchByVectorEdgeJsonType = {
-    type: "search",
-    data: {
-        search_type: "vector",
-        top_k: number,
-        inputs: { [key: string]: string },
-        threshold: number,
-        extra_configs: {
-            provider?: "openai",
-            model?: "text-embedding-ada-002",
-            db_type?: "pgvector" | "pinecone",
-            collection_name?: string,
-        } | {},
-        doc_ids: string[],
-        query_id: { [key: string]: string },
-        outputs: { [key: string]: string }
-    },
-    id: string
-}
+
 
 // 添加 SearchGoogle 类型
 export type SearchGoogleEdgeJsonType = {
@@ -222,7 +203,20 @@ export type RetrievingEdgeJsonType = {
             collection_name?: string;
         } | {};
         query_id: { [key: string]: string };
-        doc_ids: string[];
+        data_source: {
+            id: string,
+            label: string,
+            index_item: {
+                index_name: string,
+                collection_configs: {
+                    set_name: string,
+                    model: string,
+                    vdb_type: string,
+                    user_id: string,
+                    collection_name: string
+                };
+            };
+        }[],
         outputs: { [key: string]: string };
     };
 }
@@ -239,10 +233,10 @@ export type IfElseEdgeJsonType = {
                     parameters: { [key: string]: string | number };
                     operation: string;
                 }[];
-                then: {
+                thens: {
                     from: string;
                     to: string;
-                };
+                }[];
             };
         };
         inputs: { [key: string]: string };
@@ -268,13 +262,30 @@ export type GenerateEdgeJsonType = {
     }
 }
 
-// 修改 BaseEdgeJsonType 以包含 GenerateEdgeJsonType
+// 在类型定义部分添加 LoadEdgeJsonType
+export type LoadEdgeJsonType = {
+    type: "load";
+    data: {
+        block_type: string,
+        content: string,
+        extra_configs: {
+            file_configs: Array<{
+                file_path: string,
+                file_type: string,
+                configs?: Record<string, any>
+            }>
+        },
+        inputs: Record<string, string>,
+        outputs: Record<string, string>
+    }
+}
+
+// 将 LoadEdgeJsonType 添加到 BaseEdgeJsonType 联合类型中
 export type BaseEdgeJsonType = CopyEdgeJsonType | ChunkingAutoEdgeJsonType |
     ChunkingByCharacterEdgeJsonType | ChunkingByLengthEdgeJsonType |
-    Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType |
-    SearchByVectorEdgeJsonType | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
+    Convert2StructuredEdgeJsonType | Convert2TextEdgeJsonType | EditTextEdgeJsonType   | SearchGoogleEdgeJsonType | SearchPerplexityEdgeJsonType |
     LLMEdgeJsonType | EditStructuredEdgeJsonType | RetrievingEdgeJsonType | IfElseEdgeJsonType |
-    GenerateEdgeJsonType;
+    GenerateEdgeJsonType | LoadEdgeJsonType;
 
 // 构造的数据类型
 export type BaseConstructedJsonData = {
@@ -400,6 +411,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 
             case "generate":
                 edgeJson = buildGenerateNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
+                break;
+                
+            case "load":
+                edgeJson = buildLoadNodeJson(nodeId, sourceNodeIdWithLabelGroup, targetNodeIdWithLabelGroup);
                 break;
                 
             default:
@@ -841,7 +856,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
         const llmModel = typeof llmNodeData?.model === 'string' ? llmNodeData.model : "anthropic/claude-3.5-haiku";
         const llmBaseUrl = typeof llmNodeData?.base_url === 'string' ? llmNodeData.base_url : "";
         const llmStructuredOutput = !!llmNodeData?.structured_output; // 转换为布尔值
-        
+        const maxTokens = (llmNodeData?.max_tokens as number) || 2000;
         return {
             type: "llm",
             data: {
@@ -851,7 +866,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 ),
                 model: llmModel,
                 base_url: llmBaseUrl,
-                max_tokens: 2000,
+                max_tokens: maxTokens,
                 temperature: 0.7,
                 inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
                 structured_output: llmStructuredOutput,
@@ -999,16 +1014,21 @@ export function useEdgeNodeBackEndJsonBuilder() {
             top_k = nodeData.top_k;
         }
         
-        // 从dataSource中提取ID列表
-        const docIds: string[] = [];
-        const dataSourceArray = nodeData?.dataSource as { id: string, label: string }[] | undefined;
-        if (dataSourceArray && Array.isArray(dataSourceArray)) {
-            dataSourceArray.forEach(source => {
-                if (source && typeof source.id === 'string') {
-                    docIds.push(source.id);
+        // 直接使用完整的 dataSource 结构，确保保留所有字段包括 index_item
+        const dataSourceArray = nodeData?.dataSource as {
+            id: string,
+            label: string,
+            index_item: {
+                index_name: string,
+                collection_configs: {
+                    set_name: string,
+                    model: string,
+                    vdb_type: string,
+                    user_id: string,
+                    collection_name: string
                 }
-            });
-        }
+            }
+        }[] | undefined;
         
         return {
             type: "search",
@@ -1023,7 +1043,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     db_type: "pgvector"
                 },
                 query_id: queryId,
-                doc_ids: docIds,
+                data_source: dataSourceArray || [],
                 outputs: outputs
             }
         };
@@ -1059,10 +1079,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     parameters: { [key: string]: string | number };
                     operation: string;
                 }[];
-                then: {
+                thens: {
                     from: string;
                     to: string;
-                };
+                }[];
             };
         } = {};
         
@@ -1113,32 +1133,44 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 };
             });
             
-            // Verify that actions array exists
-            if (!caseItem.actions || !Array.isArray(caseItem.actions) || caseItem.actions.length === 0) {
-                return; // Skip this case if actions are invalid
+            // 处理 thens
+            let thens: { from: string; to: string }[] = [];
+            if (Array.isArray(caseItem.actions) && caseItem.actions.length > 0) {
+                caseItem.actions.forEach((action: any) => {
+                    if (Array.isArray(action.outputs) && action.outputs.length > 0) {
+                        action.outputs.forEach((outputId: string) => {
+                            thens.push({
+                                from: action.from_id || sourceNodes[0]?.id || "",
+                                to: outputId
+                            });
+                        });
+                    } else {
+                        // fallback
+                        thens.push({
+                            from: action.from_id || sourceNodes[0]?.id || "",
+                            to: targetNodes[0]?.id || ""
+                        });
+                    }
+                });
             }
-            
-            // Process actions (take the first action as the main action)
-            const action = caseItem.actions[0];
-            
-            // If action.outputs is not an array or is empty, use a fallback
-            const outputId = Array.isArray(action.outputs) && action.outputs.length > 0 
-                ? action.outputs[0] 
-                : targetNodes[0]?.id || "";
-            
+
+            if (thens.length === 0) {
+                // fallback
+                thens.push({
+                    from: sourceNodes[0]?.id || "",
+                    to: targetNodes[0]?.id || ""
+                });
+            }
+
             transformedCases[caseKey] = {
                 conditions,
-                then: {
-                    from: action.from_id || sourceNodes[0]?.id || "",
-                    to: outputId
-                }
+                thens
             };
         });
         
         // If no valid cases were processed, we might end up with an empty object
         // Make sure we have at least one case if there were cases in the input
         if (Object.keys(transformedCases).length === 0 && nodeData.cases.length > 0) {
-            // Create a default case using the first source and target nodes
             transformedCases["case1"] = {
                 conditions: [{
                     block: sourceNodes[0]?.id || "",
@@ -1146,10 +1178,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     parameters: { value: "" },
                     operation: "/"
                 }],
-                then: {
+                thens: [{
                     from: sourceNodes[0]?.id || "",
                     to: targetNodes[0]?.id || ""
-                }
+                }]
             };
         }
         
@@ -1162,6 +1194,44 @@ export function useEdgeNodeBackEndJsonBuilder() {
             }
         };
         
+    };
+    
+    // 添加构建 Load 节点 JSON 的辅助函数
+    const buildLoadNodeJson = (
+        nodeId: string, 
+        sourceNodes: { id: string, label: string }[], 
+        targetNodes: { id: string, label: string }[]
+    ): LoadEdgeJsonType => {
+        // 获取源节点内容（文件数据）
+        const sourceNode = sourceNodes[0]; // 通常只有一个源节点
+        if (!sourceNode) {
+            throw new Error("Load 节点需要至少一个源节点");
+        }
+        
+        // 获取源节点内容，用于构建文件配置
+        const nodeContent = getNode(sourceNode.id)?.data?.content;
+        
+        // 构建文件配置
+        const fileConfigs = Array.isArray(nodeContent)
+            ? nodeContent.map(file => ({
+                file_path: file.download_url,
+                file_type: file.fileType
+            }))
+            : [];
+        
+        // 创建 Load 节点的 JSON
+        return {
+            type: "load",
+            data: {
+                block_type: "file",
+                content: sourceNode.id,
+                extra_configs: {
+                    file_configs: fileConfigs
+                },
+                inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
+                outputs: Object.fromEntries(targetNodes.map(node => ([node.id, node.label])))
+            }
+        };
     };
     
     // 返回构建JSON的主函数

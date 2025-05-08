@@ -1,0 +1,245 @@
+{
+    "blocks": {
+
+    "zS3ZVB": {
+
+        "label": "zS3ZVB",
+
+        "type": "structured",
+
+        "data": {
+
+            "content": [
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 16,
+
+                    "created_by_id": "ffec56c2-009c-4d50-8315-eb6fecad658d",
+
+                    "properties'你今天的工作状态'_select_name": "线上工作"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 15,
+
+                    "created_by_id": "348e6fc6-959e-48e8-86a1-324fb443f124",
+
+                    "properties'你今天的工作状态'_select_name": "线上工作"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 9,
+
+                    "created_by_id": "155d872b-594c-814f-8d60-00028cc2d118",
+
+                    "properties'你今天的工作状态'_select_name": "线上工作"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 2,
+
+                    "created_by_id": "189d872b-594c-81db-ae2b-000283accd0f",
+
+                    "properties'你今天的工作状态'_select_name": "线上工作"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 3,
+
+                    "created_by_id": "1ced872b-594c-8197-9897-00021839040d",
+
+                    "properties'你今天的工作状态'_select_name": "线上工作"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 4,
+
+                    "created_by_id": "189d872b-594c-81db-ae2b-000283accd0f",
+
+                    "properties'你今天的工作状态'_select_name": "补打卡（线上）"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 5,
+
+                    "created_by_id": "155d872b-594c-814f-8d60-00028cc2d118",
+
+                    "properties'你今天的工作状态'_select_name": "补打卡（线上）"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 7,
+
+                    "created_by_id": "ffec56c2-009c-4d50-8315-eb6fecad658d",
+
+                    "properties'你今天的工作状态'_select_name": "补打卡（线上）"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 10,
+
+                    "created_by_id": "ba015af6-1f2a-4dcf-98d1-227bb0430f5c",
+
+                    "properties'你今天的工作状态'_select_name": "线下工作"
+
+                },
+
+                {
+
+                    "count_properties'你今天的工作状态'_select_name": 13,
+
+                    "created_by_id": "1ced872b-594c-8197-9897-00021839040d",
+
+                    "properties'你今天的工作状态'_select_name": "线下工作"
+
+                }
+
+            ]
+
+        },
+
+        "looped": false,
+
+        "collection_configs": []
+
+    },
+
+    "uGIv0-": {
+
+        "label": "uGIv0-",
+
+        "type": "structured",
+
+        "data": {
+
+            "content": [
+
+                {
+
+                    "created_by_id": "ffec56c2-009c-4d50-8315-eb6fecad658d",
+
+                    "status_counts": {
+
+                        "线上工作": 5,
+
+                        "线下工作": 2
+
+                    }
+
+                },
+
+                {
+
+                    "created_by_id": "348e6fc6-959e-48e8-86a1-324fb443f124",
+
+                    "status_counts": {
+
+                        "线上工作": 3,
+
+                        "线下工作": 2
+
+                    }
+
+                }
+
+            ]
+
+        },
+
+        "looped": false,
+
+        "collection_configs": []
+
+    },
+
+    "jCJtHn": {
+
+        "label": "jCJtHn",
+
+        "type": "text",
+
+        "data": {
+
+            "content": ""
+
+        }
+
+    }
+
+},
+
+"edges": {
+
+    "llmnew-1746544030167": {
+
+        "type": "llm",
+
+        "data": {
+
+            "messages": [
+
+                {
+
+                    "role": "system",
+
+                    "content": "You are an AI"
+
+                },
+
+                {
+
+                    "role": "user",
+
+                    "content": "把这个json按照 id 和出席次数总结一下{{zS3ZVB}} ，比如变成示例：{{uGIv0-}}"
+
+                }
+
+            ],
+
+            "model": "anthropic/claude-3.5-haiku",
+
+            "base_url": "",
+
+            "max_tokens": 10000,
+
+            "temperature": 0.7,
+
+            "inputs": {
+
+                "zS3ZVB": "zS3ZVB",
+
+                "uGIv0-": "uGIv0-"
+
+            },
+
+            "structured_output": true,
+
+            "outputs": {
+
+                "jCJtHn": "jCJtHn"
+
+            }
+
+        }
+
+    }
+
+}
+}
