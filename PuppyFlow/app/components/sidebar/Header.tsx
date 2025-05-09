@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react'
 import ReactDOM from 'react-dom'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
-import Dashboard from '../userDashBoard/Dashboard'
+import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 
 type HeaderProps = {
@@ -21,7 +21,7 @@ function Header({ setFlowFullScreen }: HeaderProps) {
 
   const { userName } = useFlowsPerUserContext()
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
-  const [activeTab, setActiveTab] = useState<'settings' | 'billing'>('settings')
+  const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers'>('settings')
 
   const handleCloseDialog = () => {
     settingsDialogRef.current?.close()
