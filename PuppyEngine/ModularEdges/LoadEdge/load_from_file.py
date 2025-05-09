@@ -751,218 +751,156 @@ class FileToTextParser:
     ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
         Parses a CSV file and returns its content in specified format.
-
         Args:
             file_path (str): The path to the CSV file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
             - column_range (list): The range of columns to parse. In form of [start, end].
             - row_range (list): The range of rows to parse. In form of [start, end].
             - mode (str): Output format mode. One of:
-                - 'string': CSV format string
-                - 'column': Pivot mode, column names as main keys, values from index_row as sub-keys
-                - 'row': Pivot mode, values from index_col as main keys, column names as sub-keys
-            - use_header (bool): Whether to use the first row as column headers, default is True
-            - skip_empty (bool): Whether to skip empty values in pivot result, default is True
-            - index_col (str/int): Column to use as main key in row mode, default is first column (0)
-            - index_row (int): Row to use for sub-keys in column mode, default is first data row (0)
+                - 'string': CSV format string (default)
+                - 'column': Dict with column names as keys and column values as lists
+                - 'row': List of dicts, each dict representing a row with column names as keys
         Returns:
             Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed CSV content in specified format
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "row")
-        use_header = kwargs.get("use_header", True)
-        skip_empty = kwargs.get("skip_empty", True)
-        index_col = kwargs.get("index_col", 0)  # Default to using first column as main key
-        index_row = kwargs.get("index_row", 0)  # Default to using first row for column mode sub-keys
-
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-
         if mode not in {"string", "column", "row"}:
             raise ValueError("Mode must be one of: 'string', 'column', 'row'")
-
         csv_file = file_path
         if self._is_file_url(file_path):
             csv_file = self._remote_file_to_byte_io(file_path)
-
-        # Determine whether to use first row as column headers
-        header_param = 0 if use_header else None
-        df = pd.read_csv(csv_file, header=header_param)
-        
-        # Ensure all column names are strings
-        df.columns = df.columns.astype(str)
-        
+        df = pd.read_csv(csv_file)
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
-
         if mode == "string":
-            # Return CSV format string
             return df.to_csv(index=False)
-        
         elif mode == "column":
-            # Column pivot mode: column names as main keys, values from index_row as sub-keys
-            if df.empty:
-                return "{}"
-                
-            result = {}
-            
-            # If DataFrame has fewer rows than index_row, return empty result
-            if len(df) <= index_row:
-                return "{}"
-            
-            # Get column names for main keys
-            columns = df.columns.tolist()
-            
-            # If index_col is a number, use position; if string, use column name
-            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
-            
-            # Get values from the specified row to use as sub-keys
-            row_values = df.iloc[index_row]
-            key_values = df[key_col].tolist()
-            
-            # Iterate through each column (except the key column)
-            for col in columns:
-                if col == key_col:
-                    continue
-                    
-                # Use column name as outer key
-                outer_key = str(col)
-                result[outer_key] = {}
-                
-                # Iterate through each row
-                for i, idx in enumerate(df.index):
-                    # Skip the row used for keys in column mode if needed
-                    if skip_empty and i == index_row:
-                        continue
-                        
-                    # Get the key value and data value
-                    sub_key = df.iloc[i][key_col]
-                    value = df.iloc[i][col]
-                    
-                    # Skip empty values
-                    if skip_empty and (pd.isna(sub_key) or sub_key == '' or pd.isna(value) or value == ''):
-                        continue
-                    
-                    # Ensure sub-key is string
-                    sub_key = str(sub_key)
-                    
-                    # Preserve numeric types, convert others to string
-                    if isinstance(value, (int, float)):
-                        if not pd.isna(value):  # Ensure not NaN
-                            result[outer_key][sub_key] = value
-                    else:
-                        result[outer_key][sub_key] = str(value)
-            
-            # Return JSON string
-            return json.dumps(result, ensure_ascii=False)
-            
+            return df.to_dict(orient='list')
         else:  # mode == "row"
-            # Row pivot mode: specified column as main keys, column names as sub-keys
-            if df.empty:
-                return "{}"
-            
-            # If index_col is a number, use position; if string, use column name
-            key_col = df.columns[index_col] if isinstance(index_col, int) else index_col
-            
-            result = {}
-            # Get all row indices
-            indices = df.index.tolist()
-            # Get all columns except the key column
-            if isinstance(index_col, int):
-                other_cols = [col for i, col in enumerate(df.columns) if i != index_col]
-            else:
-                other_cols = [col for col in df.columns if col != key_col]
-            
-            # Iterate through each row
-            for idx in indices:
-                row = df.iloc[idx]
-                
-                # Use key column value as outer key
-                outer_key = row[key_col]
-                # Skip empty main keys
-                if pd.isna(outer_key) or outer_key == '':
-                    continue
-                
-                # Ensure main key is string type
-                outer_key = str(outer_key)
-                if outer_key not in result:
-                    result[outer_key] = {}
-                
-                # Add other column data as inner key-value pairs
-                for col in other_cols:
-                    value = row[col]
-                    # Skip empty values
-                    if skip_empty and (pd.isna(value) or value == ''):
-                        continue
-                    # Preserve numeric types, convert others to string
-                    if isinstance(value, (int, float)):
-                        if not pd.isna(value):  # Ensure not NaN
-                            result[outer_key][col] = value
-                    else:
-                        result[outer_key][col] = str(value)
-            
-            # Return JSON string
-            return json.dumps(result, ensure_ascii=False)
+            return df.to_dict(orient='records')
 
     @global_exception_handler(1308, "Error Parsing XLSX File")
     def _parse_xlsx(
         self,
         file_path: str,
         **kwargs
-    ) -> str:
+    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
-        Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content as CSV format string.
-
+        Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content in specified format.
         Args:
             file_path (str): The path to the Excel file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
-            - column_range (list): The range of columns to parse. In form of [start, end].
-            - row_range (list): The range of rows to parse. In form of [start, end].
-            - sheet_name (str or int): Sheet name or index to parse, default is 0
-            - use_header (bool): Whether to use the first row as column headers, default is True
-            - na_filter (bool): Whether to detect NA/NaN values, default is True
-
+                - column_range (list): The range of columns to parse. In form of [start, end].
+                - row_range (list): The range of rows to parse. In form of [start, end].
+                - mode (str): Output format mode. One of:
+                    - 'string': CSV format string (default)
+                    - 'column': Dict with column names as keys and column values as lists
+                    - 'row': List of dicts, each dict representing a row with column names as keys
+                    - 'line': JSON string representation of the data
+                - sheet_name (str or int): The name or index of the sheet to parse. Default is 0.
+                - filter_empty (bool): Whether to filter out empty values in row mode. Default is True.
         Returns:
-            str: Parsed Excel content in CSV format string
+            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
         """
-
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
+        mode = kwargs.get("mode", "row")
         sheet_name = kwargs.get("sheet_name", 0)
-        use_header = kwargs.get("use_header", True)
-        na_filter = kwargs.get("na_filter", True)  # Default to detect NA values
+        filter_empty = kwargs.get("filter_empty", True)
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
+        if mode not in {"string", "column", "row", "line"}:
+            raise ValueError("Mode must be one of: 'string', 'column', 'row', 'line'")
 
         xlsx_file = file_path
         if self._is_file_url(file_path):
             xlsx_file = self._remote_file_to_byte_io(file_path)
+        
+        df = pd.read_excel(xlsx_file, 
+                           sheet_name=sheet_name
+                           )
 
-        # Determine whether to use first row as column headers
-        header_param = 0 if use_header else None
-        
-        # Read Excel file
-        df = pd.read_excel(
-            xlsx_file, 
-            sheet_name=sheet_name, 
-            header=header_param,
-            na_filter=na_filter
-        )
-        
-        # Ensure all column names are strings
-        df.columns = df.columns.astype(str)
-        
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
 
-        # Return CSV format string
-        return df.to_csv(index=False)
+        # 处理空值
+        df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
+
+        if mode == "string":
+            return df.to_csv(index=False)
+        elif mode == "column":
+            return df.to_dict(orient='list')
+        elif mode == "line":
+            # 将DataFrame转换为JSON格式
+            # 处理日期时间等特殊类型
+            def json_serialize(obj):
+                if isinstance(obj, pd.Timestamp) or hasattr(obj, 'isoformat'):
+                    return str(obj)
+                return obj
+            
+            # 将DataFrame转换为记录列表
+            records = df.replace({pd.NA: None, pd.NaT: None}).to_dict(orient='records')
+            
+            # 返回JSON字符串
+            return json.dumps(records, default=json_serialize, ensure_ascii=False)
+        else:  # mode == "row"
+            # 获取列名
+            columns = df.columns.tolist()
+            first_col = columns[0]
+            other_cols = columns[1:]
+            
+            # 创建结果字典
+            result = {}
+            
+            # 遍历DataFrame的每一行
+            for _, row in df.iterrows():
+                key = row[first_col]
+                
+                # 创建内层字典，忽略空值
+                inner_dict = {}
+                for col in other_cols:
+                    # 更全面地检测空值
+                    if pd.notna(row[col]) and row[col] != "" and row[col] is not None:
+                        # 处理日期时间类型 - 修复日期时间类型检测
+                        try:
+                            if isinstance(row[col], pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(row[col]):
+                                inner_dict[col] = str(row[col])
+                            else:
+                                inner_dict[col] = row[col]
+                        except:
+                            # 如果类型检测失败，保持原值
+                            inner_dict[col] = row[col]
+                
+                # 如果内层字典为空且第一列也为空，则跳过整行
+                if not inner_dict and pd.isna(key):
+                    continue
+                    
+                # 处理第一列为空的情况
+                if pd.isna(key):
+                    if "null_values" not in result:
+                        result["null_values"] = []
+                    result["null_values"].append(inner_dict)
+                    continue
+                    
+                # 处理第一列有重复值的情况
+                if key in result:
+                    # 合并内层字典
+                    result[key].update(inner_dict)
+                else:
+                    # 只有当内层字典非空时才添加
+                    if inner_dict or not filter_empty:
+                        result[key] = inner_dict
+            
+            return result
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
@@ -1109,15 +1047,28 @@ if __name__ == "__main__":
 
     file_root_path = "ModularEdges/LoadEdge/testfiles"
     file_configs = [
+        # {
+        #     "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
+        #     "file_type": "xlsx",
+        #     "config": {
+        #         "mode": "row"
+        #     }
+        # },
         {
-            "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
-            "file_type": "xlsx"
+            "file_path": os.path.join(file_root_path, "ld.xlsm"),
+            "file_type": "xlsm",
+            "config": {
+                "mode": "column", 
+                "sheet_name": "原材料"
+            }
         },
-        # 其他测试文件配置...
+        # {
+        #     "file_path": os.path.join(file_root_path, "testcsv.csv"),
+        #     "file_type": "csv",
+        # }
     ]
     parser = FileToTextParser()
     parsed_content_list = parser.parse_multiple(file_configs)
     print(f"Parsed Content List:\n{parsed_content_list}")
     print(f"Parsed Config List:\n{file_configs}")
 
-    
