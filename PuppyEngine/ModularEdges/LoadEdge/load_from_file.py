@@ -1243,7 +1243,7 @@ if __name__ == "__main__":
             "file_path": os.path.join(file_root_path, "ld.xlsm"),
             "file_type": "xlsm",
             "config": {
-                "mode": "row", 
+                # "mode": "row", 
                 # "sheet_name": "费用"
             }
         },
