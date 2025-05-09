@@ -266,9 +266,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     const open_router_supported_models = [
         "openai/gpt-4o-mini",
         "openai/gpt-4o-2024-11-20",
-        "openai/gpt-4-turbo",
         "openai/gpt-4.5-preview",
-        "openai/o1-mini",
         "openai/o1",
         "openai/o3-mini",
         "deepseek/deepseek-chat-v3-0324:free",
