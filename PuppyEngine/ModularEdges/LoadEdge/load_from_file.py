@@ -790,7 +790,7 @@ class FileToTextParser:
         self,
         file_path: str,
         **kwargs
-    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]]]:
         """
         Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content in specified format.
         Args:
@@ -799,34 +799,149 @@ class FileToTextParser:
                 - column_range (list): The range of columns to parse. In form of [start, end].
                 - row_range (list): The range of rows to parse. In form of [start, end].
                 - mode (str): Output format mode. One of:
-                    - 'string': CSV format string (default)
+                    - 'auto': 自动检测并选择最佳解析模式 (默认)
+                    - 'string': CSV format string
                     - 'column': Dict with column names as keys and column values as lists
                     - 'row': List of dicts, each dict representing a row with column names as keys
                     - 'line': JSON string representation of the data
-                - sheet_name (str or int): The name or index of the sheet to parse. Default is 0.
+                - sheet_name (str, int, list, None): The name or index of the sheet to parse.
+                    - str/int: Parse a single sheet
+                    - list: Parse multiple specific sheets
+                    - None: Parse all available sheets (default)
                 - filter_empty (bool): Whether to filter out empty values in row mode. Default is True.
         Returns:
-            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
+            Union[str, Dict[str, Any], List[Dict[str, Any]]]: 
+                When sheet_name is None or a list: Dict with sheet names as keys and parsed content as values
+                Otherwise: Parsed Excel content in specified format
+                
+        TODO:
+            - 增强智能模式检测算法，考虑更多表格特征
+            - 添加机器学习模型进行表格结构识别
+            - 支持更多数据类型和特殊格式检测
+            - 实现用户反馈机制优化模式选择
         """
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
-        mode = kwargs.get("mode", "row")
-        sheet_name = kwargs.get("sheet_name", 0)
+        mode = kwargs.get("mode", "auto")  # 默认使用自动检测模式
+        sheet_name = kwargs.get("sheet_name", None)  # 默认解析所有表格
         filter_empty = kwargs.get("filter_empty", True)
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-        if mode not in {"string", "column", "row", "line"}:
-            raise ValueError("Mode must be one of: 'string', 'column', 'row', 'line'")
+        if mode not in {"auto", "string", "column", "row", "line"}:
+            raise ValueError("Mode must be one of: 'auto', 'string', 'column', 'row', 'line'")
 
         xlsx_file = file_path
         if self._is_file_url(file_path):
             xlsx_file = self._remote_file_to_byte_io(file_path)
         
-        df = pd.read_excel(xlsx_file, 
-                           sheet_name=sheet_name
-                           )
+        # 处理多表情况
+        parse_all_sheets = sheet_name is None
+        
+        if parse_all_sheets:
+            # 获取所有表名并创建结果字典
+            all_sheets = pd.ExcelFile(xlsx_file).sheet_names
+            result = {}
+            
+            # 为每个表调用自身，递归处理
+            for sheet in all_sheets:
+                # 创建新的参数字典，替换sheet_name
+                new_kwargs = kwargs.copy()
+                new_kwargs["sheet_name"] = sheet
+                
+                # 递归调用自身处理单个表
+                result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+                
+            return result
+        
+        # 处理单表或特定多表的情况
+        if isinstance(sheet_name, list):
+            # 处理特定多表
+            result = {}
+            for sheet in sheet_name:
+                result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+            return result
+        
+        # 单表处理
+        return self._parse_single_sheet(xlsx_file, sheet_name, column_range, row_range, mode, filter_empty)
 
+    def _detect_best_mode(self, df):
+        """
+        智能检测表格结构，选择最合适的解析模式。
+        
+        Args:
+            df (pd.DataFrame): 要分析的DataFrame
+            
+        Returns:
+            str: 推荐的解析模式 ('row', 'column', 'string', 或 'line')
+            
+        TODO:
+            - 添加表头特征分析
+            - 实现数据类型分布检测
+            - 添加数据密度和稀疏度分析
+            - 实现特殊格式表格识别(透视表、交叉表等)
+            - 添加时间序列和层次结构检测
+            - 考虑使用机器学习模型替代规则系统
+            - 添加上下文关系和对称性检测
+        """
+        # 空表或极小表格
+        if df.empty or len(df.columns) <= 1:
+            return "row"  # 默认使用row模式
+            
+        # 检查行列比例
+        row_count = len(df)
+        col_count = len(df.columns)
+        
+        # 检查第一列的唯一值比例
+        if row_count > 0:
+            first_col = df.columns[0]
+            unique_values = df[first_col].nunique()
+            unique_ratio = unique_values / row_count if row_count > 0 else 0
+            
+            # 如果第一列大部分值唯一，适合row模式
+            if unique_ratio > 0.8:
+                return "row"
+                
+            # 如果第一列有大量重复值，可能适合column模式
+            elif unique_ratio < 0.2 and col_count < row_count:
+                return "column"
+        
+        # 检查表格形状
+        if row_count > col_count * 3:
+            # 长表格(行远多于列)，通常适合row模式
+            return "row"
+        elif col_count > row_count * 2:
+            # 宽表格(列远多于行)，可能适合column模式
+            return "column"
+        
+        # 默认使用row模式
+        return "row"
+        
+    def _parse_single_sheet(
+        self, 
+        xlsx_file, 
+        sheet_name, 
+        column_range=None, 
+        row_range=None, 
+        mode="auto", 
+        filter_empty=True
+    ):
+        """
+        Helper method to parse a single sheet from an Excel file.
+        
+        Args:
+            xlsx_file: Excel文件路径或BytesIO对象
+            sheet_name: 表格名称或索引
+            column_range: 列范围
+            row_range: 行范围
+            mode: 解析模式，可以是'auto', 'string', 'column', 'row', 或'line'
+            filter_empty: 是否过滤空值
+            
+        Returns:
+            解析后的表格内容
+        """
+        df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
+        
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
@@ -834,11 +949,66 @@ class FileToTextParser:
 
         # 处理空值
         df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
+        
+        # 检查是否为空表格
+        if df.empty or len(df.columns) == 0:
+            if mode == "string":
+                return ""
+            elif mode == "line":
+                return "[]"
+            else:  # column or row mode
+                return {}
+                
+        # 添加自动模式检测
+        if mode == "auto":
+            mode = self._detect_best_mode(df)
 
         if mode == "string":
             return df.to_csv(index=False)
         elif mode == "column":
-            return df.to_dict(orient='list')
+            # 获取列名和索引
+            columns = df.columns.tolist()
+            
+            # 处理没有列的情况
+            if not columns:
+                return {}
+                
+            first_col = columns[0]
+            
+            # 创建结果字典
+            result = {}
+            
+            # 如果只有一列，返回空字典
+            if len(columns) <= 1:
+                return result
+            
+            # 处理每一列（除了第一列）
+            for col in columns[1:]:
+                # 创建内层字典，使用第一列作为键
+                inner_dict = {}
+                
+                # 遍历每一行
+                for idx in df.index:
+                    key = df.loc[idx, first_col]
+                    value = df.loc[idx, col]
+                    
+                    # 忽略空值
+                    if pd.notna(key) and pd.notna(value) and value != "" and value is not None:
+                        # 处理日期时间类型
+                        try:
+                            if isinstance(value, pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(value):
+                                inner_dict[key] = str(value)
+                            else:
+                                inner_dict[key] = value
+                        except:
+                            # 如果类型检测失败，保持原值
+                            inner_dict[key] = value
+                
+                # 如果内层字典为空，根据filter_empty决定是否添加
+                if inner_dict or not filter_empty:
+                    result[col] = inner_dict
+            
+            return result
         elif mode == "line":
             # 将DataFrame转换为JSON格式
             # 处理日期时间等特殊类型
@@ -855,7 +1025,22 @@ class FileToTextParser:
         else:  # mode == "row"
             # 获取列名
             columns = df.columns.tolist()
+            
+            # 处理没有列的情况
+            if not columns:
+                return {}
+                
             first_col = columns[0]
+            
+            # 如果只有一列，返回以第一列值为键，空字典为值的结构
+            if len(columns) <= 1:
+                result = {}
+                for _, row in df.iterrows():
+                    key = row[first_col]
+                    if pd.notna(key):
+                        result[key] = {}
+                return result
+            
             other_cols = columns[1:]
             
             # 创建结果字典
@@ -870,7 +1055,7 @@ class FileToTextParser:
                 for col in other_cols:
                     # 更全面地检测空值
                     if pd.notna(row[col]) and row[col] != "" and row[col] is not None:
-                        # 处理日期时间类型 - 修复日期时间类型检测
+                        # 处理日期时间类型
                         try:
                             if isinstance(row[col], pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(row[col]):
                                 inner_dict[col] = str(row[col])
@@ -1058,8 +1243,8 @@ if __name__ == "__main__":
             "file_path": os.path.join(file_root_path, "ld.xlsm"),
             "file_type": "xlsm",
             "config": {
-                "mode": "column", 
-                "sheet_name": "原材料"
+                "mode": "row", 
+                # "sheet_name": "费用"
             }
         },
         # {
