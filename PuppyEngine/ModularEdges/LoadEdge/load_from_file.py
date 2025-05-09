@@ -802,6 +802,7 @@ class FileToTextParser:
                     - 'string': CSV format string (default)
                     - 'column': Dict with column names as keys and column values as lists
                     - 'row': List of dicts, each dict representing a row with column names as keys
+                    - 'line': JSON string representation of the data
                 - sheet_name (str or int): The name or index of the sheet to parse. Default is 0.
                 - filter_empty (bool): Whether to filter out empty values in row mode. Default is True.
         Returns:
@@ -815,8 +816,8 @@ class FileToTextParser:
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-        if mode not in {"string", "column", "row"}:
-            raise ValueError("Mode must be one of: 'string', 'column', 'row'")
+        if mode not in {"string", "column", "row", "line"}:
+            raise ValueError("Mode must be one of: 'string', 'column', 'row', 'line'")
 
         xlsx_file = file_path
         if self._is_file_url(file_path):
@@ -837,8 +838,20 @@ class FileToTextParser:
         if mode == "string":
             return df.to_csv(index=False)
         elif mode == "column":
-            # 列模式下，保留所有值，包括None
             return df.to_dict(orient='list')
+        elif mode == "line":
+            # 将DataFrame转换为JSON格式
+            # 处理日期时间等特殊类型
+            def json_serialize(obj):
+                if isinstance(obj, pd.Timestamp) or hasattr(obj, 'isoformat'):
+                    return str(obj)
+                return obj
+            
+            # 将DataFrame转换为记录列表
+            records = df.replace({pd.NA: None, pd.NaT: None}).to_dict(orient='records')
+            
+            # 返回JSON字符串
+            return json.dumps(records, default=json_serialize, ensure_ascii=False)
         else:  # mode == "row"
             # 获取列名
             columns = df.columns.tolist()
@@ -1043,10 +1056,10 @@ if __name__ == "__main__":
         # },
         {
             "file_path": os.path.join(file_root_path, "ld.xlsm"),
-            "file_type": "xls",
+            "file_type": "xlsm",
             "config": {
-                "mode": "row", 
-                "sheet_name": "费用"
+                "mode": "column", 
+                "sheet_name": "原材料"
             }
         },
         # {
@@ -1059,4 +1072,3 @@ if __name__ == "__main__":
     print(f"Parsed Content List:\n{parsed_content_list}")
     print(f"Parsed Config List:\n{file_configs}")
 
-    
