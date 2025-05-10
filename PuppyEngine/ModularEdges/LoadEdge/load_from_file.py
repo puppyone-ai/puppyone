@@ -802,7 +802,7 @@ class FileToTextParser:
                 - column_range (list): The range of columns to parse. In form of [start, end].
                 - row_range (list): The range of rows to parse. In form of [start, end].
                 - mode (str): Output format mode. One of:
-                    - 'auto': 自动检测并选择最佳解析模式 (默认)
+                    - 'auto': Automatically detect and select the best parsing mode (default)
                     - 'string': CSV format string
                     - 'column': Dict with column names as keys and column values as lists
                     - 'row': List of dicts, each dict representing a row with column names as keys
@@ -818,14 +818,14 @@ class FileToTextParser:
                 Otherwise: Parsed Excel content in specified format
                 
         TODO:
-            - 增强智能模式检测算法，考虑更多表格特征
-            - 添加机器学习模型进行表格结构识别
-            - 支持更多数据类型和特殊格式检测
-            - 实现用户反馈机制优化模式选择
+            - Enhance intelligent mode detection algorithm with more table features
+            - Add machine learning model for table structure recognition
+            - Support more data types and special format detection
+            - Implement user feedback mechanism to optimize mode selection
         """
         start_time = time.time()
         file_name = os.path.basename(file_path) if isinstance(file_path, str) else "stream"
-        log_info(f"开始解析Excel文件: {file_name}")
+        log_info(f"Starting to parse Excel file: {file_name}")
         
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
@@ -852,95 +852,95 @@ class FileToTextParser:
                 all_sheets = excel_file.sheet_names
                 result = {}
                 
-                log_info(f"Excel文件 {file_name} 包含 {len(all_sheets)} 个工作表")
+                log_info(f"Excel file {file_name} contains {len(all_sheets)} sheets")
                 successful_sheets = 0
                 failed_sheets = 0
                 
                 # 为每个表调用自身，递归处理
                 for i, sheet in enumerate(all_sheets):
                     sheet_start_time = time.time()
-                    log_info(f"开始处理第 {i+1}/{len(all_sheets)} 个工作表: {sheet}")
+                    log_info(f"Processing sheet {i+1}/{len(all_sheets)}: {sheet}")
                     
                     try:
                         # 递归调用自身处理单个表
                         result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
                         sheet_end_time = time.time()
-                        log_info(f"成功处理工作表 {sheet}，耗时 {sheet_end_time - sheet_start_time:.2f} 秒")
+                        log_info(f"Successfully processed sheet {sheet}, took {sheet_end_time - sheet_start_time:.2f} seconds")
                         successful_sheets += 1
                     except Exception as e:
                         sheet_end_time = time.time()
-                        log_error(f"处理工作表 {sheet} 失败: {str(e)}，耗时 {sheet_end_time - sheet_start_time:.2f} 秒")
+                        log_error(f"Failed to process sheet {sheet}: {str(e)}, took {sheet_end_time - sheet_start_time:.2f} seconds")
                         # 记录详细错误信息但继续处理其他表
-                        result[sheet] = f"解析失败: {str(e)}"
+                        result[sheet] = f"Parsing failed: {str(e)}"
                         failed_sheets += 1
                 
                 end_time = time.time()
-                log_info(f"Excel文件 {file_name} 解析完成，共 {len(all_sheets)} 个工作表，成功 {successful_sheets} 个，失败 {failed_sheets} 个，总耗时 {end_time - start_time:.2f} 秒")
+                log_info(f"Excel file {file_name} parsing completed, {len(all_sheets)} sheets total, {successful_sheets} successful, {failed_sheets} failed, total time: {end_time - start_time:.2f} seconds")
                 return result
             
             # 处理单表或特定多表的情况
             if isinstance(sheet_name, list):
                 # 处理特定多表
-                log_info(f"开始处理 Excel文件 {file_name} 中的 {len(sheet_name)} 个指定工作表")
+                log_info(f"Starting to process {len(sheet_name)} specified sheets in Excel file {file_name}")
                 result = {}
                 successful_sheets = 0
                 failed_sheets = 0
                 
                 for i, sheet in enumerate(sheet_name):
                     sheet_start_time = time.time()
-                    log_info(f"开始处理第 {i+1}/{len(sheet_name)} 个工作表: {sheet}")
+                    log_info(f"Processing sheet {i+1}/{len(sheet_name)}: {sheet}")
                     
                     try:
                         result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
                         sheet_end_time = time.time()
-                        log_info(f"成功处理工作表 {sheet}，耗时 {sheet_end_time - sheet_start_time:.2f} 秒")
+                        log_info(f"Successfully processed sheet {sheet}, took {sheet_end_time - sheet_start_time:.2f} seconds")
                         successful_sheets += 1
                     except Exception as e:
                         sheet_end_time = time.time()
-                        log_error(f"处理工作表 {sheet} 失败: {str(e)}，耗时 {sheet_end_time - sheet_start_time:.2f} 秒")
+                        log_error(f"Failed to process sheet {sheet}: {str(e)}, took {sheet_end_time - sheet_start_time:.2f} seconds")
                         # 记录详细错误信息但继续处理其他表
-                        result[sheet] = f"解析失败: {str(e)}"
+                        result[sheet] = f"Parsing failed: {str(e)}"
                         failed_sheets += 1
                 
                 end_time = time.time()
-                log_info(f"Excel文件 {file_name} 指定工作表解析完成，共 {len(sheet_name)} 个工作表，成功 {successful_sheets} 个，失败 {failed_sheets} 个，总耗时 {end_time - start_time:.2f} 秒")
+                log_info(f"Excel file {file_name} specified sheets parsing completed, {len(sheet_name)} sheets total, {successful_sheets} successful, {failed_sheets} failed, total time: {end_time - start_time:.2f} seconds")
                 return result
             
             # 单表处理
             sheet_start_time = time.time()
             sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
-            log_info(f"开始处理工作表: {sheet_name_str}")
+            log_info(f"Processing sheet: {sheet_name_str}")
             
             result = self._parse_single_sheet(xlsx_file, sheet_name, column_range, row_range, mode, filter_empty)
             
             end_time = time.time()
-            log_info(f"工作表 {sheet_name_str} 解析完成，耗时 {end_time - sheet_start_time:.2f} 秒")
+            log_info(f"Sheet {sheet_name_str} parsing completed, took {end_time - sheet_start_time:.2f} seconds")
             return result
             
         except Exception as e:
             end_time = time.time()
-            log_error(f"Excel文件 {file_name} 解析过程中发生错误: {str(e)}，总耗时 {end_time - start_time:.2f} 秒")
+            log_error(f"Error occurred while parsing Excel file {file_name}: {str(e)}, total time: {end_time - start_time:.2f} seconds")
             # 使用PuppyException格式化并抛出错误
             raise PuppyException(1308, "Error Parsing XLSX File", str(e))
 
     def _detect_best_mode(self, df):
         """
-        智能检测表格结构，选择最合适的解析模式。
+        Intelligently detect the best parsing mode based on table structure.
         
         Args:
-            df (pd.DataFrame): 要分析的DataFrame
+            df (pd.DataFrame): The DataFrame to analyze
             
         Returns:
-            str: 推荐的解析模式 ('row', 'column', 'string', 或 'line')
+            str: Recommended parsing mode ('row', 'column', 'string', or 'line')
             
         TODO:
-            - 添加表头特征分析
-            - 实现数据类型分布检测
-            - 添加数据密度和稀疏度分析
-            - 实现特殊格式表格识别(透视表、交叉表等)
-            - 添加时间序列和层次结构检测
-            - 考虑使用机器学习模型替代规则系统
-            - 添加上下文关系和对称性检测
+            - Add header feature analysis
+            - Implement data type distribution detection
+            - Add data density and sparsity analysis
+            - Implement special format table recognition (pivot tables, cross tables, etc.)
+            - Add time series and hierarchical structure detection
+            - Consider using machine learning models instead of rule-based system
+            - Add context relationship and symmetry detection
         """
         # 空表或极小表格
         if df.empty or len(df.columns) <= 1:
@@ -988,42 +988,41 @@ class FileToTextParser:
         Helper method to parse a single sheet from an Excel file.
         
         Args:
-            xlsx_file: Excel文件路径或BytesIO对象
-            sheet_name: 表格名称或索引
-            column_range: 列范围
-            row_range: 行范围
-            mode: 解析模式，可以是'auto', 'string', 'column', 'row', 或'line'
-            filter_empty: 是否过滤空值
+            xlsx_file: Excel file path or BytesIO object
+            sheet_name: Sheet name or index
+            column_range: Column range to parse
+            row_range: Row range to parse
+            mode: Parsing mode, one of 'auto', 'string', 'column', 'row', or 'line'
+            filter_empty: Whether to filter out empty values
             
         Returns:
-            解析后的表格内容
+            Parsed sheet content in the specified format
         """
         try:
             sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
-            log_info(f"读取工作表 {sheet_name_str} 数据")
+            log_info(f"Reading data from sheet {sheet_name_str}")
             df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
             
-            log_info(f"工作表 {sheet_name_str} 包含 {len(df)} 行, {len(df.columns)} 列")
+            log_info(f"Sheet {sheet_name_str} contains {len(df)} rows, {len(df.columns)} columns")
             
             # 处理合并单元格
-            log_info(f"处理工作表 {sheet_name_str} 的合并单元格")
-            # df = self._detect_and_fill_merged_cells(xlsx_file, sheet_name, df)
+            log_info(f"Processing merged cells in sheet {sheet_name_str}")
             
             # 应用行列过滤
             if column_range:
-                log_info(f"应用列范围过滤: {column_range}")
+                log_info(f"Applying column range filter: {column_range}")
                 df = df.iloc[:, column_range[0]:column_range[1]]
             if row_range:
-                log_info(f"应用行范围过滤: {row_range}")
+                log_info(f"Applying row range filter: {row_range}")
                 df = df.iloc[row_range[0]:row_range[1]]
 
             # 处理空值
-            log_info(f"处理空值并标准化数据类型")
+            log_info(f"Processing null values and standardizing data types")
             df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
             
             # 检查是否为空表格
             if df.empty or len(df.columns) == 0:
-                log_warning(f"工作表 {sheet_name_str} 为空或无有效列")
+                log_warning(f"Sheet {sheet_name_str} is empty or has no valid columns")
                 if mode == "string":
                     return ""
                 elif mode == "line":
@@ -1034,10 +1033,10 @@ class FileToTextParser:
             # 添加自动模式检测
             if mode == "auto":
                 detected_mode = self._detect_best_mode(df)
-                log_info(f"自动检测到最合适的模式: {detected_mode}")
+                log_info(f"Auto-detected best parsing mode: {detected_mode}")
                 mode = detected_mode
 
-            log_info(f"使用 {mode} 模式解析工作表 {sheet_name_str}")
+            log_info(f"Using mode '{mode}' to parse sheet {sheet_name_str}")
             
             # 执行相应模式的解析
             if mode == "string":
@@ -1125,7 +1124,7 @@ class FileToTextParser:
                 
                 # 遍历DataFrame的每一行
                 total_rows = len(df)
-                log_info(f"开始处理 {total_rows} 行数据")
+                log_info(f"Starting to process {total_rows} rows of data")
                 
                 for i, (_, row) in enumerate(df.iterrows()):
                     key = row[first_col]
@@ -1165,12 +1164,12 @@ class FileToTextParser:
                         if inner_dict or not filter_empty:
                             result[key] = inner_dict
                 
-                log_info(f"成功处理 {len(result)} 条有效数据")
+                log_info(f"Successfully processed {len(result)} effective data entries")
                 return result
                 
         except Exception as e:
             sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
-            error_msg = f"解析工作表 {sheet_name_str} 时发生错误: {str(e)}"
+            error_msg = f"Error while parsing sheet {sheet_name_str}: {str(e)}"
             log_error(error_msg)
             log_error(traceback.format_exc())
             raise PuppyException(1308, f"Error Parsing Sheet '{sheet_name_str}'", str(e))
