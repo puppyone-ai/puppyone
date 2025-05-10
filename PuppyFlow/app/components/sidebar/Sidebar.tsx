@@ -5,7 +5,7 @@ import AddNewWorkspaceButton from './AddNewWorkspaceButton'
 import FlowElement from './FlowElement'
 import FlowThumbnailView from './FlowThumbnailView'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
-import Dashboard from '../userDashBoard/Dashboard'
+import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 
 type SidebarFullScreenProps = {
@@ -65,7 +65,7 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
 function SidebarHidden({setFlowFullScreen}: SidebarHiddenProps) {
   const [showFlowMenu, setShowFlowMenu] = useState(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
-  const [activeTab, setActiveTab] = useState<'settings' | 'billing'>('settings')
+  const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers'>('settings')
 
   const handleCloseDialog = () => {
     settingsDialogRef.current?.close()
