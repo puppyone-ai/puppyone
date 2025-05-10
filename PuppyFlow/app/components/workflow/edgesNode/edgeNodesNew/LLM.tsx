@@ -168,6 +168,24 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
+            
+            // 检查并初始化内容
+            const nodeData = getNode(id)?.data;
+            const currentContent = nodeData?.content;
+            
+            // 调试输出，查看初始状态
+            console.log("Initial node content:", currentContent, typeof currentContent);
+            
+            // 如果内容不存在或格式不正确，则初始化
+            if (!currentContent || typeof currentContent === 'string' || !Array.isArray(currentContent)) {
+                console.log("Setting initial content:", parsedMessages);
+                setNodes(prevNodes => prevNodes.map(node => {
+                    if (node.id === id) {
+                        return { ...node, data: { ...node.data, content: parsedMessages } };
+                    }
+                    return node;
+                }));
+            }
         }
 
         return () => {
