@@ -583,7 +583,21 @@ async def send_data(
 
 # 添加用于处理datetime等特殊类型的JSON序列化函数
 def json_serializer(obj):
-    """处理JSON无法序列化的特殊类型"""
+    """
+    Custom JSON serializer for handling objects that default json encoder cannot process.
+    
+    Handles:
+    - datetime and date objects -> ISO format string
+    - objects with isoformat() method -> calls that method
+    - pandas.Timestamp objects -> ISO format string
+    - any other non-serializable objects -> string representation
+    
+    Args:
+        obj: The object to serialize
+        
+    Returns:
+        A JSON-serializable version of the object
+    """
     from datetime import datetime, date
     import pandas as pd
     
@@ -593,7 +607,7 @@ def json_serializer(obj):
         return obj.isoformat()
     if pd and hasattr(pd, 'Timestamp') and isinstance(obj, pd.Timestamp):
         return obj.isoformat()
-    # 添加其他可能需要处理的类型
+    # Handle other types that might not be JSON serializable
     return str(obj)
 
 if __name__ == "__main__":
