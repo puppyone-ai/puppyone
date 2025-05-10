@@ -168,6 +168,24 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
+            
+            // 检查并初始化内容
+            const nodeData = getNode(id)?.data;
+            const currentContent = nodeData?.content;
+            
+            // 调试输出，查看初始状态
+            console.log("Initial node content:", currentContent, typeof currentContent);
+            
+            // 如果内容不存在或格式不正确，则初始化
+            if (!currentContent || typeof currentContent === 'string' || !Array.isArray(currentContent)) {
+                console.log("Setting initial content:", parsedMessages);
+                setNodes(prevNodes => prevNodes.map(node => {
+                    if (node.id === id) {
+                        return { ...node, data: { ...node.data, content: parsedMessages } };
+                    }
+                    return node;
+                }));
+            }
         }
 
         return () => {
@@ -266,9 +284,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     const open_router_supported_models = [
         "openai/gpt-4o-mini",
         "openai/gpt-4o-2024-11-20",
-        "openai/gpt-4-turbo",
         "openai/gpt-4.5-preview",
-        "openai/o1-mini",
         "openai/o1",
         "openai/o3-mini",
         "deepseek/deepseek-chat-v3-0324:free",
