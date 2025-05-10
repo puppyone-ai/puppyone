@@ -19,9 +19,12 @@ import pymupdf4llm
 import numpy as np
 import pandas as pd
 import multiprocessing
+import time
 from pydub import AudioSegment
 from typing import List, Dict, Any, Tuple, Union
 from Utils.puppy_exception import PuppyException, global_exception_handler
+from Utils.logger import log_info, log_error, log_warning
+import openpyxl
 
 
 logger = logging.getLogger(__name__)
@@ -799,7 +802,7 @@ class FileToTextParser:
                 - column_range (list): The range of columns to parse. In form of [start, end].
                 - row_range (list): The range of rows to parse. In form of [start, end].
                 - mode (str): Output format mode. One of:
-                    - 'auto': 自动检测并选择最佳解析模式 (默认)
+                    - 'auto': Automatically detect and select the best parsing mode (default)
                     - 'string': CSV format string
                     - 'column': Dict with column names as keys and column values as lists
                     - 'row': List of dicts, each dict representing a row with column names as keys
@@ -815,11 +818,15 @@ class FileToTextParser:
                 Otherwise: Parsed Excel content in specified format
                 
         TODO:
-            - 增强智能模式检测算法，考虑更多表格特征
-            - 添加机器学习模型进行表格结构识别
-            - 支持更多数据类型和特殊格式检测
-            - 实现用户反馈机制优化模式选择
+            - Enhance intelligent mode detection algorithm with more table features
+            - Add machine learning model for table structure recognition
+            - Support more data types and special format detection
+            - Implement user feedback mechanism to optimize mode selection
         """
+        start_time = time.time()
+        file_name = os.path.basename(file_path) if isinstance(file_path, str) else "stream"
+        log_info(f"Starting to parse Excel file: {file_name}")
+        
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "auto")  # 默认使用自动检测模式
@@ -838,51 +845,102 @@ class FileToTextParser:
         # 处理多表情况
         parse_all_sheets = sheet_name is None
         
-        if parse_all_sheets:
-            # 获取所有表名并创建结果字典
-            all_sheets = pd.ExcelFile(xlsx_file).sheet_names
-            result = {}
+        try:
+            if parse_all_sheets:
+                # 获取所有表名并创建结果字典
+                excel_file = pd.ExcelFile(xlsx_file)
+                all_sheets = excel_file.sheet_names
+                result = {}
+                
+                log_info(f"Excel file {file_name} contains {len(all_sheets)} sheets")
+                successful_sheets = 0
+                failed_sheets = 0
+                
+                # 为每个表调用自身，递归处理
+                for i, sheet in enumerate(all_sheets):
+                    sheet_start_time = time.time()
+                    log_info(f"Processing sheet {i+1}/{len(all_sheets)}: {sheet}")
+                    
+                    try:
+                        # 递归调用自身处理单个表
+                        result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+                        sheet_end_time = time.time()
+                        log_info(f"Successfully processed sheet {sheet}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        successful_sheets += 1
+                    except Exception as e:
+                        sheet_end_time = time.time()
+                        log_error(f"Failed to process sheet {sheet}: {str(e)}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        # 记录详细错误信息但继续处理其他表
+                        result[sheet] = f"Parsing failed: {str(e)}"
+                        failed_sheets += 1
+                
+                end_time = time.time()
+                log_info(f"Excel file {file_name} parsing completed, {len(all_sheets)} sheets total, {successful_sheets} successful, {failed_sheets} failed, total time: {end_time - start_time:.2f} seconds")
+                return result
             
-            # 为每个表调用自身，递归处理
-            for sheet in all_sheets:
-                # 创建新的参数字典，替换sheet_name
-                new_kwargs = kwargs.copy()
-                new_kwargs["sheet_name"] = sheet
+            # 处理单表或特定多表的情况
+            if isinstance(sheet_name, list):
+                # 处理特定多表
+                log_info(f"Starting to process {len(sheet_name)} specified sheets in Excel file {file_name}")
+                result = {}
+                successful_sheets = 0
+                failed_sheets = 0
                 
-                # 递归调用自身处理单个表
-                result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+                for i, sheet in enumerate(sheet_name):
+                    sheet_start_time = time.time()
+                    log_info(f"Processing sheet {i+1}/{len(sheet_name)}: {sheet}")
+                    
+                    try:
+                        result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+                        sheet_end_time = time.time()
+                        log_info(f"Successfully processed sheet {sheet}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        successful_sheets += 1
+                    except Exception as e:
+                        sheet_end_time = time.time()
+                        log_error(f"Failed to process sheet {sheet}: {str(e)}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        # 记录详细错误信息但继续处理其他表
+                        result[sheet] = f"Parsing failed: {str(e)}"
+                        failed_sheets += 1
                 
+                end_time = time.time()
+                log_info(f"Excel file {file_name} specified sheets parsing completed, {len(sheet_name)} sheets total, {successful_sheets} successful, {failed_sheets} failed, total time: {end_time - start_time:.2f} seconds")
+                return result
+            
+            # 单表处理
+            sheet_start_time = time.time()
+            sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
+            log_info(f"Processing sheet: {sheet_name_str}")
+            
+            result = self._parse_single_sheet(xlsx_file, sheet_name, column_range, row_range, mode, filter_empty)
+            
+            end_time = time.time()
+            log_info(f"Sheet {sheet_name_str} parsing completed, took {end_time - sheet_start_time:.2f} seconds")
             return result
-        
-        # 处理单表或特定多表的情况
-        if isinstance(sheet_name, list):
-            # 处理特定多表
-            result = {}
-            for sheet in sheet_name:
-                result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
-            return result
-        
-        # 单表处理
-        return self._parse_single_sheet(xlsx_file, sheet_name, column_range, row_range, mode, filter_empty)
+            
+        except Exception as e:
+            end_time = time.time()
+            log_error(f"Error occurred while parsing Excel file {file_name}: {str(e)}, total time: {end_time - start_time:.2f} seconds")
+            # 使用PuppyException格式化并抛出错误
+            raise PuppyException(1308, "Error Parsing XLSX File", str(e))
 
     def _detect_best_mode(self, df):
         """
-        智能检测表格结构，选择最合适的解析模式。
+        Intelligently detect the best parsing mode based on table structure.
         
         Args:
-            df (pd.DataFrame): 要分析的DataFrame
+            df (pd.DataFrame): The DataFrame to analyze
             
         Returns:
-            str: 推荐的解析模式 ('row', 'column', 'string', 或 'line')
+            str: Recommended parsing mode ('row', 'column', 'string', or 'line')
             
         TODO:
-            - 添加表头特征分析
-            - 实现数据类型分布检测
-            - 添加数据密度和稀疏度分析
-            - 实现特殊格式表格识别(透视表、交叉表等)
-            - 添加时间序列和层次结构检测
-            - 考虑使用机器学习模型替代规则系统
-            - 添加上下文关系和对称性检测
+            - Add header feature analysis
+            - Implement data type distribution detection
+            - Add data density and sparsity analysis
+            - Implement special format table recognition (pivot tables, cross tables, etc.)
+            - Add time series and hierarchical structure detection
+            - Consider using machine learning models instead of rule-based system
+            - Add context relationship and symmetry detection
         """
         # 空表或极小表格
         if df.empty or len(df.columns) <= 1:
@@ -930,162 +988,191 @@ class FileToTextParser:
         Helper method to parse a single sheet from an Excel file.
         
         Args:
-            xlsx_file: Excel文件路径或BytesIO对象
-            sheet_name: 表格名称或索引
-            column_range: 列范围
-            row_range: 行范围
-            mode: 解析模式，可以是'auto', 'string', 'column', 'row', 或'line'
-            filter_empty: 是否过滤空值
+            xlsx_file: Excel file path or BytesIO object
+            sheet_name: Sheet name or index
+            column_range: Column range to parse
+            row_range: Row range to parse
+            mode: Parsing mode, one of 'auto', 'string', 'column', 'row', or 'line'
+            filter_empty: Whether to filter out empty values
             
         Returns:
-            解析后的表格内容
+            Parsed sheet content in the specified format
         """
-        df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
-        
-        if column_range:
-            df = df.iloc[:, column_range[0]:column_range[1]]
-        if row_range:
-            df = df.iloc[row_range[0]:row_range[1]]
+        try:
+            sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
+            log_info(f"Reading data from sheet {sheet_name_str}")
+            df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
+            
+            log_info(f"Sheet {sheet_name_str} contains {len(df)} rows, {len(df.columns)} columns")
+            
+            # 处理合并单元格
+            log_info(f"Processing merged cells in sheet {sheet_name_str}")
+            
+            # 应用行列过滤
+            if column_range:
+                log_info(f"Applying column range filter: {column_range}")
+                df = df.iloc[:, column_range[0]:column_range[1]]
+            if row_range:
+                log_info(f"Applying row range filter: {row_range}")
+                df = df.iloc[row_range[0]:row_range[1]]
 
-        # 处理空值
-        df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
-        
-        # 检查是否为空表格
-        if df.empty or len(df.columns) == 0:
+            # 处理空值
+            log_info(f"Processing null values and standardizing data types")
+            df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
+            
+            # 检查是否为空表格
+            if df.empty or len(df.columns) == 0:
+                log_warning(f"Sheet {sheet_name_str} is empty or has no valid columns")
+                if mode == "string":
+                    return ""
+                elif mode == "line":
+                    return "[]"
+                else:  # column or row mode
+                    return {}
+                    
+            # 添加自动模式检测
+            if mode == "auto":
+                detected_mode = self._detect_best_mode(df)
+                log_info(f"Auto-detected best parsing mode: {detected_mode}")
+                mode = detected_mode
+
+            log_info(f"Using mode '{mode}' to parse sheet {sheet_name_str}")
+            
+            # 执行相应模式的解析
             if mode == "string":
-                return ""
-            elif mode == "line":
-                return "[]"
-            else:  # column or row mode
-                return {}
+                return df.to_csv(index=False)
+            elif mode == "column":
+                # 获取列名和索引
+                columns = df.columns.tolist()
                 
-        # 添加自动模式检测
-        if mode == "auto":
-            mode = self._detect_best_mode(df)
-
-        if mode == "string":
-            return df.to_csv(index=False)
-        elif mode == "column":
-            # 获取列名和索引
-            columns = df.columns.tolist()
-            
-            # 处理没有列的情况
-            if not columns:
-                return {}
-                
-            first_col = columns[0]
-            
-            # 创建结果字典
-            result = {}
-            
-            # 如果只有一列，返回空字典
-            if len(columns) <= 1:
-                return result
-            
-            # 处理每一列（除了第一列）
-            for col in columns[1:]:
-                # 创建内层字典，使用第一列作为键
-                inner_dict = {}
-                
-                # 遍历每一行
-                for idx in df.index:
-                    key = df.loc[idx, first_col]
-                    value = df.loc[idx, col]
+                # 处理没有列的情况
+                if not columns:
+                    return {}
                     
-                    # 忽略空值
-                    if pd.notna(key) and pd.notna(value) and value != "" and value is not None:
-                        # 处理日期时间类型
-                        try:
-                            if isinstance(value, pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(value):
-                                inner_dict[key] = str(value)
-                            else:
-                                inner_dict[key] = value
-                        except:
-                            # 如果类型检测失败，保持原值
-                            inner_dict[key] = value
+                first_col = columns[0]
                 
-                # 如果内层字典为空，根据filter_empty决定是否添加
-                if inner_dict or not filter_empty:
-                    result[col] = inner_dict
-            
-            return result
-        elif mode == "line":
-            # 将DataFrame转换为JSON格式
-            # 处理日期时间等特殊类型
-            def json_serialize(obj):
-                if isinstance(obj, pd.Timestamp) or hasattr(obj, 'isoformat'):
-                    return str(obj)
-                return obj
-            
-            # 将DataFrame转换为记录列表
-            records = df.replace({pd.NA: None, pd.NaT: None}).to_dict(orient='records')
-            
-            # 返回JSON字符串
-            return json.dumps(records, default=json_serialize, ensure_ascii=False)
-        else:  # mode == "row"
-            # 获取列名
-            columns = df.columns.tolist()
-            
-            # 处理没有列的情况
-            if not columns:
-                return {}
-                
-            first_col = columns[0]
-            
-            # 如果只有一列，返回以第一列值为键，空字典为值的结构
-            if len(columns) <= 1:
+                # 创建结果字典
                 result = {}
-                for _, row in df.iterrows():
-                    key = row[first_col]
-                    if pd.notna(key):
-                        result[key] = {}
-                return result
-            
-            other_cols = columns[1:]
-            
-            # 创建结果字典
-            result = {}
-            
-            # 遍历DataFrame的每一行
-            for _, row in df.iterrows():
-                key = row[first_col]
                 
-                # 创建内层字典，忽略空值
-                inner_dict = {}
-                for col in other_cols:
-                    # 更全面地检测空值
-                    if pd.notna(row[col]) and row[col] != "" and row[col] is not None:
-                        # 处理日期时间类型
-                        try:
-                            if isinstance(row[col], pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(row[col]):
-                                inner_dict[col] = str(row[col])
-                            else:
-                                inner_dict[col] = row[col]
-                        except:
-                            # 如果类型检测失败，保持原值
-                            inner_dict[col] = row[col]
+                # 如果只有一列，返回空字典
+                if len(columns) <= 1:
+                    return result
                 
-                # 如果内层字典为空且第一列也为空，则跳过整行
-                if not inner_dict and pd.isna(key):
-                    continue
+                # 处理每一列（除了第一列）
+                for col in columns[1:]:
+                    # 创建内层字典，使用第一列作为键
+                    inner_dict = {}
                     
-                # 处理第一列为空的情况
-                if pd.isna(key):
-                    if "null_values" not in result:
-                        result["null_values"] = []
-                    result["null_values"].append(inner_dict)
-                    continue
+                    # 遍历每一行
+                    for idx in df.index:
+                        key = df.loc[idx, first_col]
+                        value = df.loc[idx, col]
+                        
+                        # 忽略空值
+                        if pd.notna(key) and pd.notna(value) and value != "" and value is not None:
+                            # 处理日期时间类型
+                            try:
+                                if isinstance(value, pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(value):
+                                    inner_dict[key] = str(value)
+                                else:
+                                    inner_dict[key] = value
+                            except:
+                                # 如果类型检测失败，保持原值
+                                inner_dict[key] = value
                     
-                # 处理第一列有重复值的情况
-                if key in result:
-                    # 合并内层字典
-                    result[key].update(inner_dict)
-                else:
-                    # 只有当内层字典非空时才添加
+                    # 如果内层字典为空，根据filter_empty决定是否添加
                     if inner_dict or not filter_empty:
-                        result[key] = inner_dict
-            
-            return result
+                        result[col] = inner_dict
+                
+                return result
+            elif mode == "line":
+                # 将DataFrame转换为JSON格式
+                # 处理日期时间等特殊类型
+                def json_serialize(obj):
+                    if isinstance(obj, pd.Timestamp) or hasattr(obj, 'isoformat'):
+                        return str(obj)
+                    return obj
+                
+                # 将DataFrame转换为记录列表
+                records = df.replace({pd.NA: None, pd.NaT: None}).to_dict(orient='records')
+                
+                # 返回JSON字符串
+                return json.dumps(records, default=json_serialize, ensure_ascii=False)
+            else:  # mode == "row"
+                # 获取列名
+                columns = df.columns.tolist()
+                
+                # 处理没有列的情况
+                if not columns:
+                    return {}
+                    
+                first_col = columns[0]
+                
+                # 如果只有一列，返回以第一列值为键，空字典为值的结构
+                if len(columns) <= 1:
+                    result = {}
+                    for _, row in df.iterrows():
+                        key = row[first_col]
+                        if pd.notna(key):
+                            result[key] = {}
+                    return result
+                
+                other_cols = columns[1:]
+                
+                # 创建结果字典
+                result = {}
+                
+                # 遍历DataFrame的每一行
+                total_rows = len(df)
+                log_info(f"Starting to process {total_rows} rows of data")
+                
+                for i, (_, row) in enumerate(df.iterrows()):
+                    key = row[first_col]
+                    
+                    # 创建内层字典，忽略空值
+                    inner_dict = {}
+                    for col in other_cols:
+                        # 更全面地检测空值
+                        if pd.notna(row[col]) and row[col] != "" and row[col] is not None:
+                            # 处理日期时间类型
+                            try:
+                                if isinstance(row[col], pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(row[col]):
+                                    inner_dict[col] = str(row[col])
+                                else:
+                                    inner_dict[col] = row[col]
+                            except:
+                                # 如果类型检测失败，保持原值
+                                inner_dict[col] = row[col]
+                    
+                    # 如果内层字典为空且第一列也为空，则跳过整行
+                    if not inner_dict and pd.isna(key):
+                        continue
+                        
+                    # 处理第一列为空的情况
+                    if pd.isna(key):
+                        if "null_values" not in result:
+                            result["null_values"] = []
+                        result["null_values"].append(inner_dict)
+                        continue
+                        
+                    # 处理第一列有重复值的情况
+                    if key in result:
+                        # 合并内层字典
+                        result[key].update(inner_dict)
+                    else:
+                        # 只有当内层字典非空时才添加
+                        if inner_dict or not filter_empty:
+                            result[key] = inner_dict
+                
+                log_info(f"Successfully processed {len(result)} effective data entries")
+                return result
+                
+        except Exception as e:
+            sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
+            error_msg = f"Error while parsing sheet {sheet_name_str}: {str(e)}"
+            log_error(error_msg)
+            log_error(traceback.format_exc())
+            raise PuppyException(1308, f"Error Parsing Sheet '{sheet_name_str}'", str(e))
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(

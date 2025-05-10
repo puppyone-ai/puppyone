@@ -462,7 +462,8 @@ async def get_data(
                         if not yielded_blocks:
                             continue
                         log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks")
-                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False})}\n\n"
+                        # 使用自定义序列化函数处理datetime等特殊类型
+                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False}, default=json_serializer)}\n\n"
                     
                     log_info(f"Connection {connection_id}: Processing complete, sending completion signal")
                     yield f"data: {json.dumps({'is_complete': True})}\n\n"
@@ -580,6 +581,34 @@ async def send_data(
             status_code=500
         )
 
+# 添加用于处理datetime等特殊类型的JSON序列化函数
+def json_serializer(obj):
+    """
+    Custom JSON serializer for handling objects that default json encoder cannot process.
+    
+    Handles:
+    - datetime and date objects -> ISO format string
+    - objects with isoformat() method -> calls that method
+    - pandas.Timestamp objects -> ISO format string
+    - any other non-serializable objects -> string representation
+    
+    Args:
+        obj: The object to serialize
+        
+    Returns:
+        A JSON-serializable version of the object
+    """
+    from datetime import datetime, date
+    import pandas as pd
+    
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    if pd and hasattr(pd, 'Timestamp') and isinstance(obj, pd.Timestamp):
+        return obj.isoformat()
+    # Handle other types that might not be JSON serializable
+    return str(obj)
 
 if __name__ == "__main__":
     try:
