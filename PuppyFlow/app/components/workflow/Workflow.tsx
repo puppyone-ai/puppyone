@@ -24,21 +24,14 @@ import '@xyflow/react/dist/style.css';
 import WebLinkNode from './blockNode/WebLinkNode'
 import Upbar from '../upbar/Upbar'
 import JsonBlockNode from './blockNode/JsonNodeNew'
-import LoadConfig from './edgesNode/edgeNodes/LoadConfig'
-import ChunkingConfig from './edgesNode/edgeNodes/ChunkingConfig'
-import CodeConfig from './edgesNode/edgeNodes/CodeConfig'
-import GenerateConfig from './edgesNode/edgeNodes/GenerateConfig'
-import ChooseConfig from './edgesNode/edgeNodes/ChooseConfig'
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
-import LLMConfig from './edgesNode/edgeNodes/LLMConfig'
-import SearchConfig from './edgesNode/edgeNodes/SearchConfig'
-import FileNode from './blockNode/FileNodeNew'
+
+import FileNode from './blockNode/FileNode'
 
 import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
 import ResultBlockNode from './blockNode/ResultNode'
 import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge'
-import ModifyConfig from './edgesNode/edgeNodes/ModifyConfig'
 import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils'
 import { markerEnd } from './connectionLineStyles/ConfigToTargetEdge'
 import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine'
@@ -66,12 +59,6 @@ const nodeTypes = {
   'file': FileNode,
   'weblink': WebLinkNode,
   'structured': JsonBlockNode,
-  'chunk': ChunkingConfig,
-  'code': CodeConfig,
-  'llm': LLMConfig,
-  'search': SearchConfig,
-  'modify': ModifyConfig,
-  'choose': ChooseConfig,
   'copy': CopyEdgeNode,
   'chunkingByLength': ChunkingByLength,
   'chunkingByCharacter': ChunkingByCharacter,
