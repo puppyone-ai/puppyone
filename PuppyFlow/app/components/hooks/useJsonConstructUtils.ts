@@ -588,7 +588,12 @@ function useJsonConstructUtils() {
         //     }
         //     node.data.label = node.data.label ?? node.id
         // }
-        return {blocks:nodes, edges:edges, viewport:viewport}
+        return {
+            blocks: nodes, 
+            edges: edges, 
+            viewport: viewport,
+            version: process.env.NEXT_PUBLIC_FRONTEND_VERSION || "0.1"
+        }
 
     }, [])
 
