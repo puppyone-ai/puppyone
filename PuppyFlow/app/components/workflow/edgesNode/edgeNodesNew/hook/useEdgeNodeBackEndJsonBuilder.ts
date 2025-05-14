@@ -233,10 +233,10 @@ export type IfElseEdgeJsonType = {
                     parameters: { [key: string]: string | number };
                     operation: string;
                 }[];
-                then: {
+                thens: {
                     from: string;
                     to: string;
-                };
+                }[];
             };
         };
         inputs: { [key: string]: string };
@@ -856,7 +856,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
         const llmModel = typeof llmNodeData?.model === 'string' ? llmNodeData.model : "anthropic/claude-3.5-haiku";
         const llmBaseUrl = typeof llmNodeData?.base_url === 'string' ? llmNodeData.base_url : "";
         const llmStructuredOutput = !!llmNodeData?.structured_output; // 转换为布尔值
-        
+        const maxTokens = (llmNodeData?.max_tokens as number) || 2000;
         return {
             type: "llm",
             data: {
@@ -866,7 +866,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 ),
                 model: llmModel,
                 base_url: llmBaseUrl,
-                max_tokens: 2000,
+                max_tokens: maxTokens,
                 temperature: 0.7,
                 inputs: Object.fromEntries(sourceNodes.map(node => ([node.id, node.label]))),
                 structured_output: llmStructuredOutput,
@@ -1079,10 +1079,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     parameters: { [key: string]: string | number };
                     operation: string;
                 }[];
-                then: {
+                thens: {
                     from: string;
                     to: string;
-                };
+                }[];
             };
         } = {};
         
@@ -1133,32 +1133,44 @@ export function useEdgeNodeBackEndJsonBuilder() {
                 };
             });
             
-            // Verify that actions array exists
-            if (!caseItem.actions || !Array.isArray(caseItem.actions) || caseItem.actions.length === 0) {
-                return; // Skip this case if actions are invalid
+            // 处理 thens
+            let thens: { from: string; to: string }[] = [];
+            if (Array.isArray(caseItem.actions) && caseItem.actions.length > 0) {
+                caseItem.actions.forEach((action: any) => {
+                    if (Array.isArray(action.outputs) && action.outputs.length > 0) {
+                        action.outputs.forEach((outputId: string) => {
+                            thens.push({
+                                from: action.from_id || sourceNodes[0]?.id || "",
+                                to: outputId
+                            });
+                        });
+                    } else {
+                        // fallback
+                        thens.push({
+                            from: action.from_id || sourceNodes[0]?.id || "",
+                            to: targetNodes[0]?.id || ""
+                        });
+                    }
+                });
             }
-            
-            // Process actions (take the first action as the main action)
-            const action = caseItem.actions[0];
-            
-            // If action.outputs is not an array or is empty, use a fallback
-            const outputId = Array.isArray(action.outputs) && action.outputs.length > 0 
-                ? action.outputs[0] 
-                : targetNodes[0]?.id || "";
-            
+
+            if (thens.length === 0) {
+                // fallback
+                thens.push({
+                    from: sourceNodes[0]?.id || "",
+                    to: targetNodes[0]?.id || ""
+                });
+            }
+
             transformedCases[caseKey] = {
                 conditions,
-                then: {
-                    from: action.from_id || sourceNodes[0]?.id || "",
-                    to: outputId
-                }
+                thens
             };
         });
         
         // If no valid cases were processed, we might end up with an empty object
         // Make sure we have at least one case if there were cases in the input
         if (Object.keys(transformedCases).length === 0 && nodeData.cases.length > 0) {
-            // Create a default case using the first source and target nodes
             transformedCases["case1"] = {
                 conditions: [{
                     block: sourceNodes[0]?.id || "",
@@ -1166,10 +1178,10 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     parameters: { value: "" },
                     operation: "/"
                 }],
-                then: {
+                thens: [{
                     from: sourceNodes[0]?.id || "",
                     to: targetNodes[0]?.id || ""
-                }
+                }]
             };
         }
         

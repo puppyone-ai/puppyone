@@ -72,3 +72,4 @@ json_received.json
 
 # Local Storage
 **/local_storage/
+.cursor/rules/puppy-rules.mdc

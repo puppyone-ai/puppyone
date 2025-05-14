@@ -5,7 +5,7 @@ import TestRunBotton from './TestRunBotton'
 import { useState, useEffect } from 'react'
 import { useNodesPerFlowContext } from "../../states/NodesPerFlowContext"
 import SaveButton from './SaveButton'
-import DeployBottonNew from './DeployBottonNew'
+import DeployBottonNew from './DeployBotton'
 import { Controls } from '@xyflow/react'
 
 function TopRightToolBar() {

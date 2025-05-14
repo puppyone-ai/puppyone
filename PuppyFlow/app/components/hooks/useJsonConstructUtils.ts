@@ -4,7 +4,7 @@
 import React, { Children } from "react";
 import { useReactFlow, Node } from "@xyflow/react";
 import { useCallback, useRef, useContext } from "react";
-import {JsonNodeData} from "../workflow/blockNode/JsonNode"
+import {JsonNodeData} from "../workflow/blockNode/JsonNodeNew"
 import {FileNodeData} from "../workflow/blockNode/FileNode"
 import {ResultNodeData} from "../workflow/blockNode/ResultNode"
 import {SwitchNodeData} from "../workflow/blockNode/SwitchNode"
@@ -588,7 +588,12 @@ function useJsonConstructUtils() {
         //     }
         //     node.data.label = node.data.label ?? node.id
         // }
-        return {blocks:nodes, edges:edges, viewport:viewport}
+        return {
+            blocks: nodes, 
+            edges: edges, 
+            viewport: viewport,
+            version: process.env.NEXT_PUBLIC_FRONTEND_VERSION || "0.1"
+        }
 
     }, [])
 

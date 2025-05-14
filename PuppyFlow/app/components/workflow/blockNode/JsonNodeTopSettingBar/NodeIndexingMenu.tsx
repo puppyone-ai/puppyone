@@ -20,7 +20,7 @@ interface BaseIndexingItem {
 
 interface VectorIndexingItem extends BaseIndexingItem {
     type: 'vector';
-    status: 'notStarted' | 'processing' | 'done' | 'error';
+    status: 'notStarted' | 'processing' | 'done' | 'error' | 'deleting';
     key_path: PathSegment[];
     value_path: PathSegment[];
     chunks: any[];
@@ -52,7 +52,7 @@ interface IndexingMenuProps {
 const IndexingMenu: React.FC<IndexingMenuProps> = ({
     id,
     showMenu,
-    indexingList,
+    indexingList = [],
     onClose,
     onAddIndex,
     onRemoveIndex
@@ -272,9 +272,11 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                             ? 'bg-[#E53935]' 
                                                             : (item as VectorIndexingItem).status === 'processing' 
                                                                 ? 'bg-[#FFC107]' 
-                                                                : (item as VectorIndexingItem).status === 'done'
-                                                                    ? 'bg-[#39BC66]'
-                                                                    : 'bg-[#39BC66]'}`}>
+                                                                : (item as VectorIndexingItem).status === 'deleting'
+                                                                    ? 'bg-[#FF9800]'
+                                                                    : (item as VectorIndexingItem).status === 'done'
+                                                                        ? 'bg-[#39BC66]'
+                                                                        : 'bg-[#39BC66]'}`}>
                                                     </div>
 
                                                     <div className='flex-1 pl-4'>
@@ -293,9 +295,11 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                                 <div className={`ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium
                                                                     ${(item as VectorIndexingItem).status === 'processing' 
                                                                         ? 'bg-[#FFC107]/10 text-[#FFC107]' 
-                                                                        : (item as VectorIndexingItem).status === 'error'
-                                                                            ? 'bg-[#E53935]/10 text-[#E53935]'
-                                                                            : 'bg-[#39BC66]/10 text-[#39BC66]'
+                                                                        : (item as VectorIndexingItem).status === 'deleting'
+                                                                            ? 'bg-[#FF9800]/10 text-[#FF9800]'
+                                                                            : (item as VectorIndexingItem).status === 'error'
+                                                                                ? 'bg-[#E53935]/10 text-[#E53935]'
+                                                                                : 'bg-[#39BC66]/10 text-[#39BC66]'
                                                                     }`}>
                                                                     {/* 状态图标 */}
                                                                     {(item as VectorIndexingItem).status === 'processing' && (
@@ -303,6 +307,11 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                                             <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" 
                                                                                 strokeWidth="3" 
                                                                                 strokeLinecap="round" />
+                                                                        </svg>
+                                                                    )}
+                                                                    {(item as VectorIndexingItem).status === 'deleting' && (
+                                                                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="animate-spin" style={{animationDuration: '1.5s'}}>
+                                                                            <path d="M18 6L6 18M6 6l12 12" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
                                                                         </svg>
                                                                     )}
                                                                     {(item as VectorIndexingItem).status === 'error' && (
@@ -319,6 +328,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                                                     {/* 状态文本 */}
                                                                     <span>
                                                                         {(item as VectorIndexingItem).status === 'processing' && 'Processing'}
+                                                                        {(item as VectorIndexingItem).status === 'deleting' && 'Deleting'}
                                                                         {(item as VectorIndexingItem).status === 'error' && 'Error'}
                                                                         {(item as VectorIndexingItem).status === 'done' && 'Complete'}
                                                                     </span>
