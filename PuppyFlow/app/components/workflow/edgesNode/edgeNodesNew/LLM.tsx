@@ -15,6 +15,7 @@ export type LLMConfigNodeData = {
     model: "gpt-4o" | "gpt-4" | "gpt-4o-mini" | undefined,
     structured_output: boolean | undefined,
     base_url: string | undefined,
+    max_tokens: number | undefined,
 }
 
 type LLMConfigNodeProps = NodeProps<Node<LLMConfigNodeData>>
@@ -64,6 +65,9 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         (getNode(id)?.data as LLMConfigNodeData)?.structured_output ?? false
     )
     const [showSettings, setShowSettings] = useState(false)
+    const [maxTokens, setMaxTokens] = useState<number>(
+        (getNode(id)?.data?.max_tokens as number) || 4096
+    )
 
     // 在 LLMConfigMenu 组件中，增强 sourceNodeLabels 状态以包含类型信息
     const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([]);
@@ -71,93 +75,41 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     // 使用useRef来存储最新的消息内容，避免不必要的渲染
     const messagesRef = useRef<PromptMessage[]>([]);
 
-    // 添加一个状态来存储解析后的消息数据
-    const [parsedMessages, setParsedMessages] = useState<PromptMessage[]>([
-        { role: "system", content: "You are an AI" },
-        { role: "user", content: "Answer the question" }
-    ]);
-
-    // 负责解析节点内容并更新消息状态
-    const parseNodeContent = useCallback(() => {
-        const nodeContent = getNode(id)?.data?.content;
-        if (!nodeContent) return;
-
-        try {
-            const parsed = typeof nodeContent === 'string'
-                ? JSON.parse(nodeContent)
-                : nodeContent;
-
-            if (Array.isArray(parsed)) {
-                setParsedMessages(parsed);
-                // 同时更新ref引用，用于执行操作
-                messagesRef.current = parsed;
+    // 初始化 parsedMessages，直接用节点数据
+    const [parsedMessages, setParsedMessages] = useState<PromptMessage[]>(() => {
+        // 获取当前节点的输入节点
+        const sourceNodes = getSourceNodeIdWithLabel(id);
+        const firstInputNode = sourceNodes[0];
+        
+        // 构建默认消息
+        const defaultMessages = [
+            { role: "system", content: "You are an AI" },
+            { 
+                role: "user", 
+                content: firstInputNode 
+                ? `Answer the question: {{${firstInputNode.label}}}`
+                : "Answer the question"
             }
-        } catch (e) {
-            console.warn("Failed to parse node content:", e);
-        }
-    }, [id, getNode]);
+        ];
 
-    // 初始化和节点内容变化时解析消息
-    useEffect(() => {
-        parseNodeContent();
-    }, [parseNodeContent]);
+        // 如果节点已有数据，使用节点数据，否则使用默认消息
+        return (getNode(id)?.data?.content as PromptMessage[]) || defaultMessages;
+    });
 
-    // 监听来源节点变化，自动更新提示内容
-    const lastNodeWithLabel = useRef<string | undefined>(undefined);
-
-    useEffect(() => {
-        // 检查源节点
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
-        if (sourceNodeIdWithLabelGroup.length === 0) return;
-
-        // 只有当标签变化时才更新
-        const currentLabel = sourceNodeIdWithLabelGroup[0]?.label;
-        if (lastNodeWithLabel.current === currentLabel) {
-            return;
-        }
-
-        console.log("Source node label changed, updating prompt template");
-        lastNodeWithLabel.current = currentLabel;
-
-        if (currentLabel) {
-            // 创建新的提示消息
-            const newMessages: PromptMessage[] = [
-                { role: "system", content: "You are an AI" },
-                { role: "user", content: `answer the question by {{${currentLabel}}}` }
-            ];
-
-            // 更新ReactFlow节点
-            const content = JSON.stringify(newMessages);
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === id) {
-                    return { ...node, data: { ...node.data, content } };
-                }
-                return node;
-            }));
-
-            // 更新本地状态
-            setParsedMessages(newMessages);
-            messagesRef.current = newMessages;
-        }
-    }, [id, getSourceNodeIdWithLabel, setNodes]);
-
-    // 处理PromptEditor的变更
+    // 处理 PromptEditor 的变更
     const handleMessagesChange = useCallback((updatedMessages: PromptMessage[]) => {
-        // 更新本地引用
         messagesRef.current = updatedMessages;
-
-        // 更新状态
         setParsedMessages(updatedMessages);
-
-        // 同步到ReactFlow节点
-        const content = JSON.stringify(updatedMessages);
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { ...node, data: { ...node.data, content } };
+                return { ...node, data: { ...node.data, content: updatedMessages } };
             }
             return node;
         }));
     }, [id, setNodes]);
+
+    // 监听来源节点变化，自动更新提示内容
+    const lastNodeWithLabel = useRef<string | undefined>(undefined);
 
     // 准备变量列表用于高亮显示
     const variables = useMemo(() => {
@@ -216,6 +168,24 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
+            
+            // 检查并初始化内容
+            const nodeData = getNode(id)?.data;
+            const currentContent = nodeData?.content;
+            
+            // 调试输出，查看初始状态
+            console.log("Initial node content:", currentContent, typeof currentContent);
+            
+            // 如果内容不存在或格式不正确，则初始化
+            if (!currentContent || typeof currentContent === 'string' || !Array.isArray(currentContent)) {
+                console.log("Setting initial content:", parsedMessages);
+                setNodes(prevNodes => prevNodes.map(node => {
+                    if (node.id === id) {
+                        return { ...node, data: { ...node.data, content: parsedMessages } };
+                    }
+                    return node;
+                }));
+            }
         }
 
         return () => {
@@ -281,6 +251,21 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         }))
     }
 
+    // 添加 onMaxTokensChange 函数
+    const onMaxTokensChange = (newMaxTokens: number) => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === id) {
+                return { ...node, data: { ...node.data, max_tokens: newMaxTokens } }
+            }
+            return node
+        }))
+    }
+
+    // 添加 useEffect 来监听 maxTokens 的变化
+    useEffect(() => {
+        onMaxTokensChange(maxTokens)
+    }, [maxTokens])
+
     // 在组件顶部定义共享样式
     const handleStyle = {
         position: "absolute" as const,
@@ -299,9 +284,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     const open_router_supported_models = [
         "openai/gpt-4o-mini",
         "openai/gpt-4o-2024-11-20",
-        "openai/gpt-4-turbo",
         "openai/gpt-4.5-preview",
-        "openai/o1-mini",
         "openai/o1",
         "openai/o3-mini",
         "deepseek/deepseek-chat-v3-0324:free",
@@ -441,6 +424,33 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         />
                     </li>
 
+                                        {/* Model Selection - Moved outside settings */}
+                                        <li className='flex flex-col gap-2'>
+                        <div className='flex items-center gap-2'>
+                            <label className='text-[13px] font-semibold text-[#6D7177]'>Model</label>
+                            <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                        </div>
+                        <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                            <select
+                                value={model}
+                                onChange={(e) => setModel(e.target.value)}
+                                className='w-full h-full bg-[#252525] border-none outline-none px-3
+                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
+                                onMouseDownCapture={onFocus}
+                                onBlur={onBlur}
+                            >
+                                {open_router_supported_models.map((model) => (
+                                    <option key={model} value={model}>{model}</option>
+                                ))}
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </div>
+                        </div>
+                    </li>
+
                     <li className='flex flex-col gap-2'>
                         <div className='flex items-center gap-2'>
                             <label className='text-[13px] font-semibold text-[#6D7177]'>Output type</label>
@@ -464,6 +474,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         </div>
                     </li>
 
+                    {/* Settings section */}
                     <li className='flex flex-col gap-2'>
                         <div className='flex items-center justify-between'>
                             <div className='flex items-center gap-2'>
@@ -489,29 +500,23 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         {showSettings && (
                             <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
                                 <div className='flex flex-col gap-2'>
-                                    <div className='flex items-center gap-2'>
-                                        <label className='text-[12px] font-medium text-[#6D7177]'>Model</label>
-                                    </div>
-                                    <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                                        <select
-                                            value={model}
-                                            onChange={(e) => setModel(e.target.value)}
-                                            className='w-full h-full bg-[#252525] border-none outline-none px-3
-                                             text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
+                                    {/* Max Tokens Input */}
+                                    <div className='flex flex-col gap-1'>
+                                        <label className='text-[12px] font-medium text-[#6D7177]'>Max Tokens</label>
+                                        <input
+                                            type="number"
+                                            value={maxTokens}
+                                            onChange={(e) => setMaxTokens(Number(e.target.value))}
+                                            placeholder="Enter max tokens"
+                                            className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                                    text-[#CDCDCD] text-[12px] font-medium appearance-none
+                                                    hover:border-[#6D7177]/50 transition-colors'
                                             onMouseDownCapture={onFocus}
                                             onBlur={onBlur}
-                                        >
-                                            {open_router_supported_models.map((model) => (
-                                                <option key={model} value={model}>{model}</option>
-                                            ))}
-                                        </select>
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                            </svg>
-                                        </div>
+                                        />
                                     </div>
 
+                                    {/* Base URL Input */}
                                     <div className='flex flex-col gap-1 mt-2'>
                                         <label className='text-[12px] font-medium text-[#6D7177]'>Base URL (Optional)</label>
                                         <input
@@ -520,8 +525,8 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                                             onChange={(e) => setBaseUrl(e.target.value)}
                                             placeholder="Enter base URL if needed"
                                             className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
-                                                        text-[#CDCDCD] text-[12px] font-medium appearance-none
-                                                        hover:border-[#6D7177]/50 transition-colors'
+                                                    text-[#CDCDCD] text-[12px] font-medium appearance-none
+                                                    hover:border-[#6D7177]/50 transition-colors'
                                             onMouseDownCapture={onFocus}
                                             onBlur={onBlur}
                                         />

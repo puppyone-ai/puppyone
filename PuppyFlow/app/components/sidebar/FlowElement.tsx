@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 import FlowElementOperationMenu from './FlowElementOperationMenu'
 type FlowElementProps = {
@@ -15,6 +15,7 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
     // 需要定义一个css 条件是当hover到这个flow bar 时，bg背景颜色需要变化 bg-[#3d3e41]
 
     const [isHover, setIsHover] = useState(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
     // const {removeFlow, editFlowName, setSelectedFlowId, selectedFlowId} = useFlowsPerUserContext()
     const {handleFlowSwitch, selectedFlowId, removeFlow, editFlowName} = useFlowsPerUserContext()
 
@@ -39,7 +40,7 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
             handleFlowSwitch(FlowId)
         }
     }}>
-      <div className={`flex items-center justify-start text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
+      <div className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
       ${FlowId === selectedFlowId ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}>
         {FlowName}
@@ -47,6 +48,7 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
       <div className={`w-[24px] h-[24px] ${flowIdShowOperationMenu === FlowId || isHover ? 'flex' : 'hidden'}`}> {/* 添加固定宽度的容器 */}
         
           <button 
+            ref={buttonRef}
             className='flex items-center justify-center w-[24px] h-[24px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-200' 
             onClick={(e) => {
               e.preventDefault()
@@ -61,9 +63,12 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
               <path d="M11.5 11H13.5V13H11.5V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200"/>
             </svg>
           </button>
-          <FlowElementOperationMenu flowId={FlowId} 
-          show={flowIdShowOperationMenu === FlowId} 
-          handleOperationMenuHide={() => handleOperationMenuShow(null)} />
+          <FlowElementOperationMenu 
+            flowId={FlowId} 
+            show={flowIdShowOperationMenu === FlowId} 
+            handleOperationMenuHide={() => handleOperationMenuShow(null)}
+            buttonRef={buttonRef}
+          />
       </div>
 
     </li>

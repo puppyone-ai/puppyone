@@ -8,10 +8,8 @@ warnings.simplefilter("ignore", DeprecationWarning)
 warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore", FutureWarning)
 
-import logging
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("httpx").setLevel(logging.ERROR)
-logger = logging.getLogger(__name__)
+# 移除标准logging配置，使用自定义日志函数
+from Utils.logger import log_info, log_warning, log_error
 
 import json
 import threading
@@ -21,6 +19,7 @@ from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
 from Utils.puppy_exception import global_exception_handler, PuppyException
+import traceback
 
 
 """
@@ -72,8 +71,12 @@ Edge Processing Contract:
 """
 
 class WorkFlow():
-
     """
+    Workflow Engine Core Processor
+    
+    Maintains its own data copy and processes workflows independently,
+    while being associated with a task_id for tracking purposes.
+    
     Class Attributes:
     -----------------
     version : str
@@ -126,6 +129,42 @@ class WorkFlow():
         - "processing": Currently executing
         - "completed":  Successfully finished
     
+    Example Input JSON:
+    ------------------
+    {
+        "blocks": {
+            "2": {
+                "label": "b",
+                "type": "structured",
+                "data": {
+                    "content": "",
+                    "embedding_view": []
+                }
+            },
+            "3": {
+                "label": "c",
+                "type": "text",
+                "data": {
+                    "content": "puppy"
+                }
+            }
+        },
+        "edges": {
+            "llm-1727235281399": {
+                "type": "llm",
+                "data": {
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful AI assistant that called {{c}}"},
+                        {"role": "user", "content": "introduce your self"}
+                    ],
+                    "inputs": {"3": "c"},
+                    "outputs": {"2": "b"}
+                }
+            }
+        },
+        "version": "0.1"
+    }
+    
     Design Invariants:
     ------------------
     1. block_states keys ≡ blocks keys
@@ -134,7 +173,7 @@ class WorkFlow():
        edge_to_inputs_mapping[edge_id] ⊆ blocks
        edge_to_outputs_mapping[edge_id] ⊆ blocks
     """
-
+    
     version: str = "0.1"
     type: str = "workflow"
 
@@ -143,80 +182,56 @@ class WorkFlow():
         self,
         json_data: Dict[str, Dict[str, str]],
         latest_version: str = "0.1",
-        step_mode: bool = False
+        step_mode: bool = False,
+        task_id: str = None
     ):
         """
-        Initialize the processor for the WorkFlow object.
-
-        Args:
-            json_data: The workflow definition in JSON format
-            latest_version: The latest version of the schema
-            step_mode: If True, enable step-by-step execution mode
+        Initialize the workflow with its own data copy.
         
-        Example Input JSON:
-        {
-            "blocks": {
-                "2": {
-                    "label": "b",
-                    "type": "structured",
-                    "data": {
-                        "content": "",
-                        "embedding_view": []
-                    }
-                },
-                "3": {
-                    "label": "c",
-                    "type": "text",
-                    "data": {
-                        "content": "puppy"
-                    }
-                }
-            },
-            "edges": {
-                "llm-1727235281399": {
-                    "type": "llm",
-                    "data": {
-                        "messages": [
-                            {"role": "system", "content": "You are a helpful AI assistant that called {{c}}"},
-                            {"role": "user", "content": "introduce your self"}
-                        ],
-                        "inputs": {"3": "c"},
-                        "outputs": {"2": "b"}
-                    }
-                }
-            },
-            "version": "0.1"
-        }
+        Args:
+            json_data: The complete workflow data including blocks and edges
+            latest_version: The latest version of the schema 
+            step_mode: If True, enable step-by-step execution mode
+            task_id: The task ID to associate this workflow with (optional)
         """
-
         self.step_mode = step_mode
-        # Convert the JSON data to the latest version
+        self.task_id = task_id
+        
+        if task_id:
+            log_info(f"Creating workflow for task {task_id}")
+        
+        # Store version information
         self.version = json_data.get("version", self.__class__.version)
-
-        # Convert the JSON data to the latest version
+        
+        # Handle version conversion if needed
         if self.version != latest_version:
             converter = JsonConverter(latest_version)
             json_data = converter.convert(json_data)
-
+        
+        # Store workflow data (maintains own copy)
         self.blocks = json_data.get("blocks", {})
         self.edges = json_data.get("edges", {})
+        
+        # Parse edge connections and validate flow
         self.edge_to_inputs_mapping, self.edge_to_outputs_mapping = self._parse_edge_connections()
-
-        # Validate single flow before proceeding
         self._validate_single_flow()
-
-        # Simplified state management
+        
+        # Initialize state tracking
         self.block_states = {bid: "pending" for bid in self.blocks}
         self.edge_states = {eid: "pending" for eid in self.edges}
-
-        # Auto-process source blocks
-        initial_processed = set(self.blocks.keys()) - set().union(*self.edge_to_outputs_mapping.values())
+        
+        # Mark source blocks as processed
+        initial_processed = set(self.blocks.keys()) - set().union(*self.edge_to_outputs_mapping.values()) if self.edge_to_outputs_mapping else set(self.blocks.keys())
         for bid in initial_processed:
             self.block_states[bid] = "processed"
-
+            log_info(f"Auto-marked source block {bid} as processed")
+        
+        # Initialize thread resources
         self.max_workers = min(32, (os.cpu_count() or 1) * 4)
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
+        
+        log_info(f"Workflow initialized with {len(self.blocks)} blocks and {len(self.edges)} edges")
 
     def _validate_single_flow(
         self
@@ -293,7 +308,7 @@ class WorkFlow():
         Process the workflow with concurrent edge execution
         """
         try:
-            logger.info("Starting workflow processing")
+            log_info(f"Starting workflow processing for task {self.task_id}")
             
             # 处理工作流
             parallel_batch = self._find_parallel_batches()
@@ -301,7 +316,7 @@ class WorkFlow():
 
             while parallel_batch:
                 batch_count += 1
-                logger.info(f"Found parallel batch #{batch_count}: {parallel_batch}")
+                log_info(f"Found parallel batch #{batch_count}: {parallel_batch}")
 
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
@@ -315,10 +330,11 @@ class WorkFlow():
                 yield processed_blocks
                 parallel_batch = self._find_parallel_batches()
             
+            log_info(f"Workflow processing completed for task {self.task_id}")
+            
         finally:
             # 确保在处理完成后自动清理资源
             self.cleanup_resources()
-            logger.info("Workflow processing completed")
 
     def cleanup_resources(self):
         """
@@ -330,18 +346,25 @@ class WorkFlow():
                 self.thread_executor.shutdown(wait=True)
                 self.thread_executor = None
             
-            # 清理其他资源
-            self.blocks.clear()
-            self.edges.clear()
-            self.block_states.clear()
-            self.edge_states.clear()
-            self.edge_to_inputs_mapping.clear()
-            self.edge_to_outputs_mapping.clear()
+            # 清理所有内部数据
+            if hasattr(self, 'blocks'):
+                self.blocks.clear()
+            if hasattr(self, 'edges'):
+                self.edges.clear()
+            if hasattr(self, 'block_states'):
+                self.block_states.clear()
+            if hasattr(self, 'edge_states'):
+                self.edge_states.clear()
+            if hasattr(self, 'edge_to_inputs_mapping'):
+                self.edge_to_inputs_mapping.clear()
+            if hasattr(self, 'edge_to_outputs_mapping'):
+                self.edge_to_outputs_mapping.clear()
             
             # 打破可能的循环引用
             self.state_lock = None
+            log_info(f"Workflow resources cleaned up for task {self.task_id}")
         except Exception as e:
-            logger.error(f"Error during workflow cleanup: {str(e)}")
+            log_error(f"Error during workflow cleanup: {str(e)}")
 
     def _find_parallel_batches(
         self
@@ -379,7 +402,7 @@ class WorkFlow():
         try:
             # Stage 2: Process batch concurrently
             outputs = self._execute_edge_batch(batch)
-            logger.info("Batch processing output: %s", outputs)
+            log_info(f"Batch processing output: {outputs}")
 
             # Stage 3: Update states atomically
             with self.state_lock:
@@ -397,7 +420,7 @@ class WorkFlow():
 
             return outputs.keys()
         except Exception as e:
-            logger.error(f"Batch processing failed: {str(e)}")
+            log_error(f"Batch processing failed: {str(e)}")
             raise
 
     def _execute_edge_batch(
@@ -418,10 +441,10 @@ class WorkFlow():
 
                 # Prepare block configs for this edge
                 block_configs = self._prepare_block_configs(edge_id)
-                logger.debug(f"Edge {edge_id} block configs: {block_configs}")
+                log_info(f"[DEBUG] Edge {edge_id} block configs: {block_configs}")
 
                 # Submit edge execution
-                logger.info(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
+                log_info(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
                 futures[self.thread_executor.submit(
                     EdgeExecutor(
                         edge_type=edge_info.get("type"),
@@ -436,7 +459,8 @@ class WorkFlow():
                 try:
                     results = self._process_edge_result(edge_id, results, future)
                 except Exception as e:
-                    logger.error(f"Edge {edge_id} execution failed with error: {str(e)}", exc_info=True)
+                    # 移除exc_info参数，使用格式化字符串
+                    log_error(f"Edge {edge_id} execution failed with error: {str(e)}\n{traceback.format_exc()}")
                     raise
 
             return results
@@ -446,9 +470,10 @@ class WorkFlow():
             with self.state_lock:
                 for edge_id in edge_batch:
                     self.edge_states[edge_id] = "pending"
-                    logger.info(f"Reverted edge {edge_id} to pending state")
+                    log_info(f"Reverted edge {edge_id} to pending state")
 
-            logger.error(f"Batch execution failed: {str(e)}", exc_info=True)
+            # 移除exc_info参数，使用格式化字符串
+            log_error(f"Batch execution failed: {str(e)}\n{traceback.format_exc()}")
             raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
 
     def _prepare_block_configs(
@@ -480,7 +505,7 @@ class WorkFlow():
         edge_id: str,
         results: Dict[str, Any],
         future: concurrent.futures.Future
-    ) -> None:
+    ) -> Dict[str, Any]:
         """
         Process the result of an edge execution
         """
@@ -498,11 +523,11 @@ class WorkFlow():
 
         if edge_result.error:
             log_msg += f"\nError: {str(edge_result.error)}"
-            logger.error(log_msg)
+            log_error(log_msg)
             raise edge_result.error
 
         log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
-        logger.info(log_msg)
+        log_info(log_msg)
         if edge_result.status == "completed":
             # Map results to output blocks
             for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
@@ -512,9 +537,9 @@ class WorkFlow():
                         results[block_id] = content
                 else:
                     results[block_id] = edge_result.result
-                logger.debug(f"Block {block_id} updated with result type: {type(edge_result.result)}")
+                log_info(f"[DEBUG] Block {block_id} updated with result type: {type(edge_result.result)}")
         else:
-            logger.warning(f"Edge {edge_id} completed but status is {edge_result.status}")
+            log_warning(f"Edge {edge_id} completed but status is {edge_result.status}")
 
         return results
 
@@ -554,8 +579,8 @@ class WorkFlow():
     def _log_final_states(
         self
     ):
-        logger.debug("Final Block States: %s", self.block_states)
-        logger.debug("Final Edge States: %s", self.edge_states)
+        log_info(f"Final Block States: {self.block_states}")
+        log_info(f"Final Edge States: {self.edge_states}")
 
     def _unicode_formatting(
         self,
@@ -576,7 +601,8 @@ class WorkFlow():
             ValueError: If the content is not a valid JSON format for structured blocks.
         """
 
-        logger.debug("Input Content: %s, Type: %s", content, type(content))
+        # 调试日志 - 详细级别
+        log_info(f"[DEBUG] Input Content: {content}, Type: {type(content)}")
 
         if not isinstance(content, str):
             return content
@@ -601,14 +627,15 @@ class WorkFlow():
                 try:
                     json.loads(content)
                 except json.JSONDecodeError as e:
-                    logger.error("JSON validation failed: %s\nContent: %s", str(e), content)
+                    log_error(f"JSON validation failed: {str(e)}\nContent: {content}")
                     raise ValueError(f"Invalid JSON structure: {str(e)}")
 
             except Exception as e:
-                logger.error("Structured content formatting failed: %s\nContent: %s", str(e), content)
+                log_error(f"Structured content formatting failed: {str(e)}\nContent: {content}")
                 raise ValueError(f"Invalid structured content format: {str(e)}")
 
-        logger.debug("Formatted Content: %s", content)
+        # 调试日志 - 详细级别
+        log_info(f"[DEBUG] Formatted Content: {content}")
         return content
 
     def _valid_output_block_type(
@@ -664,10 +691,11 @@ if __name__ == "__main__":
         # Use list() to collect all outputs, ensure the workflow is complete
         outputs = []
         workflow = WorkFlow(data)
+        workflow.initialize_workflow_state()
         for output_blocks in workflow.process():
-            logger.info("Received output blocks: %s", output_blocks)
+            log_info("Received output blocks: %s", output_blocks)
             outputs.append(output_blocks)
 
-        logger.info("Final blocks state: %s", workflow.blocks)
-        logger.info("All outputs: %s", outputs)
+        log_info("Final blocks state: %s", workflow.blocks)
+        log_info("All outputs: %s", outputs)
         workflow.cleanup_resources()

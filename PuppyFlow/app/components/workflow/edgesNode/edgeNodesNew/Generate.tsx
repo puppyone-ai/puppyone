@@ -92,7 +92,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     
     // 状态管理
     const [model, setModel] = useState<string>(
-        (getNode(id)?.data?.model as string) || "openai/gpt-4o"
+        (getNode(id)?.data?.model as string) || "anthropic/claude-3.5-haiku"
     )
     
     const [structuredOutput, setStructuredOutput] = useState<boolean>(
@@ -207,9 +207,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     const supported_models = [
         "openai/gpt-4o-mini",
         "openai/gpt-4o-2024-11-20",
-        "openai/gpt-4-turbo",
         "openai/gpt-4.5-preview",
-        "openai/o1-mini",
         "openai/o1",
         "openai/o3-mini",
         "deepseek/deepseek-chat-v3-0324:free",

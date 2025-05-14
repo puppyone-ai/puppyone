@@ -19,9 +19,12 @@ import pymupdf4llm
 import numpy as np
 import pandas as pd
 import multiprocessing
+import time
 from pydub import AudioSegment
 from typing import List, Dict, Any, Tuple, Union
 from Utils.puppy_exception import PuppyException, global_exception_handler
+from Utils.logger import log_info, log_error, log_warning
+import openpyxl
 
 
 logger = logging.getLogger(__name__)
@@ -137,31 +140,31 @@ class FileToTextParser:
             logger.error(f"Error in parse_multiple: {str(e)}\n{traceback.format_exc()}")
             raise
 
-    def _group_files_by_type(
-        self, 
-        file_configs: List[Dict[str, Any]]
-    ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
-        """
-        Group file configurations by file type
+    # def _group_files_by_type(
+    #     self, 
+    #     file_configs: List[Dict[str, Any]]
+    # ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
+    #     """
+    #     Group file configurations by file type
 
-        Args:
-            file_configs: List of file configurations
+    #     Args:
+    #         file_configs: List of file configurations
 
-        Returns:
-            Dictionary mapping file types to lists of (index, config) tuples
-        """
+    #     Returns:
+    #         Dictionary mapping file types to lists of (index, config) tuples
+    #     """
 
-        file_type_groups = {}
-        for i, config in enumerate(file_configs):
-            file_path = config.get('file_path')
-            file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
+    #     file_type_groups = {}
+    #     for i, config in enumerate(file_configs):
+    #         file_path = config.get('file_path')
+    #         file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
 
-            if file_type not in file_type_groups:
-                file_type_groups[file_type] = []
+    #         if file_type not in file_type_groups:
+    #             file_type_groups[file_type] = []
 
-            file_type_groups[file_type].append((i, config))
+    #         file_type_groups[file_type].append((i, config))
 
-        return file_type_groups
+    #     return file_type_groups
 
     def _process_simple_files(
         self,
@@ -276,24 +279,73 @@ class FileToTextParser:
             # Return a user-friendly error message
             return f"Failed to parse file: {os.path.basename(file_path)}"
 
-    @global_exception_handler(1317, "Error Determining File Type")
-    def _determine_file_type(
-        self,
-        file_path: str
-    ) -> str:
-        """
-        Determine file type from file extension.
+    # @global_exception_handler(1317, "Error Determining File Type")
+    # def _determine_file_type(
+    #     self,
+    #     file_path: str
+    # ) -> str:
+    #     """
+    #     Determine file type from file extension.
 
+    #     Args:
+    #         file_path: Path or URL to the file
+
+    #     Returns:
+    #         File type based on extension, defaults to 'application' for unknown extensions
+    #     """
+
+    #     _, ext = os.path.splitext(file_path)
+    #     ext = ext.lower().lstrip('.')
+
+    #     extension_map = {
+    #         'json': 'json',
+    #         'txt': 'txt',
+    #         'md': 'markdown',
+    #         'pdf': 'pdf',
+    #         'doc': 'doc',
+    #         'docx': 'doc',
+    #         'csv': 'csv',
+    #         'xlsx': 'xlsx',
+    #         'xls': 'xlsx',
+    #         'xlsm': 'xlsx',
+    #         'xlsb': 'xlsx', 
+    #         'ods': 'xlsx',
+    #         'jpg': 'image',
+    #         'jpeg': 'image',
+    #         'png': 'image',
+    #         'gif': 'image',
+    #         'mp3': 'audio',
+    #         'wav': 'audio',
+    #         'mp4': 'video',
+    #         'avi': 'video',
+    #         'mov': 'video'
+    #     }
+
+    #     # Use the mapped file type or default to 'application' for unknown types
+    #     file_type = extension_map.get(ext, 'application')
+    #     return file_type
+
+    def _normalize_file_type(self, file_type: str) -> str:
+        """
+        Normalize the file type to a standard format that matches internal parsing methods.
+        
         Args:
-            file_path: Path or URL to the file
-
+            file_type: The input file type or extension
+            
         Returns:
-            File type based on extension, defaults to 'application' for unknown extensions
+            Normalized file type as used by internal parse methods or None if not supported
         """
-
-        _, ext = os.path.splitext(file_path)
-        ext = ext.lower().lstrip('.')
-
+        # 标准类型列表（与extension_map的值保持一致）
+        standard_types = {
+            'json', 'txt', 'markdown', 'pdf', 'doc', 
+            'csv', 'xlsx', 'image', 'audio', 'video', 'application'
+        }
+        
+        # 如果file_type已经是标准类型，直接返回
+        if file_type in standard_types:
+            return file_type
+            
+        # 扩展名映射（与_determine_file_type中的extension_map保持一致）
         extension_map = {
             'json': 'json',
             'txt': 'txt',
@@ -317,15 +369,14 @@ class FileToTextParser:
             'avi': 'video',
             'mov': 'video'
         }
-
-        # Use the mapped file type or default to 'application' for unknown types
-        file_type = extension_map.get(ext, 'application')
-        return file_type
+        
+        # 返回映射的类型，如果没有映射则返回None
+        return extension_map.get(file_type.lower())
 
     def parse(
         self,
         file_path: str,
-        file_type: str,
+        file_type: str = "",
         **kwargs
     ) -> str:
         """
@@ -333,7 +384,8 @@ class FileToTextParser:
         
         Args:
             file_path (str): The path to the file to be parsed.
-            file_type (str): The type of the file to be parsed.
+            file_type (str, optional): The type of the file to be parsed or its extension. 
+                                      If empty, will be determined from file extension.
             **kwargs: Additional keyword arguments for specific parsing methods.
 
         Returns:
@@ -342,11 +394,20 @@ class FileToTextParser:
         Raises:
             PuppyException: If the file type is unsupported.
         """
+        # 如果未提供file_type或为空字符串，根据文件路径自动判断
+        if not file_type:
+            file_type = self._determine_file_type(file_path)
+        else:
+            # 确保file_type是标准化的内部类型
+            normalized_type = self._normalize_file_type(file_type)
+            if normalized_type is None:
+                raise PuppyException(1301, f"Unsupported File Type: {file_type}")
+            file_type = normalized_type
 
         method_name = f"_parse_{file_type}"
         parse_method = getattr(self, method_name, None)
         if not parse_method:
-            raise PuppyException(1301, "Unsupported File Type")
+            raise PuppyException(1301, f"Unsupported File Type: {file_type}")
         return parse_method(file_path, **kwargs)
 
     @global_exception_handler(1316, "Error Parsing Remote File")
@@ -693,7 +754,6 @@ class FileToTextParser:
     ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
         """
         Parses a CSV file and returns its content in specified format.
-
         Args:
             file_path (str): The path to the CSV file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
@@ -709,23 +769,18 @@ class FileToTextParser:
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
         mode = kwargs.get("mode", "row")
-
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-
         if mode not in {"string", "column", "row"}:
             raise ValueError("Mode must be one of: 'string', 'column', 'row'")
-
         csv_file = file_path
         if self._is_file_url(file_path):
             csv_file = self._remote_file_to_byte_io(file_path)
-
         df = pd.read_csv(csv_file)
         if column_range:
             df = df.iloc[:, column_range[0]:column_range[1]]
         if row_range:
             df = df.iloc[row_range[0]:row_range[1]]
-
         if mode == "string":
             return df.to_csv(index=False)
         elif mode == "column":
@@ -738,52 +793,386 @@ class FileToTextParser:
         self,
         file_path: str,
         **kwargs
-    ) -> Union[str, Dict[str, List], List[Dict[str, Any]]]:
+    ) -> Union[str, Dict[str, Any], List[Dict[str, Any]]]:
         """
         Parses an Excel file (XLSX, XLS, XLSM, XLSB, ODS) and returns its content in specified format.
-
         Args:
             file_path (str): The path to the Excel file to be parsed.
             **kwargs: Additional arguments for specific parsing options.
-            - column_range (list): The range of columns to parse. In form of [start, end].
-            - row_range (list): The range of rows to parse. In form of [start, end].
-            - mode (str): Output format mode. One of:
-                - 'string': CSV format string (default)
-                - 'column': Dict with column names as keys and column values as lists
-                - 'row': List of dicts, each dict representing a row with column names as keys
-            - sheet_name (str or int): The name or index of the sheet to parse. Default is 0.
-
+                - column_range (list): The range of columns to parse. In form of [start, end].
+                - row_range (list): The range of rows to parse. In form of [start, end].
+                - mode (str): Output format mode. One of:
+                    - 'auto': Automatically detect and select the best parsing mode (default)
+                    - 'string': CSV format string
+                    - 'column': Dict with column names as keys and column values as lists
+                    - 'row': List of dicts, each dict representing a row with column names as keys
+                    - 'line': JSON string representation of the data
+                - sheet_name (str, int, list, None): The name or index of the sheet to parse.
+                    - str/int: Parse a single sheet
+                    - list: Parse multiple specific sheets
+                    - None: Parse all available sheets (default)
+                - filter_empty (bool): Whether to filter out empty values in row mode. Default is True.
         Returns:
-            Union[str, Dict[str, List], List[Dict[str, Any]]]: Parsed Excel content in specified format
+            Union[str, Dict[str, Any], List[Dict[str, Any]]]: 
+                When sheet_name is None or a list: Dict with sheet names as keys and parsed content as values
+                Otherwise: Parsed Excel content in specified format
+                
+        TODO:
+            - Enhance intelligent mode detection algorithm with more table features
+            - Add machine learning model for table structure recognition
+            - Support more data types and special format detection
+            - Implement user feedback mechanism to optimize mode selection
         """
-
+        start_time = time.time()
+        file_name = os.path.basename(file_path) if isinstance(file_path, str) else "stream"
+        log_info(f"Starting to parse Excel file: {file_name}")
+        
         column_range = kwargs.get("column_range", None)
         row_range = kwargs.get("row_range", None)
-        mode = kwargs.get("mode", "row")
-        sheet_name = kwargs.get("sheet_name", 0)
+        mode = kwargs.get("mode", "auto")  # 默认使用自动检测模式
+        sheet_name = kwargs.get("sheet_name", None)  # 默认解析所有表格
+        filter_empty = kwargs.get("filter_empty", True)
 
         if (column_range and not isinstance(column_range, list)) or (row_range and not isinstance(row_range, list)):
             raise ValueError("Column range and row range should be lists of integers!")
-
-        if mode not in {"string", "column", "row"}:
-            raise ValueError("Mode must be one of: 'string', 'column', 'row'")
+        if mode not in {"auto", "string", "column", "row", "line"}:
+            raise ValueError("Mode must be one of: 'auto', 'string', 'column', 'row', 'line'")
 
         xlsx_file = file_path
         if self._is_file_url(file_path):
             xlsx_file = self._remote_file_to_byte_io(file_path)
+        
+        # 处理多表情况
+        parse_all_sheets = sheet_name is None
+        
+        try:
+            if parse_all_sheets:
+                # 获取所有表名并创建结果字典
+                excel_file = pd.ExcelFile(xlsx_file)
+                all_sheets = excel_file.sheet_names
+                result = {}
+                
+                log_info(f"Excel file {file_name} contains {len(all_sheets)} sheets")
+                successful_sheets = 0
+                failed_sheets = 0
+                
+                # 为每个表调用自身，递归处理
+                for i, sheet in enumerate(all_sheets):
+                    sheet_start_time = time.time()
+                    log_info(f"Processing sheet {i+1}/{len(all_sheets)}: {sheet}")
+                    
+                    try:
+                        # 递归调用自身处理单个表
+                        result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+                        sheet_end_time = time.time()
+                        log_info(f"Successfully processed sheet {sheet}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        successful_sheets += 1
+                    except Exception as e:
+                        sheet_end_time = time.time()
+                        log_error(f"Failed to process sheet {sheet}: {str(e)}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        # 记录详细错误信息但继续处理其他表
+                        result[sheet] = f"Parsing failed: {str(e)}"
+                        failed_sheets += 1
+                
+                end_time = time.time()
+                log_info(f"Excel file {file_name} parsing completed, {len(all_sheets)} sheets total, {successful_sheets} successful, {failed_sheets} failed, total time: {end_time - start_time:.2f} seconds")
+                return result
+            
+            # 处理单表或特定多表的情况
+            if isinstance(sheet_name, list):
+                # 处理特定多表
+                log_info(f"Starting to process {len(sheet_name)} specified sheets in Excel file {file_name}")
+                result = {}
+                successful_sheets = 0
+                failed_sheets = 0
+                
+                for i, sheet in enumerate(sheet_name):
+                    sheet_start_time = time.time()
+                    log_info(f"Processing sheet {i+1}/{len(sheet_name)}: {sheet}")
+                    
+                    try:
+                        result[sheet] = self._parse_single_sheet(xlsx_file, sheet, column_range, row_range, mode, filter_empty)
+                        sheet_end_time = time.time()
+                        log_info(f"Successfully processed sheet {sheet}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        successful_sheets += 1
+                    except Exception as e:
+                        sheet_end_time = time.time()
+                        log_error(f"Failed to process sheet {sheet}: {str(e)}, took {sheet_end_time - sheet_start_time:.2f} seconds")
+                        # 记录详细错误信息但继续处理其他表
+                        result[sheet] = f"Parsing failed: {str(e)}"
+                        failed_sheets += 1
+                
+                end_time = time.time()
+                log_info(f"Excel file {file_name} specified sheets parsing completed, {len(sheet_name)} sheets total, {successful_sheets} successful, {failed_sheets} failed, total time: {end_time - start_time:.2f} seconds")
+                return result
+            
+            # 单表处理
+            sheet_start_time = time.time()
+            sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
+            log_info(f"Processing sheet: {sheet_name_str}")
+            
+            result = self._parse_single_sheet(xlsx_file, sheet_name, column_range, row_range, mode, filter_empty)
+            
+            end_time = time.time()
+            log_info(f"Sheet {sheet_name_str} parsing completed, took {end_time - sheet_start_time:.2f} seconds")
+            return result
+            
+        except Exception as e:
+            end_time = time.time()
+            log_error(f"Error occurred while parsing Excel file {file_name}: {str(e)}, total time: {end_time - start_time:.2f} seconds")
+            # 使用PuppyException格式化并抛出错误
+            raise PuppyException(1308, "Error Parsing XLSX File", str(e))
 
-        df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
-        if column_range:
-            df = df.iloc[:, column_range[0]:column_range[1]]
-        if row_range:
-            df = df.iloc[row_range[0]:row_range[1]]
+    def _detect_best_mode(self, df):
+        """
+        Intelligently detect the best parsing mode based on table structure.
+        
+        Args:
+            df (pd.DataFrame): The DataFrame to analyze
+            
+        Returns:
+            str: Recommended parsing mode ('row', 'column', 'string', or 'line')
+            
+        TODO:
+            - Add header feature analysis
+            - Implement data type distribution detection
+            - Add data density and sparsity analysis
+            - Implement special format table recognition (pivot tables, cross tables, etc.)
+            - Add time series and hierarchical structure detection
+            - Consider using machine learning models instead of rule-based system
+            - Add context relationship and symmetry detection
+        """
+        # 空表或极小表格
+        if df.empty or len(df.columns) <= 1:
+            return "row"  # 默认使用row模式
+            
+        # 检查行列比例
+        row_count = len(df)
+        col_count = len(df.columns)
+        
+        # 检查第一列的唯一值比例
+        if row_count > 0:
+            first_col = df.columns[0]
+            unique_values = df[first_col].nunique()
+            unique_ratio = unique_values / row_count if row_count > 0 else 0
+            
+            # 如果第一列大部分值唯一，适合row模式
+            if unique_ratio > 0.8:
+                return "row"
+                
+            # 如果第一列有大量重复值，可能适合column模式
+            elif unique_ratio < 0.2 and col_count < row_count:
+                return "column"
+        
+        # 检查表格形状
+        if row_count > col_count * 3:
+            # 长表格(行远多于列)，通常适合row模式
+            return "row"
+        elif col_count > row_count * 2:
+            # 宽表格(列远多于行)，可能适合column模式
+            return "column"
+        
+        # 默认使用row模式
+        return "row"
+        
+    def _parse_single_sheet(
+        self, 
+        xlsx_file, 
+        sheet_name, 
+        column_range=None, 
+        row_range=None, 
+        mode="auto", 
+        filter_empty=True
+    ):
+        """
+        Helper method to parse a single sheet from an Excel file.
+        
+        Args:
+            xlsx_file: Excel file path or BytesIO object
+            sheet_name: Sheet name or index
+            column_range: Column range to parse
+            row_range: Row range to parse
+            mode: Parsing mode, one of 'auto', 'string', 'column', 'row', or 'line'
+            filter_empty: Whether to filter out empty values
+            
+        Returns:
+            Parsed sheet content in the specified format
+        """
+        try:
+            sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
+            log_info(f"Reading data from sheet {sheet_name_str}")
+            df = pd.read_excel(xlsx_file, sheet_name=sheet_name)
+            
+            log_info(f"Sheet {sheet_name_str} contains {len(df)} rows, {len(df.columns)} columns")
+            
+            # 处理合并单元格
+            log_info(f"Processing merged cells in sheet {sheet_name_str}")
+            
+            # 应用行列过滤
+            if column_range:
+                log_info(f"Applying column range filter: {column_range}")
+                df = df.iloc[:, column_range[0]:column_range[1]]
+            if row_range:
+                log_info(f"Applying row range filter: {row_range}")
+                df = df.iloc[row_range[0]:row_range[1]]
 
-        if mode == "string":
-            return df.to_csv(index=False)
-        elif mode == "column":
-            return df.to_dict(orient='list')
-        else:  # mode == "row"
-            return df.to_dict(orient='records')
+            # 处理空值
+            log_info(f"Processing null values and standardizing data types")
+            df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
+            
+            # 检查是否为空表格
+            if df.empty or len(df.columns) == 0:
+                log_warning(f"Sheet {sheet_name_str} is empty or has no valid columns")
+                if mode == "string":
+                    return ""
+                elif mode == "line":
+                    return "[]"
+                else:  # column or row mode
+                    return {}
+                    
+            # 添加自动模式检测
+            if mode == "auto":
+                detected_mode = self._detect_best_mode(df)
+                log_info(f"Auto-detected best parsing mode: {detected_mode}")
+                mode = detected_mode
+
+            log_info(f"Using mode '{mode}' to parse sheet {sheet_name_str}")
+            
+            # 执行相应模式的解析
+            if mode == "string":
+                return df.to_csv(index=False)
+            elif mode == "column":
+                # 获取列名和索引
+                columns = df.columns.tolist()
+                
+                # 处理没有列的情况
+                if not columns:
+                    return {}
+                    
+                first_col = columns[0]
+                
+                # 创建结果字典
+                result = {}
+                
+                # 如果只有一列，返回空字典
+                if len(columns) <= 1:
+                    return result
+                
+                # 处理每一列（除了第一列）
+                for col in columns[1:]:
+                    # 创建内层字典，使用第一列作为键
+                    inner_dict = {}
+                    
+                    # 遍历每一行
+                    for idx in df.index:
+                        key = df.loc[idx, first_col]
+                        value = df.loc[idx, col]
+                        
+                        # 忽略空值
+                        if pd.notna(key) and pd.notna(value) and value != "" and value is not None:
+                            # 处理日期时间类型
+                            try:
+                                if isinstance(value, pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(value):
+                                    inner_dict[key] = str(value)
+                                else:
+                                    inner_dict[key] = value
+                            except:
+                                # 如果类型检测失败，保持原值
+                                inner_dict[key] = value
+                    
+                    # 如果内层字典为空，根据filter_empty决定是否添加
+                    if inner_dict or not filter_empty:
+                        result[col] = inner_dict
+                
+                return result
+            elif mode == "line":
+                # 将DataFrame转换为JSON格式
+                # 处理日期时间等特殊类型
+                def json_serialize(obj):
+                    if isinstance(obj, pd.Timestamp) or hasattr(obj, 'isoformat'):
+                        return str(obj)
+                    return obj
+                
+                # 将DataFrame转换为记录列表
+                records = df.replace({pd.NA: None, pd.NaT: None}).to_dict(orient='records')
+                
+                # 返回JSON字符串
+                return json.dumps(records, default=json_serialize, ensure_ascii=False)
+            else:  # mode == "row"
+                # 获取列名
+                columns = df.columns.tolist()
+                
+                # 处理没有列的情况
+                if not columns:
+                    return {}
+                    
+                first_col = columns[0]
+                
+                # 如果只有一列，返回以第一列值为键，空字典为值的结构
+                if len(columns) <= 1:
+                    result = {}
+                    for _, row in df.iterrows():
+                        key = row[first_col]
+                        if pd.notna(key):
+                            result[key] = {}
+                    return result
+                
+                other_cols = columns[1:]
+                
+                # 创建结果字典
+                result = {}
+                
+                # 遍历DataFrame的每一行
+                total_rows = len(df)
+                log_info(f"Starting to process {total_rows} rows of data")
+                
+                for i, (_, row) in enumerate(df.iterrows()):
+                    key = row[first_col]
+                    
+                    # 创建内层字典，忽略空值
+                    inner_dict = {}
+                    for col in other_cols:
+                        # 更全面地检测空值
+                        if pd.notna(row[col]) and row[col] != "" and row[col] is not None:
+                            # 处理日期时间类型
+                            try:
+                                if isinstance(row[col], pd.Timestamp) or pd.api.types.is_datetime64_any_dtype(row[col]):
+                                    inner_dict[col] = str(row[col])
+                                else:
+                                    inner_dict[col] = row[col]
+                            except:
+                                # 如果类型检测失败，保持原值
+                                inner_dict[col] = row[col]
+                    
+                    # 如果内层字典为空且第一列也为空，则跳过整行
+                    if not inner_dict and pd.isna(key):
+                        continue
+                        
+                    # 处理第一列为空的情况
+                    if pd.isna(key):
+                        if "null_values" not in result:
+                            result["null_values"] = []
+                        result["null_values"].append(inner_dict)
+                        continue
+                        
+                    # 处理第一列有重复值的情况
+                    if key in result:
+                        # 合并内层字典
+                        result[key].update(inner_dict)
+                    else:
+                        # 只有当内层字典非空时才添加
+                        if inner_dict or not filter_empty:
+                            result[key] = inner_dict
+                
+                log_info(f"Successfully processed {len(result)} effective data entries")
+                return result
+                
+        except Exception as e:
+            sheet_name_str = sheet_name if isinstance(sheet_name, str) else f"Sheet {sheet_name}"
+            error_msg = f"Error while parsing sheet {sheet_name_str}: {str(e)}"
+            log_error(error_msg)
+            log_error(traceback.format_exc())
+            raise PuppyException(1308, f"Error Parsing Sheet '{sheet_name_str}'", str(e))
 
     @global_exception_handler(1314, "Error Describing Image")
     def _describe_image_with_llm(
@@ -930,128 +1319,28 @@ if __name__ == "__main__":
 
     file_root_path = "ModularEdges/LoadEdge/testfiles"
     file_configs = [
+        # {
+        #     "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
+        #     "file_type": "xlsx",
+        #     "config": {
+        #         "mode": "row"
+        #     }
+        # },
         {
-            "file_path": os.path.join(file_root_path, "testjson.json"),
-            "file_type": "json"
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testtxt.txt"),
-            "file_type": "txt",
+            "file_path": os.path.join(file_root_path, "ld.xlsm"),
+            "file_type": "xlsm",
             "config": {
-                "auto_formatting": False
+                "mode": "row", 
+                # "sheet_name": "费用"
             }
         },
-        {
-            "file_path": os.path.join(file_root_path, "testmd.md"),
-            "file_type": "markdown",
-            "config": {
-                "auto_formatting": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testdoc.docx"),
-            "file_type": "doc",
-            "config": {
-                "auto_formatting": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testpdf.pdf"),
-            "file_type": "pdf",
-            "config": {
-                "use_images": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testimg.png"),
-            "file_type": "image",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testimg2.png"),
-            "file_type": "image",
-            "config": {
-                "use_llm": True
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testaudio.mp3"),
-            "file_type": "audio",
-            "config": {
-                "mode": "accurate"
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testvideo.mp4"),
-            "file_type": "video",
-            "config": {
-                "use_llm": True,
-                "frame_skip": 300
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
-            "file_type": "video",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": os.path.join(file_root_path, "testcsv.csv"),
-            "file_type": "csv",
-            "config": {
-                "column_range": [0, 3],
-                "row_range": [0, 5],
-                "mode": "row"
-            }
-        },  
-        {
-            "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
-            "file_type": "xlsx",
-            "config": {
-                "column_range": [0, 3],
-                "row_range": [0, 5],
-                "mode": "row"
-            }
-        },
-        {
-            "file_path": "https://f51ed11ae51d034c8b105e0b99bd45f4.r2.cloudflarestorage.com/test/82902327-a8f1-4446-9f59-5cd52b658d0f/6sjaoo75/WPS%20Sheets%20Quick%20Start%20Guide.xlsm?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=30e648d86eab17dd0be922bb121cf8aa%2F20250430%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20250430T033928Z&X-Amz-Expires=86400&X-Amz-SignedHeaders=host&X-Amz-Signature=935ed491a5299928fdeebaa17de6eb499069f0b62eb4ddf4ac9d9a89a8fbb74c",
-            "file_type": "xlsx",
-            "config": {
-                "mode": "column"
-            }
-        },
-        {
-            "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
-            "file_type": "doc",
-            "config": {
-                "auto_formatting": True
-            }
-        },
-        {
-            "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
-            "file_type": "pdf",
-            "config": {
-                "use_images": True
-            }
-        },
-        {
-            "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
-            "file_type": "image",
-            "config": {
-                "use_llm": False
-            }
-        },
-        {
-            "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
-            "file_type": "audio",
-            "config": {
-                "mode": "small"
-            }
-        }
+        # {
+        #     "file_path": os.path.join(file_root_path, "testcsv.csv"),
+        #     "file_type": "csv",
+        # }
     ]
     parser = FileToTextParser()
     parsed_content_list = parser.parse_multiple(file_configs)
     print(f"Parsed Content List:\n{parsed_content_list}")
+    print(f"Parsed Config List:\n{file_configs}")
+

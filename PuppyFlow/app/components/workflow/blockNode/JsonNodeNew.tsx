@@ -22,7 +22,7 @@ type modelNames = "text-embedding-ada-002"
 type vdb_typeNames = "pgvector"
 
 // 添加这个类型定义
-type VectorIndexingStatus = 'notStarted' | 'processing' | 'done' | 'error';
+type VectorIndexingStatus = 'notStarted' | 'processing' | 'done' | 'error' | 'deleting';
 
 // 定义基本的 IndexingItem 类型
 export interface BaseIndexingItem {
@@ -69,6 +69,7 @@ export type JsonNodeData = {
   isInput: boolean,
   isOutput: boolean,
   editable: boolean,
+  looped: boolean,
   indexingList: IndexingItem[],
 
   // embedding configurations
@@ -316,12 +317,68 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     return userId;
   };
 
-  // 移除原来的 handleRemoveIndex 方法
-  const onRemoveIndex = (index: number) => {
-    const newIndexingList = handleRemoveIndex(index, indexingList);
-    setNodes(nodes => nodes.map(node =>
-      node.id === id ? { ...node, data: { ...node.data, indexingList: newIndexingList } } : node
-    ));
+  // 更新的 onRemoveIndex 方法
+  const onRemoveIndex = async (index: number) => {
+    // 获取当前要删除的项
+    const itemToRemove = indexingList[index];
+    
+    // 如果是向量索引类型，先显示"删除中"状态
+    if (itemToRemove && itemToRemove.type === 'vector') {
+      // 创建带有"删除中"状态的索引列表副本
+      const updatedList = [...indexingList];
+      (updatedList[index] as VectorIndexingItem).status = 'deleting';
+      
+      // 立即更新UI显示删除中状态
+      setNodes(nodes => nodes.map(node =>
+        node.id === id ? { 
+          ...node, 
+          data: { 
+            ...node.data, 
+            indexingList: updatedList 
+          } 
+        } : node
+      ));
+    }
+    
+    try {
+      // 调用删除函数，添加setVectorIndexingStatus参数
+      const { success, newList } = await handleRemoveIndex(
+        index, 
+        indexingList,
+        id,
+        getUserId,
+        setVectorIndexingStatus  // 添加缺少的参数
+      );
+      
+      // 更新节点状态
+      setNodes(nodes => nodes.map(node =>
+        node.id === id ? { 
+          ...node, 
+          data: { 
+            ...node.data, 
+            indexingList: newList 
+          } 
+        } : node
+      ));
+    } catch (error) {
+      console.error("Error removing index:", error);
+      
+      // 如果是向量索引且发生异常，将状态设为错误并保留该项
+      if (itemToRemove && itemToRemove.type === 'vector') {
+        const errorList = [...indexingList];
+        (errorList[index] as VectorIndexingItem).status = 'error';
+        
+        setNodes(nodes => nodes.map(node =>
+          node.id === id ? { 
+            ...node, 
+            data: { 
+              ...node.data, 
+              indexingList: errorList 
+            } 
+          } : node
+        ));
+      }
+    }
   };
 
   // 修改后的 onAddIndex 方法

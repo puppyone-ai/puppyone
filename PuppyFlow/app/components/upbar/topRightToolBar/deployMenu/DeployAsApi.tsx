@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
-// Import the builder utilities
+// 导入自定义 context
+import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
+// 导入构建工具
 import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { SYSTEM_URLS } from '@/config/urls';
 import dynamic from 'next/dynamic';
 const MonacoEditor = dynamic(import('@monaco-editor/react'), { ssr: false });
-
-interface ApiConfig {
-  id: string;
-  key: string;
-}
 
 interface DeployAsApiProps {
   selectedFlowId: string | null;
@@ -21,12 +17,12 @@ interface DeployAsApiProps {
   setActivePanel: (panel: string | null) => void;
 }
 
-// Define interfaces for better type safety
+// 类型定义
 interface BlockNode {
   label: string;
   type: string;
   data: any;
-  [key: string]: any; // For any additional properties
+  [key: string]: any;
 }
 
 interface EdgeNode {
@@ -67,7 +63,7 @@ const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }: any) => {
   );
 };
 
-// 添加这段内联样式
+// 滚动条样式
 const scrollbarStyles = `
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;
@@ -91,48 +87,40 @@ const scrollbarStyles = `
 
 function DeployAsApi({
   selectedFlowId,
-  workspaces,
-  setWorkspaces,
   API_SERVER_URL,
   setActivePanel
 }: DeployAsApiProps) {
   const { getNodes, getNode, getEdges } = useReactFlow();
   
-  // Use the builder hooks
+  // 使用全局 context
+  const { 
+    apiState, 
+    setApiState,
+    syncToWorkspaces
+  } = useDeployPanelContext();
+
+  // 解构 apiState
+  const {
+    apiDeployment,
+    deploymentInfo,
+    selectedInputs,
+    selectedOutputs,
+    apiConfig,
+    isDeploying,
+    showApiExample,
+    selectedLang
+  } = apiState;
+  
+  // 使用构建器
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
   
-  // 创建一个单一的状态来管理API信息
-  const [apiDeployment, setApiDeployment] = useState<{
-    id: string | null;
-    key: string | null;
-    isDeployed: boolean;
-  }>({
-    id: null,
-    key: null,
-    isDeployed: false
-  });
-
-  // 原先在父组件的API部署相关状态
-  const [selectedInputs, setSelectedInputs] = useState<any[]>([]);
-  const [selectedOutputs, setSelectedOutputs] = useState<any[]>([]);
-  const [apiConfig, setApiConfig] = useState<ApiConfig | undefined>(undefined);
-  const [isDeploying, setIsDeploying] = useState(false);
-  const [isDeployed, setIsDeployed] = useState(false);
-  const [deploymentInfo, setDeploymentInfo] = useState<any>(null);
-  const [showApiExample, setShowApiExample] = useState(false);
-
   // 其他状态
-  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false);
-
-  // 状态管理
-  const [selectedNodes, setSelectedNodes] = useState<{ [key: string]: string }>({
-    input: '',
-    output: ''
-  });
-
-  const [nodeOptionsByType, setNodeOptionsByType] = useState<{ [key: string]: any[] }>({
+  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false);
+  const [isLangSelectorOpen, setIsLangSelectorOpen] = React.useState(false);
+  
+  // 节点状态
+  const [nodeOptionsByType, setNodeOptionsByType] = React.useState<{ [key: string]: any[] }>({
     input: [],
     output: []
   });
@@ -142,65 +130,43 @@ function DeployAsApi({
   const SHELL = "Shell";
   const JAVASCRIPT = "Javascript";
   const languageOptions = [PYTHON, SHELL, JAVASCRIPT];
-  const [selectedLang, setSelectedLang] = useState(SHELL);
-
-  // 用于初始化和工作流更改检测
-  const lastSelectedFlowIdRef = useRef<string | null>(null);
+  
+  // 引用用于跟踪初始化状态
   const initializedRef = useRef<boolean>(false);
 
-  // 初始化选择所有节点
+  // 初始化节点选择
   const initializeNodeSelections = () => {
-    // 获取所有输入节点并设置为选中
+    // 获取所有输入节点
     const allInputNodes = getNodes()
       .filter((item) => (item.type === 'text' || item.type === 'structured'))
       .filter(item => item.data?.isInput === true)
-      .map(node => ({ id: node.id, label: node.data.label }))
+      .map(node => ({ id: node.id, label: node.data.label }));
 
-    // 获取所有输出节点并设置为选中  
+    // 获取所有输出节点
     const allOutputNodes = getNodes()
       .filter((item) => (item.type === 'text' || item.type === 'structured'))
       .filter(item => item.data?.isOutput === true)
-      .map(node => ({ id: node.id, label: node.data.label }))
+      .map(node => ({ id: node.id, label: node.data.label }));
 
-    // 设置选中的输入和输出节点
-    setSelectedInputs(allInputNodes)
-    setSelectedOutputs(allOutputNodes)
-  }
+    // 更新全局状态
+    setApiState(prev => ({
+      ...prev,
+      selectedInputs: allInputNodes,
+      selectedOutputs: allOutputNodes
+    }));
+  };
 
-  // 当工作流变化时
-  useEffect(() => {
-    if (lastSelectedFlowIdRef.current !== selectedFlowId) {
-      console.log("Workflow has changed")
-      lastSelectedFlowIdRef.current = selectedFlowId
-
-      // 检查当前工作流是否已有保存的选择
-      const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId)
-
-      if (currentWorkspace?.deploy?.selectedInputs && currentWorkspace?.deploy?.selectedOutputs) {
-        // 有保存的选择，使用保存的选择
-        setSelectedInputs(currentWorkspace.deploy.selectedInputs)
-        setSelectedOutputs(currentWorkspace.deploy.selectedOutputs)
-        setApiConfig(currentWorkspace.deploy.apiConfig)
-        setShowApiExample(!!currentWorkspace.deploy.apiConfig?.id)
-      } else {
-        // 没有保存的选择，初始化所有节点为选中
-        initializeNodeSelections()
-      }
-    }
-  }, [selectedFlowId, getNodes])
-
-  // 组件加载后自动选择所有节点
+  // 组件初始化
   useEffect(() => {
     if (!initializedRef.current) {
-      initializedRef.current = true
-
-      // 如果当前工作流没有保存的选择，初始化所有节点为选中
-      const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId)
-      if (!currentWorkspace?.deploy?.selectedInputs || !currentWorkspace?.deploy?.selectedOutputs) {
-        initializeNodeSelections()
+      initializedRef.current = true;
+      
+      // 如果状态为空，初始化所有节点
+      if (selectedInputs.length === 0 && selectedOutputs.length === 0) {
+        initializeNodeSelections();
       }
     }
-  }, [])
+  }, []);
 
   // 更新节点选项
   useEffect(() => {
@@ -223,30 +189,8 @@ function DeployAsApi({
     });
   }, [getNodes, selectedFlowId]);
 
-  // 保存部署配置到工作区
+  // 添加滚动条样式
   useEffect(() => {
-    if (selectedFlowId && (selectedInputs.length > 0 || selectedOutputs.length > 0 || apiConfig)) {
-      const updatedWorkspaces = workspaces.map(workspace => {
-        if (workspace.flowId === selectedFlowId) {
-          return {
-            ...workspace,
-            deploy: {
-              selectedInputs,
-              selectedOutputs,
-              apiConfig
-            }
-          };
-        }
-        return workspace;
-      });
-
-      setWorkspaces(updatedWorkspaces);
-    }
-  }, [selectedInputs, selectedOutputs, apiConfig, selectedFlowId]);
-
-  // 在组件内添加样式标签
-  useEffect(() => {
-    // 添加自定义滚动条样式
     const style = document.createElement('style');
     style.innerHTML = scrollbarStyles;
     document.head.appendChild(style);
@@ -256,71 +200,74 @@ function DeployAsApi({
     };
   }, []);
 
-// Create a function similar to constructAllNodesJson
-const constructWorkflowJson = () => {
-  try {
-    // Get all nodes and edges
-    const allNodes = getNodes();
-    const reactFlowEdges = getEdges();
-    
-    // Create blocks and edges objects with proper type definitions
-    let blocks: { [key: string]: BlockNode } = {};
-    let edges: { [key: string]: EdgeNode } = {};
-    
-    // Define block node types
-    const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
-    
-    // Process all nodes
-    allNodes.forEach(node => {
-      const nodeId = node.id;
-      const nodeLabel = node.data?.label || nodeId;
-      
-      if (blockNodeTypes.includes(node.type || '')) {
-        try {
-          // Use block node builder function
-          const blockJson = buildBlockNodeJson(nodeId);
-          
-          // Ensure node label is correct
-          blocks[nodeId] = {
-            ...blockJson,
-            label: String(nodeLabel)
-          };
-        } catch (e) {
-          console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
-          
-          // Fallback to default behavior
-          blocks[nodeId] = {
-            label: String(nodeLabel),
-            type: node.type || '',
-            data: {...node.data}
-          };
-        }
-      } else {
-        // Edge node
-        try {
-          // Build edge JSON and add to edges object
-          const edgeJson = buildEdgeNodeJson(nodeId);
-          edges[nodeId] = edgeJson;
-        } catch (e) {
-          console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
-        }
-      }
-    });
-    
-    return { blocks, edges };
-  } catch (error) {
-    console.error(`Error building workflow JSON: ${error}`);
-    
-    // If there's an error, fall back to the original function
-    return
-  }
-};
-
-  // Update the handleDeploy function to use our new constructWorkflowJson function
-  const handleDeploy = async () => {
-    setIsDeploying(true);
+  // 构建工作流 JSON
+  const constructWorkflowJson = () => {
     try {
-      console.log("process.env.REACT_APP_API_SERVER_KEY", process.env.NEXT_PUBLIC_API_SERVER_KEY)
+      // 获取所有节点和边
+      const allNodes = getNodes();
+      const reactFlowEdges = getEdges();
+      
+      // 创建 blocks 和 edges 对象
+      let blocks: { [key: string]: BlockNode } = {};
+      let edges: { [key: string]: EdgeNode } = {};
+      
+      // 定义块节点类型
+      const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+      
+      // 处理所有节点
+      allNodes.forEach(node => {
+        const nodeId = node.id;
+        const nodeLabel = node.data?.label || nodeId;
+        
+        if (blockNodeTypes.includes(node.type || '')) {
+          try {
+            // 使用块节点构建器
+            const blockJson = buildBlockNodeJson(nodeId);
+            
+            // 确保节点标签正确
+            blocks[nodeId] = {
+              ...blockJson,
+              label: String(nodeLabel)
+            };
+          } catch (e) {
+            console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
+            
+            // 回退到默认行为
+            blocks[nodeId] = {
+              label: String(nodeLabel),
+              type: node.type || '',
+              data: {...node.data}
+            };
+          }
+        } else {
+          // 边缘节点
+          try {
+            // 构建边缘 JSON 并添加到 edges 对象
+            const edgeJson = buildEdgeNodeJson(nodeId);
+            edges[nodeId] = edgeJson;
+          } catch (e) {
+            console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
+          }
+        }
+      });
+      
+      return { blocks, edges };
+    } catch (error) {
+      console.error(`Error building workflow JSON: ${error}`);
+      return;
+    }
+  };
+
+  // 处理部署
+  const handleDeploy = async () => {
+    // 更新状态为正在部署
+    setApiState(prev => ({
+      ...prev,
+      isDeploying: true
+    }));
+    
+    try {
+      console.log("process.env.REACT_APP_API_SERVER_KEY", process.env.NEXT_PUBLIC_API_SERVER_KEY);
       const res = await fetch(
         API_SERVER_URL + "/config_api",
         {
@@ -333,9 +280,10 @@ const constructWorkflowJson = () => {
             workflow_json: constructWorkflowJson(),
             inputs: selectedInputs.map(item => item.id),
             outputs: selectedOutputs.map(item => item.id),
+            workspace_id: selectedFlowId || "default"
           })
         }
-      )
+      );
 
       const content = await res.json();
 
@@ -347,35 +295,41 @@ const constructWorkflowJson = () => {
       const { api_id, api_key, endpoint } = content;
       console.log("Deployment successful:", api_id, api_key);
 
-      // 设置为已部署状态并存储部署信息
-      setApiDeployment({
-        id: api_id,
-        key: api_key,
-        isDeployed: true
-      });
+      // 更新全局状态
+      setApiState(prev => ({
+        ...prev,
+        apiDeployment: {
+          id: api_id,
+          key: api_key,
+          isDeployed: true
+        },
+        deploymentInfo: {
+          api_id,
+          api_key,
+          endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
+          ...content
+        },
+        showApiExample: true,
+        apiConfig: { id: api_id, key: api_key },
+        isDeploying: false
+      }));
 
-      setDeploymentInfo({
-        api_id,
-        api_key,
-        endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
-        ...content
-      });
-
-      // 添加这行来显示API示例
-      setShowApiExample(true);
-
-      // 更新 apiConfig 状态，确保保存到 workspace
-      setApiConfig({ id: api_id, key: api_key });
+      // 触发同步到 workspaces
+      syncToWorkspaces();
 
     } catch (error) {
       console.error("Failed to deploy:", error);
-    } finally {
-      setIsDeploying(false);
+      // 更新状态为部署失败
+      setApiState(prev => ({
+        ...prev,
+        isDeploying: false
+      }));
     }
-  }
+  };
 
+  // 生成输入文本
   const input_text_gen = (inputs: string[], lang: string) => {
-    if (lang == JAVASCRIPT) {
+    if (lang === JAVASCRIPT) {
       const inputData = inputs.map((input, index) => {
         const isLast = index === inputs.length - 1;
         return `        "${input}": "${getNode(input)?.data.content}"${isLast ? '' : ','} `;
@@ -390,6 +344,7 @@ const constructWorkflowJson = () => {
     }
   };
 
+  // 生成示例代码
   const populatetext = (api_id: string, api_key: string, language: string): string => {
     const py =
       `import requests
@@ -455,11 +410,11 @@ axios.post(apiUrl, data, {
     }
 });
 `;
-    // Default to JavaScript if language is not recognized
+    // 默认返回 JavaScript
     return js;
   };
 
-  // 复制代码到剪贴板的函数
+  // 复制到剪贴板
   const copyToClipboard = () => {
     const codeToCopy = populatetext(
       apiDeployment.id || "",
@@ -468,7 +423,7 @@ axios.post(apiUrl, data, {
     );
     navigator.clipboard.writeText(codeToCopy)
       .then(() => {
-        // Show temporary success indicator
+        // 显示临时成功指示器
         const copyButton = document.getElementById('copy-button');
         if (copyButton) {
           copyButton.innerHTML = `
@@ -494,33 +449,50 @@ axios.post(apiUrl, data, {
       });
   };
 
-  // 处理节点选择
+  // 处理输入节点点击
   const handleInputClick = (node: any) => {
     const isSelected = selectedInputs.some(item => item.id === node.id);
 
     if (isSelected) {
-      setSelectedInputs(prev => prev.filter(el => el.id !== node.id));
+      setApiState(prev => ({
+        ...prev,
+        selectedInputs: prev.selectedInputs.filter(el => el.id !== node.id)
+      }));
     } else {
-      setSelectedInputs(prev => {
-        return prev.length === 0
+      setApiState(prev => ({
+        ...prev,
+        selectedInputs: prev.selectedInputs.length === 0
           ? [{ id: node.id, label: node.data.label }]
-          : [...prev, { id: node.id, label: node.data.label }];
-      });
+          : [...prev.selectedInputs, { id: node.id, label: node.data.label }]
+      }));
     }
   };
 
+  // 处理输出节点点击
   const handleOutputClick = (node: any) => {
     const isSelected = selectedOutputs.some(item => item.id === node.id);
 
     if (isSelected) {
-      setSelectedOutputs(prev => prev.filter(el => el.id !== node.id));
+      setApiState(prev => ({
+        ...prev,
+        selectedOutputs: prev.selectedOutputs.filter(el => el.id !== node.id)
+      }));
     } else {
-      setSelectedOutputs(prev => {
-        return prev.length === 0
+      setApiState(prev => ({
+        ...prev,
+        selectedOutputs: prev.selectedOutputs.length === 0
           ? [{ id: node.id, label: node.data.label }]
-          : [...prev, { id: node.id, label: node.data.label }];
-      });
+          : [...prev.selectedOutputs, { id: node.id, label: node.data.label }]
+      }));
     }
+  };
+
+  // 设置语言
+  const handleSetLanguage = (lang: string) => {
+    setApiState(prev => ({
+      ...prev,
+      selectedLang: lang
+    }));
   };
 
   return (
@@ -785,7 +757,7 @@ axios.post(apiUrl, data, {
         </div>
       </div>
 
-      {/* API 代码示例部分 - 直接内联到 return 中，使用相同的条件 */}
+      {/* API 代码示例部分 - 仅在已部署时显示 */}
       {apiDeployment.isDeployed && (
         <div className="mt-6 ">
           <div className="bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px] mb-[10px]">
@@ -832,7 +804,7 @@ axios.post(apiUrl, data, {
                             : 'text-[#CDCDCD] hover:bg-[#333333]'
                             }`}
                           onClick={() => {
-                            setSelectedLang(lang);
+                            handleSetLanguage(lang);
                             setIsLangSelectorOpen(false);
                           }}
                         >
@@ -901,7 +873,7 @@ axios.post(apiUrl, data, {
             </div>
           </div>
 
-          {/* API 详情部分 - 使用相同的条件 */}
+          {/* API 详情部分 */}
           <div className="mt-4 py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
             <div className="flex justify-between items-start">
               <span className="text-[14px] text-[#CDCDCD] font-medium">API Details</span>
@@ -947,7 +919,6 @@ axios.post(apiUrl, data, {
               Reference the example above to make API calls to your endpoint
             </p>
           </div>
-
         </div>
       )}
 
@@ -982,12 +953,9 @@ axios.post(apiUrl, data, {
               )}
               {isDeploying ? "Deploying..." : "Deploy as API"}
             </button>
-
-
           </div>
         </div>
       </div>
-
     </div>
   );
 }
