@@ -15,20 +15,6 @@
                     "happy",
                     "subaru",
                     "yan"
-                ],
-                "embedding_view": [
-                    {
-                        "content": "happy",
-                        "metadata": {"id": "1"}
-                    },
-                    {
-                        "content": "subaru",
-                        "metadata": {"id": "2"}
-                    },
-                    {
-                        "content": "yan",
-                        "metadata": {"id": "3"}
-                    }
                 ]
             },
             "looped": true
@@ -60,9 +46,9 @@
                         "content": "{{c}}"
                     }
                 ],
-                "model": "openai/gpt-4o-mini",
+                "model": "openai/gpt-4o-2024-11-20",
                 "base_url": "",
-                "max_tokens": 4096,
+                "max_tokens": 10000,
                 "temperature": 0.7,
                 "structured_output": false,
                 "inputs": {"2": "b", "3": "c"},
