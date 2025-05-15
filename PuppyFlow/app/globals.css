@@ -561,7 +561,6 @@
 
 
 
-
 /* 为editor的文本字体颜色设置 */
 .json-form .monaco-editor .mtk1 {
   color: #CDCDCD !important;
@@ -979,4 +978,23 @@
 .json-form .monaco-editor .selected-text {
   background-color: rgba(255, 167, 61, 0.25) !important; /* 稍微降低了不透明度 */
   border-radius: 2px;
+}
+
+.custom-dashed-border {
+  border-style: solid;
+  border-image: repeating-linear-gradient(
+    to right,
+    gray 0%,
+    gray 70%,
+    transparent 70%,
+    transparent 100%
+  ) 1;
+}
+
+/* 在 PuppyFlow/app/globals.css 添加这些样式 */
+.react-flow__node-group {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
 }
