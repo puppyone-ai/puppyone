@@ -531,7 +531,7 @@
 }
 
 .monaco-editor .selected-text {
-  background-color: #9370DB !important; /* 半透明白色，可以根据需要调整 */
+  background-color: #4B5563 !important; /* 中性灰色 */
 }
 
 .monaco-editor .view-overlays .selected-text {
@@ -560,6 +560,8 @@
 }
 
 
+
+
 /* 为editor的文本字体颜色设置 */
 .json-form .monaco-editor .mtk1 {
   color: #CDCDCD !important;
@@ -580,7 +582,7 @@
 .text-editor .monaco-editor,
 .text-editor .monaco-editor .margin,
 .text-editor .monaco-editor-background {
-  background-color: #1C1D1F !important;
+  background-color: #252525 !important; /* 你可以设置任何颜色 */
   border: none !important;
   outline: none !important;
 }
@@ -589,6 +591,21 @@
 
 .text-editor .monaco-editor .mtk1 {
   color: #D4D4D4 !important;
+}
+
+/* 默认滑块颜色 */
+.text-editor .monaco-scrollable-element .slider {
+  background-color: rgba(128, 128, 128, 0.5) !important;
+}
+
+/* 悬停时的滑块颜色 */
+.text-editor .monaco-scrollable-element .slider:hover {
+  background-color: rgba(160, 160, 160, 0.6) !important;
+}
+
+/* 激活/点击时的滑块颜色 */
+.text-editor .monaco-scrollable-element .slider.active {
+  background-color: #CDCDCD !important;
 }
 
 
