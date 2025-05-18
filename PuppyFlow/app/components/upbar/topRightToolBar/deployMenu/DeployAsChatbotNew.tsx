@@ -64,6 +64,21 @@ function DeployAsChatbot({
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
+  // 首先从 useChatbotDeploy 钩子获取所有方法
+  const { handleDeploy, initializeChatbotDeployment, deleteChatbot } = useChatbotDeploy({
+    selectedInputs,
+    selectedOutputs,
+    selectedFlowId,
+    API_SERVER_URL,
+    setChatbotState,
+    syncToWorkspaces,
+    getNodes,
+    getEdges,
+    buildBlockNodeJson,
+    buildEdgeNodeJson,
+    chatbotConfig,
+  });
+
   // 初始化节点选择
   const initializeNodeSelections = () => {
     const allInputNodes = getNodes()
@@ -83,7 +98,7 @@ function DeployAsChatbot({
     }));
   };
 
-  // 组件初始化
+  // 然后在 useEffect 中使用
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
@@ -92,8 +107,13 @@ function DeployAsChatbot({
       if (selectedInputs.length === 0 && selectedOutputs.length === 0) {
         initializeNodeSelections();
       }
+
+      // 初始化聊天机器人部署设置
+      if (selectedFlowId) {
+        initializeChatbotDeployment();
+      }
     }
-  }, []);
+  }, [selectedFlowId, initializeChatbotDeployment, selectedInputs.length, selectedOutputs.length, initializeNodeSelections]);
 
   // 构建工作流 JSON
   const constructWorkflowJson = () => {
@@ -153,20 +173,36 @@ function DeployAsChatbot({
     }
   };
 
-  // 处理部署
-  const { handleDeploy } = useChatbotDeploy({
-    selectedInputs,
-    selectedOutputs,
-    selectedFlowId,
-    API_SERVER_URL,
-    setChatbotState,
-    syncToWorkspaces,
-    getNodes,
-    getEdges,
-    buildBlockNodeJson,
-    buildEdgeNodeJson,
-    chatbotConfig,
-  });
+  // 添加删除聊天机器人的处理函数
+  const handleDeleteChatbot = async () => {
+    if (!deploymentInfo?.api_id) {
+      console.error("No chatbot ID available to delete");
+      return;
+    }
+
+    try {
+      setChatbotState(prev => ({
+        ...prev,
+        isDeploying: true
+      }));
+
+      await deleteChatbot(deploymentInfo.api_id);
+
+      setChatbotState(prev => ({
+        ...prev,
+        isDeployed: false,
+        deploymentInfo: null,
+        isDeploying: false
+      }));
+
+    } catch (error) {
+      console.error("Failed to delete chatbot:", error);
+      setChatbotState(prev => ({
+        ...prev,
+        isDeploying: false
+      }));
+    }
+  };
 
   // 处理输入节点点击 - 聊天机器人只允许一个输入
   const handleInputClick = (node: any) => {
@@ -398,8 +434,8 @@ function DeployAsChatbot({
                   <div
                     key={node.id}
                     className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                        ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                        : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
+                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
+                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
                       }`}
                     onClick={() => handleInputClick(node)}
                   >
@@ -495,8 +531,8 @@ function DeployAsChatbot({
                   <div
                     key={node.id}
                     className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                        ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                        : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
+                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
+                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
                       }`}
                     onClick={() => handleOutputClick(node)}
                   >
@@ -639,7 +675,7 @@ function DeployAsChatbot({
                     )}
                     {isDeploying ? "Updating..." : "Redeploy"}
                   </button>
-                  
+
                   <button
                     className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
                       flex items-center justify-center gap-2
@@ -653,6 +689,18 @@ function DeployAsChatbot({
                     Test Chatbot
                   </button>
 
+                  <button
+                    className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
+                      flex items-center justify-center gap-2
+                      bg-[#E74C3C] text-white hover:bg-[#C0392B] hover:scale-105"
+                    onClick={handleDeleteChatbot}
+                    disabled={isDeploying}
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    Delete
+                  </button>
                 </div>
 
                 {showChatbotTest && (
@@ -668,8 +716,6 @@ function DeployAsChatbot({
                 )}
               </>
             )}
-
-
 
             <div className="mt-4 w-full">
               <div className="text-[#808080] text-[14px] mb-3 text-left">
