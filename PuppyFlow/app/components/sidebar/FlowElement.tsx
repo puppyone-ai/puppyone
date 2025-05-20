@@ -4,6 +4,7 @@ import FlowElementOperationMenu from './FlowElementOperationMenu'
 type FlowElementProps = {
     FlowId: string;
     FlowName: string;
+    isDirty?: boolean;
     handleOperationMenuShow: (flowId: string | null) => void;
     flowIdShowOperationMenu: string | null;
     // showFlowName: (flowId: string) => string;
@@ -11,7 +12,7 @@ type FlowElementProps = {
     // removeFlow: (flowId: string) => void;
 }
 
-function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOperationMenu}: FlowElementProps) {
+function FlowElement({FlowId, FlowName, isDirty = false, handleOperationMenuShow, flowIdShowOperationMenu}: FlowElementProps) {
     // 需要定义一个css 条件是当hover到这个flow bar 时，bg背景颜色需要变化 bg-[#3d3e41]
 
     const [isHover, setIsHover] = useState(false);
@@ -43,7 +44,11 @@ function FlowElement({FlowId, FlowName, handleOperationMenuShow, flowIdShowOpera
       <div className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
       ${FlowId === selectedFlowId ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}>
-        {FlowName}
+        <div className="flex items-center w-full">
+          <div className="truncate max-w-[160px]" title={FlowName}>
+            {FlowName}
+          </div>
+        </div>
       </div>
       <div className={`w-[24px] h-[24px] ${flowIdShowOperationMenu === FlowId || isHover ? 'flex' : 'hidden'}`}> {/* 添加固定宽度的容器 */}
         
