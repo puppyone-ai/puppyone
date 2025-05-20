@@ -44,10 +44,16 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
       <div className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
       ${FlowId === selectedFlowId ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}>
-        <div className="flex items-center gap-[6px] max-w-[166px]" title={`${FlowName}${isDirty ? " (unsaved)" : ""}`}>
+        <div className="flex items-center gap-[8px] max-w-[166px]" title={`${FlowName}${isDirty ? " (unsaved)" : ""}`}>
+          
           <span className="truncate">{FlowName}</span>
           {isDirty && (
-            <span className="flex-shrink-0 text-[14px] text-[#FFA500]">•</span>
+            <span 
+              className="flex-shrink-0 text-[8px] w-[10px] h-[10px] flex items-center justify-center rounded-[4px] bg-[#FF8B6A] text-black font-bold relative group cursor-default"
+              title="unsaved"
+            >
+              U
+            </span>
           )}
         </div>
       </div>
