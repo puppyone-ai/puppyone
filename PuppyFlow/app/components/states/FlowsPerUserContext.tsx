@@ -553,9 +553,6 @@ const FlowsPerUserProps = () => {
         }
     };
 
-    // 使用节流来监听节点变化
-    const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
     useEffect(() => {
         if (!selectedFlowId) return;
         
@@ -737,7 +734,6 @@ const FlowsPerUserProps = () => {
                 "y": 369,
                 "zoom": 1
             },
-            "isDirty": false,
             "version": "1.0.0"
         }
 
@@ -746,7 +742,7 @@ const FlowsPerUserProps = () => {
             flowId: newWorkspaceId,
             flowTitle: newWorkspaceName,
             latestJson: templateJson as any, // 使用类型断言绕过类型检查
-            isDirty: false  // 添加这个字段
+            isDirty: true  // 添加这个字段
         }]);
 
         // 加入操作队列
