@@ -9,6 +9,7 @@ import logging
 import requests
 from typing import Any, List, Dict, Tuple
 from ModularEdges.LLMEdge.llm_chat import ChatService
+from ModularEdges.LLMEdge.local_llm import LocalLLMChat, LocalLLMConfig
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
@@ -48,6 +49,15 @@ open_router_supported_models = [
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3.7-sonnet",
 ]
+
+# 定义支持本地部署的模型列表
+local_supported_models = [
+    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+]
+
+# 检查当前部署模式
+deployment_type = os.environ.get("DEPLOYMENT_TYPE", "Remote").lower()
+is_local_deployment = deployment_type == "local"
 
 def get_open_router_llm_settings(
     model: str = None,
@@ -199,11 +209,32 @@ class LLMFactory(EdgeFactoryBase):
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> str:
-        # hoster = init_configs.pop("hoster", "openrouter")
-        # if hoster == "openrouter":
-        #     return openrouter_llm_chat(**init_configs)
-        # else:
-        #     return lite_llm_chat(**init_configs)
+        model_name = init_configs.get("model")
+        logging.info(f"DEPLOYMENT_TYPE={os.environ.get('DEPLOYMENT_TYPE')}")
+        logging.info(f"is_local_deployment={is_local_deployment}")
+        logging.info(f"model_name={model_name}")
+        logging.info(f"model in local_supported_models={model_name in local_supported_models}")
+        
+        # 检查是否是本地部署模式
+        if is_local_deployment:
+            # 获取模型名称
+            model_name = init_configs.get("model")
+            # 判断模型是否在本地支持列表中
+            if model_name in local_supported_models:
+                logging.info(f"使用本地模型: {model_name}")
+                # 准备本地模型配置
+                config = LocalLLMConfig(
+                    model_name=model_name,
+                    temperature=init_configs.get("temperature", 0.7),
+                    max_tokens=init_configs.get("max_tokens", 2048),
+                    stream=init_configs.get("stream", False)
+                )
+                # 初始化本地LLM聊天实例
+                chat = LocalLLMChat(config)
+                # 调用本地模型
+                return chat.chat(init_configs.get("messages", []))
+        
+        # 如果不是本地模型或本地部署模式，使用远程API
         return lite_llm_chat(**init_configs)
 
 
