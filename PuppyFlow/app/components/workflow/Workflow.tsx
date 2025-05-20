@@ -1,6 +1,5 @@
 'use client'
 import React, { useCallback, useEffect, useState, useRef } from 'react'
-import { initialNodes } from './InitialNodes'
 import {
   ReactFlow,
   addEdge,
@@ -21,7 +20,6 @@ import {
   NodeChange
 } from '@xyflow/react'
 import TextBlockNode from './blockNode/TextBlockNode'
-import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
 import WebLinkNode from './blockNode/WebLinkNode'
 import Upbar from '../upbar/Upbar'
@@ -56,6 +54,7 @@ import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
+import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -155,9 +154,19 @@ const sortNodesByType = (nodes: Node[]) => {
 };
 
 function Workflow() {
-
-  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const { selectedFlowId, workspaces } = useFlowsPerUserContext();
+  
+  // 直接在组件内定义空数组作为默认值
+  const emptyNodes: Node[] = [];
+  const emptyEdges: Edge[] = [];
+  
+  // 获取当前工作区的初始数据（如果有）
+  const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId);
+  const initialWorkspaceNodes = currentWorkspace?.latestJson?.blocks || emptyNodes;
+  const initialWorkspaceEdges = currentWorkspace?.latestJson?.edges || emptyEdges;
+  
+  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(initialWorkspaceNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialWorkspaceEdges);
   const { screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport } = useReactFlow()
   const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } = useManageReactFlowUtils()
   const { activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
@@ -398,8 +407,8 @@ function Workflow() {
 
   // 另外，在初始化时也应该对节点进行排序
   useEffect(() => {
-    if (initialNodes.length > 0) {
-      setNodes(sortNodesByType(initialNodes));
+    if (initialWorkspaceNodes.length > 0) {
+      setNodes(sortNodesByType(initialWorkspaceNodes));
     }
   }, []);
 
