@@ -294,6 +294,15 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         "anthropic/claude-3.7-sonnet",
     ]
 
+    // 本地模型列表 - 新增
+    const local_supported_models = [
+        "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
+    ]
+
+    // 根据环境变量选择使用哪个列表
+    const is_local_deployment = process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE === "Local";
+    const available_models = is_local_deployment ? local_supported_models : open_router_supported_models;
+
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
             {/* Main button */}
@@ -439,7 +448,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                                 onMouseDownCapture={onFocus}
                                 onBlur={onBlur}
                             >
-                                {open_router_supported_models.map((model) => (
+                                {available_models.map((model) => (
                                     <option key={model} value={model}>{model}</option>
                                 ))}
                             </select>
