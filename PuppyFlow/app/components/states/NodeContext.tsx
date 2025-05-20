@@ -1,8 +1,6 @@
 import React from 'react'
 import {createContext, useContext, useState, useEffect, ReactElement} from 'react'
 import { Position, Node, Edge } from '@xyflow/react'
-import { initialNodes } from '../workflow/InitialNodes'
-import { initialEdges } from '../workflow/InitialEdges'
 
 
 
@@ -106,11 +104,6 @@ export function NodeProps() {
         setTotalCount(c => c + countNumber)
     }
 
-    let isAddingNode = false;
-    useEffect(() => {
-        restore(initialNodes, initialEdges, undefined)
-        // console.log("end running restore")
-    }, [])
 
     const addNode = async (nodeid: string) => {
         const sameNode = nodes.filter(node => node.id === nodeid)
