@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactElement } from "react";
+import React, { createContext, useContext, useState, ReactElement, useEffect } from "react";
 import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext';
+import { useAppSettings } from '../../states/AppSettingsContext';
 
 // Model types
 export type CloudModel = {
@@ -66,46 +67,60 @@ export const DashboardProvider = ({
   const { userName } = useFlowsPerUserContext();
   const [emailNotifications, setEmailNotifications] = useState(true);
   
-  const [cloudModels, setCloudModels] = useState<CloudModel[]>([
-    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', active: true },
-    { id: 'openai/gpt-4o-2024-11-20', name: 'GPT-4o (2024-11-20)', provider: 'OpenAI', active: true },
-    { id: 'openai/gpt-4.5-preview', name: 'GPT-4.5 Preview', provider: 'OpenAI', active: false },
-    { id: 'openai/o1', name: 'o1', provider: 'OpenAI', active: true },
-    { id: 'openai/o3-mini', name: 'o3 Mini', provider: 'OpenAI', active: false },
-    { id: 'deepseek/deepseek-chat-v3-0324', name: 'DeepSeek Chat v3', provider: 'DeepSeek', active: true },
-    { id: 'deepseek/deepseek-r1-zero', name: 'DeepSeek R1 Zero', provider: 'DeepSeek', active: false },
-    { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', active: true },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', active: false },
-    { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', active: true },
-  ]);
+  // 使用AppSettingsContext
+  const { 
+    cloudModels: globalCloudModels, 
+    localModels: globalLocalModels,
+    toggleModelAvailability,
+    addLocalModel: addGlobalLocalModel,
+    removeLocalModel: removeGlobalLocalModel
+  } = useAppSettings();
   
+  // 将全局模型映射到Dashboard需要的格式
+  const [cloudModels, setCloudModels] = useState<CloudModel[]>([]);
   const [localModels, setLocalModels] = useState<LocalModel[]>([]);
+  
+  // 当全局模型变化时，更新Dashboard的模型
+  useEffect(() => {
+    // 转换云端模型
+    const mappedCloudModels = globalCloudModels.map(model => ({
+      id: model.id,
+      name: model.name,
+      provider: model.provider || 'Unknown',
+      active: model.active || false
+    }));
+    setCloudModels(mappedCloudModels);
+    
+    // 转换本地模型 - 在这里我们为path提供一个默认空字符串
+    const mappedLocalModels = globalLocalModels.map(model => ({
+      id: model.id,
+      name: model.name,
+      path: '', // 使用空字符串作为path的默认值
+      active: model.active || false
+    }));
+    setLocalModels(mappedLocalModels);
+  }, [globalCloudModels, globalLocalModels]);
   
   const [newModelName, setNewModelName] = useState('');
   const [newModelPath, setNewModelPath] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
+  // 连接Dashboard操作到全局模型管理
   const toggleCloudModel = (id: string) => {
-    setCloudModels(cloudModels.map(model => 
-      model.id === id ? { ...model, active: !model.active } : model
-    ));
+    toggleModelAvailability(id);
   };
 
   const toggleLocalModel = (id: string) => {
-    setLocalModels(localModels.map(model => 
-      model.id === id ? { ...model, active: !model.active } : model
-    ));
+    toggleModelAvailability(id);
   };
 
   const addLocalModel = () => {
-    if (newModelName && newModelPath) {
-      const newModel = {
+    if (newModelName) {
+      addGlobalLocalModel({
         id: `local-${Date.now()}`,
         name: newModelName,
-        path: newModelPath,
         active: true
-      };
-      setLocalModels([...localModels, newModel]);
+      });
       setNewModelName('');
       setNewModelPath('');
       setShowAddForm(false);
@@ -113,7 +128,7 @@ export const DashboardProvider = ({
   };
 
   const removeLocalModel = (id: string) => {
-    setLocalModels(localModels.filter(model => model.id !== id));
+    removeGlobalLocalModel(id);
   };
 
   return (
