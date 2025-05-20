@@ -300,7 +300,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     ]
 
     // 根据环境变量选择使用哪个列表
-    const is_local_deployment = process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE === "Local";
+    const is_local_deployment = (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || "").toLowerCase() === "local";
     const available_models = is_local_deployment ? local_supported_models : open_router_supported_models;
 
     return (
