@@ -52,12 +52,18 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from fastapi import APIRouter, Request, Response, UploadFile, File, Form, Query
 from fastapi.responses import JSONResponse, StreamingResponse
-from utils.puppy_exception import PuppyException, global_exception_handler
-from utils.logger import log_info, log_error
-from utils.config import config
+from tools.puppy_utils import PuppyException, global_exception_handler
+from tools.puppy_utils import log_info, log_error, log_warning
+from tools.puppy_utils.config import config
 from storage import S3StorageAdapter, LocalStorageAdapter
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
+
+# 获取特定服务的日志器
+from tools.puppy_utils.logger import get_logger
+storage_logger = get_logger("puppystorage")
+log_info = storage_logger.info
+log_error = storage_logger.error
 
 # Create router
 file_router = APIRouter(prefix="/file", tags=["file"])
