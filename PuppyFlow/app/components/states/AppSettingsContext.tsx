@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import WarningToast from '../misc/WarningToast';
 
 // 定义模型类型
 export type Model = {
@@ -7,6 +8,13 @@ export type Model = {
   provider?: string;
   isLocal?: boolean;
   active?: boolean;
+};
+
+// 定义警告消息类型
+export type WarnMessage = {
+  time: number;
+  text: string;
+  expanded?: boolean;
 };
 
 // 定义上下文类型
@@ -20,8 +28,12 @@ type AppSettingsContextType = {
   addLocalModel: (model: Omit<Model, 'isLocal'>) => void;
   removeLocalModel: (id: string) => void;
   
-  // 这里可以添加更多全局设置
-  // 例如：主题、语言、性能选项等
+  // 警告消息相关
+  warns: WarnMessage[];
+  addWarn: (text: string) => void;
+  removeWarn: (index: number) => void;
+  clearWarns: () => void;
+  toggleWarnExpand: (index: number) => void;
 };
 
 // 创建上下文
@@ -51,10 +63,37 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
   // 检查部署类型
   const isLocalDeployment = (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
   
-  // 状态管理
+  // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
   const [localModels, setLocalModels] = useState<Model[]>(LOCAL_MODELS);
   const [availableModels, setAvailableModels] = useState<Model[]>([]);
+  
+  // 警告消息状态管理
+  const [warns, setWarns] = useState<WarnMessage[]>([]);
+  
+  // 添加警告消息
+  const addWarn = (text: string) => {
+    setWarns(prev => [...prev, { time: Math.floor(Date.now() / 1000), text, expanded: false }]);
+  };
+  
+  // 移除警告消息
+  const removeWarn = (index: number) => {
+    setWarns(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  // 清除所有警告消息
+  const clearWarns = () => {
+    setWarns([]);
+  };
+
+  // 切换警告消息展开/折叠状态
+  const toggleWarnExpand = (index: number) => {
+    setWarns(prev => 
+      prev.map((warn, i) => 
+        i === index ? { ...warn, expanded: !warn.expanded } : warn
+      )
+    );
+  };
   
   // 根据部署类型更新可用模型
   useEffect(() => {
@@ -109,9 +148,21 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
         toggleModelAvailability,
         addLocalModel,
         removeLocalModel,
+        warns,
+        addWarn,
+        removeWarn,
+        clearWarns,
+        toggleWarnExpand,
       }}
     >
       {children}
+      {/* 使用抽离出来的警告组件 */}
+      <WarningToast 
+        warns={warns}
+        clearWarns={clearWarns}
+        removeWarn={removeWarn}
+        toggleWarnExpand={toggleWarnExpand}
+      />
     </AppSettingsContext.Provider>
   );
 };
