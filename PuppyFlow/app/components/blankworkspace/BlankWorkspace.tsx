@@ -13,7 +13,7 @@ const BlankWorkspace = () => {
                         <path d="M51.9999 18L44 23L52 28" stroke="#5D6065" stroke-width="3" />
                     </svg>
 
-                    <p className="text-[#808080] text-lg flex flex-col items-center gap-2">
+                    <div className="text-[#808080] text-lg flex flex-col items-center gap-2">
                         <div className="text-center text-[14px]">
                             Puppy has nothing to show <br />
                             Go to create a workspace
@@ -22,7 +22,7 @@ const BlankWorkspace = () => {
                             <path d="M15 8H1" stroke="#808080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                             <path d="M6 3L1 8L6 13" stroke="#808080" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
-                    </p>
+                    </div>
                 </div>
             </div>
         </div>
