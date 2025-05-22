@@ -49,7 +49,7 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
           <span className="truncate">{FlowName}</span>
           {isDirty && (
             <span 
-              className="flex-shrink-0 text-[8px] w-[10px] h-[10px] flex items-center justify-center rounded-[4px] bg-[#FF8B6A] text-black font-bold relative group cursor-default"
+              className="flex-shrink-0 text-[8px] w-[10px] h-[10px] flex items-center justify-center rounded-[2px] bg-[#FF8B6A] text-black font-bold relative group cursor-default"
               title="unsaved"
             >
               U
