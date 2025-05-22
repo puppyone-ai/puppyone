@@ -110,4 +110,17 @@ class AppConfig:
         return getattr(paths, path_key, None)
 
 # 单例配置实例
-config = AppConfig() 
+config = AppConfig()
+
+# 判断环境: development, staging, production
+ENV = os.getenv("PUPPY_ENV", "development").lower()
+
+# 根据环境确定默认日志级别
+LOG_LEVEL_MAP = {
+    "development": "DEBUG",  # 开发环境显示所有日志
+    "staging": "INFO",       # 测试环境显示信息级别以上
+    "production": "WARNING"  # 生产环境只显示警告和错误
+}
+
+# 可以通过 PUPPY_LOG_LEVEL 环境变量覆盖默认设置
+DEFAULT_LOG_LEVEL = os.getenv("PUPPY_LOG_LEVEL", LOG_LEVEL_MAP.get(ENV, "INFO")).upper() 

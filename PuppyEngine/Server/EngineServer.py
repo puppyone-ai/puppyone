@@ -118,8 +118,21 @@ from fastapi.responses import StreamingResponse, JSONResponse
 
 from Server.WorkFlow import WorkFlow
 from Server.JsonValidation import JsonValidator
-from Utils.puppy_exception import PuppyException
-from Utils.logger import log_info, log_error, log_warning
+from tools.puppy_utils import PuppyException
+from tools.puppy_utils import log_info, log_error, log_warning
+
+# 获取环境信息并创建相应的日志器
+from tools.puppy_utils.logger import get_logger
+from tools.puppy_utils.config import ENV
+
+# 获取特定服务的日志器
+engine_logger = get_logger("puppyengine")
+log_info = engine_logger.info
+log_warning = engine_logger.warning
+log_error = engine_logger.error
+
+# 可以记录当前环境信息
+log_info(f"Server starting in {ENV} environment")
 
 class DataStore:
     def __init__(
