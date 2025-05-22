@@ -51,6 +51,7 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
               key={workspace.flowId} 
               FlowId={workspace.flowId} 
               FlowName={workspace.flowTitle}
+              isDirty={workspace.isDirty}
               handleOperationMenuShow={handleOperationMenuShow}
               flowIdShowOperationMenu={flowIdShowOperationMenu}
             />
