@@ -1,6 +1,7 @@
 import traceback
 from functools import wraps
 from tools.puppy_utils.logger import log_error, log_info
+from tools.puppy_utils.config import ENV
 
 class PuppyException(Exception):
     """自定义异常类，用于Puppy服务中的错误处理
@@ -66,7 +67,7 @@ class PuppyException(Exception):
 def global_exception_handler(
     error_code: int,
     error_message: str,
-    log_at_root: bool = False,
+    log_at_root: bool = None,
     service_name: str = None
 ):
     """全局异常处理装饰器
@@ -80,8 +81,21 @@ def global_exception_handler(
         error_code (int): 当捕获非PuppyException时要使用的错误代码
         error_message (str): 当捕获非PuppyException时要使用的错误消息
         log_at_root (bool): 是否在此级别记录异常，通常只在顶层调用处设为True
+                           如果为None，则根据环境自动决定:
+                           - development: 默认True，记录所有异常
+                           - staging: 按需记录
+                           - production: 默认False，减少详细日志
         service_name (str): 服务名称，用于标识异常来源
     """
+    # 根据环境自动决定 log_at_root 的默认值
+    if log_at_root is None:
+        if ENV == "development":
+            log_at_root = True  # 开发环境记录所有异常详情
+        elif ENV == "production":
+            log_at_root = False  # 生产环境减少日志记录
+        else:  # staging 或其他环境
+            log_at_root = False  # 默认不在根级别记录
+    
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):

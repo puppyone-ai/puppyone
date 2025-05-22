@@ -9,7 +9,8 @@ warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore", FutureWarning)
 
 # 移除标准logging配置，使用自定义日志函数
-from Utils.logger import log_info, log_warning, log_error
+from tools.puppy_utils import log_info, log_warning, log_error
+from tools.puppy_utils import PuppyException, global_exception_handler
 
 import json
 import threading
@@ -18,8 +19,14 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
-from Utils.puppy_exception import global_exception_handler, PuppyException
 import traceback
+
+# 获取特定服务的日志器
+from tools.puppy_utils.logger import get_logger
+engine_logger = get_logger("puppyengine")
+log_info = engine_logger.info
+log_warning = engine_logger.warning
+log_error = engine_logger.error
 
 
 """

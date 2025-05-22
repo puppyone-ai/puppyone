@@ -1,12 +1,19 @@
 import logging
 import warnings
 from axiom_py import Client
-from tools.puppy_utils.config import config
+from tools.puppy_utils.config import config, ENV, DEFAULT_LOG_LEVEL
 
+# 将字符串日志级别转换为 logging 常量
+LOG_LEVEL_CONST = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL
+}
 
-# 配置基本日志
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("httpx").setLevel(logging.ERROR)
+# 根据环境配置基本日志
+logging.basicConfig(level=LOG_LEVEL_CONST.get(DEFAULT_LOG_LEVEL, logging.INFO))
 
 class Logger:
     """
@@ -17,19 +24,31 @@ class Logger:
     支持多个服务共享同一套日志代码，通过 service_name 区分
     """
     
-    def __init__(self, service_name="puppy", mode="default", log_level=logging.INFO):
+    def __init__(self, service_name="puppy", mode="default", log_level=None):
         """
         初始化 Logger 实例
         
         Args:
-            service_name: 服务名称，用于区分不同服务的日志
-            mode: 日志模式，'default' 或 'local'
-            log_level: 日志级别
+            service_name: 服务名称
+            mode: 日志模式 ('default' 或 'local')
+            log_level: 日志级别，如果为 None 则使用根据环境确定的默认级别
         """
         self.mode = mode
         self.service_name = service_name
         self.logger = logging.getLogger(service_name)
+        
+        # 如果没有指定级别，使用根据环境确定的默认级别
+        if log_level is None:
+            log_level = LOG_LEVEL_CONST.get(DEFAULT_LOG_LEVEL, logging.INFO)
+        
         self.logger.setLevel(log_level)
+        
+        # 根据环境添加额外的日志格式
+        if ENV == "development":
+            # 开发环境添加更详细的信息
+            formatter = logging.Formatter('%(asctime)s [%(levelname)s] [%(name)s] %(message)s')
+            for handler in self.logger.handlers:
+                handler.setFormatter(formatter)
         
         # 根据模式设置日志处理程序
         if mode == "default":
@@ -111,7 +130,7 @@ log_warning = default_logger.warning
 log_debug = default_logger.debug
 
 # 服务特定的日志器
-def get_logger(service_name, mode="default", log_level=logging.INFO):
+def get_logger(service_name, mode="default", log_level=None):
     """
     获取特定服务的日志器实例
     
