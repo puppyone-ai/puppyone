@@ -11,6 +11,10 @@ function SaveButton() {
   const { isOnGeneratingNewNode } = useNodesPerFlowContext()
   const {getViewport} = useReactFlow();
 
+  // 从workspaces中获取当前选中工作区的isDirty状态
+  const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId);
+  const isDirty = currentWorkspace?.isDirty || false;
+
   const handleSave = async () => {
     try {
       if (selectedFlowId) {
@@ -63,21 +67,36 @@ function SaveButton() {
   <path fillRule="evenodd" clipRule="evenodd" d="M3 0C1.34315 0 0 1.34315 0 3V11C0 12.6569 1.34315 14 3 14H11C12.6569 14 14 12.6569 14 11V3C14 1.34315 12.6569 0 11 0H3ZM4.46447 4.46447L7 7L9.53553 4.46447L10.5355 5.46447L8 8L10.5355 10.5355L9.53553 11.5355L7 9L4.46447 11.5355L3.46447 10.5355L6 8L3.46447 5.46447L4.46447 4.46447Z" fill="#f44336"/>
 </svg>)
 
-  const saveButtonText = saveState === "idle" ? "Save" : saveState === "success" ? "Saved" : "Error"
+  const saveButtonText = saveState === "idle" ? ("Save") : saveState === "success" ? "Saved" : "Error"
 
   return (
-    <button className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[36px] rounded-[8px]  bg-[#252525] border-[1px] hover:bg-[#3E3E41] transition-colors ${saveState === "idle" ? "border-[#3E3E41]" : saveState === "success" ? "border-main-green hover:border-main-green" : "border-main-red hover:border-main-red"} ${isOnGeneratingNewNode ? "pointer-events-none" : "pointer-events-auto"} group`} onMouseEnter={() => setIsHovering(true)} 
-    onMouseLeave={() => setIsHovering(false)} 
-    onClick={(e) => {
-      e.preventDefault()  
-      e.stopPropagation()
-      handleSaveButton()
-    }}>
-        <div className='group-hover:text-main-grey fill-main-grey'>
-            {saveButtonLogo}
-        </div>
-    <div className={` text-[14px] font-normal leading-normal ${saveState === "idle" ? "text-[#CDCDCD] group-hover:text-main-grey" : saveState === "success" ? "text-main-green group-hover:text-main-green" : "text-main-red   group-hover:text-main-red"}`}>{saveButtonText}</div>
-    </button>
+    <div className="relative flex flex-col items-center">
+      <button className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[36px] rounded-[8px] bg-[#252525] border-[1px] hover:bg-[#3E3E41] transition-colors ${
+        saveState === "idle" 
+          ? "border-[#3E3E41]" 
+          : saveState === "success" 
+            ? "border-main-green hover:border-main-green" 
+            : "border-main-red hover:border-main-red"
+      } ${isOnGeneratingNewNode ? "pointer-events-none" : "pointer-events-auto"} group`} 
+      onMouseEnter={() => setIsHovering(true)} 
+      onMouseLeave={() => setIsHovering(false)} 
+      onClick={(e) => {
+        e.preventDefault()  
+        e.stopPropagation()
+        handleSaveButton()
+      }}>
+          <div className='group-hover:text-main-grey fill-main-grey'>
+              {saveButtonLogo}
+          </div>
+          <div className={`text-[14px] font-normal leading-normal ${
+            saveState === "idle" 
+              ? "text-[#CDCDCD] group-hover:text-main-grey"
+              : saveState === "success" 
+                ? "text-main-green group-hover:text-main-green" 
+                : "text-main-red group-hover:text-main-red"
+          }`}>{saveButtonText}</div>
+      </button>
+    </div>
   )
 }
 

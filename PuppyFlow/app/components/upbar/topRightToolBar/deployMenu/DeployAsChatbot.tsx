@@ -5,6 +5,7 @@ import { useDeployPanelContext } from '@/app/components/states/DeployPanelContex
 import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
+import { useChatbotDeploy } from './hook/useChatbotDeploy';
 
 interface DeployAsChatbotProps {
   selectedFlowId: string | null;
@@ -153,66 +154,19 @@ function DeployAsChatbot({
   };
 
   // 处理部署
-  const handleDeploy = async () => {
-    // 更新状态为正在部署
-    setChatbotState(prev => ({
-      ...prev,
-      isDeploying: true
-    }));
-
-    try {
-      const res = await fetch(
-        API_SERVER_URL + "/config_api",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
-          },
-          body: JSON.stringify({
-            workflow_json: constructWorkflowJson(),
-            inputs: selectedInputs.map(item => item.id),
-            outputs: selectedOutputs.map(item => item.id),
-            workspace_id: selectedFlowId || "default"
-          })
-        }
-      );
-
-      const content = await res.json();
-
-      if (!res.ok) {
-        throw new Error(`Response status: ${res.status}`);
-      }
-
-      // 处理返回的 API 配置信息
-      const { api_id, api_key, endpoint } = content;
-      console.log("Deployment successful:", api_id, api_key);
-
-      // 更新全局状态
-      setChatbotState(prev => ({
-        ...prev,
-        isDeployed: true,
-        deploymentInfo: {
-          api_id,
-          api_key,
-          endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
-          ...content
-        },
-        isDeploying: false
-      }));
-
-      // 触发同步到 workspaces
-      syncToWorkspaces();
-
-    } catch (error) {
-      console.error("Failed to deploy:", error);
-      // 更新状态为部署失败
-      setChatbotState(prev => ({
-        ...prev,
-        isDeploying: false
-      }));
-    }
-  };
+  const { handleDeploy } = useChatbotDeploy({
+    selectedInputs,
+    selectedOutputs,
+    selectedFlowId,
+    API_SERVER_URL,
+    setChatbotState,
+    syncToWorkspaces,
+    getNodes,
+    getEdges,
+    buildBlockNodeJson,
+    buildEdgeNodeJson,
+    chatbotConfig,
+  });
 
   // 处理输入节点点击 - 聊天机器人只允许一个输入
   const handleInputClick = (node: any) => {

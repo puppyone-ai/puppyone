@@ -430,11 +430,11 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         </div>
 
         {/* the plain text editor */}
-        <div className="px-[8px] flex-1 relative">
-
+        <div className="pl-[8px] flex-1 relative">
+ 
 
           {isLoading ? <SkeletonLoadingIcon /> :
-            <TextEditorTextArea
+            <TextEditor
               preventParentDrag={preventNodeDrag}
               allowParentDrag={allowNodeDrag}
               widthStyle={contentSize.width - 16} // 减去左右padding (16px)

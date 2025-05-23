@@ -1,6 +1,5 @@
 'use client'
 import React, { useCallback, useEffect, useState, useRef } from 'react'
-import { initialNodes } from './InitialNodes'
 import {
   ReactFlow,
   addEdge,
@@ -16,10 +15,11 @@ import {
   useReactFlow,
   ConnectionLineType,
   ConnectionMode,
-  Controls
+  Controls,
+  SelectionMode,
+  NodeChange
 } from '@xyflow/react'
 import TextBlockNode from './blockNode/TextBlockNode'
-import { initialEdges } from './InitialEdges'
 import '@xyflow/react/dist/style.css';
 import WebLinkNode from './blockNode/WebLinkNode'
 import Upbar from '../upbar/Upbar'
@@ -52,6 +52,9 @@ import IfElse from './edgesNode/edgeNodesNew/ifelse'
 import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
+import GroupNode from './groupNode/GroupNode'
+import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
+import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -74,6 +77,7 @@ const nodeTypes = {
   'ifelse': IfElse,
   'generate': Generate,
   'load': Load,
+  'group': GroupNode,
 }
 
 const edgeTypes = {
@@ -140,18 +144,51 @@ function useMiddleMousePan() {
   return canPan;
 }
 
-
+// 添加这个排序函数
+const sortNodesByType = (nodes: Node[]) => {
+  return [...nodes].sort((a, b) => {
+    if (a.type === 'group' && b.type !== 'group') return -1;
+    if (a.type !== 'group' && b.type === 'group') return 1;
+    return 0;
+  });
+};
 
 function Workflow() {
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const { selectedFlowId, workspaces } = useFlowsPerUserContext();
+  
+  // 直接在组件内定义空数组作为默认值
+  const emptyNodes: Node[] = [];
+  const emptyEdges: Edge[] = [];
+  
+  // 获取当前工作区的初始数据（如果有）
+  const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId);
+  const initialWorkspaceNodes = currentWorkspace?.latestJson?.blocks || emptyNodes;
+  const initialWorkspaceEdges = currentWorkspace?.latestJson?.edges || emptyEdges;
+  
+  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(initialWorkspaceNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialWorkspaceEdges);
   const { screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport } = useReactFlow()
   const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } = useManageReactFlowUtils()
   const { activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
+  const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
 
+  // 创建可排序的节点和变更函数
+  const nodes = sortNodesByType(unsortedNodes);
+  const setNodes = (nodesFn: any) => {
+    if (typeof nodesFn === 'function') {
+      setUnsortedNodes((prevNodes) => sortNodesByType(nodesFn(prevNodes)));
+    } else {
+      setUnsortedNodes(sortNodesByType(nodesFn));
+    }
+  };
+
+  // 创建自定义的onNodesChange处理器，确保在变更后节点也保持正确顺序
+  const onNodesChange = (changes: NodeChange[]) => {
+    onUnsortedNodesChange(changes);
+    setUnsortedNodes((prevNodes) => sortNodesByType(prevNodes));
+  };
 
   // 设置鼠标样式
   useEffect(() => {
@@ -206,7 +243,7 @@ function Workflow() {
     // console.log("start to node on Mouse Enter", id)
     // if (isOnGeneratingNewNode) return
 
-    setNodes((nds) => {
+    setNodes((nds: Node[]) => {
       const nodeIndex = nds.findIndex((node) => node.id === id);
       const node = nds[nodeIndex];
       const newNodes = [...nds];
@@ -340,6 +377,41 @@ function Workflow() {
 
   }, [getEdges()])
 
+  // 在 Workflow.tsx 中添加一个监听器，每当节点变更时进行排序
+
+  useEffect(() => {
+    // 验证节点顺序是否正确
+    const isOrderCorrect = (nodes: Node[]) => {
+      const groupIndices = nodes
+        .map((node, index) => node.type === 'group' ? index : -1)
+        .filter(index => index !== -1);
+      
+      if (groupIndices.length === 0) return true;
+      
+      // 检查是否有非组节点在组节点之前
+      return !nodes.some((node, index) => {
+        if (node.type !== 'group' && node.parentId) {
+          const parentIndex = nodes.findIndex(n => n.id === node.parentId);
+          return parentIndex > index; // 如果父节点索引大于子节点索引，顺序不正确
+        }
+        return false;
+      });
+    };
+
+    // 如果顺序不正确，重新排序
+    if (!isOrderCorrect(nodes)) {
+      console.warn('Node order is incorrect, reordering...');
+      setNodes(sortNodesByType(nodes));
+    }
+  }, [nodes]);
+
+  // 另外，在初始化时也应该对节点进行排序
+  useEffect(() => {
+    if (initialWorkspaceNodes.length > 0) {
+      setNodes(sortNodesByType(initialWorkspaceNodes));
+    }
+  }, []);
+
 
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
@@ -350,8 +422,6 @@ function Workflow() {
             height: "100%",
           }}
           connectionLineComponent={CustomConnectionLine}
-          //  connectionLineStyle={connectionLineStyle}
-          //  connectionRadius={100}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
@@ -370,7 +440,6 @@ function Workflow() {
             onNodeMouseLeave(node.id)
           }}
           onNodeClick={(event, node) => onNodeClick(node.id)}
-          //  onDelete={onDelete}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}
           onPaneClick={onPaneClick}
@@ -387,7 +456,8 @@ function Workflow() {
           panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
           selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
           className="nocursor"             // 可选：添加自定义样式
-
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
         >
           <Upbar />
           <Background color="#646464" variant={BackgroundVariant.Dots} gap={16} />
