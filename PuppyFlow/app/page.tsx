@@ -6,8 +6,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { NodesPerFlowContextProvider } from "./components/states/NodesPerFlowContext";
 import { FlowsPerUserContextProvider, useFlowsPerUserContext } from "./components/states/FlowsPerUserContext";
 import BlankWorkspace from "./components/blankworkspace/BlankWorkspace";
-import { WarnsProvider } from "./components/states/WarnMessageContext";
-import  WarnPopup  from "./components/popups/Warn"
+import { AppSettingsProvider } from "./components/states/AppSettingsContext";
 
 function ActiveFlowContent() {
   const { selectedFlowId } = useFlowsPerUserContext();
@@ -17,7 +16,7 @@ function ActiveFlowContent() {
 export default function Home() {
   return (
     <div id="home" className="w-screen h-screen flex flex-row bg-[#131313] overflow-hidden">
-      <WarnsProvider>
+      <AppSettingsProvider>
         <ReactFlowProvider>
           <FlowsPerUserContextProvider>
             <>
@@ -28,10 +27,7 @@ export default function Home() {
             </>
           </FlowsPerUserContextProvider>
         </ReactFlowProvider>
-      <div className="absolute bottom-0 left-0">
-        <WarnPopup></WarnPopup>
-      </div>
-      </WarnsProvider>
+      </AppSettingsProvider>
     </div>
   );
 }

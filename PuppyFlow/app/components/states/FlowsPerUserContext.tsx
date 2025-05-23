@@ -8,6 +8,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import moment from 'moment-timezone';
+import { useAppSettings } from './AppSettingsContext';
 
 interface InitialUserData {
     user_id: string;
@@ -20,34 +21,27 @@ interface InitialUserData {
 }
 
 
-type deployItem = {
-    id: string; label?: string
+// 1. 首先定义视口类型
+type Viewport = {
+    x: number;
+    y: number;
+    zoom: number;
 }
 
+// 2. 定义工作区内容的基础类型
+type WorkspaceContent = {
+    blocks: Node[];
+    edges: Edge[];
+    viewport: Viewport;
+    version: string;
+}
+
+// 3. 基于 WorkspaceContent 定义 WorkspaceData
 type WorkspaceData = {
     flowId: string;
     flowTitle: string;
-    latestJson: {
-        blocks: Node[];
-        edges: Edge[];
-        viewport?: {
-            x: number,
-            y: number,
-            zoom: number
-        };
-    } | null;
-    deploy: {
-        selectedInputs: Array<deployItem>;
-        selectedOutputs: Array<deployItem>;
-        apiConfig?: any
-    }
-    zoomState?: any;
-    isDirty: boolean; // 标记是否有未保存的更改
-    viewport?: {
-        x: number,
-        y: number,
-        zoom: number
-    }
+    latestJson: WorkspaceContent | null;
+    isDirty: boolean;
 }
 
 export type FlowsPerUserContextType = {
@@ -99,6 +93,7 @@ const FlowsPerUserProps = () => {
     const reactFlowInstance = useReactFlow()
     const workspacesRef = useRef<WorkspaceData[]>([]); // 用于存储最新的workspace数据 for useEffect quote
     const isForceSaveRef = useRef(false);
+    const dirtyWorkspacesRef = useRef<Set<string>>(new Set());
 
     // 添加一个 ref 来存储未保存的状态
     const unsavedStatesRef = useRef<Record<string, {
@@ -111,6 +106,34 @@ const FlowsPerUserProps = () => {
         };
         timestamp: number;
     }>>({});
+
+    // 3. 使用这个类型来定义 state
+    const [currentWorkspaceContent, setCurrentWorkspaceContent] = useState<WorkspaceContent | null>(null);
+
+    // 获取部署类型
+    const { isLocalDeployment } = useAppSettings();
+
+    // 添加本地保存相关函数
+    const saveToLocalFile = async (flowId: string, json: any, timestamp: string) => {
+        try {
+            const response = await fetch('/api/workspace', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ flowId, json, timestamp }),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save workspace');
+            }
+
+            return true;
+        } catch (error) {
+            console.error("Error saving to local file:", error);
+            throw error;
+        }
+    };
 
     // 添加规范化工具函数
     const normalizeWorkspaceJson = (json: any) => {
@@ -247,8 +270,14 @@ const FlowsPerUserProps = () => {
 
             switch (operation.type) {
                 case 'saveHistory':
-                    const { flowId, json, timestamp } = operation.payload;
-                    await addWorkspaceHistory(flowId, json, timestamp);
+                    const { flowId, json, timestamp, isLocal } = operation.payload;
+                    if (isLocal) {
+                        // 本地保存逻辑
+                        await saveToLocalFile(flowId, json, timestamp);
+                    } else {
+                        // 现有的云端保存逻辑
+                        await addWorkspaceHistory(flowId, json, timestamp);
+                    }
                     setWorkspaces(prev => prev.map(w =>
                         w.flowId === flowId
                             ? { ...w, latestJson: json, isDirty: false }
@@ -298,20 +327,6 @@ const FlowsPerUserProps = () => {
 
 
         return new Promise<void>((resolve, reject) => {
-            // if (operation.type === 'createWorkspace' || operation.type === 'deleteWorkspace') {
-            //     operationQueueRef.current.unshift({
-            //         ...operation,
-            //         onComplete: resolve,
-            //         onError: reject
-            //     });
-            // }
-            // else {
-            //     operationQueueRef.current.push({
-            //         ...operation,
-            //         onComplete: resolve,
-            //         onError: reject
-            //     });
-            // }
             operationQueueRef.current.push({
                 ...operation,
                 onComplete: resolve,
@@ -330,7 +345,8 @@ const FlowsPerUserProps = () => {
             payload: {
                 flowId,
                 json,
-                timestamp: moment().tz('Asia/Shanghai').format()
+                timestamp: moment().tz('Asia/Shanghai').format(),
+                isLocal: isLocalDeployment
             }
         });
     };
@@ -362,7 +378,7 @@ const FlowsPerUserProps = () => {
         });
     };
 
-    // 初始化加载所有workspace数据
+    // 修改初始化加载工作区数据的部分
     useEffect(() => {
         const initializeWorkspaces = async () => {
             try {
@@ -385,22 +401,16 @@ const FlowsPerUserProps = () => {
                     flowId: workspace.workspace_id,
                     flowTitle: workspace.workspace_name,
                     latestJson: null,
-                    deploy: {
-                        selectedInputs: [],
-                        selectedOutputs: [],
-                        apiConfig: undefined
-                    },
                     isDirty: false
                 }));
 
                 setWorkspaces(initialWorkspaces);
-
-                // 设置第一个工作区为选中状态
                 setSelectedFlowId(data.workspaces[0].workspace_id);
 
                 // 并行获取所有工作区的历史记录
                 const historyPromises = data.workspaces.map(async (workspace, index) => {
-                    const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id);
+                    // 根据部署类型选择不同的获取方式
+                    const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id, isLocalDeployment);
 
                     if (latestHistory) {
                         setWorkspaces(prevWorkspaces => {
@@ -409,7 +419,6 @@ const FlowsPerUserProps = () => {
                                 ...newWorkspaces[index],
                                 latestJson: latestHistory
                             };
-                            // 如果是当前选中的工作区，立即更新显示
                             if (workspace.workspace_id === data.workspaces[0].workspace_id) {
                                 updateFlowDisplay(latestHistory);
                             }
@@ -459,8 +468,6 @@ const FlowsPerUserProps = () => {
             console.log("切换前的全部工作区:", workspaces);
             console.log("切换前的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
-                isDirty: targetWorkspace?.isDirty,
-                viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
 
@@ -509,7 +516,7 @@ const FlowsPerUserProps = () => {
                         }
                     } else {
                         console.log("从服务器获取最新状态");
-                        const latestHistory = await fetchLatestWorkspaceHistory(newFlowId);
+                        const latestHistory = await fetchLatestWorkspaceHistory(newFlowId, isLocalDeployment);
                         if (latestHistory) {
                             reactFlowInstance.setNodes(latestHistory.blocks);
                             reactFlowInstance.setEdges(latestHistory.edges);
@@ -565,8 +572,6 @@ const FlowsPerUserProps = () => {
             console.log("切换后的全部工作区:", workspaces);
             console.log("切换后的工作区状态:", {
                 flowTitle: targetWorkspace?.flowTitle,
-                isDirty: targetWorkspace?.isDirty,
-                viewport: targetWorkspace?.viewport,
                 hasLatestJson: !!targetWorkspace?.latestJson
             });
             console.log("切换后的flow:", {
@@ -579,41 +584,28 @@ const FlowsPerUserProps = () => {
         }
     };
 
-
-
-    // 若当前有选中的flow，则每秒检查一次是否有内容变化，有则标记为未保存状态
     useEffect(() => {
         if (!selectedFlowId) return;
-        const saveWorkspaceInterval = setInterval(() => {
-            const currentJson = constructWholeJsonWorkflow();
-            const targetWorkspace = workspacesRef.current.find(w => w.flowId === selectedFlowId);
-            if (targetWorkspace && !isJsonEqual(targetWorkspace.latestJson, currentJson)) {
-                setWorkspaces(prev => prev.map(w => {
-                    console.log("prevous worsapce state:", w)
-                    console.log("currentJson", currentJson)
-                    return w.flowId === selectedFlowId
-                        ? { ...w, latestJson: currentJson, isDirty: true }
-                        : w
-                }));
-            }
-        }, 1000);
+        
+        // 获取当前工作区的内容 - 初始加载时执行一次
+        const currentJson = constructWholeJsonWorkflow();
+        setCurrentWorkspaceContent(currentJson);
+        
+    }, [selectedFlowId]); // 只在selectedFlowId变化时执行
 
-        // 定期保存机制，本身是5s，但是先comment掉，现在没有定期自动保存机制，只能手动保存或者在切换workspace时候自动保存了
-        // const saveHistoryToDatabaseInterval = setInterval(() => {
-        //     const workspace = workspacesRef.current.find(w => w.flowId === selectedFlowId);
-
-        //     if (workspace?.isDirty) {
-        //         console.log("auto save history to database!!")
-        //         AutoUpdateWorkspaceData(selectedFlowId);
-        //     }
-        // }, 5000);
-
-
-        return () => {
-            clearInterval(saveWorkspaceInterval);
-            // clearInterval(saveHistoryToDatabaseInterval);
+    useEffect(() => {
+        if (!selectedFlowId || !currentWorkspaceContent) return;
+        
+        const targetWorkspace = workspacesRef.current.find(w => w.flowId === selectedFlowId);
+        if (targetWorkspace && !isJsonEqual(targetWorkspace.latestJson, currentWorkspaceContent)) {
+            setWorkspaces(prev => prev.map(w => {
+                if (w.flowId === selectedFlowId) {
+                    return { ...w, latestJson: currentWorkspaceContent, isDirty: true };
+                }
+                return w;
+            }));
         }
-    }, [selectedFlowId]);
+    }, [currentWorkspaceContent, selectedFlowId]);
 
     useEffect(() => {
         // 将当前的workspaces数据存储到ref中，用于useEffect的quote
@@ -622,27 +614,6 @@ const FlowsPerUserProps = () => {
     }, [workspaces]);
 
 
-
-    // 更新workspace数据 to database (for 定期保存)
-    const AutoUpdateWorkspaceData = async (flowId: string) => {
-        // const currentJson = constructWholeJsonWorkflow();
-
-        if (isForceSaveRef.current) return;
-        // console.log("AutoUpdateWorkspaceData", workspacesRef.current)
-        const targetWorkspace = workspacesRef.current.find(w => w.flowId === flowId);
-        // console.log("targetWorkspace history desired to be saved:", targetWorkspace)
-        if (!targetWorkspace || targetWorkspace.isDirty === false) return;
-
-        // if (!targetWorkspace || isJsonEqual(targetWorkspace.latestJson, currentJson)) return;
-
-        // setWorkspaces(prev => prev.map(w => 
-        //     w.flowId === flowId 
-        //         ? { ...w, latestJson: currentJson, isDirty: true }
-        //         : w
-        // ));
-        // await addSaveHistoryToQueue(flowId, currentJson);
-        await addSaveHistoryToQueue(flowId, targetWorkspace.latestJson);
-    };
 
     // 立即保存修改
     const forceSaveHistory = async (flowId: string) => {
@@ -794,6 +765,7 @@ const FlowsPerUserProps = () => {
                 "y": 369,
                 "zoom": 1
             },
+            "version": "1.0.0"
         }
 
         // 立即更新UI，使用模板JSON并进行类型转换
@@ -801,11 +773,7 @@ const FlowsPerUserProps = () => {
             flowId: newWorkspaceId,
             flowTitle: newWorkspaceName,
             latestJson: templateJson as any, // 使用类型断言绕过类型检查
-            deploy: {
-                selectedInputs: [],
-                selectedOutputs: []
-            },
-            isDirty: false
+            isDirty: true  // 添加这个字段
         }]);
 
         // 加入操作队列

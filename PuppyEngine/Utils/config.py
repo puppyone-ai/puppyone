@@ -1,22 +1,16 @@
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+"""
+这是一个重定向文件，用于向后兼容。
+推荐直接使用 tools.puppy_utils 包中的配置管理功能。
+"""
 
-class AppConfig:
-    _instance = None
-    
-    def __new__(cls):
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-            cls._instance._load()
-        return cls._instance
-    
-    def _load(self):
-        env_path = Path(__file__).parent.parent / ".env"
-        load_dotenv(env_path, override=True)
+import warnings
 
-    def get(self, key: str, default=None):
-        return os.getenv(key, default)
+# 导入新工具包中的配置功能
+from tools.puppy_utils.config import config, AppConfig
 
-# 单例配置实例
-config = AppConfig()
+# 显示弃用警告
+warnings.warn(
+    "PuppyEngine.Utils.config 已弃用，请使用 tools.puppy_utils 中的配置模块",
+    DeprecationWarning,
+    stacklevel=2
+)
