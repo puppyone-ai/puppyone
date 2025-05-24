@@ -1,7 +1,8 @@
 # If you are a VS Code users:
 import os
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# Add the root directory to sys.path to allow importing from tools
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 import os
 import json
@@ -9,115 +10,25 @@ import logging
 import requests
 from typing import Any, List, Dict, Tuple
 from ModularEdges.LLMEdge.llm_chat import ChatService
-from ModularEdges.LLMEdge.local_llm import LocalLLMChat, LocalLLMConfig
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from Utils.puppy_exception import PuppyException, global_exception_handler
+from .llm_settings import (
+    open_router_supported_models,
+    local_supported_models,
+    get_open_router_llm_settings,
+    get_lite_llm_settings,
+    get_huggingface_llm_settings
+)
+from PuppyEngine.ModularEdges.LLMEdge.ollama_local_inference import OllamaLocalInference
+from PuppyEngine.ModularEdges.LLMEdge.hf_local_inference import LocalLLMChat, LocalLLMConfig
+from tools.puppy_utils.puppy_exception import PuppyEngineException as PuppyException, global_exception_handler
 
 
-def get_open_router_models(
-    url: str = "https://openrouter.ai/api/v1/models"
-) -> List[str]:
-    try:
-        response = requests.get(url)
-        all_model_info = response.json().get("data", [])
-        valid_modalities = {"text+image->text", "text->text"}
-        valid_models = [
-            model_info.get("id") 
-            for model_info in all_model_info 
-            if model_info.get("architecture").get("modality") in valid_modalities
-        ]
-    except Exception as e:
-        logging.error(f"Error getting open router models: {e}")
-        valid_models = ["openai/gpt-4o-mini"]
-
-    return valid_models
-
-open_router_models = get_open_router_models()
-open_router_supported_models = [
-    "openai/o1-pro",
-    "openai/o3-mini-high",
-    "openai/o3-mini",
-    "openai/o1",
-    "openai/o1-mini",
-    "openai/gpt-4.5-preview",
-    "openai/gpt-4o-2024-11-20",
-    "openai/gpt-4o-mini",
-    "openai/gpt-4-turbo",
-    "deepseek/deepseek-chat-v3-0324:free",
-    "deepseek/deepseek-r1-zero:free",
-    "anthropic/claude-3.5-haiku",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
-]
-
-# 定义支持本地部署的模型列表
-local_supported_models = [
-    "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
-]
-
-# 检查当前部署模式
+# Check current deployment mode
 deployment_type = os.environ.get("DEPLOYMENT_TYPE", "Remote").lower()
 is_local_deployment = deployment_type == "local"
 
-def get_open_router_llm_settings(
-    model: str = None,
-    api_key: str = None,
-    base_url: str = None,
-    supported_models: List[str] = open_router_supported_models,
-) -> Tuple[str, str, str]:
-    api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
-    base_url = base_url or os.environ.get("OPENROUTER_BASE_URL")
-    if model not in supported_models:
-        raise PuppyException(3701, "Invalid Open Router Model")
-    return api_key, base_url, model
-
-def get_lite_llm_settings(
-    model: str = None,
-    api_key: str = None,
-    base_url: str = None,
-) -> Tuple[str, str, str]:
-    # Convert model name to api model name
-    valid_models = {
-        "gpt-4o": "openai/gpt-4o-2024-08-06",
-        "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
-        "gpt-4.5-preview": "openai/gpt-4.5-preview-2025-02-27",
-        "o1": "openai/o1-2024-12-17",
-        "o1-mini": "openai/o1-mini-2024-09-12",
-        "o3-mini": "openai/o3-mini-2025-01-31",
-        "claude-3.7-sonnet": "anthropic/claude-3-7-sonnet-latest",
-        "claude-3.7-sonnet-thinking": "anthropic/claude-3-7-sonnet-latest",
-        "claude-3.5-sonnet": "anthropic/claude-3-5-sonnet-latest",
-        "claude-3.5-haiku": "anthropic/claude-3-5-haiku-latest",
-        "claude-3-opus": "anthropic/claude-3-opus-latest",
-        "deepseek-v3": "deepseek/deepseek-chat",
-        "deepseek-r1": "deepseek/deepseek-reasoner",
-    }
-    valid_model = valid_models.get(model, "openai/gpt-4o-2024-08-06")
-
-    if valid_model.startswith("openai"):
-        key_name = "DEEPBRICKS_API_KEY"
-    elif valid_model.startswith("anthropic"):
-        key_name = "ANTHROPIC_API_KEY"
-    elif valid_model.startswith("deepseek"):
-        key_name = "DEEPSEEK_API_KEY"
-    else:
-        raise PuppyException(3701, "Missing Large Language Model API Key")
-
-    api_key = api_key or os.environ.get(key_name)
-    base_url = base_url or os.environ.get("DEEPBRICKS_BASE_URL")
-    return api_key, base_url, valid_model
-
-def get_huggingface_llm_settings(
-    model: str = None,
-    api_key: str = None,
-    api_base: str = None,
-) -> Tuple[str, str, str]:
-    api_key = api_key or os.environ.get("HUGGINGFACE_API_KEY")
-    model = f"huggingface/{model}" if model else "huggingface/meta-llama/Meta-Llama-3.1-8B-Instruct"
-    return api_key, api_base, model
-
 @global_exception_handler(3601, "Error Generating Response Using Lite LLM")
-def lite_llm_chat(
+def remote_llm_chat(
     **kwargs
 ) -> str:
     """
@@ -159,12 +70,12 @@ def lite_llm_chat(
             "role" in chat_histories[0] and "content" in chat_histories[0]:
         messages = chat_histories + messages
     kwargs["messages"] = messages
-    # print("Messages: ", messages)
 
+    model = list(kwargs.get("model", {}).keys())[0]
     hoster = kwargs.pop("hoster", "openrouter")
     if hoster == "openrouter":
         kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_open_router_llm_settings(
-            model=kwargs.get("model"),
+            model=model,
             api_key=kwargs.get("api_key"),
             base_url=kwargs.get("base_url"),
             supported_models=open_router_supported_models
@@ -172,14 +83,14 @@ def lite_llm_chat(
         kwargs["is_openrouter"] = True
     elif hoster == "huggingface":
         kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_huggingface_llm_settings(
-            model=kwargs.get("model"),
+            model=model,
             api_key=kwargs.get("api_key"),
             api_base=kwargs.get("api_base")
         )
         kwargs["is_openrouter"] = False
     else:
         kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_lite_llm_settings(
-            model=kwargs.get("model"),
+            model=model,
             api_key=kwargs.get("api_key"),
             base_url=kwargs.get("base_url")
         )
@@ -212,33 +123,42 @@ class LLMFactory(EdgeFactoryBase):
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> str:
-        model_name = init_configs.get("model")
+        model = init_configs.get("model", {})
+        model_name = list(model.keys())[0]
+        model_info = model.get(model_name, {})
+        inference_method = model_info.get("inference_method", "ollama")
         logging.info(f"DEPLOYMENT_TYPE={os.environ.get('DEPLOYMENT_TYPE')}")
         logging.info(f"is_local_deployment={is_local_deployment}")
         logging.info(f"model_name={model_name}")
-        logging.info(f"model in local_supported_models={model_name in local_supported_models}")
-        
-        # 检查是否是本地部署模式
+
         if is_local_deployment:
-            # 获取模型名称
-            model_name = init_configs.get("model")
-            # 判断模型是否在本地支持列表中
-            if model_name in local_supported_models:
-                logging.info(f"使用本地模型: {model_name}")
-                # 准备本地模型配置
+            messages = init_configs.get("messages", [])
+            structured_output = init_configs.get("structured_output", False)
+            if structured_output:
+                messages.append({"role":"user", "content":"in json format"})
+                
+            if inference_method == "huggingface":
                 config = LocalLLMConfig(
                     model_name=model_name,
                     temperature=init_configs.get("temperature", 0.7),
                     max_tokens=init_configs.get("max_tokens", 2048),
                     stream=init_configs.get("stream", False)
                 )
-                # 初始化本地LLM聊天实例
                 chat = LocalLLMChat(config)
-                # 调用本地模型
-                return chat.chat(init_configs.get("messages", []))
-        
-        # 如果不是本地模型或本地部署模式，使用远程API
-        return lite_llm_chat(**init_configs)
+                return chat.chat(messages)
+            elif inference_method == "ollama":
+                ollama = OllamaLocalInference(model_info)
+                return ollama.generate_chat_completion(
+                    model_name=model_name,
+                    messages=messages,
+                    temperature=init_configs.get("temperature", 0.7),
+                    max_tokens=init_configs.get("max_tokens", 2048),
+                    is_structured_output=init_configs.get("structured_output", False),
+                    json_format=init_configs.get("json_format", {})
+                )
+
+        # If not local model or local deployment, use remote API
+        return remote_llm_chat(**init_configs)
 
 
 if __name__ == "__main__":
@@ -273,7 +193,7 @@ Query: What's the name of the PuppyAgent's agent framework?
         }
     }
 
-    response = lite_llm_chat(
+    response = remote_llm_chat(
         # free model for testing
         # model="google/gemini-flash-1.5-8b-exp",
         model="openai/o3-mini-high",
@@ -315,7 +235,7 @@ Query: What's the name of the PuppyAgent's agent framework?
 # Narrow AI is designed to perform a narrow task like facial recognition.
 # General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
 # """
-#     response = lite_llm_chat(
+#     response = remote_llm_chat(
 #         user_prompt=user_prompt,
 #         response_format=structure,
 #         messages=[
