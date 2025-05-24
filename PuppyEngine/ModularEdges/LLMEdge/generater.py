@@ -10,7 +10,7 @@ import logging
 from typing import Any, Dict
 from ModularEdges.LLMEdge.llm_chat import ChatService
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
-from ModularEdges.LLMEdge.llm_edge import open_router_supported_models, get_open_router_llm_settings, get_lite_llm_settings, get_huggingface_llm_settings
+from ModularEdges.LLMEdge.llm_settings import open_router_supported_models, get_open_router_llm_settings, get_lite_llm_settings, get_huggingface_llm_settings
 from Utils.puppy_exception import global_exception_handler
 
 

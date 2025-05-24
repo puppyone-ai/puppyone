@@ -8,7 +8,7 @@ import ast
 from typing import List
 from DataClass.Chunk import Chunk
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
-from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import remote_llm_chat
 from Utils.puppy_exception import global_exception_handler
 
 
@@ -101,7 +101,7 @@ Desired Output in json:
         }
 
         # Call to the LLM chat function
-        response = lite_llm_chat(
+        response = remote_llm_chat(
             messages=messages,
             model=model,
             temperature=0.9,

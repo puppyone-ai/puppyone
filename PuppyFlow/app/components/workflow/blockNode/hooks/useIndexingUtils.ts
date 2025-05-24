@@ -11,8 +11,8 @@ interface PathSegment {
   value: string;
 }
 
-// 索引状态类型
-export type VectorIndexingStatus = 'notStarted' | 'processing' | 'done' | 'error';
+// 索引状态类型 - 添加 deleting 状态
+export type VectorIndexingStatus = 'notStarted' | 'processing' | 'done' | 'error' | 'deleting';
 
 export default function useIndexingUtils() {
   const { getNode } = useReactFlow();
@@ -173,14 +173,76 @@ export default function useIndexingUtils() {
     [getNode]
   );
 
-  // 移除索引方法 - 修改为返回更新后的索引列表
-  const handleRemoveIndex = useCallback((
-    index: number, 
-    currentIndexingList: IndexingItem[]
-  ): IndexingItem[] => {
+  // 修改移除索引方法 - 支持删除中状态
+  const handleRemoveIndex = useCallback(async (
+    index: number,
+    currentIndexingList: IndexingItem[],
+    nodeId: string,
+    getUserId: () => Promise<string | null>,
+    setVectorIndexingStatus: (status: VectorIndexingStatus) => void
+  ): Promise<{ success: boolean, newList: IndexingItem[] }> => {
+    // 创建一个新的列表副本进行操作
     const newIndexingList = [...currentIndexingList];
-    newIndexingList.splice(index, 1);
-    return newIndexingList;
+    const itemToRemove = newIndexingList[index];
+    
+    // 删除结果标志
+    let deleteSuccess = true;
+    
+    // 如果是向量索引类型，需要调用后端接口删除数据库中的集合
+    if (itemToRemove && itemToRemove.type === 'vector') {
+      const vectorItem = itemToRemove as VectorIndexingItem;
+      
+      try {
+        // 获取用户ID
+        const userId = await getUserId() || 'default_user';
+        
+        // 准备请求参数
+        const deleteParams = {
+          vdb_type: vectorItem.collection_configs.vdb_type || 'pgvector',
+          user_id: userId,
+          model: vectorItem.collection_configs.model || 'text-embedding-ada-002',
+          set_name: vectorItem.collection_configs.set_name
+        };
+        
+        // 发送删除请求到向量存储服务
+        const response = await fetch(`${PuppyStorage_IP_address_for_embedding.replace('/embed', '/delete')}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(deleteParams)
+        });
+        
+        if (!response.ok) {
+          deleteSuccess = false;
+          throw new Error(`Failed to delete collection: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('Delete collection response:', result);
+        
+        // 设置状态为成功
+        setVectorIndexingStatus('done');
+      } catch (error) {
+        console.error('Error deleting vector collection:', error);
+        deleteSuccess = false;
+        // 设置状态为错误
+        setVectorIndexingStatus('error');
+      }
+    }
+    
+    // 只有在删除成功时才从列表中移除该索引，否则将状态设为错误
+    if (deleteSuccess) {
+      newIndexingList.splice(index, 1);
+    } else if (itemToRemove && itemToRemove.type === 'vector') {
+      // 如果删除失败，将状态设置为错误
+      (itemToRemove as VectorIndexingItem).status = 'error';
+    }
+    
+    return { 
+      success: deleteSuccess, 
+      newList: newIndexingList 
+    };
   }, []);
 
   return {

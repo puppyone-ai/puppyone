@@ -1,88 +1,90 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import ChatbotTestInterface from './ChatbotTestInterface';
 import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
 import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
-import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
+import { SYSTEM_URLS } from '@/config/urls';
 
 interface DeployAsChatbotProps {
   selectedFlowId: string | null;
-  workspaces: any[];
-  setWorkspaces: (workspaces: any[]) => void;
-  API_SERVER_URL: string;
   setActivePanel: (panel: string | null) => void;
-}
-
-// Define interfaces for better type safety
-interface BlockNode {
-  label: string;
-  type: string;
-  data: any;
-  [key: string]: any; // For any additional properties
-}
-
-interface EdgeNode {
-  [key: string]: any;
 }
 
 function DeployAsChatbot({
   selectedFlowId,
-  API_SERVER_URL,
   setActivePanel
 }: DeployAsChatbotProps) {
   const { getNodes, getEdges } = useReactFlow();
-  const { workspaces } = useFlowsPerUserContext();
 
-  // 使用全局 context
+  // 从简化的 context 获取必要信息
   const {
-    chatbotState,
-    setChatbotState,
-    syncToWorkspaces
+    deployedServices,
+    addChatbotService,
+    removeChatbotService,
+    apiServerKey
   } = useDeployPanelContext();
 
-  // 解构 chatbotState
-  const {
-    selectedInputs,
-    selectedOutputs,
-    chatbotConfig,
-    isDeployed,
-    deploymentInfo,
-    isDeploying,
-    selectedSDK,
-    showChatbotTest
-  } = chatbotState;
+  // 简化的本地状态管理
+  const [selectedInputs, setSelectedInputs] = useState<{ id: string, label: string }[]>([]);
+  const [selectedOutputs, setSelectedOutputs] = useState<{ id: string, label: string }[]>([]);
+  const [selectedChatHistory, setSelectedChatHistory] = useState<{ id: string, label: string }[]>([]);
+  const [chatbotConfig, setChatbotConfig] = useState({
+    multiTurn: false,
+    welcomeMessage: "Hello! How can I help you today?"
+  });
+  const [isDeploying, setIsDeploying] = useState<boolean>(false);
+  const [selectedSDK, setSelectedSDK] = useState<string | null>(null);
+  const [showChatbotTest, setShowChatbotTest] = useState<boolean>(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
-  // 用于本地 UI 状态管理（不需要保存在全局）
-  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false);
+  // 获取当前已部署的聊天机器人
+  const currentChatbot = deployedServices.chatbots.find(chatbot => chatbot.workspace_id === selectedFlowId);
+  const isDeployed = currentChatbot !== null;
+
+  // 使用构建器
+  const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
+  const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
+
+  // 统一管理 API Server URL
+  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   // 初始化引用
   const initializedRef = useRef<boolean>(false);
-
-  // 使用构建器 hooks
-  const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
-  const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
   // 初始化节点选择
   const initializeNodeSelections = () => {
     const allInputNodes = getNodes()
       .filter((item) => item.type === 'text')
       .filter(item => item.data?.isInput === true)
-      .map(node => ({ id: node.id, label: node.data.label }));
+      .map(node => ({
+        id: node.id,
+        label: (node.data.label as string) || node.id
+      }));
 
     const allOutputNodes = getNodes()
       .filter((item) => item.type === 'text')
       .filter(item => item.data?.isOutput === true)
-      .map(node => ({ id: node.id, label: node.data.label }));
+      .map(node => ({
+        id: node.id,
+        label: (node.data.label as string) || node.id
+      }));
 
-    setChatbotState(prev => ({
-      ...prev,
-      selectedInputs: allInputNodes,
-      selectedOutputs: allOutputNodes
-    }));
+    // 新增：获取所有 structured 类型且具有 isInput 属性的节点作为聊天历史候选
+    const allChatHistoryNodes = getNodes()
+      .filter((item) => item.type === 'structured')
+      .filter(item => item.data?.isInput === true)
+      .map(node => ({
+        id: node.id,
+        label: (node.data.label as string) || node.id
+      }));
+
+    setSelectedInputs(allInputNodes);
+    setSelectedOutputs(allOutputNodes);
+    setSelectedChatHistory(allChatHistoryNodes.slice(0, 1)); // 默认选择第一个，聊天历史只允许一个
   };
 
-  // 组件初始化
+  // 然后在 useEffect 中使用
   useEffect(() => {
     if (!initializedRef.current) {
       initializedRef.current = true;
@@ -91,143 +93,110 @@ function DeployAsChatbot({
       if (selectedInputs.length === 0 && selectedOutputs.length === 0) {
         initializeNodeSelections();
       }
+
+      // 初始化聊天机器人部署设置
+      if (selectedFlowId) {
+        // ... existing code ...
+      }
     }
-  }, []);
+  }, [selectedFlowId, initializeNodeSelections]);
 
   // 构建工作流 JSON
   const constructWorkflowJson = () => {
+    const nodes = getNodes();
+    const edges = getEdges();
+
+    const blockNodes = nodes.filter(node => node.type === 'block');
+    const edgeNodes = nodes.filter(node => node.type === 'edge');
+
+    const blockNodesJson = blockNodes.map(node => buildBlockNodeJson(node.id));
+    const edgeNodesJson = edgeNodes.map(node => buildEdgeNodeJson(node.id));
+
+    return {
+      nodes: [...blockNodesJson, ...edgeNodesJson],
+      edges: edges
+    };
+  };
+
+  // 直接处理部署逻辑
+  const handleDeploy = async () => {
+    if (!selectedFlowId || !apiServerKey) {
+      console.error("缺少必要的部署参数");
+      return;
+    }
+
+    if (selectedInputs.length === 0 || selectedOutputs.length === 0) {
+      console.error("请选择输入和输出节点");
+      return;
+    }
+
+    setIsDeploying(true);
+
     try {
-      // 获取所有节点和边
-      const allNodes = getNodes();
-      const reactFlowEdges = getEdges();
+      const payload = {
+        workflow_json: constructWorkflowJson(),
+        input: selectedInputs[0].id,
+        output: selectedOutputs[0].id,
+        history_id: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+        workspace_id: selectedFlowId,
+        multi_turn_enabled: chatbotConfig.multiTurn,
+        welcome_message: chatbotConfig.welcomeMessage,
+        integrations: {}
+      };
 
-      // 创建 blocks 和 edges 对象
-      let blocks: { [key: string]: BlockNode } = {};
-      let edges: { [key: string]: EdgeNode } = {};
+      const res = await fetch(`${API_SERVER_URL}/config_chatbot`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": apiServerKey
+        },
+        body: JSON.stringify(payload)
+      });
 
-      // 定义块节点类型
-      const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+      if (!res.ok) {
+        throw new Error(`部署失败: ${res.status}`);
+      }
 
-      // 处理所有节点
-      allNodes.forEach(node => {
-        const nodeId = node.id;
-        const nodeLabel = node.data?.label || nodeId;
+      const { api_id, api_key, endpoint } = await res.json();
 
-        if (blockNodeTypes.includes(node.type || '')) {
-          try {
-            // 使用块节点构建器
-            const blockJson = buildBlockNodeJson(nodeId);
+      // 如果是重新部署，先移除旧的聊天机器人
+      if (currentChatbot) {
+        removeChatbotService(currentChatbot.chatbot_id);
+      }
 
-            // 确保节点标签正确
-            blocks[nodeId] = {
-              ...blockJson,
-              label: String(nodeLabel)
-            };
-          } catch (e) {
-            console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
-
-            // 回退到默认行为
-            blocks[nodeId] = {
-              label: String(nodeLabel),
-              type: node.type || '',
-              data: { ...node.data }
-            };
-          }
-        } else {
-          // 边缘节点
-          try {
-            // 构建边缘 JSON 并添加到 edges 对象
-            const edgeJson = buildEdgeNodeJson(nodeId);
-            edges[nodeId] = edgeJson;
-          } catch (e) {
-            console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
-          }
+      // 添加新的聊天机器人服务到 context - 使用正确的属性名
+      addChatbotService({
+        chatbot_id: api_id,
+        chatbot_key: api_key,
+        endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
+        created_at: new Date().toISOString(),
+        workspace_id: selectedFlowId,
+        config: {
+          multiTurn: chatbotConfig.multiTurn,
+          welcomeMessage: chatbotConfig.welcomeMessage,
+          deployTo: 'chatbot'
         }
       });
 
-      return { blocks, edges };
     } catch (error) {
-      console.error(`Error building workflow JSON: ${error}`);
-      return;
+      console.error("部署失败:", error);
+    } finally {
+      setIsDeploying(false);
     }
   };
 
-  // 处理部署
-  const handleDeploy = async () => {
-    // 更新状态为正在部署
-    setChatbotState(prev => ({
-      ...prev,
-      isDeploying: true
-    }));
-
-    try {
-      const res = await fetch(
-        API_SERVER_URL + "/config_api",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
-          },
-          body: JSON.stringify({
-            workflow_json: constructWorkflowJson(),
-            inputs: selectedInputs.map(item => item.id),
-            outputs: selectedOutputs.map(item => item.id),
-            workspace_id: selectedFlowId || "default"
-          })
-        }
-      );
-
-      const content = await res.json();
-
-      if (!res.ok) {
-        throw new Error(`Response status: ${res.status}`);
-      }
-
-      // 处理返回的 API 配置信息
-      const { api_id, api_key, endpoint } = content;
-      console.log("Deployment successful:", api_id, api_key);
-
-      // 更新全局状态
-      setChatbotState(prev => ({
-        ...prev,
-        isDeployed: true,
-        deploymentInfo: {
-          api_id,
-          api_key,
-          endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
-          ...content
-        },
-        isDeploying: false
-      }));
-
-      // 触发同步到 workspaces
-      syncToWorkspaces();
-
-    } catch (error) {
-      console.error("Failed to deploy:", error);
-      // 更新状态为部署失败
-      setChatbotState(prev => ({
-        ...prev,
-        isDeploying: false
-      }));
-    }
-  };
 
   // 处理输入节点点击 - 聊天机器人只允许一个输入
   const handleInputClick = (node: any) => {
     const isSelected = selectedInputs.some(item => item.id === node.id);
 
     if (isSelected) {
-      setChatbotState(prev => ({
-        ...prev,
-        selectedInputs: []
-      }));
+      setSelectedInputs([]);
     } else {
-      setChatbotState(prev => ({
-        ...prev,
-        selectedInputs: [{ id: node.id, label: node.data.label }]
-      }));
+      setSelectedInputs([{
+        id: node.id,
+        label: (node.data.label as string) || node.id
+      }]);
     }
   };
 
@@ -236,55 +205,54 @@ function DeployAsChatbot({
     const isSelected = selectedOutputs.some(item => item.id === node.id);
 
     if (isSelected) {
-      setChatbotState(prev => ({
-        ...prev,
-        selectedOutputs: []
-      }));
+      setSelectedOutputs([]);
     } else {
-      setChatbotState(prev => ({
-        ...prev,
-        selectedOutputs: [{ id: node.id, label: node.data.label }]
-      }));
+      setSelectedOutputs([{
+        id: node.id,
+        label: (node.data.label as string) || node.id
+      }]);
     }
   };
 
   // 切换多轮对话设置
   const toggleMultiTurn = () => {
-    setChatbotState(prev => ({
+    setChatbotConfig(prev => ({
       ...prev,
-      chatbotConfig: {
-        ...prev.chatbotConfig,
-        multiTurn: !prev.chatbotConfig.multiTurn
-      }
+      multiTurn: !prev.multiTurn
     }));
   };
 
   // 更新欢迎消息
   const updateWelcomeMessage = (message: string) => {
-    setChatbotState(prev => ({
+    setChatbotConfig(prev => ({
       ...prev,
-      chatbotConfig: {
-        ...prev.chatbotConfig,
-        welcomeMessage: message
-      }
+      welcomeMessage: message
     }));
   };
 
   // 处理 SDK 选择
   const handleViewSDK = (platform: string | null) => {
     if (!isDeployed) return;
-    setChatbotState(prev => ({
-      ...prev,
-      selectedSDK: platform
-    }));
+    setSelectedSDK(platform);
   };
 
   // 切换聊天机器人测试界面
   const toggleChatbotTest = (show: boolean) => {
-    setChatbotState(prev => ({
-      ...prev,
-      showChatbotTest: show
-    }));
+    setShowChatbotTest(show);
+  };
+
+  // 添加处理聊天历史节点点击的函数
+  const handleChatHistoryClick = (node: any) => {
+    const isSelected = selectedChatHistory.some(item => item.id === node.id);
+
+    if (isSelected) {
+      setSelectedChatHistory([]);
+    } else {
+      setSelectedChatHistory([{
+        id: node.id,
+        label: (node.data.label as string) || node.id
+      }]);
+    }
   };
 
   const deploymentOptions = [
@@ -444,8 +412,8 @@ function DeployAsChatbot({
                   <div
                     key={node.id}
                     className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                        ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                        : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
+                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
+                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
                       }`}
                     onClick={() => handleInputClick(node)}
                   >
@@ -541,8 +509,8 @@ function DeployAsChatbot({
                   <div
                     key={node.id}
                     className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                        ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                        : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
+                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
+                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
                       }`}
                     onClick={() => handleOutputClick(node)}
                   >
@@ -597,6 +565,83 @@ function DeployAsChatbot({
               </button>
             </div>
 
+            {chatbotConfig.multiTurn && (
+              <div className="grid grid-cols-2 gap-0 rounded-lg overflow-hidden border border-[#404040]">
+                <div className="p-4 bg-[#1A1A1A]">
+                  <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+                    <div className="flex items-center justify-between">
+                      <span>Chat History</span>
+                    </div>
+                    <div className="flex items-center mt-2 gap-2">
+                      <span className="text-[12px] text-[#808080]">type:</span>
+                      <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#404040]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                          className="text-[#9B7EDB]"
+                        >
+                          <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                          <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                          <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                          <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                          <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                          <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                        </svg>
+                      </div>
+                    </div>
+                  </h3>
+
+                  <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
+                    {getNodes()
+                      .filter((item) => item.type === 'structured')
+                      .filter(item => item.data?.isInput === true)
+                      .map(node => {
+                        const isSelected = selectedChatHistory?.some(item => item.id === node.id);
+
+                        return (
+                          <div
+                            key={node.id}
+                            className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
+                              ? 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#9B7EDB]'
+                              : 'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#9B7EDB]/80 hover:bg-[#9B7EDB]/5'
+                              }`}
+                            onClick={() => handleChatHistoryClick(node)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                              <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                              <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                              <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                              <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                              <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                              <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                            </svg>
+                            <span className="flex-shrink-0 text-[12px]">{node.data.label as string || node.id}</span>
+                            {isSelected && (
+                              <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                    {getNodes().filter((item) => item.type === 'structured').filter(item => item.data?.isInput === true).length === 0 && (
+                      <div className="text-[12px] text-[#808080] italic py-2 text-center">
+                        No structured input blocks available
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 右侧空白区域，可以添加说明文字 */}
+                <div className="p-4 bg-[#1A1A1A] border-l border-[#404040] flex items-center justify-center">
+                  <div className="text-center text-[#808080]">
+
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-[#CDCDCD] text-[14px] mb-2">Welcome Message</label>
               <input
@@ -606,7 +651,6 @@ function DeployAsChatbot({
                 className="w-full bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] px-3 py-2 text-[14px] text-[#CDCDCD]"
               />
             </div>
-
           </div>
         </div>
       </div>
@@ -623,6 +667,16 @@ function DeployAsChatbot({
                 ) : (
                   <span className="text-[#808080] text-[13px]">
                     Congrats! Your chatbot is ready to be deployed.
+                    {chatbotConfig.multiTurn && selectedChatHistory?.length > 0 && (
+                      <span className="block text-[#9B7EDB] text-[12px] mt-1">
+                        ✓ Chat history will be stored in: {selectedChatHistory[0].label}
+                      </span>
+                    )}
+                    {chatbotConfig.multiTurn && selectedChatHistory?.length === 0 && (
+                      <span className="block text-[#808080] text-[11px] mt-1">
+                        💡 Consider selecting a chat history storage for better conversations
+                      </span>
+                    )}
                   </span>
                 )}
               </>
@@ -665,29 +719,34 @@ function DeployAsChatbot({
                   </span>
                 </div>
 
-                <div className="flex gap-4 items-center">
+                <div className="w-full flex flex-col gap-3">
+                  {/* 第一行：Redeploy 和 Delete 按钮 */}
+                  <div className="flex gap-3">
+                    <button
+                      className="flex-1 h-[48px] rounded-[8px] transition duration-200 
+                        flex items-center justify-center gap-2
+                        bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105"
+                      onClick={handleDeploy}
+                      disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
+                    >
+                      {isDeploying ? (
+                        <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {isDeploying ? "Updating..." : "Redeploy"}
+                    </button>
+
+                  </div>
+
+                  {/* 第二行：Test 按钮 */}
                   <button
-                    className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
-                      flex items-center justify-center gap-2
-                      bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105"
-                    onClick={handleDeploy}
-                    disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
-                  >
-                    {isDeploying ? (
-                      <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    {isDeploying ? "Updating..." : "Redeploy"}
-                  </button>
-                  
-                  <button
-                    className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
+                    className="w-full h-[48px] rounded-[8px] transition duration-200 
                       flex items-center justify-center gap-2
                       bg-[#3B9BFF] text-white hover:bg-[#2980B9] hover:scale-105"
                     onClick={() => toggleChatbotTest(true)}
@@ -698,24 +757,21 @@ function DeployAsChatbot({
                     </svg>
                     Test Chatbot
                   </button>
-
                 </div>
 
                 {showChatbotTest && (
                   <ChatbotTestInterface
-                    apiEndpoint={deploymentInfo?.endpoint || `${API_SERVER_URL}/api/${deploymentInfo?.api_id || ''}`}
+                    apiEndpoint={currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
                     inputNodeId={selectedInputs[0]?.id || ''}
                     outputNodeId={selectedOutputs[0]?.id || ''}
-                    apiKey={deploymentInfo?.api_key || ''}
-                    apiId={deploymentInfo?.api_id || ''}
+                    apiKey={currentChatbot?.chatbot_key || ''}
+                    apiId={currentChatbot?.chatbot_id || ''}
                     isModal={true}
                     onClose={() => toggleChatbotTest(false)}
                   />
                 )}
               </>
             )}
-
-
 
             <div className="mt-4 w-full">
               <div className="text-[#808080] text-[14px] mb-3 text-left">
@@ -749,166 +805,58 @@ function DeployAsChatbot({
                 ))}
               </div>
 
-              {isDeployed ? (
-                <>
-                  {selectedSDK ? (
-                    <div className="mt-4 py-3 px-4 bg-[#1A1A1A] rounded-md border border-[#404040]">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          {React.cloneElement(deploymentOptions.find(opt => opt.id === selectedSDK)?.icon || <></>, {
-                            className: 'w-5 h-5 mr-2'
-                          })}
-                          <span className="text-[14px] text-[#CDCDCD] font-medium">
-                            {deploymentOptions.find(opt => opt.id === selectedSDK)?.name} SDK
-                          </span>
+              {/* 只在已部署时显示 API 详情 */}
+              {isDeployed && currentChatbot && (
+                <div className="mt-4 py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
+                  <div className="flex justify-between items-start">
+                    <span className="text-[14px] text-[#CDCDCD] font-medium">API Details</span>
+                  </div>
+
+                  <div className="mt-2 space-y-3">
+                    <div>
+                      <label className="text-[12px] text-[#808080] ">API Endpoint:</label>
+                      <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                        {currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
+                      </code>
+                    </div>
+
+                    <div>
+                      <label className="text-[12px] text-[#808080]">API ID:</label>
+                      <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                        {currentChatbot?.chatbot_id || 'api_xxxxxxxxxxxx'}
+                      </code>
+                    </div>
+
+                    <div>
+                      <label className="text-[12px] text-[#808080]">API Key:</label>
+                      <div className="flex items-start">
+                        <div className="px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto">
+                          {currentChatbot?.chatbot_key || 'sk_xxxxxxxxxxxx'}
                         </div>
                         <button
-                          className="text-[12px] text-[#3B9BFF] hover:underline flex items-center"
-                          onClick={() => handleViewSDK(null)}
+                          className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                          onClick={() => {
+                            navigator.clipboard.writeText(currentChatbot?.chatbot_key || '');
+                          }}
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                            <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
                           </svg>
-                          <span className="ml-1">Close</span>
                         </button>
                       </div>
-
-                      {selectedSDK === 'webui' && (
-                        <div className="mt-3">
-                          <p className="text-[13px] text-[#CDCDCD] mb-2">
-                            Add this chatbot to your OpenWebUI installation:
-                          </p>
-                          <code className="block p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                            <pre>
-                              {`// OpenWebUI Configuration
-{
-  "name": "${workspaces.find(w => w.flowId === selectedFlowId)?.flowTitle || 'Custom Chatbot'}",
-  "endpoint": "${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}",
-  "type": "puppyflow"
-}`}
-                            </pre>
-                          </code>
-                        </div>
-                      )}
-
-                      {selectedSDK === 'discord' && (
-                        <div className="mt-3">
-                          <p className="text-[13px] text-[#CDCDCD] mb-2">
-                            Add this chatbot to your Discord server:
-                          </p>
-                          <div className="p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD]">
-                            <ol className="list-decimal ml-4 space-y-2">
-                              <li>Create a new Discord Bot in the <a href="https://discord.com/developers/applications" target="_blank" className="text-[#3B9BFF] hover:underline">Discord Developer Portal</a></li>
-                              <li>Enable Message Content Intent in Bot settings</li>
-                              <li>Set the API endpoint in your bot configuration:</li>
-                            </ol>
-                            <code className="block p-2 mt-2 bg-[#1A1A1A] rounded overflow-x-auto">
-                              <pre>
-                                {`// Discord Bot Configuration
-const puppyflowEndpoint = "${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}";`}
-                              </pre>
-                            </code>
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedSDK === 'slack' && (
-                        <div className="mt-3">
-                          <p className="text-[13px] text-[#CDCDCD] mb-2">
-                            Connect this chatbot to your Slack workspace:
-                          </p>
-                          <div className="p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD]">
-                            <ol className="list-decimal ml-4 space-y-2">
-                              <li>Create a new Slack App in the <a href="https://api.slack.com/apps" target="_blank" className="text-[#3B9BFF] hover:underline">Slack API Portal</a></li>
-                              <li>Add Bot User OAuth scopes: <code>chat:write</code>, <code>app_mentions:read</code></li>
-                              <li>Set the API endpoint in your Slack app configuration:</li>
-                            </ol>
-                            <code className="block p-2 mt-2 bg-[#1A1A1A] rounded overflow-x-auto">
-                              <pre>
-                                {`// Slack App Configuration
-PUPPYFLOW_ENDPOINT="${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}"
-BOT_NAME="${workspaces.find(w => w.flowId === selectedFlowId)?.flowTitle || 'PuppyFlow Bot'}"`}
-                              </pre>
-                            </code>
-                          </div>
-                        </div>
-                      )}
-
-                      {selectedSDK === 'bubble' && (
-                        <div className="mt-3">
-                          <p className="text-[13px] text-[#CDCDCD] mb-2">
-                            Add this chatbot as a bubble on your website:
-                          </p>
-                          <code className="block p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                            <pre>
-                              {`<script>
-  window.puppyflowConfig = {
-    chatbotEndpoint: "${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}",
-    bubbleText: "Ask me!",
-    position: "bottom-right",
-    welcomeMessage: "${chatbotConfig.welcomeMessage}"
-  };
-</script>
-<script src="https://cdn.puppyflow.ai/bubble.min.js"></script>`}
-                            </pre>
-                          </code>
-                        </div>
-                      )}
                     </div>
-                  ) : (
-                    <div className="mt-4 py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[14px] text-[#CDCDCD] font-medium">API Details</span>
-                      </div>
+                  </div>
 
-                      <div className="mt-2 space-y-3">
-                        <div>
-                          <label className="text-[12px] text-[#808080] ">API Endpoint:</label>
-                          <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                            {deploymentInfo?.endpoint || `${API_SERVER_URL}/api/${deploymentInfo?.api_id || ''}`}
-                          </code>
-                        </div>
-
-                        <div>
-                          <label className="text-[12px] text-[#808080]">API ID:</label>
-                          <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                            {deploymentInfo?.api_id || 'api_xxxxxxxxxxxx'}
-                          </code>
-                        </div>
-
-                        <div>
-                          <label className="text-[12px] text-[#808080]">API Key:</label>
-                          <div className="flex items-start">
-                            <div className="px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto">
-                              {deploymentInfo?.api_key || 'sk_xxxxxxxxxxxx'}
-                            </div>
-                            <button
-                              className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                              onClick={() => {
-                                navigator.clipboard.writeText(deploymentInfo?.api_key || '');
-                              }}
-                            >
-                              <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                                <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <p className="text-[12px] text-[#808080] mt-3">
-                        Reference the example above to make API calls to your endpoint
-                      </p>
-                    </div>
-                  )}
-                </>
-              ) : null}
+                  <p className="text-[12px] text-[#808080] mt-3">
+                    Reference the example above to make API calls to your endpoint
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-
     </div>
   );
 }

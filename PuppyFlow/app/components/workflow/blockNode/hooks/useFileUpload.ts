@@ -2,7 +2,7 @@
 import { useRef, useState, useEffect, useContext } from 'react'
 import { useFlowsPerUserContext } from "../../../states/FlowsPerUserContext"
 import useManageUserWorkspacesUtils from '../../../hooks/useManageUserWorkSpacesUtils'
-import { WarnsContext } from '../../../states/WarnMessageContext'
+import { useAppSettings } from '../../../states/AppSettingsContext'
 import { PuppyStorage_IP_address_for_uploadingFile } from '../../../hooks/useJsonConstructUtils'
 import { SYSTEM_URLS } from "@/config/urls"
 
@@ -29,7 +29,7 @@ export function useFileUpload({
 }: FileUploadProps) {
   const { userId } = useFlowsPerUserContext()
   const { fetchUserId } = useManageUserWorkspacesUtils()
-  const { warns, setWarns } = useContext(WarnsContext) as any
+  const { addWarn } = useAppSettings()
   
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(initialFiles)
   const [isOnUploading, setIsOnUploading] = useState(false)
@@ -66,7 +66,7 @@ export function useFileUpload({
       }
     } catch (error) {
       console.error('Error during upload process', error);
-      setWarns((prev: any[]) => [...prev, { time: Date.now(), text: `Upload error: ${error}` }]);
+      addWarn(`Upload error: ${error}`);
     } finally {
       setIsOnUploading(false);
       if (inputRef.current) {
@@ -103,7 +103,7 @@ export function useFileUpload({
       }
     } catch (error) {
       console.error('Error in file processing:', error);
-      setWarns((prev: any[]) => [...prev, { time: Date.now(), text: `File processing error: ${error}` }]);
+      addWarn(`File processing error: ${error}`);
     } finally {
       setIsOnUploading(false);
       console.log("File upload complete");
@@ -151,7 +151,7 @@ export function useFileUpload({
       if (!response.ok) {
         const errorText = `Failed to get upload URL: ${response.status}`;
         console.error(errorText);
-        setWarns((prev: any[]) => [...prev, { time: Date.now(), text: errorText }]);
+        addWarn(errorText);
         return;
       }
 
@@ -188,11 +188,11 @@ export function useFileUpload({
       } else {
         const errorText = `Failed to upload file: ${fileName}`;
         console.error(errorText, await uploadResponse.text());
-        setWarns((prev: any[]) => [...prev, { time: Date.now(), text: errorText }]);
+        addWarn(errorText);
       }
     } catch (error) {
       console.error(`Error processing file ${file.name}:`, error);
-      setWarns((prev: any[]) => [...prev, { time: Date.now(), text: `Error processing file: ${file.name}` }]);
+      addWarn(`Error processing file: ${file.name}`);
     }
   };
 
@@ -219,11 +219,11 @@ export function useFileUpload({
       } else {
         const errorText = `Failed to delete file: ${file.fileName}`;
         console.error(errorText);
-        setWarns((prev: any[]) => [...prev, { time: Date.now(), text: errorText }]);
+        addWarn(errorText);
       }
     } catch (error) {
       console.error(`Error deleting file:`, error);
-      setWarns((prev: any[]) => [...prev, { time: Date.now(), text: `Error deleting file: ${file.fileName}` }]);
+      addWarn(`Error deleting file: ${file.fileName}`);
     }
   };
 
