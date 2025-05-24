@@ -7,7 +7,7 @@ import os
 import sys
 import json
 from typing import List, Tuple
-from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import remote_llm_chat
 from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import BaseRetriever
 
@@ -85,7 +85,7 @@ Output:
             {"role": "system", "content": llm_prompt_template},
             {"role": "user", "content": user_prompt},
         ]
-        response = lite_llm_chat(
+        response = remote_llm_chat(
             messages=messages,
             model="gpt-4o",
             temperature=0.9,
