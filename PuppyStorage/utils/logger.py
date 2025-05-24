@@ -1,52 +1,92 @@
-"""
-这是一个重定向文件，用于向后兼容。
-推荐直接使用 tools.puppy_utils 包中的日志记录功能。
-"""
-
+import logging
 import warnings
+from axiom_py import Client
+from utils.config import config
 
-# 导入新工具包中的日志功能
-from tools.puppy_utils.logger import get_logger
 
-# 显示弃用警告
-warnings.warn(
-    "PuppyStorage.utils.logger 已弃用，请使用 tools.puppy_utils 中的日志模块",
-    DeprecationWarning,
-    stacklevel=2
-)
+# Configure basic logging
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.ERROR)
 
-# 为了向后兼容，创建默认的 PuppyStorage 日志器
-storage_logger = get_logger("puppystorage")
-log_info = storage_logger.info
-log_error = storage_logger.error
-log_warning = storage_logger.warning
-log_debug = storage_logger.debug
-
-# 向后兼容的 Logger 类
 class Logger:
-    """向后兼容的日志类，内部使用新的工具包实现"""
-    
+    """
+    Optimized logging class supporting two modes:
+    - default: logs to both Axiom and terminal
+    - local: logs only to terminal
+    """
     logger_name = "puppystorage"
     
     def __init__(self, mode="default"):
-        """初始化 Logger 实例，但使用新工具包中的实现"""
-        self._logger = get_logger("puppystorage", mode)
+        """Initialize Logger instance"""
+        self.mode = mode
+        self.logger = logging.getLogger(self.__class__.logger_name)
+        
+        # Set the logging handler based on the mode
+        if mode == "default":
+
+            # only ignore specific warning types in default mode
+            warnings.simplefilter("ignore", DeprecationWarning)
+            warnings.simplefilter("ignore", UserWarning)
+            warnings.simplefilter("ignore", FutureWarning)
+
+            # Initialize the Axiom client
+            self.axiom_token = config.get("AXIOM_TOKEN")
+            self.axiom_org_id = config.get("AXIOM_ORG_ID")
+            self.axiom_dataset = config.get("AXIOM_DATASET")
+            
+            if self.axiom_token and self.axiom_org_id and self.axiom_dataset:
+                try:
+                    self.axiom_client = Client(
+                        self.axiom_token,
+                        self.axiom_org_id
+                    )
+                    # If the Axiom client is successfully initialized, use the remote logging handler
+                    self._log_handler = self._log_with_axiom
+                except Exception as e:
+                    self.logger.error(f"Failed to initialize Axiom client: {e}")
+                    self._log_handler = self._log_local
+            else:
+                self.logger.warning("Axiom configuration is incomplete, using local logging only")
+                self._log_handler = self._log_local
+        else:
+            # Local mode, only use local logging
+            self._log_handler = self._log_local
+    
+    def _log_local(self, level, message):
+        """Only record local logs"""
+        log_method = getattr(self.logger, level.lower())
+        log_method(message)
+    
+    def _log_with_axiom(self, level, message):
+        """Record local logs and send to Axiom"""
+        # First record local logs
+        log_method = getattr(self.logger, level.lower())
+        log_method(message)
+        
+        # Then send to Axiom
+        try:
+            self.axiom_client.ingest_events(
+                self.axiom_dataset, 
+                [{"level": level, "message": str(message)}]
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to send logs to Axiom: {e}")
     
     def info(self, message):
-        """记录 info 级别日志"""
-        self._logger.info(message)
+        """Record info level logs"""
+        self._log_handler("INFO", message)
     
     def error(self, message):
-        """记录 error 级别日志"""
-        self._logger.error(message)
+        """Record error level logs"""
+        self._log_handler("ERROR", message)
     
     def warning(self, message):
-        """记录 warning 级别日志"""
-        self._logger.warning(message)
-    
-    def debug(self, message):
-        """记录 debug 级别日志"""
-        self._logger.debug(message)
+        """Record warning level logs"""
+        self._log_handler("WARNING", message)
 
-# 创建默认实例，兼容旧代码
+
+# Create default instance (backward compatibility)
 default_logger = Logger("default")
+log_info = default_logger.info
+log_error = default_logger.error
+log_warning = default_logger.warning

@@ -118,22 +118,8 @@ from fastapi.responses import StreamingResponse, JSONResponse
 
 from Server.WorkFlow import WorkFlow
 from Server.JsonValidation import JsonValidator
-from tools.puppy_utils import PuppyException
-from tools.puppy_utils import log_info, log_error, log_warning
-
-# 获取环境信息并创建相应的日志器
-from tools.puppy_utils.logger import get_logger
-from tools.puppy_utils.config import ENV
-
-# 获取特定服务的日志器
-engine_logger = get_logger("puppyengine")
-log_info = engine_logger.info
-log_warning = engine_logger.warning
-log_error = engine_logger.error
-log_debug = engine_logger.debug  # 添加debug级别日志函数
-
-# 可以记录当前环境信息
-log_info(f"Server starting in {ENV} environment")
+from Utils.puppy_exception import PuppyException
+from Utils.logger import log_info, log_error, log_warning
 
 class DataStore:
     def __init__(
@@ -190,7 +176,7 @@ class DataStore:
             workflow = task_data.get("workflow")
             
             if workflow:
-                log_debug(f"Retrieved workflow for task {task_id}")
+                log_info(f"Retrieved workflow for task {task_id}")
             else:
                 log_warning(f"Workflow object missing for task {task_id}")
                 
@@ -203,7 +189,7 @@ class DataStore:
     ) -> None:
         """Set workflow object for task (maintains its own data copy)"""
         with self.lock:
-            log_debug(f"Storing workflow for task {task_id}")
+            log_info(f"Storing workflow for task {task_id}")
             
             # 关联任务ID
             workflow.task_id = task_id
@@ -414,11 +400,11 @@ async def get_data(
             )
         
         connection_id = f"{task_id}-{uuid.uuid4().hex[:8]}"
-        log_debug(f"Connection {connection_id}: Starting EventSource stream for task {task_id}")
+        log_info(f"Connection {connection_id}: Starting EventSource stream for task {task_id}")
         
         async def stream_data():          
             try:
-                log_debug(f"Connection {connection_id}: Stream generator initialized")
+                log_info(f"Connection {connection_id}: Stream generator initialized")
                 
                 # 尝试获取工作流，如果不存在则重试几次
                 workflow = None
@@ -468,18 +454,18 @@ async def get_data(
                         error_msg
                     )
                 
-                log_debug(f"Connection {connection_id}: Workflow found, beginning processing")
+                log_info(f"Connection {connection_id}: Workflow found, beginning processing")
                 
                 # 使用上下文管理器自动管理资源
                 with workflow:
                     for yielded_blocks in workflow.process():
                         if not yielded_blocks:
                             continue
-                        log_debug(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks")
+                        log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks")
                         # 使用自定义序列化函数处理datetime等特殊类型
                         yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False}, default=json_serializer)}\n\n"
                     
-                    log_debug(f"Connection {connection_id}: Processing complete, sending completion signal")
+                    log_info(f"Connection {connection_id}: Processing complete, sending completion signal")
                     yield f"data: {json.dumps({'is_complete': True})}\n\n"
                 
             except PuppyException as e:
@@ -490,7 +476,7 @@ async def get_data(
                 yield f"data: {json.dumps({'error': 'Internal server error', 'message': 'An unexpected error occurred'})}\n\n"
             finally:
                 # 记录连接关闭
-                log_debug(f"Connection {connection_id}: Stream closing, marking task for delayed cleanup")
+                log_info(f"Connection {connection_id}: Stream closing, marking task for delayed cleanup")
                 
                 # 所有资源清理集中在finally中
                 try:
@@ -501,7 +487,7 @@ async def get_data(
                 
                 # 确保锁一定被释放
                 data_store.release_task_lock(task_id)
-                log_debug(f"Connection {connection_id}: Stream closed, task lock released")
+                log_info(f"Connection {connection_id}: Stream closed, task lock released")
         
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     
@@ -555,12 +541,12 @@ async def send_data(
         
         try:
             # 1. 在DataStore中存储数据副本
-            log_debug(f"Storing data copy in DataStore for task {task_id}")
+            log_info(f"Storing data copy in DataStore for task {task_id}")
             data_store.set_data(task_id, blocks, edges)
             
             # 2. 创建工作流并传入完整数据和任务ID
             # WorkFlow将维护自己的数据副本
-            log_debug(f"Creating workflow with its own data copy for task {task_id}")
+            log_info(f"Creating workflow with its own data copy for task {task_id}")
             workflow = WorkFlow(data, task_id=task_id)
             
             # 3. 存储工作流对象引用
