@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import WarningToast from '../misc/WarningToast';
+import { useOllamaModels } from '../hooks/useOllamaModels';
 
 // 定义模型类型
 export type Model = {
@@ -24,9 +25,12 @@ type AppSettingsContextType = {
   localModels: Model[];
   availableModels: Model[];
   isLocalDeployment: boolean;
+  isLoadingLocalModels: boolean;
+  ollamaConnected: boolean;
   toggleModelAvailability: (id: string) => void;
   addLocalModel: (model: Omit<Model, 'isLocal'>) => void;
   removeLocalModel: (id: string) => void;
+  refreshLocalModels: () => Promise<void>;
   
   // 警告消息相关
   warns: WarnMessage[];
@@ -53,9 +57,8 @@ const CLOUD_MODELS: Model[] = [
   { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', isLocal: false, active: true },
 ];
 
-// 预定义的本地模型
-const LOCAL_MODELS: Model[] = [
-  { id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B', name: 'DeepSeek R1 Distill Qwen 7B', isLocal: true, active: true },
+// 后备本地模型（当 Ollama 不可用时使用）
+const FALLBACK_LOCAL_MODELS: Model[] = [
 ];
 
 // Provider 组件
@@ -63,13 +66,45 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
   // 检查部署类型
   const isLocalDeployment = (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
   
+  // 使用 Ollama hook
+  const {
+    models: ollamaModels,
+    loading: isLoadingLocalModels,
+    error: ollamaError,
+    isConnected: ollamaConnected,
+    refetch: refreshOllamaModels,
+  } = useOllamaModels({
+    autoFetch: isLocalDeployment,
+    retryAttempts: 2,
+    retryDelay: 1000,
+  });
+  
   // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
-  const [localModels, setLocalModels] = useState<Model[]>(LOCAL_MODELS);
+  const [localModels, setLocalModels] = useState<Model[]>([]);
   const [availableModels, setAvailableModels] = useState<Model[]>([]);
   
   // 警告消息状态管理
   const [warns, setWarns] = useState<WarnMessage[]>([]);
+  
+  // 当 Ollama 模型更新时，更新本地模型列表
+  useEffect(() => {
+    if (isLocalDeployment) {
+      if (ollamaModels.length > 0) {
+        setLocalModels(ollamaModels);
+      } else if (ollamaError && !isLoadingLocalModels) {
+        // 如果 Ollama 连接失败，使用后备模型
+        setLocalModels(FALLBACK_LOCAL_MODELS);
+        addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
+      }
+    }
+  }, [ollamaModels, ollamaError, isLoadingLocalModels, isLocalDeployment]);
+  
+  // 刷新本地模型的函数
+  const refreshLocalModels = async () => {
+    if (!isLocalDeployment) return;
+    await refreshOllamaModels();
+  };
   
   // 添加警告消息
   const addWarn = (text: string) => {
@@ -130,7 +165,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
   // 添加本地模型
   const addLocalModel = (model: Omit<Model, 'isLocal'>) => {
     const newModel = { ...model, isLocal: true, active: true };
-    setLocalModels([...localModels, newModel]);
+    setLocalModels(prev => [...prev, newModel]);
   };
   
   // 移除本地模型
@@ -145,9 +180,12 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
         localModels,
         availableModels,
         isLocalDeployment,
+        isLoadingLocalModels,
+        ollamaConnected,
         toggleModelAvailability,
         addLocalModel,
         removeLocalModel,
+        refreshLocalModels,
         warns,
         addWarn,
         removeWarn,
