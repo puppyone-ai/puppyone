@@ -20,6 +20,12 @@ __pycache__/
 .pnp.js
 .yarn/install-state.gz
 
+# Python package build artifacts
+*.egg-info/
+*.egg
+dist/
+build/
+
 # testing
 /coverage
 
