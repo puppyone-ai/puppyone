@@ -93,16 +93,23 @@ class EdgeExecutor:
             if is_loop:
                 # Loop execution
                 futures = []
+                future_to_index = {}
+
                 for i, init_param in enumerate(init_configs):
-                    futures.append(
-                        self.executor.submit(self._execute_single, init_param, extra_configs[i])
-                    )
+                    future = self.executor.submit(self._execute_single, init_param, extra_configs[i])
+                    futures.append(future)
+                    future_to_index[future] = i
+
+                # Initialize results and statuses with placeholders
+                results = [None] * len(futures)
+                statuses = [None] * len(futures)
 
                 # Wait for all loop iterations
                 for future in concurrent.futures.as_completed(futures):
                     result, status, error = future.result()
-                    results.append(result)
-                    statuses.append(status)
+                    original_index = future_to_index[future]
+                    results[original_index] = result
+                    statuses[original_index] = status
                     if error:
                         break
             else:

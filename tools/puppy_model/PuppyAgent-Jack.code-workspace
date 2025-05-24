@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../puppy/PuppyAgent-API"
+		},
+		{
+			"path": "../../../puppy/PuppyUserSystem"
+		}
+	],
+	"settings": {}
+}

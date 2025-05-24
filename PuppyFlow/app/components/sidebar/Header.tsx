@@ -10,7 +10,7 @@ type HeaderProps = {
   setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const DialogPortal = dynamic(() => 
+const DialogPortal = dynamic(() =>
   Promise.resolve(({ children, ...props }: { children: React.ReactNode }) => {
     return ReactDOM.createPortal(children, document.body)
   }),
@@ -22,6 +22,7 @@ function Header({ setFlowFullScreen }: HeaderProps) {
   const { userName } = useFlowsPerUserContext()
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
   const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers'>('settings')
+  const [showVersionPopup, setShowVersionPopup] = useState(false)
 
   const handleCloseDialog = () => {
     settingsDialogRef.current?.close()
@@ -29,6 +30,10 @@ function Header({ setFlowFullScreen }: HeaderProps) {
 
   const handleSettingsClick = () => {
     settingsDialogRef.current?.showModal()
+  }
+
+  const handleDeploymentTypeClick = () => {
+    setShowVersionPopup(!showVersionPopup)
   }
 
   return (
@@ -43,9 +48,25 @@ function Header({ setFlowFullScreen }: HeaderProps) {
         />
 
         <div className="flex items-center gap-2">
-        <span className="  px-1.5 py-0.5 text-[10px]  text-[#5D6065] rounded-sm font-medium">
-          FREE
-        </span>
+          <div className="relative">
+            <span 
+              className="flex items-center gap-1.5 px-2 py-1 text-[11px] text-[#5D6065] rounded-md font-medium group hover:bg-[#313131] transition-colors duration-200 cursor-pointer select-none"
+              onClick={handleDeploymentTypeClick}
+            >
+              <span className="group-hover:text-white transition-colors duration-200 select-none">
+                {process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE}
+              </span>
+            </span>
+            
+            {showVersionPopup && (
+              <div className="absolute top-full left-0 mt-3 bg-[#2A2A2A] border border-[#404040] rounded-md p-2 shadow-lg z-10 min-w-[96px] text-[11px] select-none before:content-[''] before:absolute before:top-[-6px] before:left-3 before:w-3 before:h-3 before:bg-[#2A2A2A] before:border-t before:border-l before:border-[#404040] before:rotate-45 before:transform">
+                <div className="flex flex-col space-y-1 text-[#AAAAAA]">
+                  <div>Type: <span className="text-white">{process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE}</span></div>
+                  <div>Version: <span className="text-white">{process.env.NEXT_PUBLIC_FRONTEND_VERSION}</span></div>
+                </div>
+              </div>
+            )}
+          </div>
 
           <button className='w-[32px] h-[32px] flex items-center justify-center group' onClick={handleSettingsClick}>
             <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-hover:bg-[#313131] rounded-md">
@@ -70,7 +91,7 @@ function Header({ setFlowFullScreen }: HeaderProps) {
             ref={settingsDialogRef}
             className="bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
           >
-            <Dashboard 
+            <Dashboard
               activeTab={activeTab}
               onTabChange={setActiveTab}
               onClose={handleCloseDialog}

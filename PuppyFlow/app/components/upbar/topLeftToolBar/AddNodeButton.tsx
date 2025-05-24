@@ -10,7 +10,7 @@ export type nodeSmallProps = {
   nodeType: string,
 }
 
-type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1"
+type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1" | "Groupsub1"
 
 function AddNodeButton() {
   const [selectedMenu, setSelectedMenu] = useState(0)
@@ -192,6 +192,9 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
       case 'Otherssub1':
         value = 5
         break
+      case 'Groupsub1':
+        value = 6
+        break
       default:
         value = -1
         break
@@ -251,6 +254,13 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
               </defs>
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
               <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+          );
+        case "group":
+          return (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="3" width="18" height="18" rx="2" stroke="#9B7EDB" strokeWidth="1.5" strokeDasharray="4 4"/>
+              <rect x="7" y="7" width="10" height="10" rx="1" fill="#9B7EDB" fillOpacity="0.2"/>
             </svg>
           );
         default:
@@ -389,6 +399,40 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
               <div className='flex flex-col items-start'>
                 <div className='text-[14px] font-[600] text-white'>File</div>
                 <div className='text-[11px] font-[400] text-gray-400'>Upload & Process</div>
+              </div>
+            </button>
+          </div>
+
+          {/* Third Section Title */}
+          <div className="flex items-center gap-3 px-2 group mt-1">
+            <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-purple-500"></div>
+              Layout Elements
+            </span>
+            <div className="h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50"></div>
+          </div>
+
+          {/* Third Row - Layout Elements */}
+          <div className="grid grid-cols-2 gap-[12px] px-1">
+            <button 
+              className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`} 
+              onMouseEnter={() => {manageNodeMenuSubMenu("Groupsub1")}}
+              onMouseLeave={() => {manageNodeMenuSubMenu(null)}}
+              onClick={(event)=> {
+                event.preventDefault()
+                event.stopPropagation()
+                handleMouseDown("group")
+              }}>
+              <div className='absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner relative'>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="3" y="3" width="18" height="18" rx="2" stroke="#9B7EDB" strokeWidth="1.5" strokeDasharray="4 4"/>
+                  <rect x="7" y="7" width="10" height="10" rx="1" fill="#9B7EDB" fillOpacity="0.2"/>
+                </svg>
+              </div>
+              <div className='flex flex-col items-start relative'>
+                <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>Group</div>
+                <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>Group nodes</div>
               </div>
             </button>
           </div>
