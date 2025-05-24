@@ -39,13 +39,15 @@ function DeployAsChatbot({
   const {
     chatbotState,
     setChatbotState,
-    syncToWorkspaces
+    syncToWorkspaces,
+    apiServerKey
   } = useDeployPanelContext();
 
   // 解构 chatbotState
   const {
     selectedInputs,
     selectedOutputs,
+    selectedChatHistory,
     chatbotConfig,
     isDeployed,
     deploymentInfo,
@@ -68,6 +70,7 @@ function DeployAsChatbot({
   const { handleDeploy, initializeChatbotDeployment, deleteChatbot } = useChatbotDeploy({
     selectedInputs,
     selectedOutputs,
+    selectedChatHistory,
     selectedFlowId,
     API_SERVER_URL,
     setChatbotState,
@@ -77,6 +80,7 @@ function DeployAsChatbot({
     buildBlockNodeJson,
     buildEdgeNodeJson,
     chatbotConfig,
+    apiServerKey,
   });
 
   // 初始化节点选择
@@ -91,10 +95,17 @@ function DeployAsChatbot({
       .filter(item => item.data?.isOutput === true)
       .map(node => ({ id: node.id, label: node.data.label }));
 
+    // 新增：获取所有 structured 类型且具有 isInput 属性的节点作为聊天历史候选
+    const allChatHistoryNodes = getNodes()
+      .filter((item) => item.type === 'structured')
+      .filter(item => item.data?.isInput === true)
+      .map(node => ({ id: node.id, label: node.data.label }));
+
     setChatbotState(prev => ({
       ...prev,
       selectedInputs: allInputNodes,
-      selectedOutputs: allOutputNodes
+      selectedOutputs: allOutputNodes,
+      selectedChatHistory: allChatHistoryNodes.slice(0, 1) // 默认选择第一个，聊天历史只允许一个
     }));
   };
 
@@ -115,63 +126,6 @@ function DeployAsChatbot({
     }
   }, [selectedFlowId, initializeChatbotDeployment, selectedInputs.length, selectedOutputs.length, initializeNodeSelections]);
 
-  // 构建工作流 JSON
-  const constructWorkflowJson = () => {
-    try {
-      // 获取所有节点和边
-      const allNodes = getNodes();
-      const reactFlowEdges = getEdges();
-
-      // 创建 blocks 和 edges 对象
-      let blocks: { [key: string]: BlockNode } = {};
-      let edges: { [key: string]: EdgeNode } = {};
-
-      // 定义块节点类型
-      const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
-
-      // 处理所有节点
-      allNodes.forEach(node => {
-        const nodeId = node.id;
-        const nodeLabel = node.data?.label || nodeId;
-
-        if (blockNodeTypes.includes(node.type || '')) {
-          try {
-            // 使用块节点构建器
-            const blockJson = buildBlockNodeJson(nodeId);
-
-            // 确保节点标签正确
-            blocks[nodeId] = {
-              ...blockJson,
-              label: String(nodeLabel)
-            };
-          } catch (e) {
-            console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
-
-            // 回退到默认行为
-            blocks[nodeId] = {
-              label: String(nodeLabel),
-              type: node.type || '',
-              data: { ...node.data }
-            };
-          }
-        } else {
-          // 边缘节点
-          try {
-            // 构建边缘 JSON 并添加到 edges 对象
-            const edgeJson = buildEdgeNodeJson(nodeId);
-            edges[nodeId] = edgeJson;
-          } catch (e) {
-            console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
-          }
-        }
-      });
-
-      return { blocks, edges };
-    } catch (error) {
-      console.error(`Error building workflow JSON: ${error}`);
-      return;
-    }
-  };
 
   // 添加删除聊天机器人的处理函数
   const handleDeleteChatbot = async () => {
@@ -275,6 +229,23 @@ function DeployAsChatbot({
       ...prev,
       showChatbotTest: show
     }));
+  };
+
+  // 添加处理聊天历史节点点击的函数
+  const handleChatHistoryClick = (node: any) => {
+    const isSelected = selectedChatHistory.some(item => item.id === node.id);
+
+    if (isSelected) {
+      setChatbotState(prev => ({
+        ...prev,
+        selectedChatHistory: []
+      }));
+    } else {
+      setChatbotState(prev => ({
+        ...prev,
+        selectedChatHistory: [{ id: node.id, label: node.data.label }]
+      }));
+    }
   };
 
   const deploymentOptions = [
@@ -587,6 +558,83 @@ function DeployAsChatbot({
               </button>
             </div>
 
+            {chatbotConfig.multiTurn && (
+              <div className="grid grid-cols-2 gap-0 rounded-lg overflow-hidden border border-[#404040]">
+                <div className="p-4 bg-[#1A1A1A]">
+                  <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+                    <div className="flex items-center justify-between">
+                      <span>Chat History</span>
+                    </div>
+                    <div className="flex items-center mt-2 gap-2">
+                      <span className="text-[12px] text-[#808080]">type:</span>
+                      <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#404040]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+                          className="text-[#9B7EDB]"
+                        >
+                          <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                          <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                          <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                          <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                          <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                          <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                        </svg>
+                      </div>
+                    </div>
+                  </h3>
+
+                  <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
+                    {getNodes()
+                      .filter((item) => item.type === 'structured')
+                      .filter(item => item.data?.isInput === true)
+                      .map(node => {
+                        const isSelected = selectedChatHistory?.some(item => item.id === node.id);
+
+                        return (
+                          <div
+                            key={node.id}
+                            className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
+                                ? 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#9B7EDB]'
+                                : 'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#9B7EDB]/80 hover:bg-[#9B7EDB]/5'
+                              }`}
+                            onClick={() => handleChatHistoryClick(node)}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                              <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
+                              <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
+                              <path d="M9 9H11V11H9V9Z" className="fill-current" />
+                              <path d="M9 13H11V15H9V13Z" className="fill-current" />
+                              <path d="M13 9H15V11H13V9Z" className="fill-current" />
+                              <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                            </svg>
+                            <span className="flex-shrink-0 text-[12px]">{node.data.label as string || node.id}</span>
+                            {isSelected && (
+                              <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                    {getNodes().filter((item) => item.type === 'structured').filter(item => item.data?.isInput === true).length === 0 && (
+                      <div className="text-[12px] text-[#808080] italic py-2 text-center">
+                        No structured input blocks available
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 右侧空白区域，可以添加说明文字 */}
+                <div className="p-4 bg-[#1A1A1A] border-l border-[#404040] flex items-center justify-center">
+                  <div className="text-center text-[#808080]">
+                    
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-[#CDCDCD] text-[14px] mb-2">Welcome Message</label>
               <input
@@ -596,7 +644,6 @@ function DeployAsChatbot({
                 className="w-full bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] px-3 py-2 text-[14px] text-[#CDCDCD]"
               />
             </div>
-
           </div>
         </div>
       </div>
@@ -613,6 +660,16 @@ function DeployAsChatbot({
                 ) : (
                   <span className="text-[#808080] text-[13px]">
                     Congrats! Your chatbot is ready to be deployed.
+                    {chatbotConfig.multiTurn && selectedChatHistory?.length > 0 && (
+                      <span className="block text-[#9B7EDB] text-[12px] mt-1">
+                        ✓ Chat history will be stored in: {selectedChatHistory[0].label}
+                      </span>
+                    )}
+                    {chatbotConfig.multiTurn && selectedChatHistory?.length === 0 && (
+                      <span className="block text-[#808080] text-[11px] mt-1">
+                        💡 Consider selecting a chat history storage for better conversations
+                      </span>
+                    )}
                   </span>
                 )}
               </>
@@ -655,29 +712,46 @@ function DeployAsChatbot({
                   </span>
                 </div>
 
-                <div className="flex gap-4 items-center">
-                  <button
-                    className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
-                      flex items-center justify-center gap-2
-                      bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105"
-                    onClick={handleDeploy}
-                    disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
-                  >
-                    {isDeploying ? (
-                      <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                        <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    {isDeploying ? "Updating..." : "Redeploy"}
-                  </button>
+                <div className="w-full flex flex-col gap-3">
+                  {/* 第一行：Redeploy 和 Delete 按钮 */}
+                  <div className="flex gap-3">
+                    <button
+                      className="flex-1 h-[48px] rounded-[8px] transition duration-200 
+                        flex items-center justify-center gap-2
+                        bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105"
+                      onClick={handleDeploy}
+                      disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
+                    >
+                      {isDeploying ? (
+                        <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {isDeploying ? "Updating..." : "Redeploy"}
+                    </button>
 
+                    <button
+                      className="flex-1 h-[48px] rounded-[8px] transition duration-200 
+                        flex items-center justify-center gap-2
+                        bg-[#E74C3C] text-white hover:bg-[#C0392B] hover:scale-105"
+                      onClick={handleDeleteChatbot}
+                      disabled={isDeploying}
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Delete
+                    </button>
+                  </div>
+
+                  {/* 第二行：Test 按钮 */}
                   <button
-                    className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
+                    className="w-full h-[48px] rounded-[8px] transition duration-200 
                       flex items-center justify-center gap-2
                       bg-[#3B9BFF] text-white hover:bg-[#2980B9] hover:scale-105"
                     onClick={() => toggleChatbotTest(true)}
@@ -687,19 +761,6 @@ function DeployAsChatbot({
                       <path d="M9 12L11 14L15 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     Test Chatbot
-                  </button>
-
-                  <button
-                    className="w-[150px] h-[48px] rounded-[8px] transition duration-200 
-                      flex items-center justify-center gap-2
-                      bg-[#E74C3C] text-white hover:bg-[#C0392B] hover:scale-105"
-                    onClick={handleDeleteChatbot}
-                    disabled={isDeploying}
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    Delete
                   </button>
                 </div>
 
@@ -803,10 +864,8 @@ function DeployAsChatbot({
                               <li>Set the API endpoint in your bot configuration:</li>
                             </ol>
                             <code className="block p-2 mt-2 bg-[#1A1A1A] rounded overflow-x-auto">
-                              <pre>
-                                {`// Discord Bot Configuration
+                              {`// Discord Bot Configuration
 const puppyflowEndpoint = "${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}";`}
-                              </pre>
                             </code>
                           </div>
                         </div>
@@ -824,11 +883,9 @@ const puppyflowEndpoint = "${deploymentInfo?.endpoint || 'https://api.example.co
                               <li>Set the API endpoint in your Slack app configuration:</li>
                             </ol>
                             <code className="block p-2 mt-2 bg-[#1A1A1A] rounded overflow-x-auto">
-                              <pre>
-                                {`// Slack App Configuration
+                              {`// Slack App Configuration
 PUPPYFLOW_ENDPOINT="${deploymentInfo?.endpoint || 'https://api.example.com/chatbot/1234'}"
 BOT_NAME="${workspaces.find(w => w.flowId === selectedFlowId)?.flowTitle || 'PuppyFlow Bot'}"`}
-                              </pre>
                             </code>
                           </div>
                         </div>

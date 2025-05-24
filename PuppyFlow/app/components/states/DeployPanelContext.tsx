@@ -22,6 +22,7 @@ interface ChatbotDeployState {
   deploymentInfo: any;
   selectedInputs: any[];
   selectedOutputs: any[];
+  selectedChatHistory: any[];
   chatbotConfig: {
     multiTurn: boolean;
     welcomeMessage: string;
@@ -39,6 +40,9 @@ interface DeployPanelContextType {
   setApiState: React.Dispatch<React.SetStateAction<ApiDeployState>>;
   chatbotState: ChatbotDeployState;
   setChatbotState: React.Dispatch<React.SetStateAction<ChatbotDeployState>>;
+  // 新增：API 服务器密钥管理
+  apiServerKey: string;
+  setApiServerKey: (key: string) => void;
   // 用于同步状态到 workspaces
   syncToWorkspaces: () => void;
 }
@@ -61,6 +65,7 @@ const initialChatbotState: ChatbotDeployState = {
   deploymentInfo: null,
   selectedInputs: [],
   selectedOutputs: [],
+  selectedChatHistory: [],
   chatbotConfig: {
     multiTurn: true,
     welcomeMessage: 'Hello! How can I help you today?',
@@ -92,6 +97,12 @@ export const DeployPanelProvider = ({
   const [currentFlowId, setCurrentFlowId] = useState<string | null>(flowId);
   const [apiState, setApiState] = useState<ApiDeployState>(initialApiState);
   const [chatbotState, setChatbotState] = useState<ChatbotDeployState>(initialChatbotState);
+  
+  // 新增：API 服务器密钥状态
+  const [apiServerKey, setApiServerKey] = useState<string>(() => {
+    // 优先从环境变量获取，如果没有则使用默认值
+    return process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
+  });
 
   // 同步状态到 workspaces
   const syncToWorkspaces = () => {
@@ -115,8 +126,11 @@ export const DeployPanelProvider = ({
               deploymentInfo: chatbotState.deploymentInfo,
               selectedInputs: chatbotState.selectedInputs,
               selectedOutputs: chatbotState.selectedOutputs,
+              selectedChatHistory: chatbotState.selectedChatHistory,
               chatbotConfig: chatbotState.chatbotConfig,
-            }
+            },
+            // 新增：保存 API 密钥到工作区
+            apiServerKey: apiServerKey
           }
         };
       }
@@ -136,6 +150,14 @@ export const DeployPanelProvider = ({
         const currentWorkspace = workspaces.find(w => w.flowId === flowId);
         
         if (currentWorkspace?.deploy) {
+          // 恢复 API 密钥
+          if (currentWorkspace.deploy.apiServerKey) {
+            setApiServerKey(currentWorkspace.deploy.apiServerKey);
+          } else {
+            // 如果工作区没有保存密钥，使用环境变量
+            setApiServerKey(process.env.NEXT_PUBLIC_API_SERVER_KEY || '');
+          }
+
           // 恢复 API 状态
           if (currentWorkspace.deploy.api) {
             setApiState(prev => ({
@@ -161,6 +183,7 @@ export const DeployPanelProvider = ({
               deploymentInfo: currentWorkspace.deploy.chatbot.deploymentInfo || null,
               selectedInputs: currentWorkspace.deploy.chatbot.selectedInputs || [],
               selectedOutputs: currentWorkspace.deploy.chatbot.selectedOutputs || [],
+              selectedChatHistory: currentWorkspace.deploy.chatbot.selectedChatHistory || [],
               chatbotConfig: {
                 ...initialChatbotState.chatbotConfig,
                 ...currentWorkspace.deploy.chatbot.chatbotConfig,
@@ -176,6 +199,7 @@ export const DeployPanelProvider = ({
           // 如果没有 deploy 状态，重置为初始状态
           setApiState(initialApiState);
           setChatbotState(initialChatbotState);
+          setApiServerKey(process.env.NEXT_PUBLIC_API_SERVER_KEY || '');
         }
       }
     }
@@ -196,6 +220,7 @@ export const DeployPanelProvider = ({
     chatbotState.selectedInputs,
     chatbotState.selectedOutputs,
     chatbotState.chatbotConfig,
+    apiServerKey, // 新增：监听 API 密钥变化
   ]);
 
   return (
@@ -206,6 +231,8 @@ export const DeployPanelProvider = ({
         setApiState, 
         chatbotState, 
         setChatbotState,
+        apiServerKey,
+        setApiServerKey,
         syncToWorkspaces,
       }}
     >

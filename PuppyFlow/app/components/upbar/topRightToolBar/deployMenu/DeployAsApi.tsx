@@ -5,9 +5,8 @@ import { useDeployPanelContext } from '@/app/components/states/DeployPanelContex
 // 导入构建工具
 import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
-import { SYSTEM_URLS } from '@/config/urls';
-import dynamic from 'next/dynamic';
-const MonacoEditor = dynamic(import('@monaco-editor/react'), { ssr: false });
+import { useFlowsPerUserContext } from '@/app/components/states/FlowsPerUserContext';
+import { useApiDeploy } from './hook/useApiDeploy';
 
 interface DeployAsApiProps {
   selectedFlowId: string | null;
@@ -17,73 +16,6 @@ interface DeployAsApiProps {
   setActivePanel: (panel: string | null) => void;
 }
 
-// 类型定义
-interface BlockNode {
-  label: string;
-  type: string;
-  data: any;
-  [key: string]: any;
-}
-
-interface EdgeNode {
-  [key: string]: any;
-}
-
-const LanguageDropdown = ({ options, onSelect, isOpen, setIsOpen }: any) => {
-  const handleSelect = (item: string) => {
-    onSelect(item);
-    setIsOpen(false);
-  };
-
-  return (
-    <div className="relative">
-      <button
-        className="w-full flex items-center justify-between bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] px-3 py-2 text-[14px] text-[#CDCDCD]"
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <span>{options.find((opt: string) => opt === onSelect) || options[0]}</span>
-        <svg className="w-4 h-4 ml-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-        </svg>
-      </button>
-      {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] shadow-lg max-h-60 overflow-auto">
-          {options.map((item: string) => (
-            <div
-              key={item}
-              className="px-3 py-2 hover:bg-[#404040] cursor-pointer text-[14px] text-[#CDCDCD]"
-              onClick={() => handleSelect(item)}
-            >
-              {item}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// 滚动条样式
-const scrollbarStyles = `
-  .custom-scrollbar::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-track {
-    background: #1C1D1F;
-    border-radius: 8px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #404040;
-    border-radius: 8px;
-  }
-  
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: #505050;
-  }
-`;
 
 function DeployAsApi({
   selectedFlowId,
@@ -91,12 +23,14 @@ function DeployAsApi({
   setActivePanel
 }: DeployAsApiProps) {
   const { getNodes, getNode, getEdges } = useReactFlow();
+  const { workspaces } = useFlowsPerUserContext();
   
   // 使用全局 context
   const { 
     apiState, 
     setApiState,
-    syncToWorkspaces
+    syncToWorkspaces,
+    apiServerKey
   } = useDeployPanelContext();
 
   // 解构 apiState
@@ -114,22 +48,29 @@ function DeployAsApi({
   // 使用构建器
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
+
+  // 首先从 useApiDeploy 钩子获取所有方法
+  const { handleDeploy, initializeApiDeployment, deleteApi } = useApiDeploy({
+    selectedInputs,
+    selectedOutputs,
+    selectedFlowId,
+    API_SERVER_URL,
+    setApiState,
+    syncToWorkspaces,
+    getNodes,
+    getEdges,
+    buildBlockNodeJson,
+    buildEdgeNodeJson,
+    apiServerKey,
+  });
   
   // 其他状态
-  const [isAdvancedOpen, setIsAdvancedOpen] = React.useState(false);
   const [isLangSelectorOpen, setIsLangSelectorOpen] = React.useState(false);
   
-  // 节点状态
-  const [nodeOptionsByType, setNodeOptionsByType] = React.useState<{ [key: string]: any[] }>({
-    input: [],
-    output: []
-  });
-
   // 语言选项常量
   const PYTHON = "Python";
   const SHELL = "Shell";
   const JAVASCRIPT = "Javascript";
-  const languageOptions = [PYTHON, SHELL, JAVASCRIPT];
   
   // 引用用于跟踪初始化状态
   const initializedRef = useRef<boolean>(false);
@@ -165,166 +106,87 @@ function DeployAsApi({
       if (selectedInputs.length === 0 && selectedOutputs.length === 0) {
         initializeNodeSelections();
       }
+
+      // 初始化 API 部署设置
+      if (selectedFlowId) {
+        initializeApiDeployment();
+      }
     }
-  }, []);
+  }, [selectedFlowId, initializeApiDeployment, selectedInputs.length, selectedOutputs.length, initializeNodeSelections]);
 
-  // 更新节点选项
-  useEffect(() => {
-    // 获取输入节点选项
-    const inputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isInput === true)
-      .map(node => ({ id: node.id, data: { label: node.data.label } }));
-
-    // 获取输出节点选项
-    const outputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isOutput === true)
-      .map(node => ({ id: node.id, data: { label: node.data.label } }));
-
-    // 更新节点选项状态
-    setNodeOptionsByType({
-      input: inputNodes,
-      output: outputNodes
-    });
-  }, [getNodes, selectedFlowId]);
-
-  // 添加滚动条样式
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.innerHTML = scrollbarStyles;
-    document.head.appendChild(style);
-
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, []);
-
-  // 构建工作流 JSON
-  const constructWorkflowJson = () => {
-    try {
-      // 获取所有节点和边
-      const allNodes = getNodes();
-      const reactFlowEdges = getEdges();
-      
-      // 创建 blocks 和 edges 对象
-      let blocks: { [key: string]: BlockNode } = {};
-      let edges: { [key: string]: EdgeNode } = {};
-      
-      // 定义块节点类型
-      const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
-      
-      // 处理所有节点
-      allNodes.forEach(node => {
-        const nodeId = node.id;
-        const nodeLabel = node.data?.label || nodeId;
-        
-        if (blockNodeTypes.includes(node.type || '')) {
-          try {
-            // 使用块节点构建器
-            const blockJson = buildBlockNodeJson(nodeId);
-            
-            // 确保节点标签正确
-            blocks[nodeId] = {
-              ...blockJson,
-              label: String(nodeLabel)
-            };
-          } catch (e) {
-            console.warn(`Cannot build block node JSON for ${nodeId}:`, e);
-            
-            // 回退到默认行为
-            blocks[nodeId] = {
-              label: String(nodeLabel),
-              type: node.type || '',
-              data: {...node.data}
-            };
-          }
-        } else {
-          // 边缘节点
-          try {
-            // 构建边缘 JSON 并添加到 edges 对象
-            const edgeJson = buildEdgeNodeJson(nodeId);
-            edges[nodeId] = edgeJson;
-          } catch (e) {
-            console.warn(`Cannot build edge node JSON for ${nodeId}:`, e);
-          }
-        }
-      });
-      
-      return { blocks, edges };
-    } catch (error) {
-      console.error(`Error building workflow JSON: ${error}`);
+  // 添加删除 API 的处理函数
+  const handleDeleteApi = async () => {
+    if (!deploymentInfo?.api_id) {
+      console.error("No API ID available to delete");
       return;
+    }
+
+    try {
+      setApiState(prev => ({
+        ...prev,
+        isDeploying: true
+      }));
+
+      await deleteApi(deploymentInfo.api_id);
+
+      setApiState(prev => ({
+        ...prev,
+        apiDeployment: { id: null, key: null, isDeployed: false },
+        deploymentInfo: null,
+        showApiExample: false,
+        apiConfig: undefined,
+        isDeploying: false
+      }));
+
+    } catch (error) {
+      console.error("Failed to delete API:", error);
+      setApiState(prev => ({
+        ...prev,
+        isDeploying: false
+      }));
     }
   };
 
-  // 处理部署
-  const handleDeploy = async () => {
-    // 更新状态为正在部署
-    setApiState(prev => ({
-      ...prev,
-      isDeploying: true
-    }));
-    
-    try {
-      console.log("process.env.REACT_APP_API_SERVER_KEY", process.env.NEXT_PUBLIC_API_SERVER_KEY);
-      const res = await fetch(
-        API_SERVER_URL + "/config_api",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
-          },
-          body: JSON.stringify({
-            workflow_json: constructWorkflowJson(),
-            inputs: selectedInputs.map(item => item.id),
-            outputs: selectedOutputs.map(item => item.id),
-            workspace_id: selectedFlowId || "default"
-          })
-        }
-      );
+  // 处理输入节点点击
+  const handleInputClick = (node: any) => {
+    const isSelected = selectedInputs.some(item => item.id === node.id);
 
-      const content = await res.json();
-
-      if (!res.ok) {
-        throw new Error(`Response status: ${res.status}`);
-      }
-
-      // 处理返回的 API 配置信息
-      const { api_id, api_key, endpoint } = content;
-      console.log("Deployment successful:", api_id, api_key);
-
-      // 更新全局状态
+    if (isSelected) {
       setApiState(prev => ({
         ...prev,
-        apiDeployment: {
-          id: api_id,
-          key: api_key,
-          isDeployed: true
-        },
-        deploymentInfo: {
-          api_id,
-          api_key,
-          endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
-          ...content
-        },
-        showApiExample: true,
-        apiConfig: { id: api_id, key: api_key },
-        isDeploying: false
+        selectedInputs: prev.selectedInputs.filter(el => el.id !== node.id)
       }));
-
-      // 触发同步到 workspaces
-      syncToWorkspaces();
-
-    } catch (error) {
-      console.error("Failed to deploy:", error);
-      // 更新状态为部署失败
+    } else {
       setApiState(prev => ({
         ...prev,
-        isDeploying: false
+        selectedInputs: [...prev.selectedInputs, { id: node.id, label: node.data.label }]
       }));
     }
+  };
+
+  // 处理输出节点点击
+  const handleOutputClick = (node: any) => {
+    const isSelected = selectedOutputs.some(item => item.id === node.id);
+
+    if (isSelected) {
+      setApiState(prev => ({
+        ...prev,
+        selectedOutputs: prev.selectedOutputs.filter(el => el.id !== node.id)
+      }));
+    } else {
+      setApiState(prev => ({
+        ...prev,
+        selectedOutputs: [...prev.selectedOutputs, { id: node.id, label: node.data.label }]
+      }));
+    }
+  };
+
+  // 设置语言
+  const handleSetLanguage = (lang: string) => {
+    setApiState(prev => ({
+      ...prev,
+      selectedLang: lang
+    }));
   };
 
   // 生成输入文本
@@ -332,7 +194,7 @@ function DeployAsApi({
     if (lang === JAVASCRIPT) {
       const inputData = inputs.map((input, index) => {
         const isLast = index === inputs.length - 1;
-        return `        "${input}": "${getNode(input)?.data.content}"${isLast ? '' : ','} `;
+        return `        "${input}": "${getNode(input)?.data.content || ''}"${isLast ? '' : ','} `;
       });
       return inputData.join('\n');
     } else {
@@ -354,7 +216,7 @@ api_url = "${API_SERVER_URL}/execute_workflow/${api_id}"
 api_key = "${api_key}"
 
 headers = {
-    "Authorization": f"Bearer ${api_key}",
+    "Authorization": f"Bearer {api_key}",
     "Content-Type": "application/json"
 }
 
@@ -449,54 +311,8 @@ axios.post(apiUrl, data, {
       });
   };
 
-  // 处理输入节点点击
-  const handleInputClick = (node: any) => {
-    const isSelected = selectedInputs.some(item => item.id === node.id);
-
-    if (isSelected) {
-      setApiState(prev => ({
-        ...prev,
-        selectedInputs: prev.selectedInputs.filter(el => el.id !== node.id)
-      }));
-    } else {
-      setApiState(prev => ({
-        ...prev,
-        selectedInputs: prev.selectedInputs.length === 0
-          ? [{ id: node.id, label: node.data.label }]
-          : [...prev.selectedInputs, { id: node.id, label: node.data.label }]
-      }));
-    }
-  };
-
-  // 处理输出节点点击
-  const handleOutputClick = (node: any) => {
-    const isSelected = selectedOutputs.some(item => item.id === node.id);
-
-    if (isSelected) {
-      setApiState(prev => ({
-        ...prev,
-        selectedOutputs: prev.selectedOutputs.filter(el => el.id !== node.id)
-      }));
-    } else {
-      setApiState(prev => ({
-        ...prev,
-        selectedOutputs: prev.selectedOutputs.length === 0
-          ? [{ id: node.id, label: node.data.label }]
-          : [...prev.selectedOutputs, { id: node.id, label: node.data.label }]
-      }));
-    }
-  };
-
-  // 设置语言
-  const handleSetLanguage = (lang: string) => {
-    setApiState(prev => ({
-      ...prev,
-      selectedLang: lang
-    }));
-  };
-
   return (
-    <div className="py-[16px] px-[16px]">
+    <div className="py-[16px] px-[16px] max-h-[80vh] overflow-y-auto">
       <div className="flex items-center mb-4">
         <button
           className="mr-2 p-1 rounded-full hover:bg-[#2A2A2A]"
@@ -851,7 +667,7 @@ axios.post(apiUrl, data, {
 
             <div className="relative flex border-none rounded-[8px] cursor-pointer bg-[#1C1D1F] overflow-hidden">
               <div className="flex-grow overflow-hidden">
-                <div className="custom-scrollbar overflow-y-auto overflow-x-auto" style={{ maxHeight: '300px', position: 'relative' }}>
+                <div className="overflow-y-auto overflow-x-auto" style={{ maxHeight: '300px', position: 'relative' }}>
                   <pre
                     className="text-[#CDCDCD] text-[12px] p-4 whitespace-pre"
                     style={{
@@ -883,7 +699,7 @@ axios.post(apiUrl, data, {
               <div>
                 <label className="text-[12px] text-[#808080]">API Endpoint:</label>
                 <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                  {deploymentInfo?.endpoint || `${API_SERVER_URL}/api/${deploymentInfo?.api_id || 'example'}`}
+                  {deploymentInfo?.endpoint || `${API_SERVER_URL}/execute_workflow/${deploymentInfo?.api_id || 'example'}`}
                 </code>
               </div>
 
@@ -922,37 +738,98 @@ axios.post(apiUrl, data, {
         </div>
       )}
 
-      <div className="pt-6">
-        <div className="flex flex-col gap-[16px] items-center text-center">
-          {!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) && (
-            <span className="text-[#808080] text-[13px]">
-              Please select input and output nodes first
-            </span>
-          )}
+      <div className="pt-6 border-t border-[#404040]">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex flex-col w-full items-center gap-4">
+            {!apiDeployment.isDeployed && (
+              <>
+                {!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) ? (
+                  <span className="text-[#808080] text-[13px]">
+                    Please select input and output nodes first
+                  </span>
+                ) : (
+                  <span className="text-[#808080] text-[13px]">
+                    Congrats! Your API is ready to be deployed.
+                  </span>
+                )}
+              </>
+            )}
 
-          <div className="flex flex-col items-center gap-4">
-            <button
-              className={`w-[180px] h-[48px] rounded-[8px] transition duration-200 
-                flex items-center justify-center gap-2
-                ${selectedInputs?.length > 0 && selectedOutputs?.length > 0
-                  ? 'bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105'
-                  : 'bg-[#2A2A2A] border-[1.5px] border-[#404040] text-[#808080] cursor-not-allowed opacity-50'
-                }`}
-              onClick={handleDeploy}
-              disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
-            >
-              {isDeploying ? (
-                <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              )}
-              {isDeploying ? "Deploying..." : "Deploy as API"}
-            </button>
+            {!apiDeployment.isDeployed ? (
+              <button
+                className={`w-[210px] h-[48px] rounded-[8px] transition duration-200 
+                  flex items-center justify-center gap-2
+                  ${selectedInputs?.length > 0 && selectedOutputs?.length > 0
+                    ? 'bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105'
+                    : 'bg-[#2A2A2A] border-[1.5px] border-[#404040] text-[#808080] cursor-not-allowed opacity-50'
+                  }`}
+                onClick={handleDeploy}
+                disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
+              >
+                {isDeploying ? (
+                  <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                )}
+                {isDeploying ? "Deploying..." : "Deploy as API"}
+              </button>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 py-2 px-3 bg-[#27AE60]/10 border border-[#27AE60]/30 rounded-md mb-2 max-w-full">
+                  <div className="h-5 w-5 min-w-5 rounded-full bg-[#27AE60] flex items-center justify-center">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M5 12L10 17L19 8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <span className="text-[#27AE60] text-[13px] truncate">
+                    Successfully deployed! API is ready to use.
+                  </span>
+                </div>
+
+                <div className="w-full flex flex-col gap-3">
+                  {/* 第一行：Redeploy 和 Delete 按钮 */}
+                  <div className="flex gap-3">
+                    <button
+                      className="flex-1 h-[48px] rounded-[8px] transition duration-200 
+                        flex items-center justify-center gap-2
+                        bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105"
+                      onClick={handleDeploy}
+                      disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying}
+                    >
+                      {isDeploying ? (
+                        <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {isDeploying ? "Updating..." : "Redeploy"}
+                    </button>
+
+                    <button
+                      className="flex-1 h-[48px] rounded-[8px] transition duration-200 
+                        flex items-center justify-center gap-2
+                        bg-[#E74C3C] text-white hover:bg-[#C0392B] hover:scale-105"
+                      onClick={handleDeleteApi}
+                      disabled={isDeploying}
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
