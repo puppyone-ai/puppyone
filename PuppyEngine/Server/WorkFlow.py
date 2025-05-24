@@ -9,8 +9,7 @@ warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore", FutureWarning)
 
 # 移除标准logging配置，使用自定义日志函数
-from tools.puppy_utils import log_info, log_warning, log_error
-from tools.puppy_utils import PuppyException, global_exception_handler
+from Utils.logger import log_info, log_warning, log_error
 
 import json
 import threading
@@ -19,15 +18,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
+from Utils.puppy_exception import global_exception_handler, PuppyException
 import traceback
-
-# 获取特定服务的日志器
-from tools.puppy_utils.logger import get_logger
-engine_logger = get_logger("puppyengine")
-log_info = engine_logger.info
-log_warning = engine_logger.warning
-log_error = engine_logger.error
-log_debug = engine_logger.debug  # 添加debug级别日志函数
 
 
 """
@@ -232,7 +224,7 @@ class WorkFlow():
         initial_processed = set(self.blocks.keys()) - set().union(*self.edge_to_outputs_mapping.values()) if self.edge_to_outputs_mapping else set(self.blocks.keys())
         for bid in initial_processed:
             self.block_states[bid] = "processed"
-            log_debug(f"Auto-marked source block {bid} as processed")
+            log_info(f"Auto-marked source block {bid} as processed")
         
         # Initialize thread resources
         self.max_workers = min(32, (os.cpu_count() or 1) * 4)
@@ -324,7 +316,7 @@ class WorkFlow():
 
             while parallel_batch:
                 batch_count += 1
-                log_debug(f"Found parallel batch #{batch_count}: {parallel_batch}")
+                log_info(f"Found parallel batch #{batch_count}: {parallel_batch}")
 
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
@@ -410,7 +402,7 @@ class WorkFlow():
         try:
             # Stage 2: Process batch concurrently
             outputs = self._execute_edge_batch(batch)
-            log_debug(f"Batch processing output: {outputs}")
+            log_info(f"Batch processing output: {outputs}")
 
             # Stage 3: Update states atomically
             with self.state_lock:
@@ -449,10 +441,10 @@ class WorkFlow():
 
                 # Prepare block configs for this edge
                 block_configs = self._prepare_block_configs(edge_id)
-                log_debug(f"Edge {edge_id} block configs: {block_configs}")
+                log_info(f"[DEBUG] Edge {edge_id} block configs: {block_configs}")
 
                 # Submit edge execution
-                log_debug(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
+                log_info(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
                 futures[self.thread_executor.submit(
                     EdgeExecutor(
                         edge_type=edge_info.get("type"),
@@ -478,7 +470,7 @@ class WorkFlow():
             with self.state_lock:
                 for edge_id in edge_batch:
                     self.edge_states[edge_id] = "pending"
-                    log_debug(f"Reverted edge {edge_id} to pending state")
+                    log_info(f"Reverted edge {edge_id} to pending state")
 
             # 移除exc_info参数，使用格式化字符串
             log_error(f"Batch execution failed: {str(e)}\n{traceback.format_exc()}")
@@ -535,7 +527,7 @@ class WorkFlow():
             raise edge_result.error
 
         log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
-        log_debug(log_msg)
+        log_info(log_msg)
         if edge_result.status == "completed":
             # Map results to output blocks
             for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
@@ -545,7 +537,7 @@ class WorkFlow():
                         results[block_id] = content
                 else:
                     results[block_id] = edge_result.result
-                log_debug(f"Block {block_id} updated with result type: {type(edge_result.result)}")
+                log_info(f"[DEBUG] Block {block_id} updated with result type: {type(edge_result.result)}")
         else:
             log_warning(f"Edge {edge_id} completed but status is {edge_result.status}")
 
@@ -587,8 +579,8 @@ class WorkFlow():
     def _log_final_states(
         self
     ):
-        log_debug(f"Final Block States: {self.block_states}")
-        log_debug(f"Final Edge States: {self.edge_states}")
+        log_info(f"Final Block States: {self.block_states}")
+        log_info(f"Final Edge States: {self.edge_states}")
 
     def _unicode_formatting(
         self,
@@ -610,7 +602,7 @@ class WorkFlow():
         """
 
         # 调试日志 - 详细级别
-        log_debug(f"Input Content: {content}, Type: {type(content)}")
+        log_info(f"[DEBUG] Input Content: {content}, Type: {type(content)}")
 
         if not isinstance(content, str):
             return content
@@ -643,7 +635,7 @@ class WorkFlow():
                 raise ValueError(f"Invalid structured content format: {str(e)}")
 
         # 调试日志 - 详细级别
-        log_debug(f"Formatted Content: {content}")
+        log_info(f"[DEBUG] Formatted Content: {content}")
         return content
 
     def _valid_output_block_type(
@@ -701,9 +693,9 @@ if __name__ == "__main__":
         workflow = WorkFlow(data)
         workflow.initialize_workflow_state()
         for output_blocks in workflow.process():
-            log_debug("Received output blocks: %s", output_blocks)
+            log_info("Received output blocks: %s", output_blocks)
             outputs.append(output_blocks)
 
-        log_debug("Final blocks state: %s", workflow.blocks)
-        log_debug("All outputs: %s", outputs)
+        log_info("Final blocks state: %s", workflow.blocks)
+        log_info("All outputs: %s", outputs)
         workflow.cleanup_resources()

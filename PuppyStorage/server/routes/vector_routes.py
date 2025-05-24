@@ -14,15 +14,9 @@ from typing import List, Optional, Dict, Any
 from vector.embedder import TextEmbedder, ModelRegistry
 from vector.vector_db_factory import VectorDatabaseFactory
 
-from tools.puppy_utils import PuppyException, global_exception_handler
-from tools.puppy_utils import log_info, log_error, log_warning
-from tools.puppy_utils.config import config
-
-# 获取特定服务的日志器
-from tools.puppy_utils.logger import get_logger
-storage_logger = get_logger("puppystorage")
-log_info = storage_logger.info
-log_error = storage_logger.error
+from utils.puppy_exception import PuppyException, global_exception_handler
+from utils.logger import log_info, log_error
+from utils.config import config
 
 # Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
