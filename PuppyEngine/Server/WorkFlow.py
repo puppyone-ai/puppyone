@@ -8,23 +8,18 @@ warnings.simplefilter("ignore", DeprecationWarning)
 warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore", FutureWarning)
 
+# 移除标准logging配置，使用自定义日志函数
+from Utils.logger import log_info, log_warning, log_error
+
 import json
-import traceback
 import threading
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
-
-from tools.puppy_utils.logger import get_logger
-from tools.puppy_utils import log_info, log_warning, log_error
-from tools.puppy_utils import PuppyException, global_exception_handler
-engine_logger = get_logger("puppyengine")
-log_info = engine_logger.info
-log_error = engine_logger.error
-log_debug = engine_logger.debug
-log_warning = engine_logger.warning
+from Utils.puppy_exception import global_exception_handler, PuppyException
+import traceback
 
 
 """
@@ -178,7 +173,7 @@ class WorkFlow():
        edge_to_inputs_mapping[edge_id] ⊆ blocks
        edge_to_outputs_mapping[edge_id] ⊆ blocks
     """
-
+    
     version: str = "0.1"
     type: str = "workflow"
 
@@ -199,44 +194,43 @@ class WorkFlow():
             step_mode: If True, enable step-by-step execution mode
             task_id: The task ID to associate this workflow with (optional)
         """
-
         self.step_mode = step_mode
         self.task_id = task_id
-
+        
         if task_id:
             log_info(f"Creating workflow for task {task_id}")
-
+        
         # Store version information
         self.version = json_data.get("version", self.__class__.version)
-
+        
         # Handle version conversion if needed
         if self.version != latest_version:
             converter = JsonConverter(latest_version)
             json_data = converter.convert(json_data)
-
+        
         # Store workflow data (maintains own copy)
         self.blocks = json_data.get("blocks", {})
         self.edges = json_data.get("edges", {})
-
+        
         # Parse edge connections and validate flow
         self.edge_to_inputs_mapping, self.edge_to_outputs_mapping = self._parse_edge_connections()
         self._validate_single_flow()
-
+        
         # Initialize state tracking
         self.block_states = {bid: "pending" for bid in self.blocks}
         self.edge_states = {eid: "pending" for eid in self.edges}
-
+        
         # Mark source blocks as processed
         initial_processed = set(self.blocks.keys()) - set().union(*self.edge_to_outputs_mapping.values()) if self.edge_to_outputs_mapping else set(self.blocks.keys())
         for bid in initial_processed:
             self.block_states[bid] = "processed"
-            log_debug(f"Auto-marked source block {bid} as processed")
-
+            log_info(f"Auto-marked source block {bid} as processed")
+        
         # Initialize thread resources
         self.max_workers = min(32, (os.cpu_count() or 1) * 4)
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
-
+        
         log_info(f"Workflow initialized with {len(self.blocks)} blocks and {len(self.edges)} edges")
 
     def _validate_single_flow(
@@ -315,14 +309,14 @@ class WorkFlow():
         """
         try:
             log_info(f"Starting workflow processing for task {self.task_id}")
-
-            # Process the workflow
+            
+            # 处理工作流
             parallel_batch = self._find_parallel_batches()
             batch_count = 0
 
             while parallel_batch:
                 batch_count += 1
-                log_debug(f"Found parallel batch #{batch_count}: {parallel_batch}")
+                log_info(f"Found parallel batch #{batch_count}: {parallel_batch}")
 
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
@@ -408,7 +402,7 @@ class WorkFlow():
         try:
             # Stage 2: Process batch concurrently
             outputs = self._execute_edge_batch(batch)
-            log_debug(f"Batch processing output: {outputs}")
+            log_info(f"Batch processing output: {outputs}")
 
             # Stage 3: Update states atomically
             with self.state_lock:
@@ -447,10 +441,10 @@ class WorkFlow():
 
                 # Prepare block configs for this edge
                 block_configs = self._prepare_block_configs(edge_id)
-                log_debug(f"Edge {edge_id} block configs: {block_configs}")
+                log_info(f"[DEBUG] Edge {edge_id} block configs: {block_configs}")
 
                 # Submit edge execution
-                log_debug(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
+                log_info(f"Submitting edge {edge_id} ({edge_info.get('type')}) for execution")
                 futures[self.thread_executor.submit(
                     EdgeExecutor(
                         edge_type=edge_info.get("type"),
@@ -465,7 +459,7 @@ class WorkFlow():
                 try:
                     results = self._process_edge_result(edge_id, results, future)
                 except Exception as e:
-                    # Remove exc_info parameter, use formatted string
+                    # 移除exc_info参数，使用格式化字符串
                     log_error(f"Edge {edge_id} execution failed with error: {str(e)}\n{traceback.format_exc()}")
                     raise
 
@@ -476,9 +470,9 @@ class WorkFlow():
             with self.state_lock:
                 for edge_id in edge_batch:
                     self.edge_states[edge_id] = "pending"
-                    log_debug(f"Reverted edge {edge_id} to pending state")
+                    log_info(f"Reverted edge {edge_id} to pending state")
 
-            # Remove exc_info parameter, use formatted string
+            # 移除exc_info参数，使用格式化字符串
             log_error(f"Batch execution failed: {str(e)}\n{traceback.format_exc()}")
             raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
 
@@ -533,7 +527,7 @@ class WorkFlow():
             raise edge_result.error
 
         log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
-        log_debug(log_msg)
+        log_info(log_msg)
         if edge_result.status == "completed":
             # Map results to output blocks
             for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
@@ -543,7 +537,7 @@ class WorkFlow():
                         results[block_id] = content
                 else:
                     results[block_id] = edge_result.result
-                log_debug(f"Block {block_id} updated with result type: {type(edge_result.result)}")
+                log_info(f"[DEBUG] Block {block_id} updated with result type: {type(edge_result.result)}")
         else:
             log_warning(f"Edge {edge_id} completed but status is {edge_result.status}")
 
@@ -585,8 +579,8 @@ class WorkFlow():
     def _log_final_states(
         self
     ):
-        log_debug(f"Final Block States: {self.block_states}")
-        log_debug(f"Final Edge States: {self.edge_states}")
+        log_info(f"Final Block States: {self.block_states}")
+        log_info(f"Final Edge States: {self.edge_states}")
 
     def _unicode_formatting(
         self,
@@ -607,7 +601,8 @@ class WorkFlow():
             ValueError: If the content is not a valid JSON format for structured blocks.
         """
 
-        log_debug(f"Input Content: {content}, Type: {type(content)}")
+        # 调试日志 - 详细级别
+        log_info(f"[DEBUG] Input Content: {content}, Type: {type(content)}")
 
         if not isinstance(content, str):
             return content
@@ -639,7 +634,8 @@ class WorkFlow():
                 log_error(f"Structured content formatting failed: {str(e)}\nContent: {content}")
                 raise ValueError(f"Invalid structured content format: {str(e)}")
 
-        log_debug(f"Formatted Content: {content}")
+        # 调试日志 - 详细级别
+        log_info(f"[DEBUG] Formatted Content: {content}")
         return content
 
     def _valid_output_block_type(
@@ -669,13 +665,13 @@ class WorkFlow():
         return self.blocks[target_block_id]["type"]
 
     def __enter__(self):
-        """Context manager entry"""
+        """上下文管理器入口"""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Automatically clean up resources when the context manager exits"""
+        """上下文管理器退出时自动清理资源"""
         self.cleanup_resources()
-        return False  # Let exceptions continue to propagate
+        return False  # 让异常继续传播
 
 
 if __name__ == "__main__":
@@ -684,7 +680,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "llm.json":
+        if file_name != "new_llm_bug.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
@@ -695,11 +691,11 @@ if __name__ == "__main__":
         # Use list() to collect all outputs, ensure the workflow is complete
         outputs = []
         workflow = WorkFlow(data)
-        # workflow.initialize_workflow_state()
+        workflow.initialize_workflow_state()
         for output_blocks in workflow.process():
-            log_debug(f"Received output blocks: {output_blocks}")
+            log_info("Received output blocks: %s", output_blocks)
             outputs.append(output_blocks)
 
-        log_debug(f"Final blocks state: {workflow.blocks}")
-        log_debug(f"All outputs: {outputs}")
+        log_info("Final blocks state: %s", workflow.blocks)
+        log_info("All outputs: %s", outputs)
         workflow.cleanup_resources()

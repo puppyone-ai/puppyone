@@ -3,6 +3,7 @@ import { useCallback } from 'react';
 interface UseChatbotDeployProps {
   selectedInputs: any[];
   selectedOutputs: any[];
+  selectedChatHistory: any[];
   selectedFlowId: string | null;
   API_SERVER_URL: string;
   setChatbotState: (fn: (prev: any) => any) => void;
@@ -16,6 +17,7 @@ interface UseChatbotDeployProps {
     welcomeMessage: string;
     deployTo?: string;
   };
+  apiServerKey: string;
 }
 
 export interface ChatbotInfo {
@@ -30,6 +32,7 @@ export interface ChatbotInfo {
 export function useChatbotDeploy({
   selectedInputs,
   selectedOutputs,
+  selectedChatHistory,
   selectedFlowId,
   API_SERVER_URL,
   setChatbotState,
@@ -39,6 +42,7 @@ export function useChatbotDeploy({
   buildBlockNodeJson,
   buildEdgeNodeJson,
   chatbotConfig,
+  apiServerKey,
 }: UseChatbotDeployProps) {
   // 构建工作流 JSON
   const constructWorkflowJson = useCallback(() => {
@@ -114,8 +118,10 @@ export function useChatbotDeploy({
     }));
 
     try {
-      // 查找或创建历史节点
-      const historyNodeId = findOrCreateHistoryNode();
+      // 使用选择的聊天历史节点，如果没有选择则查找或创建
+      const historyNodeId = selectedChatHistory.length > 0 
+        ? selectedChatHistory[0].id 
+        : null;
       
       // 构建新的payload格式
       const payload = {
@@ -126,7 +132,7 @@ export function useChatbotDeploy({
         workspace_id: selectedFlowId || "default",
         multi_turn_enabled: chatbotConfig.multiTurn,
         welcome_message: chatbotConfig.welcomeMessage,
-        integrations: {}  // 暂时为空对象，可以根据需要添加集成配置
+        integrations: {}
       };
 
       const res = await fetch(
@@ -135,7 +141,7 @@ export function useChatbotDeploy({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
+            "x-admin-key": apiServerKey  // 修改为 x-admin-key
           },
           body: JSON.stringify(payload)
         }
@@ -174,12 +180,14 @@ export function useChatbotDeploy({
     API_SERVER_URL,
     selectedInputs,
     selectedOutputs,
+    selectedChatHistory,
     selectedFlowId,
     setChatbotState,
     syncToWorkspaces,
     constructWorkflowJson,
     findOrCreateHistoryNode,
-    chatbotConfig
+    chatbotConfig,
+    apiServerKey
   ]);
 
   /**
@@ -195,7 +203,7 @@ export function useChatbotDeploy({
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
+            "x-admin-key": apiServerKey  // 修改为 x-admin-key
           }
         }
       );
@@ -210,7 +218,7 @@ export function useChatbotDeploy({
       console.error("Error fetching chatbot list:", error);
       throw error;
     }
-  }, [API_SERVER_URL]);
+  }, [API_SERVER_URL, apiServerKey]);
 
   /**
    * 删除指定的聊天机器人
@@ -225,7 +233,7 @@ export function useChatbotDeploy({
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + process.env.NEXT_PUBLIC_API_SERVER_KEY
+            "x-admin-key": apiServerKey  // 修改为 x-admin-key
           }
         }
       );
@@ -256,7 +264,7 @@ export function useChatbotDeploy({
       console.error("Error deleting chatbot:", error);
       throw error;
     }
-  }, [API_SERVER_URL, selectedFlowId, fetchChatbotList, setChatbotState, syncToWorkspaces]);
+  }, [API_SERVER_URL, selectedFlowId, fetchChatbotList, setChatbotState, syncToWorkspaces, apiServerKey]);
 
   /**
    * 初始化聊天机器人部署设置

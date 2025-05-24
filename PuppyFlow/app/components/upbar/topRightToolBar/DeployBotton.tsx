@@ -8,7 +8,7 @@ import { SYSTEM_URLS } from '@/config/urls'
 import { DeployPanelProvider } from '../../states/DeployPanelContext'
 
 import DeployAsApi from './deployMenu/DeployAsApi'
-import DeployAsChatbot from './deployMenu/DeployAsChatbot'
+import DeployAsChatbot from './deployMenu/DeployAsChatbotNew'
 import Dashboard from './deployMenu/Dashboard'
 
 function DeployBotton() {
