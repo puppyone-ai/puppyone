@@ -1320,20 +1320,133 @@ if __name__ == "__main__":
     file_root_path = "ModularEdges/LoadEdge/testfiles"
     file_configs = [
         # {
+        #     "file_path": os.path.join(file_root_path, "testjson.json"),
+        #     "file_type": "json"
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testtxt.txt"),
+        #     "file_type": "txt",
+        #     "config": {
+        #         "auto_formatting": False
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testmd.md"),
+        #     "file_type": "markdown",
+        #     "config": {
+        #         "auto_formatting": True
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testdoc.docx"),
+        #     "file_type": "doc",
+        #     "config": {
+        #         "auto_formatting": False
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testpdf.pdf"),
+        #     "file_type": "pdf",
+        #     "config": {
+        #         "use_images": True
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testimg.png"),
+        #     "file_type": "image",
+        #     "config": {
+        #         "use_llm": False
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testimg2.png"),
+        #     "file_type": "image",
+        #     "config": {
+        #         "use_llm": True
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testaudio.mp3"),
+        #     "file_type": "audio",
+        #     "config": {
+        #         "mode": "accurate"
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testvideo.mp4"),
+        #     "file_type": "video",
+        #     "config": {
+        #         "use_llm": True,
+        #         "frame_skip": 300
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
+        #     "file_type": "video",
+        #     "config": {
+        #         "use_llm": False
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "testcsv.csv"),
+        #     "file_type": "csv",
+        #     "config": {
+        #         "column_range": [0, 3],
+        #         "row_range": [0, 5]
+        #     }
+        # },  
+        # {
         #     "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
         #     "file_type": "xlsx",
         #     "config": {
-        #         "mode": "row"
+        #         "column_range": [0, 3],
+        #         "row_range": [0, 5]
+        #     }
+        # },
+        # {
+        #     "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
+        #     "file_type": "doc",
+        #     "config": {
+        #         "auto_formatting": True
+        #     }
+        # },
+        # {
+        #     "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
+        #     "file_type": "pdf",
+        #     "config": {
+        #         "use_images": True
+        #     }
+        # },
+        # {
+        #     "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
+        #     "file_type": "image",
+        #     "config": {
+        #         "use_llm": False
+        #     }
+        # },
+        # {
+        #     "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
+        #     "file_type": "audio",
+        #     "config": {
+        #         "mode": "small"
+        #     }
+        # },
+        # {
+        #     "file_path": os.path.join(file_root_path, "ld.xlsm"),
+        #     "file_type": "xlsm",
+        #     "config": {
+        #         "mode": "row", 
+        #         "sheet_name": "费用"
         #     }
         # },
         {
-            "file_path": os.path.join(file_root_path, "ld.xlsm"),
-            "file_type": "xlsm",
+            "file_path": os.path.join(file_root_path, "Resume.doc"),
+            "file_type": "doc",
             "config": {
-                "mode": "row", 
-                # "sheet_name": "费用"
+                "auto_formatting": True
             }
         },
+        
         # {
         #     "file_path": os.path.join(file_root_path, "testcsv.csv"),
         #     "file_type": "csv",

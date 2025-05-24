@@ -7,7 +7,7 @@ import os
 import uuid
 from typing import List, Dict, Optional
 from ModularEdges.ChunkEdge.base_chunk import BaseChunk
-from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import remote_llm_chat
 from Utils.puppy_exception import global_exception_handler
 
 
@@ -26,7 +26,7 @@ class ReChunker(BaseChunk):
         prompt: list,
         model: str = "gpt-4o"
     ) -> str:
-        response = lite_llm_chat(
+        response = remote_llm_chat(
             messages=prompt,
             model=model,
             temperature=0.7,

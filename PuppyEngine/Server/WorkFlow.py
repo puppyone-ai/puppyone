@@ -8,26 +8,23 @@ warnings.simplefilter("ignore", DeprecationWarning)
 warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore", FutureWarning)
 
-# 移除标准logging配置，使用自定义日志函数
-from tools.puppy_utils import log_info, log_warning, log_error
-from tools.puppy_utils import PuppyException, global_exception_handler
-
 import json
+import traceback
 import threading
 import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Dict, Set, Any, Tuple, Generator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
-import traceback
 
-# 获取特定服务的日志器
 from tools.puppy_utils.logger import get_logger
+from tools.puppy_utils import log_info, log_warning, log_error
+from tools.puppy_utils import PuppyException, global_exception_handler
 engine_logger = get_logger("puppyengine")
 log_info = engine_logger.info
-log_warning = engine_logger.warning
 log_error = engine_logger.error
-log_debug = engine_logger.debug  # 添加debug级别日志函数
+log_debug = engine_logger.debug
+log_warning = engine_logger.warning
 
 
 """
@@ -181,7 +178,7 @@ class WorkFlow():
        edge_to_inputs_mapping[edge_id] ⊆ blocks
        edge_to_outputs_mapping[edge_id] ⊆ blocks
     """
-    
+
     version: str = "0.1"
     type: str = "workflow"
 
@@ -202,43 +199,44 @@ class WorkFlow():
             step_mode: If True, enable step-by-step execution mode
             task_id: The task ID to associate this workflow with (optional)
         """
+
         self.step_mode = step_mode
         self.task_id = task_id
-        
+
         if task_id:
             log_info(f"Creating workflow for task {task_id}")
-        
+
         # Store version information
         self.version = json_data.get("version", self.__class__.version)
-        
+
         # Handle version conversion if needed
         if self.version != latest_version:
             converter = JsonConverter(latest_version)
             json_data = converter.convert(json_data)
-        
+
         # Store workflow data (maintains own copy)
         self.blocks = json_data.get("blocks", {})
         self.edges = json_data.get("edges", {})
-        
+
         # Parse edge connections and validate flow
         self.edge_to_inputs_mapping, self.edge_to_outputs_mapping = self._parse_edge_connections()
         self._validate_single_flow()
-        
+
         # Initialize state tracking
         self.block_states = {bid: "pending" for bid in self.blocks}
         self.edge_states = {eid: "pending" for eid in self.edges}
-        
+
         # Mark source blocks as processed
         initial_processed = set(self.blocks.keys()) - set().union(*self.edge_to_outputs_mapping.values()) if self.edge_to_outputs_mapping else set(self.blocks.keys())
         for bid in initial_processed:
             self.block_states[bid] = "processed"
             log_debug(f"Auto-marked source block {bid} as processed")
-        
+
         # Initialize thread resources
         self.max_workers = min(32, (os.cpu_count() or 1) * 4)
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
-        
+
         log_info(f"Workflow initialized with {len(self.blocks)} blocks and {len(self.edges)} edges")
 
     def _validate_single_flow(
@@ -317,8 +315,8 @@ class WorkFlow():
         """
         try:
             log_info(f"Starting workflow processing for task {self.task_id}")
-            
-            # 处理工作流
+
+            # Process the workflow
             parallel_batch = self._find_parallel_batches()
             batch_count = 0
 
@@ -467,7 +465,7 @@ class WorkFlow():
                 try:
                     results = self._process_edge_result(edge_id, results, future)
                 except Exception as e:
-                    # 移除exc_info参数，使用格式化字符串
+                    # Remove exc_info parameter, use formatted string
                     log_error(f"Edge {edge_id} execution failed with error: {str(e)}\n{traceback.format_exc()}")
                     raise
 
@@ -480,7 +478,7 @@ class WorkFlow():
                     self.edge_states[edge_id] = "pending"
                     log_debug(f"Reverted edge {edge_id} to pending state")
 
-            # 移除exc_info参数，使用格式化字符串
+            # Remove exc_info parameter, use formatted string
             log_error(f"Batch execution failed: {str(e)}\n{traceback.format_exc()}")
             raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
 
@@ -609,7 +607,6 @@ class WorkFlow():
             ValueError: If the content is not a valid JSON format for structured blocks.
         """
 
-        # 调试日志 - 详细级别
         log_debug(f"Input Content: {content}, Type: {type(content)}")
 
         if not isinstance(content, str):
@@ -642,7 +639,6 @@ class WorkFlow():
                 log_error(f"Structured content formatting failed: {str(e)}\nContent: {content}")
                 raise ValueError(f"Invalid structured content format: {str(e)}")
 
-        # 调试日志 - 详细级别
         log_debug(f"Formatted Content: {content}")
         return content
 
@@ -673,13 +669,13 @@ class WorkFlow():
         return self.blocks[target_block_id]["type"]
 
     def __enter__(self):
-        """上下文管理器入口"""
+        """Context manager entry"""
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """上下文管理器退出时自动清理资源"""
+        """Automatically clean up resources when the context manager exits"""
         self.cleanup_resources()
-        return False  # 让异常继续传播
+        return False  # Let exceptions continue to propagate
 
 
 if __name__ == "__main__":
@@ -688,7 +684,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "loop_llm.json":
+        if file_name != "llm.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
@@ -699,11 +695,11 @@ if __name__ == "__main__":
         # Use list() to collect all outputs, ensure the workflow is complete
         outputs = []
         workflow = WorkFlow(data)
-        workflow.initialize_workflow_state()
+        # workflow.initialize_workflow_state()
         for output_blocks in workflow.process():
-            log_debug("Received output blocks: %s", output_blocks)
+            log_debug(f"Received output blocks: {output_blocks}")
             outputs.append(output_blocks)
 
-        log_debug("Final blocks state: %s", workflow.blocks)
-        log_debug("All outputs: %s", outputs)
+        log_debug(f"Final blocks state: {workflow.blocks}")
+        log_debug(f"All outputs: {outputs}")
         workflow.cleanup_resources()
