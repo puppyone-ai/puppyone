@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useReactFlow } from '@xyflow/react';
+import React, { useState } from 'react';
+import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
 
 interface ApiService {
   api_id: string;
@@ -25,43 +25,30 @@ function DeployedApiDetail({
   onDelete,
   selectedFlowId
 }: DeployedApiDetailProps) {
-  const { getNodes, getNode } = useReactFlow();
+  const { deployedServices } = useDeployPanelContext();
   const [selectedLang, setSelectedLang] = useState("Python");
   const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false);
-  const [inputNodes, setInputNodes] = useState<any[]>([]);
-  const [outputNodes, setOutputNodes] = useState<any[]>([]);
+
+  // 从 context 中获取 API 服务信息
+  const currentApiService = deployedServices.apis.find(api => api.api_id === apiService.api_id) || apiService;
 
   // 语言选项常量
   const PYTHON = "Python";
   const SHELL = "Shell";
   const JAVASCRIPT = "Javascript";
 
-  // 获取当前工作流的输入输出节点
-  useEffect(() => {
-    const allInputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isInput === true);
-
-    const allOutputNodes = getNodes()
-      .filter((item) => (item.type === 'text' || item.type === 'structured'))
-      .filter(item => item.data?.isOutput === true);
-
-    setInputNodes(allInputNodes);
-    setOutputNodes(allOutputNodes);
-  }, [getNodes]);
-
   // 生成输入文本
   const input_text_gen = (inputs: string[], lang: string) => {
     if (lang === JAVASCRIPT) {
       const inputData = inputs.map((input, index) => {
         const isLast = index === inputs.length - 1;
-        return `        "${input}": "${getNode(input)?.data.content || ''}"${isLast ? '' : ','} `;
+        return `        "${input}": "your_input_value_here"${isLast ? '' : ','} `;
       });
       return inputData.join('\n');
     } else {
       const inputData = inputs.map((input, index) => {
         const isLast = index === inputs.length - 1;
-        return `     "${input}": "${(getNode(input)?.data.content as string)?.trim() || ''}"${isLast ? '' : ','}`;
+        return `     "${input}": "your_input_value_here"${isLast ? '' : ','}`;
       });
       return inputData.join('\n');
     }
@@ -69,7 +56,8 @@ function DeployedApiDetail({
 
   // 生成示例代码
   const populatetext = (api_id: string, api_key: string, language: string): string => {
-    const inputIds = inputNodes.map(node => node.id);
+    // 使用存储的输入配置
+    const inputIds = currentApiService.inputs || [];
     
     const py = `import requests
 
@@ -139,8 +127,8 @@ axios.post(apiUrl, data, {
   // 复制到剪贴板
   const copyToClipboard = () => {
     const codeToCopy = populatetext(
-      apiService.api_id,
-      apiService.api_key,
+      currentApiService.api_id,
+      currentApiService.api_key,
       selectedLang
     );
     navigator.clipboard.writeText(codeToCopy)
@@ -182,123 +170,79 @@ axios.post(apiUrl, data, {
             <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
         </button>
-        <div className="flex items-center gap-2">
-          <div className="bg-[#3B9BFF]/20 p-1.5 rounded">
-            <svg className="w-4 h-4 text-[#3B9BFF]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <h2 className="text-[#CDCDCD] text-[16px]">API Details</h2>
-        </div>
+        <h2 className="text-[#CDCDCD] text-[16px]">API Details</h2>
       </div>
 
-      {/* API 基本信息 */}
-      <div className="mb-6 p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-        <h3 className="text-[#CDCDCD] text-[14px] mb-3">Service Information</h3>
-        
-        <div className="space-y-3">
-          <div>
-            <label className="text-[12px] text-[#808080]">API ID:</label>
-            <div className="flex items-center mt-1">
-              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#3B9BFF] overflow-x-auto">
-                {apiService.api_id}
-              </code>
-              <button
-                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                onClick={() => navigator.clipboard.writeText(apiService.api_id)}
-              >
-                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                </svg>
-              </button>
+      {/* 输入输出节点信息 - 使用与 DeployAsApi 相同的网格布局 */}
+      <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
+        <div className="p-4 bg-[#1A1A1A]">
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Inputs ({currentApiService.inputs?.length || 0})</span>
             </div>
-          </div>
-
-          <div>
-            <label className="text-[12px] text-[#808080]">API Endpoint:</label>
-            <div className="flex items-center mt-1">
-              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                {apiService.endpoint || `${API_SERVER_URL}/execute_workflow/${apiService.api_id}`}
-              </code>
-              <button
-                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                onClick={() => navigator.clipboard.writeText(apiService.endpoint || `${API_SERVER_URL}/execute_workflow/${apiService.api_id}`)}
-              >
-                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-[12px] text-[#808080]">API Key:</label>
-            <div className="flex items-center mt-1">
-              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                {apiService.api_key}
-              </code>
-              <button
-                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                onClick={() => navigator.clipboard.writeText(apiService.api_key)}
-              >
-                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 输入输出节点信息 */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-3 border-b border-[#333333] pb-2">
-            Input Nodes ({inputNodes.length})
           </h3>
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
-            {inputNodes.map((node) => (
-              <div key={node.id} className="flex items-center p-2 bg-[#252525] rounded">
-                <div className="mr-2 bg-[#3B9BFF]/20 p-1 rounded">
-                  <svg className="w-3 h-3 text-[#3B9BFF]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 8H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 12H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 16H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+
+          <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
+            {currentApiService.inputs?.map(inputId => {
+              return (
+                <div
+                  key={inputId}
+                  className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]"
+                >
+                  <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                    <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
+                  <span className="flex-shrink-0 text-[12px]">{inputId}</span>
+                  <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
                 </div>
-                <span className="text-[#CDCDCD] text-[12px]">{node.data.label || node.id}</span>
-              </div>
-            ))}
-            {inputNodes.length === 0 && (
-              <div className="text-[#808080] text-[12px] text-center py-2">
+              );
+            }) || []}
+
+            {(!currentApiService.inputs || currentApiService.inputs.length === 0) && (
+              <div className="text-[12px] text-[#808080] py-2 text-center">
                 No input nodes found
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-3 border-b border-[#333333] pb-2">
-            Output Nodes ({outputNodes.length})
+        <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Outputs ({currentApiService.outputs?.length || 0})</span>
+            </div>
           </h3>
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
-            {outputNodes.map((node) => (
-              <div key={node.id} className="flex items-center p-2 bg-[#252525] rounded">
-                <div className="mr-2 bg-[#3B9BFF]/20 p-1 rounded">
-                  <svg className="w-3 h-3 text-[#3B9BFF]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 8H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 12H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 16H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+
+          <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
+            {currentApiService.outputs?.map((outputId) => {
+              return (
+                <div
+                  key={outputId}
+                  className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]"
+                >
+                  <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                    <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                   </svg>
+                  <span className="flex-shrink-0 text-[12px]">{outputId}</span>
+                  <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
                 </div>
-                <span className="text-[#CDCDCD] text-[12px]">{node.data.label || node.id}</span>
-              </div>
-            ))}
-            {outputNodes.length === 0 && (
-              <div className="text-[#808080] text-[12px] text-center py-2">
+              );
+            }) || []}
+
+            {(!currentApiService.outputs || currentApiService.outputs.length === 0) && (
+              <div className="text-[12px] text-[#808080] py-2 text-center">
                 No output nodes found
               </div>
             )}
@@ -306,11 +250,10 @@ axios.post(apiUrl, data, {
         </div>
       </div>
 
-      {/* API 代码示例 */}
+      {/* API 代码示例 - 使用与 DeployAsApi 相同的样式 */}
       <div className="mb-6">
         <div className="bg-[#252525] border-[1px] border-[#404040] rounded-lg p-[10px]">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[#CDCDCD] text-[14px]">API Usage Example</h3>
             <div className="flex items-center gap-2">
               <div className="relative">
                 <button
@@ -409,7 +352,7 @@ axios.post(apiUrl, data, {
                     lineHeight: '1.4'
                   }}
                 >
-                  {populatetext(apiService.api_id, apiService.api_key, selectedLang)}
+                  {populatetext(currentApiService.api_id, currentApiService.api_key, selectedLang)}
                 </pre>
               </div>
             </div>
@@ -417,22 +360,49 @@ axios.post(apiUrl, data, {
         </div>
       </div>
 
-      {/* 操作按钮 */}
-      <div className="pt-6 border-t border-[#404040]">
-        <div className="flex gap-3">
-          <button
-            className="flex-1 h-[48px] rounded-[8px] transition duration-200 
-              flex items-center justify-center gap-2
-              bg-[#E74C3C] text-white hover:bg-[#C0392B] hover:scale-105"
-            onClick={onDelete}
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            Delete API
-          </button>
+      {/* API 基本信息 */}
+      <div className="mb-6 p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
+        <h3 className="text-[#CDCDCD] text-[14px] mb-3"> API Details</h3>
+        
+        <div className="space-y-3">
+          <div>
+            <label className="text-[12px] text-[#808080]">API ID:</label>
+            <div className="flex items-center mt-1">
+              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#3B9BFF] overflow-x-auto">
+                {currentApiService.api_id}
+              </code>
+              <button
+                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                onClick={() => navigator.clipboard.writeText(currentApiService.api_id)}
+              >
+                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[12px] text-[#808080]">API Endpoint:</label>
+            <div className="flex items-center mt-1">
+              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                {currentApiService.endpoint || `${API_SERVER_URL}/execute_workflow/${currentApiService.api_id}`}
+              </code>
+              <button
+                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                onClick={() => navigator.clipboard.writeText(currentApiService.endpoint || `${API_SERVER_URL}/execute_workflow/${currentApiService.api_id}`)}
+              >
+                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }

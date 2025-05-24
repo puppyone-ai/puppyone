@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
 import { SYSTEM_URLS } from '@/config/urls';
 
@@ -7,6 +7,8 @@ interface ApiInfo {
   api_key: string;
   created_at?: string;
   workspace_id?: string;
+  inputs?: string[];
+  outputs?: string[];
 }
 
 interface ChatbotInfo {
@@ -14,6 +16,11 @@ interface ChatbotInfo {
   chatbot_key: string;
   created_at?: string;
   workspace_id?: string;
+  input?: string;
+  output?: string;
+  history_id?: string;
+  multi_turn_enabled?: boolean;
+  welcome_message?: string;
 }
 
 interface UseDeploymentStatusProps {
@@ -22,24 +29,12 @@ interface UseDeploymentStatusProps {
 
 export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps) {
   const { 
-    apiState, 
-    setApiState, 
-    chatbotState, 
-    setChatbotState, 
-    apiServerKey,
-    syncToWorkspaces 
+    deployedServices,
+    setDeployedServices,
+    apiServerKey
   } = useDeployPanelContext();
 
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
-
-  // 存储已部署的服务列表
-  const [deployedServices, setDeployedServices] = useState<{
-    apis: ApiInfo[];
-    chatbots: ChatbotInfo[];
-  }>({
-    apis: [],
-    chatbots: []
-  });
 
   // 获取API列表
   const fetchApiList = useCallback(async (workspaceId: string): Promise<ApiInfo[]> => {
@@ -111,15 +106,17 @@ export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps
         throw new Error(`Failed to delete API: ${res.status}`);
       }
 
-      // 重新获取服务列表
-      if (selectedFlowId) {
-        await fetchDeployedServices();
-      }
+      // 从本地状态中移除
+      setDeployedServices(prev => ({
+        ...prev,
+        apis: prev.apis.filter(api => api.api_id !== apiId)
+      }));
+
     } catch (error) {
       console.error("Error deleting API:", error);
       throw error;
     }
-  }, [API_SERVER_URL, apiServerKey, selectedFlowId]);
+  }, [API_SERVER_URL, apiServerKey, setDeployedServices]);
 
   // 删除Chatbot
   const deleteChatbot = useCallback(async (chatbotId: string): Promise<void> => {
@@ -139,21 +136,23 @@ export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps
         throw new Error(`Failed to delete chatbot: ${res.status}`);
       }
 
-      // 重新获取服务列表
-      if (selectedFlowId) {
-        await fetchDeployedServices();
-      }
+      // 从本地状态中移除
+      setDeployedServices(prev => ({
+        ...prev,
+        chatbots: prev.chatbots.filter(chatbot => chatbot.chatbot_id !== chatbotId)
+      }));
+
     } catch (error) {
       console.error("Error deleting chatbot:", error);
       throw error;
     }
-  }, [API_SERVER_URL, apiServerKey, selectedFlowId]);
+  }, [API_SERVER_URL, apiServerKey, setDeployedServices]);
 
   // 获取已部署的服务列表
   const fetchDeployedServices = useCallback(async () => {
     if (!selectedFlowId || !apiServerKey) {
       console.log("No flow selected or API key missing, skipping fetch");
-      setDeployedServices({ apis: [], chatbots: [] });
+      setDeployedServices({ apis: [], chatbots: [], lastFetched: undefined });
       return;
     }
 
@@ -164,62 +163,41 @@ export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps
         fetchChatbotList(selectedFlowId)
       ]);
 
-      setDeployedServices({ apis, chatbots });
+      // 转换为新的格式
+      const apiServices = apis.map(api => ({
+        api_id: api.api_id,
+        api_key: api.api_key,
+        endpoint: `${API_SERVER_URL}/execute_workflow/${api.api_id}`,
+        created_at: api.created_at,
+        workspace_id: api.workspace_id,
+        inputs: api.inputs || [],
+        outputs: api.outputs || []
+      }));
 
-      // 更新context状态以保持兼容性
-      if (apis && apis.length > 0) {
-        const latestApi = apis[0];
-        setApiState(prev => ({
-          ...prev,
-          apiDeployment: {
-            id: latestApi.api_id,
-            key: latestApi.api_key,
-            isDeployed: true
-          },
-          deploymentInfo: {
-            api_id: latestApi.api_id,
-            api_key: latestApi.api_key,
-            endpoint: `${API_SERVER_URL}/execute_workflow/${latestApi.api_id}`
-          },
-          showApiExample: true,
-          apiConfig: { id: latestApi.api_id, key: latestApi.api_key }
-        }));
-      } else {
-        setApiState(prev => ({
-          ...prev,
-          apiDeployment: { id: null, key: null, isDeployed: false },
-          deploymentInfo: null,
-          showApiExample: false,
-          apiConfig: undefined
-        }));
-      }
+      const chatbotServices = chatbots.map(chatbot => ({
+        chatbot_id: chatbot.chatbot_id,
+        chatbot_key: chatbot.chatbot_key,
+        endpoint: `${API_SERVER_URL}/chat/${chatbot.chatbot_id}`,
+        created_at: chatbot.created_at,
+        workspace_id: chatbot.workspace_id,
+        input: chatbot.input,
+        output: chatbot.output,
+        history_id: chatbot.history_id,
+        multi_turn_enabled: chatbot.multi_turn_enabled,
+        welcome_message: chatbot.welcome_message
+      }));
 
-      if (chatbots && chatbots.length > 0) {
-        const latestChatbot = chatbots[0];
-        setChatbotState(prev => ({
-          ...prev,
-          isDeployed: true,
-          deploymentInfo: {
-            chatbot_id: latestChatbot.chatbot_id,
-            chatbot_key: latestChatbot.chatbot_key,
-            endpoint: `${API_SERVER_URL}/chat/${latestChatbot.chatbot_id}`
-          }
-        }));
-      } else {
-        setChatbotState(prev => ({
-          ...prev,
-          isDeployed: false,
-          deploymentInfo: null
-        }));
-      }
-
-      syncToWorkspaces();
+      setDeployedServices({
+        apis: apiServices,
+        chatbots: chatbotServices,
+        lastFetched: Date.now()
+      });
 
     } catch (error) {
       console.error("Error fetching deployed services:", error);
-      setDeployedServices({ apis: [], chatbots: [] });
+      setDeployedServices({ apis: [], chatbots: [], lastFetched: undefined });
     }
-  }, [selectedFlowId, apiServerKey, fetchApiList, fetchChatbotList, setApiState, setChatbotState, syncToWorkspaces, API_SERVER_URL]);
+  }, [selectedFlowId, apiServerKey, fetchApiList, fetchChatbotList, setDeployedServices, API_SERVER_URL]);
 
   return {
     deployedServices,

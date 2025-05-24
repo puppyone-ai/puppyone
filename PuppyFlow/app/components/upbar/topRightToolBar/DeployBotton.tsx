@@ -8,16 +8,16 @@ import { SYSTEM_URLS } from '@/config/urls'
 import { DeployPanelProvider } from '../../states/DeployPanelContext'
 import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
 
-import DeployAsApi from './deployMenu/DeployAsApi'
-import DeployAsChatbot from './deployMenu/DeployAsChatbotNew'
+import DeployAsApi from './deployMenu/AddApiServer'
+import DeployAsChatbot from './deployMenu/AddChatbotServer'
 import Dashboard from './deployMenu/Dashboard'
 import DeployedApiDetail from './deployMenu/DeployedApiDetail'
 import DeployedChatbotDetail from './deployMenu/DeployedChatbotDetail'
 
+
 function DeployBotton() {
   const { setWorkspaces, selectedFlowId, workspaces } = useFlowsPerUserContext()
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
-  const { getNodes } = useReactFlow()
 
   // 仅保留顶层菜单所需的状态
   const [hovered, setHovered] = useState(false)
@@ -38,8 +38,13 @@ function DeployBotton() {
   // 当菜单打开时获取已部署的服务
   useEffect(() => {
     if (isMenuOpen && selectedFlowId && !initializedRef.current) {
+      console.log('🚀 Fetching deployed services for flowId:', selectedFlowId);
       initializedRef.current = true;
-      fetchDeployedServices();
+      fetchDeployedServices().then(() => {
+        console.log('✅ Deployed services fetched successfully');
+      }).catch((error) => {
+        console.error('❌ Failed to fetch deployed services:', error);
+      });
     }
   }, [isMenuOpen, selectedFlowId, fetchDeployedServices]);
 
@@ -152,7 +157,7 @@ function DeployBotton() {
       if (chatbotService) {
         return (
           <DeployedChatbotDetail
-            chatbotService={chatbotService}
+            chatbotId={chatbotId}
             API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
             onDelete={() => handleDeleteChatbot(chatbotId, {} as React.MouseEvent)}
@@ -167,9 +172,6 @@ function DeployBotton() {
         return (
           <DeployAsApi
             selectedFlowId={selectedFlowId}
-            workspaces={workspaces}
-            setWorkspaces={setWorkspaces}
-            API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
           />
         );
@@ -177,9 +179,6 @@ function DeployBotton() {
         return (
           <DeployAsChatbot
             selectedFlowId={selectedFlowId}
-            workspaces={workspaces}
-            setWorkspaces={setWorkspaces}
-            API_SERVER_URL={API_SERVER_URL}
             setActivePanel={setActivePanel}
           />
         );
@@ -335,6 +334,7 @@ function DeployBotton() {
         );
     }
   };
+
 
   return (
     <Menu as="div" className="relative">

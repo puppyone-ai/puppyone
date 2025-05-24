@@ -1,23 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { useReactFlow } from '@xyflow/react';
+import React, { useState } from 'react';
 import ChatbotTestInterface from './ChatbotTestInterface';
-
-interface ChatbotService {
-  chatbot_id: string;
-  api_key?: string;
-  endpoint?: string;
-  created_at?: string;
-  config?: {
-    multiTurn?: boolean;
-    welcomeMessage?: string;
-    selectedInputs?: Array<{ id: string; label: string }>;
-    selectedOutputs?: Array<{ id: string; label: string }>;
-    selectedChatHistory?: Array<{ id: string; label: string }>;
-  };
-}
+import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
 
 interface DeployedChatbotDetailProps {
-  chatbotService: ChatbotService;
+  chatbotId: string;
   API_SERVER_URL: string;
   setActivePanel: (panel: string | null) => void;
   onDelete: () => void;
@@ -25,38 +11,33 @@ interface DeployedChatbotDetailProps {
 }
 
 function DeployedChatbotDetail({
-  chatbotService,
+  chatbotId,
   API_SERVER_URL,
   setActivePanel,
-  onDelete,
-  selectedFlowId
+
 }: DeployedChatbotDetailProps) {
-  const { getNodes } = useReactFlow();
+  const { deployedServices } = useDeployPanelContext();
+  
+  // 通过 chatbotId 从 context 中获取 chatbot 配置
+  const chatbotService = deployedServices.chatbots.find(service => service.chatbot_id === chatbotId);
+  
   const [selectedSDK, setSelectedSDK] = useState<string | null>(null);
   const [showChatbotTest, setShowChatbotTest] = useState(false);
-  const [inputNodes, setInputNodes] = useState<any[]>([]);
-  const [outputNodes, setOutputNodes] = useState<any[]>([]);
-  const [chatHistoryNodes, setChatHistoryNodes] = useState<any[]>([]);
 
-  // 获取当前工作流的节点信息
-  useEffect(() => {
-    const allInputNodes = getNodes()
-      .filter((item) => item.type === 'text')
-      .filter(item => item.data?.isInput === true);
+  // 如果找不到 chatbot 配置，显示错误信息
+  if (!chatbotService) {
+    return (
+      <div className="py-[16px] px-[16px]">
+        <div className="text-[#E74C3C] text-center">
+          Chatbot configuration not found for ID: {chatbotId}
+        </div>
+      </div>
+    );
+  }
 
-    const allOutputNodes = getNodes()
-      .filter((item) => item.type === 'text')
-      .filter(item => item.data?.isOutput === true);
-
-    const allChatHistoryNodes = getNodes()
-      .filter((item) => item.type === 'structured')
-      .filter(item => item.data?.isInput === true);
-
-    setInputNodes(allInputNodes);
-    setOutputNodes(allOutputNodes);
-    setChatHistoryNodes(allChatHistoryNodes);
-  }, [getNodes]);
-
+  // 检查是否启用了多轮对话
+  const isMultiTurnEnabled = chatbotService.multi_turn_enabled || chatbotService.config?.multiTurn;
+  
   // 部署选项
   const deploymentOptions = [
     {
@@ -148,185 +129,134 @@ function DeployedChatbotDetail({
             <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
         </button>
-        <div className="flex items-center gap-2">
-          <div className="bg-[#9B7EDB]/20 p-1.5 rounded">
-            <svg className="w-4 h-4 text-[#9B7EDB]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-              <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-            </svg>
-          </div>
-          <h2 className="text-[#CDCDCD] text-[16px]">Chatbot Details</h2>
-        </div>
+        <h2 className="text-[#CDCDCD] text-[16px]">Chatbot Details</h2>
       </div>
 
-      {/* Chatbot 基本信息 */}
-      <div className="mb-6 p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-        <h3 className="text-[#CDCDCD] text-[14px] mb-3">Service Information</h3>
-        
-        <div className="space-y-3">
-          <div>
-            <label className="text-[12px] text-[#808080]">Chatbot ID:</label>
-            <div className="flex items-center mt-1">
-              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#9B7EDB] overflow-x-auto">
-                {chatbotService.chatbot_id}
-              </code>
-              <button
-                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                onClick={() => navigator.clipboard.writeText(chatbotService.chatbot_id)}
-              >
-                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                </svg>
-              </button>
+      {/* 输入输出节点信息 - 仿照 DeployedApiDetail 的网格布局 */}
+      <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
+        <div className="p-4 bg-[#1A1A1A]">
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Input ({chatbotService.input ? 1 : 0})</span>
             </div>
-          </div>
-
-          <div>
-            <label className="text-[12px] text-[#808080]">API Endpoint:</label>
-            <div className="flex items-center mt-1">
-              <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                {chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`}
-              </code>
-              <button
-                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                onClick={() => navigator.clipboard.writeText(chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`)}
-              >
-                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {chatbotService.api_key && (
-            <div>
-              <label className="text-[12px] text-[#808080]">API Key:</label>
-              <div className="flex items-center mt-1">
-                <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                  {chatbotService.api_key}
-                </code>
-                <button
-                  className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                  onClick={() => navigator.clipboard.writeText(chatbotService.api_key || '')}
-                >
-                  <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                    <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 输入输出节点信息 */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-3 border-b border-[#333333] pb-2">
-            User Messages ({inputNodes.length})
           </h3>
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
-            {inputNodes.map((node) => (
-              <div key={node.id} className="flex items-center p-2 bg-[#252525] rounded">
-                <div className="mr-2 bg-[#3B9BFF]/20 p-1 rounded">
-                  <svg className="w-3 h-3 text-[#3B9BFF]" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 8H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 12H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 16H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+
+          <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
+            {chatbotService.input ? (
+              <div className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]">
+                <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                  <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <span className="flex-shrink-0 text-[12px]">{chatbotService.input}</span>
+                <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-                <span className="text-[#CDCDCD] text-[12px]">{node.data.label || node.id}</span>
               </div>
-            ))}
-            {inputNodes.length === 0 && (
-              <div className="text-[#808080] text-[12px] text-center py-2">
-                No input nodes found
+            ) : (
+              <div className="text-[12px] text-[#808080] py-2 text-center">
+                No input node found
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-3 border-b border-[#333333] pb-2">
-            Bot Responses ({outputNodes.length})
+        <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Output ({chatbotService.output ? 1 : 0})</span>
+            </div>
           </h3>
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
-            {outputNodes.map((node) => (
-              <div key={node.id} className="flex items-center p-2 bg-[#252525] rounded">
-                <div className="mr-2 bg-[#3B9BFF]/20 p-1 rounded">
-                  <svg className="w-3 h-3 text-[#3B9BFF]" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M3 8H17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 12H15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 16H13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+
+          <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
+            {chatbotService.output ? (
+              <div className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]">
+                <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                  <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                  <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+                <span className="flex-shrink-0 text-[12px]">{chatbotService.output}</span>
+                <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
-                <span className="text-[#CDCDCD] text-[12px]">{node.data.label || node.id}</span>
               </div>
-            ))}
-            {outputNodes.length === 0 && (
-              <div className="text-[#808080] text-[12px] text-center py-2">
-                No output nodes found
+            ) : (
+              <div className="text-[12px] text-[#808080] py-2 text-center">
+                No output node found
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* 聊天历史节点信息（如果启用了多轮对话） */}
-      {chatbotService.config?.multiTurn && chatHistoryNodes.length > 0 && (
-        <div className="mb-6 p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-3 border-b border-[#333333] pb-2">
-            Chat History Storage ({chatHistoryNodes.length})
+      {/* Memory 节点信息 - 修改显示条件 */}
+      {isMultiTurnEnabled && chatbotService.history_id && (
+        <div className="mb-8 p-4 bg-[#1A1A1A] rounded-lg border border-[#404040]">
+          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
+            <div className="flex items-center justify-between">
+              <span>Memory Node (1)</span>
+            </div>
           </h3>
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
-            {chatHistoryNodes.map((node) => (
-              <div key={node.id} className="flex items-center p-2 bg-[#252525] rounded">
-                <div className="mr-2 bg-[#9B7EDB]/20 p-1 rounded">
-                  <svg className="w-3 h-3 text-[#9B7EDB]" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" />
-                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" />
-                    <path d="M9 9H11V11H9V9Z" />
-                    <path d="M9 13H11V15H9V13Z" />
-                    <path d="M13 9H15V11H13V9Z" />
-                    <path d="M13 13H15V15H13V13Z" />
-                  </svg>
-                </div>
-                <span className="text-[#CDCDCD] text-[12px]">{node.data.label || node.id}</span>
+
+          <div className="space-y-3 text-[14px] font-medium">
+            <div className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#9B7EDB]">
+              <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
+                <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <span className="flex-shrink-0 text-[12px]">{chatbotService.history_id}</span>
+              <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       )}
 
       {/* Chatbot 配置信息 */}
-      {chatbotService.config && (
-        <div className="mb-6 p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-3">Chatbot Configuration</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-[#CDCDCD] text-[12px]">Multi-turn Dialogue:</span>
-              <span className={`text-[12px] px-2 py-1 rounded ${
-                chatbotService.config.multiTurn 
-                  ? 'bg-[#27AE60]/20 text-[#27AE60]' 
-                  : 'bg-[#808080]/20 text-[#808080]'
-              }`}>
-                {chatbotService.config.multiTurn ? 'Enabled' : 'Disabled'}
-              </span>
-            </div>
-            {chatbotService.config.welcomeMessage && (
-              <div>
-                <label className="text-[12px] text-[#808080]">Welcome Message:</label>
-                <div className="mt-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD]">
-                  {chatbotService.config.welcomeMessage}
-                </div>
+      <div className="mb-6 p-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
+        <h3 className="text-[#CDCDCD] text-[14px] mb-3">Chatbot Configuration</h3>
+        <div className="space-y-3">
+          {/* 多轮对话设置 */}
+          <div className="flex items-center justify-between">
+            <span className="text-[#CDCDCD] text-[12px]">Multi-turn Dialogue:</span>
+            <span className={`text-[12px] px-2 py-1 rounded ${
+              isMultiTurnEnabled
+                ? 'bg-[#27AE60]/20 text-[#27AE60]' 
+                : 'bg-[#808080]/20 text-[#808080]'
+            }`}>
+              {isMultiTurnEnabled ? 'Enabled' : 'Disabled'}
+            </span>
+          </div>
+
+          {/* 显示 Memory 节点信息（如果有的话） */}
+          {isMultiTurnEnabled && (
+            <div>
+              <label className="text-[12px] text-[#808080]">Memory Node:</label>
+              <div className="mt-1 p-2 bg-[#252525] rounded text-[12px] text-[#9B7EDB]">
+                {chatbotService.history_id || 'Not configured'}
               </div>
-            )}
+            </div>
+          )}
+
+          {/* 欢迎消息 */}
+          <div>
+            <label className="text-[12px] text-[#808080]">Welcome Message:</label>
+            <div className="mt-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD]">
+              {chatbotService.config?.welcomeMessage || chatbotService.welcome_message || 'Hello! How can I help you today?'}
+            </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* 操作按钮 */}
       <div className="mb-6">
@@ -343,24 +273,11 @@ function DeployedChatbotDetail({
             </svg>
             Test Chatbot
           </button>
-
-          <button
-            className="flex-1 h-[48px] rounded-[8px] transition duration-200 
-              flex items-center justify-center gap-2
-              bg-[#E74C3C] text-white hover:bg-[#C0392B] hover:scale-105"
-            onClick={onDelete}
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-            Delete Chatbot
-          </button>
         </div>
       </div>
 
       {/* SDK 部署选项 */}
       <div className="mb-6">
-        <h3 className="text-[#CDCDCD] text-[14px] mb-3">Deployment Options</h3>
         <div className="flex flex-wrap gap-4 justify-center">
           {deploymentOptions.map((option) => (
             <div key={option.id} className="flex flex-col items-center" style={{ width: '50px' }}>
@@ -387,8 +304,8 @@ function DeployedChatbotDetail({
         </div>
       </div>
 
-      {/* SDK 详细信息 */}
-      {selectedSDK && (
+      {/* SDK 详细信息或 API 详情 */}
+      {selectedSDK ? (
         <div className="mb-6 py-3 px-4 bg-[#1A1A1A] rounded-md border border-[#404040]">
           <div className="flex justify-between items-center">
             <div className="flex items-center">
@@ -479,7 +396,7 @@ BOT_NAME="PuppyFlow Bot"`}
     chatbotEndpoint: "${chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`}",
     bubbleText: "Ask me!",
     position: "bottom-right",
-    welcomeMessage: "${chatbotService.config?.welcomeMessage || 'Hello! How can I help you?'}"
+    welcomeMessage: "${chatbotService.config?.welcomeMessage || chatbotService.welcome_message || 'Hello! How can I help you?'}"
   };
 </script>
 <script src="https://cdn.puppyflow.ai/bubble.min.js"></script>`}
@@ -488,15 +405,79 @@ BOT_NAME="PuppyFlow Bot"`}
             </div>
           )}
         </div>
+      ) : (
+        <div className="mb-6 py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
+          <div className="flex justify-between items-start">
+            <span className="text-[14px] text-[#CDCDCD] font-medium">API Details</span>
+          </div>
+
+          <div className="mt-2 space-y-3">
+            <div>
+              <label className="text-[12px] text-[#808080]">Chatbot ID:</label>
+              <div className="flex items-center mt-1">
+                <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#9B7EDB] overflow-x-auto">
+                  {chatbotService.chatbot_id}
+                </code>
+                <button
+                  className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                  onClick={() => navigator.clipboard.writeText(chatbotService.chatbot_id)}
+                >
+                  <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                    <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[12px] text-[#808080]">API Endpoint:</label>
+              <div className="flex items-center mt-1">
+                <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                  {chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`}
+                </code>
+                <button
+                  className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                  onClick={() => navigator.clipboard.writeText(chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`)}
+                >
+                  <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                    <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {chatbotService.chatbot_key && (
+              <div>
+                <label className="text-[12px] text-[#808080]">API Key:</label>
+                <div className="flex items-center mt-1">
+                  <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                    {chatbotService.chatbot_key}
+                  </code>
+                  <button
+                    className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                    onClick={() => navigator.clipboard.writeText(chatbotService.chatbot_key || '')}
+                  >
+                    <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                      <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* 聊天机器人测试界面 */}
       {showChatbotTest && (
         <ChatbotTestInterface
           apiEndpoint={chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`}
-          inputNodeId={inputNodes[0]?.id || ''}
-          outputNodeId={outputNodes[0]?.id || ''}
-          apiKey={chatbotService.api_key || ''}
+          inputNodeId={chatbotService.input || ''}
+          outputNodeId={chatbotService.output || ''}
+          apiKey={chatbotService.chatbot_key || ''}
           apiId={chatbotService.chatbot_id}
           isModal={true}
           onClose={() => toggleChatbotTest(false)}
