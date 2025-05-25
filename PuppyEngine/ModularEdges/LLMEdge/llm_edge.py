@@ -20,7 +20,7 @@ from .llm_settings import (
 )
 from PuppyEngine.ModularEdges.LLMEdge.ollama_local_inference import OllamaLocalInference
 from PuppyEngine.ModularEdges.LLMEdge.hf_local_inference import LocalLLMChat, LocalLLMConfig
-from tools.puppy_utils.puppy_exception import PuppyEngineException as PuppyException, global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
 # Check current deployment mode
