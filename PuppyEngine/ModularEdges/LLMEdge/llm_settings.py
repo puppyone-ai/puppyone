@@ -2,7 +2,7 @@ import os
 import logging
 import requests
 from typing import List, Tuple
-from tools.puppy_utils.puppy_exception import PuppyEngineException as PuppyException
+from Utils.puppy_exception import PuppyException
 
 def get_open_router_models(
     url: str = "https://openrouter.ai/api/v1/models"
