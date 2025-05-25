@@ -18,8 +18,8 @@ from .llm_settings import (
     get_lite_llm_settings,
     get_huggingface_llm_settings
 )
-from PuppyEngine.ModularEdges.LLMEdge.ollama_local_inference import OllamaLocalInference
-from PuppyEngine.ModularEdges.LLMEdge.hf_local_inference import LocalLLMChat, LocalLLMConfig
+from ModularEdges.LLMEdge.ollama_local_inference import OllamaLocalInference
+from ModularEdges.LLMEdge.hf_local_inference import LocalLLMChat, LocalLLMConfig
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
