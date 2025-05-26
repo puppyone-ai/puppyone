@@ -140,32 +140,6 @@ class FileToTextParser:
             logger.error(f"Error in parse_multiple: {str(e)}\n{traceback.format_exc()}")
             raise
 
-    # def _group_files_by_type(
-    #     self, 
-    #     file_configs: List[Dict[str, Any]]
-    # ) -> Dict[str, List[Tuple[int, Dict[str, Any]]]]:
-    #     """
-    #     Group file configurations by file type
-
-    #     Args:
-    #         file_configs: List of file configurations
-
-    #     Returns:
-    #         Dictionary mapping file types to lists of (index, config) tuples
-    #     """
-
-    #     file_type_groups = {}
-    #     for i, config in enumerate(file_configs):
-    #         file_path = config.get('file_path')
-    #         file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
-
-    #         if file_type not in file_type_groups:
-    #             file_type_groups[file_type] = []
-
-    #         file_type_groups[file_type].append((i, config))
-
-    #     return file_type_groups
-
     def _process_simple_files(
         self,
         configs_with_indices: List[Tuple[int, Dict[str, Any]]],
@@ -1017,7 +991,7 @@ class FileToTextParser:
                 df = df.iloc[row_range[0]:row_range[1]]
 
             # 处理空值
-            log_info(f"Processing null values and standardizing data types")
+            log_info("Processing null values and standardizing data types")
             df = df.replace({pd.NA: None, pd.NaT: None})  # 将pandas的空值转换为None
             
             # 检查是否为空表格
@@ -1076,7 +1050,7 @@ class FileToTextParser:
                                     inner_dict[key] = str(value)
                                 else:
                                     inner_dict[key] = value
-                            except:
+                            except Exception as e:
                                 # 如果类型检测失败，保持原值
                                 inner_dict[key] = value
                     
@@ -1086,8 +1060,7 @@ class FileToTextParser:
                 
                 return result
             elif mode == "line":
-                # 将DataFrame转换为JSON格式
-                # 处理日期时间等特殊类型
+                # 将DataFrame转换为JSON格式,处理日期时间等特殊类型
                 def json_serialize(obj):
                     if isinstance(obj, pd.Timestamp) or hasattr(obj, 'isoformat'):
                         return str(obj)
@@ -1140,7 +1113,7 @@ class FileToTextParser:
                                     inner_dict[col] = str(row[col])
                                 else:
                                     inner_dict[col] = row[col]
-                            except:
+                            except Exception as e:
                                 # 如果类型检测失败，保持原值
                                 inner_dict[col] = row[col]
                     
@@ -1319,138 +1292,137 @@ if __name__ == "__main__":
 
     file_root_path = "ModularEdges/LoadEdge/testfiles"
     file_configs = [
-        # {
-        #     "file_path": os.path.join(file_root_path, "testjson.json"),
-        #     "file_type": "json"
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testtxt.txt"),
-        #     "file_type": "txt",
-        #     "config": {
-        #         "auto_formatting": False
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testmd.md"),
-        #     "file_type": "markdown",
-        #     "config": {
-        #         "auto_formatting": True
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testdoc.docx"),
-        #     "file_type": "doc",
-        #     "config": {
-        #         "auto_formatting": False
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testpdf.pdf"),
-        #     "file_type": "pdf",
-        #     "config": {
-        #         "use_images": True
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testimg.png"),
-        #     "file_type": "image",
-        #     "config": {
-        #         "use_llm": False
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testimg2.png"),
-        #     "file_type": "image",
-        #     "config": {
-        #         "use_llm": True
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testaudio.mp3"),
-        #     "file_type": "audio",
-        #     "config": {
-        #         "mode": "accurate"
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testvideo.mp4"),
-        #     "file_type": "video",
-        #     "config": {
-        #         "use_llm": True,
-        #         "frame_skip": 300
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
-        #     "file_type": "video",
-        #     "config": {
-        #         "use_llm": False
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "testcsv.csv"),
-        #     "file_type": "csv",
-        #     "config": {
-        #         "column_range": [0, 3],
-        #         "row_range": [0, 5]
-        #     }
-        # },  
-        # {
-        #     "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
-        #     "file_type": "xlsx",
-        #     "config": {
-        #         "column_range": [0, 3],
-        #         "row_range": [0, 5]
-        #     }
-        # },
-        # {
-        #     "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
-        #     "file_type": "doc",
-        #     "config": {
-        #         "auto_formatting": True
-        #     }
-        # },
-        # {
-        #     "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
-        #     "file_type": "pdf",
-        #     "config": {
-        #         "use_images": True
-        #     }
-        # },
-        # {
-        #     "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
-        #     "file_type": "image",
-        #     "config": {
-        #         "use_llm": False
-        #     }
-        # },
-        # {
-        #     "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
-        #     "file_type": "audio",
-        #     "config": {
-        #         "mode": "small"
-        #     }
-        # },
-        # {
-        #     "file_path": os.path.join(file_root_path, "ld.xlsm"),
-        #     "file_type": "xlsm",
-        #     "config": {
-        #         "mode": "row", 
-        #         "sheet_name": "费用"
-        #     }
-        # },
+        {
+            "file_path": os.path.join(file_root_path, "testjson.json"),
+            "file_type": "json"
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testtxt.txt"),
+            "file_type": "txt",
+            "config": {
+                "auto_formatting": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testmd.md"),
+            "file_type": "markdown",
+            "config": {
+                "auto_formatting": True
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testdoc.docx"),
+            "file_type": "doc",
+            "config": {
+                "auto_formatting": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testpdf.pdf"),
+            "file_type": "pdf",
+            "config": {
+                "use_images": True
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testimg.png"),
+            "file_type": "image",
+            "config": {
+                "use_llm": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testimg2.png"),
+            "file_type": "image",
+            "config": {
+                "use_llm": True
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testaudio.mp3"),
+            "file_type": "audio",
+            "config": {
+                "mode": "accurate"
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testvideo.mp4"),
+            "file_type": "video",
+            "config": {
+                "use_llm": True,
+                "frame_skip": 300
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testvideo2.mp4"),
+            "file_type": "video",
+            "config": {
+                "use_llm": False
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "testcsv.csv"),
+            "file_type": "csv",
+            "config": {
+                "column_range": [0, 3],
+                "row_range": [0, 5]
+            }
+        },  
+        {
+            "file_path": os.path.join(file_root_path, "testxlsx.xlsx"),
+            "file_type": "xlsx",
+            "config": {
+                "column_range": [0, 3],
+                "row_range": [0, 5]
+            }
+        },
+        {
+            "file_path": "https://docs.google.com/document/d/1WUODFdt78C1l4ncx2LLqnPoWOohyWxUN6f_Y1GO69UM/export?format=docx",
+            "file_type": "doc",
+            "config": {
+                "auto_formatting": True
+            }
+        },
+        {
+            "file_path": "https://www.ntu.edu.sg/docs/librariesprovider118/pg/msai-ay2024-2025-semester-2-timetable.pdf",
+            "file_type": "pdf",
+            "config": {
+                "use_images": True
+            }
+        },
+        {
+            "file_path": "https://img.zcool.cn/community/01889b5eff4d7fa80120662198e1bf.jpg?x-oss-process=image/auto-orient,1/resize,m_lfit,w_1280,limit_1/sharpen,100",
+            "file_type": "image",
+            "config": {
+                "use_llm": False
+            }
+        },
+        {
+            "file_path": "https://www.learningcontainer.com/wp-content/uploads/2020/02/Kalimba.mp3",
+            "file_type": "audio",
+            "config": {
+                "mode": "small"
+            }
+        },
+        {
+            "file_path": os.path.join(file_root_path, "ld.xlsm"),
+            "file_type": "xlsm",
+            "config": {
+                "mode": "row", 
+                "sheet_name": "费用"
+            }
+        },
         {
             "file_path": os.path.join(file_root_path, "Resume cover letter for temporary position.docx"),
             "file_type": "doc",
             "config": {
                 "auto_formatting": True
             }
-        },
-        
-        # {
-        #     "file_path": os.path.join(file_root_path, "testcsv.csv"),
-        #     "file_type": "csv",
-        # }
+        }, 
+        {
+            "file_path": os.path.join(file_root_path, "testcsv.csv"),
+            "file_type": "csv",
+        }
     ]
     parser = FileToTextParser()
     parsed_content_list = parser.parse_multiple(file_configs)

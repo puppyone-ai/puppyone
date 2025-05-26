@@ -31,8 +31,7 @@ class PuppyException(Exception):
         self.error_message = error_message
         self.cause = cause
         
-        # 移除直接赋值，防止与属性装饰器冲突
-        # 属性访问会通过下面定义的装饰器方法自动处理
+        # 移除直接赋值，防止与属性装饰器冲突,属性访问会通过下面定义的装饰器方法自动处理
         
         self.raise_message = f"[{self.service_name.upper()}_ERROR_{self.error_code}]: {self.error_message}!"
         if self.cause:
