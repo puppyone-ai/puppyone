@@ -1,12 +1,18 @@
+"""
+Ollama 提供商实现
+
+支持本地运行的Ollama模型
+"""
 import requests
+import json
 from typing import List, Dict, Any, Optional
 import sys
 import os
 
 # 添加父级目录到路径以解决导入问题
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from puppy_model.capabilities import ModelCapability, cached
-from puppy_model.providers.base import Provider
+from qllama.capabilities import ModelCapability, cached
+from qllama.providers.base import Provider
 
 class OllamaProvider(Provider):
     """Ollama提供商实现"""

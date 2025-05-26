@@ -1,3 +1,3 @@
 """
-Example modules for puppy_model package
+Example modules for qllama package
 """ 
