@@ -52,7 +52,7 @@ function transformOllamaModel(ollamaModel: OllamaModel): Model {
   return {
     id: ollamaModel.name,
     name: formatModelName(ollamaModel.name),
-    provider: 'Ollama',
+    provider: 'ollama',
     isLocal: true,
     active: true,
   };
