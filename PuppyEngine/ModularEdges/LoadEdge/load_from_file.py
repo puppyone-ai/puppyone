@@ -1440,7 +1440,7 @@ if __name__ == "__main__":
         #     }
         # },
         {
-            "file_path": os.path.join(file_root_path, "Resume.doc"),
+            "file_path": os.path.join(file_root_path, "Resume cover letter for temporary position.docx"),
             "file_type": "doc",
             "config": {
                 "auto_formatting": True
