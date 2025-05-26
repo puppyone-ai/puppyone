@@ -20,8 +20,8 @@ CORS(app)  # 允许跨域请求
 @app.route('/api/providers', methods=['GET'])
 def get_providers():
     """获取所有提供商"""
-    registry = qllama.ModelRegistry()
-    providers = registry.list_providers()
+    manager = qllama.get_manager()
+    providers = manager.list_providers()
     return jsonify({
         "success": True,
         "providers": providers
@@ -30,21 +30,17 @@ def get_providers():
 @app.route('/api/models', methods=['GET'])
 def get_all_models():
     """获取所有模型"""
-    registry = qllama.ModelRegistry()
-    models = registry.list_all_models()
-    result = {}
-    for provider, provider_models in models.items():
-        result[provider] = provider_models
+    manager = qllama.get_manager()
+    models = manager.list_models()
     return jsonify({
         "success": True,
-        "models": result
+        "models": models
     })
 
 @app.route('/api/models/llm', methods=['GET'])
 def get_llm_models():
     """获取支持LLM的模型"""
-    registry = qllama.ModelRegistry()
-    models = registry.list_models_by_capability(ModelCapability.LLM)
+    models = qllama.list_llm_models()
     return jsonify({
         "success": True,
         "llm_models": models
@@ -53,8 +49,7 @@ def get_llm_models():
 @app.route('/api/models/embedding', methods=['GET'])
 def get_embedding_models():
     """获取支持嵌入的模型"""
-    registry = qllama.ModelRegistry()
-    models = registry.list_models_by_capability(ModelCapability.EMBEDDING)
+    models = qllama.list_embedding_models()
     return jsonify({
         "success": True,
         "embedding_models": models
@@ -142,4 +137,4 @@ def generate_embeddings():
 
 if __name__ == '__main__':
     # 默认监听所有接口，方便局域网内其他设备访问
-    app.run(host='0.0.0.0', port=5000, debug=True) 
+    app.run(host='0.0.0.0', port=42779, debug=True) 
