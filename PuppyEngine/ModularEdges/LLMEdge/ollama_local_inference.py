@@ -42,12 +42,11 @@ class OllamaLocalInference:
         self,
         model_name: str
     ) -> Optional[Dict]:
-        model_register = self.load_model_register()
-        if model_name not in model_register:
+        if model_name not in self.model_register:
             logger.warning(f"Model {model_name} not found in register")
             return None
-            
-        model_info = model_register[model_name]
+ 
+        model_info = self.model_register[model_name]
         if model_info.get("inference_method") != "ollama":
             logger.warning(f"Model {model_name} is not configured for Ollama inference")
             return None
