@@ -1,5 +1,5 @@
 """
-puppy_model API服务
+Qllama API服务
 
 提供获取可用模型信息的REST API
 """
@@ -8,11 +8,11 @@ from flask_cors import CORS
 import os
 import sys
 
-# 确保能够导入puppy_model包
+# 确保能够导入qllama包
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-import puppy_model
-from puppy_model import ModelCapability, LLM, Embedder
+import qllama
+from qllama import ModelCapability, LLM, Embedder
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
@@ -20,7 +20,7 @@ CORS(app)  # 允许跨域请求
 @app.route('/api/providers', methods=['GET'])
 def get_providers():
     """获取所有提供商"""
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     providers = registry.list_providers()
     return jsonify({
         "success": True,
@@ -30,7 +30,7 @@ def get_providers():
 @app.route('/api/models', methods=['GET'])
 def get_all_models():
     """获取所有模型"""
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     models = registry.list_all_models()
     result = {}
     for provider, provider_models in models.items():
@@ -43,7 +43,7 @@ def get_all_models():
 @app.route('/api/models/llm', methods=['GET'])
 def get_llm_models():
     """获取支持LLM的模型"""
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     models = registry.list_models_by_capability(ModelCapability.LLM)
     return jsonify({
         "success": True,
@@ -53,7 +53,7 @@ def get_llm_models():
 @app.route('/api/models/embedding', methods=['GET'])
 def get_embedding_models():
     """获取支持嵌入的模型"""
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     models = registry.list_models_by_capability(ModelCapability.EMBEDDING)
     return jsonify({
         "success": True,

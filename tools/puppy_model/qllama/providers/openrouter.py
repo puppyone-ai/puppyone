@@ -1,13 +1,15 @@
 """
-OpenRouter 提供商模块
+OpenRouter 提供商实现
+
+支持通过OpenRouter访问多种模型
 """
 import os
 import requests
 from typing import List, Dict, Any, Optional
 import warnings
 
-from puppy_model.providers.base import Provider
-from puppy_model.capabilities import ModelCapability
+from qllama.providers.base import Provider
+from qllama.capabilities import ModelCapability
 
 class OpenRouterProvider(Provider):
     """OpenRouter 模型提供商"""

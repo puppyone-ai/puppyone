@@ -4,37 +4,39 @@ from typing import List, Dict, Any, Optional, Union, Tuple
 import importlib
 import warnings
 
-from puppy_model.capabilities import ModelCapability
-from puppy_model.providers.base import Provider
-from puppy_model.registry import ModelRegistry
+from qllama.capabilities import ModelCapability
+from qllama.providers.base import Provider
+from qllama.registry import ModelRegistry
 
 # 注册内置提供商
 def _register_built_in_providers():
     """注册内置的提供商"""
     # 尝试注册OpenAI提供商
     try:
-        from puppy_model.providers.openai import OpenAIProvider
+        import openai
+        from qllama.providers.openai import OpenAIProvider
         ModelRegistry.register('openai', OpenAIProvider)
     except ImportError:
         warnings.warn("无法加载OpenAI提供商，请检查是否已安装openai包")
     
     # 尝试注册HuggingFace提供商
     try:
-        from puppy_model.providers.huggingface import HuggingFaceProvider
+        import transformers
+        from qllama.providers.huggingface import HuggingFaceProvider
         ModelRegistry.register('huggingface', HuggingFaceProvider)
     except ImportError:
         warnings.warn("无法加载HuggingFace提供商，请检查是否已安装transformers包")
     
     # 尝试注册Ollama提供商
     try:
-        from puppy_model.providers.ollama import OllamaProvider
+        from qllama.providers.ollama import OllamaProvider
         ModelRegistry.register('ollama', OllamaProvider)
     except ImportError:
         warnings.warn("无法加载Ollama提供商")
         
     # 尝试注册OpenRouter提供商
     try:
-        from puppy_model.providers.openrouter import OpenRouterProvider
+        from qllama.providers.openrouter import OpenRouterProvider
         ModelRegistry.register('openrouter', OpenRouterProvider)
     except ImportError:
         warnings.warn("无法加载OpenRouter提供商")
@@ -57,28 +59,30 @@ class ModelManager:
         """加载内置的提供商"""
         # 尝试加载OpenAI提供商
         try:
-            from puppy_model.providers.openai import OpenAIProvider
+            import openai
+            from qllama.providers.openai import OpenAIProvider
             self.register_provider("openai", OpenAIProvider())
         except ImportError:
             warnings.warn("无法加载OpenAI提供商，请检查是否已安装openai包")
         
         # 尝试加载HuggingFace提供商
         try:
-            from puppy_model.providers.huggingface import HuggingFaceProvider
+            import transformers
+            from qllama.providers.huggingface import HuggingFaceProvider
             self.register_provider("huggingface", HuggingFaceProvider())
         except ImportError:
             warnings.warn("无法加载HuggingFace提供商，请检查是否已安装transformers包")
         
         # 尝试加载Ollama提供商
         try:
-            from puppy_model.providers.ollama import OllamaProvider
+            from qllama.providers.ollama import OllamaProvider
             self.register_provider("ollama", OllamaProvider())
         except ImportError:
             warnings.warn("无法加载Ollama提供商")
             
         # 尝试加载OpenRouter提供商
         try:
-            from puppy_model.providers.openrouter import OpenRouterProvider
+            from qllama.providers.openrouter import OpenRouterProvider
             self.register_provider("openrouter", OpenRouterProvider())
         except ImportError:
             warnings.warn("无法加载OpenRouter提供商")

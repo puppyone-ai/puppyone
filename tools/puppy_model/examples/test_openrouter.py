@@ -8,19 +8,19 @@ from dotenv import load_dotenv
 # 加载环境变量（如果有.env文件）
 load_dotenv()
 
-# 确保能够导入puppy_model包
+# 确保能够导入qllama包
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import puppy_model
-from puppy_model import LLM, ModelCapability
-from puppy_model.providers.openrouter import OpenRouterProvider
+import qllama
+from qllama import LLM, ModelCapability
+from qllama.providers.openrouter import OpenRouterProvider
 
 def test_openrouter_provider():
     """测试OpenRouter提供商"""
     print("=== 测试OpenRouter提供商 ===")
     
     # 获取注册表实例
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     
     # 检查OpenRouter是否已注册
     providers = registry.list_providers()

@@ -1,21 +1,20 @@
 """
-测试PuppyModel包
+Qllama 包的综合测试示例
 """
-import sys
 import os
+import sys
 
-# 确保能够导入puppy_model包
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 确保能够导入qllama包
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import puppy_model
-from puppy_model import Embedder, LLM, ModelCapability
+import qllama
+from qllama import Embedder, LLM, ModelCapability
 
-def test_model_listing():
-    """测试模型列表功能"""
-    print("=== 测试模型列表 ===")
+def test_model_registry():
+    """测试模型注册表功能"""
+    print("=== 模型注册表测试 ===")
     
-    # 获取注册表实例
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     
     # 列出所有提供商
     providers = registry.list_providers()
@@ -52,7 +51,7 @@ def test_ollama_capabilities():
     print("\n=== 测试Ollama能力检测 ===")
     
     # 获取Ollama提供商
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     try:
         ollama = registry.get_provider("ollama")
         
@@ -86,7 +85,7 @@ def test_openrouter_capabilities():
     print("\n=== 测试OpenRouter能力检测 ===")
     
     # 获取OpenRouter提供商
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     try:
         openrouter = registry.get_provider("openrouter")
         
@@ -193,7 +192,7 @@ def test_openrouter_llm():
         return
     
     # 获取支持LLM的模型
-    registry = puppy_model.ModelRegistry()
+    registry = qllama.ModelRegistry()
     try:
         openrouter = registry.get_provider("openrouter")
         models = openrouter.__class__.list_models()
@@ -226,7 +225,7 @@ def test_openrouter_llm():
 
 if __name__ == "__main__":
     # 运行测试
-    test_model_listing()
+    test_model_registry()
     test_ollama_capabilities()
     test_openrouter_capabilities()
     test_embedder()
