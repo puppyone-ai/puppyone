@@ -63,9 +63,9 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     // 使用 AppSettingsContext
     const { availableModels, isLocalDeployment } = useAppSettings()
  
-    // 获取可用的激活模型列表
+    // 获取可用的激活模型列表 - 只显示 LLM 类型的模型
     const activeModels = useMemo(() => {
-        return availableModels.filter(m => m.active);
+        return availableModels.filter(m => m.active && m.type == 'llm');
     }, [availableModels]);
     
     // 更新状态管理 - 使用完整的模型对象而不是字符串
@@ -85,7 +85,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
             } as Model;
         }
         
-        // 如果节点没有模型值，则使用第一个可用的激活模型
+        // 如果节点没有模型值，则使用第一个可用的激活 LLM 模型
         return activeModels.length > 0 ? activeModels[0] : null;
     });
     
