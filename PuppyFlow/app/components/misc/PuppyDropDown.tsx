@@ -80,7 +80,6 @@ export const PuppyDropdown = ({ options, onSelect, selectedValue, optionBadge = 
             </div>
             {isOpen ? (
                 <ul style={dropdownListStyle}>
-                    {console.log("options", options)}
                     {options.map((option: any, index: number) => (
                         <li
                             key={index}

@@ -8,6 +8,7 @@ export type CloudModel = {
   name: string;
   provider: string;
   active: boolean;
+  type?: 'llm' | 'embedding';
 };
 
 export type LocalModel = {
@@ -15,6 +16,7 @@ export type LocalModel = {
   name: string;
   path: string;
   active: boolean;
+  type?: 'llm' | 'embedding';
 };
 
 // Context type definition
@@ -87,7 +89,8 @@ export const DashboardProvider = ({
       id: model.id,
       name: model.name,
       provider: model.provider || 'Unknown',
-      active: model.active || false
+      active: model.active || false,
+      type: model.type
     }));
     setCloudModels(mappedCloudModels);
     
@@ -96,7 +99,8 @@ export const DashboardProvider = ({
       id: model.id,
       name: model.name,
       path: '', // 使用空字符串作为path的默认值
-      active: model.active || false
+      active: model.active || false,
+      type: model.type
     }));
     setLocalModels(mappedLocalModels);
   }, [globalCloudModels, globalLocalModels]);
