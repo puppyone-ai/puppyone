@@ -47,6 +47,24 @@ function formatModelName(modelId: string): string {
     .join(' ');
 }
 
+// 判断模型类型的函数
+function detectModelType(modelName: string): 'llm' | 'embedding' {
+  const lowerName = modelName.toLowerCase();
+  
+  // 常见的 embedding 模型关键词
+  const embeddingKeywords = [
+    'embed', 'embedding', 'bge', 'e5', 'sentence', 'text-embedding',
+    'nomic-embed', 'mxbai-embed', 'snowflake-arctic-embed'
+  ];
+  
+  // 检查模型名称是否包含 embedding 相关关键词
+  const isEmbedding = embeddingKeywords.some(keyword => 
+    lowerName.includes(keyword)
+  );
+  
+  return isEmbedding ? 'embedding' : 'llm';
+}
+
 // 将 Ollama 原始模型转换为应用的 Model 格式
 function transformOllamaModel(ollamaModel: OllamaModel): Model {
   return {
@@ -55,6 +73,7 @@ function transformOllamaModel(ollamaModel: OllamaModel): Model {
     provider: 'ollama',
     isLocal: true,
     active: true,
+    type: detectModelType(ollamaModel.name), // 新增：自动检测模型类型
   };
 }
 
@@ -108,6 +127,10 @@ export function useOllamaModels(options: UseOllamaModelsOptions = {}): UseOllama
         }
 
         const data: OllamaResponse = await response.json();
+        
+        // 打印 Ollama 原生 SDK 返回的完整数据
+        console.log('🐕 Ollama Raw Response:', JSON.stringify(data, null, 2));
+        
         const ollamaModels = data.models || [];
         const transformedModels = ollamaModels.map(transformOllamaModel);
 
