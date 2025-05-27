@@ -9,6 +9,7 @@ export type Model = {
   provider?: string;
   isLocal?: boolean;
   active?: boolean;
+  type?: 'llm' | 'embedding'; // 新增字段：区分 LLM 和 embedding 模型
 };
 
 // 定义警告消息类型
@@ -45,16 +46,18 @@ const AppSettingsContext = createContext<AppSettingsContextType | undefined>(und
 
 // 预定义的云端模型
 const CLOUD_MODELS: Model[] = [
-  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', isLocal: false, active: true },
-  { id: 'openai/gpt-4o-2024-11-20', name: 'GPT-4o (2024-11-20)', provider: 'OpenAI', isLocal: false, active: true },
-  { id: 'openai/gpt-4.5-preview', name: 'GPT-4.5 Preview', provider: 'OpenAI', isLocal: false, active: true },
-  { id: 'openai/o1', name: 'o1', provider: 'OpenAI', isLocal: false, active: true },
-  { id: 'openai/o3-mini', name: 'o3 Mini', provider: 'OpenAI', isLocal: false, active: true },
-  { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek Chat v3', provider: 'DeepSeek', isLocal: false, active: true },
-  { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero', provider: 'DeepSeek', isLocal: false, active: true },
-  { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', isLocal: false, active: true },
-  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', isLocal: false, active: true },
-  { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', isLocal: false, active: true },
+  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
+  { id: 'openai/gpt-4o-2024-11-20', name: 'GPT-4o (2024-11-20)', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
+  { id: 'openai/gpt-4.5-preview', name: 'GPT-4.5 Preview', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
+  { id: 'openai/o1', name: 'o1', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
+  { id: 'openai/o3-mini', name: 'o3 Mini', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
+  { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek Chat v3', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
+  { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
+  { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
+  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
+  { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
+  // 添加一些云端 embedding 模型示例
+  { id: 'text-embedding-ada-002', name: 'Text Embedding Ada 002', provider: 'OpenAI', isLocal: false, active: true, type: 'embedding' },
 ];
 
 // 后备本地模型（当 Ollama 不可用时使用）
