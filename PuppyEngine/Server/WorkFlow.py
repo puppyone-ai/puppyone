@@ -680,7 +680,7 @@ if __name__ == "__main__":
 
     test_kit = "TestKit/"
     for file_name in os.listdir(test_kit):
-        if file_name != "new_llm_bug.json":
+        if file_name != "llm_local_test.json":
             continue
 
         file_path = os.path.join(test_kit, file_name)
@@ -691,11 +691,10 @@ if __name__ == "__main__":
         # Use list() to collect all outputs, ensure the workflow is complete
         outputs = []
         workflow = WorkFlow(data)
-        workflow.initialize_workflow_state()
         for output_blocks in workflow.process():
-            log_info("Received output blocks: %s", output_blocks)
+            log_info(f"Received output blocks: {output_blocks}")
             outputs.append(output_blocks)
 
-        log_info("Final blocks state: %s", workflow.blocks)
-        log_info("All outputs: %s", outputs)
+        log_info(f"Final blocks state: {workflow.blocks}")
+        log_info(f"All outputs: {outputs}")
         workflow.cleanup_resources()
