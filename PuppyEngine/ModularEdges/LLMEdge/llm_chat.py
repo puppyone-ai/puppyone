@@ -120,7 +120,6 @@ class ChatService:
         Returns:
             str: The response content.
         """
-        print("response: ", response)
         try:
             if self.structured_output:
                 response_content = response.content
