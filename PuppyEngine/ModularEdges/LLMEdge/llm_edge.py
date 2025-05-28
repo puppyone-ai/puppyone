@@ -22,11 +22,6 @@ from ModularEdges.LLMEdge.ollama_local_inference import OllamaLocalInference
 from ModularEdges.LLMEdge.hf_local_inference import LocalLLMChat, LocalLLMConfig
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
-
-# Check current deployment mode
-deployment_type = os.environ.get("DEPLOYMENT_TYPE", "Remote").lower()
-is_local_deployment = deployment_type == "local"
-
 @global_exception_handler(3601, "Error Generating Response Using Lite LLM")
 def remote_llm_chat(
     **kwargs
@@ -57,6 +52,7 @@ def remote_llm_chat(
         str: The response content.
     """
 
+    logging.info("HERE!!!")
     # Handle structured output
     structured_output = kwargs.get("structured_output", False)
     if structured_output:
@@ -64,7 +60,7 @@ def remote_llm_chat(
 
     # Construct the prompt
     messages = kwargs.get("messages", None)
-    chat_histories = kwargs.get("chat_histories", None)
+    chat_histories = kwargs.pop("chat_histories", None)
     if chat_histories and isinstance(chat_histories, list) and \
         len(chat_histories) > 0 and isinstance(chat_histories[0], dict) and\
             "role" in chat_histories[0] and "content" in chat_histories[0]:
@@ -127,6 +123,7 @@ class LLMFactory(EdgeFactoryBase):
         model_name = list(model.keys())[0]
         model_info = model.get(model_name, {})
         inference_method = model_info.get("inference_method", "ollama")
+        is_local_deployment = model_name not in open_router_supported_models
         logging.info(f"DEPLOYMENT_TYPE={os.environ.get('DEPLOYMENT_TYPE')}")
         logging.info(f"is_local_deployment={is_local_deployment}")
         logging.info(f"model_name={model_name}")
@@ -147,7 +144,7 @@ class LLMFactory(EdgeFactoryBase):
                 chat = LocalLLMChat(config)
                 return chat.chat(messages)
             elif inference_method == "ollama":
-                ollama = OllamaLocalInference(model_info)
+                ollama = OllamaLocalInference(model)
                 return ollama.generate_chat_completion(
                     model_name=model_name,
                     messages=messages,

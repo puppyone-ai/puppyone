@@ -94,22 +94,22 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     // 使用 AppSettingsContext
     const { availableModels, isLocalDeployment } = useAppSettings()
     
-    // 获取可用的激活模型列表
+    // 获取可用的激活模型列表 - 只显示 LLM 类型的模型
     const activeModels = useMemo(() => {
-        return availableModels.filter(m => m.active);
+        return availableModels.filter(m => m.active && m.type === 'llm');
     }, [availableModels]);
     
-    // 状态管理 - 使用第一个可用的激活模型作为默认值
+    // 状态管理 - 使用第一个可用的激活 LLM 模型作为默认值
     const [model, setModel] = useState<string>(() => {
         // 首先尝试获取节点已有的模型值
         const nodeModel = getNode(id)?.data?.model as string;
         if (nodeModel) return nodeModel;
         
-        // 如果节点没有模型值，则使用第一个可用的激活模型
+        // 如果节点没有模型值，则使用第一个可用的激活 LLM 模型
         return activeModels.length > 0 ? activeModels[0].id : "";
     });
     
-    // 当可用模型变化且当前模型不在可用列表中时，更新为第一个可用模型
+    // 当可用模型变化且当前模型不在可用列表中时，更新为第一个可用 LLM 模型
     useEffect(() => {
         if (activeModels.length > 0 && !activeModels.some(m => m.id === model)) {
             setModel(activeModels[0].id);

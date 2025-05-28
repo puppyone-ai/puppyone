@@ -119,7 +119,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from Server.WorkFlow import WorkFlow
 from Server.JsonValidation import JsonValidator
 from Utils.puppy_exception import PuppyException
-from Utils.logger import log_info, log_error, log_warning
+from Utils.logger import log_info, log_error, log_warning, log_debug
 
 class DataStore:
     def __init__(
@@ -456,17 +456,48 @@ async def get_data(
                 
                 log_info(f"Connection {connection_id}: Workflow found, beginning processing")
                 
+                # 记录开始时间
+                start_time = time.time()
+                last_yield_time = start_time
+                yield_count = 0
+                log_debug(f"Connection {connection_id}: Starting data streaming at {start_time}")
+                
                 # 使用上下文管理器自动管理资源
                 with workflow:
                     for yielded_blocks in workflow.process():
                         if not yielded_blocks:
                             continue
+                        
                         log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks")
+                        
+                        # 记录 yield 前的时间
+                        current_time = time.time()
+                        time_since_last = current_time - last_yield_time
+                        time_since_start = current_time - start_time
+                        yield_count += 1
+                        
+                        log_debug(f"Connection {connection_id}: Yield #{yield_count} - Time since last yield: {time_since_last:.3f}s, Total time: {time_since_start:.3f}s")
+                        
                         # 使用自定义序列化函数处理datetime等特殊类型
                         yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False}, default=json_serializer)}\n\n"
+                        
+                        # 更新最后一次 yield 的时间
+                        last_yield_time = time.time()
+                        yield_after_time = last_yield_time - current_time
+                        log_debug(f"Connection {connection_id}: Yield #{yield_count} completed - Yield operation took: {yield_after_time:.3f}s")
+                    
+                    # 记录最终完成信号的时间
+                    final_time = time.time()
+                    time_since_last = final_time - last_yield_time
+                    total_time = final_time - start_time
                     
                     log_info(f"Connection {connection_id}: Processing complete, sending completion signal")
+                    log_debug(f"Connection {connection_id}: Final completion signal - Time since last yield: {time_since_last:.3f}s, Total processing time: {total_time:.3f}s")
+                    
                     yield f"data: {json.dumps({'is_complete': True})}\n\n"
+                    
+                    completion_after_time = time.time() - final_time
+                    log_debug(f"Connection {connection_id}: Completion signal sent - Operation took: {completion_after_time:.3f}s, Total yields: {yield_count}")
                 
             except PuppyException as e:
                 log_error(f"Connection {connection_id}: Error during streaming: {str(e)}")
