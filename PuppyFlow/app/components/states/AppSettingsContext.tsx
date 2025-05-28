@@ -53,6 +53,7 @@ const CLOUD_MODELS: Model[] = [
   { id: 'openai/o3-mini', name: 'o3 Mini', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
   { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek Chat v3', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
   { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
+  { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
   { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
   { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
   { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },

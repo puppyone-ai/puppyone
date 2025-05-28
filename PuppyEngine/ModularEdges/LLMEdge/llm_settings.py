@@ -35,6 +35,7 @@ open_router_supported_models = [
     "openai/gpt-4-turbo",
     "deepseek/deepseek-chat-v3-0324:free",
     "deepseek/deepseek-r1-zero:free",
+    "deepseek/deepseek-r1"
     "anthropic/claude-3.5-haiku",
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3.7-sonnet",
