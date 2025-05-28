@@ -272,6 +272,11 @@ const JSONForm = ({preventParentDrag,
         fontFamily: "'JetBrains Mono', monospace",
         fontLigatures: true,
         minimap: { enabled: false },
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+          invisibleCharacters: false,
+          nonBasicASCII: false
+        },
         scrollbar: {
           useShadows: false,
           horizontal: 'auto',
