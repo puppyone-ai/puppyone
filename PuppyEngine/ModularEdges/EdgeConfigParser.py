@@ -235,6 +235,7 @@ class LLMConfigParser(EdgeConfigParser):
         variable_replace_field: str = "messages"
     ) -> ParsedEdgeParams:
         variable_replace_content = self.edge_configs.get(variable_replace_field, [])
+        chat_histories = self.edge_configs.get("chat_histories", [])
         self.edge_configs.pop("inputs")
         self.edge_configs.pop("outputs")
         self.edge_configs.pop(variable_replace_field)
@@ -245,7 +246,11 @@ class LLMConfigParser(EdgeConfigParser):
             variable_replace_field: [{
                 "role": message.get("role", "user"),
                 "content": self.replace_placeholders(message.get("content", ""), variable)
-            } for message in variable_replace_content]
+            } for message in variable_replace_content],
+            "chat_histories": [{
+                "role": message.get("role", "user"),
+                "content": self.replace_placeholders(message.get("content", ""), variable)
+            } for message in chat_histories]
         } for variable in variables]
 
         is_loop = len(variables) > 1

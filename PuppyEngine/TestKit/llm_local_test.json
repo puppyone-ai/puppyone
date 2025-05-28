@@ -1,0 +1,119 @@
+{
+    "blocks": {
+
+    "Lm-PbX": {
+
+        "label": "Text1",
+
+        "type": "text",
+
+        "data": {
+
+            "content": "Introduce yourself within 10 words"
+
+        },
+
+        "looped": false,
+
+        "collection_configs": []
+
+    },
+
+    "8vCBOi": {
+
+        "label": "Text2",
+
+        "type": "text",
+
+        "data": {
+
+            "content": ""
+
+        }
+
+    }
+
+},
+
+"edges": {
+
+    "llmnew-1748252918945": {
+
+        "type": "llm",
+
+        "data": {
+
+            "messages": [
+
+                {
+
+                    "role": "system",
+
+                    "content": "You are an AI"
+
+                },
+
+                {
+
+                    "role": "user",
+
+                    "content": "Answer the question: {{Text1}}"
+
+                }
+
+            ],
+
+            "chat_histories": [
+
+                {
+
+                    "role": "system",
+
+                    "content": "You are an AI"
+
+                },
+
+                {
+
+                    "role": "user",
+
+                    "content": "Answer the question: {{Text1}}"
+
+                }
+
+            ],
+
+            "model": {
+
+                "deepseek-r1:1.5b": {
+                    "inference_method": "ollama"
+                }
+
+            },
+
+            "base_url": "",
+
+            "max_tokens": 4096,
+
+            "temperature": 0.7,
+
+            "inputs": {
+
+                "Lm-PbX": "Text1"
+
+            },
+
+            "structured_output": false,
+
+            "outputs": {
+
+                "8vCBOi": "Text2"
+
+            }
+
+        }
+
+    }
+
+}
+}
