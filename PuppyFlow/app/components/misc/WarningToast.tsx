@@ -14,11 +14,11 @@ const WarningToast: React.FC<WarningToastProps> = ({
   removeWarn,
   toggleWarnExpand,
 }) => {
-  if (warns.length === 0) return null;
-  
-  // 跟踪每个警告的复制状态
+  // 跟踪每个警告的复制状态 - 必须在条件返回之前调用
   const [copiedStates, setCopiedStates] = useState<{[key: number]: boolean}>({});
 
+  if (warns.length === 0) return null;
+  
   // 复制错误信息到剪贴板
   const copyToClipboard = (text: string, index: number, e: React.MouseEvent) => {
     e.stopPropagation();
