@@ -1,11 +1,13 @@
 'use client';
 
-import React, { Fragment, useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState, useMemo } from 'react';
 import { Transition } from '@headlessui/react';
 import { nanoid } from 'nanoid';
 import { useReactFlow } from '@xyflow/react';
 import AdvancedPathEditor from '../../components/TreePathEditorMini';
 import { useDataPathProcessor } from '../hooks/useDataPathProcessor';
+import { useAppSettings } from '../../../states/AppSettingsContext';
+import { PuppyDropdown } from '../../../misc/PuppyDropDown';
 
 // 在文件顶部添加 PathSegment 接口定义
 interface PathSegment {
@@ -70,6 +72,9 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
     const [showKeyPathEditor, setShowKeyPathEditor] = useState(true);
     const [showValuePathEditor, setShowValuePathEditor] = useState(true);
 
+    // 添加高级设置状态
+    const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+    const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState<any>(null);
 
     // 使用我们的hook
     const { getNode } = useReactFlow();
@@ -86,6 +91,21 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
         valueResult,
         generatePreviewData
     } = useDataPathProcessor(sourceData, currentSourceIndex, keyPath, valuePath);
+
+    // 使用 AppSettingsContext 获取 embedding models
+    const { availableModels } = useAppSettings();
+
+    // 获取可用的 embedding models
+    const embeddingModels = useMemo(() => {
+        return availableModels.filter(model => model.active && model.type === 'embedding');
+    }, [availableModels]);
+
+    // 初始化默认 embedding model
+    useEffect(() => {
+        if (embeddingModels.length > 0 && !selectedEmbeddingModel) {
+            setSelectedEmbeddingModel(embeddingModels[0]);
+        }
+    }, [embeddingModels, selectedEmbeddingModel]);
 
     // 从节点ID获取实际数据
     useEffect(() => {
@@ -166,7 +186,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                 chunks: [],
                 collection_configs: {
                     set_name: '',
-                    model: '',
+                    model: selectedEmbeddingModel?.id || '', // 使用选择的 embedding model 的 id
                     vdb_type: '',
                     user_id: '',
                     collection_name: ''
@@ -196,6 +216,30 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
     const handleNextSource = () => {
         setCurrentSourceIndex(prev =>
             prev < sourceData.length - 1 ? prev + 1 : 0
+        );
+    };
+
+    // 添加 mapValueTodisplay 函数
+    const mapModelToDisplay = (model: any) => {
+        if (!model) return <span className="text-[#6D7177] text-[12px]">Select embedding model</span>;
+        return <span className="text-[#CDCDCD] text-[12px] font-medium">{model.name}</span>;
+    };
+
+    // 修改 renderOption 函数，使用与 LLM 组件相同的样式
+    const renderModelOption = (modelObj: any) => {
+        return (
+            <div className="flex items-center justify-between w-full">
+                <span className="truncate mr-2">{modelObj.name || modelObj.id}</span>
+                {modelObj.isLocal ? (
+                    <span className="ml-auto px-1.5 py-0.5 text-[10px] rounded bg-[#2A4365] text-[#90CDF4] flex-shrink-0">
+                        Local
+                    </span>
+                ) : (
+                    <span className="ml-auto px-1.5 py-0.5 text-[10px] rounded bg-[#4A4A4A] text-[#CDCDCD] flex-shrink-0">
+                        Cloud
+                    </span>
+                )}
+            </div>
         );
     };
 
@@ -529,6 +573,64 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* 高级设置 */}
+                            <div className='flex flex-col gap-2'>
+                                <div className='flex items-center justify-between'>
+                                    <div className='flex items-center gap-2'>
+                                        <label className='text-[13px] font-semibold text-[#6D7177]'>Advanced Settings</label>
+                                        <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                                        className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
+                                    >
+                                        {showAdvancedSettings ? 'Hide' : 'Show'}
+                                        <svg
+                                            className={`w-4 h-4 transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                </div>
+
+                                {showAdvancedSettings && (
+                                    <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                                        <div className='flex flex-col gap-2'>
+                                            <div className='flex flex-col gap-1'>
+                                                <label className='text-[12px] font-medium text-[#6D7177]'>Embedding Model</label>
+                                                <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                                                    <PuppyDropdown
+                                                        options={embeddingModels}
+                                                        selectedValue={selectedEmbeddingModel}
+                                                        onSelect={(selectedModel: any) => setSelectedEmbeddingModel(selectedModel)}
+                                                        buttonHeight="32px"
+                                                        buttonBgColor="transparent"
+                                                        menuBgColor="#1A1A1A"
+                                                        listWidth="100%"
+                                                        containerClassnames="w-full"
+                                                        mapValueTodisplay={mapModelToDisplay}
+                                                        renderOption={renderModelOption}
+                                                    />
+                                                </div>
+                                                {/* 显示当前选择的模型详细信息 */}
+                                                {selectedEmbeddingModel && (
+                                                    <div className='text-[10px] text-[#6D7177] flex items-center gap-2 mt-1'>
+                                                        <span>Provider: {selectedEmbeddingModel.provider}</span>
+                                                        <span>•</span>
+                                                        <span>{selectedEmbeddingModel.isLocal ? 'Local' : 'Cloud'}</span>
+                                                        <span>•</span>
+                                                        <span>ID: {selectedEmbeddingModel.id}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* 保存按钮 */}
