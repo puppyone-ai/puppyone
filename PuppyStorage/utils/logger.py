@@ -84,9 +84,14 @@ class Logger:
         """Record warning level logs"""
         self._log_handler("WARNING", message)
 
+    def debug(self, message):
+        """Record debug level logs"""
+        self._log_handler("DEBUG", message)
+
 
 # Create default instance (backward compatibility)
-default_logger = Logger("default")
+default_logger = Logger("local")
 log_info = default_logger.info
 log_error = default_logger.error
 log_warning = default_logger.warning
+log_debug = default_logger.debug
