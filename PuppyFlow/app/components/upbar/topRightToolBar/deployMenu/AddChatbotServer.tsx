@@ -157,26 +157,33 @@ function DeployAsChatbot({
         throw new Error(`部署失败: ${res.status}`);
       }
 
-      const { api_id, api_key, endpoint } = await res.json();
+      const { chatbot_id, api_key, endpoint } = await res.json();
 
       // 如果是重新部署，先移除旧的聊天机器人
       if (currentChatbot) {
         removeChatbotService(currentChatbot.chatbot_id);
       }
 
-      // 添加新的聊天机器人服务到 context - 使用正确的属性名
+      // 添加新的聊天机器人服务到 context - 确保 API key 被正确存储
       addChatbotService({
-        chatbot_id: api_id,
-        chatbot_key: api_key,
-        endpoint: endpoint || `${API_SERVER_URL}/api/${api_id}`,
+        chatbot_id: chatbot_id,
+        chatbot_key: api_key, // 这里存储从服务器返回的 API key
+        endpoint: endpoint || `${API_SERVER_URL}/api/${chatbot_id}`,
         created_at: new Date().toISOString(),
         workspace_id: selectedFlowId,
+        input: selectedInputs[0].id,
+        output: selectedOutputs[0].id,
+        history_id: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+        multi_turn_enabled: chatbotConfig.multiTurn,
+        welcome_message: chatbotConfig.welcomeMessage,
         config: {
           multiTurn: chatbotConfig.multiTurn,
           welcomeMessage: chatbotConfig.welcomeMessage,
           deployTo: 'chatbot'
         }
       });
+
+      console.log('Chatbot 部署成功，API Key 已存储到 context:', api_key);
 
     } catch (error) {
       console.error("部署失败:", error);
@@ -759,13 +766,11 @@ function DeployAsChatbot({
                   </button>
                 </div>
 
-                {showChatbotTest && (
+                {showChatbotTest && currentChatbot && (
                   <ChatbotTestInterface
-                    apiEndpoint={currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
-                    inputNodeId={selectedInputs[0]?.id || ''}
-                    outputNodeId={selectedOutputs[0]?.id || ''}
-                    apiKey={currentChatbot?.chatbot_key || ''}
-                    apiId={currentChatbot?.chatbot_id || ''}
+                    apiEndpoint={currentChatbot.endpoint || API_SERVER_URL}
+                    chatbotId={currentChatbot.chatbot_id || ''}
+                    apiKey={currentChatbot.chatbot_key || ''}
                     isModal={true}
                     onClose={() => toggleChatbotTest(false)}
                   />
