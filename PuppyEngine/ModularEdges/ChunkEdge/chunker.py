@@ -43,7 +43,7 @@ class ChunkerFactory(EdgeFactoryBase):
             raise ValueError(f"Unsupported Chunking Mode: {chunking_mode} is unsupported!")
 
         chunks = chunking_class(doc).chunk(sub_chunking_mode, extra_configs)
-        return [chunk_dict.to_dict() for chunk_dict in chunks]
+        return [chunk_dict.to_dict().get("content", "") for chunk_dict in chunks]
 
 
 if __name__ == "__main__":
