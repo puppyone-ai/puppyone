@@ -17,7 +17,7 @@ interface ChatMessage {
 const ChatbotTestInterface = ({ 
   apiEndpoint, 
   chatbotId,
-  apiKey = '',
+  apiKey ,
   isModal = false,
   onClose
 }: ChatbotTestInterfaceProps) => {
@@ -237,14 +237,24 @@ const ChatbotTestInterface = ({
         </div>
       </div>
 
-      <div className="mt-2 text-[11px] truncate">
-        <span className="text-[#505050]">API: {(() => {
-          if (!apiEndpoint) return <span className="text-[#FF4D4D]">Error: No API endpoint specified</span>;
-          
-          const displayUrl = `/chat/${chatbotId}`;
-          
-          return <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">{displayUrl}</span>;
-        })()}</span>
+      <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
+        <div className="flex items-center">
+          <span>Endpoint: <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">
+            {(() => {
+              if (!apiEndpoint) return <span className="text-[#FF4D4D]">Error: No API endpoint specified</span>;
+              
+              const displayUrl = `/chat/${chatbotId}`;
+              
+              return displayUrl;
+            })()}
+          </span></span>
+        </div>
+        <div className="flex items-center">
+          <span>API Key: <span className="text-[#606060]">
+            {apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : 'No API key'}
+          </span></span>
+        </div>
+        
       </div>
     </div>
   );

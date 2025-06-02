@@ -123,17 +123,11 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
         );
     };
 
-    // 过滤源节点，只显示支持的类型
-    const filteredSourceNodes = getSourceNodeIdWithLabel(parentId).filter(node => {
-        const nodeType = getNode(node.id)?.type as NodeType || 'text';
-        return supportedInputTypes.includes(nodeType);
-    });
+    // 不再过滤源节点，显示所有连接的节点
+    const sourceNodes = getSourceNodeIdWithLabel(parentId);
 
-    // 过滤目标节点，只显示支持的类型
-    const filteredTargetNodes = getTargetNodeIdWithLabel(parentId).filter(node => {
-        const nodeType = getNode(node.id)?.type as NodeType || 'text';
-        return supportedOutputTypes.includes(nodeType);
-    });
+    // 不再过滤目标节点，显示所有连接的节点
+    const targetNodes = getTargetNodeIdWithLabel(parentId);
 
     return (
         <div className='flex flex-row gap-[12px]'>
@@ -145,7 +139,7 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
                 </div>
                 <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                     <div className='flex flex-wrap gap-2'>
-                        {filteredSourceNodes.map(node => (
+                        {sourceNodes.map(node => (
                             <NodeLabel 
                                 key={node.id} 
                                 node={node} 
@@ -164,7 +158,7 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
                 </div>
                 <div className='p-[8px] bg-transparent rounded-[8px] border-[1px] border-dashed border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors min-h-[36px]'>
                     <div className='flex flex-wrap gap-2'>
-                        {filteredTargetNodes.map(node => (
+                        {targetNodes.map(node => (
                             <NodeLabel 
                                 key={node.id} 
                                 node={node} 
