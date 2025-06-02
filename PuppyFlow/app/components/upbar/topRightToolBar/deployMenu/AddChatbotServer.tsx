@@ -4,6 +4,7 @@ import ChatbotTestInterface from './ChatbotTestInterface';
 import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
 import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
+import { useAddNewChatbotServer } from './hook/useAddNewChatbotServer';
 import { SYSTEM_URLS } from '@/config/urls';
 
 interface DeployAsChatbotProps {
@@ -19,11 +20,11 @@ function DeployAsChatbot({
 
   // 从简化的 context 获取必要信息
   const {
-    deployedServices,
-    addChatbotService,
-    removeChatbotService,
-    apiServerKey
+    deployedServices
   } = useDeployPanelContext();
+
+  // 使用部署 hook
+  const { isDeploying, deployError, deployNewChatbot } = useAddNewChatbotServer();
 
   // 简化的本地状态管理
   const [selectedInputs, setSelectedInputs] = useState<{ id: string, label: string }[]>([]);
@@ -33,7 +34,6 @@ function DeployAsChatbot({
     multiTurn: false,
     welcomeMessage: "Hello! How can I help you today?"
   });
-  const [isDeploying, setIsDeploying] = useState<boolean>(false);
   const [selectedSDK, setSelectedSDK] = useState<string | null>(null);
   const [showChatbotTest, setShowChatbotTest] = useState<boolean>(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -118,9 +118,9 @@ function DeployAsChatbot({
     };
   };
 
-  // 直接处理部署逻辑
+  // 简化的部署处理逻辑
   const handleDeploy = async () => {
-    if (!selectedFlowId || !apiServerKey) {
+    if (!selectedFlowId) {
       console.error("缺少必要的部署参数");
       return;
     }
@@ -130,68 +130,25 @@ function DeployAsChatbot({
       return;
     }
 
-    setIsDeploying(true);
+    const payload = {
+      workflow_json: constructWorkflowJson(),
+      input: selectedInputs[0].id,
+      output: selectedOutputs[0].id,
+      history_id: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+      workspace_id: selectedFlowId,
+      multi_turn_enabled: chatbotConfig.multiTurn,
+      welcome_message: chatbotConfig.welcomeMessage,
+      integrations: {}
+    };
 
-    try {
-      const payload = {
-        workflow_json: constructWorkflowJson(),
-        input: selectedInputs[0].id,
-        output: selectedOutputs[0].id,
-        history_id: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
-        workspace_id: selectedFlowId,
-        multi_turn_enabled: chatbotConfig.multiTurn,
-        welcome_message: chatbotConfig.welcomeMessage,
-        integrations: {}
-      };
-
-      const res = await fetch(`${API_SERVER_URL}/config_chatbot`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": apiServerKey
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        throw new Error(`部署失败: ${res.status}`);
-      }
-
-      const { chatbot_id, api_key, endpoint } = await res.json();
-
-      // 如果是重新部署，先移除旧的聊天机器人
-      if (currentChatbot) {
-        removeChatbotService(currentChatbot.chatbot_id);
-      }
-
-      // 添加新的聊天机器人服务到 context - 确保 API key 被正确存储
-      addChatbotService({
-        chatbot_id: chatbot_id,
-        chatbot_key: api_key, // 这里存储从服务器返回的 API key
-        endpoint: endpoint || `${API_SERVER_URL}/api/${chatbot_id}`,
-        created_at: new Date().toISOString(),
-        workspace_id: selectedFlowId,
-        input: selectedInputs[0].id,
-        output: selectedOutputs[0].id,
-        history_id: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
-        multi_turn_enabled: chatbotConfig.multiTurn,
-        welcome_message: chatbotConfig.welcomeMessage,
-        config: {
-          multiTurn: chatbotConfig.multiTurn,
-          welcomeMessage: chatbotConfig.welcomeMessage,
-          deployTo: 'chatbot'
-        }
-      });
-
-      console.log('Chatbot 部署成功，API Key 已存储到 context:', api_key);
-
-    } catch (error) {
-      console.error("部署失败:", error);
-    } finally {
-      setIsDeploying(false);
+    const success = await deployNewChatbot(payload);
+    
+    if (success) {
+      console.log('聊天机器人部署成功');
+    } else {
+      console.error('聊天机器人部署失败:', deployError);
     }
   };
-
 
   // 处理输入节点点击 - 聊天机器人只允许一个输入
   const handleInputClick = (node: any) => {
@@ -814,26 +771,26 @@ function DeployAsChatbot({
               {isDeployed && currentChatbot && (
                 <div className="mt-4 py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
                   <div className="flex justify-between items-start">
-                    <span className="text-[14px] text-[#CDCDCD] font-medium">API Details</span>
+                    <span className="text-[14px] text-[#CDCDCD] font-medium">Chatbot Details</span>
                   </div>
 
                   <div className="mt-2 space-y-3">
                     <div>
-                      <label className="text-[12px] text-[#808080] ">API Endpoint:</label>
+                      <label className="text-[12px] text-[#808080] ">Chatbot Endpoint:</label>
                       <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
                         {currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
                       </code>
                     </div>
 
                     <div>
-                      <label className="text-[12px] text-[#808080]">API ID:</label>
+                      <label className="text-[12px] text-[#808080]">Chatbot ID:</label>
                       <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
                         {currentChatbot?.chatbot_id || 'api_xxxxxxxxxxxx'}
                       </code>
                     </div>
 
                     <div>
-                      <label className="text-[12px] text-[#808080]">API Key:</label>
+                      <label className="text-[12px] text-[#808080]">Chatbot Key:</label>
                       <div className="flex items-start">
                         <div className="px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto">
                           {currentChatbot?.chatbot_key || 'sk_xxxxxxxxxxxx'}
@@ -862,6 +819,13 @@ function DeployAsChatbot({
           </div>
         </div>
       </div>
+
+      {/* 在部署按钮区域显示错误信息 */}
+      {deployError && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-md">
+          <span className="text-red-400 text-[13px]">{deployError}</span>
+        </div>
+      )}
     </div>
   );
 }
