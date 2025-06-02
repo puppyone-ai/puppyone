@@ -151,12 +151,13 @@ export type SearchPerplexityEdgeJsonType = {
     },
 }
 
-// 添加 LLM 类型
+// 更新 LLMEdgeJsonType 类型定义
 export type LLMEdgeJsonType = {
     type: "llm",
     data: {
         messages: { role: "system" | "user" | "assistant", content: string }[],
-        model: string,
+        chat_histories: { role: "system" | "user" | "assistant", content: string }[],
+        model: { [key: string]: { inference_method?: string } },
         base_url: string,
         max_tokens: number,
         temperature: number,
@@ -852,19 +853,47 @@ export function useEdgeNodeBackEndJsonBuilder() {
             parsedMessages = [];
         }
         
-        // 确保model和base_url是字符串
-        const llmModel = typeof llmNodeData?.model === 'string' ? llmNodeData.model : "anthropic/claude-3.5-haiku";
+        // 获取模型信息 - 添加类型检查
+        const modelAndProvider = llmNodeData?.modelAndProvider as {
+            id: string;
+            name: string;
+            provider: string;
+            isLocal: boolean;
+        } | undefined;
+        
+        let modelObject: { [key: string]: { inference_method?: string } } = {};
+        
+        if (modelAndProvider && typeof modelAndProvider === 'object' && 'id' in modelAndProvider && 'isLocal' in modelAndProvider) {
+            const modelId = modelAndProvider.id;
+            const isLocal = modelAndProvider.isLocal;
+            
+            if (isLocal) {
+                // 本地模型：添加 inference_method
+                modelObject[modelId] = { inference_method: "ollama" }; // 默认使用 ollama，也可以是 huggingface
+            } else {
+                // 非本地模型：保持内部 JSON 为空
+                modelObject[modelId] = {};
+            }
+        } else {
+            // 如果没有模型信息，使用默认值
+            modelObject["anthropic/claude-3.5-haiku"] = {};
+        }
+        
         const llmBaseUrl = typeof llmNodeData?.base_url === 'string' ? llmNodeData.base_url : "";
         const llmStructuredOutput = !!llmNodeData?.structured_output; // 转换为布尔值
         const maxTokens = (llmNodeData?.max_tokens as number) || 2000;
+        
+        // 过滤消息，只保留 system 和 user 角色的消息
+        const filteredMessages = parsedMessages.filter((msg: PromptMessage) =>
+            msg.role === "system" || msg.role === "user"
+        );
+        
         return {
             type: "llm",
             data: {
-                // TypeScript现在知道每条消息的结构
-                messages: parsedMessages.filter((msg: PromptMessage) =>
-                    msg.role === "system" || msg.role === "user"
-                ),
-                model: llmModel,
+                messages: filteredMessages,
+                chat_histories: filteredMessages, // 添加 chat_histories 字段，内容与 messages 相同
+                model: modelObject,
                 base_url: llmBaseUrl,
                 max_tokens: maxTokens,
                 temperature: 0.7,

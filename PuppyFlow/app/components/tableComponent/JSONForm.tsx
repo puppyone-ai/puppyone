@@ -27,17 +27,6 @@ type JSONEditorProps = {
 }
 
 
-// // 为 TextEditor 组件定义一个固定的主题名称
-// const TEXT_EDITOR_THEME = 'customTextEditorTheme';
-// const JSON_FORM_THEME = 'customJsonFormTheme';
-// const jsonFormThemeData: Monaco.editor.IStandaloneThemeData = {
-//   base: 'vs-dark',
-//   inherit: true,
-//   rules: [],
-//   colors: {
-//     'editor.background': '#000000',
-//   }
-// }
 
 // 为 Monaco Editor 定义一个自定义主题
 const JSON_FORM_THEME = 'customJsonFormTheme';
@@ -283,10 +272,19 @@ const JSONForm = ({preventParentDrag,
         fontFamily: "'JetBrains Mono', monospace",
         fontLigatures: true,
         minimap: { enabled: false },
+        unicodeHighlight: {
+          ambiguousCharacters: false,
+          invisibleCharacters: false,
+          nonBasicASCII: false
+        },
         scrollbar: {
           useShadows: false,
-          horizontal: 'hidden', // 隐藏水平滚动条
-          horizontalScrollbarSize: 0 // 设置水平滚动条大小为0
+          horizontal: 'auto',
+          vertical: 'auto',
+          horizontalScrollbarSize: 8,
+          verticalScrollbarSize: 8,
+          horizontalSliderSize: 8,
+          verticalSliderSize: 8,
         },
         fontSize: 14,
         fontWeight: 'light',

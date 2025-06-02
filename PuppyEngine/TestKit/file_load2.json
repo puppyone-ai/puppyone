@@ -1,0 +1,42 @@
+{
+    "blocks": {
+        "1": {
+            "type": "file",
+            "label": "a",
+            "data": {
+                "content": ["file_1", "file_2", "file_3"]
+            }
+        },
+        "2": {
+            "type": "structured",
+            "label": "b",
+            "data": {
+                "content": "",
+                "embedding_view": []
+            }
+        }
+    },
+    "edges": {
+        "load-54160835843623": {
+            "type": "load",
+            "data": {
+                "inputs": {"1":"a"},
+                "outputs": {"2":"b"},
+                "block_type": "file",
+                "content": "1",
+                "extra_configs": {
+                    "file_configs": [
+                        {
+                            "file_path": "ModularEdges/LoadEdge/testfiles/Resume cover letter for temporary position.docx",
+                            "file_type": "doc",
+                            "config": {
+                                "auto_formatting": true
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "version": "0.1"
+}

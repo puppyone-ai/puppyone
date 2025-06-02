@@ -31,7 +31,9 @@
                     {"role": "user", "content": "根据{{111}}，回复{{11}}"}
                 ],
                 "sys_prompt": "",
-                "model": "openai/gpt-4o-mini",
+                "model": {
+                    "openai/gpt-4o-mini": {}
+                },
                 "base_url": "",
                 "max_tokens": 2048,
                 "temperature": 0.7,

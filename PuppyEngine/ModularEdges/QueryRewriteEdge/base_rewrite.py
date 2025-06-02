@@ -7,7 +7,7 @@ import re
 import json
 from abc import ABC, abstractmethod
 from typing import Dict, List, Union
-from ModularEdges.LLMEdge.llm_edge import lite_llm_chat
+from ModularEdges.LLMEdge.llm_edge import remote_llm_chat
 from Utils.puppy_exception import global_exception_handler
 
 
@@ -27,7 +27,7 @@ class QueryRewriteStrategy(ABC):
         prompt: List[Dict[str, str]]
     ) -> str:
         """Execute LLM chat with given prompt"""
-        response = lite_llm_chat(
+        response = remote_llm_chat(
             messages=prompt,
             model=self.model,
             temperature=0.3,

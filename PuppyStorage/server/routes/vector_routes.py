@@ -151,8 +151,8 @@ async def embed(embed_request: EmbedRequest, user_id: str = None):
         
         # 1. Embedding process
         chunks_content = [chunk.content for chunk in embed_request.chunks]
-        with TextEmbedder(model_name=embed_request.model) as embedder:
-            vectors = embedder.embed(chunks_content)
+        embedder = TextEmbedder.create(embed_request.model)
+        vectors = embedder.embed(chunks_content)
             
         # 2. Storage processing - handed to database layer
         vdb = VectorDatabaseFactory.get_database(db_type=embed_request.vdb_type)
@@ -227,8 +227,8 @@ async def search_vdb_collection(
         query = search_request.query
         
         # 嵌入处理
-        with TextEmbedder(model_name=model) as embedder:
-            query_vector = embedder.embed([query])[0]
+        embedder = TextEmbedder.create(model)
+        query_vector = embedder.embed([query])[0]
 
         # 数据库查询
         vdb = VectorDatabaseFactory.get_database(db_type=search_request.vdb_type)
