@@ -14,13 +14,13 @@ interface ApiService {
 // 单个 Chatbot 服务信息
 interface ChatbotService {
   chatbot_id: string;
-  chatbot_key: string;
+  chatbot_key: string; // 这个就是部署后返回的 API key
   endpoint?: string;
   created_at?: string;
   workspace_id?: string;
   input?: string;
   output?: string;
-  history_id?: string;
+  history_id?: string | null;
   multi_turn_enabled?: boolean;
   welcome_message?: string;
   config?: {
@@ -57,6 +57,9 @@ interface DeployPanelContextType {
   addChatbotService: (service: ChatbotService) => void;
   removeChatbotService: (chatbotId: string) => void;
   updateChatbotService: (chatbotId: string, updates: Partial<ChatbotService>) => void;
+  
+  // 新增：根据 workspace_id 获取 chatbot 的 API key
+  getChatbotApiKey: (workspaceId: string) => string | null;
   
   // 重置当前工作流的部署状态
   resetDeploymentState: () => void;
@@ -140,6 +143,14 @@ export const DeployPanelProvider = ({
     }));
   };
 
+  // 新增：根据 workspace_id 获取 chatbot 的 API key
+  const getChatbotApiKey = (workspaceId: string): string | null => {
+    const chatbot = deployedServices.chatbots.find(
+      chatbot => chatbot.workspace_id === workspaceId
+    );
+    return chatbot?.chatbot_key || null;
+  };
+
   // 重置部署状态
   const resetDeploymentState = () => {
     setDeployedServices(initialDeployedServices);
@@ -215,6 +226,7 @@ export const DeployPanelProvider = ({
         addChatbotService,
         removeChatbotService,
         updateChatbotService,
+        getChatbotApiKey,
         resetDeploymentState
       }}
     >
@@ -234,7 +246,14 @@ export const useDeployPanelContext = () => {
 
 // 简化的 hooks - 只提供已部署服务的访问
 export const useDeployedServices = () => {
-  const { deployedServices, addApiService, removeApiService, addChatbotService, removeChatbotService } = useDeployPanelContext();
+  const { 
+    deployedServices, 
+    addApiService, 
+    removeApiService, 
+    addChatbotService, 
+    removeChatbotService,
+    getChatbotApiKey 
+  } = useDeployPanelContext();
   
   return {
     apis: deployedServices.apis,
@@ -242,6 +261,7 @@ export const useDeployedServices = () => {
     addApiService,
     removeApiService,
     addChatbotService,
-    removeChatbotService
+    removeChatbotService,
+    getChatbotApiKey
   };
 };

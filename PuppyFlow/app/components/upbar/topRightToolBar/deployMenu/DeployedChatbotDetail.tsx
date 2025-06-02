@@ -474,11 +474,9 @@ BOT_NAME="PuppyFlow Bot"`}
       {/* 聊天机器人测试界面 */}
       {showChatbotTest && (
         <ChatbotTestInterface
-          apiEndpoint={chatbotService.endpoint || `${API_SERVER_URL}/api/${chatbotService.chatbot_id}`}
-          inputNodeId={chatbotService.input || ''}
-          outputNodeId={chatbotService.output || ''}
+          apiEndpoint={chatbotService.endpoint || API_SERVER_URL}
+          chatbotId={chatbotService.chatbot_id}
           apiKey={chatbotService.chatbot_key || ''}
-          apiId={chatbotService.chatbot_id}
           isModal={true}
           onClose={() => toggleChatbotTest(false)}
         />
