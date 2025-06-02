@@ -55,8 +55,19 @@ function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSucce
       </div>
       <div className="w-full max-w-[400px] px-4 sm:px-0" style={{ height: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div className="flex flex-col justify-between w-full text-center">
-          <h1 style={{ marginBottom: '48px', fontFamily: 'JetBrains Mono, monospace', fontSize: '28px', fontWeight: 'bold', color: '#CDCDCD' }}>
-            Sign in to your account
+          <h1 style={{ 
+            marginBottom: '48px', 
+            fontFamily: 'JetBrains Mono, monospace', 
+            fontSize: '28px', 
+            fontWeight: 'bold', 
+            color: '#CDCDCD', 
+            whiteSpace: 'nowrap',
+            position: 'relative',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'max-content'
+          }}>
+            Please enter your invite code
           </h1>
           <div className="flex flex-col space-y-4 gap-[16px]">
             <div className="flex space-x-2 h-[40px]">
@@ -139,23 +150,6 @@ function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSucce
                   </div>
               </Link>
             </div>
-
-            <p className="text-center text-xs" style={{ color: '#8B8B8B' }}>
-              By signing in, you agree to our{' '}
-              <a
-                href="https://www.puppyagent.com/terms"
-                className="text-[#4599DF] hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >Terms of Service</a>
-              {' '}and{' '}
-              <a
-                href="https://www.puppyagent.com/privacy"
-                className="text-[#4599DF] hover:underline"
-                target="_blank"
-                rel="noopener noreferrer"
-              >Privacy Policy</a>
-            </p>
           </div>
         </div>
       </div>
