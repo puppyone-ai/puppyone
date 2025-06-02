@@ -8,11 +8,17 @@ import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
 import PromptEditor, { PromptMessage } from '../../components/promptEditor'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
+import { useAppSettings, Model } from '@/app/components/states/AppSettingsContext'
 
 export type LLMConfigNodeData = {
     looped: boolean | undefined,
     content: string | null,
-    model: "gpt-4o" | "gpt-4" | "gpt-4o-mini" | undefined,
+    modelAndProvider: {
+        id: string;
+        name: string;
+        provider: string;
+        isLocal: boolean;
+    } | undefined,
     structured_output: boolean | undefined,
     base_url: string | undefined,
     max_tokens: number | undefined,
@@ -53,11 +59,68 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
-
-    // 状态管理
-    const [model, setModel] = useState<string>(
-        (getNode(id)?.data?.model as string) || "anthropic/claude-3.5-haiku"
-    )
+    
+    // 使用 AppSettingsContext
+    const { availableModels, isLocalDeployment } = useAppSettings()
+ 
+    // 获取可用的激活模型列表 - 只显示 LLM 类型的模型
+    const activeModels = useMemo(() => {
+        return availableModels.filter(m => m.active && m.type == 'llm');
+    }, [availableModels]);
+    
+    // 更新状态管理 - 使用完整的模型对象而不是字符串
+    const [selectedModelAndProvider, setSelectedModelAndProvider] = useState<Model | null>(() => {
+        // 首先尝试获取节点已有的模型值
+        const nodeData = getNode(id)?.data as LLMConfigNodeData;
+        const nodeModelAndProvider = nodeData?.modelAndProvider;
+        if (nodeModelAndProvider) {
+            // 如果节点有保存的模型信息，尝试在可用模型中找到匹配的
+            const matchedModel = activeModels.find(m => m.id === nodeModelAndProvider.id);
+            return matchedModel || {
+                id: nodeModelAndProvider.id,
+                name: nodeModelAndProvider.name,
+                provider: nodeModelAndProvider.provider,
+                isLocal: nodeModelAndProvider.isLocal,
+                active: true
+            } as Model;
+        }
+        
+        // 如果节点没有模型值，则使用第一个可用的激活 LLM 模型
+        return activeModels.length > 0 ? activeModels[0] : null;
+    });
+    
+    // 当可用模型变化且当前选择的模型不在可用列表中时，更新为第一个可用模型
+    useEffect(() => {
+        if (activeModels.length > 0 && selectedModelAndProvider && 
+            !activeModels.some(m => m.id === selectedModelAndProvider.id)) {
+            setSelectedModelAndProvider(activeModels[0]);
+        }
+    }, [activeModels, selectedModelAndProvider]);
+    
+    // 自定义渲染模型选项的函数
+    const renderModelOption = (modelObj: Model) => {
+        return (
+            <div className="flex items-center justify-between w-full">
+                <span className="truncate mr-2">{modelObj.name || modelObj.id}</span>
+                {modelObj.isLocal ? (
+                    <span className="ml-auto px-1.5 py-0.5 text-[10px] rounded bg-[#2A4365] text-[#90CDF4] flex-shrink-0">
+                        Local
+                    </span>
+                ) : (
+                    <span className="ml-auto px-1.5 py-0.5 text-[10px] rounded bg-[#4A4A4A] text-[#CDCDCD] flex-shrink-0">
+                        Cloud
+                    </span>
+                )}
+            </div>
+        );
+    };
+    
+    // 自定义显示选择的模型的函数 - 更新为处理 Model 对象
+    const mapModelToDisplay = (model: Model | null) => {
+        if (!model) return "Select a model";
+        return `${model.name} (${model.provider})`;
+    };
+    
     const [baseUrl, setBaseUrl] = useState<string>(
         (getNode(id)?.data as LLMConfigNodeData)?.base_url ?? ""
     )
@@ -137,8 +200,10 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
 
     // 状态同步逻辑
     useEffect(() => {
-        onModelChange(model)
-    }, [model])
+        if (selectedModelAndProvider) {
+            onModelAndProviderChange(selectedModelAndProvider)
+        }
+    }, [selectedModelAndProvider])
 
     useEffect(() => {
         onBaseUrlChange(baseUrl)
@@ -168,6 +233,24 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
+            
+            // 检查并初始化内容
+            const nodeData = getNode(id)?.data;
+            const currentContent = nodeData?.content;
+            
+            // 调试输出，查看初始状态
+            console.log("Initial node content:", currentContent, typeof currentContent);
+            
+            // 如果内容不存在或格式不正确，则初始化
+            if (!currentContent || typeof currentContent === 'string' || !Array.isArray(currentContent)) {
+                console.log("Setting initial content:", parsedMessages);
+                setNodes(prevNodes => prevNodes.map(node => {
+                    if (node.id === id) {
+                        return { ...node, data: { ...node.data, content: parsedMessages } };
+                    }
+                    return node;
+                }));
+            }
         }
 
         return () => {
@@ -205,11 +288,22 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         }
     }
 
-    // 数据同步函数
-    const onModelChange = (newModel: string) => {
+    // 更新数据同步函数
+    const onModelAndProviderChange = (newModelAndProvider: Model) => {
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === id) {
-                return { ...node, data: { ...node.data, model: newModel } }
+                return { 
+                    ...node, 
+                    data: { 
+                        ...node.data, 
+                        modelAndProvider: {
+                            id: newModelAndProvider.id,
+                            name: newModelAndProvider.name,
+                            provider: newModelAndProvider.provider || 'Unknown',
+                            isLocal: newModelAndProvider.isLocal || false
+                        }
+                    } 
+                }
             }
             return node
         }))
@@ -261,22 +355,6 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         border: "3px solid transparent",
         zIndex: !isOnConnect ? "-1" : "1",
     };
-
-    // 支持的模型列表
-    const open_router_supported_models = [
-        "openai/gpt-4o-mini",
-        "openai/gpt-4o-2024-11-20",
-        "openai/gpt-4-turbo",
-        "openai/gpt-4.5-preview",
-        "openai/o1-mini",
-        "openai/o1",
-        "openai/o3-mini",
-        "deepseek/deepseek-chat-v3-0324:free",
-        "deepseek/deepseek-r1-zero:free",
-        "anthropic/claude-3.5-haiku",
-        "anthropic/claude-3.5-sonnet",
-        "anthropic/claude-3.7-sonnet",
-    ]
 
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
@@ -408,31 +486,38 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                         />
                     </li>
 
-                                        {/* Model Selection - Moved outside settings */}
-                                        <li className='flex flex-col gap-2'>
+                    {/* Model Selection */}
+                    <li className='flex flex-col gap-2'>
                         <div className='flex items-center gap-2'>
-                            <label className='text-[13px] font-semibold text-[#6D7177]'>Model</label>
+                            <label className='text-[13px] font-semibold text-[#6D7177]'>Model & Provider</label>
                             <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                         </div>
                         <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                            <select
-                                value={model}
-                                onChange={(e) => setModel(e.target.value)}
-                                className='w-full h-full bg-[#252525] border-none outline-none px-3
-                                 text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer'
-                                onMouseDownCapture={onFocus}
+                            <PuppyDropdown
+                                options={activeModels}
+                                selectedValue={selectedModelAndProvider}
+                                onSelect={(selectedModel: Model) => setSelectedModelAndProvider(selectedModel)}
+                                buttonHeight="32px"
+                                buttonBgColor="transparent"
+                                menuBgColor="#1A1A1A"
+                                listWidth="100%"
+                                containerClassnames="w-full"
+                                onFocus={onFocus}
                                 onBlur={onBlur}
-                            >
-                                {open_router_supported_models.map((model) => (
-                                    <option key={model} value={model}>{model}</option>
-                                ))}
-                            </select>
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M1 1L5 5L9 1" stroke="#6D7177" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                                </svg>
-                            </div>
+                                mapValueTodisplay={mapModelToDisplay}
+                                renderOption={renderModelOption}
+                            />
                         </div>
+                        {/* 显示当前选择的模型详细信息 */}
+                        {selectedModelAndProvider && (
+                            <div className='text-[11px] text-[#6D7177] flex items-center gap-2'>
+                                <span>Provider: {selectedModelAndProvider.provider}</span>
+                                <span>•</span>
+                                <span>{selectedModelAndProvider.isLocal ? 'Local' : 'Cloud'}</span>
+                                <span>•</span>
+                                <span>ID: {selectedModelAndProvider.id}</span>
+                            </div>
+                        )}
                     </li>
 
                     <li className='flex flex-col gap-2'>

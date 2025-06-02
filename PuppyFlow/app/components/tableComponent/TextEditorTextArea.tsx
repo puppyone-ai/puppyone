@@ -31,6 +31,7 @@ function TextEditorTextArea({preventParentDrag,
   // const {searchNode, preventInactivateNode, allowInactivateNode} = useNodeContext()
   const {preventInactivateNode, allowInactivateNodeWhenClickOutside, isOnGeneratingNewNode} = useNodesPerFlowContext()
   const [isLocalEdit, setIsLocalEdit] = useState(false)
+  const [scrollPosition, setScrollPosition] = useState(0);
   
 
   // when click sidebar panel, blur textarea and save text
@@ -125,23 +126,40 @@ function TextEditorTextArea({preventParentDrag,
     };
   }, []);
 
+  // 添加保存滚动位置的函数
+  const saveScrollPosition = useCallback(() => {
+    if (textareaRef.current) {
+      setScrollPosition(textareaRef.current.scrollTop);
+    }
+  }, []);
+
+  // 添加恢复滚动位置的函数
+  const restoreScrollPosition = useCallback(() => {
+    if (textareaRef.current && scrollPosition > 0) {
+      textareaRef.current.scrollTop = scrollPosition;
+    }
+  }, [scrollPosition]);
+
+  // 在组件重新渲染后恢复滚动位置
+  useEffect(() => {
+    restoreScrollPosition();
+  }, [restoreScrollPosition]);
+
   // when mouseEnter, prevent zooming in reactflow, also prevent parent drag
   const onMouseEnterActions = useCallback(() => {
     if (isOnGeneratingNewNode) return
     preventParentDrag()
     lockZoom()
-  }, [isOnGeneratingNewNode])
+    restoreScrollPosition()
+  }, [isOnGeneratingNewNode, preventParentDrag, lockZoom, restoreScrollPosition])
 
   // when mouseLeave, absolutely can allow mouse drag node + allow pane zoom in / out freely
   const onMouseLeaveActions = useCallback(() => {
     if (isOnGeneratingNewNode) return
     allowParentDrag()
     freeZoom()
-    // saveTextIntoNodeContent()
-    // if (textareaRef.current) {
-    //   textareaRef.current.blur()
-    // }
-  }, [isOnGeneratingNewNode])
+    saveScrollPosition()
+  }, [isOnGeneratingNewNode, allowParentDrag, freeZoom, saveScrollPosition])
 
 
   // when focus, preventInactivateNode, but when onBlur allowInactivateNode
@@ -169,6 +187,7 @@ function TextEditorTextArea({preventParentDrag,
         e.preventDefault()
         e.stopPropagation()
         saveTextIntoNodeContent()
+        saveScrollPosition()
         allowInactivateNodeWhenClickOutside()
       }}
       onMouseEnter={onMouseEnterActions} onMouseLeave={onMouseLeaveActions}/>

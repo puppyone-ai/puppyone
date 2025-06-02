@@ -4,7 +4,7 @@
 import React, { Children } from "react";
 import { useReactFlow, Node } from "@xyflow/react";
 import { useCallback, useRef, useContext } from "react";
-import {JsonNodeData} from "../workflow/blockNode/JsonNode"
+import {JsonNodeData} from "../workflow/blockNode/JsonNodeNew"
 import {FileNodeData} from "../workflow/blockNode/FileNode"
 import {ResultNodeData} from "../workflow/blockNode/ResultNode"
 import {SwitchNodeData} from "../workflow/blockNode/SwitchNode"
@@ -13,7 +13,7 @@ import {VectorDatabaseNodeData} from "../workflow/blockNode/VectorDatabaseNode"
 import {VectorNodeData} from "../workflow/blockNode/VectorNode"
 import {WebLinkNodeData} from "../workflow/blockNode/WebLinkNode"
 import { SYSTEM_URLS } from "@/config/urls";
-import { WarnsContext } from '../states/WarnMessageContext';
+import { useAppSettings } from '../states/AppSettingsContext';
 // import {WarnsContext,WarnsContainer} from "puppyui"
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
@@ -52,7 +52,7 @@ export type ProcessingData = {
 function useJsonConstructUtils() {
     const {getEdges, getNode, setNodes, getNodes, getViewport} = useReactFlow()
     // const {warns,setWarns} = useContext(WarnsContext);
-    const {warns,setWarns} = useContext(WarnsContext) as any;
+    const { warns, addWarn } = useAppSettings();
     // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -200,15 +200,7 @@ function useJsonConstructUtils() {
                 // console.log(data);
                 const data = JSON.parse(event.data)
                 if(data.error){
-                    setWarns(
-                        (prev:{time:number, text:string}[])=>[
-                            ...prev,
-                            {
-                                time:Math.floor(Date.now() / 1000),
-                                text:`${data.error}`        
-                            } 
-                        ]
-                    )
+                    addWarn(`${data.error}`)
                 }
                 
                 
@@ -238,15 +230,7 @@ function useJsonConstructUtils() {
                 updateUI(data, resultNode);
 
             } catch (error) {
-                setWarns(
-                    (prev:{time:number, text:string}[])=>[
-                        ...prev,
-                        {
-                            time:Math.floor(Date.now() / 1000),
-                            text:`Error processing event data::${error}`      
-                        } 
-                    ]
-                )
+                addWarn(`Error processing event data: ${error}`)
                 console.error('Error processing event data:', error);
                 reject(error)
             }
@@ -302,27 +286,11 @@ function useJsonConstructUtils() {
                     //event.data ="{\"error\": \"[PE_ERROR_4101]: Error Evaluating Cases!\\nCause: 'conditions'\"}" ERROR
                     data = JSON.parse(event.data)
                     if(data.error){
-                        setWarns(
-                            (prev:{time:number, text:string}[])=>[
-                                ...prev,
-                                {
-                                    time:Math.floor(Date.now() / 1000),
-                                    text:`${data.error}`        
-                                } 
-                            ]
-                        )
+                        addWarn(`${data.error}`)
                     }
                 }catch(error){
                     console.error('Error convert event data json to object by json parse:', error);
-                    setWarns(
-                        (prev:{time:number, text:string}[])=>[
-                            ...prev,
-                            {
-                                time:Math.floor(Date.now() / 1000),
-                                text:`Error convert event data json to object by json parse:${error}`      
-                            } 
-                        ]
-                    )
+                    addWarn(`Error convert event data json to object by json parse: ${error}`)
                     reject(error)
                 }
                 
@@ -358,15 +326,7 @@ function useJsonConstructUtils() {
         };
     
         eventSource.onerror = (error) => {
-            setWarns(
-                (prev:{time:number, text:string}[])=>[
-                    ...prev,
-                    {
-                        time:Math.floor(Date.now() / 1000),
-                        text:`EventSource failed:${error}`        
-                    } 
-                ]
-            )
+            addWarn(`EventSource failed: ${error}`)
             console.error('EventSource failed:', error);
             eventSource.close();
             reject(error)
@@ -376,15 +336,7 @@ function useJsonConstructUtils() {
         const timeout = setTimeout(() => {
             console.log('Connection timed out');
             eventSource.close();
-            setWarns(
-                (prev:{time:number, text:string}[])=>[
-                    ...prev,
-                    {
-                        time:Math.floor(Date.now() / 1000),
-                        text:"Connection timed out"       
-                    } 
-                ]
-            )
+            addWarn("Connection timed out")
             reject(new Error("Connection timed out"))
         }, 300000); // 5分钟超时
     
@@ -588,22 +540,19 @@ function useJsonConstructUtils() {
         //     }
         //     node.data.label = node.data.label ?? node.id
         // }
-        return {blocks:nodes, edges:edges, viewport:viewport}
+        return {
+            blocks: nodes, 
+            edges: edges, 
+            viewport: viewport,
+            version: process.env.NEXT_PUBLIC_FRONTEND_VERSION || "0.1"
+        }
 
     }, [])
 
 
     const reportError = useCallback((resultNode: string | null, errorMessage: string) => {
         if (!resultNode) {
-            setWarns(
-                (prev:{time:number, text:string}[])=>[
-                    ...prev,
-                    {
-                        time:Math.floor(Date.now() / 1000),
-                        text:`${errorMessage}`        
-                    } 
-                ]
-            )
+            addWarn(errorMessage)
             throw new Error(errorMessage)
         }
         const resultNodeid = getNode(resultNode)
