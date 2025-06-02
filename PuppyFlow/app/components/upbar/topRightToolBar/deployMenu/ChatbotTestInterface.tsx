@@ -3,10 +3,8 @@ import axios from 'axios';
 
 interface ChatbotTestInterfaceProps {
   apiEndpoint: string;
-  inputNodeId: string;
-  outputNodeId: string;
+  chatbotId: string;
   apiKey?: string;
-  apiId?: string;
   isModal?: boolean;
   onClose?: () => void;
 }
@@ -18,16 +16,15 @@ interface ChatMessage {
 
 const ChatbotTestInterface = ({ 
   apiEndpoint, 
-  inputNodeId, 
-  outputNodeId,
+  chatbotId,
   apiKey = '',
-  apiId,
   isModal = false,
   onClose
 }: ChatbotTestInterfaceProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -76,20 +73,27 @@ const ChatbotTestInterface = ({
     setIsLoading(true);
     
     try {
+      const finalApiEndpoint = `/chat/${chatbotId}`;
+      
       const requestData = {
-          [inputNodeId]: inputMessage
+        message: inputMessage,
+        session_id: sessionId,
+        context: {}
       };
       
-      const response = await axios.post(apiEndpoint, requestData, {
+      const response = await axios.post(finalApiEndpoint, requestData, {
         headers: {
           "Authorization": apiKey ? `Bearer ${apiKey}` : '',
           "Content-Type": "application/json"
         }
       });
       
-      const botResponse = response.data?.outputs?.[outputNodeId] || 
-                          response.data?.[outputNodeId] || 
+      const botResponse = response.data?.response || 
                           "No response from the bot";
+      
+      if (response.data?.session_id) {
+        setSessionId(response.data.session_id);
+      }
       
       const botMessage: ChatMessage = {
         role: 'assistant',
@@ -224,25 +228,24 @@ const ChatbotTestInterface = ({
       
       <div className="mt-4 flex items-center justify-between text-[11px] text-[#505050]">
         <div className="flex items-center">
-          <span>Input ID: <span className="text-[#606060]">{inputNodeId}</span></span>
+          <span>Chatbot ID: <span className="text-[#606060]">{chatbotId}</span></span>
         </div>
         <div className="flex items-center">
-          <span>Output ID: <span className="text-[#606060]">{outputNodeId}</span></span>
+          <span>Session: <span className="text-[#606060]">
+            {sessionId ? sessionId.slice(-8) : 'No session'}
+          </span></span>
         </div>
       </div>
 
       <div className="mt-2 text-[11px] truncate">
-        <span className="text-[#505050]">API: {apiEndpoint ? (
-          <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">{apiEndpoint}</span>
-        ) : (
-          <span className="text-[#FF4D4D]">Error: No API endpoint specified</span>
-        )}</span>
+        <span className="text-[#505050]">API: {(() => {
+          if (!apiEndpoint) return <span className="text-[#FF4D4D]">Error: No API endpoint specified</span>;
+          
+          const displayUrl = `/chat/${chatbotId}`;
+          
+          return <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">{displayUrl}</span>;
+        })()}</span>
       </div>
-      {apiId && (
-        <div className="mt-1 text-[11px] truncate">
-          <span className="text-[#505050]">API ID: <span className="text-[#606060]">{apiId}</span></span>
-        </div>
-      )}
     </div>
   );
 
