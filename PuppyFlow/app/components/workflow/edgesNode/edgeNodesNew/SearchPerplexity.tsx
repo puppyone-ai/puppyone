@@ -40,9 +40,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
         (getNode(id)?.data as SearchConfigNodeData)?.extra_configs?.model ?? "llama-3.1-sonar-small-128k-online"
     )
     
-    // 添加复制功能状态
-    const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
-    
+
     // 使用Hook处理执行逻辑
     const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
         parentId: id,
@@ -62,29 +60,6 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
         }
     }, [])
 
-    // 辅助函数
-    const onFocus = () => {
-        const curRef = menuRef.current
-        if (curRef && !curRef.classList.contains("nodrag")) {
-            curRef.classList.add("nodrag")
-        }
-    }
-
-    const onBlur = () => {
-        const curRef = menuRef.current
-        if (curRef) {
-            curRef.classList.remove("nodrag")
-        }
-    }
-
-    const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(`{{${text}}}`).then(() => {
-            setCopiedLabel(text);
-            setTimeout(() => setCopiedLabel(null), 1000);
-        }).catch(err => {
-            console.warn('Failed to copy:', err);
-        });
-    };
 
     // 同步model状态到ReactFlow
     useEffect(() => {
@@ -136,7 +111,7 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`}
             >
                 Perplexity
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
