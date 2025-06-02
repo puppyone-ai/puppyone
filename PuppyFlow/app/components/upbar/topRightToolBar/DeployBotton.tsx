@@ -10,7 +10,7 @@ import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
 
 import DeployAsApi from './deployMenu/AddApiServer'
 import DeployAsChatbot from './deployMenu/AddChatbotServer'
-import Dashboard from './deployMenu/Dashboard'
+import Canva from './deployMenu/Canva'
 import DeployedApiDetail from './deployMenu/DeployedApiDetail'
 import DeployedChatbotDetail from './deployMenu/DeployedChatbotDetail'
 
@@ -77,9 +77,9 @@ function DeployBotton() {
       )
     },
     { 
-      id: 'dashboard', 
-      label: 'Deploy as Dashboard', 
-      description: 'Create a visual dashboard', 
+      id: 'canva', 
+      label: 'Deploy as Canva', 
+      description: 'Create a visual canva', 
       disabled: true,
       icon: (
         <svg className="w-5 h-5" fill="#CDCDCD" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -182,9 +182,9 @@ function DeployBotton() {
             setActivePanel={setActivePanel}
           />
         );
-      case 'dashboard':
+      case 'canva':
         return (
-          <Dashboard
+          <Canva
             setActivePanel={setActivePanel}
           />
         );
