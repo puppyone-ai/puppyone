@@ -7,7 +7,7 @@ import ChunkingSubMenu from './ChunkingSubMenu'
 import SearchSubMenu from './SearchSubMenu'
 import RetrievingSubMenu from './RetrievingSubMenu'
 import OthersSubMenu from './OthersSubMenu'
-import { DEFAULT_LLM_MESSAGE } from '../edgeNodeConfig/NewLLM'
+
 
 type EdgeMenuProps = {
     nodeType: string,
@@ -116,25 +116,6 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                         sourceNode.type === "database" ? 176 :
                                             176
 
-        const defaultEdgeConfigNodeContent = edgeType === "load" ? "" :
-            edgeType === "embedding" ? "" :
-                edgeType === "llm" ?
-                    (DEFAULT_LLM_MESSAGE) :
-                    edgeType === "chunk" && subMenuType === "chunk-Bycharacter" ?
-                        (`[",",";","\\n"]`) :
-                        edgeType === "chunk" && subMenuType === "chunk-Bylength" ? "" :
-                            edgeType === "chunk" && subMenuType === "chunk-Auto" ? "" :
-                                edgeType === "chunk" && subMenuType === "chunk-ForHTML" ?
-                                    (`["h1", "heading 1"]`) :
-                                    edgeType === "chunk" && subMenuType === "chunk-ForMarkdown" ?
-                                        (`["h1", "heading 1"]`) :
-                                        edgeType === "chunk" && subMenuType === "chunk-ByLLM" ? "" :
-                                            edgeType === "search" ? "" :
-                                                edgeType === "code" ? "" :
-                                                    edgeType === "generate" ? "" :
-                                                        edgeType === "choose" ? "" :
-                                                            edgeType === "load" ? "" :
-                                                                ""
 
         if (sourceNode && sourceNode.measured?.height && sourceNode.measured.width) {
 
@@ -189,7 +170,6 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
             },
             data: {
                 subMenuType: subMenuType,
-                content: defaultEdgeConfigNodeContent,
                 ...(edgeType === "code" && { code: `def func(arg_1):\n    # write your code here\n    return` })
             }
         }
