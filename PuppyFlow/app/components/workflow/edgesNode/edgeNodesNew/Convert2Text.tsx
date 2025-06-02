@@ -81,13 +81,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] 
-                ${isOnConnect && isTargetHandleTouched || activatedEdge === id 
-                    ? "border-main-orange text-main-orange" 
-                    : "border-[#CDCDCD] text-[#CDCDCD]"} 
-                bg-[#181818] hover:border-main-orange hover:text-main-orange 
-                flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] 
-                ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`} 
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`} 
                 onClick={onClickButton}
             >
                 Convert to<br /> Text
