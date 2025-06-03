@@ -42,5 +42,5 @@ class BaseChunk(ABC):
                 "metadata": {
                     "id": i
                 }
-            }) for i, content in enumerate(contents) if content.strip()
+            }) for i, content in enumerate(contents) if isinstance(content, str) and content.strip()
         ]
