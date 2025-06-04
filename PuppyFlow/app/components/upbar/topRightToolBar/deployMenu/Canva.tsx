@@ -1,10 +1,10 @@
 import React from 'react';
 
-interface DashboardProps {
+interface CanvaProps {
   setActivePanel: (panel: string | null) => void;
 }
 
-function Dashboard({ setActivePanel }: DashboardProps) {
+function Canva({ setActivePanel }: CanvaProps) {
   return (
     <div className="py-[16px] px-[16px]">
       <div className="flex items-center mb-4">
@@ -16,7 +16,7 @@ function Dashboard({ setActivePanel }: DashboardProps) {
             <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
           </svg>
         </button>
-        <h2 className="text-[#CDCDCD] text-[16px]">Dashboard</h2>
+        <h2 className="text-[#CDCDCD] text-[16px]">Canva</h2>
       </div>
       
       <div className="flex flex-col items-center justify-center py-8">
@@ -29,4 +29,4 @@ function Dashboard({ setActivePanel }: DashboardProps) {
   );
 }
 
-export default Dashboard; 
+export default Canva; 
