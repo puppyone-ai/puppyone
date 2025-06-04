@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+This is a project of PuppyAgent, involving PuppyFlow (front end), PuppyEngine (back end) and PuppyStorage (saving embedding and uploaded files)
+
+# Your rule content
+
+- The front end code is written by React and Next.js 13. Don't generate other version code.
+- The back end is written by Python.
+

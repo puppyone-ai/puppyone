@@ -8,13 +8,16 @@ interface DeployedChatbotDetailProps {
   setActivePanel: (panel: string | null) => void;
   onDelete: () => void;
   selectedFlowId: string | null;
+  input?: string;
+  output?: string;
 }
 
 function DeployedChatbotDetail({
   chatbotId,
   API_SERVER_URL,
   setActivePanel,
-
+  input,
+  output,
 }: DeployedChatbotDetailProps) {
   const { deployedServices } = useDeployPanelContext();
   
@@ -38,6 +41,10 @@ function DeployedChatbotDetail({
   // 检查是否启用了多轮对话
   const isMultiTurnEnabled = chatbotService.multi_turn_enabled || chatbotService.config?.multiTurn;
   
+  // 使用传入的 input/output，如果没有则使用 context 中的数据作为备选
+  const finalInput = input || chatbotService.input;
+  const finalOutput = output || chatbotService.output;
+
   // 部署选项
   const deploymentOptions = [
     {
@@ -132,24 +139,24 @@ function DeployedChatbotDetail({
         <h2 className="text-[#CDCDCD] text-[16px]">Chatbot Details</h2>
       </div>
 
-      {/* 输入输出节点信息 - 仿照 DeployedApiDetail 的网格布局 */}
+      {/* 输入输出节点信息 - 使用传入的 props */}
       <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
         <div className="p-4 bg-[#1A1A1A]">
           <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
             <div className="flex items-center justify-between">
-              <span>Input ({chatbotService.input ? 1 : 0})</span>
+              <span>Input ({finalInput ? 1 : 0})</span>
             </div>
           </h3>
 
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
-            {chatbotService.input ? (
+            {finalInput ? (
               <div className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]">
                 <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
                   <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                   <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                   <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
-                <span className="flex-shrink-0 text-[12px]">{chatbotService.input}</span>
+                <span className="flex-shrink-0 text-[12px]">{finalInput}</span>
                 <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -167,19 +174,19 @@ function DeployedChatbotDetail({
         <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
           <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
             <div className="flex items-center justify-between">
-              <span>Output ({chatbotService.output ? 1 : 0})</span>
+              <span>Output ({finalOutput ? 1 : 0})</span>
             </div>
           </h3>
 
           <div className="space-y-3 text-[14px] font-medium max-h-[160px] overflow-y-auto pr-1">
-            {chatbotService.output ? (
+            {finalOutput ? (
               <div className="h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]">
                 <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
                   <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                   <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                   <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
-                <span className="flex-shrink-0 text-[12px]">{chatbotService.output}</span>
+                <span className="flex-shrink-0 text-[12px]">{finalOutput}</span>
                 <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -471,7 +478,7 @@ BOT_NAME="PuppyFlow Bot"`}
         </div>
       )}
 
-      {/* 聊天机器人测试界面 */}
+      {/* 聊天机器人测试界面 - 现在可以传入 input、output 和 history */}
       {showChatbotTest && (
         <ChatbotTestInterface
           apiEndpoint={chatbotService.endpoint || API_SERVER_URL}
@@ -479,6 +486,9 @@ BOT_NAME="PuppyFlow Bot"`}
           apiKey={chatbotService.chatbot_key || ''}
           isModal={true}
           onClose={() => toggleChatbotTest(false)}
+          input={finalInput}
+          output={finalOutput}
+          history={chatbotService.history_id || undefined}
         />
       )}
     </div>
