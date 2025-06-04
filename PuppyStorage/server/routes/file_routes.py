@@ -1,14 +1,15 @@
 """
 Storage Strategy Design Notes:
 
-This module implements a dual-mode storage strategy based on the STORAGE_TYPE configuration:
-- When STORAGE_TYPE=Remote: Uses S3 (Cloudflare R2) with presigned URLs
-- When STORAGE_TYPE=Local: Uses local filesystem with direct server routes
+This module implements a dual-mode storage strategy using the StorageManager:
+- When storage type is Remote: Uses S3 (Cloudflare R2) with presigned URLs
+- When storage type is Local: Uses local filesystem with direct server routes
 
 Implementation Considerations:
 1. Performance: Direct presigned URLs eliminate extra HTTP redirects
 2. Architecture: Simpler server-side code without proxy/redirect logic
 3. Native Design: Follows the intended S3/R2 usage pattern
+4. Unified Management: Uses StorageManager for consistent storage type selection
 
 Client Integration Notes:
 - Clients must check URL types returned by /file/generate_urls endpoint
@@ -36,9 +37,15 @@ Client Workflow:
 3. Store the download_url for future access
 4. Use /storage/delete/{key} to remove files when needed
 
-This design prioritizes performance and architectural simplicity over client API
-consistency. Storage backends can be switched by changing the STORAGE_TYPE
-environment variable, but client code must handle both workflows.
+Storage Management:
+- Storage type is automatically selected by the StorageManager based on DEPLOYMENT_TYPE
+- The StorageManager handles configuration priority and fallback logic
+- Client code remains the same regardless of the storage backend
+- Storage type can be queried via get_storage_info() from the storage module
+
+This design prioritizes performance and architectural simplicity while providing
+unified storage management. The StorageManager abstracts away configuration
+complexity, ensuring consistent behavior across all components.
 """
 
 import os
@@ -55,7 +62,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
-from storage import S3StorageAdapter, LocalStorageAdapter
+from storage import get_storage
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
 
@@ -63,8 +70,8 @@ from typing import Optional, Dict, Any, Literal
 file_router = APIRouter(prefix="/file", tags=["file"])
 storage_router = APIRouter(prefix="/storage", tags=["storage"])
 
-# 获取存储适配器
-storage_adapter = S3StorageAdapter() if config.get("STORAGE_TYPE") == "Remote" else LocalStorageAdapter()
+# 获取存储适配器 - 使用统一的存储管理器
+storage_adapter = get_storage()
 
 type_header_mapping = {
     "md": "text/markdown", 
