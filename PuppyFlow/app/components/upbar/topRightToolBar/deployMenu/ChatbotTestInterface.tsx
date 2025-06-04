@@ -7,6 +7,9 @@ interface ChatbotTestInterfaceProps {
   apiKey?: string;
   isModal?: boolean;
   onClose?: () => void;
+  input?: string;
+  output?: string;
+  history?: string;
 }
 
 interface ChatMessage {
@@ -19,12 +22,17 @@ const ChatbotTestInterface = ({
   chatbotId,
   apiKey ,
   isModal = false,
-  onClose
+  onClose,
+  input,
+  output,
+  history
 }: ChatbotTestInterfaceProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
+  const [userApiKey, setUserApiKey] = useState<string>(apiKey || '');
+  const [conversationHistory, setConversationHistory] = useState<string>('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -63,36 +71,64 @@ const ChatbotTestInterface = ({
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
     
+    if (!input) {
+      const errorMessage: ChatMessage = {
+        role: 'assistant',
+        content: 'Error: Input node is not configured. Please configure the input node before testing.'
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
+    
     const userMessage: ChatMessage = {
       role: 'user',
       content: inputMessage
     };
     
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputMessage;
     setInputMessage('');
     setIsLoading(true);
     
     try {
       const finalApiEndpoint = `/chat/${chatbotId}`;
       
-      const requestData = {
-        message: inputMessage,
-        session_id: sessionId,
-        context: {}
+      const requestData: any = {
+        input: {
+          [input]: currentInput
+        }
       };
+      
+      if (history) {
+        requestData.history = {
+          [history]: conversationHistory
+        };
+      }
+      
+      console.log('Sending request:', requestData);
+      console.log('History node ID:', history);
+      console.log('Conversation history content:', conversationHistory);
       
       const response = await axios.post(finalApiEndpoint, requestData, {
         headers: {
-          "Authorization": apiKey ? `Bearer ${apiKey}` : '',
+          "Authorization": userApiKey ? `Bearer ${userApiKey}` : '',
           "Content-Type": "application/json"
         }
       });
       
-      const botResponse = response.data?.response || 
-                          "No response from the bot";
+      console.log('Received response:', response.data);
       
-      if (response.data?.session_id) {
-        setSessionId(response.data.session_id);
+      let botResponse = "No response from the bot";
+      
+      if (response.data?.output) {
+        if (output && response.data.output[output]) {
+          botResponse = response.data.output[output];
+        } else {
+          const outputKeys = Object.keys(response.data.output);
+          if (outputKeys.length > 0) {
+            botResponse = response.data.output[outputKeys[0]];
+          }
+        }
       }
       
       const botMessage: ChatMessage = {
@@ -101,12 +137,33 @@ const ChatbotTestInterface = ({
       };
       
       setMessages(prev => [...prev, botMessage]);
+      
+      if (history) {
+        const newHistoryEntry = `User: ${currentInput}\nAssistant: ${botResponse}\n`;
+        setConversationHistory(prev => prev + newHistoryEntry);
+        console.log('Updated conversation history:', conversationHistory + newHistoryEntry);
+      }
+      
     } catch (error: any) {
       console.error("Error calling chatbot API:", error);
       
+      let errorContent = "Failed to connect to the API";
+      
+      if (error.response?.data) {
+        if (typeof error.response.data === 'string') {
+          errorContent = error.response.data;
+        } else if (error.response.data.message) {
+          errorContent = error.response.data.message;
+        } else if (error.response.data.detail) {
+          errorContent = error.response.data.detail;
+        }
+      } else if (error.message) {
+        errorContent = error.message;
+      }
+      
       const errorMessage: ChatMessage = {
         role: 'assistant',
-        content: `Error: ${error.response?.data?.message || error.message || "Failed to connect to the API"}`
+        content: `Error: ${errorContent}`
       };
       
       setMessages(prev => [...prev, errorMessage]);
@@ -138,6 +195,49 @@ const ChatbotTestInterface = ({
           <h3 className="text-[20px] font-semibold">Test Your Chatbot</h3>
         </div>
       )}
+      
+      <div className="mb-5 p-4 bg-[#1A1A1A] rounded-lg border border-[#333]" onClick={stopPropagation}>
+        <div className="flex items-center mb-3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+            <path d="M7 10V7C7 5.34315 8.34315 4 10 4H14C15.6569 4 17 5.34315 17 7V10M5 10H19C20.1046 10 21 10.8954 21 12V18C21 19.1046 20.1046 20 19 20H5C3.89543 20 3 19.1046 3 18V12C3 10.8954 3.89543 10 5 10Z" stroke="#2DFF7C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+          <span className="text-[#EFEFEF] text-sm font-medium">API Key Configuration</span>
+        </div>
+        <div className="relative">
+          <input
+            type="password"
+            value={userApiKey}
+            onChange={(e) => {
+              stopPropagation(e);
+              setUserApiKey(e.target.value);
+            }}
+            placeholder="Enter your API key here..."
+            className="w-full p-3 pl-4 pr-12 rounded-lg bg-[#202020] text-white border border-[#404040] focus:outline-none focus:ring-1 focus:ring-[#2DFF7C] focus:border-[#2DFF7C] transition-all placeholder:text-[#606060] text-sm"
+            onClick={stopPropagation}
+          />
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+            {userApiKey ? (
+              <div className="flex items-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 12L11 14L15 10M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#2DFF7C" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            ) : (
+              <div className="flex items-center">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 9V13M12 17H12.01M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#FF6B6B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+        <p className="text-[#606060] text-xs mt-2">
+          {userApiKey ? 
+            `API Key configured (${userApiKey.length} characters)` : 
+            'No API key configured - requests may fail without authentication'
+          }
+        </p>
+      </div>
       
       <div 
         className="h-[400px] overflow-y-auto mb-5 bg-[#202020] rounded-lg p-5 border border-[#333] shadow-inner custom-scrollbar"
@@ -198,17 +298,18 @@ const ChatbotTestInterface = ({
             setInputMessage(e.target.value);
           }}
           onKeyDown={handleKeyPress}
-          placeholder="Type your message here..."
-          className="w-full p-4 pl-5 pr-[60px] rounded-lg bg-[#202020] text-white border border-[#404040] focus:outline-none focus:ring-1 focus:ring-[#2D7CFF] focus:border-[#2D7CFF] transition-all placeholder:text-[#606060] text-base"
+          placeholder={input ? "Type your message here..." : "Configure input node first..."}
+          disabled={!input}
+          className={`w-full p-4 pl-5 pr-[60px] rounded-lg bg-[#202020] text-white border border-[#404040] focus:outline-none focus:ring-1 focus:ring-[#2D7CFF] focus:border-[#2D7CFF] transition-all placeholder:text-[#606060] text-base ${!input ? 'opacity-50 cursor-not-allowed' : ''}`}
         />
         <button
           onClick={(e) => {
             stopPropagation(e);
             handleSendMessage();
           }}
-          disabled={isLoading || !inputMessage.trim()}
+          disabled={isLoading || !inputMessage.trim() || !input}
           className={`absolute right-4 top-1/2 transform -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full transition-all ${
-            isLoading || !inputMessage.trim() 
+            isLoading || !inputMessage.trim() || !input
               ? 'text-[#505050] cursor-not-allowed' 
               : 'text-[#2D7CFF] hover:bg-[#2D7CFF20]'
           }`}
@@ -239,22 +340,28 @@ const ChatbotTestInterface = ({
 
       <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
         <div className="flex items-center">
-          <span>Endpoint: <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">
-            {(() => {
-              if (!apiEndpoint) return <span className="text-[#FF4D4D]">Error: No API endpoint specified</span>;
-              
-              const displayUrl = `/chat/${chatbotId}`;
-              
-              return displayUrl;
-            })()}
+          <span>Input Node: <span className={input ? "text-[#2DFF7C]" : "text-[#FF6B6B]"}>
+            {input || 'Not configured'}
           </span></span>
         </div>
         <div className="flex items-center">
-          <span>API Key: <span className="text-[#606060]">
-            {apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : 'No API key'}
+          <span>Output Node: <span className={output ? "text-[#2DFF7C]" : "text-[#FF6B6B]"}>
+            {output || 'Not configured'}
           </span></span>
         </div>
-        
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
+        <div className="flex items-center">
+          <span>History Node: <span className={history ? "text-[#2DFF7C]" : "text-[#606060]"}>
+            {history || 'Not configured (optional)'}
+          </span></span>
+        </div>
+        <div className="flex items-center">
+          <span>Endpoint: <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">
+            /chat/{chatbotId}
+          </span></span>
+        </div>
       </div>
     </div>
   );
