@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from server.routes.file_routes import file_router, storage_router
 from server.routes.vector_routes import vector_router
+from storage import get_storage_info
 from utils.config import config
 
 # 创建测试应用
@@ -23,8 +24,9 @@ app.include_router(vector_router)
 # 创建测试客户端
 client = TestClient(app)
 
-# 检查存储类型
-is_remote_storage = config.get("STORAGE_TYPE") == "Remote"
+# 通过存储管理器检查存储类型
+storage_info = get_storage_info()
+is_remote_storage = storage_info.get("type") == "remote"
 
 def test_file_routes():
     """测试文件路由功能"""
