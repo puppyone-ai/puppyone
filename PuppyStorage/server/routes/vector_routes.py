@@ -13,6 +13,7 @@ from typing import List, Optional, Dict, Any
 # TODO: Maybe only need to use multi-modal embedding in the future?
 from vector.embedder import TextEmbedder, ModelRegistry
 from vector.vector_db_factory import VectorDatabaseFactory
+from storage import get_storage_info
 
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
@@ -20,6 +21,10 @@ from utils.config import config
 
 # Create router
 vector_router = APIRouter(prefix="/vector", tags=["vector"])
+
+# 获取存储信息来判断默认的向量数据库类型
+storage_info = get_storage_info()
+is_local_storage = storage_info.get("type") == "local"
 
 # 添加获取可用embedding模型的接口
 @global_exception_handler(error_code=3004, error_message="Failed to list embedding models")
@@ -111,7 +116,7 @@ class SearchRequest(BaseModel):
     set_name: str  # 必需的集合名称
     user_id: str = Field(default="public")  # 使用 Field 确保默认值为字符串
     model: str = Field(default="text-embedding-ada-002")
-    vdb_type: str = Field(default="pgvector" if config.get("STORAGE_TYPE") == "Remote" else None)
+    vdb_type: str = Field(default="chroma" if is_local_storage else "pgvector")
     top_k: int = Field(default=5, ge=1)  # 确保 top_k 至少为 1
     threshold: Optional[float] = Field(default=None)
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -119,7 +124,9 @@ class SearchRequest(BaseModel):
 
     @validator('vdb_type')
     def validate_vdb_type(cls, v, values):
-        if config.get("STORAGE_TYPE") == "Local":
+        # 重新获取存储信息以确保最新状态
+        current_storage_info = get_storage_info()
+        if current_storage_info.get("type") == "local":
             return "chroma"
         return v
 
