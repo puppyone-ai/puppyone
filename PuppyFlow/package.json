@@ -52,6 +52,7 @@
     "nanoid": "^5.0.9",
     "next": "^14.2.5",
     "nookies": "^2.5.2",
+    "puppychat": "^1.0.5",
     "react": "^18",
     "react-ace": "^12.0.0",
     "react-dom": "^18",

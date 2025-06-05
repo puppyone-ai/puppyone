@@ -9,7 +9,7 @@ interface DeployPayload {
   };
   input: string;
   output: string;
-  history_id: string | null;
+  history: string | null;
   workspace_id: string;
   multi_turn_enabled: boolean;
   welcome_message: string;
@@ -84,7 +84,7 @@ export const useAddNewChatbotServer = (): UseAddNewChatbotServerReturn => {
         workspace_id: payload.workspace_id,
         input: payload.input,
         output: payload.output,
-        history_id: payload.history_id,
+        history: payload.history,
         multi_turn_enabled: payload.multi_turn_enabled,
         welcome_message: payload.welcome_message,
         config: {
