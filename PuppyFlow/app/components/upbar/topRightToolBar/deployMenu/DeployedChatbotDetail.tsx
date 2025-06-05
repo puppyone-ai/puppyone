@@ -203,7 +203,7 @@ function DeployedChatbotDetail({
       </div>
 
       {/* Memory 节点信息 - 修改显示条件 */}
-      {isMultiTurnEnabled && chatbotService.history_id && (
+      {isMultiTurnEnabled && chatbotService.history && (
         <div className="mb-8 p-4 bg-[#1A1A1A] rounded-lg border border-[#404040]">
           <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
             <div className="flex items-center justify-between">
@@ -218,7 +218,7 @@ function DeployedChatbotDetail({
                 <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
                 <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
-              <span className="flex-shrink-0 text-[12px]">{chatbotService.history_id}</span>
+              <span className="flex-shrink-0 text-[12px]">{chatbotService.history}</span>
               <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -250,7 +250,7 @@ function DeployedChatbotDetail({
             <div>
               <label className="text-[12px] text-[#808080]">Memory Node:</label>
               <div className="mt-1 p-2 bg-[#252525] rounded text-[12px] text-[#9B7EDB]">
-                {chatbotService.history_id || 'Not configured'}
+                {chatbotService.history || 'Not configured'}
               </div>
             </div>
           )}
@@ -484,11 +484,10 @@ BOT_NAME="PuppyFlow Bot"`}
           apiEndpoint={chatbotService.endpoint || API_SERVER_URL}
           chatbotId={chatbotService.chatbot_id}
           apiKey={chatbotService.chatbot_key || ''}
-          isModal={true}
           onClose={() => toggleChatbotTest(false)}
           input={finalInput}
           output={finalOutput}
-          history={chatbotService.history_id || undefined}
+          history={chatbotService.history || undefined}
         />
       )}
     </div>
