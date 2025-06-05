@@ -75,6 +75,7 @@ json_received.json
 
 # vs code
 .vscode/
+.cursor/
 
 # Local Storage
 **/local_storage/
