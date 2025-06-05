@@ -216,7 +216,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
                                 </svg>
                             </div>
                             <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                                Modify Text
+                                Edit Text
                             </div>
                         </div>
                         <div className='flex flex-row gap-[8px] items-center justify-center'>
