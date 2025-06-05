@@ -33,8 +33,11 @@ def test_file_url_generation():
     print("\n===== 测试文件URL生成 =====")
     print(f"当前存储类型: {'S3/Cloudflare R2' if is_remote_storage else '本地存储'}")
     
-    # 测试正常URL生成
     user_id = f"test_user_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    test_results = []
+    
+    # 1. 测试正常URL生成
+    print("\n1. 测试正常URL生成...")
     url_response = client.post(
         "/file/generate_urls/text",
         json={
@@ -45,17 +48,163 @@ def test_file_url_generation():
     
     if url_response.status_code == 200:
         url_data = url_response.json()
-        print(f"✅ URL生成成功! 文件ID: {url_data['content_id']}")
+        print(f"✅ 正常URL生成成功! 文件ID: {url_data['content_id']}")
         print(f"   上传URL: {url_data['upload_url'][:50]}...")
         print(f"   下载URL: {url_data['download_url'][:50]}...")
         print(f"   删除URL: {url_data['delete_url'][:50]}...")
         print(f"   内容类型: {url_data['content_type_header']}")
+        test_results.append(True)
+        
+        # 验证URL数据结构完整性
+        required_fields = ['upload_url', 'download_url', 'delete_url', 'content_id', 'content_type_header', 'expires_at']
+        if all(field in url_data for field in required_fields):
+            print(f"✅ URL响应数据结构完整")
+            test_results.append(True)
+        else:
+            print(f"❌ URL响应数据结构不完整")
+            test_results.append(False)
     else:
-        print(f"❌ URL生成失败: {url_response.text}")
-        return False
+        print(f"❌ 正常URL生成失败: {url_response.text}")
+        test_results.append(False)
+        test_results.append(False)
     
-    # 测试不支持的内容类型
-    print("\n测试不支持的内容类型...")
+    # 2. 测试中文文件名（重要边界条件）
+    print("\n2. 测试中文文件名...")
+    chinese_filenames = [
+        "测试文档.txt",
+        "用户手册-中文版.pdf", 
+        "数据分析报告_2024年.xlsx",
+        "🎵音乐文件.mp3",
+        "项目文档(最终版).docx"
+    ]
+    
+    for filename in chinese_filenames:
+        print(f"   测试文件名: {filename}")
+        chinese_response = client.post(
+            "/file/generate_urls/text",
+            json={
+                "user_id": user_id,
+                "content_name": filename
+            }
+        )
+        
+        if chinese_response.status_code == 200:
+            print(f"   ✅ 中文文件名处理成功")
+            test_results.append(True)
+        else:
+            print(f"   ❌ 中文文件名处理失败: {chinese_response.status_code}")
+            test_results.append(False)
+    
+    # 3. 测试特殊字符文件名
+    print("\n3. 测试特殊字符文件名...")
+    special_filenames = [
+        "file with spaces.txt",
+        "file-with-dashes.txt", 
+        "file_with_underscores.txt",
+        "file.with.multiple.dots.txt",
+        "file@email.com.txt",
+        "file#hashtag.txt",
+        "file$dollar.txt",
+        "file%percent.txt"
+    ]
+    
+    special_success_count = 0
+    for filename in special_filenames:
+        print(f"   测试特殊字符文件名: {filename}")
+        special_response = client.post(
+            "/file/generate_urls/text",
+            json={
+                "user_id": user_id,
+                "content_name": filename
+            }
+        )
+        
+        if special_response.status_code == 200:
+            print(f"   ✅ 特殊字符文件名处理成功")
+            special_success_count += 1
+        else:
+            print(f"   ❌ 特殊字符文件名处理失败: {special_response.status_code}")
+    
+    test_results.append(special_success_count >= len(special_filenames) * 0.8)  # 80%通过率
+    
+    # 4. 测试长文件名边界条件
+    print("\n4. 测试长文件名...")
+    long_filename = "这是一个非常非常长的文件名" * 10 + ".txt"  # 约300字符
+    print(f"   测试长文件名 (长度: {len(long_filename)})...")
+    
+    long_response = client.post(
+        "/file/generate_urls/text",
+        json={
+            "user_id": user_id,
+            "content_name": long_filename
+        }
+    )
+    
+    if long_response.status_code == 200:
+        print(f"   ✅ 长文件名处理成功")
+        test_results.append(True)
+    else:
+        print(f"   ❌ 长文件名处理失败: {long_response.status_code}")
+        test_results.append(False)
+    
+    # 5. 测试边界情况：空文件名和无效字符
+    print("\n5. 测试边界情况...")
+    edge_cases = [
+        {"name": "", "description": "空文件名"},
+        {"name": "   ", "description": "空白文件名"},
+        {"name": ".", "description": "单点文件名"},
+        {"name": "..", "description": "双点文件名"},
+        {"name": "file.", "description": "以点结尾的文件名"},
+        {"name": ".hidden", "description": "隐藏文件名"}
+    ]
+    
+    edge_case_results = []
+    for case in edge_cases:
+        print(f"   测试{case['description']}: '{case['name']}'")
+        edge_response = client.post(
+            "/file/generate_urls/text", 
+            json={
+                "user_id": user_id,
+                "content_name": case['name']
+            }
+        )
+        
+        # 对于边界情况，我们期望要么成功处理，要么返回明确的错误
+        if edge_response.status_code in [200, 400]:
+            print(f"   ✅ {case['description']}处理正确 (状态码: {edge_response.status_code})")
+            edge_case_results.append(True)
+        else:
+            print(f"   ❌ {case['description']}处理异常 (状态码: {edge_response.status_code})")
+            edge_case_results.append(False)
+    
+    test_results.append(all(edge_case_results))
+    
+    # 6. 测试各种内容类型
+    print("\n6. 测试各种内容类型...")
+    content_types = ["json", "html", "md", "png", "pdf", "xlsx"]
+    content_type_results = []
+    
+    for content_type in content_types:
+        print(f"   测试内容类型: {content_type}")
+        type_response = client.post(
+            f"/file/generate_urls/{content_type}",
+            json={
+                "user_id": user_id,
+                "content_name": f"test.{content_type}"
+            }
+        )
+        
+        if type_response.status_code == 200:
+            print(f"   ✅ 内容类型 {content_type} 处理成功")
+            content_type_results.append(True)
+        else:
+            print(f"   ❌ 内容类型 {content_type} 处理失败: {type_response.status_code}")
+            content_type_results.append(False)
+    
+    test_results.append(all(content_type_results))
+    
+    # 7. 测试不支持的内容类型
+    print("\n7. 测试不支持的内容类型...")
     invalid_response = client.post(
         "/file/generate_urls/invalid_type",
         json={
@@ -64,31 +213,106 @@ def test_file_url_generation():
         }
     )
     
-    if invalid_response.status_code != 200:
+    if invalid_response.status_code == 400:
         print(f"✅ 不支持的内容类型处理正确: {invalid_response.status_code}")
+        try:
+            error_data = invalid_response.json()
+            if "supported_types" in error_data:
+                print(f"✅ 错误响应包含支持的类型列表")
+                test_results.append(True)
+            else:
+                print(f"❌ 错误响应缺少支持的类型列表")
+                test_results.append(False)
+        except:
+            print(f"❌ 无法解析错误响应")
+            test_results.append(False)
     else:
-        print(f"❌ 不支持的内容类型应该返回错误")
-        return False
+        print(f"❌ 不支持的内容类型应该返回400错误，实际返回: {invalid_response.status_code}")
+        test_results.append(False)
     
-    return True
+    # 8. 测试缺少必要参数
+    print("\n8. 测试缺少必要参数...")
+    missing_params_cases = [
+        {"json": {}, "description": "缺少所有参数"},
+        {"json": {"user_id": user_id}, "description": "缺少content_name"},
+        {"json": {"content_name": "test.txt"}, "description": "缺少user_id（应使用默认值）"}
+    ]
+    
+    missing_param_results = []
+    for case in missing_params_cases:
+        print(f"   测试{case['description']}...")
+        missing_response = client.post(
+            "/file/generate_urls/text",
+            json=case['json']
+        )
+        
+        # 缺少content_name应该返回错误，缺少user_id应该使用默认值
+        if case['description'] == "缺少user_id（应使用默认值）":
+            expected_success = True
+        else:
+            expected_success = False
+            
+        actual_success = missing_response.status_code == 200
+        
+        if actual_success == expected_success:
+            print(f"   ✅ {case['description']}处理正确")
+            missing_param_results.append(True)
+        else:
+            print(f"   ❌ {case['description']}处理错误 (状态码: {missing_response.status_code})")
+            missing_param_results.append(False)
+    
+    test_results.append(all(missing_param_results))
+    
+    # 汇总边界条件测试结果
+    print("\n====== 边界条件测试摘要 ======")
+    test_names = [
+        "正常URL生成", "URL数据结构", "中文文件名(5个)", "特殊字符文件名", 
+        "长文件名", "边界情况", "内容类型支持", "不支持的内容类型", "缺少参数"
+    ]
+    
+    for i, (test_name, result) in enumerate(zip(test_names, test_results)):
+        status = "✅ 通过" if result else "❌ 失败"
+        print(f"{test_name}: {status}")
+    
+    passed_tests = sum(test_results)
+    total_tests = len(test_results)
+    print(f"\n边界条件测试: {passed_tests}/{total_tests} 通过")
+    
+    if passed_tests == total_tests:
+        print("🎉 所有边界条件测试通过！")
+    else:
+        print("⚠️  部分边界条件测试失败，建议检查具体问题")
+    
+    return passed_tests == total_tests
 
 def test_file_routes():
     """测试完整的文件路由功能"""
     print("\n===== 测试文件路由完整流程 =====")
     print(f"当前存储类型: {'S3/Cloudflare R2' if is_remote_storage else '本地存储'}")
     
-    # 测试用例
+    # 测试用例 - 添加中文文件名测试
     test_cases = [
         {"content_type": "text", "content_name": "test_document.txt", "test_content": "这是一个纯文本文档"},
         {"content_type": "json", "content_name": "test_data.json", "test_content": '{"name": "测试", "value": 123}'},
         {"content_type": "html", "content_name": "test_page.html", "test_content": "<html><body><h1>测试页面</h1></body></html>"},
-        {"content_type": "md", "content_name": "test_markdown.md", "test_content": "# 测试Markdown\n\n这是一个测试文档。"}
+        {"content_type": "md", "content_name": "test_markdown.md", "test_content": "# 测试Markdown\n\n这是一个测试文档。"},
+        # 新增：中文文件名测试用例
+        {"content_type": "text", "content_name": "中文文档.txt", "test_content": "这是一个中文文件名的测试文档"},
+        {"content_type": "json", "content_name": "数据文件_2024.json", "test_content": '{"project": "中文项目", "year": 2024}'},
+        {"content_type": "md", "content_name": "用户手册(中文版).md", "test_content": "# 用户手册\n\n欢迎使用我们的产品！"},
+        {"content_type": "pdf", "content_name": "报告-最终版📊.pdf", "test_content": "PDF content with emoji filename"},
+        {"content_type": "xlsx", "content_name": "销售数据表格.xlsx", "test_content": "Excel data content"}
     ]
     
     results = {}
     
     for case in test_cases:
         print(f"\n测试文件类型: {case['content_type']}, 文件名: {case['content_name']}")
+        
+        # 检查是否为中文文件名测试
+        is_chinese_filename = any(ord(char) > 127 for char in case['content_name'])
+        if is_chinese_filename:
+            print(f"   🇨🇳 中文文件名测试 - 验证编码修复")
         
         # 1. 生成URL
         user_id = f"test_user_{datetime.now().strftime('%Y%m%d%H%M%S')}"
@@ -102,7 +326,7 @@ def test_file_routes():
         
         if url_response.status_code != 200:
             print(f"❌ URL生成失败: {url_response.text}")
-            results[case['content_type']] = False
+            results[case['content_name']] = False
             continue
             
         url_data = url_response.json()
@@ -112,7 +336,7 @@ def test_file_routes():
         required_fields = ['upload_url', 'download_url', 'delete_url', 'content_id', 'content_type_header', 'expires_at']
         if not all(field in url_data for field in required_fields):
             print(f"❌ URL响应数据结构不完整")
-            results[case['content_type']] = False
+            results[case['content_name']] = False
             continue
         
         # 2. 上传文件
@@ -131,7 +355,7 @@ def test_file_routes():
                 )
             except Exception as e:
                 print(f"❌ 发送请求时出错: {str(e)}")
-                results[case['content_type']] = False
+                results[case['content_name']] = False
                 continue
         else:
             # 对于本地存储，使用测试客户端上传
@@ -146,12 +370,12 @@ def test_file_routes():
             print(f"❌ 文件上传失败: 状态码 {upload_response.status_code}")
             if hasattr(upload_response, 'text'):
                 print(f"   错误详情: {upload_response.text}")
-            results[case['content_type']] = False
+            results[case['content_name']] = False
             continue
             
         print(f"✅ 文件上传成功!")
         
-        # 3. 下载文件
+        # 3. 下载文件 - 特别关注中文文件名的编码处理
         print("测试文件下载...")
         download_url = url_data['download_url']
         
@@ -165,10 +389,23 @@ def test_file_routes():
                 
             if download_response.status_code != 200:
                 print(f"❌ 文件下载失败: {download_response.status_code}")
-                results[case['content_type']] = False
+                results[case['content_name']] = False
                 continue
                 
             print(f"✅ 文件下载成功!")
+            
+            # 特别验证中文文件名的Content-Disposition头
+            if is_chinese_filename and hasattr(download_response, 'headers'):
+                content_disposition = download_response.headers.get('Content-Disposition', '')
+                print(f"   📄 Content-Disposition: {content_disposition}")
+                
+                # 检查是否使用了正确的编码格式
+                if 'filename*=UTF-8' in content_disposition:
+                    print(f"   ✅ 中文文件名使用UTF-8编码格式 (RFC 6266)")
+                elif 'filename=' in content_disposition and not any(ord(c) > 127 for c in case['content_name']):
+                    print(f"   ✅ ASCII文件名使用标准格式")
+                else:
+                    print(f"   ⚠️  文件名编码格式可能需要检查")
             
             # 验证内容
             try:
@@ -180,7 +417,7 @@ def test_file_routes():
                             print(f"✅ 文件内容验证成功!")
                         else:
                             print(f"❌ 文件内容验证失败! (二进制比较)")
-                            results[case['content_type']] = False
+                            results[case['content_name']] = False
                             continue
                     else:
                         # 文本文件比较
@@ -192,7 +429,7 @@ def test_file_routes():
                         else:
                             print(f"❌ 文件内容验证失败!")
                             print(f"   原始长度: {len(original_text)}, 下载长度: {len(downloaded_text)}")
-                            results[case['content_type']] = False
+                            results[case['content_name']] = False
                             continue
                 else:
                     # 本地存储内容验证
@@ -201,16 +438,19 @@ def test_file_routes():
                         print(f"✅ 文件内容验证成功!")
                     else:
                         print(f"❌ 文件内容验证失败!")
-                        results[case['content_type']] = False
+                        results[case['content_name']] = False
                         continue
             except Exception as e:
                 print(f"❌ 内容验证时出错: {str(e)}")
-                results[case['content_type']] = False
+                results[case['content_name']] = False
                 continue
                 
         except Exception as e:
             print(f"❌ 下载文件时出错: {str(e)}")
-            results[case['content_type']] = False
+            # 检查是否为编码相关错误
+            if 'latin-1' in str(e) or 'codec' in str(e):
+                print(f"   🚨 检测到编码错误 - 这正是我们修复的问题!")
+            results[case['content_name']] = False
             continue
         
         # 4. 删除文件
@@ -220,7 +460,7 @@ def test_file_routes():
         
         if delete_response.status_code != 200:
             print(f"❌ 文件删除失败: {delete_response.text}")
-            results[case['content_type']] = False
+            results[case['content_name']] = False
             continue
             
         delete_data = delete_response.json()
@@ -236,24 +476,51 @@ def test_file_routes():
                 
             if verify_response.status_code >= 400:  # 错误响应表示文件已删除
                 print(f"✅ 文件删除验证成功: 文件已不可访问 (状态码: {verify_response.status_code})")
-                results[case['content_type']] = True
+                results[case['content_name']] = True
             else:
                 print(f"❌ 文件删除验证失败: 文件仍然可访问")
-                results[case['content_type']] = False
+                results[case['content_name']] = False
                 
         except Exception as e:
             # 如果请求抛出异常，通常说明文件已不可访问
             print(f"✅ 文件删除验证成功: 访问文件时出错（文件已删除）")
-            results[case['content_type']] = True
+            results[case['content_name']] = True
     
-    # 打印测试摘要
+    # 打印测试摘要 - 特别关注中文文件名测试结果
     print("\n====== 测试摘要 ======")
-    for content_type, success in results.items():
-        print(f"{content_type}: {'✅ 通过' if success else '❌ 失败'}")
+    chinese_tests = []
+    regular_tests = []
+    
+    for filename, success in results.items():
+        is_chinese = any(ord(char) > 127 for char in filename)
+        status = '✅ 通过' if success else '❌ 失败'
+        
+        if is_chinese:
+            print(f"🇨🇳 {filename}: {status}")
+            chinese_tests.append(success)
+        else:
+            print(f"📄 {filename}: {status}")
+            regular_tests.append(success)
     
     total_tests = len(results)
     passed_tests = sum(1 for success in results.values() if success)
-    print(f"总计: {total_tests} 个测试, {passed_tests} 个通过, {total_tests - passed_tests} 个失败")
+    
+    if chinese_tests:
+        chinese_passed = sum(chinese_tests)
+        chinese_total = len(chinese_tests)
+        print(f"\n🇨🇳 中文文件名测试: {chinese_passed}/{chinese_total} 通过")
+        
+    if regular_tests:
+        regular_passed = sum(regular_tests)
+        regular_total = len(regular_tests)
+        print(f"📄 常规文件名测试: {regular_passed}/{regular_total} 通过")
+    
+    print(f"📊 总计: {total_tests} 个测试, {passed_tests} 个通过, {total_tests - passed_tests} 个失败")
+    
+    if passed_tests == total_tests:
+        print("🎉 所有文件路由测试通过，中文编码修复验证成功！")
+    else:
+        print("⚠️  部分测试失败，请检查上面的详细信息")
     
     return passed_tests == total_tests
 

@@ -64,6 +64,7 @@ import time
 import logging
 import random
 import string
+from urllib.parse import quote  # 添加URL编码支持
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request, Response, UploadFile, File, Form, Query
@@ -71,6 +72,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
+from utils.file_utils import build_content_disposition_header, extract_filename_from_key, validate_filename
 from storage import get_storage
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
@@ -298,11 +300,17 @@ async def download_file(key: str):
                 status_code=404
             )
         
+        # 获取文件名并处理中文字符编码问题
+        filename = extract_filename_from_key(key)
+        
+        # 构建符合RFC 6266标准的Content-Disposition头
+        content_disposition = build_content_disposition_header(filename)
+        
         return StreamingResponse(
             iter([file_data]),
             media_type=content_type,
             headers={
-                "Content-Disposition": f"attachment; filename={os.path.basename(key)}"
+                "Content-Disposition": content_disposition
             }
         )
     except Exception as e:
