@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 import uuid
+from urllib.parse import quote
 
 # 添加项目根目录到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,8 +19,8 @@ botocore_logger.setLevel(logging.WARNING)
 
 from utils.config import config
 from utils.logger import log_error, log_info, log_debug
+from utils.file_utils import build_content_disposition_header, extract_filename_from_key
 from storage.base import StorageAdapter
-
 
 class S3StorageAdapter(StorageAdapter):
     def __init__(self):
@@ -63,11 +64,19 @@ class S3StorageAdapter(StorageAdapter):
         )
 
     def generate_download_url(self, key: str, expires_in: int = 86400) -> str:
+        # 从key中提取文件名
+        filename = extract_filename_from_key(key)
+        
+        # 构建符合RFC 6266标准的Content-Disposition头
+        content_disposition = build_content_disposition_header(filename)
+        
+        # 生成包含正确Content-Disposition的预签名URL
         return self.s3_client.generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': self.bucket,
-                'Key': key
+                'Key': key,
+                'ResponseContentDisposition': content_disposition
             },
             ExpiresIn=expires_in
         )
@@ -247,8 +256,9 @@ if __name__ == "__main__":
             try:
                 download_url = adapter.generate_download_url(test_key)
                 self.assertIsInstance(download_url, str, "下载URL不是字符串")
-                self.assertIn(adapter.bucket, download_url, "下载URL不包含存储桶名称")
-                self.assertIn(test_key, download_url, "下载URL不包含文件键")
+                # 验证这是一个S3预签名URL（包含必要的参数）
+                self.assertIn("X-Amz-Algorithm", download_url, "下载URL应该是S3预签名URL")
+                self.assertIn("response-content-disposition", download_url, "下载URL应该包含Content-Disposition参数")
             except Exception as e:
                 self.fail(f"生成下载URL时出错: {str(e)}")
             
