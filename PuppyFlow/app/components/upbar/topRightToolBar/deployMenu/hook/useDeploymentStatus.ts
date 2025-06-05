@@ -18,7 +18,7 @@ interface ChatbotInfo {
   workspace_id?: string;
   input?: string;
   output?: string;
-  history_id?: string;
+  history?: string;
   multi_turn_enabled?: boolean;
   welcome_message?: string;
 }
@@ -182,7 +182,7 @@ export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps
         workspace_id: chatbot.workspace_id,
         input: chatbot.input,
         output: chatbot.output,
-        history_id: chatbot.history_id,
+        history: chatbot.history,
         multi_turn_enabled: chatbot.multi_turn_enabled,
         welcome_message: chatbot.welcome_message
       }));
