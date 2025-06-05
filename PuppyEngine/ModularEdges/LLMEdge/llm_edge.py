@@ -52,7 +52,6 @@ def remote_llm_chat(
         str: The response content.
     """
 
-    logging.info("HERE!!!")
     # Handle structured output
     structured_output = kwargs.get("structured_output", False)
     if structured_output:

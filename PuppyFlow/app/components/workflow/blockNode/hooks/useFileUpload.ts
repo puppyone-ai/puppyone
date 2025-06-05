@@ -200,20 +200,15 @@ export function useFileUpload({
   const handleDelete = async (file: UploadedFile, index: number) => {
     try {
       console.log("Deleting file:", file);
+      const userId = await getUserId();
+      const deleteKey = `${userId}/${file.task_id}/${file.fileName}`;
+      console.log("Delete key:", deleteKey);
       
-      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/storage/delete`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: await getUserId(),
-          content_id: file.task_id,
-          content_name: file.fileName
-        })
+      const response = await fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/storage/delete/${deleteKey}`, {
+        method: 'DELETE'
       });
-
       if (response.ok) {
         console.log("File deleted successfully");
-        
         // 更新本地状态
         setUploadedFiles(files => files.filter((_, i) => i !== index));
       } else {

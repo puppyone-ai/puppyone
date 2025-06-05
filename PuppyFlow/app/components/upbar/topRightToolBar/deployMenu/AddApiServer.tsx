@@ -749,16 +749,6 @@ axios.post(apiUrl, data, {
               </button>
             ) : (
               <>
-                <div className="flex items-center gap-2 py-2 px-3 bg-[#27AE60]/10 border border-[#27AE60]/30 rounded-md mb-2 max-w-full">
-                  <div className="h-5 w-5 min-w-5 rounded-full bg-[#27AE60] flex items-center justify-center">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M5 12L10 17L19 8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </div>
-                  <span className="text-[#27AE60] text-[13px] truncate">
-                    Successfully deployed! API is ready to use.
-                  </span>
-                </div>
 
                 <div className="w-full flex flex-col gap-3">
                   <div className="flex gap-3">

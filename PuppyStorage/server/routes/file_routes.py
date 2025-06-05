@@ -1,14 +1,15 @@
 """
 Storage Strategy Design Notes:
 
-This module implements a dual-mode storage strategy based on the STORAGE_TYPE configuration:
-- When STORAGE_TYPE=Remote: Uses S3 (Cloudflare R2) with presigned URLs
-- When STORAGE_TYPE=Local: Uses local filesystem with direct server routes
+This module implements a dual-mode storage strategy using the StorageManager:
+- When storage type is Remote: Uses S3 (Cloudflare R2) with presigned URLs
+- When storage type is Local: Uses local filesystem with direct server routes
 
 Implementation Considerations:
 1. Performance: Direct presigned URLs eliminate extra HTTP redirects
 2. Architecture: Simpler server-side code without proxy/redirect logic
 3. Native Design: Follows the intended S3/R2 usage pattern
+4. Unified Management: Uses StorageManager for consistent storage type selection
 
 Client Integration Notes:
 - Clients must check URL types returned by /file/generate_urls endpoint
@@ -17,7 +18,7 @@ Client Integration Notes:
 
 API Structure:
 1. /file routes: Handle metadata and URL generation
-   - /file/generate_urls: Creates upload/download URLs for both storage types
+   - /file/generate_urls: Creates upload/download/delete URLs for both storage types
    
 2. /storage routes: Handle direct file operations
    - /storage/upload/{key}: Uploads file to local storage (not used with S3)
@@ -30,15 +31,30 @@ File Path Convention:
 - This creates a hierarchical structure that supports multi-user environments
 
 Client Workflow:
-1. Call /file/generate_urls to get upload/download URLs and content_id
+1. Call /file/generate_urls to get upload/download/delete URLs and content_id
 2. For S3: Use the presigned upload_url directly to upload the file
    For Local: Use the /storage/upload/{key} endpoint with the provided key
 3. Store the download_url for future access
-4. Use /storage/delete/{key} to remove files when needed
+4. For deletion:
+   - S3: Use the presigned delete_url directly to delete the file
+   - Local: Use the delete_url which points to /storage/delete/{key} endpoint
+5. Use /storage/delete/{key} as an alternative server-side deletion method
 
-This design prioritizes performance and architectural simplicity over client API
-consistency. Storage backends can be switched by changing the STORAGE_TYPE
-environment variable, but client code must handle both workflows.
+Storage Management:
+- Storage type is automatically selected by the StorageManager based on DEPLOYMENT_TYPE
+- The StorageManager handles configuration priority and fallback logic
+- Client code remains the same regardless of the storage backend
+- Storage type can be queried via get_storage_info() from the storage module
+
+URL Generation:
+- upload_url: Direct presigned URL for S3, server endpoint for local storage
+- download_url: Direct presigned URL for S3, server endpoint for local storage  
+- delete_url: Direct presigned URL for S3, server endpoint for local storage
+- All URLs have appropriate expiration times (upload/delete: 5min, download: 24h)
+
+This design prioritizes performance and architectural simplicity while providing
+unified storage management. The StorageManager abstracts away configuration
+complexity, ensuring consistent behavior across all components.
 """
 
 import os
@@ -48,6 +64,7 @@ import time
 import logging
 import random
 import string
+from urllib.parse import quote  # 添加URL编码支持
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request, Response, UploadFile, File, Form, Query
@@ -55,7 +72,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
 from utils.config import config
-from storage import S3StorageAdapter, LocalStorageAdapter
+from utils.file_utils import build_content_disposition_header, extract_filename_from_key, validate_filename
+from storage import get_storage
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
 
@@ -63,8 +81,8 @@ from typing import Optional, Dict, Any, Literal
 file_router = APIRouter(prefix="/file", tags=["file"])
 storage_router = APIRouter(prefix="/storage", tags=["storage"])
 
-# 获取存储适配器
-storage_adapter = S3StorageAdapter() if config.get("STORAGE_TYPE") == "Remote" else LocalStorageAdapter()
+# 获取存储适配器 - 使用统一的存储管理器
+storage_adapter = get_storage()
 
 type_header_mapping = {
     "md": "text/markdown", 
@@ -102,21 +120,10 @@ class FileUrlRequest(BaseModel):
     content_name: str
     content_type: Optional[str] = Field(default=None)
 
-    @validator('content_type')
-    def validate_content_type(cls, v, values, **kwargs):
-        # 检查是否缺少content_type
-        if not v and 'content_type' not in kwargs.get('path_params', {}):
-            raise ValueError("缺少必要参数: content_type")
-        
-        # 检查content_type是否有效
-        if v and v not in type_header_mapping:
-            raise ValueError(f"不支持的内容类型: {v}")
-            
-        return v
-
 class FileUrlResponse(BaseModel):
     upload_url: str
     download_url: str
+    delete_url: str
     content_id: str
     content_type_header: str
     expires_at: Dict[str, int]
@@ -147,7 +154,28 @@ async def generate_file_urls(request: Request, content_type: str = None):
         data = await request.json()
         file_request = FileUrlRequest(**data, path_params={'content_type': content_type})
         
-        content_type_header = type_header_mapping.get(content_type, "application/octet-stream") if content_type else file_request.content_type or "application/octet-stream"
+        # 严格验证内容类型
+        final_content_type = content_type or file_request.content_type
+        
+        if not final_content_type:
+            log_error("缺少必要参数: content_type")
+            return JSONResponse(
+                content={"error": "缺少必要参数: content_type"},
+                status_code=400
+            )
+        
+        if final_content_type not in type_header_mapping:
+            log_error(f"不支持的内容类型: {final_content_type}")
+            return JSONResponse(
+                content={
+                    "error": f"不支持的内容类型: {final_content_type}",
+                    "supported_types": list(type_header_mapping.keys()),
+                    "hint": "请使用支持的内容类型之一"
+                },
+                status_code=400
+            )
+        
+        content_type_header = type_header_mapping[final_content_type]
         
         content_id = generate_short_id()
 
@@ -158,21 +186,40 @@ async def generate_file_urls(request: Request, content_type: str = None):
         
         upload_url = storage_adapter.generate_upload_url(key, content_type_header)
         download_url = storage_adapter.generate_download_url(key)
+        delete_url = storage_adapter.generate_delete_url(key)
         
         log_info(f"Generated file URLs for user {file_request.user_id}: {key}")
         return FileUrlResponse(
             upload_url=upload_url,
             download_url=download_url,
+            delete_url=delete_url,
             content_id=content_id,
             content_type_header=content_type_header,
             expires_at={
                 "upload": int(time.time()) + 300,
-                "download": int(time.time()) + 86400
+                "download": int(time.time()) + 86400,
+                "delete": int(time.time()) + 300
             }
         )
     except Exception as e:
         log_error(f"Error generating file URLs: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@global_exception_handler(error_code=4006, error_message="Missing file key parameter")
+@storage_router.delete("/delete")
+async def delete_file_without_key():
+    """处理不带key参数的删除请求 - 提供明确的错误信息"""
+    log_error("删除文件请求缺少必要的key参数")
+    return JSONResponse(
+        content={
+            "error": "缺少必要的文件路径参数",
+            "message": "请使用正确的格式：/storage/delete/{user_id}/{content_id}/{content_name}",
+            "example": "/storage/delete/public/abc123/document.pdf",
+            "hint": "如果您从前端调用此API，请确保URL包含完整的文件路径"
+        },
+        status_code=400
+    )
 
 @global_exception_handler(error_code=4002, error_message="Failed to delete file")
 @storage_router.delete("/delete/{key:path}")
@@ -253,11 +300,17 @@ async def download_file(key: str):
                 status_code=404
             )
         
+        # 获取文件名并处理中文字符编码问题
+        filename = extract_filename_from_key(key)
+        
+        # 构建符合RFC 6266标准的Content-Disposition头
+        content_disposition = build_content_disposition_header(filename)
+        
         return StreamingResponse(
             iter([file_data]),
             media_type=content_type,
             headers={
-                "Content-Disposition": f"attachment; filename={os.path.basename(key)}"
+                "Content-Disposition": content_disposition
             }
         )
     except Exception as e:

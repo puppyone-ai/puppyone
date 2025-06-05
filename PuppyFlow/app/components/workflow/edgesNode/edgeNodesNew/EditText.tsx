@@ -158,7 +158,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] ${isOnConnect && isTargetHandleTouched || activatedEdge === id ? "border-main-orange hover:border-main-orange hover:text-main-orange text-main-orange" : "border-[#CDCDCD] text-[#CDCDCD]"} group ${isOnGeneratingNewNode ? "pointer-events-none" : ""}`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`}
             >
                 Edit <br /> Text
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
@@ -216,7 +216,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
                                 </svg>
                             </div>
                             <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                                Modify Text
+                                Edit Text
                             </div>
                         </div>
                         <div className='flex flex-row gap-[8px] items-center justify-center'>
