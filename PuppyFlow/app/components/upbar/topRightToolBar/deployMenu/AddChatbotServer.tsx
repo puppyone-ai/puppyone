@@ -101,20 +101,60 @@ function DeployAsChatbot({
     }
   }, [selectedFlowId, initializeNodeSelections]);
 
-  // 构建工作流 JSON
+  // 构建工作流 JSON - 按照 useRunAllLogic 的逻辑
   const constructWorkflowJson = () => {
-    const nodes = getNodes();
-    const edges = getEdges();
-
-    const blockNodes = nodes.filter(node => node.type === 'block');
-    const edgeNodes = nodes.filter(node => node.type === 'edge');
-
-    const blockNodesJson = blockNodes.map(node => buildBlockNodeJson(node.id));
-    const edgeNodesJson = edgeNodes.map(node => buildEdgeNodeJson(node.id));
-
+    const allNodes = getNodes();
+    const reactFlowEdges = getEdges();
+    
+    // 创建blocks对象
+    let blocks: { [key: string]: any } = {};
+    let edges: { [key: string]: any } = {};
+    
+    // 定义哪些节点类型属于 block 节点
+    const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+    
+    // 处理所有节点
+    allNodes.forEach(node => {
+      const nodeId = node.id;
+      // 确保 nodeLabel 是字符串类型
+      const nodeLabel = node.data?.label || nodeId;
+      
+      // 根据节点类型决定如何构建JSON
+      if (blockNodeTypes.includes(node.type || '')) {
+        try {
+          // 使用区块节点构建函数
+          const blockJson = buildBlockNodeJson(nodeId);
+          
+          // 确保节点标签正确
+          blocks[nodeId] = {
+            ...blockJson,
+            label: String(nodeLabel) // 确保 label 是字符串
+          };
+        } catch (e) {
+          console.warn(`无法使用blockNodeBuilder构建节点 ${nodeId}:`, e);
+          
+          // 回退到默认行为
+          blocks[nodeId] = {
+            label: String(nodeLabel), // 确保 label 是字符串
+            type: node.type || '',
+            data: {...node.data} // 确保复制数据而不是引用
+          };
+        }
+      } else {
+        // 非 block 节点 (edge节点)
+        try {
+          // 构建边的JSON并添加到edges对象中
+          const edgeJson = buildEdgeNodeJson(nodeId);
+          edges[nodeId] = edgeJson;
+        } catch (e) {
+          console.warn(`无法构建边节点 ${nodeId} 的JSON:`, e);
+        }
+      }
+    });
+    
     return {
-      nodes: [...blockNodesJson, ...edgeNodesJson],
-      edges: edges
+      blocks,
+      edges
     };
   };
 
@@ -134,7 +174,7 @@ function DeployAsChatbot({
       workflow_json: constructWorkflowJson(),
       input: selectedInputs[0].id,
       output: selectedOutputs[0].id,
-      history_id: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+      history: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
       workspace_id: selectedFlowId,
       multi_turn_enabled: chatbotConfig.multiTurn,
       welcome_message: chatbotConfig.welcomeMessage,
