@@ -63,7 +63,7 @@ def get_lite_llm_settings(
     base_url: str = None,
 ) -> Tuple[str, str, str]:
     valid_models = {
-        "gpt-4o": "openai/gpt-4o-2024-08-06",
+        "gpt-4o": "openai/gpt-4o-2024-11-20",
         "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
         "gpt-4.5-preview": "openai/gpt-4.5-preview-2025-02-27",
         "o1": "openai/o1-2024-12-17",
@@ -77,7 +77,7 @@ def get_lite_llm_settings(
         "deepseek-v3": "deepseek/deepseek-chat",
         "deepseek-r1": "deepseek/deepseek-reasoner",
     }
-    valid_model = valid_models.get(model, "openai/gpt-4o-2024-08-06")
+    valid_model = valid_models.get(model, "openai/gpt-4o-2024-11-20")
 
     if valid_model.startswith("openai"):
         key_name = "DEEPBRICKS_API_KEY"

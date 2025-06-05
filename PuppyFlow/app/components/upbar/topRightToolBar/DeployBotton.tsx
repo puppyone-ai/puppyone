@@ -10,7 +10,7 @@ import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
 
 import DeployAsApi from './deployMenu/AddApiServer'
 import DeployAsChatbot from './deployMenu/AddChatbotServer'
-import Dashboard from './deployMenu/Dashboard'
+import Canva from './deployMenu/Canva'
 import DeployedApiDetail from './deployMenu/DeployedApiDetail'
 import DeployedChatbotDetail from './deployMenu/DeployedChatbotDetail'
 
@@ -77,9 +77,9 @@ function DeployBotton() {
       )
     },
     { 
-      id: 'dashboard', 
-      label: 'Deploy as Dashboard', 
-      description: 'Create a visual dashboard', 
+      id: 'canva', 
+      label: 'Deploy as Canva', 
+      description: 'Create a visual canva', 
       disabled: true,
       icon: (
         <svg className="w-5 h-5" fill="#CDCDCD" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
@@ -182,9 +182,9 @@ function DeployBotton() {
             setActivePanel={setActivePanel}
           />
         );
-      case 'dashboard':
+      case 'canva':
         return (
-          <Dashboard
+          <Canva
             setActivePanel={setActivePanel}
           />
         );
@@ -192,6 +192,20 @@ function DeployBotton() {
         return (
           <div className="py-[16px] px-[16px]">
             
+            {/* 无部署服务时的提示 - 移动到顶部 */}
+            {deployedServices.apis.length === 0 && deployedServices.chatbots.length === 0 && (
+              <div className="mb-6">
+                <div className="text-center py-4">
+                  <div className="text-[#808080] text-[12px]">
+                    No deployed services yet
+                  </div>
+                  <div className="text-[#606060] text-[11px] mt-1">
+                    Create your first deployment below
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 已部署的服务列表 - 移动到顶部 */}
             {(deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0) && (
               <div className="mb-6">
@@ -293,7 +307,7 @@ function DeployBotton() {
               </div>
             )}
 
-            {/* 新建部署选项 - 移动到已部署服务下方 */}
+            {/* 新建部署选项 */}
             <div className={`${(deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0) ? 'border-t border-[#404040] pt-4' : ''}`}>
               <h2 className="text-[#CDCDCD] text-[16px] mb-4">Create New Deployment</h2>
               <div className="space-y-3">
@@ -316,20 +330,6 @@ function DeployBotton() {
                 ))}
               </div>
             </div>
-
-            {/* 无部署服务时的提示 - 只在没有已部署服务时显示 */}
-            {deployedServices.apis.length === 0 && deployedServices.chatbots.length === 0 && (
-              <div className="border-t border-[#404040] pt-4 mt-4">
-                <div className="text-center py-4">
-                  <div className="text-[#808080] text-[12px]">
-                    No deployed services yet
-                  </div>
-                  <div className="text-[#606060] text-[11px] mt-1">
-                    Create your first deployment above
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         );
     }

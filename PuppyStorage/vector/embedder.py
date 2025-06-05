@@ -156,9 +156,16 @@ class ModelRegistry:
             # 重置可用提供商
             cls._available_providers = set(cls._providers.keys())
             
-            # 检查是否为本地部署环境
-            is_local_deployment = config.get("DEPLOYMENT_TYPE") == "local"
-            
+            # 通过存储管理器获取部署信息
+            try:
+                # 动态导入避免循环依赖
+                from storage import get_storage_info
+                storage_info = get_storage_info()
+                is_local_deployment = storage_info.get("type") == "local"
+            except ImportError:
+                # 如果存储管理器不可用，回退到配置读取
+                is_local_deployment = config.get("DEPLOYMENT_TYPE") == "local"
+                
             # 如果是本地部署，检查各提供商的可用性
             if is_local_deployment:
                 # OpenAI通常在本地部署中不可用，除非显式配置

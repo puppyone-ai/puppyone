@@ -43,7 +43,7 @@ class ChunkerFactory(EdgeFactoryBase):
             raise ValueError(f"Unsupported Chunking Mode: {chunking_mode} is unsupported!")
 
         chunks = chunking_class(doc).chunk(sub_chunking_mode, extra_configs)
-        return [chunk_dict.to_dict() for chunk_dict in chunks]
+        return [chunk_dict.to_dict().get("content", "") for chunk_dict in chunks]
 
 
 if __name__ == "__main__":
@@ -57,8 +57,11 @@ There are two types of AI: narrow AI and general AI.
 Narrow AI is designed to perform a narrow task like facial recognition.
 General AI, on the other hand, is a form of intelligence that can perform any intellectual task that a human can do.
 """
-    print("LLM Chunking: ", ChunkerFactory.execute(init_configs={"chunking_mode": "llm", "doc": doc, "sub_chunking_mode": "llm"}))
-    print("Auto Chunking -- Text: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": doc, "sub_chunking_mode": "auto"}))
+    print("LLM Chunking: ", ChunkerFactory.execute(
+        init_configs={"chunking_mode": "llm", "doc": doc, "sub_chunking_mode": "llm"},
+        extra_configs={"prompt": None, "model": {"openai/gpt-4o-2024-11-20": {}}}
+    ))
+    print("Simple Chunking -- Text: ", ChunkerFactory.execute(init_configs={"chunking_mode": "simple", "doc": doc, "sub_chunking_mode": "simple"}, extra_configs={}))
 
     json_input = """
 {
@@ -71,7 +74,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     "phones": ["123-4567", "234-5678"]
 }
     """
-    print("Auto Chunking -- JSON 1: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input, "sub_chunking_mode": "auto"}))
+    print("Simple Chunking -- JSON 1: ", ChunkerFactory.execute(init_configs={"chunking_mode": "simple", "doc": json_input, "sub_chunking_mode": "simple"}, extra_configs={}))
     json_input = """
 [{
     "name": "John",
@@ -83,7 +86,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     "phones": ["123-4567", "234-5678"]
 }]
     """
-    print("Auto Chunking -- JSON 2: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input, "sub_chunking_mode": "auto"}))
+    print("Simple Chunking -- JSON 2: ", ChunkerFactory.execute(init_configs={"chunking_mode": "simple", "doc": json_input, "sub_chunking_mode": "simple"}, extra_configs={}))
     json_input = [{
     "name": "John",
     "age": 30,
@@ -93,16 +96,15 @@ General AI, on the other hand, is a form of intelligence that can perform any in
     },
     "phones": ["123-4567", "234-5678"]
 }]
-    print("Auto Chunking -- JSON list: ", ChunkerFactory.execute(init_configs={"chunking_mode": "auto", "doc": json_input, "sub_chunking_mode": "auto"}))
+    print("Simple Chunking -- JSON list: ", ChunkerFactory.execute(init_configs={"chunking_mode": "simple", "doc": json_input, "sub_chunking_mode": "simple"}, extra_configs={}))
 
     documents = "The quick brown fox jumps over the lazy dog. The dog barks at the fox."
     
-    with open("PuppyEngine/developer.md", "r") as f:
+    with open("TestTools/developer.md", "r") as f:
         documents = f.read()
 
-    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "length", "sub_chunking_mode": "size", "doc": documents, "chunk_size": 100, "overlap": 20, "handle_half_word": True})
-    for chunk in chunks:
-        print(chunk)
+    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "length", "sub_chunking_mode": "size", "doc": documents, "chunk_size": 100, "overlap": 20, "handle_half_word": True}, extra_configs={})
+    print("Chunking by size: ", chunks)
 
     # Test for semantic_chunk method
     import numpy as np
@@ -119,13 +121,13 @@ The dog is sleeping under the tree.
     rng = np.random.default_rng(seed=42)
     embeddings = [rng.random(512).tolist() for _ in docs]
     print("Testing with threshold=0.75:")
-    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "semantic", "doc": docs, "docs": doc_list, "embeddings": embeddings, "threshold": 0.75})
+    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "semantic", "doc": docs, "docs": doc_list, "embeddings": embeddings, "threshold": 0.75}, extra_configs={})
     print("chunks 1: ", chunks)
     print("\nTesting with top_k=2:")
-    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "semantic", "doc": docs, "docs": doc_list, "embeddings": embeddings, "top_k": 2})
+    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "semantic", "doc": docs, "docs": doc_list, "embeddings": embeddings, "top_k": 2}, extra_configs={})
     print("chunks 2: ", chunks)
     print("\nTesting with threshold=0.5 and top_k=2:")
-    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "semantic", "doc": docs, "docs": doc_list, "embeddings": embeddings, "threshold": 0.5, "top_k": 2})
+    chunks = ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "semantic", "doc": docs, "docs": doc_list, "embeddings": embeddings, "threshold": 0.5, "top_k": 2}, extra_configs={})
     print("chunks 3: ", chunks)
 
     sample_text = (
@@ -155,19 +157,19 @@ Hi this is Joe
 Hi this is Molly
     """
     print("Recursive Text Splitter:")
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "recursive", "doc": sample_text, "max_length": 50}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "special", "sub_chunking_mode": "recursive", "doc": sample_text, "max_length": 50}, extra_configs={}))
     print("\nToken Splitter:")
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "length", "sub_chunking_mode": "token", "doc": sample_text, "max_tokens": 10}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "length", "sub_chunking_mode": "token", "doc": sample_text, "max_tokens": 10}, extra_configs={}))
     print("\nSplit by User Specified Characters:")
     csv_doc = "Name, Age, Country\nAlice, 30, USA\nBob, 25, UK"
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "character", "sub_chunking_mode": "character", "doc": csv_doc}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "character", "sub_chunking_mode": "character", "doc": csv_doc}, extra_configs={}))
     print("\nHTML Splitter with user-specified tags:")
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "html", "doc": sample_html, "tags": [("h1", "Header 1"), ("h2", "Header 2")]}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "html", "doc": sample_html, "tags": [("h1", "Header 1"), ("h2", "Header 2")]}, extra_configs={}))
     print("\nHTML Splitter with default tags:")
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "html", "doc": sample_html}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "html", "doc": sample_html}, extra_configs={}))
 
     # Test Markdown Splitter with user-specified tags
     print("\nMarkdown Splitter with user-specified tags:")
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "markdown", "doc": sample_markdown, "tags": [("h1", "Header 1"), ("h2", "Header 2")]}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "markdown", "doc": sample_markdown, "tags": [("h1", "Header 1"), ("h2", "Header 2")]}, extra_configs={}))
     print("\nMarkdown Splitter with default tags:")
-    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "markdown", "doc": sample_markdown}))
+    print(ChunkerFactory.execute(init_configs={"chunking_mode": "advanced", "sub_chunking_mode": "markdown", "doc": sample_markdown}, extra_configs={}))
