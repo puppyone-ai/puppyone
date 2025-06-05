@@ -118,18 +118,6 @@ class FileUrlRequest(BaseModel):
     content_name: str
     content_type: Optional[str] = Field(default=None)
 
-    @validator('content_type')
-    def validate_content_type(cls, v, values, **kwargs):
-        # 检查是否缺少content_type
-        if not v and 'content_type' not in kwargs.get('path_params', {}):
-            raise ValueError("缺少必要参数: content_type")
-        
-        # 检查content_type是否有效
-        if v and v not in type_header_mapping:
-            raise ValueError(f"不支持的内容类型: {v}")
-            
-        return v
-
 class FileUrlResponse(BaseModel):
     upload_url: str
     download_url: str
@@ -164,7 +152,28 @@ async def generate_file_urls(request: Request, content_type: str = None):
         data = await request.json()
         file_request = FileUrlRequest(**data, path_params={'content_type': content_type})
         
-        content_type_header = type_header_mapping.get(content_type, "application/octet-stream") if content_type else file_request.content_type or "application/octet-stream"
+        # 严格验证内容类型
+        final_content_type = content_type or file_request.content_type
+        
+        if not final_content_type:
+            log_error("缺少必要参数: content_type")
+            return JSONResponse(
+                content={"error": "缺少必要参数: content_type"},
+                status_code=400
+            )
+        
+        if final_content_type not in type_header_mapping:
+            log_error(f"不支持的内容类型: {final_content_type}")
+            return JSONResponse(
+                content={
+                    "error": f"不支持的内容类型: {final_content_type}",
+                    "supported_types": list(type_header_mapping.keys()),
+                    "hint": "请使用支持的内容类型之一"
+                },
+                status_code=400
+            )
+        
+        content_type_header = type_header_mapping[final_content_type]
         
         content_id = generate_short_id()
 
