@@ -30,7 +30,7 @@ interface ChatbotInfo {
   workspace_id?: string;
   input?: string;
   output?: string;
-  history_id?: string;
+  history?: string;
   multi_turn_enabled?: boolean;
   welcome_message?: string;
 }
