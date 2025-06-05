@@ -12,6 +12,11 @@ class StorageAdapter(ABC):
         pass
 
     @abstractmethod
+    def generate_delete_url(self, key: str, expires_in: int = 300) -> str:
+        """生成删除文件的预签名URL"""
+        pass
+
+    @abstractmethod
     def delete_file(self, key: str) -> bool:
         """删除文件"""
         pass

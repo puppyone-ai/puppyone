@@ -18,7 +18,7 @@ Client Integration Notes:
 
 API Structure:
 1. /file routes: Handle metadata and URL generation
-   - /file/generate_urls: Creates upload/download URLs for both storage types
+   - /file/generate_urls: Creates upload/download/delete URLs for both storage types
    
 2. /storage routes: Handle direct file operations
    - /storage/upload/{key}: Uploads file to local storage (not used with S3)
@@ -31,17 +31,26 @@ File Path Convention:
 - This creates a hierarchical structure that supports multi-user environments
 
 Client Workflow:
-1. Call /file/generate_urls to get upload/download URLs and content_id
+1. Call /file/generate_urls to get upload/download/delete URLs and content_id
 2. For S3: Use the presigned upload_url directly to upload the file
    For Local: Use the /storage/upload/{key} endpoint with the provided key
 3. Store the download_url for future access
-4. Use /storage/delete/{key} to remove files when needed
+4. For deletion:
+   - S3: Use the presigned delete_url directly to delete the file
+   - Local: Use the delete_url which points to /storage/delete/{key} endpoint
+5. Use /storage/delete/{key} as an alternative server-side deletion method
 
 Storage Management:
 - Storage type is automatically selected by the StorageManager based on DEPLOYMENT_TYPE
 - The StorageManager handles configuration priority and fallback logic
 - Client code remains the same regardless of the storage backend
 - Storage type can be queried via get_storage_info() from the storage module
+
+URL Generation:
+- upload_url: Direct presigned URL for S3, server endpoint for local storage
+- download_url: Direct presigned URL for S3, server endpoint for local storage  
+- delete_url: Direct presigned URL for S3, server endpoint for local storage
+- All URLs have appropriate expiration times (upload/delete: 5min, download: 24h)
 
 This design prioritizes performance and architectural simplicity while providing
 unified storage management. The StorageManager abstracts away configuration
@@ -124,6 +133,7 @@ class FileUrlRequest(BaseModel):
 class FileUrlResponse(BaseModel):
     upload_url: str
     download_url: str
+    delete_url: str
     content_id: str
     content_type_header: str
     expires_at: Dict[str, int]
@@ -165,21 +175,40 @@ async def generate_file_urls(request: Request, content_type: str = None):
         
         upload_url = storage_adapter.generate_upload_url(key, content_type_header)
         download_url = storage_adapter.generate_download_url(key)
+        delete_url = storage_adapter.generate_delete_url(key)
         
         log_info(f"Generated file URLs for user {file_request.user_id}: {key}")
         return FileUrlResponse(
             upload_url=upload_url,
             download_url=download_url,
+            delete_url=delete_url,
             content_id=content_id,
             content_type_header=content_type_header,
             expires_at={
                 "upload": int(time.time()) + 300,
-                "download": int(time.time()) + 86400
+                "download": int(time.time()) + 86400,
+                "delete": int(time.time()) + 300
             }
         )
     except Exception as e:
         log_error(f"Error generating file URLs: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+
+@global_exception_handler(error_code=4006, error_message="Missing file key parameter")
+@storage_router.delete("/delete")
+async def delete_file_without_key():
+    """处理不带key参数的删除请求 - 提供明确的错误信息"""
+    log_error("删除文件请求缺少必要的key参数")
+    return JSONResponse(
+        content={
+            "error": "缺少必要的文件路径参数",
+            "message": "请使用正确的格式：/storage/delete/{user_id}/{content_id}/{content_name}",
+            "example": "/storage/delete/public/abc123/document.pdf",
+            "hint": "如果您从前端调用此API，请确保URL包含完整的文件路径"
+        },
+        status_code=400
+    )
 
 @global_exception_handler(error_code=4002, error_message="Failed to delete file")
 @storage_router.delete("/delete/{key:path}")
