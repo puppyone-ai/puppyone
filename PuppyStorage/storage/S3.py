@@ -17,7 +17,7 @@ botocore_logger = logging.getLogger('botocore')
 botocore_logger.setLevel(logging.WARNING)
 
 from utils.config import config
-from utils.logger import log_error, log_info
+from utils.logger import log_error, log_info, log_debug
 from storage.base import StorageAdapter
 
 
@@ -72,6 +72,17 @@ class S3StorageAdapter(StorageAdapter):
             ExpiresIn=expires_in
         )
 
+    def generate_delete_url(self, key: str, expires_in: int = 300) -> str:
+        """生成删除文件的预签名URL"""
+        return self.s3_client.generate_presigned_url(
+            'delete_object',
+            Params={
+                'Bucket': self.bucket,
+                'Key': key
+            },
+            ExpiresIn=expires_in
+        )
+
     def delete_file(self, key: str) -> bool:
         try:
             self.s3_client.delete_object(Bucket=self.bucket, Key=key)
@@ -111,9 +122,14 @@ class S3StorageAdapter(StorageAdapter):
             file_data = response['Body'].read()
             content_type = response.get('ContentType', 'application/octet-stream')
             return file_data, content_type
+        except self.s3_client.exceptions.NoSuchKey:
+            # 文件不存在是正常情况，使用DEBUG级别日志
+            log_debug(f"请求的S3文件不存在: {key}")
+            return None, None
         except Exception as e:
+            # 其他错误才使用ERROR级别日志
             log_error(f"从S3获取文件失败: {str(e)}")
-            return None, None 
+            return None, None
 
 if __name__ == "__main__":
     import unittest
@@ -235,6 +251,15 @@ if __name__ == "__main__":
                 self.assertIn(test_key, download_url, "下载URL不包含文件键")
             except Exception as e:
                 self.fail(f"生成下载URL时出错: {str(e)}")
+            
+            # 生成删除URL
+            try:
+                delete_url = adapter.generate_delete_url(test_key)
+                self.assertIsInstance(delete_url, str, "删除URL不是字符串")
+                self.assertIn(adapter.bucket, delete_url, "删除URL不包含存储桶名称")
+                self.assertIn(test_key, delete_url, "删除URL不包含文件键")
+            except Exception as e:
+                self.fail(f"生成删除URL时出错: {str(e)}")
             
         def test_get_nonexistent_file(self):
             # 测试获取不存在的文件

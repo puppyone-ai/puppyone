@@ -42,6 +42,10 @@ class LocalStorageAdapter(StorageAdapter):
         # 返回一个用于下载文件的URL
         return f"{LOCAL_SERVER_URL}/storage/download/{key}"
 
+    def generate_delete_url(self, key: str, expires_in: int = 300) -> str:
+        """生成删除文件的URL - 本地存储直接返回删除endpoint"""
+        return f"{LOCAL_SERVER_URL}/storage/delete/{key}"
+
     def delete_file(self, key: str) -> bool:
         try:
             file_path = self._get_file_path(key)
