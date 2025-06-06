@@ -1,63 +1,85 @@
 {
-    "blocks": {
-        "rL_T0O": {
-            "label": "rL_T0O",
-            "type": "structured",
-            "data": {
-                "content": [
-                    "野外编程",
-                    "星空下的代码",
-                    "帐篷键盘",
-                    "虫鸣与编译",
-                    "篝火旁的bug",
-                    "月光下的debug",
-                    "露营与commit",
-                    "大自然程序员",
-                    "荒野Wi-Fi",
-                    "草原算法",
-                    "山顶上线",
-                    "森林git仓库",
-                    "自由的加班",
-                    "户外函数",
-                    "溪流的注释",
-                    "风中的变量",
-                    "自然的bug修复",
-                    "激情代码",
-                    "野外创业梦",
-                    "荒野里的灵感"
-                ]
-            },
-            "looped": true,
-            "collection_configs": []
-        },
-        "WqsxUp": {
-            "label": "WqsxUp",
-            "type": "text",
-            "data": {
-                "content": ""
-            }
-        }
-    },
-    "edges": {
-        "searchPerplexity-1748939519957": {
-            "type": "search",
-            "data": {
-                "search_type": "qa",
-                "sub_search_type": "perplexity",
-                "inputs": {
-                    "rL_T0O": "rL_T0O"
-                },
-                "query_id": {
-                    "rL_T0O": "rL_T0O"
-                },
-                "extra_configs": {
-                    "model": {"llama-3.1-sonar-huge-128k-online": {}}
-                },
-                "outputs": {
-                    "WqsxUp": "WqsxUp"
-                }
-            }
-        }
-    }
-}
 
+    "blocks": {
+    
+        "Lm-PbX": {
+    
+            "label": "Text1",
+    
+            "type": "text",
+    
+            "data": {
+    
+                "content": "Introduce yourself within 10 words"
+    
+            },
+    
+            "looped": false,
+    
+            "collection_configs": []
+    
+        },
+    
+        "8vCBOi": {
+    
+            "label": "Text2",
+    
+            "type": "text",
+    
+            "data": {
+    
+                "content": ""
+    
+            }
+    
+        }
+    
+    },
+    
+    "edges": {
+    
+        "searchPerplexity-1749194542384": {
+    
+            "type": "search",
+    
+            "data": {
+    
+                "search_type": "qa",
+    
+                "sub_search_type": "perplexity",
+    
+                "inputs": {
+    
+                    "Lm-PbX": "Text1"
+    
+                },
+    
+                "query_id": {
+    
+                    "Lm-PbX": "Text1"
+    
+                },
+    
+                "extra_configs": {
+    
+                    "model": {
+    
+                        "llama-3.1-sonar-small-128k-online": {}
+    
+                    }
+    
+                },
+    
+                "outputs": {
+    
+                    "8vCBOi": "Text2"
+    
+                }
+    
+            }
+    
+        }
+    
+    }
+    
+    }
