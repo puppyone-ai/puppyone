@@ -2,11 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import ChatbotTestInterface from './ChatbotTestInterface';
 import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
-import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
-import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { useAddNewChatbotServer } from './hook/useAddNewChatbotServer';
 import { SYSTEM_URLS } from '@/config/urls';
-import { ChatBubbleDeployed } from 'puppychat';
 
 interface DeployAsChatbotProps {
   selectedFlowId: string | null;
@@ -43,10 +40,6 @@ function DeployAsChatbot({
   const currentChatbot = deployedServices.chatbots.find(chatbot => chatbot.workspace_id === selectedFlowId);
   const isDeployed = currentChatbot !== null;
 
-  // 使用构建器
-  const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
-  const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
-
   // 统一管理 API Server URL
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
@@ -80,8 +73,9 @@ function DeployAsChatbot({
         label: (node.data.label as string) || node.id
       }));
 
-    setSelectedInputs(allInputNodes);
-    setSelectedOutputs(allOutputNodes);
+    // 修改：只选择第一个输入和输出节点，而不是全选
+    setSelectedInputs(allInputNodes.slice(0, 1)); // 只选择第一个输入节点
+    setSelectedOutputs(allOutputNodes.slice(0, 1)); // 只选择第一个输出节点
     setSelectedChatHistory(allChatHistoryNodes.slice(0, 1)); // 默认选择第一个，聊天历史只允许一个
   };
 
@@ -716,6 +710,9 @@ function DeployAsChatbot({
                     chatbotId={currentChatbot.chatbot_id || ''}
                     apiKey={currentChatbot.chatbot_key || ''}
                     onClose={() => toggleChatbotTest(false)}
+                    input={selectedInputs.length > 0 ? selectedInputs[0].id : undefined}
+                    output={selectedOutputs.length > 0 ? selectedOutputs[0].id : undefined}
+                    history={chatbotConfig.multiTurn && selectedChatHistory.length > 0 ? selectedChatHistory[0].id : undefined}
                   />
                 )}
               </>
