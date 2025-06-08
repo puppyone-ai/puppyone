@@ -145,7 +145,7 @@ export type SearchPerplexityEdgeJsonType = {
         inputs: { [key: string]: string },
         query_id: { [key: string]: string },
         extra_configs: {
-            model: perplexityModelNames
+            model: { [key: string]: { inference_method?: string } }
         },
         outputs: { [key: string]: string }
     },
@@ -805,6 +805,11 @@ export function useEdgeNodeBackEndJsonBuilder() {
             }
         }
         
+        // 构建model对象，与LLM节点保持一致的结构
+        const modelObject: { [key: string]: { inference_method?: string } } = {
+            [perplexityModel]: {}
+        };
+        
         return {
             type: "search",
             data: {
@@ -815,7 +820,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
                     ? { [sourceNodes[0].id]: sourceNodes[0].label }
                     : {},
                 extra_configs: {
-                    model: perplexityModel
+                    model: modelObject
                 },
                 outputs: Object.fromEntries(targetNodes.map(node => ([node.id, node.label])))
             },
