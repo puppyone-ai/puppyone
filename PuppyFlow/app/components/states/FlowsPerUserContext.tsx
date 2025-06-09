@@ -1,6 +1,6 @@
 // This context is used to store all workflows per user
 
-import React, { createContext, useContext, useState, ReactElement, useEffect } from "react";
+import React, { createContext, useContext, useState, ReactElement, useEffect, useCallback } from "react";
 import { Node, Edge } from "@xyflow/react";
 import useManageUserWorkspacesUtils from '../hooks/useManageUserWorkSpacesUtils'
 import useJsonConstructUtils from '../hooks/useJsonConstructUtils'
@@ -378,25 +378,144 @@ const FlowsPerUserProps = () => {
         });
     };
 
-    // 修改初始化加载工作区数据的部分
+    // 🔥 优化：添加工作区更新的回调函数，减少重复代码
+    const updateWorkspaceHistory = useCallback((index: number, workspaceId: string, history: any) => {
+        setWorkspaces(prevWorkspaces => {
+            // 检查是否真的需要更新，避免不必要的重渲染
+            if (prevWorkspaces[index]?.latestJson === history) {
+                return prevWorkspaces; // 返回相同引用，避免重渲染
+            }
+            
+            const newWorkspaces = [...prevWorkspaces];
+            if (newWorkspaces[index]) {
+                newWorkspaces[index] = {
+                    ...newWorkspaces[index],
+                    latestJson: history
+                };
+            }
+            return newWorkspaces;
+        });
+    }, []);
+
+    // 🔥 可选：并发限制版本 - 适用于工作区数量很多的情况
+    const fetchWorkspaceHistoriesWithLimit = useCallback(async (
+        workspaces: Array<{workspace_id: string, workspace_name: string}>, 
+        concurrencyLimit: number = 5
+    ) => {
+        const results: Array<{
+            success: boolean;
+            workspaceId: string;
+            workspaceName: string;
+            hasHistory?: boolean;
+            error?: string;
+            duration: number;
+        }> = [];
+        
+        let completedCount = 0;
+        let successCount = 0;
+        const totalCount = workspaces.length;
+        let firstWorkspaceLoaded = false;
+        
+        // 分批处理
+        for (let i = 0; i < workspaces.length; i += concurrencyLimit) {
+            const batch = workspaces.slice(i, i + concurrencyLimit);
+            console.log(`🔄 处理批次 ${Math.floor(i / concurrencyLimit) + 1}/${Math.ceil(workspaces.length / concurrencyLimit)}，包含 ${batch.length} 个工作区`);
+            
+            const batchPromises = batch.map(async (workspace, batchIndex) => {
+                const actualIndex = i + batchIndex;
+                const singleStartTime = performance.now();
+                
+                try {
+                    const latestHistory = await fetchLatestWorkspaceHistory(
+                        workspace.workspace_id, 
+                        isLocalDeployment
+                    );
+                    
+                    const singleEndTime = performance.now();
+                    completedCount++;
+                    
+                    if (latestHistory) {
+                        successCount++;
+                        console.log(
+                            `✅ [${completedCount}/${totalCount}] 工作区 "${workspace.workspace_name}" 获取成功，耗时: ${(singleEndTime - singleStartTime).toFixed(2)}ms`
+                        );
+
+                        // 立即更新状态
+                        updateWorkspaceHistory(actualIndex, workspace.workspace_id, latestHistory);
+
+                        // 如果是第一个工作区且还没有加载过，立即更新显示
+                        if (actualIndex === 0 && !firstWorkspaceLoaded) {
+                            firstWorkspaceLoaded = true;
+                            console.log("🎯 更新第一个工作区显示");
+                            updateFlowDisplay(latestHistory);
+                        }
+                    } else {
+                        console.log(
+                            `⚠️ [${completedCount}/${totalCount}] 工作区 "${workspace.workspace_name}" 无历史记录，耗时: ${(singleEndTime - singleStartTime).toFixed(2)}ms`
+                        );
+                    }
+
+                    return {
+                        success: true,
+                        workspaceId: workspace.workspace_id,
+                        workspaceName: workspace.workspace_name,
+                        hasHistory: !!latestHistory,
+                        duration: singleEndTime - singleStartTime
+                    };
+                } catch (error) {
+                    const singleEndTime = performance.now();
+                    completedCount++;
+                    
+                    console.error(
+                        `❌ [${completedCount}/${totalCount}] 工作区 "${workspace.workspace_name}" 获取失败，耗时: ${(singleEndTime - singleStartTime).toFixed(2)}ms`, 
+                        error
+                    );
+                    
+                    return {
+                        success: false,
+                        workspaceId: workspace.workspace_id,
+                        workspaceName: workspace.workspace_name,
+                        error: error instanceof Error ? error.message : String(error),
+                        duration: singleEndTime - singleStartTime
+                    };
+                }
+            });
+            
+            const batchResults = await Promise.all(batchPromises);
+            results.push(...batchResults);
+            
+            // 可选：添加批次间的小延迟，避免服务器压力过大
+            if (i + concurrencyLimit < workspaces.length) {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+        
+        return results;
+    }, [updateWorkspaceHistory, isLocalDeployment]);
+
+    // 修改初始化加载工作区数据的部分 - 优化版本
     useEffect(() => {
         const initializeWorkspaces = async () => {
             try {
-                console.log("Starting workspace initialization...");
+                console.log("🚀 开始工作区初始化...");
+                const totalStartTime = performance.now();
 
+                // 1. 获取基础数据
+                const dataStartTime = performance.now();
                 const data = await initializeUserDataV2() as InitialUserData;
-                console.log("Received initial data:", data);
+                const dataEndTime = performance.now();
+                console.log(`📊 基础数据获取耗时: ${(dataEndTime - dataStartTime).toFixed(2)}ms`);
 
                 if (!data || !data.workspaces.length) {
-                    console.log("No workspaces found");
+                    console.log("❌ 没有找到工作区");
                     return;
                 }
 
-                // 设置用户信息
+                // 2. 设置用户信息和基础工作区数据
+                const setupStartTime = performance.now();
                 setUserId(data.user_id);
                 setUserName(data.user_name);
 
-                // 先设置基础工作区数据
                 const initialWorkspaces = data.workspaces.map((workspace) => ({
                     flowId: workspace.workspace_id,
                     flowTitle: workspace.workspace_name,
@@ -406,37 +525,140 @@ const FlowsPerUserProps = () => {
 
                 setWorkspaces(initialWorkspaces);
                 setSelectedFlowId(data.workspaces[0].workspace_id);
+                const setupEndTime = performance.now();
+                console.log(`🔧 基础设置耗时: ${(setupEndTime - setupStartTime).toFixed(2)}ms`);
 
-                // 并行获取所有工作区的历史记录
-                const historyPromises = data.workspaces.map(async (workspace, index) => {
-                    // 根据部署类型选择不同的获取方式
-                    const latestHistory = await fetchLatestWorkspaceHistory(workspace.workspace_id, isLocalDeployment);
+                // 3. 🔥 优化：真正的并发流式更新 - 每个请求返回后立即更新
+                console.log(`🔄 开始并发获取 ${data.workspaces.length} 个工作区的历史记录...`);
+                const historyStartTime = performance.now();
+                
+                // 🔧 配置选项：根据工作区数量选择策略
+                const CONCURRENCY_THRESHOLD = 10; // 超过10个工作区时使用限制并发
+                const CONCURRENCY_LIMIT = 5; // 并发限制数量
+                const useLimitedConcurrency = data.workspaces.length > CONCURRENCY_THRESHOLD;
+                
+                let results: Array<{
+                    success: boolean;
+                    workspaceId: string;
+                    workspaceName: string;
+                    hasHistory?: boolean;
+                    error?: string;
+                    duration: number;
+                }>;
 
-                    if (latestHistory) {
-                        setWorkspaces(prevWorkspaces => {
-                            const newWorkspaces = [...prevWorkspaces];
-                            newWorkspaces[index] = {
-                                ...newWorkspaces[index],
-                                latestJson: latestHistory
-                            };
-                            if (workspace.workspace_id === data.workspaces[0].workspace_id) {
-                                updateFlowDisplay(latestHistory);
+                if (useLimitedConcurrency) {
+                    console.log(`📊 工作区数量 (${data.workspaces.length}) 超过阈值 (${CONCURRENCY_THRESHOLD})，使用限制并发模式 (${CONCURRENCY_LIMIT})`);
+                    results = await fetchWorkspaceHistoriesWithLimit(data.workspaces, CONCURRENCY_LIMIT);
+                } else {
+                    console.log(`📊 工作区数量 (${data.workspaces.length}) 较少，使用完全并发模式`);
+                    
+                    let completedCount = 0;
+                    let successCount = 0;
+                    const totalCount = data.workspaces.length;
+                    let firstWorkspaceLoaded = false;
+
+                    // 创建所有并发请求，每个完成后立即更新状态
+                    const historyPromises = data.workspaces.map(async (workspace, index) => {
+                        const singleStartTime = performance.now();
+                        
+                        try {
+                            const latestHistory = await fetchLatestWorkspaceHistory(
+                                workspace.workspace_id, 
+                                isLocalDeployment
+                            );
+                            
+                            const singleEndTime = performance.now();
+                            completedCount++;
+                            
+                            if (latestHistory) {
+                                successCount++;
+                                console.log(
+                                    `✅ [${completedCount}/${totalCount}] 工作区 "${workspace.workspace_name}" 获取成功，耗时: ${(singleEndTime - singleStartTime).toFixed(2)}ms`
+                                );
+
+                                // 🔥 立即更新状态，不等待其他请求
+                                updateWorkspaceHistory(index, workspace.workspace_id, latestHistory);
+
+                                // 如果是第一个工作区且还没有加载过，立即更新显示
+                                if (workspace.workspace_id === data.workspaces[0].workspace_id && !firstWorkspaceLoaded) {
+                                    firstWorkspaceLoaded = true;
+                                    console.log("🎯 更新第一个工作区显示");
+                                    updateFlowDisplay(latestHistory);
+                                }
+                            } else {
+                                console.log(
+                                    `⚠️ [${completedCount}/${totalCount}] 工作区 "${workspace.workspace_name}" 无历史记录，耗时: ${(singleEndTime - singleStartTime).toFixed(2)}ms`
+                                );
                             }
-                            return newWorkspaces;
-                        });
-                    }
-                });
 
-                await Promise.all(historyPromises);
-                console.log("All workspace histories fetched");
+                            return { 
+                                success: true, 
+                                workspaceId: workspace.workspace_id, 
+                                workspaceName: workspace.workspace_name,
+                                hasHistory: !!latestHistory,
+                                duration: singleEndTime - singleStartTime
+                            };
+                            
+                        } catch (error) {
+                            const singleEndTime = performance.now();
+                            completedCount++;
+                            
+                            console.error(
+                                `❌ [${completedCount}/${totalCount}] 工作区 "${workspace.workspace_name}" 获取失败，耗时: ${(singleEndTime - singleStartTime).toFixed(2)}ms`, 
+                                error
+                            );
+                            
+                            return { 
+                                success: false, 
+                                workspaceId: workspace.workspace_id, 
+                                workspaceName: workspace.workspace_name,
+                                error: error instanceof Error ? error.message : String(error),
+                                duration: singleEndTime - singleStartTime
+                            };
+                        }
+                    });
+
+                    // 等待所有请求完成
+                    results = await Promise.all(historyPromises);
+                }
+                
+                const historyEndTime = performance.now();
+                const totalHistoryTime = historyEndTime - historyStartTime;
+                const avgTime = results.reduce((sum, r) => sum + r.duration, 0) / results.length;
+                const maxTime = Math.max(...results.map(r => r.duration));
+                const minTime = Math.min(...results.map(r => r.duration));
+
+                // 统计信息
+                const successCount = results.filter(r => r.success).length;
+                const failedWorkspaces = results.filter(r => !r.success);
+                const workspacesWithHistory = results.filter(r => r.success && r.hasHistory).length;
+                
+                console.log(`🎉 工作区历史记录获取完成！`);
+                console.log(`📈 统计信息:`);
+                console.log(`   - 成功: ${successCount}/${results.length}`);
+                console.log(`   - 有历史记录: ${workspacesWithHistory}/${results.length}`);
+                console.log(`   - 总耗时: ${totalHistoryTime.toFixed(2)}ms`);
+                console.log(`   - 平均耗时: ${avgTime.toFixed(2)}ms`);
+                console.log(`   - 最快: ${minTime.toFixed(2)}ms`);
+                console.log(`   - 最慢: ${maxTime.toFixed(2)}ms`);
+                
+                if (failedWorkspaces.length > 0) {
+                    console.warn(`⚠️ 失败的工作区:`, failedWorkspaces.map(w => w.workspaceName));
+                }
+
+                const totalEndTime = performance.now();
+                console.log(`🏁 工作区初始化完成，总耗时: ${(totalEndTime - totalStartTime).toFixed(2)}ms`);
 
             } catch (error) {
-                console.error("Error initializing workspaces:", error);
+                console.error("💥 工作区初始化失败:", error);
+                // 即使初始化失败，也要确保基本的UI状态
+                setWorkspaces([]);
+                setSelectedFlowId(null);
             }
         };
 
         initializeWorkspaces();
-    }, []);
+    }, [updateWorkspaceHistory, isLocalDeployment]); // 添加依赖项
 
     // 添加一个更新显示的辅助函数
     const updateFlowDisplay = (history: any) => {
