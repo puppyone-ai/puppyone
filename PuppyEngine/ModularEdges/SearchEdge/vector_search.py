@@ -30,7 +30,6 @@ class VectorRetrievalStrategy(BaseRetriever):
 
         # Handle multiple collection configs
         data_sources = self.extra_configs.get("data_source", [])
-        print("Data source: ", data_sources)
         if not data_sources:
             raise ValueError("No data sources provided")
 
