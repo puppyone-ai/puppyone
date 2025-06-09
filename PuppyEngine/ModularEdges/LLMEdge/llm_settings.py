@@ -38,6 +38,15 @@ open_router_supported_models = [
     "anthropic/claude-3.5-haiku",
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3.7-sonnet",
+    "perplexity/sonar-reasoning-pro",
+    "perplexity/sonar-pro",
+    "perplexity/sonar-deep-research"
+    "perplexity/r1-1776",
+    "perplexity/sonar-reasoning",
+    "perplexity/sonar",
+    "perplexity/llama-3.1-sonar-large-128k-online",
+    "perplexity/llama-3-sonar-large-32k-online",
+    "perplexity/llama-3-sonar-small-32k-online",
 ]
 
 local_supported_models = [
