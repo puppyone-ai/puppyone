@@ -53,6 +53,7 @@ import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
+import AgenticBlockNode from './blockNode/AgenticBlockNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 
@@ -78,6 +79,7 @@ const nodeTypes = {
   'generate': Generate,
   'load': Load,
   'group': GroupNode,
+  'agentic': AgenticBlockNode,
 }
 
 const edgeTypes = {

@@ -10,7 +10,7 @@ export type nodeSmallProps = {
   nodeType: string,
 }
 
-type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1" | "Groupsub1"
+type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1" | "Groupsub1" | "Agenticsub1"
 
 function AddNodeButton() {
   const [selectedMenu, setSelectedMenu] = useState(0)
@@ -135,6 +135,31 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
     if (mousePosition) {
       console.log("mousePosition will be set", mousePosition)
       const defaultNodeContent = node.nodeType === "switch" ? "OFF" : ""
+      
+      // 为agentic节点设置特殊的默认数据
+      const defaultNodeData = node.nodeType === "agentic" ? {
+        label: node.nodeid,
+        state: 'idle' as const,
+        lastMoveDirection: null,
+        moveCount: 0,
+        decisionInterval: 3000, // 3秒间隔
+        behaviorMode: 'explorer' as const, // 默认为探索模式
+        memory: [], // 空的访问记录
+        interests: ['AI', '智能', 'data', '数据', 'text', '文本', 'code', '代码'], // 默认兴趣关键词
+        modeHistory: [], // 模式切换历史
+        lastModeSwitch: Date.now(), // 最后一次模式切换时间
+        frustrationLevel: 0, // 挫折感水平 (0-1)
+        explorationProgress: 0, // 探索进度 (0-1)
+      } : {
+        content: defaultNodeContent,
+        label: node.nodeid,
+        isLoading: false,
+        locked: false,
+        isInput: false,
+        isOutput: false,
+        editable: false,
+      }
+      
       new Promise(resolve => {
         setNodes(prevNodes => {
             resolve(null);  // 在状态更新完成后解析 Promise
@@ -143,15 +168,7 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                 {
                     id: node.nodeid,
                     position: mousePosition,
-                    data: { 
-                      content: defaultNodeContent,
-                      label: node.nodeid,
-                      isLoading: false,
-                      locked: false,
-                      isInput: false,
-                      isOutput: false,
-                      editable: false,
-                     },
+                    data: defaultNodeData,
                     type: node.nodeType,
                 }
             ];
@@ -194,6 +211,9 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
         break
       case 'Groupsub1':
         value = 6
+        break
+      case 'Agenticsub1':
+        value = 7
         break
       default:
         value = -1
@@ -261,6 +281,21 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="3" y="3" width="18" height="18" rx="2" stroke="#9B7EDB" strokeWidth="1.5" strokeDasharray="4 4"/>
               <rect x="7" y="7" width="10" height="10" rx="1" fill="#9B7EDB" fillOpacity="0.2"/>
+            </svg>
+          );
+        case "agentic":
+          return (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="agenticGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#10B981" />
+                  <stop offset="50%" stopColor="#3B82F6" />
+                  <stop offset="100%" stopColor="#8B5CF6" />
+                </linearGradient>
+              </defs>
+              <circle cx="12" cy="12" r="9" stroke="url(#agenticGradient)" strokeWidth="1.5" fill="none"/>
+              <circle cx="12" cy="12" r="3" fill="url(#agenticGradient)" fillOpacity="0.6"/>
+              <path d="M12 3v6M21 12h-6M12 21v-6M3 12h6" stroke="url(#agenticGradient)" strokeWidth="1.5"/>
             </svg>
           );
         default:
@@ -433,6 +468,48 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
               <div className='flex flex-col items-start relative'>
                 <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>Group</div>
                 <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>Group nodes</div>
+              </div>
+            </button>
+          </div>
+
+          {/* Fourth Section Title */}
+          <div className="flex items-center gap-3 px-2 group mt-1">
+            <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-green-500"></div>
+              AI Agents
+            </span>
+            <div className="h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50"></div>
+          </div>
+
+          {/* Fourth Row - AI Agent Elements */}
+          <div className="grid grid-cols-2 gap-[12px] px-1">
+            <button 
+              className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`} 
+              onMouseEnter={() => {manageNodeMenuSubMenu("Agenticsub1")}}
+              onMouseLeave={() => {manageNodeMenuSubMenu(null)}}
+              onClick={(event)=> {
+                event.preventDefault()
+                event.stopPropagation()
+                handleMouseDown("agentic")
+              }}>
+              <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 via-blue-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner relative'>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="agenticMenuGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#10B981" />
+                      <stop offset="50%" stopColor="#3B82F6" />
+                      <stop offset="100%" stopColor="#8B5CF6" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="12" cy="12" r="9" stroke="url(#agenticMenuGradient)" strokeWidth="1.5" fill="none"/>
+                  <circle cx="12" cy="12" r="3" fill="url(#agenticMenuGradient)" fillOpacity="0.6"/>
+                  <path d="M12 3v6M21 12h-6M12 21v-6M3 12h6" stroke="url(#agenticMenuGradient)" strokeWidth="1.5"/>
+                </svg>
+              </div>
+              <div className='flex flex-col items-start relative'>
+                <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>Agentic Block</div>
+                <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>Self-moving AI</div>
               </div>
             </button>
           </div>
