@@ -53,12 +53,14 @@ export type ConstructedLLMJsonData = {
 }
 
 function LLM({ isConnectable, id }: LLMConfigNodeProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+    const { isOnConnect, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll, isEdgeActivated, inactivateEdge } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
+    const [borderColor, setBorderColor] = useState("#CDCDCD")
     const { getNode, setNodes } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
+    const [isClicked, setIsClicked] = useState(false)
     
     // 使用 AppSettingsContext
     const { availableModels, isLocalDeployment } = useAppSettings()
@@ -254,7 +256,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         }
 
         return () => {
-            if (activatedEdge === id) {
+            if (isEdgeActivated(id)) {
                 clearEdgeActivation()
             }
         }
@@ -262,15 +264,40 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
 
     // UI 交互函数
     const onClickButton = () => {
-        setIsMenuOpen(!isMenuOpen)
-
         if (isOnGeneratingNewNode) return
-        if (activatedEdge === id) {
-            clearEdgeActivation()
-        }
-        else {
+        
+        // 单击只激活节点，不切换菜单状态
+        if (!isEdgeActivated(id)) {
             clearAll()
             activateEdge(id)
+        }
+        setIsClicked(true)
+    }
+
+    const onDoubleClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 双击切换菜单状态
+        setIsMenuOpen(!isMenuOpen)
+        
+        // 确保节点保持激活状态
+        if (!isEdgeActivated(id)) {
+            clearAll()
+            activateEdge(id)
+        }
+        setIsClicked(true)
+    }
+
+    const onMouseEnter = () => {
+        if (isOnGeneratingNewNode) return
+        activateEdge(id)
+    }
+
+    const onMouseLeave = () => {
+        if (isOnGeneratingNewNode) return
+        // 只有在不是菜单打开状态且节点未被点击时才失活
+        if (!isMenuOpen && !isClicked) {
+            inactivateEdge(id)
         }
     }
 
@@ -342,6 +369,43 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         onMaxTokensChange(maxTokens)
     }, [maxTokens])
 
+    // 边框颜色管理
+    useEffect(() => {
+        if (isEdgeActivated(id)) {
+            setBorderColor("#4599DF"); // 激活时使用蓝色，与block节点一致
+        } else {
+            setBorderColor(isOnConnect && isTargetHandleTouched ? "#FFA73D" : "#CDCDCD");
+        }
+    }, [isEdgeActivated, isOnConnect, isTargetHandleTouched, id]);
+
+    useEffect(() => {
+        if (!isOnGeneratingNewNode) {
+            clearAll()
+            activateEdge(id)
+        }
+
+        return () => {
+            if (isEdgeActivated(id)) {
+                clearEdgeActivation()
+            }
+        }
+    }, [])
+
+    // 监听重置状态事件
+    useEffect(() => {
+        const handleResetState = (event: CustomEvent<{ closeMenu: boolean }>) => {
+            setIsClicked(false)
+            if (event.detail.closeMenu) {
+                setIsMenuOpen(false)
+            }
+        }
+        window.addEventListener('resetEdgeState', handleResetState as EventListener)
+        return () => {
+            window.removeEventListener('resetEdgeState', handleResetState as EventListener)
+            setIsClicked(false)
+        }
+    }, [])
+
     // 在组件顶部定义共享样式
     const handleStyle = {
         position: "absolute" as const,
@@ -361,7 +425,11 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
             {/* Main button */}
             <button
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`}
+                onDoubleClick={onDoubleClickButton}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                style={{ borderColor }}
             >
                 LLM
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />

@@ -33,36 +33,98 @@ export type LoadOperationApiPayload = {
 type LoadConfigNodeProps = NodeProps<Node<LoadNodeFrontendConfig>>
 
 function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+    const { isOnConnect, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll, isEdgeActivated, inactivateEdge } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode } = useReactFlow()
-    const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [borderColor, setBorderColor] = useState("#CDCDCD")
+    const { getNode, setNodes } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
-    
-    // 使用 BaseEdgeNodeLogic，注意这里不需要自定义 constructJsonData，因为我们在 useEdgeNodeBackEndJsonBuilder 中添加了 Load 节点的处理
-    const { 
-        isLoading,
-        handleDataSubmit 
-    } = useBaseEdgeNodeLogic({
+    const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const menuRef = useRef<HTMLUListElement>(null)
+    const [isClicked, setIsClicked] = useState(false)
+
+    // 使用钩子处理执行逻辑
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
         parentId: id,
-        targetNodeType: 'structured', // Load 节点默认产生 structured 类型的输出
+        targetNodeType: "text"
     });
-    
-    // 初始化和清理
+
+    // 边框颜色管理
+    useEffect(() => {
+        if (isEdgeActivated(id)) {
+            setBorderColor("#4599DF"); // 激活时使用蓝色，与block节点一致
+        } else {
+            setBorderColor(isOnConnect && isTargetHandleTouched ? "#FFA73D" : "#CDCDCD");
+        }
+    }, [isEdgeActivated, isOnConnect, isTargetHandleTouched, id]);
+
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
         }
-        
+
         return () => {
-            if (activatedEdge === id) {
+            if (isEdgeActivated(id)) {
                 clearEdgeActivation()
             }
         }
     }, [])
-    
-    // 定义共享样式
+
+    const onClickButton = (event: React.MouseEvent) => {
+        if (isOnGeneratingNewNode) return
+        
+        // 单击只激活节点，不切换菜单状态
+        if (!isEdgeActivated(id)) {
+            // 如果是按住Ctrl键点击，则添加到选择中
+            const isCtrlPressed = event.ctrlKey || event.metaKey;
+            activateEdge(id, isCtrlPressed);
+        }
+        setIsClicked(true)
+    }
+
+    const onDoubleClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 双击切换菜单状态
+        setIsMenuOpen(!isMenuOpen)
+        
+        // 确保节点保持激活状态
+        if (!isEdgeActivated(id)) {
+            clearAll()
+            activateEdge(id)
+        }
+        setIsClicked(true)
+    }
+
+    const onMouseEnter = () => {
+        if (isOnGeneratingNewNode) return
+        activateEdge(id)
+    }
+
+    const onMouseLeave = () => {
+        if (isOnGeneratingNewNode) return
+        // 只有在不是菜单打开状态且节点未被点击时才失活
+        if (!isMenuOpen && !isClicked) {
+            inactivateEdge(id)
+        }
+    }
+
+    // 监听重置状态事件
+    useEffect(() => {
+        const handleResetState = (event: CustomEvent<{ closeMenu: boolean }>) => {
+            setIsClicked(false)
+            if (event.detail.closeMenu) {
+                setIsMenuOpen(false)
+            }
+        }
+        window.addEventListener('resetEdgeState', handleResetState as EventListener)
+        return () => {
+            window.removeEventListener('resetEdgeState', handleResetState as EventListener)
+            setIsClicked(false)
+        }
+    }, [])
+
+    // 在组件顶部定义共享样式
     const handleStyle = {
         position: "absolute" as const,
         width: "calc(100%)",
@@ -80,8 +142,12 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
         <div className='p-[3px] w-[80px] h-[48px]'>
             {/* Main node button */}
             <button 
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                onClick={onClickButton}
+                onDoubleClick={onDoubleClickButton}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                style={{ borderColor }}
                 title="Load Node"
             >
                 Load

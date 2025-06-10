@@ -3,16 +3,27 @@ import { useReactFlow, Position } from '@xyflow/react'
 import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils'
 
 export type nodesPerFlowContextType = {
-    activatedNode: {id: string, HandlePosition: Position | null} | null, 
-    activatedEdge: string | null,
+    activatedNodes: Set<string>,
+    activatedEdges: Set<string>,
+    activatedHandle: {nodeId: string, position: Position} | null,
     preventInactivated: boolean, 
     isOnConnect: boolean, 
     isOnGeneratingNewNode: boolean,
-    activateNode: (nodeId: string) => void, 
+    activateNode: (nodeId: string, addToSelection?: boolean, byHover?: boolean) => void,
     inactivateNode: (nodeId: string) => void,
-    // clearNodeActivation: () => void,
-    activateEdge: (edgeId: string) => void,
+    activateMultipleNodes: (nodeIds: string[]) => void,
+    inactivateMultipleNodes: (nodeIds: string[]) => void,
+    isNodeActivated: (nodeId: string) => boolean,
+    clearNodeActivation: () => void,
+    toggleNodeActivation: (nodeId: string) => void,
+    activateEdge: (edgeId: string, addToSelection?: boolean) => void,
+    inactivateEdge: (edgeId: string) => void,
+    activateMultipleEdges: (edgeIds: string[]) => void,
+    inactivateMultipleEdges: (edgeIds: string[]) => void,
+    isEdgeActivated: (edgeId: string) => boolean,
     clearEdgeActivation: () => void,
+    isHandleActivated: (nodeId: string, position: Position) => boolean,
+    clearHandleActivation: () => void,
     clearAll: () => void, 
     generateNewNode: () => void,
     finishGeneratingNewNode: () => void,
@@ -26,21 +37,31 @@ export type nodesPerFlowContextType = {
     setNodeEditable: (nodeId: string) => void, 
     setNodeUneditable: (nodeId: string) => void, 
     editNodeLabel: (nodeId: string, newLabel: string) => void, 
-    // showNodeEditableState: (nodeId: string) => void, 
     setHandleActivated: (nodeId: string, handlePosition: Position | null) => void
 }
 
 const initialNodesPerFlowContext: nodesPerFlowContextType = {
-    activatedNode: null, 
-    activatedEdge: null,
+    activatedNodes: new Set<string>(), 
+    activatedEdges: new Set<string>(),
+    activatedHandle: null,
     preventInactivated: false, 
     isOnConnect: false, 
     isOnGeneratingNewNode: false,
-    activateNode: (nodeId: string) => {}, 
+    activateNode: (nodeId: string, addToSelection?: boolean, byHover?: boolean) => {}, 
     inactivateNode: (nodeId: string) => {}, 
-    // clearNodeActivation: () => {},
-    activateEdge: (edgeId: string) => {},
+    activateMultipleNodes: (nodeIds: string[]) => {},
+    inactivateMultipleNodes: (nodeIds: string[]) => {},
+    isNodeActivated: (nodeId: string) => false,
+    clearNodeActivation: () => {},
+    toggleNodeActivation: (nodeId: string) => {},
+    activateEdge: (edgeId: string, addToSelection?: boolean) => {},
+    inactivateEdge: (edgeId: string) => {},
+    activateMultipleEdges: (edgeIds: string[]) => {},
+    inactivateMultipleEdges: (edgeIds: string[]) => {},
+    isEdgeActivated: (edgeId: string) => false,
     clearEdgeActivation: () => {},
+    isHandleActivated: (nodeId: string, position: Position) => false,
+    clearHandleActivation: () => {},
     clearAll: () => {}, 
     generateNewNode: () => {},
     finishGeneratingNewNode: () => {},
@@ -54,70 +75,156 @@ const initialNodesPerFlowContext: nodesPerFlowContextType = {
     setNodeEditable: (nodeId: string) => {}, 
     setNodeUneditable: (nodeId: string) => {}, 
     editNodeLabel: (nodeId: string, newLabel: string) => {}, 
-    // showNodeEditableState: (nodeId: string) => {}, 
     setHandleActivated: (nodeId: string, handlePosition: Position | null) => {}
-
 }
 
 export const NodesPerFlowContext = createContext<nodesPerFlowContextType>(initialNodesPerFlowContext)
 
 export function NodesPerFlowUtils() {
-    const [activatedNode, setActivatedNode] = useState<{id: string, HandlePosition: Position | null} | null>(null)
-    const [activatedEdge, setActivatedEdge] = useState<string | null>(null)
+    const [activatedNodes, setActivatedNodes] = useState<Set<string>>(new Set<string>())
+    const [activatedEdges, setActivatedEdges] = useState<Set<string>>(new Set<string>())
+    const [activatedHandle, setActivatedHandle] = useState<{nodeId: string, position: Position} | null>(null)
     const [preventInactivated, setPreventInactivated] = useState(false)
     const [isOnConnect, setIsOnConnect] = useState(false)
     const [isOnGeneratingNewNode, setIsOnGeneratingNewNode] = useState(false)
     const {getNode, setNodes} = useReactFlow()
     const {judgeNodeIsEdgeNode} = useManageReactFlowUtils()
 
-    // useEffect(() => {
-    //     console.log(activatedNode, "activatedNode")
-    // }, [activatedNode])
+    // 检查节点是否已激活
+    const isNodeActivated = useCallback((nodeId: string): boolean => {
+        return activatedNodes.has(nodeId)
+    }, [activatedNodes])
 
-    const activateNode = (nodeId: string) => {
-        // console.log(activatedNode, nodeId, "activate node")
-        if (activatedNode?.id === nodeId) return
-        if (judgeNodeIsEdgeNode(nodeId)) return
+    // 激活单个节点
+    const activateNode = useCallback((nodeId: string, addToSelection: boolean = false, byHover: boolean = false) => {
         if (isOnGeneratingNewNode) return
         if (!isOnConnect) {
-            // console.log(nodeId, "activate node hihi")
-            setActivatedNode({id: nodeId, HandlePosition: null})
-            // setNodes(nodes => nodes.map(node => node.id !== nodeId ? {...node, data: {...node.data, ActiveHandle: null}} : node))
-            setPreventInactivated(false)
+            setActivatedNodes(prev => {
+                const newSet = addToSelection ? new Set(prev) : new Set<string>()
+                newSet.add(nodeId)
+                return newSet
+            })
+            // 只有悬停激活时才重置preventInactivated
+            if (byHover) setPreventInactivated(false)
         }
-    }
+    }, [isOnGeneratingNewNode, isOnConnect])
 
+    // 失活单个节点
     const inactivateNode = useCallback((nodeId: string) => {
         if (!preventInactivated) {
-            setActivatedNode(null)
+            setActivatedNodes(prev => {
+                const newSet = new Set(prev)
+                newSet.delete(nodeId)
+                return newSet
+            })
         }
+    }, [preventInactivated])
+
+    // 批量激活多个节点
+    const activateMultipleNodes = useCallback((nodeIds: string[]) => {
+        if (isOnGeneratingNewNode) return
+        if (!isOnConnect) {
+            const validNodeIds = nodeIds.filter(id => !judgeNodeIsEdgeNode(id))
+            setActivatedNodes(new Set(validNodeIds))
+            setPreventInactivated(false)
+        }
+    }, [judgeNodeIsEdgeNode, isOnGeneratingNewNode, isOnConnect])
+
+    // 批量失活多个节点
+    const inactivateMultipleNodes = useCallback((nodeIds: string[]) => {
+        if (!preventInactivated) {
+            setActivatedNodes(prev => {
+                const newSet = new Set(prev)
+                nodeIds.forEach(id => newSet.delete(id))
+                return newSet
+            })
+        }
+    }, [preventInactivated])
+
+    // 切换节点激活状态
+    const toggleNodeActivation = useCallback((nodeId: string) => {
+        if (isOnGeneratingNewNode) return
+        if (!isOnConnect) {
+            setActivatedNodes(prev => {
+                const newSet = new Set(prev)
+                if (newSet.has(nodeId)) {
+                    newSet.delete(nodeId)
+                } else {
+                    newSet.add(nodeId)
+                }
+                return newSet
+            })
+            setPreventInactivated(false)
+        }
+    }, [isOnGeneratingNewNode, isOnConnect])
+
+    // 清除所有节点激活状态
+    const clearNodeActivation = useCallback(() => {
+        setActivatedNodes(new Set<string>())
     }, [])
 
-    // const clearNodeActivation = useCallback(() => {
-    //     setActivatedNode(null)
-    //     // setNodes(nodes => nodes.map(node => judgeNodeIsEdgeNode(node.id) ? node : {...node, data: {...node.data, ActiveHandle: null}})) 
-    // }, [])
+    // 检查edge是否已激活
+    const isEdgeActivated = useCallback((edgeId: string): boolean => {
+        return activatedEdges.has(edgeId)
+    }, [activatedEdges])
 
-    const activateEdge = useCallback((edgeId: string) => {
-        
+    // 激活单个edge
+    const activateEdge = useCallback((edgeId: string, addToSelection?: boolean) => {
+       
         if (!judgeNodeIsEdgeNode(edgeId) || isOnGeneratingNewNode) return
         if (!isOnConnect) {
-            setActivatedEdge(edgeId)
+            // 检查是否有其他edge node已经被点击
+            const hasClickedEdge = Array.from(activatedEdges).some(id => id !== edgeId)
+            if (hasClickedEdge) return
+
+            setActivatedEdges(prev => {
+                const newSet = addToSelection ? new Set(prev) : new Set<string>()
+                newSet.add(edgeId)
+                return newSet
+            })
         }
+    }, [judgeNodeIsEdgeNode, isOnGeneratingNewNode, isOnConnect, activatedEdges])
+
+    // 失活单个edge
+    const inactivateEdge = useCallback((edgeId: string) => {
+        setActivatedEdges(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(edgeId)
+            return newSet
+        })
     }, [])
 
+    // 批量激活多个edges
+    const activateMultipleEdges = useCallback((edgeIds: string[]) => {
+        if (isOnGeneratingNewNode) return
+        if (!isOnConnect) {
+            const validEdgeIds = edgeIds.filter(id => judgeNodeIsEdgeNode(id))
+            setActivatedEdges(new Set(validEdgeIds))
+        }
+    }, [judgeNodeIsEdgeNode, isOnGeneratingNewNode, isOnConnect])
+
+    // 批量失活多个edges
+    const inactivateMultipleEdges = useCallback((edgeIds: string[]) => {
+        setActivatedEdges(prev => {
+            const newSet = new Set(prev)
+            edgeIds.forEach(id => newSet.delete(id))
+            return newSet
+        })
+    }, [])
+
+    // 清除所有edge激活状态
     const clearEdgeActivation = useCallback(() => {
-        setActivatedEdge(null)
+        setActivatedEdges(new Set<string>())
     }, [])
 
-    // clear all , no matter if it is connected or not
+    // 修改clearAll函数
     const clearAll = useCallback(() => {
-        setActivatedNode(null)
-        setActivatedEdge(null)
+        setActivatedNodes(new Set<string>())
+        setActivatedEdges(new Set<string>())
+        setActivatedHandle(null)
         setIsOnConnect(false)
         setPreventInactivated(false)
         setIsOnGeneratingNewNode(false)
-        // setNodes(nodes => nodes.map(node => ({...node, data: {...node.data, ActiveHandle: null}})))
     }, [])
 
     const generateNewNode = useCallback(() => {
@@ -127,7 +234,6 @@ export function NodesPerFlowUtils() {
     const finishGeneratingNewNode = useCallback(() => {
         setIsOnGeneratingNewNode(false)
     }, [])
-
 
     const preventActivateOtherNodesWhenConnectStart = useCallback(() => {
         setIsOnConnect(true)
@@ -150,44 +256,93 @@ export function NodesPerFlowUtils() {
         setNodes(nodes => nodes.map(node => node.id === nodeId ? 
             {...node, data: {...node.data, isInput: !node.data.isInput, isOutput: false}}
         : node))
-    }, [])
+    }, [setNodes])
 
     const manageNodeasOutput = useCallback((nodeId: string) => {
         setNodes(nodes => nodes.map(node => node.id === nodeId ? 
             {...node, data: {...node.data, isOutput: !node.data.isOutput, isInput: false}}
         : node))
-    }, [])
+    }, [setNodes])
 
     const manageNodeasLocked = useCallback((nodeId: string) => {
         setNodes(nodes => nodes.map(node => node.id === nodeId ? 
             {...node, data: {...node.data, locked: !node.data.locked}}
         : node))
-    }, [])
+    }, [setNodes])
 
     const setNodeEditable = useCallback((nodeId: string) => {
         setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, editable: true}} : node))
-    }, [])
+    }, [setNodes])
 
     const setNodeUneditable = useCallback((nodeId: string) => {
         setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, editable: false}} : node))
-    }, [])
+    }, [setNodes])
 
-    
     const editNodeLabel = useCallback((nodeId: string, newLabel: string) => {
         setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, label: newLabel}} : node))
-    }, [])
+    }, [setNodes])
 
-    // const showNodeEditableState = useCallback((nodeId: string) => {
-    //     const node = getNode(nodeId)
-    //     return node?.data?.editable ?? false
-    // }, [])
+    // 检查特定handle是否激活
+    const isHandleActivated = useCallback((nodeId: string, position: Position): boolean => {
+        return activatedHandle?.nodeId === nodeId && activatedHandle?.position === position
+    }, [activatedHandle])
+
+    // 清除handle激活状态
+    const clearHandleActivation = useCallback(() => {
+        setActivatedHandle(null)
+    }, [])
 
     const setHandleActivated = useCallback((nodeId: string, handlePosition: Position | null) => {
-        // setNodes(nodes => nodes.map(node => node.id === nodeId ? {...node, data: {...node.data, ActiveHandle: handlePosition}} : node))
-        setActivatedNode({id: nodeId, HandlePosition: handlePosition})
+        if (handlePosition === null) {
+            setActivatedHandle(null)
+        } else {
+            setActivatedHandle({nodeId, position: handlePosition})
+            // 同时激活节点以保持向后兼容性
+            setActivatedNodes(prev => {
+                const newSet = new Set(prev)
+                newSet.add(nodeId)
+                return newSet
+            })
+        }
     }, [])
 
-    return {activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, generateNewNode, finishGeneratingNewNode, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode, allowInactivateNodeWhenClickOutside, manageNodeasInput, manageNodeasOutput, manageNodeasLocked, setNodeEditable, setNodeUneditable, editNodeLabel, setHandleActivated}
+    return {
+        activatedNodes, 
+        activatedEdges,
+        activatedHandle,
+        preventInactivated, 
+        isOnConnect, 
+        isOnGeneratingNewNode, 
+        activateNode, 
+        activateEdge, 
+        inactivateNode, 
+        activateMultipleNodes,
+        inactivateMultipleNodes,
+        isNodeActivated,
+        clearNodeActivation,
+        toggleNodeActivation,
+        inactivateEdge,
+        activateMultipleEdges,
+        inactivateMultipleEdges,
+        isEdgeActivated,
+        clearEdgeActivation, 
+        isHandleActivated,
+        clearHandleActivation,
+        clearAll, 
+        generateNewNode, 
+        finishGeneratingNewNode, 
+        preventActivateOtherNodesWhenConnectStart, 
+        allowActivateOtherNodesWhenConnectEnd, 
+        preventInactivateNode, 
+        allowInactivateNodeWhenClickOutside, 
+        manageNodeasInput, 
+        manageNodeasOutput, 
+        manageNodeasLocked, 
+        setNodeEditable, 
+        setNodeUneditable, 
+        editNodeLabel, 
+        setHandleActivated
+    }
 }   
 
 

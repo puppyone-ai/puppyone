@@ -23,7 +23,7 @@ type ResultBlockNodeProps = NodeProps<Node<ResultNodeData>>
 function ResultBlockNode({data: {content, subtype = "text", label, isLoading, locked, isInput, isOutput, editable}, isConnectable, id, type}: ResultBlockNodeProps ) {
 
 
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
+  const {isNodeActivated, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
   const {setNodes, getNode} = useReactFlow()
   
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
@@ -38,13 +38,13 @@ function ResultBlockNode({data: {content, subtype = "text", label, isLoading, lo
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isNodeActivated(id)) {
       setBorderColor("border-main-blue");
   } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
      
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+  }, [isNodeActivated, isOnConnect, isTargetHandleTouched, id])
 
 
 
@@ -303,7 +303,7 @@ const onFocus: () => void = () => {
           <div 
             style={{
               position: "absolute",
-              visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
+              visibility: `${isNodeActivated(id) ? "visible" : "hidden"}`,
               right: "38px",
               bottom: "38px",
               display: 'flex',

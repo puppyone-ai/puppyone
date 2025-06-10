@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useMemo, CSSProperties, useRef } from 'react'
-import { Position, useNodesData, useReactFlow, MarkerType } from '@xyflow/react'
-// import { useNodeContext } from '../../states/NodeContext'
+import React, { useCallback, useRef, useState, CSSProperties, useEffect } from 'react'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
-import ModifySubMenu from './ModifySubMenu'
+import { Node, Position, useReactFlow } from '@xyflow/react'
 import ChunkingSubMenu from './ChunkingSubMenu'
 import SearchSubMenu from './SearchSubMenu'
+import SaveIntoSubMenu from './SaveIntoSubMenu'
+import ModifySubMenu from './ModifySubMenu'
 import RetrievingSubMenu from './RetrievingSubMenu'
-import OthersSubMenu from './OthersSubMenu'
-
 
 type EdgeMenuProps = {
     nodeType: string,
@@ -18,32 +16,22 @@ type EdgeMenuProps = {
 
 export type menuNameType = null | "LLMsub1" | "Modifysub1" | "Chunkingsub1" | "ChunkingOtherssub2" | "Searchsub1" | "SaveIntosub1" | "Codesub1" | "Otherssub1" | "Embeddingsub1" | "ChooseSub1" | "LoadSub1" | "Retrievingsub1" | "Generatingsub1"
 
-function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
+function EdgeMenu1({ nodeType, sourceNodeId, position }: EdgeMenuProps) {
 
+    // const {activatedNode, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
+    // const { preventActivateNode, allowActivateNode, clear, activateNode, nodes, searchNode, totalCount, addCount } = useNodeContext()
+    const { setNodes, setEdges, getNode } = useReactFlow()
 
+    // const mainMenuRef = useRef<HTMLDivElement>(null);  // Move this inside the function
+    // const edgeMenuRef = useRef<HTMLUListElement>(null);
 
-    // TextBlock menu onClick function
-    // get source node info
-    const { getNode, getNodes, getEdges, setNodes, setEdges, screenToFlowPosition } = useReactFlow()
-
-
-    /*
-    select subMenu:0:LLM + LLM submenu 
-    1: modify + modifySubMenu 
-    2. chunking + chunking subMenu 
-    3. chunking + chunking subMenu + chunking others subMenu
-    4. Search + Search SubMenu
-    5. Save into + Save Into subMenu
-    6. Code + Code SubMenu
-    7. Others + Others subMenu
-    */
     const [selectedSubMenu, setSelectedSubMenu] = useState(-1)
     const edgeMenuRef = useRef<HTMLUListElement>(null)
     const mainMenuRef = useRef<HTMLDivElement>(null);
     // console.log(sourceNode)
 
     // const {setHandleConnected, searchNode, totalCount, addCount, inactivateNode, allowActivateNode, clear} = useNodeContext()
-    const { activatedNode, inactivateNode, allowActivateOtherNodesWhenConnectEnd, clearAll } = useNodesPerFlowContext()
+    const { isNodeActivated, isHandleActivated, activatedHandle, inactivateNode, allowActivateOtherNodesWhenConnectEnd, clearAll } = useNodesPerFlowContext()
     const [edgeMenuStyle, setEdgeMenuStyle] = useState<CSSProperties>({
         height: "0px",
         visibility: "hidden",
@@ -55,7 +43,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
         setEdgeMenuStyle(newEdgeMenuStyle)
 
     }, [
-        activatedNode?.id, activatedNode?.HandlePosition
+        activatedHandle, sourceNodeId, position // 依赖activatedHandle状态变化
     ])
 
     const createNewConnection = (edgeType: string, subMenuType: string | null = null) => {
@@ -64,9 +52,10 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
         if (!sourceNode) return
         // const node = searchNode(sourceNodeId)
         // if (!node?.activated) return
-        if (activatedNode?.id !== sourceNodeId) return
+        if (!isNodeActivated(sourceNodeId)) return
 
-        const handlePosition = activatedNode?.HandlePosition
+        // 使用实际被点击的handle位置
+        const handlePosition = position
 
         if (!handlePosition) return
 
@@ -117,20 +106,8 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                                             176
 
 
+        // 根据实际handle位置计算新节点的位置
         if (sourceNode && sourceNode.measured?.height && sourceNode.measured.width) {
-
-            //  xshift = 
-            // handlePosition === Position.Top || handlePosition === Position.Bottom ? sourceNode.measured.width / 2 - defaultTargetWidth / 2:
-            // handlePosition === Position.Left ? -sourceNode.measured.width / 2 - defaultTargetWidth :
-            // handlePosition === Position.Right ? sourceNode.measured.width * 3 / 2 : 
-            // 0;
-
-            //  yshift = 
-            // handlePosition === Position.Left || handlePosition === Position.Right ? sourceNode.measured.height / 2 - defaultTargetHeight / 2:
-            // handlePosition === Position.Top ? - sourceNode.measured.height / 2 - defaultTargetHeight / 2 :
-            // handlePosition === Position.Bottom ? sourceNode.measured.height * 3 / 2 : 
-            // 0;
-
             xshift =
                 handlePosition === Position.Top || handlePosition === Position.Bottom ? sourceNode.measured.width / 2 - defaultTargetWidth / 2 :
                     handlePosition === Position.Left ? -80 - defaultTargetWidth :
@@ -142,17 +119,12 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                     handlePosition === Position.Top ? - 80 - defaultTargetHeight / 2 :
                         handlePosition === Position.Bottom ? sourceNode.measured.height + 80 :
                             0;
-
         }
         else {
             xshift = handlePosition === Position.Top || handlePosition === Position.Bottom ? defaultSourceNodeWidth / 2 - defaultTargetWidth / 2 :
                 handlePosition === Position.Left ? - defaultSourceNodeWidth / 2 - defaultTargetWidth :
                     handlePosition === Position.Right ? defaultSourceNodeWidth * 3 / 2 :
                         0;
-            // xshift = handlePosition === Position.Top || handlePosition === Position.Bottom ? defaultSourceNodeWidth / 2 - defaultTargetWidth / 2 :
-            // handlePosition === Position.Left ? - 160 - defaultTargetWidth :
-            // handlePosition === Position.Right ? defaultSourceNodeWidth + 160 : 
-            // 0;
 
             yshift =
                 handlePosition === Position.Left || handlePosition === Position.Right ? defaultSourceNodeHeight / 2 - defaultTargetHeight / 2 :
@@ -248,12 +220,14 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
         //     menuHeight = edgeMenuRef.current.clientHeight
         // }
 
-        if (!node || activatedNode?.id !== sourceNodeId) return {
+        if (!node || !isHandleActivated(sourceNodeId, position)) return {
             height: "0px",
             visibility: "hidden",
             border: "none",
         }
-        if (activatedNode?.HandlePosition === Position.Top) {
+        
+        // 根据handle位置动态调整菜单位置
+        if (position === Position.Top) {
             return node.measured?.width && node.measured.height ?
                 {
                     left: `${node.measured.width / 2 - 29}px`,
@@ -264,7 +238,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                     top: `${- 40 - menuHeight}px`
                 }
         }
-        if (activatedNode?.HandlePosition === Position.Bottom) {
+        if (position === Position.Bottom) {
             return node.measured?.width && node.measured.height ? {
                 left: `${node.measured.width / 2 - 29}px`,
                 bottom: `${-40 - menuHeight}px`
@@ -273,7 +247,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                 bottom: `${-40 - menuHeight}px`
             }
         }
-        if (activatedNode?.HandlePosition === Position.Left) {
+        if (position === Position.Left) {
             return node.measured?.width && node.measured.height ? {
                 left: `${-32 - menuWidth}px`,
                 top: `${node.measured.height / 2 - 51}px`
@@ -282,7 +256,7 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                 top: `${defaultNodeHeight / 2 - 51}px`
             }
         }
-        if (activatedNode?.HandlePosition === Position.Right) {
+        if (position === Position.Right) {
             return node.measured?.width && node.measured.height ? {
                 right: `${-32 - menuWidth}px`,
                 top: `${node.measured.height / 2 - 51}px`,
@@ -291,10 +265,11 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                 top: `${defaultNodeHeight / 2 - 51}px`
             }
         }
+        
+        // 默认位置（如果position未匹配）
         return {
-            height: "0px",
-            visibility: "hidden",
-            border: "none",
+            left: `${defaultNodeWidth / 2 - 29}px`,
+            top: `${- 40 - menuHeight}px`
         }
     }
 

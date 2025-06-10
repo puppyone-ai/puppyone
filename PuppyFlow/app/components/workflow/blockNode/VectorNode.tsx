@@ -22,19 +22,19 @@ function VectorNode({data: {content, label, isLoading, locked, isInput, isOutput
  
   
   const {getEdges} = useReactFlow()
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
+  const {isNodeActivated, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
 
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isNodeActivated(id)) {
       setBorderColor("border-main-blue");
   } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
      
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+  }, [isNodeActivated, isOnConnect, isTargetHandleTouched, id])
   
 
 
@@ -57,7 +57,7 @@ function VectorNode({data: {content, label, isLoading, locked, isInput, isOutput
           </div>
         </div>
 
-        <div className={`absolute top-[8px] right-[32px] ${activatedNode?.id === id ? "": "hidden"}`}>
+        <div className={`absolute top-[8px] right-[32px] ${isNodeActivated(id) ? "": "hidden"}`}>
           <NodeSettingsController nodeid={id}/>
         </div>
 

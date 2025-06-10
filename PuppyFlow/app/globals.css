@@ -998,3 +998,19 @@
   border: none !important;
   border-radius: 0 !important;
 }
+
+.react-flow .react-flow__handle.default {
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background-color: transparent;
+  border: 2px solid #42454A;
+  box-shadow: 0 0 2px rgba(0,0,0,0.08);
+  z-index: 3;
+}
+
+.react-flow .react-flow__handle.default.selected,
+.react-flow .react-flow__handle.selected.default,
+.react-flow .react-flow__handle.selected {
+  border: 2px solid #FFA73D;
+}

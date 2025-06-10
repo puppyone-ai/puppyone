@@ -33,7 +33,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
   const { getNode } = useReactFlow()
   const { 
-    activatedNode, 
+    isNodeActivated, 
     isOnConnect, 
     isOnGeneratingNewNode, 
     setNodeUneditable, 
@@ -87,12 +87,12 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isNodeActivated(id)) {
       setBorderColor("border-main-blue");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
+  }, [isNodeActivated, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
 
   const displaySourceNodeLabels = () => {
@@ -472,7 +472,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           <div
             style={{
               position: "absolute",
-              visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
+              visibility: `${isNodeActivated(id) ? "visible" : "hidden"}`,
               right: "0px",
               bottom: "0px",
               display: "flex",

@@ -11,60 +11,93 @@ export type ModifyConfigNodeData = {
 
 type Convert2TextNodeProps = NodeProps<Node<ModifyConfigNodeData>>
 
-function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+function Convert2Text({ data, isConnectable, id }: Convert2TextNodeProps) {
+    const { isOnConnect, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll, isEdgeActivated, inactivateEdge } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
+    const [borderColor, setBorderColor] = useState("#CDCDCD")
+    const { getNode, setNodes } = useReactFlow()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
-    const { getNode } = useReactFlow()
+    const menuRef = useRef<HTMLUListElement>(null)
+    const [isClicked, setIsClicked] = useState(false)
 
-    // 使用基础 edge node 逻辑，只传入最小必要参数
-    const { 
-        isLoading,
-        handleDataSubmit 
-    } = useBaseEdgeNodeLogic({
+    // 使用钩子处理执行逻辑
+    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
         parentId: id,
-        targetNodeType: 'text'
+        targetNodeType: "text"
     });
+
+    // 边框颜色管理
+    useEffect(() => {
+        if (isEdgeActivated(id)) {
+            setBorderColor("#4599DF"); // 激活时使用蓝色，与block节点一致
+        } else {
+            setBorderColor(isOnConnect && isTargetHandleTouched ? "#FFA73D" : "#CDCDCD");
+        }
+    }, [isEdgeActivated, isOnConnect, isTargetHandleTouched, id]);
 
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
-            setIsMenuOpen(true)
         }
 
         return () => {
-            if (activatedEdge === id) {
+            if (isEdgeActivated(id)) {
                 clearEdgeActivation()
             }
         }
     }, [])
 
-    // 添加 effect 来监听 activatedEdge 的变化
-    useEffect(() => {
-        // 当 activatedEdge 不再是当前节点时，关闭菜单
-        if (activatedEdge !== id && isMenuOpen) {
-            setIsMenuOpen(false)
-        }
-    }, [activatedEdge, id])
-
     const onClickButton = () => {
         if (isOnGeneratingNewNode) return
         
-        // 切换菜单状态
-        const newMenuState = !isMenuOpen
-        setIsMenuOpen(newMenuState)
+        // 点击只激活节点，不切换菜单状态
+        setIsClicked(true)
         
-        // 同步 activatedEdge 状态
-        if (newMenuState) {
+        if (!isEdgeActivated(id)) {
             clearAll()
             activateEdge(id)
-        } else {
-            clearEdgeActivation()
         }
     }
 
-    // 定义 handle 样式
+    const onDoubleClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 双击切换菜单状态
+        setIsMenuOpen(!isMenuOpen)
+    }
+
+    const onMouseEnter = () => {
+        if (isOnGeneratingNewNode) return
+        if (!isClicked) {
+            activateEdge(id)
+        }
+    }
+
+    const onMouseLeave = () => {
+        if (isOnGeneratingNewNode) return
+        if (!isClicked) {
+            inactivateEdge(id)
+        }
+    }
+
+    // 监听重置状态事件
+    useEffect(() => {
+        const handleResetState = (event: CustomEvent<{ closeMenu: boolean }>) => {
+            setIsClicked(false)
+            if (event.detail.closeMenu) {
+                setIsMenuOpen(false)
+            }
+        }
+        window.addEventListener('resetEdgeState', handleResetState as EventListener)
+        return () => {
+            window.removeEventListener('resetEdgeState', handleResetState as EventListener)
+            setIsClicked(false)
+        }
+    }, [])
+
+    // 在组件顶部定义共享样式
     const handleStyle = {
         position: "absolute" as const,
         width: "calc(100%)",
@@ -81,10 +114,14 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`} 
                 onClick={onClickButton}
+                onDoubleClick={onDoubleClickButton}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`}
+                style={{ borderColor }}
             >
-                Convert to<br /> Text
+                Convert <br /> To Text
 
                 {/* Source Handles */}
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />

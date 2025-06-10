@@ -22,7 +22,7 @@ function WebLinkNode({data: {content, label, isLoading, locked, isInput, isOutpu
 
   
   const {setNodes, getNode} = useReactFlow()
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
+  const {isNodeActivated, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -34,13 +34,13 @@ function WebLinkNode({data: {content, label, isLoading, locked, isInput, isOutpu
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
 
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isNodeActivated(id)) {
       setBorderColor("border-main-blue");
   } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
      
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+  }, [isNodeActivated, isOnConnect, isTargetHandleTouched, id])
   
   
 

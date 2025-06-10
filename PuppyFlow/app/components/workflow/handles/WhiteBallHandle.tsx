@@ -18,7 +18,7 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
     // console.log(sourceNodeId)
     // design handle bar with multiple handles, must add id for handle
     // const {nodes, searchNode, preventActivateNode, allowActivateNode, activateNode, preventInactivateNode, activateHandle, inactivateHandle, allowInactivateNode} = useNodeContext()
-    const { activatedNode, activateNode, inactivateNode, setHandleActivated, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll, clearEdgeActivation } = useNodesPerFlowContext()
+    const { isNodeActivated, activateNode, inactivateNode, setHandleActivated, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll, clearEdgeActivation, activatedHandle } = useNodesPerFlowContext()
     const { getNode } = useReactFlow()
 
     // const handlePositions = {
@@ -33,19 +33,9 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
 
 
     function judgeDisplay() {
-        let showHandle = false
         const sourceNode = getNode(sourceNodeId)
         if (!sourceNode) return "transparent"
-        // showHandle = sourceNode[handleName].isConnected
-
-
-
-        // if (showHandle && !sourceNode.activated) return ""
-        // else if (!showHandle && !sourceNode.activated) return "transparent"
-        // else return "active"
-
-        return (activatedNode?.id === sourceNodeId) ? "active" : "transparent"
-
+        return isNodeActivated(sourceNodeId) ? "default" : "transparent"
     }
 
 
@@ -56,7 +46,7 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
         // onHandleClick(props.position)
         const sourceNode = getNode(sourceNodeId)
         if (!sourceNode) return
-        if (activatedNode?.id !== sourceNodeId) {
+        if (!isNodeActivated(sourceNodeId)) {
             clearAll()
             // activateNode(sourceNodeId)
             setHandleActivated(sourceNodeId, props.position)
@@ -65,18 +55,10 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
         }
         else {
 
-            if (activatedNode?.HandlePosition === props.position) {
-                setHandleActivated(sourceNodeId, null)
-                allowInactivateNodeWhenClickOutside()
-            } else {
-                // console.log(`activate node ${sourceNodeId}, handle ${props.position}, and preventInactivate node ${sourceNodeId}`)
-                // activateHandle(sourceNodeId, props.position);
-                // preventInactivateNode(sourceNodeId);
-                // console.log("activate handle!!", props.position)
-                setHandleActivated(sourceNodeId, props.position)
-                clearEdgeActivation()
-                preventInactivateNode()
-            }
+            // 简化版本：如果节点已激活，就设置handle
+            setHandleActivated(sourceNodeId, props.position)
+            clearEdgeActivation()
+            preventInactivateNode()
 
         }
         // if (selectedHandle === null) preventActivateNode()
@@ -84,10 +66,7 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
     }
 
     const showHandleColor = () => {
-        // const sourceNode = getNode(sourceNodeId)
-        // if (!sourceNode) return ""
-        // console.log(sourceNode, "show handle")
-        return activatedNode?.id === sourceNodeId && activatedNode?.HandlePosition === props.position ? "selected" : ""
+        return isNodeActivated(sourceNodeId) && (sourceNodeId === activatedHandle?.nodeId && props.position === activatedHandle?.position) ? "selected" : ""
     }
 
 
@@ -160,7 +139,7 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
                 onClick={(event) => onClickAction(event)}
                 onConnect={(connection: Connection) => console.log(connection.source, connection.sourceHandle)}
                 style={getHandleStyle()}
-                className={`relative flex items-center justify-center z-10 ${judgeDisplay()} ${showHandleColor()}  hover:!border-main-orange hover:!w-[20px] hover:!h-[20px] hover:!border-2 hover:!rounded-[10px] group`}
+                className={`relative flex items-center justify-center z-10 ${showHandleColor()} ${judgeDisplay()} ${showHandleColor() === "" ? "hover:!border-main-orange hover:!w-[20px] hover:!h-[20px] hover:!border-2 hover:!rounded-[10px]" : ""} group`}
             >
                 <div className={`absolute z-[-10] inset-0 flex items-center justify-center text-main-orange opacity-0 group-hover:opacity-100 ${showHandleColor() === "selected" ? "opacity-100" : ""} pointer-events-none ${getArrowRotation()}`}>
                     <svg

@@ -144,6 +144,52 @@ function useMiddleMousePan() {
   return canPan;
 }
 
+function useKeyboardDelete() {
+  const { activatedNodes, clearNodeActivation } = useNodesPerFlowContext();
+  const { setNodes, setEdges } = useReactFlow();
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        // 检查焦点是否在输入框或文本区域上，如果是则不处理
+        const activeElement = document.activeElement as HTMLElement;
+        if (activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.isContentEditable ||
+          activeElement.closest('.monaco-editor') ||
+          activeElement.closest('.ProseMirror') ||
+          activeElement.closest('.bn-editor')
+        )) {
+          return;
+        }
+
+        // 统一处理所有激活节点的删除
+        if (activatedNodes.size > 0) {
+          event.preventDefault();
+          const nodeIdsToDelete = Array.from(activatedNodes);
+          // 删除相关的边
+          setEdges(prevEdges => prevEdges.filter(edge => 
+            !nodeIdsToDelete.includes(edge.source) && 
+            !nodeIdsToDelete.includes(edge.target)
+          ));
+          // 删除节点
+          setNodes(prevNodes => prevNodes.filter(node => 
+            !nodeIdsToDelete.includes(node.id)
+          ));
+          clearNodeActivation();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activatedNodes, setNodes, setEdges, clearNodeActivation]);
+}
+
 // 添加这个排序函数
 const sortNodesByType = (nodes: Node[]) => {
   return [...nodes].sort((a, b) => {
@@ -169,9 +215,10 @@ function Workflow() {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialWorkspaceEdges);
   const { screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport } = useReactFlow()
   const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } = useManageReactFlowUtils()
-  const { activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
+  const { activatedNodes, activatedEdges, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode, isNodeActivated, toggleNodeActivation, clearNodeActivation, activateMultipleNodes, isEdgeActivated, inactivateEdge } = useNodesPerFlowContext()
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
+  useKeyboardDelete();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
 
   // 创建可排序的节点和变更函数
@@ -240,9 +287,7 @@ function Workflow() {
   }
 
   const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id: string) => {
-    // console.log("start to node on Mouse Enter", id)
-    // if (isOnGeneratingNewNode) return
-
+    // 将节点置于前景
     setNodes((nds: Node[]) => {
       const nodeIndex = nds.findIndex((node) => node.id === id);
       const node = nds[nodeIndex];
@@ -252,61 +297,57 @@ function Workflow() {
       return newNodes;
     });
 
-    // const target = event.target as unknown as HTMLElement
-    // if (target.id === "edgeMenu") {
-    //   return
-    // }
-
-    // then activate node
-    // console.log(`reenter this node`)
-    // console.log(id, "activate node")
-
-    activateNode(id)
-
+    // 只有在没有任何节点被激活，或者当前节点就是唯一被激活的节点时，才激活当前节点
+    // 这样可以避免鼠标悬停时清除其他已激活的节点
+    if (activatedNodes.size === 0 || (activatedNodes.size === 1 && isNodeActivated(id))) {
+      activateNode(id);
+    }
   };
 
-  const onNodeMouseLeave = (id: string) => {
-    // if (isOnConnect) return
-    // console.log(searchNode(id), "when mouse leave")
-    if (preventInactivated || isOnGeneratingNewNode) return
-    // console.log("start to node on Mouse Leave", id)
-    inactivateNode(id)
-
-  }
-
-  const onNodeClick = (id: string) => {
-    // const targetNode = searchNode(id)
-    // console.log(targetNode)
-    // if (!targetNode) return
-    // if (!targetNode.activated) activateNode(id)
-    if (isOnGeneratingNewNode) return
-    // console.log("start to node on Click", id)
-    if (!judgeNodeIsEdgeNode(id)) {
-      clearEdgeActivation()
+  // 鼠标悬停激活
+  const onNodeMouseEnter = (id: string) => {
+    if (!isNodeActivated(id)) {
+      activateNode(id, false, true) // byHover = true
     }
-    activateNode(id)
-    preventInactivateNode()
-
-    // else {
-    //   if (activatedNode === id) {
-    //     console.log(id, "inactivate node")
-    //     inactivateNode(id)
-    //   }
-    //   else {
-    //     console.log(id, "activate node")
-    //     activateNode(id)
-    //   }
-    // }
-    // activateEdgeNode(id)
   }
 
-  const onPaneClick = () => {
-    // console.log("clear activation")
+  // 鼠标移出
+  const onNodeMouseLeave = (id: string) => {
+    if (preventInactivated || isOnGeneratingNewNode) return
+    // 只有在节点是因为悬停激活时才执行失活操作
+    if (isNodeActivated(id) && !preventInactivated) {
+      inactivateNode(id)
+    }
+  }
+
+  // 点击激活
+  const onNodeClick = (event: React.MouseEvent, id: string) => {
     if (isOnGeneratingNewNode) return
-    // console.log("start to clear activation")
-    clearAll()
-    // allowActivateNode()
+    // 检测修饰键以支持多选
+    const isCtrlOrCmdPressed = event.ctrlKey || event.metaKey;
+    const isShiftPressed = event.shiftKey;
+    if (isCtrlOrCmdPressed) {
+      // Ctrl/Cmd + 点击：切换节点的激活状态（多选模式）
+      toggleNodeActivation(id);
+    } else if (isShiftPressed && activatedNodes.size > 0) {
+      // Shift + 点击：范围选择
+      activateNode(id, true, false);
+    } else {
+      // 普通点击：激活当前节点，清除其他选择
+      activateNode(id, false, false);
+    }
+    preventInactivateNode()
   }
+
+  const onPaneClick = useCallback(() => {
+    if (isOnGeneratingNewNode) return
+    clearAll()
+    // 触发一个自定义事件，通知所有edge节点重置点击状态和关闭菜单
+    const event = new CustomEvent('resetEdgeState', {
+      detail: { closeMenu: true }
+    })
+    window.dispatchEvent(event)
+  }, [clearAll, isOnGeneratingNewNode])
 
   useEffect(() => {
     const handleWheel = (e: any) => {
@@ -412,6 +453,31 @@ function Workflow() {
     }
   }, []);
 
+  const onEdgeClick = (event: React.MouseEvent<Element, MouseEvent>, edge: Edge) => {
+    if (isOnGeneratingNewNode) return
+    
+    // 检测修饰键以支持多选
+    const isCtrlOrCmdPressed = event.ctrlKey || event.metaKey;
+    const isShiftPressed = event.shiftKey;
+    
+    if (isCtrlOrCmdPressed) {
+      console.log("onEdgeClick", edge.id)
+      // Ctrl/Cmd + 点击：切换edge的激活状态（多选模式）
+      if (isEdgeActivated(edge.id)) {
+        inactivateEdge(edge.id);
+      } else {
+        activateEdge(edge.id, true);
+      }
+    } else if (isShiftPressed && activatedEdges.size > 0) {
+      console.log("onEdgeClick", edge.id)
+      // Shift + 点击：范围选择
+      activateEdge(edge.id, true);
+    } else {
+      // 普通点击：激活当前edge，清除其他选择
+      console.log("onEdgeClick", edge.id)
+      activateEdge(edge.id, false);
+    }
+  }
 
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
@@ -439,7 +505,7 @@ function Workflow() {
           onNodeMouseLeave={(event, node) => {
             onNodeMouseLeave(node.id)
           }}
-          onNodeClick={(event, node) => onNodeClick(node.id)}
+          onNodeClick={(event, node) => onNodeClick(event, node.id)}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}
           onPaneClick={onPaneClick}
@@ -458,6 +524,7 @@ function Workflow() {
           className="nocursor"             // 可选：添加自定义样式
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
+          onEdgeClick={onEdgeClick}
         >
           <Upbar />
           <Background color="#646464" variant={BackgroundVariant.Dots} gap={16} />

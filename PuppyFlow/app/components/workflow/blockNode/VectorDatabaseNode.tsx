@@ -21,7 +21,7 @@ type VectorDatabaseNodeProps = NodeProps<Node<VectorDatabaseNodeData>>
 function VectorDatabaseNode({data: {content, label, isLoading, locked, isInput, isOutput, editable}, type, isConnectable, id}: VectorDatabaseNodeProps) {
 
  
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
+  const {isNodeActivated, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
   const {setNodes, getNode} = useReactFlow()
   // used for connectting target node to make it highlight
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
@@ -36,13 +36,13 @@ function VectorDatabaseNode({data: {content, label, isLoading, locked, isInput, 
 
   
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isNodeActivated(id)) {
       setBorderColor("border-main-blue");
   } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
      
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+  }, [isNodeActivated, isOnConnect, isTargetHandleTouched, id])
   
 
    // 管理labelContainer的宽度

@@ -35,12 +35,14 @@ export type CopyOperationApiPayload = {
 type ModifyConfigNodeProps = NodeProps<Node<CopyNodeFrontendConfig>>
 
 function CopyEdgeNode({ data: { subMenuType }, isConnectable, id }: ModifyConfigNodeProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+    const { isOnConnect, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll, isEdgeActivated, inactivateEdge } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode, getInternalNode } = useReactFlow()
+    const [borderColor, setBorderColor] = useState("#CDCDCD")
+    const { getNode, getInternalNode, setNodes } = useReactFlow()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const [isClicked, setIsClicked] = useState(false)
 
     // 使用新的 BaseEdgeNodeLogic
     const {
@@ -52,6 +54,15 @@ function CopyEdgeNode({ data: { subMenuType }, isConnectable, id }: ModifyConfig
         // 可以选择不提供 constructJsonData，使用默认实现
     });
 
+    // 边框颜色管理
+    useEffect(() => {
+        if (isEdgeActivated(id)) {
+            setBorderColor("#4599DF"); // 激活时使用蓝色，与block节点一致
+        } else {
+            setBorderColor(isOnConnect && isTargetHandleTouched ? "#FFA73D" : "#CDCDCD");
+        }
+    }, [isEdgeActivated, isOnConnect, isTargetHandleTouched, id]);
+
     // 初始化和清理
     useEffect(() => {
         console.log(getInternalNode(id))
@@ -62,9 +73,57 @@ function CopyEdgeNode({ data: { subMenuType }, isConnectable, id }: ModifyConfig
         }
 
         return () => {
-            if (activatedEdge === id) {
+            if (isEdgeActivated(id)) {
                 clearEdgeActivation()
             }
+        }
+    }, [])
+
+    const onClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 点击只激活节点，不切换菜单状态
+        setIsClicked(true)
+        
+        if (!isEdgeActivated(id)) {
+            clearAll()
+            activateEdge(id)
+        }
+    }
+
+    const onDoubleClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 双击切换菜单状态
+        setIsMenuOpen(!isMenuOpen)
+    }
+
+    const onMouseEnter = () => {
+        if (isOnGeneratingNewNode) return
+        if (!isClicked) {
+            activateEdge(id)
+        }
+    }
+
+    const onMouseLeave = () => {
+        if (isOnGeneratingNewNode) return
+        if (!isClicked) {
+            inactivateEdge(id)
+        }
+    }
+
+    // 监听重置状态事件
+    useEffect(() => {
+        const handleResetState = (event: CustomEvent<{ closeMenu: boolean }>) => {
+            setIsClicked(false)
+            if (event.detail.closeMenu) {
+                setIsMenuOpen(false)
+            }
+        }
+        window.addEventListener('resetEdgeState', handleResetState as EventListener)
+        return () => {
+            window.removeEventListener('resetEdgeState', handleResetState as EventListener)
+            setIsClicked(false)
         }
     }, [])
 
@@ -88,8 +147,12 @@ function CopyEdgeNode({ data: { subMenuType }, isConnectable, id }: ModifyConfig
 
             {/* Main node button */}
             <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                onClick={onClickButton}
+                onDoubleClick={onDoubleClickButton}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                style={{ borderColor }}
                 title="Copy Node"
             >
                 Copy

@@ -23,7 +23,7 @@ function SwitchNode({isConnectable, id, type, data: {content, label, isLoading, 
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
 
-  const {activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
+  const {isNodeActivated, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside} = useNodesPerFlowContext()
   const {getNode, setNodes} = useReactFlow()
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
@@ -38,13 +38,13 @@ function SwitchNode({isConnectable, id, type, data: {content, label, isLoading, 
 
   
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isNodeActivated(id)) {
       setBorderColor("border-main-blue");
   } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
      
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched])
+  }, [isNodeActivated, isOnConnect, isTargetHandleTouched, id])
 
 
       // 管理labelContainer的宽度

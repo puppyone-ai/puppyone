@@ -24,12 +24,13 @@ export type ChunkingConfigNodeData = {
 type ChunkingByLengthProps = NodeProps<Node<ChunkingConfigNodeData>>
 
 function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: ChunkingByLengthProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+    const { isOnConnect, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll, isEdgeActivated } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode } = useReactFlow()
+    const [borderColor, setBorderColor] = useState("#CDCDCD")
+    const { getNode, setNodes } = useReactFlow()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
 
     // 状态管理
     const [subChunkMode, setSubChunkMode] = useState<"size" | "tokenizer">(
@@ -56,6 +57,15 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
 
     // 添加展开/收起状态
     const [showSettings, setShowSettings] = useState(false);
+
+    // 边框颜色管理
+    useEffect(() => {
+        if (isEdgeActivated(id)) {
+            setBorderColor("#4599DF"); // 激活时使用蓝色，与block节点一致
+        } else {
+            setBorderColor(isOnConnect && isTargetHandleTouched ? "#FFA73D" : "#CDCDCD");
+        }
+    }, [isEdgeActivated, isOnConnect, isTargetHandleTouched, id]);
 
     // 更新节点数据
     useEffect(() => {
@@ -84,11 +94,47 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
         }
 
         return () => {
-            if (activatedEdge === id) {
+            if (isEdgeActivated(id)) {
                 clearEdgeActivation()
             }
         }
     }, [])
+
+    const onClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 单击只激活节点，不切换菜单状态
+        if (!isEdgeActivated(id)) {
+            clearAll()
+            activateEdge(id)
+        }
+    }
+
+    const onDoubleClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 双击切换菜单状态
+        setIsMenuOpen(!isMenuOpen)
+        
+        // 确保节点保持激活状态
+        if (!isEdgeActivated(id)) {
+            clearAll()
+            activateEdge(id)
+        }
+    }
+
+    const onMouseEnter = () => {
+        if (isOnGeneratingNewNode) return
+        activateEdge(id)
+    }
+
+    const onMouseLeave = () => {
+        if (isOnGeneratingNewNode) return
+        // 只有在不是菜单打开状态时才失活
+        if (!isMenuOpen) {
+            clearEdgeActivation()
+        }
+    }
 
     // 在组件顶部定义共享样式
     const handleStyle = {
@@ -106,11 +152,15 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
 
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
-            <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px]`}
+            <button 
+                onClick={onClickButton}
+                onDoubleClick={onDoubleClickButton}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                style={{ borderColor }}
             >
-                Chunk <br /> By Length
+                Chunking <br /> By Length
                 {/* Source handles */}
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />

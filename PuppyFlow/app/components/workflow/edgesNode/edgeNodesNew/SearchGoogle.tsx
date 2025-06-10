@@ -24,12 +24,14 @@ export type SearchConfigNodeData = {
 type SearchConfigNodeProps = NodeProps<Node<SearchConfigNodeData>>
 
 function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
+    const { isOnConnect, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll, isEdgeActivated, inactivateEdge } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
+    const [borderColor, setBorderColor] = useState("#CDCDCD")
     const { getNode, setNodes } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
+    const [isClicked, setIsClicked] = useState(false)
 
     // 状态管理
     const [showSettings, setShowSettings] = useState(false)
@@ -47,6 +49,15 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
         targetNodeType: "structured"
     });
 
+    // 边框颜色管理
+    useEffect(() => {
+        if (isEdgeActivated(id)) {
+            setBorderColor("#4599DF"); // 激活时使用蓝色，与block节点一致
+        } else {
+            setBorderColor(isOnConnect && isTargetHandleTouched ? "#FFA73D" : "#CDCDCD");
+        }
+    }, [isEdgeActivated, isOnConnect, isTargetHandleTouched, id]);
+
     useEffect(() => {
         if (!isOnGeneratingNewNode) {
             clearAll()
@@ -54,7 +65,7 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
         }
 
         return () => {
-            if (activatedEdge === id) {
+            if (isEdgeActivated(id)) {
                 clearEdgeActivation()
             }
         }
@@ -97,18 +108,59 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
         }));
     }, [id, setNodes, top_k]);
 
-    const onClickButton = () => {
+    const onClickButton = (event: React.MouseEvent) => {
+        if (isOnGeneratingNewNode) return
+        
+        // 单击只激活节点，不切换菜单状态
+        if (!isEdgeActivated(id)) {
+            // 如果是按住Ctrl键点击，则添加到选择中
+            const isCtrlPressed = event.ctrlKey || event.metaKey;
+            activateEdge(id, isCtrlPressed);
+        }
+        setIsClicked(true)
+    }
+
+    const onDoubleClickButton = () => {
+        if (isOnGeneratingNewNode) return
+        
+        // 双击切换菜单状态
         setIsMenuOpen(!isMenuOpen)
         
-        if (isOnGeneratingNewNode) return
-        if (activatedEdge === id) {
-            clearEdgeActivation()
-        }
-        else {
+        // 确保节点保持激活状态
+        if (!isEdgeActivated(id)) {
             clearAll()
             activateEdge(id)
         }
+        setIsClicked(true)
     }
+
+    const onMouseEnter = () => {
+        if (isOnGeneratingNewNode) return
+        activateEdge(id)
+    }
+
+    const onMouseLeave = () => {
+        if (isOnGeneratingNewNode) return
+        // 只有在不是菜单打开状态且节点未被点击时才失活
+        if (!isMenuOpen && !isClicked) {
+            inactivateEdge(id)
+        }
+    }
+
+    // 监听重置状态事件
+    useEffect(() => {
+        const handleResetState = (event: CustomEvent<{ closeMenu: boolean }>) => {
+            setIsClicked(false)
+            if (event.detail.closeMenu) {
+                setIsMenuOpen(false)
+            }
+        }
+        window.addEventListener('resetEdgeState', handleResetState as EventListener)
+        return () => {
+            window.removeEventListener('resetEdgeState', handleResetState as EventListener)
+            setIsClicked(false)
+        }
+    }, [])
 
     // 在组件顶部定义共享样式
     const handleStyle = {
@@ -133,9 +185,13 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700]`}
+                onDoubleClick={onDoubleClickButton}
+                onMouseEnter={onMouseEnter}
+                onMouseLeave={onMouseLeave}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600]`}
+                style={{ borderColor }}
             >
-                Google
+                Search <br /> Google
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
                 <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
