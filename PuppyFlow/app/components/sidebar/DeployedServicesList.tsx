@@ -231,14 +231,14 @@ const DeployedServicesList: React.FC = () => {
         {/* 标题栏 - 可点击区域扩展到父元素顶部 */}
         <button 
           onClick={toggleExpanded}
-          className="w-full text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans hover:bg-[#313131] rounded transition-colors pt-[8px]"
+          className="w-full text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans hover:text-[#CDCDCD] rounded transition-colors pt-[8px] group"
         >
           <div className="mb-[16px] flex items-center gap-2">
             <span>Deployed Services</span>
-            <div className="h-[1px] flex-grow bg-[#404040]"></div>
+            <div className="h-[1px] flex-grow bg-[#404040] group-hover:bg-[#CDCDCD] transition-colors"></div>
             <div className="flex items-center justify-center w-[16px] h-[16px]">
               {isLoading ? (
-                <svg className="animate-spin w-3 h-3 text-[#5D6065]" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin w-3 h-3 text-[#5D6065] group-hover:text-[#CDCDCD] transition-colors" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -249,9 +249,9 @@ const DeployedServicesList: React.FC = () => {
                   viewBox="0 0 12 12" 
                   fill="none" 
                   xmlns="http://www.w3.org/2000/svg"
-                  className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                  className={`transition-all duration-200 ${!isExpanded ? 'rotate-180' : ''}`}
                 >
-                  <path d="M3 4.5L6 7.5L9 4.5" stroke="#5D6065" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M3 4.5L6 7.5L9 4.5" stroke="#5D6065" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-[#CDCDCD] transition-colors"/>
                 </svg>
               )}
             </div>
