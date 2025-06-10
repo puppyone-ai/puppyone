@@ -32,7 +32,7 @@ function DeployAsChatbot({
     multiTurn: false,
     welcomeMessage: "Hello! How can I help you today?"
   });
-  const [selectedSDK, setSelectedSDK] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'bubble' | null>(null);
   const [showChatbotTest, setShowChatbotTest] = useState<boolean>(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
@@ -172,10 +172,10 @@ function DeployAsChatbot({
     }));
   };
 
-  // 处理 SDK 选择
-  const handleViewSDK = (platform: string | null) => {
+  // 修改：处理 tab 切换
+  const handleTabSwitch = (tab: 'details' | 'bubble' | null) => {
     if (!isDeployed) return;
-    setSelectedSDK(platform);
+    setActiveTab(tab);
   };
 
   // 切换聊天机器人测试界面
@@ -719,60 +719,100 @@ function DeployAsChatbot({
             )}
 
             <div className="mt-4 w-full">
-              {/* 只在已部署时显示部署选项和 API 详情 */}
+              {/* 只在已部署时显示 tab 选项和内容 */}
               {isDeployed && currentChatbot && (
                 <>
-                  <div className="text-[#808080] text-[14px] mb-3 text-left">
-                  </div>
-                  <div className="flex flex-wrap gap-4 justify-center">
-                    {deploymentOptions.map((option) => (
-                      <div key={option.id} className="flex flex-col items-center" style={{ width: '50px' }}>
-                        <div
-                          className={`w-[48px] h-[48px] rounded-[8px] transition duration-200 
-                            flex items-center justify-center
-                            cursor-pointer hover:bg-[#252525] hover:scale-105 hover:shadow-md text-[#CDCDCD]
-                            bg-[#1A1A1A] border border-[#404040]
-                            ${selectedSDK === option.id
-                              ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
-                              : 'hover:border-[#505050]'
-                            }`}
-                          onClick={() => handleViewSDK(option.id)}
-                        >
-                          {React.cloneElement(option.icon, {
-                            className: 'w-6 h-6',
-                            style: { marginRight: 0 }
-                          })}
-                        </div>
-                        <span className="text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]">
-                          {option.name.replace('Deploy to ', '').replace('Deploy as ', '')}
-                        </span>
+                  {/* Tab 选择器 */}
+                  <div className="flex gap-4 justify-center mb-4">
+                    <div
+                      className={`flex flex-col items-center cursor-pointer transition duration-200 hover:scale-105`}
+                      style={{ width: '80px' }}
+                      onClick={() => handleTabSwitch('details')}
+                    >
+                      <div
+                        className={`w-[48px] h-[48px] rounded-[8px] transition duration-200 
+                          flex items-center justify-center
+                          hover:bg-[#252525] hover:shadow-md
+                          bg-[#1A1A1A] border border-[#404040]
+                          ${activeTab === 'details'
+                            ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
+                            : 'text-[#CDCDCD] hover:border-[#505050]'
+                          }`}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" className="fill-current" />
+                          <path d="M8.5 10C9.33 10 10 9.33 10 8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5C7 9.33 7.67 10 8.5 10Z" className="fill-current" />
+                          <path d="M15.5 10C16.33 10 17 9.33 17 8.5C17 7.67 16.33 7 15.5 7C14.67 7 14 7.67 14 8.5C14 9.33 14.67 10 15.5 10Z" className="fill-current" />
+                          <path d="M12 17.5C14.33 17.5 16.31 16.04 17 14H7C7.69 16.04 9.67 17.5 12 17.5Z" className="fill-current" />
+                        </svg>
                       </div>
-                    ))}
+                      <span className="text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]">
+                        Chatbot Details
+                      </span>
+                    </div>
+
+                    <div
+                      className={`flex flex-col items-center cursor-pointer transition duration-200 hover:scale-105`}
+                      style={{ width: '80px' }}
+                      onClick={() => handleTabSwitch('bubble')}
+                    >
+                      <div
+                        className={`w-[48px] h-[48px] rounded-[8px] transition duration-200 
+                          flex items-center justify-center
+                          hover:bg-[#252525] hover:shadow-md
+                          bg-[#1A1A1A] border border-[#404040]
+                          ${activeTab === 'bubble'
+                            ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
+                            : 'text-[#CDCDCD] hover:border-[#505050]'
+                          }`}
+                      >
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <rect x="2" y="2" width="20" height="16" rx="2"
+                            className="stroke-current"
+                            strokeWidth="1.5"
+                            fill="none"
+                          />
+                          <path d="M2 6h20"
+                            className="stroke-current"
+                            strokeWidth="1.5"
+                          />
+                          <circle cx="4.5" cy="4" r="0.75" className="fill-current" />
+                          <circle cx="7.5" cy="4" r="0.75" className="fill-current" />
+                          <circle cx="10.5" cy="4" r="0.75" className="fill-current" />
+                          <circle cx="19.5" cy="18" r="4.5"
+                            className="fill-current"
+                          />
+                        </svg>
+                      </div>
+                      <span className="text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]">
+                        Website Bubble
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="mt-4 py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-                    <div className="flex justify-between items-start">
-                      <span className="text-[14px] text-[#CDCDCD] font-medium">
-                        {selectedSDK === 'bubble' ? 'Web Bubble Integration' : 'Chatbot Details'}
-                      </span>
-                      {selectedSDK && (
+                  {/* Tab 内容区域 */}
+                  {activeTab && (
+                    <div className="py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[14px] text-[#CDCDCD] font-medium">
+                          {activeTab === 'bubble' ? 'Website Bubble Integration' : 'Chatbot Details'}
+                        </span>
                         <button
                           className="text-[12px] text-[#3B9BFF] hover:underline flex items-center"
-                          onClick={() => handleViewSDK(null)}
+                          onClick={() => handleTabSwitch(null)}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                           <span className="ml-1">Close</span>
                         </button>
-                      )}
-                    </div>
+                      </div>
 
-                    {selectedSDK === 'bubble' ? (
-                      <div className="mt-3">
-                        <code className="block p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto max-h-[200px] overflow-y-auto">
-                          <pre className="text-left whitespace-pre">
-                            {`import { ChatBubbleDeployed } from 'puppychat';
+                      {activeTab === 'bubble' ? (
+                        <div className="mt-3">
+                          <code className="block p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto max-h-[200px] overflow-y-auto">
+                            <pre className="text-left whitespace-pre">
+                              {`import { ChatBubbleDeployed } from 'puppychat';
 
 // Add this component to your React app
 <ChatBubbleDeployed
@@ -804,51 +844,52 @@ function DeployAsChatbot({
   enableFallback={true}
   
 />`}
-                          </pre>
-                        </code>
-                      </div>
-                    ) : (
-                      <div className="mt-2 space-y-3">
-                        <div>
-                          <label className="text-[12px] text-[#808080] ">Chatbot Endpoint:</label>
-                          <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                            {currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
+                            </pre>
                           </code>
                         </div>
-
-                        <div>
-                          <label className="text-[12px] text-[#808080]">Chatbot ID:</label>
-                          <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                            {currentChatbot?.chatbot_id || 'api_xxxxxxxxxxxx'}
-                          </code>
-                        </div>
-
-                        <div>
-                          <label className="text-[12px] text-[#808080]">Chatbot Key:</label>
-                          <div className="flex items-start">
-                            <div className="px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto">
-                              {currentChatbot?.chatbot_key || 'sk_xxxxxxxxxxxx'}
-                            </div>
-                            <button
-                              className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                              onClick={() => {
-                                navigator.clipboard.writeText(currentChatbot?.chatbot_key || '');
-                              }}
-                            >
-                              <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                                <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
-                              </svg>
-                            </button>
+                      ) : (
+                        <div className="mt-2 space-y-3">
+                          <div>
+                            <label className="text-[12px] text-[#808080] ">Chatbot Endpoint:</label>
+                            <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                              {currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
+                            </code>
                           </div>
-                        </div>
 
-                        <p className="text-[12px] text-[#808080] mt-3">
-                          Reference the example above to make API calls to your endpoint
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                          <div>
+                            <label className="text-[12px] text-[#808080]">Chatbot ID:</label>
+                            <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                              {currentChatbot?.chatbot_id || 'api_xxxxxxxxxxxx'}
+                            </code>
+                          </div>
+
+                          <div>
+                            <label className="text-[12px] text-[#808080]">Chatbot Key:</label>
+                            <div className="flex items-start">
+                              <div className="px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto">
+                                {currentChatbot?.chatbot_key || 'sk_xxxxxxxxxxxx'}
+                              </div>
+                              <button
+                                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(currentChatbot?.chatbot_key || '');
+                                }}
+                              >
+                                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
+                                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+
+                          <p className="text-[12px] text-[#808080] mt-3">
+                            Reference the example above to make API calls to your endpoint
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>
