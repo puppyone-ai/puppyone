@@ -94,8 +94,12 @@ class EdgeExecutor:
                 # Loop execution
                 futures = []
                 future_to_index = {}
+                
+                print("extra_configs: ", extra_configs)
+                print("len(extra_configs): ", len(extra_configs), "len(init_configs): ", len(init_configs))
 
                 for i, init_param in enumerate(init_configs):
+                    print("extra_configs i: ", extra_configs[i])
                     future = self.executor.submit(self._execute_single, init_param, extra_configs[i])
                     futures.append(future)
                     future_to_index[future] = i

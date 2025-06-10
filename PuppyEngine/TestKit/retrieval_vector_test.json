@@ -1,0 +1,99 @@
+{
+    "blocks": {
+        "rL_T0O": {
+            "label": "rL_T0O",
+            "type": "structured",
+            "data": {
+                "content": [
+                    "星空",
+                    "帐篷",
+                    "篝火",
+                    "代码",
+                    "虫鸣",
+                    "月光",
+                    "咖啡",
+                    "键盘敲击声",
+                    "信号微弱",
+                    "电量告急",
+                    "思绪飞扬",
+                    "野风",
+                    "程序员",
+                    "灵感爆发",
+                    "调试",
+                    "commit",
+                    "bug",
+                    "夜幕降临",
+                    "孤独的热情",
+                    "野外求生"
+                ]
+            },
+            "looped": true,
+            "collection_configs": [
+                {
+                    "set_name": "collection_rL_T0O_1749200231807",
+                    "model": "text-embedding-ada-002",
+                    "vdb_type": "pgvector",
+                    "user_id": "82902327-a8f1-4446-9f59-5cd52b658d0f",
+                    "collection_name": "public5c46f906fa319951"
+                }
+            ]
+        },
+        "Lm-PbX": {
+            "label": "theme",
+            "type": "text",
+            "data": {
+                "content": "谁在野外加班？"
+            },
+            "looped": false,
+            "collection_configs": []
+        },
+        "h_ooN4": {
+            "label": "h_ooN4",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "retrieving-1749199910247": {
+            "type": "search",
+            "data": {
+                "search_type": "vector",
+                "top_k": 5,
+                "inputs": {
+                    "rL_T0O": "rL_T0O",
+                    "Lm-PbX": "theme"
+                },
+                "threshold": 0.7,
+                "extra_configs": {
+                    "provider": "openai",
+                    "model": "text-embedding-ada-002",
+                    "db_type": "pgvector"
+                },
+                "query_id": {
+                    "Lm-PbX": "theme"
+                },
+                "data_source": [
+                    {
+                        "id": "rL_T0O",
+                        "label": "rL_T0O",
+                        "index_item": {
+                            "index_name": "public5c46f906fa319951",
+                            "collection_configs": {
+                                "set_name": "collection_rL_T0O_1749200231807",
+                                "model": "text-embedding-ada-002",
+                                "vdb_type": "pgvector",
+                                "user_id": "82902327-a8f1-4446-9f59-5cd52b658d0f",
+                                "collection_name": "public5c46f906fa319951"
+                            }
+                        }
+                    }
+                ],
+                "outputs": {
+                    "h_ooN4": "h_ooN4"
+                }
+            }
+        }
+    }
+}
