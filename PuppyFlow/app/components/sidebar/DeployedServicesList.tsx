@@ -19,12 +19,14 @@ interface ApiInfo {
 
 interface ChatbotInfo {
   chatbot_id: string;
+  chatbot_key: string;
   workspace_id?: string;
   input?: string;
   output?: string;
   history?: string;
   multi_turn_enabled?: boolean;
   welcome_message?: string;
+  endpoint?: string;
 }
 
 const DeployedServicesList: React.FC = () => {
@@ -41,6 +43,8 @@ const DeployedServicesList: React.FC = () => {
     input?: string;
     output?: string;
     history?: string;
+    chatbotKey?: string;
+    endpoint?: string;
   } | null>(null);
 
   // 获取单个工作区的API列表
@@ -74,7 +78,7 @@ const DeployedServicesList: React.FC = () => {
   const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotInfo[]> => {
     try {
       const res = await fetch(
-        `${API_SERVER_URL}/list_chatbots/${workspaceId}`,
+        `${API_SERVER_URL}/list_chatbots/${workspaceId}?include_keys=true`,
         {
           method: "GET",
           headers: {
@@ -94,32 +98,6 @@ const DeployedServicesList: React.FC = () => {
     } catch (error) {
       console.error(`Error fetching chatbot list for workspace ${workspaceId}:`, error);
       return [];
-    }
-  }, [API_SERVER_URL, apiServerKey]);
-
-  // 获取chatbot详细信息
-  const fetchChatbotDetails = useCallback(async (chatbotId: string): Promise<ChatbotInfo | null> => {
-    try {
-      const res = await fetch(
-        `${API_SERVER_URL}/get_chatbot/${chatbotId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
-
-      if (!res.ok) {
-        throw new Error(`Failed to fetch chatbot details: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.chatbot || null;
-    } catch (error) {
-      console.error(`Error fetching chatbot details for ${chatbotId}:`, error);
-      return null;
     }
   }, [API_SERVER_URL, apiServerKey]);
 
@@ -183,23 +161,19 @@ const DeployedServicesList: React.FC = () => {
   const handleChatbotClick = async (service: DeployedService) => {
     if (service.type !== 'chatbot') return;
 
-    try {
-      const chatbotDetails = await fetchChatbotDetails(service.id);
-      setSelectedChatbot({
-        id: service.id,
-        workspaceId: service.workspaceId,
-        input: chatbotDetails?.input,
-        output: chatbotDetails?.output,
-        history: chatbotDetails?.history
-      });
-    } catch (error) {
-      console.error('Error opening chatbot:', error);
-      // 即使获取详细信息失败，也尝试打开基本的chatbot界面
-      setSelectedChatbot({
-        id: service.id,
-        workspaceId: service.workspaceId
-      });
-    }
+    // 从已获取的服务列表中找到对应的 chatbot 信息
+    const allChatbots = await fetchChatbotList(service.workspaceId);
+    const chatbotDetails = allChatbots.find(chatbot => chatbot.chatbot_id === service.id);
+
+    setSelectedChatbot({
+      id: service.id,
+      workspaceId: service.workspaceId,
+      input: chatbotDetails?.input,
+      output: chatbotDetails?.output,
+      history: chatbotDetails?.history,
+      chatbotKey: chatbotDetails?.chatbot_key,
+      endpoint: chatbotDetails?.endpoint
+    });
   };
 
   // 处理服务点击
@@ -313,8 +287,9 @@ const DeployedServicesList: React.FC = () => {
       {/* Chatbot测试界面 */}
       {selectedChatbot && (
         <ChatbotTestInterface
-          apiEndpoint={`${API_SERVER_URL}/chat/${selectedChatbot.id}`}
+          apiEndpoint={selectedChatbot.endpoint || `${API_SERVER_URL}/chat/${selectedChatbot.id}`}
           chatbotId={selectedChatbot.id}
+          apiKey={selectedChatbot.chatbotKey}
           onClose={closeChatbot}
           input={selectedChatbot.input}
           output={selectedChatbot.output}

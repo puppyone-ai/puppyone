@@ -66,7 +66,7 @@ export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps
   const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotInfo[]> => {
     try {
       const res = await fetch(
-        `${API_SERVER_URL}/list_chatbots/${workspaceId}`,
+        `${API_SERVER_URL}/list_chatbots/${workspaceId}?include_keys=true`,
         {
           method: "GET",
           headers: {
