@@ -103,9 +103,17 @@ class ModifyEditStructured(ModifyStrategy):
 
         try:
             for key in parent_path:
-                current = current[key] if isinstance(current, dict) else current[int(key)]
+                if isinstance(current, dict):
+                    current = current[key]
+                elif isinstance(current, list):
+                    current = current[int(key)]
+                else:
+                    # 严格类型检查：只允许字典和列表进行索引访问
+                    raise PuppyException(4211, f"Invalid data type for navigation: {type(current).__name__}", 
+                                       f"Cannot index into {type(current).__name__} with key '{key}'. Only dict and list are supported.")
             return current, last_key, True
-        except (KeyError, IndexError, ValueError, TypeError):
+        except (KeyError, IndexError, ValueError):
+            # 注意：移除了TypeError，让我们的类型检查异常能够传播
             return self.content, None, False
 
     @global_exception_handler(4200, "Error Getting Nested Value")
@@ -119,9 +127,18 @@ class ModifyEditStructured(ModifyStrategy):
             if path == ["*"]:
                 return current
             for key in path:
-                current = current[key] if isinstance(current, dict) else current[int(key)]
+                if isinstance(current, dict):
+                    current = current[key]
+                elif isinstance(current, list):
+                    current = current[int(key)]
+                else:
+                    # 严格类型检查：只允许字典和列表进行索引访问
+                    # 使用PuppyException而不是TypeError，这样它不会被下面的except块捕获
+                    raise PuppyException(4210, f"Invalid data type for indexing: {type(current).__name__}", 
+                                       f"Cannot index into {type(current).__name__} with key '{key}'. Only dict and list are supported.")
             return current
-        except (KeyError, IndexError, ValueError, TypeError):
+        except (KeyError, IndexError, ValueError):
+            # 注意：移除了TypeError，让我们的类型检查异常能够传播
             return default
 
     @global_exception_handler(4201, "Error Deleting Nested Value")
@@ -427,3 +444,66 @@ if __name__ == "__main__":
     ]
     result = ModifyEditStructured(content=nested_data, extra_configs={"operations": chained_operations}).modify()
     print("After chained operations:", result)
+
+    # === 边缘情况测试 ===
+    print("\n" + "="*50)
+    print("边缘情况测试 - 验证类型检查修复")
+    print("="*50)
+    
+    edge_test_cases = [
+        {
+            "name": "字符串而非数组",
+            "content": "should_be_array",
+            "description": "传入字符串，尝试获取索引0"
+        },
+        {
+            "name": "空字符串",
+            "content": "",
+            "description": "传入空字符串，尝试获取索引0"
+        },
+        {
+            "name": "数字",
+            "content": 12345,
+            "description": "传入数字，尝试获取索引0"
+        },
+        {
+            "name": "空数组",
+            "content": [],
+            "description": "传入空数组，尝试获取索引0"
+        },
+        {
+            "name": "正常数组",
+            "content": [{"name": "test", "food": ["apple"]}],
+            "description": "传入正常数组，尝试获取索引0"
+        }
+    ]
+    
+    for test_case in edge_test_cases:
+        print(f"\n测试: {test_case['name']}")
+        print(f"描述: {test_case['description']}")
+        print(f"输入: {test_case['content']}")
+        
+        # 创建get操作
+        operations = [
+            {
+                "type": "get",
+                "params": {
+                    "path": ["0"],
+                    "default": "Get Failed, value not exist"
+                }
+            }
+        ]
+        
+        try:
+            modifier = ModifyEditStructured(
+                content=test_case['content'], 
+                extra_configs={"operations": operations}
+            )
+            result = modifier.modify()
+            print(f"结果: {result}")
+            print("状态: ✅ 成功执行 (可能有问题)")
+        except Exception as e:
+            print(f"异常: {str(e)}")
+            print("状态: ❌ 抛出异常 (符合预期)")
+        
+        print("-" * 30)
