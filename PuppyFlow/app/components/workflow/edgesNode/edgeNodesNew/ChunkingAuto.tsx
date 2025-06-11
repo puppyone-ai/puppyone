@@ -71,7 +71,7 @@ function ChunkingAuto({ data: { subMenuType }, isConnectable, id }: ChunkingAuto
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px]`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px] edge-node`}
             >
                 Chunk <br /> Auto
                 {/* Source handles */}

@@ -60,8 +60,8 @@ class LLMQASearchStrategy(SearchStrategy):
             messages=messages,
             api_key=os.environ.get("PERPLEXITY_API_KEY"),
             base_url=os.environ.get("PERPLEXITY_BASE_URL"),
-            model=self.extra_configs.get("model", "sonar"),
-            hoster="litellm"
+            model=self.extra_configs.get("model", "perplexity/sonar"),
+            hoster="openrouter"
         )
 
     @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")

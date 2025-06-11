@@ -90,8 +90,6 @@ class StoragerFactory:
         collection_name: str,
         search_configs: dict
     ) -> List[Dict[str, Any]]:
-        print("COLLECTION NAME: ", collection_name)
-        print("SEARCH CONFIGS: ", search_configs)
         return self._search_embedded_vector(collection_name, search_configs)
 
 
