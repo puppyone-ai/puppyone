@@ -8,6 +8,7 @@ import { FlowsPerUserContextProvider, useFlowsPerUserContext } from "./component
 import BlankWorkspace from "./components/blankworkspace/BlankWorkspace";
 import { AppSettingsProvider } from "./components/states/AppSettingsContext";
 import Link from 'next/link';
+import { GlobalDeployedServicesProvider } from "./components/states/GlobalDeployedServicesContext";
 
 function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSuccess: () => void }) {
   const [inviteCode, setInviteCode] = React.useState("");
@@ -168,12 +169,14 @@ function MainApplication() {
       <AppSettingsProvider>
         <ReactFlowProvider>
           <FlowsPerUserContextProvider>
-            <>
-              <Sidebar />
-              <NodesPerFlowContextProvider>
-                <ActiveFlowContent />
-              </NodesPerFlowContextProvider>
-            </>
+            <GlobalDeployedServicesProvider>
+              <>
+                <Sidebar />
+                <NodesPerFlowContextProvider>
+                  <ActiveFlowContent />
+                </NodesPerFlowContextProvider>
+              </>
+            </GlobalDeployedServicesProvider>
           </FlowsPerUserContextProvider>
         </ReactFlowProvider>
       </AppSettingsProvider>
