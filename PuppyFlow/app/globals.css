@@ -312,22 +312,39 @@
 /* 根据节点尺寸区分 Block Node 和 Edge Node */
 
 
-/* Block Node 的选中样式 */
-.react-flow__node.selected .block-node {
-  border-color: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5),  /* 外发光 */
-             0 0 20px rgba(255, 255, 255, 0.3),  /* 中发光 */
-             0 0 30px rgba(255, 255, 255, 0.1);  /* 内发光 */
-}
+  /* Text Block Node 的选中样式 */
+  .react-flow__node.selected .text-block-node {
+    border-color: #4599DF;  /* main-blue 主题色 */
+    border-radius: 16px;
+    box-shadow: 0 0 10px rgba(69, 153, 223, 0.5),  /* 外发光 - main-blue */
+              0 0 20px rgba(69, 153, 223, 0.3),  /* 中发光 - main-blue */
+              0 0 30px rgba(69, 153, 223, 0.1);  /* 内发光 - main-blue */
+  }
 
+  /* Json Block Node 的选中样式 */
+  .react-flow__node.selected .json-block-node {
+    border-color: #9B7EDB;  /* 紫色主题色 */
+    border-radius: 16px;
+    box-shadow: 0 0 10px rgba(155, 126, 219, 0.5),  /* 外发光 - 紫色 */
+              0 0 20px rgba(155, 126, 219, 0.3),  /* 中发光 - 紫色 */
+              0 0 30px rgba(155, 126, 219, 0.1);  /* 内发光 - 紫色 */
+  }
+
+  /* File Block Node 的选中样式 */
+  .react-flow__node.selected .file-block-node {
+    border-color: #BF9A78;  /* 棕色主题色 */
+    border-radius: 16px;
+    box-shadow: 0 0 10px rgba(191, 154, 120, 0.5),  /* 外发光 - 棕色 */
+              0 0 20px rgba(191, 154, 120, 0.3),  /* 中发光 - 棕色 */
+              0 0 30px rgba(191, 154, 120, 0.1);  /* 内发光 - 棕色 */
+  }
 /* Edge Node 的选中样式 */
 .react-flow__node.selected .edge-node {
-  border-color: #ffffff;
+  border-color: #FFA73D;  /* main-orange 主题色 */
   border-radius: 8px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5),  /* 外发光 */
-             0 0 20px rgba(255, 255, 255, 0.3),  /* 中发光 */
-             0 0 30px rgba(255, 255, 255, 0.1);  /* 内发光 */
+  box-shadow: 0 0 10px rgba(255, 167, 61, 0.5),  /* 外发光 - main-orange */
+             0 0 20px rgba(255, 167, 61, 0.3),  /* 中发光 - main-orange */
+             0 0 30px rgba(255, 167, 61, 0.1);  /* 内发光 - main-orange */
 }
 
 /* 定义流动动画 */
