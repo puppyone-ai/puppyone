@@ -43,7 +43,7 @@ function VectorNode({data: {content, label, isLoading, locked, isInput, isOutput
 
   return (
     <div ref={componentRef} className={`h-full min-w-[176px] min-h-[176px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div id={id} className={`w-full h-full min-h-[112px] border-[2px] rounded-[8px] px-[15px] py-[25px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-[16px] font-[400]`}  >
+      <div id={id} className={`w-full h-full min-h-[112px] border-[2px] rounded-[8px] px-[15px] py-[25px]  ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-[16px] font-[400] block-node`}  >
             
       <div className={`absolute top-[6px] left-[32px] h-[18px] rounded-[6px] ${locked ?  "bg-main-blue w-[53px]" : "border-[3px] border-[#6D7177] bg-[#6D7177] w-[41px]"}  flex items-center justify-center gap-[7px]`}>
           <div className={`${locked ? "" : "hidden"}`}>

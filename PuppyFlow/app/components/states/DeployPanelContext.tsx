@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useGlobalDeployedServices } from './GlobalDeployedServicesContext';
 
 // 单个 API 服务信息
 interface ApiService {
@@ -37,19 +38,19 @@ interface DeployedServices {
   lastFetched?: number;
 }
 
-// Context 类型定义 - 只保留核心的跨组件共享状态
+// 简化的 Context 类型定义 - 只保留UI状态
 interface DeployPanelContextType {
-  // 当前工作流ID - 用于状态隔离
+  // 当前工作流ID
   currentFlowId: string | null;
   
-  // 已部署的服务列表 - 跨组件共享
+  // 保持向后兼容 - 从全局Context获取当前工作区的服务
   deployedServices: DeployedServices;
   setDeployedServices: React.Dispatch<React.SetStateAction<DeployedServices>>;
   
-  // API Server Key - 集中管理
+  // API Server Key - 从全局Context获取
   apiServerKey: string;
   
-  // 服务管理方法
+  // 委托给全局Context的方法
   addApiService: (service: ApiService) => void;
   removeApiService: (apiId: string) => void;
   updateApiService: (apiId: string, updates: Partial<ApiService>) => void;
@@ -58,24 +59,12 @@ interface DeployPanelContextType {
   removeChatbotService: (chatbotId: string) => void;
   updateChatbotService: (chatbotId: string, updates: Partial<ChatbotService>) => void;
   
-  // 新增：根据 workspace_id 获取 chatbot 的 API key
   getChatbotApiKey: (workspaceId: string) => string | null;
-  
-  // 重置当前工作流的部署状态
   resetDeploymentState: () => void;
 }
 
-// 初始已部署服务状态
-const initialDeployedServices: DeployedServices = {
-  apis: [],
-  chatbots: [],
-  lastFetched: undefined
-};
-
-// 创建 Context
 const DeployPanelContext = createContext<DeployPanelContextType | undefined>(undefined);
 
-// Provider 组件
 interface DeployPanelProviderProps {
   children: ReactNode;
   flowId: string | null;
@@ -89,144 +78,104 @@ export const DeployPanelProvider = ({
   workspaces,
   setWorkspaces 
 }: DeployPanelProviderProps) => {
-  // 核心状态
   const [currentFlowId, setCurrentFlowId] = useState<string | null>(flowId);
-  const [deployedServices, setDeployedServices] = useState<DeployedServices>(initialDeployedServices);
+  
+  // 使用全局部署服务Context
+  const {
+    apiServerKey,
+    addApiService: globalAddApiService,
+    removeApiService: globalRemoveApiService,
+    updateApiService: globalUpdateApiService,
+    addChatbotService: globalAddChatbotService,
+    removeChatbotService: globalRemoveChatbotService,
+    updateChatbotService: globalUpdateChatbotService,
+    getChatbotApiKey: globalGetChatbotApiKey,
+    getServicesByWorkspace,
+    fetchWorkspaceServices
+  } = useGlobalDeployedServices();
 
-  // 添加 API Server Key 管理
-  const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
+  // 获取当前工作区的服务，转换为原有格式
+  const getCurrentWorkspaceServices = (): DeployedServices => {
+    if (!currentFlowId) return { apis: [], chatbots: [], lastFetched: undefined };
+    
+    const services = getServicesByWorkspace(currentFlowId);
+    return {
+      apis: services.apis.map(api => ({
+        api_id: api.api_id,
+        api_key: api.api_key,
+        endpoint: api.endpoint,
+        created_at: api.created_at,
+        workspace_id: api.workspace_id,
+        inputs: api.inputs,
+        outputs: api.outputs
+      })),
+      chatbots: services.chatbots.map(chatbot => ({
+        chatbot_id: chatbot.chatbot_id,
+        chatbot_key: chatbot.chatbot_key,
+        endpoint: chatbot.endpoint,
+        created_at: chatbot.created_at,
+        workspace_id: chatbot.workspace_id,
+        input: chatbot.input,
+        output: chatbot.output,
+        history: chatbot.history,
+        multi_turn_enabled: chatbot.multi_turn_enabled,
+        welcome_message: chatbot.welcome_message,
+        config: chatbot.config
+      })),
+      lastFetched: Date.now()
+    };
+  };
 
-  // 服务管理方法
+  // 包装方法，添加工作区名称
   const addApiService = (service: ApiService) => {
-    setDeployedServices(prev => ({
-      ...prev,
-      apis: [...prev.apis, service]
-    }));
-  };
-
-  const removeApiService = (apiId: string) => {
-    setDeployedServices(prev => ({
-      ...prev,
-      apis: prev.apis.filter(api => api.api_id !== apiId)
-    }));
-  };
-
-  const updateApiService = (apiId: string, updates: Partial<ApiService>) => {
-    setDeployedServices(prev => ({
-      ...prev,
-      apis: prev.apis.map(api => 
-        api.api_id === apiId ? { ...api, ...updates } : api
-      )
-    }));
+    const workspace = workspaces.find(w => w.flowId === currentFlowId);
+    const workspaceName = workspace?.flowTitle || 'Unknown';
+    globalAddApiService(service, workspaceName);
   };
 
   const addChatbotService = (service: ChatbotService) => {
-    setDeployedServices(prev => ({
-      ...prev,
-      chatbots: [...prev.chatbots, service]
-    }));
+    const workspace = workspaces.find(w => w.flowId === currentFlowId);
+    const workspaceName = workspace?.flowTitle || 'Unknown';
+    globalAddChatbotService(service, workspaceName);
   };
 
-  const removeChatbotService = (chatbotId: string) => {
-    setDeployedServices(prev => ({
-      ...prev,
-      chatbots: prev.chatbots.filter(chatbot => chatbot.chatbot_id !== chatbotId)
-    }));
+  // 空的setter，因为数据现在由全局Context管理
+  const setDeployedServices = () => {
+    // 这个方法现在是空的，因为状态由全局Context管理
+    console.warn('setDeployedServices is deprecated, use global context methods instead');
   };
 
-  const updateChatbotService = (chatbotId: string, updates: Partial<ChatbotService>) => {
-    setDeployedServices(prev => ({
-      ...prev,
-      chatbots: prev.chatbots.map(chatbot => 
-        chatbot.chatbot_id === chatbotId ? { ...chatbot, ...updates } : chatbot
-      )
-    }));
-  };
-
-  // 新增：根据 workspace_id 获取 chatbot 的 API key
-  const getChatbotApiKey = (workspaceId: string): string | null => {
-    const chatbot = deployedServices.chatbots.find(
-      chatbot => chatbot.workspace_id === workspaceId
-    );
-    return chatbot?.chatbot_key || null;
-  };
-
-  // 重置部署状态
   const resetDeploymentState = () => {
-    setDeployedServices(initialDeployedServices);
+    // 可以实现为清除当前工作区的服务
+    console.warn('resetDeploymentState is deprecated');
   };
 
-  // 同步状态到 workspaces
-  const syncToWorkspaces = () => {
-    if (!currentFlowId) return;
-
-    const updatedWorkspaces = workspaces.map(workspace => {
-      if (workspace.flowId === currentFlowId) {
-        return {
-          ...workspace,
-          deploy: {
-            ...workspace.deploy,
-            deployedServices: {
-              apis: deployedServices.apis,
-              chatbots: deployedServices.chatbots,
-              lastFetched: deployedServices.lastFetched
-            }
-          }
-        };
-      }
-      return workspace;
-    });
-
-    setWorkspaces(updatedWorkspaces);
-  };
-
-  // 监听 flowId 变化，恢复对应工作流的部署状态
+  // 监听 flowId 变化
   useEffect(() => {
     if (flowId !== currentFlowId) {
       setCurrentFlowId(flowId);
-
+      
+      // 如果需要，可以触发数据刷新
       if (flowId) {
-        const currentWorkspace = workspaces.find(w => w.flowId === flowId);
-        
-        if (currentWorkspace?.deploy?.deployedServices) {
-          // 恢复该工作流的已部署服务
-          setDeployedServices({
-            apis: currentWorkspace.deploy.deployedServices.apis || [],
-            chatbots: currentWorkspace.deploy.deployedServices.chatbots || [],
-            lastFetched: currentWorkspace.deploy.deployedServices.lastFetched
-          });
-        } else {
-          // 如果没有部署状态，重置为初始状态
-          setDeployedServices(initialDeployedServices);
-        }
-      } else {
-        // 如果没有选中的 flowId，重置状态
-        setDeployedServices(initialDeployedServices);
+        fetchWorkspaceServices(flowId);
       }
     }
-  }, [flowId, workspaces]);
-
-  // 当部署服务状态改变时，自动同步到 workspaces
-  useEffect(() => {
-    if (currentFlowId) {
-      syncToWorkspaces();
-    }
-  }, [currentFlowId, deployedServices]);
+  }, [flowId, currentFlowId, fetchWorkspaceServices]);
 
   return (
     <DeployPanelContext.Provider 
       value={{ 
         currentFlowId,
-        deployedServices,
+        deployedServices: getCurrentWorkspaceServices(),
         setDeployedServices,
         apiServerKey,
         addApiService,
-        removeApiService,
-        updateApiService,
+        removeApiService: globalRemoveApiService,
+        updateApiService: globalUpdateApiService,
         addChatbotService,
-        removeChatbotService,
-        updateChatbotService,
-        getChatbotApiKey,
+        removeChatbotService: globalRemoveChatbotService,
+        updateChatbotService: globalUpdateChatbotService,
+        getChatbotApiKey: globalGetChatbotApiKey,
         resetDeploymentState
       }}
     >
@@ -235,7 +184,6 @@ export const DeployPanelProvider = ({
   );
 };
 
-// Hook 用于在组件中使用 Context
 export const useDeployPanelContext = () => {
   const context = useContext(DeployPanelContext);
   if (!context) {
@@ -244,7 +192,7 @@ export const useDeployPanelContext = () => {
   return context;
 };
 
-// 简化的 hooks - 只提供已部署服务的访问
+// 保持原有的hook
 export const useDeployedServices = () => {
   const { 
     deployedServices, 
