@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext';
+import { useAllDeployedServices } from '../states/GlobalDeployedServicesContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
 
@@ -30,12 +30,25 @@ interface ChatbotInfo {
 }
 
 const DeployedServicesList: React.FC = () => {
-  const { workspaces } = useFlowsPerUserContext();
+  const { apis, chatbots, isLoading } = useAllDeployedServices();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
-  const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
 
-  const [services, setServices] = useState<DeployedService[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // 转换数据格式
+  const services = [
+    ...apis.map(api => ({
+      id: api.api_id,
+      type: 'api' as const,
+      workspaceName: api.workspaceName,
+      workspaceId: api.workspace_id || ''
+    })),
+    ...chatbots.map(chatbot => ({
+      id: chatbot.chatbot_id,
+      type: 'chatbot' as const,
+      workspaceName: chatbot.workspaceName,
+      workspaceId: chatbot.workspace_id || ''
+    }))
+  ];
+
   const [isExpanded, setIsExpanded] = useState(true); // 默认展开
   const [selectedChatbot, setSelectedChatbot] = useState<{
     id: string;
@@ -56,7 +69,7 @@ const DeployedServicesList: React.FC = () => {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "x-admin-key": process.env.NEXT_PUBLIC_API_SERVER_KEY || ''
           }
         }
       );
@@ -72,7 +85,7 @@ const DeployedServicesList: React.FC = () => {
       console.error(`Error fetching API list for workspace ${workspaceId}:`, error);
       return [];
     }
-  }, [API_SERVER_URL, apiServerKey]);
+  }, []);
 
   // 获取单个工作区的Chatbot列表
   const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotInfo[]> => {
@@ -83,7 +96,7 @@ const DeployedServicesList: React.FC = () => {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "x-admin-key": process.env.NEXT_PUBLIC_API_SERVER_KEY || ''
           }
         }
       );
@@ -99,58 +112,19 @@ const DeployedServicesList: React.FC = () => {
       console.error(`Error fetching chatbot list for workspace ${workspaceId}:`, error);
       return [];
     }
-  }, [API_SERVER_URL, apiServerKey]);
+  }, []);
 
   // 获取所有已部署的服务
   const fetchAllServices = useCallback(async () => {
-    if (!workspaces.length || !apiServerKey) {
-      setServices([]);
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const allPromises = workspaces.map(async (workspace) => {
-        const [apis, chatbots] = await Promise.all([
-          fetchApiList(workspace.flowId),
-          fetchChatbotList(workspace.flowId)
-        ]);
-
-        const workspaceServices: DeployedService[] = [
-          ...apis.map(api => ({
-            id: api.api_id,
-            type: 'api' as const,
-            workspaceName: workspace.flowTitle,
-            workspaceId: workspace.flowId
-          })),
-          ...chatbots.map(chatbot => ({
-            id: chatbot.chatbot_id,
-            type: 'chatbot' as const,
-            workspaceName: workspace.flowTitle,
-            workspaceId: workspace.flowId
-          }))
-        ];
-
-        return workspaceServices;
-      });
-
-      const results = await Promise.all(allPromises);
-      const allServices = results.flat();
-      setServices(allServices);
-    } catch (error) {
-      console.error("Error fetching deployed services:", error);
-      setServices([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaces, apiServerKey, fetchApiList, fetchChatbotList]);
+    // 移除所有数据获取逻辑，直接使用从全局Context获取的数据
+  }, []);
 
   // 初始化时获取数据
   useEffect(() => {
-    if (workspaces.length > 0) {
+    if (services.length > 0) {
       fetchAllServices();
     }
-  }, [workspaces, fetchAllServices]);
+  }, [services, fetchAllServices]);
 
   // 切换展开状态
   const toggleExpanded = () => {
