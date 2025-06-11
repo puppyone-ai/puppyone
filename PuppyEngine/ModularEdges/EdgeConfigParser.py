@@ -375,16 +375,20 @@ class SearchConfigParser(EdgeConfigParser):
             for doc_id in doc_ids[1:]:
                 self.block_configs.pop(doc_id)
 
-        variables = self.get_looped_configs()
         query_id = list(self.edge_configs.get("query_id", {}).keys())[0]
+        search_type = self.edge_configs.get("search_type", "")
+        original_extra_configs = self.edge_configs.get("extra_configs", {})
+        data_sources = self.edge_configs.get("data_source", [])
 
+        if search_type == "vector":
+            self.block_configs = {query_id: self.block_configs[query_id]}
+
+        variables = self.get_looped_configs()
         init_configs = [{
-            "search_type": self.edge_configs.get("search_type", ""),
+            "search_type": search_type,
             variable_replace_field: variable.get(query_id)
         } for variable in variables]
 
-        original_extra_configs = self.edge_configs.get("extra_configs", {})
-        data_sources = self.edge_configs.get("data_source", [])
         is_loop = len(variables) > 1
         if is_loop:
             extra_configs = [{

@@ -7,6 +7,7 @@ import FlowThumbnailView from './FlowThumbnailView'
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
 import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
+import DeployedServicesList from './DeployedServicesList'
 
 type SidebarFullScreenProps = {
     setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
@@ -39,13 +40,13 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
     <div className="flex-col font-normal px-[8px] py-[16px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className="flex flex-col items-start pt-[24px] pb-[16px] relative self-stretch w-full h-full overflow-hidden">
-        <div className="w-full text-[#5D6065] text-[12px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans">
+        <div className="w-full text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans">
           <div className="mb-[16px] flex items-center gap-2">
             <span>Library</span>
             <div className="h-[1px] flex-grow bg-[#404040]"></div>
           </div>
         </div>
-        <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-170px)] pr-[4px]">
+        <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-240px)] pr-[4px]">
           {workspaces.map((workspace) => (
             <FlowElement 
               key={workspace.flowId} 
@@ -58,6 +59,14 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
           ))}
         </ul>
         <AddNewWorkspaceButton/>
+        
+        {/* Spacer to push Deployed Services to bottom */}
+        <div className="flex-grow"></div>
+        
+        {/* Deployed Services List - Fixed at bottom */}
+        <div className="mt-[8px] relative self-stretch w-full">
+          <DeployedServicesList />
+        </div>
       </div>
     </div>
   )
