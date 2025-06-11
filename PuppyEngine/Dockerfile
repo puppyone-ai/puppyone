@@ -1,5 +1,5 @@
-# Use Python 3.11 base image
-FROM python:3.11.5-slim
+# Use Python 3.12 base image
+FROM python:3.12-slim
 
 # Install build-essential
 RUN apt-get update && apt-get install -y \

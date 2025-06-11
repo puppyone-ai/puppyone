@@ -446,7 +446,7 @@ function Workflow() {
           snapToGrid={true}
           snapGrid={[16, 16]}
           fitView
-
+          deleteKeyCode={['Backspace', 'Delete']}  // 同时支持Backspace和Delete键
           minZoom={0.2}           // 最小缩放级别
           maxZoom={1.5}
           zoomOnScroll={canZoom}
@@ -454,7 +454,8 @@ function Workflow() {
           panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
           panOnScroll={true}          // 重新启用默认的滚动行为
           panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
-          selectionOnDrag={false}          // 禁用拖拽选择，这样不会干扰画板的拖动
+          selectionMode={SelectionMode.Full}
+          selectionOnDrag={true}  // 启用拖拽选择
           className="nocursor"             // 可选：添加自定义样式
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
