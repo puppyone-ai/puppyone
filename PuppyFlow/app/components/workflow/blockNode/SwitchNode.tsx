@@ -222,7 +222,7 @@ function SwitchNode({isConnectable, id, type, data: {content, label, isLoading, 
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[176px] min-h-[208px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div id={id} ref={contentRef} className={`w-full h-full border-[1.5px]  min-w-[112px] min-h-[144px] rounded-[8px] flex justify-center pt-[64px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+      <div id={id} ref={contentRef} className={`w-full h-full border-[1.5px]  min-w-[112px] min-h-[144px] rounded-[8px] flex justify-center pt-[64px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden block-node`}  >
         
         <button 
           className={`w-[48px] h-[48px] flex items-center justify-center rounded-full transition-transform duration-300  ${isOnGeneratingNewNode ? 'cursor-crosshair pointer-events-none' : 'cursor-pointer'}`} 
