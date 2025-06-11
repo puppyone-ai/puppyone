@@ -245,7 +245,7 @@ const onFocus: () => void = () => {
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[304px] p-[32px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
-      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-h-[240px] rounded-[8px] p-[16px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden`}  >
+      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-h-[240px] rounded-[8px] p-[16px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden block-node`}  >
 
         {subtype !== "structured" ? (<TextEditorTextArea preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
           widthStyle={contentSize.width} heightStyle={contentSize.height}
