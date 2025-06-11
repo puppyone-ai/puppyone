@@ -99,7 +99,7 @@ export function NodesPerFlowUtils() {
     // }, [])
 
     const activateEdge = useCallback((edgeId: string) => {
-        console.log("activateEdge被调用")
+        // console.log("activateEdge被调用")
         if (!judgeNodeIsEdgeNode(edgeId) || isOnGeneratingNewNode) return
         if (!isOnConnect) {
             setActivatedEdge(edgeId)
@@ -112,12 +112,12 @@ export function NodesPerFlowUtils() {
 
     // clear all , no matter if it is connected or not
     const clearAll = useCallback(() => {
+        console.log("clearALL被调用")
         setActivatedNode(null)
         setActivatedEdge(null)
         setIsOnConnect(false)
         setPreventInactivated(false)
         setIsOnGeneratingNewNode(false)
-        // setNodes(nodes => nodes.map(node => ({...node, data: {...node.data, ActiveHandle: null}})))
     }, [])
 
     const generateNewNode = useCallback(() => {
