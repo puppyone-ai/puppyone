@@ -309,7 +309,26 @@
   animation: flow 6s linear infinite;
 }
 
+/* 根据节点尺寸区分 Block Node 和 Edge Node */
 
+
+/* Block Node 的选中样式 */
+.react-flow__node.selected .block-node {
+  border-color: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5),  /* 外发光 */
+             0 0 20px rgba(255, 255, 255, 0.3),  /* 中发光 */
+             0 0 30px rgba(255, 255, 255, 0.1);  /* 内发光 */
+}
+
+/* Edge Node 的选中样式 */
+.react-flow__node.selected .edge-node {
+  border-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5),  /* 外发光 */
+             0 0 20px rgba(255, 255, 255, 0.3),  /* 中发光 */
+             0 0 30px rgba(255, 255, 255, 0.1);  /* 内发光 */
+}
 
 /* 定义流动动画 */
 @keyframes flow {
