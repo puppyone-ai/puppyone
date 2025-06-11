@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useDashboardContext } from './states/DashBoardContext';
 import { useFlowsPerUserContext } from '../states/FlowsPerUserContext';
 import { SYSTEM_URLS } from '@/config/urls';
+import { useAllDeployedServices } from '../states/GlobalDeployedServicesContext';
 
 // 定义服务类型
 interface DeployedService {
@@ -36,140 +37,12 @@ interface ChatbotInfo {
 }
 
 const DeployedServers: React.FC = () => {
-  // 直接从 FlowsPerUserContext 获取所有工作区信息
-  const { workspaces } = useFlowsPerUserContext();
+  const { apis, chatbots, isLoading, error } = useAllDeployedServices();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
-  const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
 
-  // 本地状态管理
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [allDeployedServices, setAllDeployedServices] = useState<{
-    apis: (ApiInfo & { workspaceName: string })[];
-    chatbots: (ChatbotInfo & { workspaceName: string })[];
-  }>({
-    apis: [],
-    chatbots: []
-  });
-
-  // 获取单个工作区的API列表
-  const fetchApiList = useCallback(async (workspaceId: string): Promise<ApiInfo[]> => {
-    try {
-      const res = await fetch(
-        `${API_SERVER_URL}/list_apis/${workspaceId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          return [];
-        }
-        throw new Error(`Failed to fetch API list: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.apis || [];
-    } catch (error) {
-      console.error(`Error fetching API list for workspace ${workspaceId}:`, error);
-      return [];
-    }
-  }, [API_SERVER_URL, apiServerKey]);
-
-  // 获取单个工作区的Chatbot列表
-  const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotInfo[]> => {
-    try {
-      const res = await fetch(
-        `${API_SERVER_URL}/list_chatbots/${workspaceId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          return [];
-        }
-        throw new Error(`Failed to fetch chatbot list: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.chatbots || [];
-    } catch (error) {
-      console.error(`Error fetching chatbot list for workspace ${workspaceId}:`, error);
-      return [];
-    }
-  }, [API_SERVER_URL, apiServerKey]);
-
-  // 获取所有工作区的部署服务
-  const fetchAllDeployedServices = useCallback(async () => {
-    if (!workspaces.length || !apiServerKey) {
-      console.log("No workspaces or API key missing, skipping fetch");
-      setAllDeployedServices({ apis: [], chatbots: [] });
-      return;
-    }
-
-    try {
-      // 并行获取所有工作区的API和Chatbot列表
-      const allPromises = workspaces.map(async (workspace) => {
-        const [apis, chatbots] = await Promise.all([
-          fetchApiList(workspace.flowId),
-          fetchChatbotList(workspace.flowId)
-        ]);
-
-        return {
-          workspaceId: workspace.flowId,
-          workspaceName: workspace.flowTitle,
-          apis,
-          chatbots
-        };
-      });
-
-      const results = await Promise.all(allPromises);
-
-      // 合并所有结果
-      const allApis: (ApiInfo & { workspaceName: string })[] = [];
-      const allChatbots: (ChatbotInfo & { workspaceName: string })[] = [];
-
-      results.forEach(({ workspaceName, apis, chatbots }) => {
-        apis.forEach(api => {
-          allApis.push({ ...api, workspaceName });
-        });
-        
-        chatbots.forEach(chatbot => {
-          allChatbots.push({ ...chatbot, workspaceName });
-        });
-      });
-
-      setAllDeployedServices({
-        apis: allApis,
-        chatbots: allChatbots
-      });
-
-      console.log(`✅ Fetched deployed services from ${workspaces.length} workspaces:`, {
-        totalApis: allApis.length,
-        totalChatbots: allChatbots.length
-      });
-
-    } catch (error) {
-      console.error("Error fetching all deployed services:", error);
-      setAllDeployedServices({ apis: [], chatbots: [] });
-    }
-  }, [workspaces, apiServerKey, fetchApiList, fetchChatbotList]);
-
-  // 转换数据格式以匹配组件需要的结构
-  const servers: DeployedService[] = [
-    // 转换API服务
-    ...allDeployedServices.apis.map(api => ({
+  // 转换数据格式
+  const servers = [
+    ...apis.map(api => ({
       id: api.api_id,
       type: 'api' as const,
       workspace: api.workspace_id || 'Unknown',
@@ -177,8 +50,7 @@ const DeployedServers: React.FC = () => {
       endpoint: `${API_SERVER_URL}/execute_workflow/${api.api_id}`,
       created_at: api.created_at
     })),
-    // 转换Chatbot服务
-    ...allDeployedServices.chatbots.map(chatbot => ({
+    ...chatbots.map(chatbot => ({
       id: chatbot.chatbot_id,
       type: 'chatbot' as const,
       workspace: chatbot.workspace_id || 'Unknown',
@@ -190,37 +62,10 @@ const DeployedServers: React.FC = () => {
 
   // 初始化时获取数据
   useEffect(() => {
-    if (workspaces.length > 0) {
-      setIsLoading(true);
-      fetchAllDeployedServices()
-        .then(() => {
-          console.log('✅ All deployed services loaded for dashboard');
-        })
-        .catch((error) => {
-          console.error('❌ Failed to load deployed services:', error);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
+    if (apis.length > 0 || chatbots.length > 0) {
+      console.log('✅ All deployed services loaded for dashboard');
     }
-  }, [workspaces, fetchAllDeployedServices]);
-
-  // 处理刷新操作
-  const handleRefresh = async () => {
-    if (!workspaces.length) return;
-    
-    setIsRefreshing(true);
-    try {
-      await fetchAllDeployedServices();
-      console.log('🔄 All deployed services refreshed');
-    } catch (error) {
-      console.error('❌ Failed to refresh deployed services:', error);
-    } finally {
-      setTimeout(() => {
-        setIsRefreshing(false);
-      }, 500);
-    }
-  };
+  }, [apis, chatbots]);
 
   // 复制端点到剪贴板
   const copyToClipboard = async (text: string) => {
@@ -253,33 +98,6 @@ const DeployedServers: React.FC = () => {
       {/* 标题栏 */}
       <div className="flex items-center justify-between sticky top-0 z-10 bg-[#2A2A2A] pb-2">
         <h3 className="text-[16px] font-medium text-white">Deployed Servers</h3>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing || isLoading}
-          className={`p-2 rounded transition-all duration-200 ${
-            isRefreshing || isLoading
-              ? 'bg-[#2A2A2A] text-[#CDCDCD] cursor-not-allowed' 
-              : 'hover:bg-[#404040] text-[#808080] hover:text-[#CDCDCD] active:scale-95'
-          }`}
-          title={isRefreshing ? "Refreshing..." : "Refresh deployed services"}
-        >
-          <svg 
-            className={`w-4 h-4 transition-transform duration-500 ${
-              isRefreshing ? 'animate-spin' : ''
-            }`} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24" 
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
-            />
-          </svg>
-        </button>
       </div>
       
       <div className="py-[8px] overflow-y-auto">
@@ -382,13 +200,13 @@ const DeployedServers: React.FC = () => {
         ) : (
           <div className="bg-[#333333] rounded-lg p-4 text-center">
             <div className="text-[12px] text-[#888888] mb-1">No deployed servers found</div>
-            {workspaces.length === 0 ? (
+            {apis.length === 0 && chatbots.length === 0 ? (
               <div className="text-[#666666] text-[10px]">
-                No workspaces available
+                No services deployed across any workspace
               </div>
             ) : (
               <div className="text-[#666666] text-[10px]">
-                No services deployed across {workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''}
+                No services deployed across {apis.length + chatbots.length} services
               </div>
             )}
           </div>
