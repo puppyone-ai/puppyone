@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAllDeployedServices } from '../states/GlobalDeployedServicesContext';
+import { useFlowsPerUserContext } from '../states/FlowsPerUserContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
 
@@ -31,6 +32,7 @@ interface ChatbotInfo {
 
 const DeployedServicesList: React.FC = () => {
   const { apis, chatbots, isLoading } = useAllDeployedServices();
+  const { handleFlowSwitch } = useFlowsPerUserContext();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   // 转换数据格式
@@ -152,6 +154,8 @@ const DeployedServicesList: React.FC = () => {
 
   // 处理服务点击
   const handleServiceClick = (service: DeployedService) => {
+    handleFlowSwitch(null);
+    
     if (service.type === 'chatbot') {
       handleChatbotClick(service);
     } else if (service.type === 'api') {
@@ -213,7 +217,7 @@ const DeployedServicesList: React.FC = () => {
               <div 
                 key={service.id}
                 onClick={() => handleServiceClick(service)}
-                className="flex items-center gap-[8px] py-[6px] px-[16px] rounded-md hover:bg-[#313131] transition-colors group cursor-pointer"
+                className="flex items-center gap-[8px] py-[6px] px-[16px] rounded-md hover:bg-[#313131] transition-colors group cursor-pointer h-[32px]"
                 title={service.type === 'chatbot' ? 'Click to open chat interface' : 'Click to copy API endpoint'}
               >
                 {/* 服务类型图标 */}
@@ -236,7 +240,7 @@ const DeployedServicesList: React.FC = () => {
 
                 {/* 服务信息 */}
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-medium text-[#CDCDCD] group-hover:text-white truncate">
+                  <div className="text-[13px] font-medium text-[#CDCDCD] group-hover:text-white truncate">
                     {service.id.length > 12 ? `${service.id.substring(0, 12)}...` : service.id}
                   </div>
                   <div className="text-[10px] text-[#808080] truncate">
