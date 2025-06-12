@@ -112,7 +112,6 @@ export function NodesPerFlowUtils() {
 
     // clear all , no matter if it is connected or not
     const clearAll = useCallback(() => {
-        console.log("clearALL被调用")
         setActivatedNode(null)
         setActivatedEdge(null)
         setIsOnConnect(false)
