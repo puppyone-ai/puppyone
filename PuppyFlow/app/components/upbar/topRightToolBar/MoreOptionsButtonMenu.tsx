@@ -163,7 +163,7 @@ function MoreOptionsButtonMenu({clearTopRightToolBarMenu}: MoreOptionsButtonMenu
   const handleFileContent = async (file: File) => {
     try {
       const text = await file.text(); // 使用更现代的 API 替代 FileReader
-       console.log(text, "text hello")
+      // console.log(text, "text hello")
       const jsonContent = JSON.parse(text);
       
       if (jsonContent.blocks && jsonContent.edges) {
