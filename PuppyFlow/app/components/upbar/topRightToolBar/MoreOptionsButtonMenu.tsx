@@ -163,7 +163,7 @@ function MoreOptionsButtonMenu({clearTopRightToolBarMenu}: MoreOptionsButtonMenu
   const handleFileContent = async (file: File) => {
     try {
       const text = await file.text(); // 使用更现代的 API 替代 FileReader
-      // console.log(text, "text hello")
+       console.log(text, "text hello")
       const jsonContent = JSON.parse(text);
       
       if (jsonContent.blocks && jsonContent.edges) {
@@ -187,6 +187,10 @@ const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     handleFileContent(file);
   } else {
     clearTopRightToolBarMenu()
+  }
+  // 重置文件输入框的值，这样下次选择相同文件时也会触发 onChange
+  if (fileInputRef.current) {
+    fileInputRef.current.value = '';
   }
 };
 
