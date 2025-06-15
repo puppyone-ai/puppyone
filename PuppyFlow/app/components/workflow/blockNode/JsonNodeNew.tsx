@@ -7,8 +7,8 @@ import WhiteBallHandle from '../handles/WhiteBallHandle'
 import JSONForm from '../../tableComponent/JSONForm'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
-import useManageUserWorkspacesUtils from '../../hooks/useManageUserWorkSpacesUtils'
-import { useFlowsPerUserContext } from "../../states/FlowsPerUserContext"
+import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
+import { useWorkspaces } from "../../states/UserWorkspaceAndServicesContext"
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu'
@@ -84,8 +84,8 @@ type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 // 注意：PathNode 类型已经在 TreePathEditor 组件中导出，这里不需要重复定义
 
 function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name, indexingList = [] } }: JsonBlockNodeProps) {
-  const { fetchUserId } = useManageUserWorkspacesUtils()
-  const { userId } = useFlowsPerUserContext()
+  const { fetchUserId } = useWorkspaceManagement()
+  const { userId } = useWorkspaces()
 
   type ExtendedNode = Node<JsonNodeData> & { looped?: boolean };
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 

@@ -3,7 +3,7 @@
 import { Menu, Transition } from '@headlessui/react'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
+import { useWorkspaces } from '../../states/UserWorkspaceAndServicesContext'
 import { SYSTEM_URLS } from '@/config/urls'
 import { DeployPanelProvider } from '../../states/DeployPanelContext'
 import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
@@ -16,7 +16,8 @@ import DeployedChatbotDetail from './deployMenu/DeployedChatbotDetail'
 
 
 function DeployBotton() {
-  const { setWorkspaces, selectedFlowId, workspaces } = useFlowsPerUserContext()
+  const { setWorkspaces, showingItem, workspaces } = useWorkspaces()
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
 
   // 仅保留顶层菜单所需的状态
@@ -378,7 +379,8 @@ function DeployBotton() {
 }
 
 export default function DeployBottonWrapper() {
-  const { selectedFlowId, workspaces, setWorkspaces } = useFlowsPerUserContext();
+  const { showingItem, workspaces, setWorkspaces } = useWorkspaces();
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
   return (
     <DeployPanelProvider 

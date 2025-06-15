@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { useFlowsPerUserContext } from './FlowsPerUserContext';
+import { useWorkspaces } from './UserWorkspaceAndServicesContext';
 import { SYSTEM_URLS } from '@/config/urls';
 
 // 统一的服务接口定义
@@ -105,7 +105,7 @@ interface GlobalDeployedServicesProviderProps {
 }
 
 export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServicesProviderProps) => {
-  const { workspaces } = useFlowsPerUserContext();
+  const { workspaces } = useWorkspaces();
   const [globalServices, setGlobalServices] = useState<GlobalDeployedServices>(initialGlobalServices);
   
   // API配置
@@ -170,7 +170,7 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
   const fetchWorkspaceServices = useCallback(async (workspaceId: string) => {
     if (!apiServerKey) return;
 
-    const workspace = workspaces.find(w => w.flowId === workspaceId);
+    const workspace = workspaces.find(w => w.workspace_id === workspaceId);
     if (!workspace) return;
 
     try {
@@ -187,13 +187,13 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
         // 添加新数据
         const enhancedApis: EnhancedApiService[] = apis.map(api => ({
           ...api,
-          workspaceName: workspace.flowTitle,
+          workspaceName: workspace.workspace_name,
           workspace_id: workspaceId
         }));
 
         const enhancedChatbots: EnhancedChatbotService[] = chatbots.map(chatbot => ({
           ...chatbot,
-          workspaceName: workspace.flowTitle,
+          workspaceName: workspace.workspace_name,
           workspace_id: workspaceId
         }));
 
@@ -212,7 +212,7 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
       console.error(`Error fetching services for workspace ${workspaceId}:`, error);
       setGlobalServices(prev => ({
         ...prev,
-        error: `Failed to fetch services for workspace ${workspace.flowTitle}`
+        error: `Failed to fetch services for workspace ${workspace.workspace_name}`
       }));
     }
   }, [workspaces, apiServerKey, fetchApiList, fetchChatbotList]);
@@ -229,13 +229,13 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
     try {
       const allPromises = workspaces.map(async (workspace) => {
         const [apis, chatbots] = await Promise.all([
-          fetchApiList(workspace.flowId),
-          fetchChatbotList(workspace.flowId)
+          fetchApiList(workspace.workspace_id),
+          fetchChatbotList(workspace.workspace_id)
         ]);
 
         return {
-          workspaceId: workspace.flowId,
-          workspaceName: workspace.flowTitle,
+          workspaceId: workspace.workspace_id,
+          workspaceName: workspace.workspace_name,
           apis,
           chatbots
         };

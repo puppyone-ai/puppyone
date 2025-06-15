@@ -54,7 +54,7 @@ import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -154,16 +154,17 @@ const sortNodesByType = (nodes: Node[]) => {
 };
 
 function Workflow() {
-  const { selectedFlowId, workspaces } = useFlowsPerUserContext();
+  const { showingItem, workspaces, currentWorkspaceJson } = useWorkspaces();
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
   // 直接在组件内定义空数组作为默认值
   const emptyNodes: Node[] = [];
   const emptyEdges: Edge[] = [];
   
   // 获取当前工作区的初始数据（如果有）
-  const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId);
-  const initialWorkspaceNodes = currentWorkspace?.latestJson?.blocks || emptyNodes;
-  const initialWorkspaceEdges = currentWorkspace?.latestJson?.edges || emptyEdges;
+  const currentWorkspace = workspaces.find(w => w.workspace_id === selectedFlowId);
+  const initialWorkspaceNodes = currentWorkspace?.content?.blocks || emptyNodes;
+  const initialWorkspaceEdges = currentWorkspace?.content?.edges || emptyEdges;
   
   const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(initialWorkspaceNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialWorkspaceEdges);
@@ -412,6 +413,32 @@ function Workflow() {
     }
   }, []);
 
+  // 添加这个 useEffect 来监听工作区内容变化
+  useEffect(() => {
+    if (currentWorkspaceJson && selectedFlowId) {
+      console.log('🔄 Updating ReactFlow with new workspace content:', {
+        workspaceId: selectedFlowId,
+        blocksCount: currentWorkspaceJson.blocks?.length || 0,
+        edgesCount: currentWorkspaceJson.edges?.length || 0
+      });
+      
+      // 更新节点和边
+      setUnsortedNodes(currentWorkspaceJson.blocks || []);
+      setEdges(currentWorkspaceJson.edges || []);
+      
+      // 更新视口（如果有的话）
+      if (currentWorkspaceJson.viewport) {
+        setTimeout(() => {
+          setViewport(currentWorkspaceJson.viewport!);
+        }, 0);
+      }
+    } else if (selectedFlowId && !currentWorkspaceJson) {
+      // 如果选中了工作区但没有内容，清空画布
+      console.log('🧹 Clearing ReactFlow canvas for empty workspace:', selectedFlowId);
+      setUnsortedNodes([]);
+      setEdges([]);
+    }
+  }, [currentWorkspaceJson, selectedFlowId]); // 只监听这两个真正会变化的值
 
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>

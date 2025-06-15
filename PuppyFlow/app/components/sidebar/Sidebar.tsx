@@ -4,7 +4,7 @@ import Header from './Header'
 import AddNewWorkspaceButton from './AddNewWorkspaceButton'
 import FlowElement from './FlowElement'
 import FlowThumbnailView from './FlowThumbnailView'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
 import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 import DeployedServicesList from './DeployedServicesList'
@@ -25,7 +25,7 @@ const DialogPortal = dynamic(() =>
 )
 
 function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
-  const {workspaces} = useFlowsPerUserContext()
+  const { workspaces } = useWorkspaces()
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<string | null>(null)
 
   const handleOperationMenuShow = (flowId: string | null) => {
@@ -49,10 +49,10 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
         <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-240px)] pr-[4px]">
           {workspaces.map((workspace) => (
             <FlowElement 
-              key={workspace.flowId} 
-              FlowId={workspace.flowId} 
-              FlowName={workspace.flowTitle}
-              isDirty={workspace.isDirty}
+              key={workspace.workspace_id} 
+              FlowId={workspace.workspace_id} 
+              FlowName={workspace.workspace_name}
+              isDirty={workspace.pushToDatabase}
               handleOperationMenuShow={handleOperationMenuShow}
               flowIdShowOperationMenu={flowIdShowOperationMenu}
             />

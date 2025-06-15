@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
 import FlowElementOperationMenu from './FlowElementOperationMenu'
+
 type FlowElementProps = {
   FlowId: string;
   FlowName: string;
@@ -17,12 +18,45 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
 
   const [isHover, setIsHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  // const {removeFlow, editFlowName, setSelectedFlowId, selectedFlowId} = useFlowsPerUserContext()
-  const { handleFlowSwitch, selectedFlowId, removeFlow, editFlowName } = useFlowsPerUserContext()
+  const { 
+    setShowingWorkspace, 
+    showingItem, 
+    removeWorkspace, 
+    updateWorkspace,
+    workspaceManagement,
+    setCurrentWorkspaceJson,
+    getWorkspaceById
+  } = useWorkspaces()
 
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
 
-
-
+  const handleFlowSwitch = async (flowId: string) => {
+    // 获取现有工作区信息
+    const existingWorkspace = getWorkspaceById(flowId);
+    
+    // 调用 switchToWorkspace，传入现有工作区信息
+    const result = await workspaceManagement.switchToWorkspace(flowId, existingWorkspace);
+    
+    if (result.success && result.content) {
+      // 只有当数据来自数据库时才更新 pullFromDatabase 状态
+      if (!result.fromCache) {
+        updateWorkspace(flowId, { 
+          content: result.content,
+          pullFromDatabase: true  // 标记为已从数据库拉取
+        });
+      }
+      
+      // 更新当前显示的工作区JSON
+      setCurrentWorkspaceJson(result.content);
+      
+      // 更新显示状态
+      setShowingWorkspace(flowId);
+    } else {
+      console.error('Failed to switch workspace:', result.error);
+      // 即使切换失败，也更新显示状态（保持原有行为）
+      setShowingWorkspace(flowId);
+    }
+  };
 
   return (
     <li className={`
