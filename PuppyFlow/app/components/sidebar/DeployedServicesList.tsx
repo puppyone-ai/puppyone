@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAllDeployedServices } from '../states/GlobalDeployedServicesContext';
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext';
+import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
 
@@ -32,7 +32,7 @@ interface ChatbotInfo {
 
 const DeployedServicesList: React.FC = () => {
   const { apis, chatbots, isLoading } = useAllDeployedServices();
-  const { handleFlowSwitch } = useFlowsPerUserContext();
+  const { clearShowing } = useWorkspaces();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   // 转换数据格式
@@ -154,7 +154,7 @@ const DeployedServicesList: React.FC = () => {
 
   // 处理服务点击
   const handleServiceClick = (service: DeployedService) => {
-    handleFlowSwitch(null);
+    clearShowing();
     
     if (service.type === 'chatbot') {
       handleChatbotClick(service);

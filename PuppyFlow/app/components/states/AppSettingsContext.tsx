@@ -1,3 +1,35 @@
+/**
+ * AppSettingsContext - Global Application Settings Context
+ * 
+ * This context manages the following application-wide settings and states:
+ * 
+ * 1. Model Management:
+ *    - Cloud models (OpenAI, DeepSeek, Anthropic, etc.)
+ *    - Local models (via Ollama integration)
+ *    - Model availability toggling
+ *    - Model type classification (LLM vs Embedding)
+ *    - Dynamic model loading and refresh capabilities
+ * 
+ * 2. Deployment Configuration:
+ *    - Local vs Cloud deployment detection
+ *    - Environment-based model filtering
+ *    - Ollama connection status monitoring
+ * 
+ * 3. Warning System:
+ *    - Global warning message management
+ *    - Warning toast notifications
+ *    - Warning message expansion/collapse states
+ *    - Automatic warning cleanup
+ * 
+ * 4. State Synchronization:
+ *    - Real-time model availability updates
+ *    - Cross-component state sharing
+ *    - Persistent warning notifications
+ * 
+ * Usage: Wrap your app with AppSettingsProvider and use useAppSettings hook
+ * to access the context values throughout your application.
+ */
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';

@@ -4,7 +4,7 @@ import Workflow from "./components/workflow/Workflow";
 import React from "react";
 import { ReactFlowProvider } from '@xyflow/react'
 import { NodesPerFlowContextProvider } from "./components/states/NodesPerFlowContext";
-import { FlowsPerUserContextProvider, useFlowsPerUserContext } from "./components/states/FlowsPerUserContext";
+import { WorkspacesProvider, useWorkspaces } from "./components/states/UserWorkspaceAndServicesContext";
 import BlankWorkspace from "./components/blankworkspace/BlankWorkspace";
 import { AppSettingsProvider } from "./components/states/AppSettingsContext";
 import Link from 'next/link';
@@ -159,8 +159,8 @@ function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSucce
 }
 
 function ActiveFlowContent() {
-  const { selectedFlowId } = useFlowsPerUserContext();
-  return selectedFlowId ? <Workflow /> : <BlankWorkspace />;
+  const { showingItem } = useWorkspaces();
+  return showingItem?.type === 'workspace' ? <Workflow /> : <BlankWorkspace />;
 }
 
 function MainApplication() {
@@ -168,16 +168,18 @@ function MainApplication() {
     <div id="home" className="w-screen h-screen flex flex-row bg-[#131313] overflow-hidden">
       <AppSettingsProvider>
         <ReactFlowProvider>
-          <FlowsPerUserContextProvider>
+          <WorkspacesProvider>
             <GlobalDeployedServicesProvider>
               <>
                 <Sidebar />
+
                 <NodesPerFlowContextProvider>
                   <ActiveFlowContent />
                 </NodesPerFlowContextProvider>
+                
               </>
             </GlobalDeployedServicesProvider>
-          </FlowsPerUserContextProvider>
+          </WorkspacesProvider>
         </ReactFlowProvider>
       </AppSettingsProvider>
     </div>
