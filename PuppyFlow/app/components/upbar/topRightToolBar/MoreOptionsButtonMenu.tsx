@@ -188,6 +188,10 @@ const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
   } else {
     clearTopRightToolBarMenu()
   }
+  // 重置文件输入框的值，这样下次选择相同文件时也会触发 onChange
+  if (fileInputRef.current) {
+    fileInputRef.current.value = '';
+  }
 };
 
  
