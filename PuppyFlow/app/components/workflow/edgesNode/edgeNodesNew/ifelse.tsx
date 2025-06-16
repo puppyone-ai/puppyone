@@ -86,19 +86,26 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
     const menuRef = useRef<HTMLUListElement>(null)
 
     // State management
-    const [cases, setCases] = useState<CaseItem[]>([])
-    const [switchValue, setSwitchValue] = useState<string>(
-        (getNode(id)?.data?.switch as string) || ""
-    )
-    const [contentValue, setContentValue] = useState<string>(
-        (getNode(id)?.data?.content as string) || ""
-    )
-    const [onValue, setOnValue] = useState<string[]>(
-        (getNode(id)?.data?.ON as string[]) || []
-    )
-    const [offValue, setOffValue] = useState<string[]>(
-        (getNode(id)?.data?.OFF as string[]) || []
-    )
+    const [cases, setCases] = useState<CaseItem[]>(() => {
+        const nodeData = getNode(id)?.data;
+        return (nodeData?.cases as CaseItem[]) || [];
+    });
+    const [switchValue, setSwitchValue] = useState<string>(() => {
+        const nodeData = getNode(id)?.data;
+        return (nodeData?.switch as string) || "";
+    });
+    const [contentValue, setContentValue] = useState<string>(() => {
+        const nodeData = getNode(id)?.data;
+        return (nodeData?.content as string) || "";
+    });
+    const [onValue, setOnValue] = useState<string[]>(() => {
+        const nodeData = getNode(id)?.data;
+        return (nodeData?.ON as string[]) || [];
+    });
+    const [offValue, setOffValue] = useState<string[]>(() => {
+        const nodeData = getNode(id)?.data;
+        return (nodeData?.OFF as string[]) || [];
+    });
 
     // Source node labels with type info
     const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([])
@@ -117,6 +124,27 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
+            
+            // 检查并初始化内容
+            const nodeData = getNode(id)?.data;
+            
+            // 同步所有状态到节点数据
+            setNodes(prevNodes => prevNodes.map(node => {
+                if (node.id === id) {
+                    return { 
+                        ...node, 
+                        data: { 
+                            ...node.data,
+                            cases: cases,
+                            switch: switchValue,
+                            content: contentValue,
+                            ON: onValue,
+                            OFF: offValue
+                        } 
+                    };
+                }
+                return node;
+            }));
         }
 
         return () => {
@@ -125,6 +153,26 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
             }
         }
     }, [])
+
+    // 监听所有状态变化
+    useEffect(() => {
+        setNodes(prevNodes => prevNodes.map(node => {
+            if (node.id === id) {
+                return { 
+                    ...node, 
+                    data: { 
+                        ...node.data,
+                        cases: cases,
+                        switch: switchValue,
+                        content: contentValue,
+                        ON: onValue,
+                        OFF: offValue
+                    } 
+                };
+            }
+            return node;
+        }));
+    }, [cases, switchValue, contentValue, onValue, offValue]);
 
     // Update sourceNodeLabels
     useEffect(() => {
@@ -237,32 +285,41 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
 
     // Case manipulation functions
     const onCaseAdd = () => {
-        setCases(prevCases => [
-            ...prevCases,
-            {
-                conditions: [{
-                    id: nanoid(6),
-                    label: sourceNodeLabels[0]?.label || '',
-                    condition: 'contains',
-                    cond_v: '',
-                    operation: 'AND'
-                }],
-                actions: [{
-                    from_id: id,
-                    from_label: 'output',
-                    outputs: []
-                }]
-            }
-        ])
+        setCases(prevCases => {
+            const newCases = [
+                ...prevCases,
+                {
+                    conditions: [{
+                        id: nanoid(6),
+                        label: sourceNodeLabels[0]?.label || '',
+                        condition: 'contains',
+                        cond_v: '',
+                        operation: 'AND'
+                    }],
+                    actions: [{
+                        from_id: id,
+                        from_label: 'output',
+                        outputs: []
+                    }]
+                }
+            ];
+            onCasesChange(newCases);
+            return newCases;
+        });
+    }
+
+    const onCaseDelete = (caseIndex: number) => {
+        setCases(prevCases => {
+            const newCases = prevCases.filter((_, index) => index !== caseIndex);
+            onCasesChange(newCases);
+            return newCases;
+        });
     }
 
     const onConditionAdd = (caseIndex: number) => (e: React.MouseEvent) => {
-        // 阻止事件冒泡
         e.stopPropagation();
-        
         setCases(prevCases => {
             const newCases = [...prevCases];
-            // 使用第一个源节点作为默认值，如果没有则使用空字符串
             const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
             newCases[caseIndex].conditions.push({
                 id: firstSourceNode?.id || '',
@@ -271,48 +328,40 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                 cond_v: '',
                 operation: 'AND'
             });
+            onCasesChange(newCases);
             return newCases;
         });
     }
 
-    const onActionAdd = (caseIndex: number) => () => {
-        setCases(prevCases => {
-            const newCases = [...prevCases]
-            newCases[caseIndex].actions.push({
-                from_id: id,
-                from_label: 'output',
-                outputs: []
-            })
-            return newCases
-        })
-    }
-
     const onConditionDelete = (caseIndex: number, conditionIndex: number) => () => {
         setCases(prevCases => {
-            const newCases = [...prevCases]
+            const newCases = [...prevCases];
             if (newCases[caseIndex].conditions.length > 1) {
-                newCases[caseIndex].conditions.splice(conditionIndex, 1)
+                newCases[caseIndex].conditions.splice(conditionIndex, 1);
+                onCasesChange(newCases);
             }
-            return newCases
-        })
+            return newCases;
+        });
     }
 
     const onAndOrSwitch = (caseIndex: number, conditionIndex: number) => () => {
         setCases(prevCases => {
-            const newCases = [...prevCases]
-            const currentOperation = newCases[caseIndex].conditions[conditionIndex].operation
-            newCases[caseIndex].conditions[conditionIndex].operation = currentOperation === 'AND' ? 'OR' : 'AND'
-            return newCases
-        })
+            const newCases = [...prevCases];
+            const currentOperation = newCases[caseIndex].conditions[conditionIndex].operation;
+            newCases[caseIndex].conditions[conditionIndex].operation = currentOperation === 'AND' ? 'OR' : 'AND';
+            onCasesChange(newCases);
+            return newCases;
+        });
     }
 
     // Update condition values
     const updateCondition = (caseIndex: number, conditionIndex: number, field: keyof Condition, value: string) => {
         setCases(prevCases => {
-            const newCases = [...prevCases]
-            newCases[caseIndex].conditions[conditionIndex][field] = value as any
-            return newCases
-        })
+            const newCases = [...prevCases];
+            newCases[caseIndex].conditions[conditionIndex][field] = value as any;
+            onCasesChange(newCases);
+            return newCases;
+        });
     }
 
     // Helper functions for UI
@@ -379,6 +428,19 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
         background: "transparent",
         border: "3px solid transparent",
         zIndex: !isOnConnect ? "-1" : "1",
+    }
+
+    const onActionAdd = (caseIndex: number) => () => {
+        setCases(prevCases => {
+            const newCases = [...prevCases];
+            newCases[caseIndex].actions.push({
+                from_id: id,
+                from_label: 'output',
+                outputs: []
+            });
+            onCasesChange(newCases);
+            return newCases;
+        });
     }
 
     return (
@@ -495,7 +557,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                     {cases.length > 1 && (
                                         <button
                                             onClick={() => {
-                                                setCases(prevCases => prevCases.filter((_, index) => index !== case_index));
+                                                onCaseDelete(case_index);
                                             }}
                                             className='ml-auto p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
                                         >
@@ -530,8 +592,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                                                     label: node.label,
                                                                                     type: getNode(node.id)?.type
                                                                                 };
-                                                                                setCases(cases_clone);
-                                                                                console.log("selected node:", getNode(node.id));
+                                                                                onCasesChange(cases_clone);
                                                                             }}
                                                                             selectedValue={condition_value.id}
                                                                             optionBadge={false}
@@ -577,7 +638,8 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                                                     ...cases_clone[case_index].conditions[conditions_index],
                                                                                     cond_v: value
                                                                                 };
-                                                                                setCases(cases_clone);
+                                                                                onSwitchValueChange(value);
+                                                                                onCasesChange(cases_clone);
                                                                             }}
                                                                             selectedValue={cases[case_index].conditions[conditions_index].cond_v}
                                                                             optionBadge={false}
@@ -602,7 +664,8 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                                                     ...cases_clone[case_index].conditions[conditions_index],
                                                                                     cond_input: e.target.value
                                                                                 };
-                                                                                setCases(cases_clone);
+                                                                                onContentValueChange(e.target.value);
+                                                                                onCasesChange(cases_clone);
                                                                             }}
                                                                             placeholder={["is True", "is False", "is not empty", "is list", "is dict", "is empty", "condition"].includes(cases[case_index].conditions[conditions_index].cond_v) ? "No input needed" : "Enter value"}
                                                                             disabled={["is True", "is False", "is not empty", "is list", "is dict", "is empty", "condition"].includes(cases[case_index].conditions[conditions_index].cond_v)}
@@ -613,7 +676,9 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                             </ul>
                                                             {/* 删除按钮 - 移到外面并调整间距 */}
                                                             <button
-                                                                onClick={onConditionDelete(case_index, conditions_index)}
+                                                                onClick={() => {
+                                                                    onConditionDelete(case_index, conditions_index)();
+                                                                }}
                                                                 className={`p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors ${case_value.conditions.length <= 1 ? 'invisible' : ''}`}
                                                             >
                                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -622,7 +687,9 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                             </button>
                                                             {conditions_index !== case_value.conditions.length - 1 && (
                                                                 <button
-                                                                    onClick={onAndOrSwitch(case_index, conditions_index)}
+                                                                    onClick={() => {
+                                                                        onAndOrSwitch(case_index, conditions_index)();
+                                                                    }}
                                                                     className='px-2 h-[20px] flex items-center justify-center rounded-[4px] 
                                                                           bg-[#252525] border-[1px] border-[#6D7177]/30
                                                                           text-[#6D7177] text-[10px] font-medium
@@ -680,8 +747,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                                         from_id: node.id,
                                                                         from_label: node.label,
                                                                     };
-                                                                    setCases(cases_clone);
-                                                                    console.log("selected node:", getNode(node.id));
+                                                                    onCasesChange(cases_clone);
                                                                 }}
                                                                 selectedValue={action_value.from_id}
                                                                 optionBadge={false}
@@ -733,8 +799,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                                     const cases_clone = [...cases];
                                                                     cases_clone[case_index].actions[action_index].outputs = [node.id || node.label];
 
-                                                                    setCases(cases_clone);
-                                                                    console.log("selected node:", getNode(node.id));
+                                                                    onCasesChange(cases_clone);
                                                                 }}
                                                                 selectedValue={action_value.outputs[0]}
                                                                 optionBadge={false}
@@ -779,7 +844,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                                         const cases_clone = [...cases];
                                                         if (cases_clone[case_index].actions.length > 1) {
                                                             cases_clone[case_index].actions.splice(action_index, 1);
-                                                            setCases(cases_clone);
+                                                            onCasesChange(cases_clone);
                                                         }
                                                     }}
                                                     className={`p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors ${case_value.actions.length <= 1 ? 'invisible' : ''}`}
@@ -794,7 +859,9 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                         {/* 底部添加按钮保持不变 */}
                                         <div className='flex justify-start mt-[8px]'>
                                             <button
-                                                onClick={onActionAdd(case_index)}
+                                                onClick={() => {
+                                                    onActionAdd(case_index)();
+                                                }}
                                                 className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                                     bg-[#252525] border-[1px] border-[#6D7177]/30
                                                     text-[#6D7177] text-[10px] font-medium

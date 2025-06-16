@@ -99,7 +99,7 @@ export function NodesPerFlowUtils() {
     // }, [])
 
     const activateEdge = useCallback((edgeId: string) => {
-        console.log("activateEdge被调用")
+        // console.log("activateEdge被调用")
         if (!judgeNodeIsEdgeNode(edgeId) || isOnGeneratingNewNode) return
         if (!isOnConnect) {
             setActivatedEdge(edgeId)
@@ -117,7 +117,6 @@ export function NodesPerFlowUtils() {
         setIsOnConnect(false)
         setPreventInactivated(false)
         setIsOnGeneratingNewNode(false)
-        // setNodes(nodes => nodes.map(node => ({...node, data: {...node.data, ActiveHandle: null}})))
     }, [])
 
     const generateNewNode = useCallback(() => {
