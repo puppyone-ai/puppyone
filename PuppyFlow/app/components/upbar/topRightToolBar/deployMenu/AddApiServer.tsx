@@ -56,15 +56,49 @@ function DeployAsApi({
     const nodes = getNodes();
     const edges = getEdges();
     
-    const blockNodes = nodes.filter(node => node.type === 'block');
-    const edgeNodes = nodes.filter(node => node.type === 'edge');
-    
-    const blockNodesJson = blockNodes.map(node => buildBlockNodeJson(node.id));
-    const edgeNodesJson = edgeNodes.map(node => buildEdgeNodeJson(node.id));
-    
+    // 构建 blocks 对象
+    const blocks: Record<string, any> = {};
+    nodes.forEach(node => {
+      if (node.type === 'text' || node.type === 'structured') {
+        // 只保留 schema 中定义的字段
+        blocks[node.id] = {
+          type: node.type,
+          data: {
+            content: node.data.content || ''
+          }
+        };
+      }
+    });
+
+    // 构建 edges 对象
+    const edgesObj: Record<string, any> = {};
+    edges.forEach((edge, index) => {
+      const sourceNode = getNode(edge.source);
+      const targetNode = getNode(edge.target);
+      
+      if (sourceNode && targetNode) {
+        edgesObj[`edge_${index}`] = {
+          type: 'modify',
+          data: {
+            modify_type: 'deep_copy_string',
+            inputs: {
+              [edge.source]: ''
+            },
+            outputs: {
+              [edge.target]: ''
+            },
+            content: '',
+            looped: false
+          }
+        };
+      }
+    });
+
+    // 返回符合 schema 的完整 JSON
     return {
-      nodes: [...blockNodesJson, ...edgeNodesJson],
-      edges: edges
+      blocks,
+      edges: edgesObj,
+      version: "1.0"
     };
   };
 
