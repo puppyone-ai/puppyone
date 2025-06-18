@@ -6,27 +6,50 @@ import { useReactFlow } from '@xyflow/react'
 function SaveButton() {
 
   // 使用新的 Context API
-  const { showingItem, workspaces, getCurrentWorkspace } = useWorkspaces()
+  const { showingItem, workspaces, getCurrentWorkspace, workspaceManagement } = useWorkspaces()
   const [saveState, setSaveState] = useState<"error" | "success" | "idle">("idle")
   const [isHovering, setIsHovering] = useState(false)
   const { isOnGeneratingNewNode } = useNodesPerFlowContext()
-  const { getViewport } = useReactFlow();
+  const { getNodes, getEdges, getViewport } = useReactFlow();
 
   // 获取当前显示的工作区
   const currentWorkspace = getCurrentWorkspace();
   const currentWorkspaceId = showingItem?.type === 'workspace' ? showingItem.id : null;
 
-  // 简化的保存处理函数 - 暂时只更新状态，不做实际保存
+  // 实现真正的保存逻辑
   const handleSave = async () => {
     try {
       if (currentWorkspaceId && currentWorkspace) {
-        // TODO: 这里后续需要实现实际的保存逻辑
-        console.log("Save workspace:", currentWorkspaceId)
-        setSaveState("success")
+        // 获取当前工作区的完整数据
+        const nodes = getNodes();
+        const edges = getEdges();
+        const viewport = getViewport();
+        
+        const workspaceData = {
+          blocks: nodes,
+          edges: edges,
+          viewport: viewport,
+          version: "1.0.0"
+        };
+
+        // 使用 workspaceManagement 中的保存功能
+        const timestamp = new Date().toISOString();
+        const success = await workspaceManagement.saveWorkspaceContent(
+          currentWorkspaceId, 
+          workspaceData, 
+          timestamp
+        );
+
+        if (success) {
+          console.log("Successfully saved workspace:", currentWorkspaceId);
+          setSaveState("success");
+        } else {
+          throw new Error("Failed to save workspace");
+        }
       }
     } catch (error) {
-      console.error("Error when saving:", error)
-      setSaveState("error")
+      console.error("Error when saving:", error);
+      setSaveState("error");
     }
   }
 
