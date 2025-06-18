@@ -8,6 +8,8 @@
 import { useCallback } from 'react';
 import { SYSTEM_URLS } from '@/config/urls';
 import { ApiService, ChatbotService, EnhancedApiService, EnhancedChatbotService } from '../states/UserServersContext';
+import Cookies from 'js-cookie';
+import { useAppSettings } from '../states/AppSettingsContext';
 
 // 添加 chatbot 配置参数接口
 interface ConfigChatbotParams {
@@ -24,10 +26,43 @@ interface ConfigChatbotParams {
   integrations?: object;
 }
 
+// 添加新的接口定义
+interface DeploymentItem {
+  deployment_id: string;
+  deployment_type: 'api' | 'chatbot';
+  workspace_id: string;
+  associated_at: string;
+  associated_by: string;
+}
+
+interface UserDeploymentsResponse {
+  user_id: string;
+  deployment_type: string;
+  include_details: boolean;
+  deployments: DeploymentItem[];
+  total_count: number;
+}
+
+interface FetchUserDeploymentsParams {
+  deploymentType?: 'api' | 'chatbot';
+  includeDetails?: boolean;
+  isLocal?: boolean;
+}
+
 // Hook for API operations
 export const useServerOperations = () => {
   const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
   const apiServerUrl = SYSTEM_URLS.API_SERVER.BASE;
+  const { isLocalDeployment } = useAppSettings();
+
+  // 获取用户 token（与其他 hook 保持一致）
+  const getToken = (isLocal?: boolean): string | undefined => {
+    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    if (useLocal) {
+      return 'local-token'; // 本地部署不需要真实 token
+    }
+    return Cookies.get('access_token');
+  };
 
   // 获取单个工作区的API列表
   const fetchApiList = useCallback(async (workspaceId: string): Promise<ApiService[]> => {
@@ -279,10 +314,61 @@ export const useServerOperations = () => {
     }
   }, [apiServerUrl, apiServerKey]);
 
+  // 新增：获取用户的所有部署服务
+  const fetchUserDeployments = useCallback(async (params: FetchUserDeploymentsParams = {}): Promise<UserDeploymentsResponse> => {
+    try {
+      const useLocal = params.isLocal !== undefined ? params.isLocal : isLocalDeployment;
+      
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+      if (params.deploymentType) {
+        queryParams.append('deployment_type', params.deploymentType);
+      }
+      if (params.includeDetails !== undefined) {
+        queryParams.append('include_details', params.includeDetails.toString());
+      }
+
+      const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+      // 获取用户 token（与其他地方保持一致的认证方式）
+      const userToken = getToken(useLocal);
+      if (!userToken && !useLocal) {
+        throw new Error('No user access token found');
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json"
+      };
+
+      // 使用与其他地方一致的认证方式
+      if (userToken) {
+        headers["x-user-token"] = userToken;
+      }
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        credentials: 'include' // 与其他地方保持一致
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to fetch user deployments: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log(`✅ Fetched ${data.total_count} deployments for user`);
+      return data;
+    } catch (error) {
+      console.error(`Error fetching user deployments:`, error);
+      throw error;
+    }
+  }, [apiServerUrl, isLocalDeployment]);
+
   return {
     // 获取操作
     fetchApiList,
     fetchChatbotList,
+    fetchUserDeployments,
     
     // 删除操作
     deleteApiService,
@@ -299,7 +385,8 @@ export const useServerOperations = () => {
     
     // 配置信息
     apiServerKey,
-    apiServerUrl
+    apiServerUrl,
+    getToken
   };
 };
 
