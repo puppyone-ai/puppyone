@@ -202,8 +202,8 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     }
   }, [workspaces, serverOperations]);
 
-  // 获取所有工作区的服务 - 移除 useCallback 以避免依赖问题
-  const fetchAllServices = async () => {
+  // 获取所有工作区的服务 - 使用 useCallback 包装
+  const fetchAllServices = useCallback(async () => {
     if (!workspaces.length || !serverOperations.apiServerKey) {
       setGlobalServices(prev => ({ ...prev, apis: [], chatbots: [] }));
       return;
@@ -277,12 +277,13 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
         error: 'Failed to fetch deployed services'
       }));
     }
-  };
+  }, [workspaces, serverOperations]);
 
-  // 刷新服务
+  // 刷新服务 - 修复依赖问题
   const refreshServices = useCallback(async () => {
+    console.log('🔄 Refreshing services...');
     await fetchAllServices();
-  }, []);
+  }, [fetchAllServices]);
 
   // 重新初始化方法
   const reinitialize = useCallback(async () => {
