@@ -6,11 +6,10 @@
  * 
  * 1. Workspace list with metadata (pull/push status, showing status)
  * 2. Selected workspace tracking
- * 3. Current workspace JSON content
- * 4. User information
+ * 3. User information
  */
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
 import { useWorkspaceInitialization } from '../hooks/useWorkspaceInitialization';
 import { Node, Edge } from "@xyflow/react";
 
@@ -48,7 +47,6 @@ type WorkspacesContextType = {
     userId: string;
     userName: string;
     workspaces: WorkspaceInfo[];
-    currentWorkspaceJson: WorkspaceJSON | null;
     displayOrNot: boolean;
     
     // 显示状态管理
@@ -61,7 +59,6 @@ type WorkspacesContextType = {
     
     // 基础操作 - 纯状态更新，不涉及 API 调用
     setWorkspaces: (workspaces: WorkspaceInfo[]) => void;
-    setCurrentWorkspaceJson: (json: WorkspaceJSON | null) => void;
     setUserId: (id: string) => void;
     setUserName: (name: string) => void;
     setDisplayOrNot: (display: boolean) => void;
@@ -84,6 +81,7 @@ type WorkspacesContextType = {
     // 工具方法
     getWorkspaceById: (id: string) => WorkspaceInfo | undefined;
     getCurrentWorkspace: () => WorkspaceInfo | undefined;
+    getCurrentWorkspaceContent: () => WorkspaceJSON | null;
     createEmptyWorkspace: (id: string, name: string) => WorkspaceInfo;
     isWorkspaceShowing: (workspaceId: string) => boolean;
     
@@ -100,7 +98,6 @@ const WorkspacesContext = createContext<WorkspacesContextType | undefined>(undef
 export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // 基础状态
     const [workspaces, setWorkspaces] = useState<WorkspaceInfo[]>([]);
-    const [currentWorkspaceJson, setCurrentWorkspaceJson] = useState<WorkspaceJSON | null>(null);
     const [userId, setUserId] = useState<string>("");
     const [userName, setUserName] = useState<string>("");
     const [displayOrNot, setDisplayOrNot] = useState<boolean>(true);
@@ -130,7 +127,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
                         id: result.defaultWorkspace.workspace_id,
                         name: result.defaultWorkspace.workspace_name
                     });
-                    setCurrentWorkspaceJson(result.defaultWorkspaceContent);
                 }
             }
         };
@@ -154,8 +150,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
                     id: result.defaultWorkspace.workspace_id,
                     name: result.defaultWorkspace.workspace_name
                 });
-                // 现在类型是安全的
-                setCurrentWorkspaceJson(result.defaultWorkspaceContent);
             }
         }
     };
@@ -170,6 +164,14 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         if (!showingItem || showingItem.type !== 'workspace') return undefined;
         return getWorkspaceById(showingItem.id);
     };
+
+    // 获取当前工作区内容 - 修复：返回函数而不是值
+    const getCurrentWorkspaceContent = useMemo(() => {
+        return (): WorkspaceJSON | null => {
+            const currentWorkspace = getCurrentWorkspace();
+            return currentWorkspace?.content || null;
+        };
+    }, [showingItem, workspaces]);
 
     // 创建空的工作区对象
     const createEmptyWorkspace = (id: string, name: string): WorkspaceInfo => {
@@ -191,14 +193,11 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
                 id: workspaceId,
                 name: workspace.workspace_name
             });
-            // 同步更新当前工作区内容
-            setCurrentWorkspaceJson(workspace.content);
         }
     };
 
     const clearShowing = () => {
         setShowingItem(null);
-        setCurrentWorkspaceJson(null);
     };
 
     // 判断工作区是否正在显示
@@ -215,7 +214,7 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
     const removeWorkspace = (workspaceId: string) => {
         setWorkspaces(prev => prev.filter(w => w.workspace_id !== workspaceId));
         
-        // 如果删除的是当前显示的工作区，清空显示状态和当前JSON
+        // 如果删除的是当前显示的工作区，清空显示状态
         if (isWorkspaceShowing(workspaceId)) {
             clearShowing();
         }
@@ -228,11 +227,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
                 ? { ...w, ...updates }
                 : w
         ));
-        
-        // 如果更新的是当前显示的工作区，同步更新当前 JSON
-        if (isWorkspaceShowing(workspaceId) && updates.content !== undefined) {
-            setCurrentWorkspaceJson(updates.content);
-        }
         
         // 如果更新的是当前显示的工作区名称，同步更新显示项
         if (isWorkspaceShowing(workspaceId) && updates.workspace_name) {
@@ -264,7 +258,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
     const contextValue: WorkspacesContextType = {
         // 状态
         workspaces,
-        currentWorkspaceJson,
         userId,
         userName,
         displayOrNot,
@@ -277,7 +270,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         
         // 基础操作
         setWorkspaces,
-        setCurrentWorkspaceJson,
         setUserId,
         setUserName,
         setDisplayOrNot,
@@ -300,6 +292,7 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         // 工具方法
         getWorkspaceById,
         getCurrentWorkspace,
+        getCurrentWorkspaceContent,
         createEmptyWorkspace,
         isWorkspaceShowing,
         

@@ -23,10 +23,9 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
   // 使用 useWorkspaces 获取基础状态
   const { 
     showingItem, 
-    displayOrNot,  // 添加 displayOrNot 状态
+    displayOrNot,
     updateWorkspace,
     workspaceManagement,
-    setCurrentWorkspaceJson,
     getWorkspaceById
   } = useWorkspaces()
   
@@ -54,8 +53,8 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
         });
       }
       
-      // 更新当前显示的工作区JSON
-      setCurrentWorkspaceJson(result.content);
+      // 不再需要手动设置 currentWorkspaceJson，因为它现在是通过 getCurrentWorkspaceContent 计算得出的
+      // 当 updateWorkspace 更新工作区内容后，getCurrentWorkspaceContent 会自动返回最新内容
     } else {
       console.error('Failed to switch workspace:', result.error);
     }
@@ -90,10 +89,9 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
           <span className="truncate">{FlowName}</span>
           {isDirty && (
             <span 
-              className="flex-shrink-0 text-[8px] w-[10px] h-[10px] flex items-center justify-center rounded-[2px] bg-[#FF8B6A] text-black font-bold relative group cursor-default"
+              className="flex-shrink-0 w-[6px] h-[6px] rounded-full bg-[#FF8B6A] relative group cursor-default"
               title="unsaved"
             >
-              U
             </span>
           )}
         </div>

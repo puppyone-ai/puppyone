@@ -37,22 +37,22 @@ function DeployBotton() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 当菜单打开时获取已部署的服务
-  useEffect(() => {
-    if (isMenuOpen && selectedFlowId && !initializedRef.current) {
-      console.log('🚀 Fetching deployed services for flowId:', selectedFlowId);
-      initializedRef.current = true;
-      fetchDeployedServices().then(() => {
-        console.log('✅ Deployed services fetched successfully');
-      }).catch((error) => {
-        console.error('❌ Failed to fetch deployed services:', error);
-      });
-    }
-  }, [isMenuOpen, selectedFlowId, fetchDeployedServices]);
+  // useEffect(() => {
+  //   if (isMenuOpen && selectedFlowId && !initializedRef.current) {
+  //     console.log('🚀 Fetching deployed services for flowId:', selectedFlowId);
+  //     initializedRef.current = true;
+  //     fetchDeployedServices().then(() => {
+  //       console.log('✅ Deployed services fetched successfully');
+  //     }).catch((error) => {
+  //       console.error('❌ Failed to fetch deployed services:', error);
+  //     });
+  //   }
+  // }, [isMenuOpen, selectedFlowId, fetchDeployedServices]);
 
   // 当selectedFlowId变化时重置初始化状态
-  useEffect(() => {
-    initializedRef.current = false;
-  }, [selectedFlowId]);
+  // useEffect(() => {
+  //   initializedRef.current = false;
+  // }, [selectedFlowId]);
   
   // List of deployment options - 移除isDeployed字段
   const deploymentOptions = [
