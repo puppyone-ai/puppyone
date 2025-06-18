@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
+import { useDisplaySwitch } from '../hooks/useDisplaySwitch'
 import FlowElementOperationMenu from './FlowElementOperationMenu'
+
 type FlowElementProps = {
   FlowId: string;
   FlowName: string;
@@ -17,17 +19,55 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
 
   const [isHover, setIsHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  // const {removeFlow, editFlowName, setSelectedFlowId, selectedFlowId} = useFlowsPerUserContext()
-  const { handleFlowSwitch, selectedFlowId, removeFlow, editFlowName } = useFlowsPerUserContext()
+  
+  // 使用 useWorkspaces 获取基础状态
+  const { 
+    showingItem, 
+    displayOrNot,
+    updateWorkspace,
+    workspaceManagement,
+    getWorkspaceById
+  } = useWorkspaces()
+  
+  // 使用 useDisplaySwitch 获取切换方法
+  const { switchToWorkspaceById } = useDisplaySwitch();
 
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
+  
+  // 修改选中状态的判断逻辑：只有当 displayOrNot 为 true 且选中了该工作区时才显示为选中状态
+  const isSelected = displayOrNot && FlowId === selectedFlowId;
 
-
-
+  const handleFlowSwitch = async (flowId: string) => {
+    // 获取现有工作区信息
+    const existingWorkspace = getWorkspaceById(flowId);
+    
+    // 调用 workspaceManagement 的 switchToWorkspace 方法获取工作区内容
+    const result = await workspaceManagement.switchToWorkspace(flowId, existingWorkspace);
+    
+    if (result.success && result.content) {
+      // 只有当数据来自数据库时才更新 pullFromDatabase 状态
+      if (!result.fromCache) {
+        updateWorkspace(flowId, { 
+          content: result.content,
+          pullFromDatabase: true  // 标记为已从数据库拉取
+        });
+      }
+      
+      // 不再需要手动设置 currentWorkspaceJson，因为它现在是通过 getCurrentWorkspaceContent 计算得出的
+      // 当 updateWorkspace 更新工作区内容后，getCurrentWorkspaceContent 会自动返回最新内容
+    } else {
+      console.error('Failed to switch workspace:', result.error);
+    }
+    
+    // 使用 useDisplaySwitch 的方法来切换显示状态
+    // 这会同时处理工作区显示模式的切换和服务显示模式的关闭
+    switchToWorkspaceById(flowId);
+  };
 
   return (
     <li className={`
       flex items-center justify-center pl-[16px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[6px] cursor-pointer relative
-      ${FlowId === selectedFlowId || flowIdShowOperationMenu === FlowId
+      ${isSelected || flowIdShowOperationMenu === FlowId
         ? 'bg-[#454545] hover:bg-[#454545] transition-colors duration-200'
         : 'hover:bg-[#313131] transition-colors duration-200'
       }
@@ -42,17 +82,16 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
         }
       }}>
       <div className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
-      ${FlowId === selectedFlowId ? 'text-white' : 'text-[#CDCDCD]'}
+      ${isSelected ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}>
         <div className="flex items-center gap-[8px] max-w-[166px]" title={`${FlowName}${isDirty ? " (unsaved)" : ""}`}>
           
           <span className="truncate">{FlowName}</span>
           {isDirty && (
             <span 
-              className="flex-shrink-0 text-[8px] w-[10px] h-[10px] flex items-center justify-center rounded-[2px] bg-[#FF8B6A] text-black font-bold relative group cursor-default"
+              className="flex-shrink-0 w-[6px] h-[6px] rounded-full bg-[#FF8B6A] relative group cursor-default"
               title="unsaved"
             >
-              U
             </span>
           )}
         </div>

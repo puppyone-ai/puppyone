@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 
@@ -19,7 +19,7 @@ const DialogPortal = dynamic(() =>
 
 function Header({ setFlowFullScreen }: HeaderProps) {
 
-  const { userName } = useFlowsPerUserContext()
+  const { userName } = useWorkspaces()
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
   const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers'>('settings')
   const [showVersionPopup, setShowVersionPopup] = useState(false)

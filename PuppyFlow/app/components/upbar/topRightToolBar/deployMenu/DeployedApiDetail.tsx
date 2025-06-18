@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
+import { useServers } from '@/app/components/states/UserServersContext';
 
 interface ApiService {
   api_id: string;
@@ -25,12 +25,12 @@ function DeployedApiDetail({
   onDelete,
   selectedFlowId
 }: DeployedApiDetailProps) {
-  const { deployedServices } = useDeployPanelContext();
+  const { getApiServiceById } = useServers();
   const [selectedLang, setSelectedLang] = useState("Python");
   const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false);
 
-  // 从 context 中获取 API 服务信息
-  const currentApiService = deployedServices.apis.find(api => api.api_id === apiService.api_id) || apiService;
+  // 从新的 context 中获取 API 服务信息
+  const currentApiService = getApiServiceById(apiService.api_id) || apiService;
 
   // 语言选项常量
   const PYTHON = "Python";
