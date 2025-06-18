@@ -1,5 +1,5 @@
 import React from 'react'
-import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import { v4 as uuidv4 } from 'uuid'
 
 function AddNewWorkspaceButton() {

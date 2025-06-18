@@ -1,6 +1,17 @@
+/**
+ * ServersContext - User Server Management Context
+ * 
+ * This context manages server/service state with centralized management for:
+ * 
+ * 1. Global deployed services (APIs and Chatbots) from all workspaces
+ * 2. Current showing server/service tracking
+ * 3. Service management operations
+ * 4. Server configuration and status
+ */
+
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { useWorkspaces } from './UserWorkspaceAndServicesContext';
-import { SYSTEM_URLS } from '@/config/urls';
+import { useWorkspaces } from './UserWorkspacesContext';
+import { useServerOperations } from '../hooks/useServerMnagement';
 
 // 统一的服务接口定义
 export interface ApiService {
@@ -31,14 +42,22 @@ export interface ChatbotService {
   };
 }
 
-// 扩展的服务类型，包含工作区信息
+// 服务类型枚举
+export type ServiceType = 'api' | 'chatbot';
+
+// 扩展的服务类型，包含工作区信息和服务类型
 export interface EnhancedApiService extends ApiService {
   workspaceName: string;
+  type: 'api';
 }
 
 export interface EnhancedChatbotService extends ChatbotService {
   workspaceName: string;
+  type: 'chatbot';
 }
+
+// 统一的增强服务类型
+export type EnhancedService = EnhancedApiService | EnhancedChatbotService;
 
 // 全局部署服务状态
 interface GlobalDeployedServices {
@@ -50,26 +69,36 @@ interface GlobalDeployedServices {
 }
 
 // Context 类型定义
-interface GlobalDeployedServicesContextType {
-  // 全局状态
+interface ServersContextType {
+  // 基础状态
   globalServices: GlobalDeployedServices;
+  currentShowingId: string | null;
+  currentServiceJson: EnhancedApiService | EnhancedChatbotService | null;
+  displayOrNot: boolean;
   
-  // API Server配置
-  apiServerKey: string;
-  apiServerUrl: string;
+  // 初始化状态
+  isInitialized: boolean;
+  isLoading: boolean;
+  initializationError: string | null;
+  
+  // 显示状态操作
+  setShowingId: (id: string | null) => void;
+  setCurrentServiceJson: (service: EnhancedApiService | EnhancedChatbotService | null) => void;
+  setDisplayOrNot: (display: boolean) => void;
+  clearShowing: () => void;
   
   // 数据获取方法
   fetchAllServices: () => Promise<void>;
   fetchWorkspaceServices: (workspaceId: string) => Promise<void>;
   refreshServices: () => Promise<void>;
   
-  // 服务管理方法
+  // 服务管理方法 - 只保留本地状态更新
   addApiService: (service: ApiService, workspaceName: string) => void;
-  removeApiService: (apiId: string) => Promise<void>;
+  removeApiService: (apiId: string) => void;
   updateApiService: (apiId: string, updates: Partial<ApiService>) => void;
   
   addChatbotService: (service: ChatbotService, workspaceName: string) => void;
-  removeChatbotService: (chatbotId: string) => Promise<void>;
+  removeChatbotService: (chatbotId: string) => void;
   updateChatbotService: (chatbotId: string, updates: Partial<ChatbotService>) => void;
   
   // 查询方法
@@ -82,9 +111,16 @@ interface GlobalDeployedServicesContextType {
     apis: EnhancedApiService[];
     chatbots: EnhancedChatbotService[];
   };
+  getApiServiceById: (apiId: string) => EnhancedApiService | undefined;
+  getChatbotServiceById: (chatbotId: string) => EnhancedChatbotService | undefined;
+  getCurrentShowingService: () => EnhancedApiService | EnhancedChatbotService | undefined;
   
-  // 工具方法
+  // 状态判断方法
+  isServiceShowing: (serviceId: string) => boolean;
   isWorkspaceDataFresh: (workspaceId: string, maxAge?: number) => boolean;
+  
+  // 初始化方法
+  reinitialize: () => Promise<void>;
 }
 
 // 初始状态
@@ -97,86 +133,33 @@ const initialGlobalServices: GlobalDeployedServices = {
 };
 
 // 创建 Context
-const GlobalDeployedServicesContext = createContext<GlobalDeployedServicesContextType | undefined>(undefined);
+const ServersContext = createContext<ServersContextType | undefined>(undefined);
 
 // Provider 组件
-interface GlobalDeployedServicesProviderProps {
+interface ServersProviderProps {
   children: ReactNode;
 }
 
-export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServicesProviderProps) => {
+export const ServersProvider = ({ children }: ServersProviderProps) => {
   const { workspaces } = useWorkspaces();
+  const serverOperations = useServerOperations();
   const [globalServices, setGlobalServices] = useState<GlobalDeployedServices>(initialGlobalServices);
-  
-  // API配置
-  const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
-  const apiServerUrl = SYSTEM_URLS.API_SERVER.BASE;
-
-  // 获取单个工作区的API列表
-  const fetchApiList = useCallback(async (workspaceId: string): Promise<ApiService[]> => {
-    try {
-      const res = await fetch(
-        `${apiServerUrl}/list_apis/${workspaceId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 404) return [];
-        throw new Error(`Failed to fetch API list: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.apis || [];
-    } catch (error) {
-      console.error(`Error fetching API list for workspace ${workspaceId}:`, error);
-      return [];
-    }
-  }, [apiServerUrl, apiServerKey]);
-
-  // 获取单个工作区的Chatbot列表
-  const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotService[]> => {
-    try {
-      const res = await fetch(
-        `${apiServerUrl}/list_chatbots/${workspaceId}?include_keys=true`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 404) return [];
-        throw new Error(`Failed to fetch chatbot list: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.chatbots || [];
-    } catch (error) {
-      console.error(`Error fetching chatbot list for workspace ${workspaceId}:`, error);
-      return [];
-    }
-  }, [apiServerUrl, apiServerKey]);
+  const [currentShowingId, setCurrentShowingId] = useState<string | null>(null);
+  const [currentServiceJson, setCurrentServiceJson] = useState<EnhancedApiService | EnhancedChatbotService | null>(null);
+  const [displayOrNot, setDisplayOrNot] = useState<boolean>(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // 获取单个工作区的服务
   const fetchWorkspaceServices = useCallback(async (workspaceId: string) => {
-    if (!apiServerKey) return;
+    if (!serverOperations.apiServerKey) return;
 
     const workspace = workspaces.find(w => w.workspace_id === workspaceId);
     if (!workspace) return;
 
     try {
       const [apis, chatbots] = await Promise.all([
-        fetchApiList(workspaceId),
-        fetchChatbotList(workspaceId)
+        serverOperations.fetchApiList(workspaceId),
+        serverOperations.fetchChatbotList(workspaceId)
       ]);
 
       setGlobalServices(prev => {
@@ -184,17 +167,19 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
         const filteredApis = prev.apis.filter(api => api.workspace_id !== workspaceId);
         const filteredChatbots = prev.chatbots.filter(chatbot => chatbot.workspace_id !== workspaceId);
 
-        // 添加新数据
+        // 添加新数据，包含 type 字段
         const enhancedApis: EnhancedApiService[] = apis.map(api => ({
           ...api,
           workspaceName: workspace.workspace_name,
-          workspace_id: workspaceId
+          workspace_id: workspaceId,
+          type: 'api' as const
         }));
 
         const enhancedChatbots: EnhancedChatbotService[] = chatbots.map(chatbot => ({
           ...chatbot,
           workspaceName: workspace.workspace_name,
-          workspace_id: workspaceId
+          workspace_id: workspaceId,
+          type: 'chatbot' as const
         }));
 
         return {
@@ -215,11 +200,11 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
         error: `Failed to fetch services for workspace ${workspace.workspace_name}`
       }));
     }
-  }, [workspaces, apiServerKey, fetchApiList, fetchChatbotList]);
+  }, [workspaces, serverOperations]);
 
-  // 获取所有工作区的服务
-  const fetchAllServices = useCallback(async () => {
-    if (!workspaces.length || !apiServerKey) {
+  // 获取所有工作区的服务 - 移除 useCallback 以避免依赖问题
+  const fetchAllServices = async () => {
+    if (!workspaces.length || !serverOperations.apiServerKey) {
       setGlobalServices(prev => ({ ...prev, apis: [], chatbots: [] }));
       return;
     }
@@ -229,8 +214,8 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
     try {
       const allPromises = workspaces.map(async (workspace) => {
         const [apis, chatbots] = await Promise.all([
-          fetchApiList(workspace.workspace_id),
-          fetchChatbotList(workspace.workspace_id)
+          serverOperations.fetchApiList(workspace.workspace_id),
+          serverOperations.fetchChatbotList(workspace.workspace_id)
         ]);
 
         return {
@@ -243,7 +228,7 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
 
       const results = await Promise.all(allPromises);
 
-      // 合并所有结果
+      // 合并所有结果，添加 type 字段
       const allApis: EnhancedApiService[] = [];
       const allChatbots: EnhancedChatbotService[] = [];
       const lastFetched: Record<string, number> = {};
@@ -253,7 +238,8 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
           allApis.push({ 
             ...api, 
             workspaceName,
-            workspace_id: workspaceId
+            workspace_id: workspaceId,
+            type: 'api' as const
           });
         });
         
@@ -261,7 +247,8 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
           allChatbots.push({ 
             ...chatbot, 
             workspaceName,
-            workspace_id: workspaceId
+            workspace_id: workspaceId,
+            type: 'chatbot' as const
           });
         });
 
@@ -290,80 +277,87 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
         error: 'Failed to fetch deployed services'
       }));
     }
-  }, [workspaces, apiServerKey, fetchApiList, fetchChatbotList]);
+  };
 
   // 刷新服务
   const refreshServices = useCallback(async () => {
     await fetchAllServices();
+  }, []);
+
+  // 重新初始化方法
+  const reinitialize = useCallback(async () => {
+    setIsInitialized(false);
+    setCurrentShowingId(null);
+    setCurrentServiceJson(null);
+    setGlobalServices(initialGlobalServices);
+    await fetchAllServices();
+    setIsInitialized(true);
   }, [fetchAllServices]);
 
-  // 删除API服务
-  const removeApiService = useCallback(async (apiId: string) => {
-    try {
-      const res = await fetch(
-        `${apiServerUrl}/delete_api/${apiId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
+  // 根据ID获取API服务
+  const getApiServiceById = useCallback((apiId: string): EnhancedApiService | undefined => {
+    return globalServices.apis.find(api => api.api_id === apiId);
+  }, [globalServices.apis]);
 
-      if (!res.ok) {
-        throw new Error(`Failed to delete API: ${res.status}`);
+  // 根据ID获取Chatbot服务
+  const getChatbotServiceById = useCallback((chatbotId: string): EnhancedChatbotService | undefined => {
+    return globalServices.chatbots.find(chatbot => chatbot.chatbot_id === chatbotId);
+  }, [globalServices.chatbots]);
+
+  // 获取当前显示的服务
+  const getCurrentShowingService = useCallback((): EnhancedApiService | EnhancedChatbotService | undefined => {
+    if (!currentShowingId) return undefined;
+    
+    // 先尝试在API服务中查找
+    const apiService = getApiServiceById(currentShowingId);
+    if (apiService) return apiService;
+    
+    // 再尝试在Chatbot服务中查找
+    const chatbotService = getChatbotServiceById(currentShowingId);
+    if (chatbotService) return chatbotService;
+    
+    return undefined;
+  }, [currentShowingId, getApiServiceById, getChatbotServiceById]);
+
+  // 设置显示的服务ID
+  const setShowingId = useCallback((id: string | null) => {
+    setCurrentShowingId(id);
+    
+    // 同步更新当前服务JSON
+    if (id) {
+      const apiService = getApiServiceById(id);
+      if (apiService) {
+        setCurrentServiceJson(apiService);
+        return;
       }
-
-      // 从本地状态中移除
-      setGlobalServices(prev => ({
-        ...prev,
-        apis: prev.apis.filter(api => api.api_id !== apiId)
-      }));
-
-      console.log(`✅ API ${apiId} deleted successfully`);
-    } catch (error) {
-      console.error(`Error deleting API ${apiId}:`, error);
-      throw error;
-    }
-  }, [apiServerUrl, apiServerKey]);
-
-  // 删除Chatbot服务
-  const removeChatbotService = useCallback(async (chatbotId: string) => {
-    try {
-      const res = await fetch(
-        `${apiServerUrl}/delete_chatbot/${chatbotId}`,
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
-
-      if (!res.ok) {
-        throw new Error(`Failed to delete chatbot: ${res.status}`);
+      
+      const chatbotService = getChatbotServiceById(id);
+      if (chatbotService) {
+        setCurrentServiceJson(chatbotService);
+        return;
       }
-
-      // 从本地状态中移除
-      setGlobalServices(prev => ({
-        ...prev,
-        chatbots: prev.chatbots.filter(chatbot => chatbot.chatbot_id !== chatbotId)
-      }));
-
-      console.log(`✅ Chatbot ${chatbotId} deleted successfully`);
-    } catch (error) {
-      console.error(`Error deleting chatbot ${chatbotId}:`, error);
-      throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+    
+    setCurrentServiceJson(null);
+  }, [getApiServiceById, getChatbotServiceById]);
 
-  // 添加API服务
+  // 清空显示状态
+  const clearShowing = useCallback(() => {
+    setCurrentShowingId(null);
+    setCurrentServiceJson(null);
+  }, []);
+
+  // 判断服务是否正在显示
+  const isServiceShowing = useCallback((serviceId: string): boolean => {
+    return currentShowingId === serviceId;
+  }, [currentShowingId]);
+
+  // 本地状态管理方法 - 添加 type 字段
   const addApiService = useCallback((service: ApiService, workspaceName: string) => {
     const enhancedService: EnhancedApiService = {
       ...service,
-      workspaceName
+      workspaceName,
+      type: 'api' as const
     };
 
     setGlobalServices(prev => ({
@@ -372,7 +366,18 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
     }));
   }, []);
 
-  // 更新API服务
+  const removeApiService = useCallback((apiId: string) => {
+    setGlobalServices(prev => ({
+      ...prev,
+      apis: prev.apis.filter(api => api.api_id !== apiId)
+    }));
+
+    // 如果删除的是当前显示的服务，清空显示状态
+    if (isServiceShowing(apiId)) {
+      clearShowing();
+    }
+  }, [isServiceShowing, clearShowing]);
+
   const updateApiService = useCallback((apiId: string, updates: Partial<ApiService>) => {
     setGlobalServices(prev => ({
       ...prev,
@@ -380,13 +385,21 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
         api.api_id === apiId ? { ...api, ...updates } : api
       )
     }));
-  }, []);
 
-  // 添加Chatbot服务
+    // 如果更新的是当前显示的服务，同步更新当前JSON
+    if (isServiceShowing(apiId)) {
+      const updatedService = getApiServiceById(apiId);
+      if (updatedService) {
+        setCurrentServiceJson(updatedService);
+      }
+    }
+  }, [isServiceShowing, getApiServiceById]);
+
   const addChatbotService = useCallback((service: ChatbotService, workspaceName: string) => {
     const enhancedService: EnhancedChatbotService = {
       ...service,
-      workspaceName
+      workspaceName,
+      type: 'chatbot' as const
     };
 
     setGlobalServices(prev => ({
@@ -395,7 +408,18 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
     }));
   }, []);
 
-  // 更新Chatbot服务
+  const removeChatbotService = useCallback((chatbotId: string) => {
+    setGlobalServices(prev => ({
+      ...prev,
+      chatbots: prev.chatbots.filter(chatbot => chatbot.chatbot_id !== chatbotId)
+    }));
+
+    // 如果删除的是当前显示的服务，清空显示状态
+    if (isServiceShowing(chatbotId)) {
+      clearShowing();
+    }
+  }, [isServiceShowing, clearShowing]);
+
   const updateChatbotService = useCallback((chatbotId: string, updates: Partial<ChatbotService>) => {
     setGlobalServices(prev => ({
       ...prev,
@@ -403,7 +427,15 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
         chatbot.chatbot_id === chatbotId ? { ...chatbot, ...updates } : chatbot
       )
     }));
-  }, []);
+
+    // 如果更新的是当前显示的服务，同步更新当前JSON
+    if (isServiceShowing(chatbotId)) {
+      const updatedService = getChatbotServiceById(chatbotId);
+      if (updatedService) {
+        setCurrentServiceJson(updatedService);
+      }
+    }
+  }, [isServiceShowing, getChatbotServiceById]);
 
   // 根据工作区获取服务
   const getServicesByWorkspace = useCallback((workspaceId: string) => {
@@ -436,51 +468,92 @@ export const GlobalDeployedServicesProvider = ({ children }: GlobalDeployedServi
     return Date.now() - lastFetch < maxAge;
   }, [globalServices.lastFetched]);
 
-  // 初始化时获取所有服务
+  // 修复初始化逻辑 - 移除 fetchAllServices 从依赖数组
   useEffect(() => {
-    if (workspaces.length > 0 && apiServerKey) {
-      fetchAllServices();
-    }
-  }, [workspaces.length, apiServerKey]); // 只在工作区数量或API key变化时重新获取
+    let isMounted = true;
+    
+    const initializeServices = async () => {
+      if (workspaces.length > 0 && serverOperations.apiServerKey && !isInitialized) {
+        await fetchAllServices();
+        if (isMounted) {
+          setIsInitialized(true);
+        }
+      }
+    };
+
+    initializeServices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [workspaces.length, serverOperations.apiServerKey, isInitialized]);
+
+  const contextValue: ServersContextType = {
+    // 基础状态
+    globalServices,
+    currentShowingId,
+    currentServiceJson,
+    displayOrNot,
+    
+    // 初始化状态
+    isInitialized,
+    isLoading: globalServices.isLoading,
+    initializationError: globalServices.error,
+    
+    // 显示状态操作
+    setShowingId,
+    setCurrentServiceJson,
+    setDisplayOrNot,
+    clearShowing,
+    
+    // 数据获取方法
+    fetchAllServices,
+    fetchWorkspaceServices,
+    refreshServices,
+    
+    // 服务管理方法 - 只保留本地状态更新
+    addApiService,
+    removeApiService,
+    updateApiService,
+    addChatbotService,
+    removeChatbotService,
+    updateChatbotService,
+    
+    // 查询方法
+    getServicesByWorkspace,
+    getChatbotApiKey,
+    getAllServices,
+    getApiServiceById,
+    getChatbotServiceById,
+    getCurrentShowingService,
+    
+    // 状态判断方法
+    isServiceShowing,
+    isWorkspaceDataFresh,
+    
+    // 初始化方法
+    reinitialize
+  };
 
   return (
-    <GlobalDeployedServicesContext.Provider 
-      value={{
-        globalServices,
-        apiServerKey,
-        apiServerUrl,
-        fetchAllServices,
-        fetchWorkspaceServices,
-        refreshServices,
-        addApiService,
-        removeApiService,
-        updateApiService,
-        addChatbotService,
-        removeChatbotService,
-        updateChatbotService,
-        getServicesByWorkspace,
-        getChatbotApiKey,
-        getAllServices,
-        isWorkspaceDataFresh
-      }}
-    >
+    <ServersContext.Provider value={contextValue}>
       {children}
-    </GlobalDeployedServicesContext.Provider>
+    </ServersContext.Provider>
   );
 };
 
 // Hook 用于在组件中使用 Context
-export const useGlobalDeployedServices = () => {
-  const context = useContext(GlobalDeployedServicesContext);
+export const useServers = () => {
+  const context = useContext(ServersContext);
   if (!context) {
-    throw new Error('useGlobalDeployedServices must be used within GlobalDeployedServicesProvider');
+    throw new Error('useServers must be used within ServersProvider');
   }
   return context;
 };
 
 // 简化的 hooks
 export const useAllDeployedServices = () => {
-  const { getAllServices, globalServices } = useGlobalDeployedServices();
+  const { getAllServices, globalServices } = useServers();
   const { apis, chatbots } = getAllServices();
   
   return {
@@ -497,7 +570,7 @@ export const useWorkspaceDeployedServices = (workspaceId: string) => {
     fetchWorkspaceServices, 
     isWorkspaceDataFresh,
     globalServices 
-  } = useGlobalDeployedServices();
+  } = useServers();
   
   const services = getServicesByWorkspace(workspaceId);
   

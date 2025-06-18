@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useState, useEffect, useContext } from 'react'
-import { useWorkspaces } from "../../../states/UserWorkspaceAndServicesContext"
+import { useWorkspaces } from "../../../states/UserWorkspacesContext"
 import { useWorkspaceManagement } from '../../../hooks/useWorkspaceManagement'
 import { useAppSettings } from '../../../states/AppSettingsContext'
 import { PuppyStorage_IP_address_for_uploadingFile } from '../../../hooks/useJsonConstructUtils'

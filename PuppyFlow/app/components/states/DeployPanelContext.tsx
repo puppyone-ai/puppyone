@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useGlobalDeployedServices } from './GlobalDeployedServicesContext';
+import { useServers } from './UserServersContext';
+import { useServerOperations } from '../hooks/useServerMnagement';
 
 // 单个 API 服务信息
 interface ApiService {
@@ -80,9 +81,8 @@ export const DeployPanelProvider = ({
 }: DeployPanelProviderProps) => {
   const [currentFlowId, setCurrentFlowId] = useState<string | null>(flowId);
   
-  // 使用全局部署服务Context
+  // 使用新的UserServersContext
   const {
-    apiServerKey,
     addApiService: globalAddApiService,
     removeApiService: globalRemoveApiService,
     updateApiService: globalUpdateApiService,
@@ -92,7 +92,10 @@ export const DeployPanelProvider = ({
     getChatbotApiKey: globalGetChatbotApiKey,
     getServicesByWorkspace,
     fetchWorkspaceServices
-  } = useGlobalDeployedServices();
+  } = useServers();
+
+  // 从 useServerOperations 获取 apiServerKey
+  const { apiServerKey } = useServerOperations();
 
   // 获取当前工作区的服务，转换为原有格式
   const getCurrentWorkspaceServices = (): DeployedServices => {
@@ -198,9 +201,11 @@ export const useDeployedServices = () => {
     deployedServices, 
     addApiService, 
     removeApiService, 
-    addChatbotService, 
+    updateApiService,
+    addChatbotService,
     removeChatbotService,
-    getChatbotApiKey 
+    updateChatbotService,
+    getChatbotApiKey
   } = useDeployPanelContext();
   
   return {
@@ -208,8 +213,10 @@ export const useDeployedServices = () => {
     chatbots: deployedServices.chatbots,
     addApiService,
     removeApiService,
+    updateApiService,
     addChatbotService,
     removeChatbotService,
+    updateChatbotService,
     getChatbotApiKey
   };
 };

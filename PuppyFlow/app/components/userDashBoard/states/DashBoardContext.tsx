@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactElement, useEffect } from "react";
-import { useWorkspaces } from '../../states/UserWorkspaceAndServicesContext';
+import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import { useAppSettings } from '../../states/AppSettingsContext';
 
 // Model types

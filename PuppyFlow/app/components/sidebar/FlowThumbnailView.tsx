@@ -1,5 +1,5 @@
 import React, { useState, Fragment } from 'react'
-import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import { Transition } from '@headlessui/react'
 
 type FlowThumbnailViewProps = {

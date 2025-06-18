@@ -3,7 +3,7 @@
 import { Menu, Transition } from '@headlessui/react'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { useWorkspaces } from '../../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { SYSTEM_URLS } from '@/config/urls'
 import { DeployPanelProvider } from '../../states/DeployPanelContext'
 import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
