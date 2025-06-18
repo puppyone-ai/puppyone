@@ -1,62 +1,72 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
+import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import { useReactFlow } from '@xyflow/react'
 
 function SaveButton() {
 
-  const { selectedFlowId, forceSaveHistory,setWorkspaces, workspaces } = useFlowsPerUserContext()
+  // 使用新的 Context API
+  const { showingItem, workspaces, getCurrentWorkspace, workspaceManagement } = useWorkspaces()
   const [saveState, setSaveState] = useState<"error" | "success" | "idle">("idle")
   const [isHovering, setIsHovering] = useState(false)
   const { isOnGeneratingNewNode } = useNodesPerFlowContext()
-  const {getViewport} = useReactFlow();
+  const { getNodes, getEdges, getViewport } = useReactFlow();
 
-  // 从workspaces中获取当前选中工作区的isDirty状态
-  const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId);
-  const isDirty = currentWorkspace?.isDirty || false;
+  // 获取当前显示的工作区
+  const currentWorkspace = getCurrentWorkspace();
+  const currentWorkspaceId = showingItem?.type === 'workspace' ? showingItem.id : null;
 
+  // 实现真正的保存逻辑
   const handleSave = async () => {
     try {
-      if (selectedFlowId) {
-        await forceSaveHistory(selectedFlowId)
-        console.log("save history success!!!! force save history")
-        setSaveState("success")
+      if (currentWorkspaceId && currentWorkspace) {
+        // 获取当前工作区的完整数据
+        const nodes = getNodes();
+        const edges = getEdges();
+        const viewport = getViewport();
+        
+        const workspaceData = {
+          blocks: nodes,
+          edges: edges,
+          viewport: viewport,
+          version: "1.0.0"
+        };
+
+        // 使用 workspaceManagement 中的保存功能
+        const timestamp = new Date().toISOString();
+        const success = await workspaceManagement.saveWorkspaceContent(
+          currentWorkspaceId, 
+          workspaceData, 
+          timestamp
+        );
+
+        if (success) {
+          console.log("Successfully saved workspace:", currentWorkspaceId);
+          setSaveState("success");
+        } else {
+          throw new Error("Failed to save workspace");
+        }
       }
     } catch (error) {
-      console.error("Error when saving history:", error)
-      setSaveState("error")
+      console.error("Error when saving:", error);
+      setSaveState("error");
     }
   }
 
-  const [saveRequestState, setSaveRequestState] = useState<any>(undefined)
-  const handleSaveButton = async ()=>{
-    setSaveRequestState("start")
-    setWorkspaces(prev => prev.map(w => 
-      w.flowId === selectedFlowId ? { ...w, viewport:getViewport() } : w
-    ))
-  }
-  
-  useEffect(() => {
-    if(saveRequestState=="start"){
-      const saveData = async () => {
-        console.log("handle save effect", workspaces)
-        setSaveRequestState("end")
-        await handleSave();
-      };
-      saveData();
+  const handleSaveButton = async () => {
+    if (currentWorkspaceId) {
+      await handleSave();
     }
-  }, [saveRequestState]);
-
+  }
 
   useEffect(() => {
-      const timer = setTimeout(() => {
-        if (saveState === "success" || saveState === "error") {
-          setSaveState("idle")
-        }
-      }, 3000)
+    const timer = setTimeout(() => {
+      if (saveState === "success" || saveState === "error") {
+        setSaveState("idle")
+      }
+    }, 3000)
 
-      return () => clearTimeout(timer)
-    
+    return () => clearTimeout(timer)
   }, [saveState])
 
   const saveButtonLogo = saveState === "idle" ? (<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 14 14" fill="none" >

@@ -4,7 +4,7 @@ import Header from './Header'
 import AddNewWorkspaceButton from './AddNewWorkspaceButton'
 import FlowElement from './FlowElement'
 import FlowThumbnailView from './FlowThumbnailView'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 import DeployedServicesList from './DeployedServicesList'
@@ -25,7 +25,7 @@ const DialogPortal = dynamic(() =>
 )
 
 function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
-  const {workspaces} = useFlowsPerUserContext()
+  const { workspaces } = useWorkspaces()
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<string | null>(null)
 
   const handleOperationMenuShow = (flowId: string | null) => {
@@ -42,17 +42,17 @@ function SidebarFullScreen({setFlowFullScreen}: SidebarFullScreenProps) {
       <div className="flex flex-col items-start pt-[24px] pb-[16px] relative self-stretch w-full h-full overflow-hidden">
         <div className="w-full text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans">
           <div className="mb-[16px] flex items-center gap-2">
-            <span>Library</span>
+            <span>Workpaces</span>
             <div className="h-[1px] flex-grow bg-[#404040]"></div>
           </div>
         </div>
-        <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-240px)] pr-[4px]">
+        <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-240px)] ">
           {workspaces.map((workspace) => (
             <FlowElement 
-              key={workspace.flowId} 
-              FlowId={workspace.flowId} 
-              FlowName={workspace.flowTitle}
-              isDirty={workspace.isDirty}
+              key={workspace.workspace_id} 
+              FlowId={workspace.workspace_id} 
+              FlowName={workspace.workspace_name}
+              isDirty={workspace.pushToDatabase}
               handleOperationMenuShow={handleOperationMenuShow}
               flowIdShowOperationMenu={flowIdShowOperationMenu}
             />

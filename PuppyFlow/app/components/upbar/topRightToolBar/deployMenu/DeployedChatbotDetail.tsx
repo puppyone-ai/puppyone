@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ChatbotTestInterface from './ChatbotTestInterface';
-import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
+import { useServers } from '@/app/components/states/UserServersContext';
 
 interface DeployedChatbotDetailProps {
   chatbotId: string;
@@ -19,10 +19,11 @@ function DeployedChatbotDetail({
   input,
   output,
 }: DeployedChatbotDetailProps) {
-  const { deployedServices } = useDeployPanelContext();
+  // 使用新的 UserServersContext 替代 DeployPanelContext
+  const { getChatbotServiceById } = useServers();
   
   // 通过 chatbotId 从 context 中获取 chatbot 配置
-  const chatbotService = deployedServices.chatbots.find(service => service.chatbot_id === chatbotId);
+  const chatbotService = getChatbotServiceById(chatbotId);
   
   // 修改：将 selectedSDK 改为 activeTab，用于管理 tab 切换
   const [activeTab, setActiveTab] = useState<'details' | 'bubble' | null>(null);
