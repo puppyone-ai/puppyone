@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
-import { useWorkspaceDeployedServices } from '@/app/components/states/GlobalDeployedServicesContext';
-import { useGlobalDeployedServices } from '@/app/components/states/GlobalDeployedServicesContext';
+import { useWorkspaceDeployedServices, useServers } from '@/app/components/states/UserServersContext';
 
 interface ApiInfo {
   api_id: string;
@@ -28,7 +27,7 @@ interface UseDeploymentStatusProps {
 }
 
 export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps) {
-  // 使用全局Context的工作区特定hook
+  // 使用新的UserServersContext的工作区特定hook
   const { 
     apis, 
     chatbots, 
@@ -69,15 +68,15 @@ export function useDeploymentStatus({ selectedFlowId }: UseDeploymentStatusProps
     }
   }, [selectedFlowId, refresh]);
 
-  // 使用全局Context的删除方法
-  const { removeApiService, removeChatbotService } = useGlobalDeployedServices();
+  // 使用新的UserServersContext的删除方法
+  const { removeApiService, removeChatbotService } = useServers();
 
   const deleteApi = useCallback(async (apiId: string) => {
-    await removeApiService(apiId);
+    removeApiService(apiId);
   }, [removeApiService]);
 
   const deleteChatbot = useCallback(async (chatbotId: string) => {
-    await removeChatbotService(chatbotId);
+    removeChatbotService(chatbotId);
   }, [removeChatbotService]);
 
   return {

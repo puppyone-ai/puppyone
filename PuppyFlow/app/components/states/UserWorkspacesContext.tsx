@@ -27,7 +27,6 @@ export type WorkspaceJSON = {
 }
 
 // 重新导出 WorkspaceInfo 类型以保持兼容性
-
 export type WorkspaceInfo = {
     workspace_id: string;
     workspace_name: string;
@@ -36,14 +35,9 @@ export type WorkspaceInfo = {
     pushToDatabase: boolean;
 }
 
-export type ServerInfo = {
-    // 服务器相关信息，根据需要扩展
-    [key: string]: any;
-}
-
-// 显示状态管理 - 可以是工作区或服务器
+// 显示状态管理 - 只支持工作区
 export type ShowingItem = {
-    type: 'workspace' | 'server';
+    type: 'workspace';
     id: string;
     name: string;
 }
@@ -54,8 +48,8 @@ type WorkspacesContextType = {
     userId: string;
     userName: string;
     workspaces: WorkspaceInfo[];
-    servers: ServerInfo[];
     currentWorkspaceJson: WorkspaceJSON | null;
+    displayOrNot: boolean;
     
     // 显示状态管理
     showingItem: ShowingItem | null;
@@ -70,12 +64,11 @@ type WorkspacesContextType = {
     setCurrentWorkspaceJson: (json: WorkspaceJSON | null) => void;
     setUserId: (id: string) => void;
     setUserName: (name: string) => void;
-    setServers: (servers: ServerInfo[]) => void;
+    setDisplayOrNot: (display: boolean) => void;
     
     // 显示状态操作
     setShowingItem: (item: ShowingItem | null) => void;
     setShowingWorkspace: (workspaceId: string) => void;
-    setShowingServer: (serverId: string) => void;
     clearShowing: () => void;
     
     // 工作区操作
@@ -92,9 +85,7 @@ type WorkspacesContextType = {
     getWorkspaceById: (id: string) => WorkspaceInfo | undefined;
     getCurrentWorkspace: () => WorkspaceInfo | undefined;
     createEmptyWorkspace: (id: string, name: string) => WorkspaceInfo;
-    getServerById: (id: string) => ServerInfo | undefined;
     isWorkspaceShowing: (workspaceId: string) => boolean;
-    isServerShowing: (serverId: string) => boolean;
     
     // 初始化方法
     reinitialize: () => Promise<void>;
@@ -112,7 +103,7 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
     const [currentWorkspaceJson, setCurrentWorkspaceJson] = useState<WorkspaceJSON | null>(null);
     const [userId, setUserId] = useState<string>("");
     const [userName, setUserName] = useState<string>("");
-    const [servers, setServers] = useState<ServerInfo[]>([]);
+    const [displayOrNot, setDisplayOrNot] = useState<boolean>(true);
     
     // 显示状态管理
     const [showingItem, setShowingItem] = useState<ShowingItem | null>(null);
@@ -174,11 +165,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         return workspaces.find(w => w.workspace_id === id);
     };
 
-    // 根据 ID 获取服务器
-    const getServerById = (id: string): ServerInfo | undefined => {
-        return servers.find(s => s.id === id);
-    };
-
     // 获取当前选中的工作区
     const getCurrentWorkspace = (): WorkspaceInfo | undefined => {
         if (!showingItem || showingItem.type !== 'workspace') return undefined;
@@ -210,17 +196,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         }
     };
 
-    const setShowingServer = (serverId: string) => {
-        const server = getServerById(serverId);
-        if (server) {
-            setShowingItem({
-                type: 'server',
-                id: serverId,
-                name: server.name || serverId
-            });
-        }
-    };
-
     const clearShowing = () => {
         setShowingItem(null);
         setCurrentWorkspaceJson(null);
@@ -229,11 +204,6 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
     // 判断工作区是否正在显示
     const isWorkspaceShowing = (workspaceId: string): boolean => {
         return showingItem?.type === 'workspace' && showingItem.id === workspaceId;
-    };
-
-    // 判断服务器是否正在显示
-    const isServerShowing = (serverId: string): boolean => {
-        return showingItem?.type === 'server' && showingItem.id === serverId;
     };
 
     // 添加工作区
@@ -297,7 +267,7 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         currentWorkspaceJson,
         userId,
         userName,
-        servers,
+        displayOrNot,
         showingItem,
         
         // 初始化状态
@@ -310,12 +280,11 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         setCurrentWorkspaceJson,
         setUserId,
         setUserName,
-        setServers,
+        setDisplayOrNot,
         
         // 显示状态操作
         setShowingItem,
         setShowingWorkspace,
-        setShowingServer,
         clearShowing,
         
         // 工作区操作
@@ -332,9 +301,7 @@ export const WorkspacesProvider: React.FC<{ children: ReactNode }> = ({ children
         getWorkspaceById,
         getCurrentWorkspace,
         createEmptyWorkspace,
-        getServerById,
         isWorkspaceShowing,
-        isServerShowing,
         
         // 初始化方法
         reinitialize,

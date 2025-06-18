@@ -4,11 +4,13 @@ import Workflow from "./components/workflow/Workflow";
 import React from "react";
 import { ReactFlowProvider } from '@xyflow/react'
 import { NodesPerFlowContextProvider } from "./components/states/NodesPerFlowContext";
-import { WorkspacesProvider, useWorkspaces } from "./components/states/UserWorkspaceAndServicesContext";
+import { WorkspacesProvider, useWorkspaces } from "./components/states/UserWorkspacesContext";
 import BlankWorkspace from "./components/blankworkspace/BlankWorkspace";
 import { AppSettingsProvider } from "./components/states/AppSettingsContext";
 import Link from 'next/link';
-import { GlobalDeployedServicesProvider } from "./components/states/GlobalDeployedServicesContext";
+import { ServersProvider } from "./components/states/UserServersContext";
+import { useDisplaySwitch } from "./components/hooks/useDisplaySwitch";
+import ServerDisplay from "./components/serverDisplay/ServerDisplay";
 
 function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSuccess: () => void }) {
   const [inviteCode, setInviteCode] = React.useState("");
@@ -160,7 +162,19 @@ function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSucce
 
 function ActiveFlowContent() {
   const { showingItem } = useWorkspaces();
-  return showingItem?.type === 'workspace' ? <Workflow /> : <BlankWorkspace />;
+  const { currentMode } = useDisplaySwitch();
+  
+  // 根据显示模式决定渲染什么内容
+  if (currentMode === 'workspace') {
+    // 如果是工作区模式，使用 ReactFlow 渲染
+    return showingItem?.type === 'workspace' ? <Workflow /> : <BlankWorkspace />;
+  } else if (currentMode === 'server') {
+    // 如果是服务器模式，使用服务器组件渲染
+    return <ServerDisplay />;
+  } else {
+    // 默认显示空白工作区
+    return <BlankWorkspace />;
+  }
 }
 
 function MainApplication() {
@@ -169,7 +183,7 @@ function MainApplication() {
       <AppSettingsProvider>
         <ReactFlowProvider>
           <WorkspacesProvider>
-            <GlobalDeployedServicesProvider>
+            <ServersProvider>
               <>
                 <Sidebar />
 
@@ -178,7 +192,7 @@ function MainApplication() {
                 </NodesPerFlowContextProvider>
                 
               </>
-            </GlobalDeployedServicesProvider>
+            </ServersProvider>
           </WorkspacesProvider>
         </ReactFlowProvider>
       </AppSettingsProvider>

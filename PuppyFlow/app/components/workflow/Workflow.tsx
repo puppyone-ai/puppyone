@@ -54,7 +54,7 @@ import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
-import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 
 const nodeTypes = {
   'text': TextBlockNode,

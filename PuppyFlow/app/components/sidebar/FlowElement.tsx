@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
-import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
+import { useDisplaySwitch } from '../hooks/useDisplaySwitch'
 import FlowElementOperationMenu from './FlowElementOperationMenu'
 
 type FlowElementProps = {
@@ -18,23 +19,30 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
 
   const [isHover, setIsHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  
+  // 使用 useWorkspaces 获取基础状态
   const { 
-    setShowingWorkspace, 
     showingItem, 
-    removeWorkspace, 
+    displayOrNot,  // 添加 displayOrNot 状态
     updateWorkspace,
     workspaceManagement,
     setCurrentWorkspaceJson,
     getWorkspaceById
   } = useWorkspaces()
+  
+  // 使用 useDisplaySwitch 获取切换方法
+  const { switchToWorkspaceById } = useDisplaySwitch();
 
   const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
+  
+  // 修改选中状态的判断逻辑：只有当 displayOrNot 为 true 且选中了该工作区时才显示为选中状态
+  const isSelected = displayOrNot && FlowId === selectedFlowId;
 
   const handleFlowSwitch = async (flowId: string) => {
     // 获取现有工作区信息
     const existingWorkspace = getWorkspaceById(flowId);
     
-    // 调用 switchToWorkspace，传入现有工作区信息
+    // 调用 workspaceManagement 的 switchToWorkspace 方法获取工作区内容
     const result = await workspaceManagement.switchToWorkspace(flowId, existingWorkspace);
     
     if (result.success && result.content) {
@@ -48,20 +56,19 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
       
       // 更新当前显示的工作区JSON
       setCurrentWorkspaceJson(result.content);
-      
-      // 更新显示状态
-      setShowingWorkspace(flowId);
     } else {
       console.error('Failed to switch workspace:', result.error);
-      // 即使切换失败，也更新显示状态（保持原有行为）
-      setShowingWorkspace(flowId);
     }
+    
+    // 使用 useDisplaySwitch 的方法来切换显示状态
+    // 这会同时处理工作区显示模式的切换和服务显示模式的关闭
+    switchToWorkspaceById(flowId);
   };
 
   return (
     <li className={`
       flex items-center justify-center pl-[16px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[6px] cursor-pointer relative
-      ${FlowId === selectedFlowId || flowIdShowOperationMenu === FlowId
+      ${isSelected || flowIdShowOperationMenu === FlowId
         ? 'bg-[#454545] hover:bg-[#454545] transition-colors duration-200'
         : 'hover:bg-[#313131] transition-colors duration-200'
       }
@@ -76,7 +83,7 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
         }
       }}>
       <div className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
-      ${FlowId === selectedFlowId ? 'text-white' : 'text-[#CDCDCD]'}
+      ${isSelected ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}>
         <div className="flex items-center gap-[8px] max-w-[166px]" title={`${FlowName}${isDirty ? " (unsaved)" : ""}`}>
           

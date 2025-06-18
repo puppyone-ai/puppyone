@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { useWorkspaces } from '../../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import { useReactFlow } from '@xyflow/react'
 

@@ -8,7 +8,7 @@ import JSONForm from '../../tableComponent/JSONForm'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
-import { useWorkspaces } from "../../states/UserWorkspaceAndServicesContext"
+import { useWorkspaces } from "../../states/UserWorkspacesContext"
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu'

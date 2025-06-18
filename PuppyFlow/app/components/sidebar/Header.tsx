@@ -2,7 +2,7 @@
 
 import React, { useState, useRef } from 'react'
 import ReactDOM from 'react-dom'
-import { useWorkspaces } from '../states/UserWorkspaceAndServicesContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 
