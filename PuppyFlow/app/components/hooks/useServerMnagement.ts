@@ -9,6 +9,21 @@ import { useCallback } from 'react';
 import { SYSTEM_URLS } from '@/config/urls';
 import { ApiService, ChatbotService, EnhancedApiService, EnhancedChatbotService } from '../states/UserServersContext';
 
+// 添加 chatbot 配置参数接口
+interface ConfigChatbotParams {
+  workflow_json: {
+    blocks: { [key: string]: any };
+    edges: { [key: string]: any };
+  };
+  input: string;
+  output: string;
+  history?: string | null;
+  workspace_id?: string;
+  multi_turn_enabled?: boolean;
+  welcome_message?: string;
+  integrations?: object;
+}
+
 // Hook for API operations
 export const useServerOperations = () => {
   const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
@@ -180,6 +195,34 @@ export const useServerOperations = () => {
     }
   }, [apiServerUrl, apiServerKey]);
 
+  // 新增：配置 Chatbot 服务（符合文档标准）
+  const configChatbotService = useCallback(async (params: ConfigChatbotParams): Promise<{ chatbot_id: string; chatbot_key: string; endpoint?: string }> => {
+    try {
+      const res = await fetch(
+        `${apiServerUrl}/config_chatbot`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": apiServerKey
+          },
+          body: JSON.stringify(params)
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error(`Failed to config chatbot: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log(`✅ Chatbot configured successfully`);
+      return data;
+    } catch (error) {
+      console.error(`Error configuring chatbot:`, error);
+      throw error;
+    }
+  }, [apiServerUrl, apiServerKey]);
+
   // 更新API服务
   const updateApiService = useCallback(async (apiId: string, updates: Partial<ApiService>): Promise<ApiService> => {
     try {
@@ -248,6 +291,7 @@ export const useServerOperations = () => {
     // 创建操作
     createApiService,
     createChatbotService,
+    configChatbotService,
     
     // 更新操作
     updateApiService,

@@ -28,7 +28,7 @@ interface ChatbotDetails {
 
 const DeployedServicesList: React.FC = () => {
   const { apis, chatbots, isLoading } = useAllDeployedServices();
-  const { isServiceShowing, displayOrNot } = useServers();
+  const { isServiceShowing, displayOrNot, refreshServices } = useServers();
   const { switchToServiceById } = useDisplaySwitch();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
@@ -49,10 +49,24 @@ const DeployedServicesList: React.FC = () => {
   ];
 
   const [isExpanded, setIsExpanded] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 切换展开状态
   const toggleExpanded = () => {
     setIsExpanded(!isExpanded);
+  };
+
+  // 处理刷新
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshServices();
+      console.log('✅ Services refreshed successfully');
+    } catch (error) {
+      console.error('❌ Failed to refresh services:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // 处理服务点击
@@ -85,17 +99,39 @@ const DeployedServicesList: React.FC = () => {
 
   return (
     <div className="w-full">
-      {/* 标题栏 - 可点击区域扩展到父元素顶部 */}
-      <button 
-        onClick={toggleExpanded}
-        className="w-full text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans hover:text-[#CDCDCD] rounded transition-colors pt-[8px] group"
-      >
+      {/* 标题栏 - 分离点击区域 */}
+      <div className="text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans pt-[8px]">
         <div className="mb-[16px] flex items-center gap-2">
           <span>Deployed Services</span>
-          <div className="h-[1px] flex-grow bg-[#404040] group-hover:bg-[#CDCDCD] transition-colors"></div>
-          <div className="flex items-center justify-center w-[16px] h-[16px]">
-            {isLoading ? (
-              <svg className="animate-spin w-3 h-3 text-[#5D6065] group-hover:text-[#CDCDCD] transition-colors" fill="none" viewBox="0 0 24 24">
+          <div className="h-[1px] flex-grow bg-[#404040]"></div>
+          
+          {/* 刷新按钮 */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center justify-center w-[16px] h-[16px] hover:text-[#CDCDCD] transition-colors disabled:opacity-50"
+            title="Refresh services"
+          >
+            {isRefreshing ? (
+              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            )}
+          </button>
+
+          {/* 展开/收起按钮 - 独立点击区域 */}
+          <button
+            onClick={toggleExpanded}
+            className="flex items-center justify-center w-[16px] h-[16px] hover:text-[#CDCDCD] transition-colors"
+            title={isExpanded ? "Collapse" : "Expand"}
+          >
+            {isLoading && !isRefreshing ? (
+              <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
@@ -108,12 +144,12 @@ const DeployedServicesList: React.FC = () => {
                 xmlns="http://www.w3.org/2000/svg"
                 className={`transition-all duration-200 ${!isExpanded ? 'rotate-180' : ''}`}
               >
-                <path d="M3 4.5L6 7.5L9 4.5" stroke="#5D6065" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-[#CDCDCD] transition-colors"/>
+                <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             )}
-          </div>
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* 服务列表 */}
       {isExpanded && (

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
+import { useServers } from '@/app/components/states/UserServersContext';
+import { useServerOperations } from '@/app/components/hooks/useServerMnagement';
+import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
 import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { SYSTEM_URLS } from '@/config/urls';
@@ -16,13 +18,15 @@ function DeployAsApi({
 }: DeployAsApiProps) {
   const { getNodes, getNode, getEdges } = useReactFlow();
   
-  // 从简化的 context 获取必要信息
+  // 使用新的 UserServersContext 和 ServerOperations
   const { 
-    deployedServices, 
+    getServicesByWorkspace,
     addApiService, 
-    removeApiService, 
-    apiServerKey 
-  } = useDeployPanelContext();
+    removeApiService 
+  } = useServers();
+  
+  const serverOperations = useServerOperations();
+  const { workspaces } = useWorkspaces();
   
   // 简化的本地状态管理
   const [selectedInputs, setSelectedInputs] = useState<string[]>([]);
@@ -32,8 +36,13 @@ function DeployAsApi({
   const [showApiExample, setShowApiExample] = useState<boolean>(false);
   const [isLangSelectorOpen, setIsLangSelectorOpen] = useState(false);
 
+  // 获取当前工作区名称
+  const currentWorkspace = workspaces.find(w => w.workspace_id === selectedFlowId);
+  const workspaceName = currentWorkspace?.workspace_name || 'Unknown Workspace';
+
   // 获取当前已部署的 API
-  const currentApi = deployedServices.apis.find(api => api.workspace_id === selectedFlowId);
+  const { apis } = getServicesByWorkspace(selectedFlowId || '');
+  const currentApi = apis.find(api => api.workspace_id === selectedFlowId);
   const isDeployed = currentApi !== null;
 
   // 使用构建器
@@ -68,9 +77,9 @@ function DeployAsApi({
     };
   };
 
-  // 直接处理部署逻辑
+  // 使用新的 serverOperations 处理部署逻辑
   const handleDeploy = async () => {
-    if (!selectedFlowId || !apiServerKey) {
+    if (!selectedFlowId || !serverOperations.apiServerKey) {
       console.error("缺少必要的部署参数");
       return;
     }
@@ -89,7 +98,7 @@ function DeployAsApi({
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-admin-key": apiServerKey
+          "x-admin-key": serverOperations.apiServerKey
         },
         body: JSON.stringify(payload)
       });
@@ -111,8 +120,10 @@ function DeployAsApi({
         api_key,
         endpoint: `${API_SERVER_URL}/execute_workflow/${api_id}`,
         created_at: new Date().toISOString(),
-        workspace_id: selectedFlowId
-      });
+        workspace_id: selectedFlowId,
+        inputs: selectedInputs,
+        outputs: selectedOutputs
+      }, workspaceName);
       
       setShowApiExample(true);
       
@@ -123,29 +134,21 @@ function DeployAsApi({
     }
   };
 
-  // 删除 API
+  // 使用新的 serverOperations 删除 API
   const handleDeleteApi = async () => {
-    if (!currentApi || !apiServerKey) return;
+    if (!currentApi || !serverOperations.apiServerKey) return;
 
     try {
-      const res = await fetch(`${API_SERVER_URL}/delete_api/${currentApi.api_id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": apiServerKey
-        }
-      });
-
-      if (!res.ok) {
-        throw new Error(`删除失败: ${res.status}`);
-      }
-
-      // 从 context 中移除
+      // 先调用服务器删除API
+      await serverOperations.deleteApiService(currentApi.api_id);
+      
+      // 服务器删除成功后，从本地状态中移除
       removeApiService(currentApi.api_id);
       setShowApiExample(false);
       
     } catch (error) {
       console.error("删除 API 失败:", error);
+      // 可以在这里添加用户提示
     }
   };
 
