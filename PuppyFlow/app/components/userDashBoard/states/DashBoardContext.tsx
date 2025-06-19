@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactElement, useEffect } from "react";
-import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext';
+import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import { useAppSettings } from '../../states/AppSettingsContext';
 
 // Model types
@@ -66,7 +66,7 @@ export const DashboardProvider = ({
   onTabChange,
   onClose
 }: DashboardProviderProps): ReactElement => {
-  const { userName } = useFlowsPerUserContext();
+  const { userName } = useWorkspaces();
   const [emailNotifications, setEmailNotifications] = useState(true);
   
   // 使用AppSettingsContext
