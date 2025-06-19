@@ -3,10 +3,10 @@
 import { Menu, Transition } from '@headlessui/react'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
+import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { SYSTEM_URLS } from '@/config/urls'
-import { DeployPanelProvider } from '../../states/DeployPanelContext'
-import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
+import { useWorkspaceDeployedServices, useServers } from '../../states/UserServersContext'
+import { useServerOperations } from '../../hooks/useServerMnagement'
 
 import DeployAsApi from './deployMenu/AddApiServer'
 import DeployAsChatbot from './deployMenu/AddChatbotServer'
@@ -16,7 +16,8 @@ import DeployedChatbotDetail from './deployMenu/DeployedChatbotDetail'
 
 
 function DeployBotton() {
-  const { setWorkspaces, selectedFlowId, workspaces } = useFlowsPerUserContext()
+  const { setWorkspaces, showingItem, workspaces } = useWorkspaces()
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
 
   // 仅保留顶层菜单所需的状态
@@ -24,36 +25,51 @@ function DeployBotton() {
   const [activePanel, setActivePanel] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   
-  // 使用部署状态hook
-  const { deployedServices, fetchDeployedServices, deleteApi, deleteChatbot } = useDeploymentStatus({
-    selectedFlowId
-  });
+  // 使用新的UserServersContext获取部署服务
+  const { 
+    apis, 
+    chatbots, 
+    isLoading, 
+    error, 
+    refresh 
+  } = useWorkspaceDeployedServices(selectedFlowId || '');
 
-  // 初始化引用
-  const initializedRef = useRef<boolean>(false);
+  // 使用ServerOperations获取实际的删除API方法
+  const { deleteApiService, deleteChatbotService } = useServerOperations();
+  
+  // 使用UserServersContext的本地状态管理方法
+  const { removeApiService, removeChatbotService } = useServers();
+
+  // 转换为原有格式以保持兼容性
+  const deployedServices = {
+    apis: apis.map(api => ({
+      api_id: api.api_id,
+      api_key: api.api_key,
+      endpoint: api.endpoint,
+      created_at: api.created_at,
+      workspace_id: api.workspace_id,
+      inputs: api.inputs,
+      outputs: api.outputs
+    })),
+    chatbots: chatbots.map(chatbot => ({
+      chatbot_id: chatbot.chatbot_id,
+      chatbot_key: chatbot.chatbot_key,
+      endpoint: chatbot.endpoint,
+      created_at: chatbot.created_at,
+      workspace_id: chatbot.workspace_id,
+      input: chatbot.input,
+      output: chatbot.output,
+      history: chatbot.history,
+      multi_turn_enabled: chatbot.multi_turn_enabled,
+      welcome_message: chatbot.welcome_message
+    })),
+    lastFetched: Date.now()
+  };
 
   // 添加刷新状态
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 当菜单打开时获取已部署的服务
-  useEffect(() => {
-    if (isMenuOpen && selectedFlowId && !initializedRef.current) {
-      console.log('🚀 Fetching deployed services for flowId:', selectedFlowId);
-      initializedRef.current = true;
-      fetchDeployedServices().then(() => {
-        console.log('✅ Deployed services fetched successfully');
-      }).catch((error) => {
-        console.error('❌ Failed to fetch deployed services:', error);
-      });
-    }
-  }, [isMenuOpen, selectedFlowId, fetchDeployedServices]);
-
-  // 当selectedFlowId变化时重置初始化状态
-  useEffect(() => {
-    initializedRef.current = false;
-  }, [selectedFlowId]);
-  
-  // List of deployment options - 移除isDeployed字段
+  // List of deployment options
   const deploymentOptions = [
     { 
       id: 'api', 
@@ -90,23 +106,37 @@ function DeployBotton() {
     },
   ];
 
-  // 处理删除API
+  // 处理删除API - 修复：先调用实际的API删除，再更新本地状态
   const handleDeleteApi = async (apiId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // 防止触发父元素的点击事件
     try {
-      await deleteApi(apiId);
+      // 1. 先调用实际的API删除服务器端的服务
+      await deleteApiService(apiId);
+      
+      // 2. 删除成功后，更新本地状态
+      removeApiService(apiId);
+      
+      console.log(`✅ API ${apiId} deleted successfully from both server and local state`);
     } catch (error) {
       console.error("Failed to delete API:", error);
+      // 如果服务器删除失败，不更新本地状态，保持数据一致性
     }
   };
 
-  // 处理删除Chatbot
+  // 处理删除Chatbot - 修复：先调用实际的API删除，再更新本地状态
   const handleDeleteChatbot = async (chatbotId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // 防止触发父元素的点击事件
     try {
-      await deleteChatbot(chatbotId);
+      // 1. 先调用实际的API删除服务器端的服务
+      await deleteChatbotService(chatbotId);
+      
+      // 2. 删除成功后，更新本地状态
+      removeChatbotService(chatbotId);
+      
+      console.log(`✅ Chatbot ${chatbotId} deleted successfully from both server and local state`);
     } catch (error) {
       console.error("Failed to delete chatbot:", error);
+      // 如果服务器删除失败，不更新本地状态，保持数据一致性
     }
   };
 
@@ -119,7 +149,7 @@ function DeployBotton() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await fetchDeployedServices();
+      await refresh();
     } catch (error) {
       console.error("Failed to refresh deployed services:", error);
     } finally {
@@ -378,15 +408,9 @@ function DeployBotton() {
 }
 
 export default function DeployBottonWrapper() {
-  const { selectedFlowId, workspaces, setWorkspaces } = useFlowsPerUserContext();
+  const { showingItem, workspaces, setWorkspaces } = useWorkspaces();
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
-  return (
-    <DeployPanelProvider 
-      flowId={selectedFlowId} 
-      workspaces={workspaces}
-      setWorkspaces={setWorkspaces}
-    >
-      <DeployBotton />
-    </DeployPanelProvider>
-  );
+  // 不再需要 DeployPanelProvider，直接返回组件
+  return <DeployBotton />;
 }

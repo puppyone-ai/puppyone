@@ -131,32 +131,6 @@ const ChatbotTestInterface = ({
     e.stopPropagation();
   };
 
-  // API Key 配置区域组件
-  const ApiKeySection = () => (
-    <div className="mb-4" onClick={stopPropagation}>
-      <div className="flex items-center justify-between text-[11px] text-[#505050] mb-2">
-        <div className="flex items-center">
-          <span>API Key: <span className={userApiKey ? "text-[#2DFF7C]" : "text-[#FF6B6B]"}>
-            {userApiKey ? 'Configured' : 'Not configured'}
-          </span></span>
-        </div>
-      </div>
-      <div className="relative">
-        <input
-          type="password"
-          value={userApiKey}
-          onChange={(e) => {
-            stopPropagation(e);
-            setUserApiKey(e.target.value);
-          }}
-          placeholder="Enter your API key..."
-          className="w-full p-2 rounded bg-[#202020] text-white border border-[#404040] focus:outline-none focus:border-[#2DFF7C] transition-all placeholder:text-[#606060] text-xs"
-          onClick={stopPropagation}
-        />
-      </div>
-    </div>
-  );
-
   // 状态信息区域组件
   const StatusSection = () => (
     <>
@@ -165,8 +139,16 @@ const ChatbotTestInterface = ({
           <span>Chatbot ID: <span className="text-[#606060]">{chatbotId}</span></span>
         </div>
         <div className="flex items-center">
-          <span>Endpoint: <span className="text-[#606060] hover:text-[#2D7CFF] transition-colors">
+          <span>Endpoint: <span className="text-[#606060]">
             /chat/{chatbotId}
+          </span></span>
+        </div>
+      </div>
+
+      <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
+        <div className="flex items-center">
+          <span>Chatbot Key: <span className={userApiKey ? "text-[#606060]" : "text-[#FF6B6B]"}>
+            {userApiKey || 'Not configured'}
           </span></span>
         </div>
       </div>
@@ -244,7 +226,6 @@ const ChatbotTestInterface = ({
           
           {/* 配置信息区域 */}
           <div className="bg-[#1A1A1A] rounded-lg border border-[#333] p-4">
-            <ApiKeySection />
             <StatusSection />
           </div>
         </div>

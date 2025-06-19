@@ -1,7 +1,7 @@
 'use client'
 import { useRef, useState, useEffect, useContext } from 'react'
-import { useFlowsPerUserContext } from "../../../states/FlowsPerUserContext"
-import useManageUserWorkspacesUtils from '../../../hooks/useManageUserWorkSpacesUtils'
+import { useWorkspaces } from "../../../states/UserWorkspacesContext"
+import { useWorkspaceManagement } from '../../../hooks/useWorkspaceManagement'
 import { useAppSettings } from '../../../states/AppSettingsContext'
 import { PuppyStorage_IP_address_for_uploadingFile } from '../../../hooks/useJsonConstructUtils'
 import { SYSTEM_URLS } from "@/config/urls"
@@ -21,14 +21,13 @@ export type UploadedFile = {
   expires_at?: string
 }
 
-
 export function useFileUpload({
   nodeId,
   initialFiles = [],
   onFilesChange
 }: FileUploadProps) {
-  const { userId } = useFlowsPerUserContext()
-  const { fetchUserId } = useManageUserWorkspacesUtils()
+  const { userId } = useWorkspaces()
+  const { fetchUserId } = useWorkspaceManagement()
   const { addWarn } = useAppSettings()
   
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(initialFiles)

@@ -54,7 +54,7 @@ import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -154,19 +154,24 @@ const sortNodesByType = (nodes: Node[]) => {
 };
 
 function Workflow() {
-  const { selectedFlowId, workspaces } = useFlowsPerUserContext();
+  const { 
+    showingItem, 
+    workspaces, 
+    getCurrentWorkspaceContent, 
+    updateWorkspaceContent 
+  } = useWorkspaces();
+  
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
   // 直接在组件内定义空数组作为默认值
   const emptyNodes: Node[] = [];
   const emptyEdges: Edge[] = [];
   
-  // 获取当前工作区的初始数据（如果有）
-  const currentWorkspace = workspaces.find(w => w.flowId === selectedFlowId);
-  const initialWorkspaceNodes = currentWorkspace?.latestJson?.blocks || emptyNodes;
-  const initialWorkspaceEdges = currentWorkspace?.latestJson?.edges || emptyEdges;
+  // 获取当前工作区内容
+  const currentWorkspaceContent = getCurrentWorkspaceContent();
   
-  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(initialWorkspaceNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialWorkspaceEdges);
+  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(emptyNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(emptyEdges);
   const { screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport } = useReactFlow()
   const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } = useManageReactFlowUtils()
   const { activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
@@ -198,6 +203,93 @@ function Workflow() {
     }
   }, [isOnGeneratingNewNode]);
 
+  // 监听工作区内容变化，同步到 ReactFlow
+  useEffect(() => {
+    if (currentWorkspaceContent && selectedFlowId) {
+      console.log('🔄 Syncing workspace content to ReactFlow:', {
+        workspaceId: selectedFlowId,
+        blocksCount: currentWorkspaceContent.blocks?.length || 0,
+        edgesCount: currentWorkspaceContent.edges?.length || 0
+      });
+      
+      // 更新节点和边
+      setUnsortedNodes(sortNodesByType(currentWorkspaceContent.blocks || []));
+      setEdges(currentWorkspaceContent.edges || []);
+      
+      // 更新视口（如果有的话）
+      if (currentWorkspaceContent.viewport) {
+        setTimeout(() => {
+          setViewport(currentWorkspaceContent.viewport!);
+        }, 0);
+      }
+    } else if (selectedFlowId && !currentWorkspaceContent) {
+      // 如果选中了工作区但没有内容，清空画布
+      console.log('🧹 Clearing ReactFlow canvas for empty workspace:', selectedFlowId);
+      setUnsortedNodes([]);
+      setEdges([]);
+    }
+  }, [currentWorkspaceContent, selectedFlowId]);
+
+  // 定期保存 ReactFlow 状态到工作区
+  const lastSavedContent = useRef<string>('');
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const saveCurrentState = useCallback(() => {
+    if (!selectedFlowId) return;
+
+    const currentState = {
+      blocks: nodes,
+      edges: edges,
+      viewport: getViewport(),
+      version: "1.0.0"
+    };
+
+    // 检查内容是否有变化
+    const currentStateString = JSON.stringify(currentState);
+    if (currentStateString === lastSavedContent.current) {
+      return; // 没有变化，不需要保存
+    }
+
+    console.log('💾 Saving ReactFlow state to workspace:', {
+      workspaceId: selectedFlowId,
+      blocksCount: nodes.length,
+      edgesCount: edges.length
+    });
+
+    updateWorkspaceContent(selectedFlowId, currentState);
+    lastSavedContent.current = currentStateString;
+  }, [selectedFlowId, nodes, edges, getViewport, updateWorkspaceContent]);
+
+  // 设置定期保存
+  useEffect(() => {
+    if (!selectedFlowId) return;
+
+    // 清除之前的定时器
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+
+    // 设置新的定时器
+    saveTimeoutRef.current = setTimeout(() => {
+      saveCurrentState();
+    }, 500); // 0.5秒后保存
+
+    // 清理函数
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [nodes, edges, selectedFlowId, saveCurrentState]);
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const onConnect = useCallback((connection: Connection) => {
     if (isOnGeneratingNewNode) return
@@ -216,12 +308,10 @@ function Workflow() {
       markerEnd: !sourceIsEdgeNode && targetIsEdgeNode ? undefined : markerEnd
     }
 
-
     setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges))
     allowActivateOtherNodesWhenConnectEnd()
 
   }, [setEdges])
-
 
   const onConnectStart = (event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
     if (isOnGeneratingNewNode) return
@@ -236,13 +326,9 @@ function Workflow() {
     event.preventDefault()
     event.stopPropagation()
     allowActivateOtherNodesWhenConnectEnd()
-
   }
 
   const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id: string) => {
-    // console.log("start to node on Mouse Enter", id)
-    // if (isOnGeneratingNewNode) return
-
     setNodes((nds: Node[]) => {
       const nodeIndex = nds.findIndex((node) => node.id === id);
       const node = nds[nodeIndex];
@@ -252,60 +338,26 @@ function Workflow() {
       return newNodes;
     });
 
-    // const target = event.target as unknown as HTMLElement
-    // if (target.id === "edgeMenu") {
-    //   return
-    // }
-
-    // then activate node
-    // console.log(`reenter this node`)
-    // console.log(id, "activate node")
-
     activateNode(id)
-
   };
 
   const onNodeMouseLeave = (id: string) => {
-    // if (isOnConnect) return
-    // console.log(searchNode(id), "when mouse leave")
     if (preventInactivated || isOnGeneratingNewNode) return
-    // console.log("start to node on Mouse Leave", id)
     inactivateNode(id)
-
   }
 
   const onNodeClick = (id: string) => {
-    // const targetNode = searchNode(id)
-    // console.log(targetNode)
-    // if (!targetNode) return
-    // if (!targetNode.activated) activateNode(id)
     if (isOnGeneratingNewNode) return
-    // console.log("start to node on Click", id)
     if (!judgeNodeIsEdgeNode(id)) {
       clearEdgeActivation()
     }
     activateNode(id)
     preventInactivateNode()
-
-    // else {
-    //   if (activatedNode === id) {
-    //     console.log(id, "inactivate node")
-    //     inactivateNode(id)
-    //   }
-    //   else {
-    //     console.log(id, "activate node")
-    //     activateNode(id)
-    //   }
-    // }
-    // activateEdgeNode(id)
   }
 
   const onPaneClick = () => {
-    // console.log("clear activation")
     if (isOnGeneratingNewNode) return
-    // console.log("start to clear activation")
     clearAll()
-    // allowActivateNode()
   }
 
   useEffect(() => {
@@ -347,7 +399,6 @@ function Workflow() {
     };
   }, [getViewport, setViewport]);
 
-
   const [edgesIds, setEdgesIds] = useState<string[]>(getEdges().map((edge) => edge.id))
 
   function array1HasExtraElements(array1: any[], array2: any[]): boolean {
@@ -365,7 +416,6 @@ function Workflow() {
     return false; // All elements in array1 are present in array2
   }
 
-
   useEffect(() => {
     // 检查边缘集合是否真的改变了
     if (!array1HasExtraElements(getEdges().map((edge) => edge.id), edgesIds) && 
@@ -374,11 +424,9 @@ function Workflow() {
     }
 
     setEdgesIds(getEdges().map((edge) => edge.id))
-
   }, [getEdges()])
 
   // 在 Workflow.tsx 中添加一个监听器，每当节点变更时进行排序
-
   useEffect(() => {
     // 验证节点顺序是否正确
     const isOrderCorrect = (nodes: Node[]) => {
@@ -404,14 +452,6 @@ function Workflow() {
       setNodes(sortNodesByType(nodes));
     }
   }, [nodes]);
-
-  // 另外，在初始化时也应该对节点进行排序
-  useEffect(() => {
-    if (initialWorkspaceNodes.length > 0) {
-      setNodes(sortNodesByType(initialWorkspaceNodes));
-    }
-  }, []);
-
 
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
@@ -475,7 +515,6 @@ function Workflow() {
         </ReactFlow>
       </div>
     </div>
-
   )
 }
 
