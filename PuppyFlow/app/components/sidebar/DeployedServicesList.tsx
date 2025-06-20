@@ -73,7 +73,10 @@ const DeployedServicesList: React.FC = () => {
     } catch (error) {
       console.error('❌ Failed to refresh services:', error);
     } finally {
-      setIsRefreshing(false);
+      // 确保至少显示500ms的加载状态，让用户看到反馈
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
     }
   };
 
@@ -105,37 +108,41 @@ const DeployedServicesList: React.FC = () => {
     }
   };
 
-  // 如果没有服务，不显示组件
-  if (services.length === 0 && !isLoading) {
+  // 修改条件判断：只有在有服务时才显示组件
+  if (services.length === 0) {
     return null;
   }
 
   return (
     <div className="w-full">
       {/* 标题栏 */}
-      <div className="text-[#5D6065] text-[11px] font-semibold pl-[16px] font-plus-jakarta-sans pt-[8px]">
+      <div className="text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans pt-[8px]">
         <div className="mb-[16px] flex items-center gap-2">
           <span>Deployed Services</span>
-          <div className="h-[1px] flex-grow bg-[#404040]"></div>
           
           {/* 刷新按钮 */}
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center justify-center w-[32px] h-[32px] hover:bg-[#313131] rounded-md transition-colors disabled:opacity-50 group"
-            title="Refresh services"
+            className={`flex items-center justify-center w-[32px] h-[32px] rounded-md transition-all duration-200 group ${
+              isRefreshing 
+                ? 'bg-[#313131] text-[#CDCDCD] cursor-not-allowed' 
+                : 'hover:bg-[#313131] text-[#5D6065] hover:text-[#FFFFFF]'
+            }`}
+            title={isRefreshing ? "Refreshing..." : "Refresh services"}
           >
-            {isRefreshing ? (
-              <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            ) : (
-              <svg className="w-4 h-4 stroke-[#5D6065] group-hover:stroke-[#FFFFFF]" fill="none" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            )}
+            <svg 
+              className={`w-4 h-4 transition-transform duration-500 ${isRefreshing ? 'animate-spin' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg"
+              style={isRefreshing ? { animationDirection: 'reverse' } : {}}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
           </button>
+          <div className="h-[1px] flex-grow bg-[#404040]"></div>
         </div>
       </div>
 
