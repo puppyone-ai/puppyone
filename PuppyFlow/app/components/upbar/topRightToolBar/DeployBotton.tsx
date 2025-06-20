@@ -5,7 +5,7 @@ import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { SYSTEM_URLS } from '@/config/urls'
-import { useWorkspaceDeployedServices, useServers } from '../../states/UserServersContext'
+import { useServers } from '../../states/UserServersContext'
 import { useServerOperations } from '../../hooks/useServerMnagement'
 
 import DeployAsApi from './deployMenu/AddApiServer'
@@ -25,14 +25,17 @@ function DeployBotton() {
   const [activePanel, setActivePanel] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   
-  // 使用新的UserServersContext获取部署服务
+  // 🔄 修改：直接从 UserServersContext 同步获取服务数据
   const { 
-    apis, 
-    chatbots, 
-    isLoading, 
-    error, 
-    refresh 
-  } = useWorkspaceDeployedServices(selectedFlowId || '');
+    getServicesByWorkspace, 
+    globalServices,
+    fetchWorkspaceServices,
+    isWorkspaceDataFresh 
+  } = useServers();
+
+  // 🔄 修改：同步获取当前工作区的服务
+  const workspaceServices = selectedFlowId ? getServicesByWorkspace(selectedFlowId) : { apis: [], chatbots: [] };
+  const { apis, chatbots } = workspaceServices;
 
   // 使用ServerOperations获取实际的删除API方法
   const { deleteApiService, deleteChatbotService } = useServerOperations();
@@ -63,8 +66,22 @@ function DeployBotton() {
       multi_turn_enabled: chatbot.multi_turn_enabled,
       welcome_message: chatbot.welcome_message
     })),
-    lastFetched: Date.now()
+    lastFetched: selectedFlowId ? globalServices.lastFetched[selectedFlowId] || 0 : 0
   };
+
+  // 🔄 修改：检查数据是否需要刷新（可选的后台刷新）
+  const isDataStale = selectedFlowId ? !isWorkspaceDataFresh(selectedFlowId) : false;
+  const isLoading = globalServices.isLoading;
+
+  // 🔄 修改：可选的数据刷新逻辑（在后台进行，不阻塞UI显示）
+  useEffect(() => {
+    if (selectedFlowId && isDataStale) {
+      // 后台静默刷新，不影响当前显示
+      fetchWorkspaceServices(selectedFlowId).catch(error => {
+        console.warn('Background refresh failed:', error);
+      });
+    }
+  }, [selectedFlowId, isDataStale, fetchWorkspaceServices]);
 
   // 添加刷新状态
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -149,7 +166,9 @@ function DeployBotton() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refresh();
+      if (selectedFlowId) {
+        await fetchWorkspaceServices(selectedFlowId);  // 🔄 修改为调用工作区级别的刷新
+      }
     } catch (error) {
       console.error("Failed to refresh deployed services:", error);
     } finally {

@@ -105,8 +105,8 @@ const DeployedServicesList: React.FC = () => {
     }
   };
 
-  // 如果没有服务，不显示组件
-  if (services.length === 0 && !isLoading) {
+  // 修改条件判断：只有在有服务时才显示组件
+  if (services.length === 0) {
     return null;
   }
 

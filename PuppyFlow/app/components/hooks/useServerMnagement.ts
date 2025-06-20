@@ -26,19 +26,38 @@ interface ConfigChatbotParams {
   integrations?: object;
 }
 
-// 添加新的接口定义
+// 更新部署项接口以匹配新的API响应
 interface DeploymentItem {
-  deployment_id: string;
-  deployment_type: 'api' | 'chatbot';
+  // API服务字段
+  api_id?: string;
+  inputs?: string[];
+  outputs?: string[];
+  api_key?: string; // 当include_keys=true时
+  
+  // Chatbot服务字段
+  chatbot_id?: string;
+  input?: string;
+  output?: string;
+  history?: string | null;
+  multi_turn_enabled?: boolean;
+  welcome_message?: string;
+  integrations?: object;
+  chatbot_key?: string; // 当include_keys=true时
+  
+  // 通用字段
   workspace_id: string;
-  associated_at: string;
-  associated_by: string;
+  deployment_type: 'api' | 'chatbot';
+  created_at: number;
+  updated_at: number;
+  workflow_json?: object; // 当include_details=true时
 }
 
+// 更新响应接口
 interface UserDeploymentsResponse {
   user_id: string;
   deployment_type: string;
   include_details: boolean;
+  include_keys: boolean;
   deployments: DeploymentItem[];
   total_count: number;
 }
@@ -46,6 +65,7 @@ interface UserDeploymentsResponse {
 interface FetchUserDeploymentsParams {
   deploymentType?: 'api' | 'chatbot';
   includeDetails?: boolean;
+  includeKeys?: boolean;
   isLocal?: boolean;
 }
 
@@ -314,7 +334,7 @@ export const useServerOperations = () => {
     }
   }, [apiServerUrl, apiServerKey]);
 
-  // 新增：获取用户的所有部署服务
+  // 获取用户的所有部署服务
   const fetchUserDeployments = useCallback(async (params: FetchUserDeploymentsParams = {}): Promise<UserDeploymentsResponse> => {
     try {
       const useLocal = params.isLocal !== undefined ? params.isLocal : isLocalDeployment;
@@ -327,32 +347,49 @@ export const useServerOperations = () => {
       if (params.includeDetails !== undefined) {
         queryParams.append('include_details', params.includeDetails.toString());
       }
+      if (params.includeKeys !== undefined) {
+        queryParams.append('include_keys', params.includeKeys.toString());
+      }
 
       const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
 
-      // 获取用户 token（与其他地方保持一致的认证方式）
+      // 获取用户 token
       const userToken = getToken(useLocal);
       if (!userToken && !useLocal) {
         throw new Error('No user access token found');
       }
 
       const headers: Record<string, string> = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "x-admin-key": apiServerKey
       };
 
-      // 使用与其他地方一致的认证方式
+      // 添加用户认证
       if (userToken) {
         headers["x-user-token"] = userToken;
       }
 
+      console.log('🔄 Fetching user deployments with headers:', {
+        url,
+        hasAdminKey: !!apiServerKey,
+        hasUserToken: !!userToken,
+        isLocal: useLocal
+      });
+
       const res = await fetch(url, {
         method: "GET",
         headers,
-        credentials: 'include' // 与其他地方保持一致
+        credentials: 'include'
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to fetch user deployments: ${res.status}`);
+        const errorText = await res.text();
+        console.error('❌ Failed to fetch user deployments:', {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorText
+        });
+        throw new Error(`Failed to fetch user deployments: ${res.status} - ${errorText}`);
       }
 
       const data = await res.json();
@@ -362,7 +399,7 @@ export const useServerOperations = () => {
       console.error(`Error fetching user deployments:`, error);
       throw error;
     }
-  }, [apiServerUrl, isLocalDeployment]);
+  }, [apiServerUrl, apiServerKey, isLocalDeployment]);
 
   return {
     // 获取操作
