@@ -8,6 +8,7 @@ import { useWorkspaces } from '../states/UserWorkspacesContext'
 import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 import DeployedServicesList from './DeployedServicesList'
+import DeploymentTypeLogo from './DeploymentTypeLogo'
 
 type SidebarFullScreenProps = {
   setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
@@ -39,13 +40,12 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   return (
     <div className="flex-col font-normal px-[8px] py-[16px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
       <Header setFlowFullScreen={setFlowFullScreen} />
-      <div className="flex flex-col items-start  pb-[8px] relative self-stretch w-full h-full overflow-hidden">
+      <div className="flex flex-col items-start pb-[8px] relative self-stretch w-full h-full overflow-hidden">
 
         {/* Deployed Services List - Moved to be right after workspaces */}
         <div className="mt-[8px] relative self-stretch w-full">
           <DeployedServicesList />
         </div>
-
 
         <div className="w-full text-[#5D6065] text-[11px] font-semibold pt-[24px] pl-[16px] pr-[8px] font-plus-jakarta-sans">
           <div className="mb-[16px] flex items-center gap-2">
@@ -69,6 +69,11 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
 
         {/* Spacer to push remaining content */}
         <div className="flex-grow"></div>
+      </div>
+
+      {/* Deployment Type Logo - Positioned absolutely in bottom left corner */}
+      <div className="absolute bottom-[8px] left-[8px]">
+        <DeploymentTypeLogo />
       </div>
     </div>
   )
@@ -107,9 +112,8 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  {/* the sidebar hidden */ }
   return (
-    <div className='w-[64px] h-screen bg-[#252525] flex flex-col items-center pt-[16px] gap-[16px] transition-all duration-300 ease-in-out'>
+    <div className='w-[64px] h-screen bg-[#252525] flex flex-col items-center pt-[16px] gap-[16px] transition-all duration-300 ease-in-out relative'>
       <button className='w-[32px] h-[32px] flex items-center justify-center group transition-all duration-200' onClick={() => setFlowFullScreen(true)}>
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="group-hover:bg-[#313131] rounded-md">
           <rect width="32" height="32" rx="4" className="fill-transparent group-hover:fill-[#313131]" />
@@ -136,6 +140,11 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
       </button>
 
       <FlowThumbnailView showFlowMenu={showFlowMenu} />
+
+      {/* Deployment Type Logo - Positioned absolutely in bottom left corner */}
+      <div className="absolute bottom-[8px] left-[16px]">
+        <DeploymentTypeLogo />
+      </div>
 
       <DialogPortal>
         <dialog
