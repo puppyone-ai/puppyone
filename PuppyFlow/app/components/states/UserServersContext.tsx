@@ -202,7 +202,7 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     }
   }, [workspaces, serverOperations]);
 
-  // 获取所有工作区的服务 - 使用新的统一 API
+  // 获取所有工作区的服务 - 使用新的统一 API（优化版本）
   const fetchAllServices = useCallback(async () => {
     if (!workspaces.length) {
       setGlobalServices(prev => ({ ...prev, apis: [], chatbots: [] }));
@@ -212,84 +212,71 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     setGlobalServices(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      // 使用新的统一 API 获取用户的所有部署服务
+      // 使用新的统一API获取用户的所有部署服务，包含key信息
       const deploymentsResponse = await serverOperations.fetchUserDeployments({
-        includeDetails: false // 我们不需要详细配置信息
+        includeDetails: false, // 我们不需要详细的workflow配置
+        includeKeys: true      // 获取key信息
       });
 
-      console.log('🔄 Fetched deployments from new API:', deploymentsResponse);
-
-      // 根据部署信息，获取每个服务的详细信息
-      const apiDeployments = deploymentsResponse.deployments.filter(d => d.deployment_type === 'api');
-      const chatbotDeployments = deploymentsResponse.deployments.filter(d => d.deployment_type === 'chatbot');
+      console.log('🔄 Fetched deployments from new unified API:', deploymentsResponse);
 
       // 创建工作区ID到工作区名称的映射
       const workspaceMap = new Map(workspaces.map(w => [w.workspace_id, w.workspace_name]));
 
-      // 并行获取所有API服务的详细信息
-      const apiPromises = apiDeployments.map(async (deployment) => {
-        try {
-          const apis = await serverOperations.fetchApiList(deployment.workspace_id);
-          const targetApi = apis.find(api => api.api_id === deployment.deployment_id);
-          if (targetApi) {
-            return {
-              ...targetApi,
-              workspaceName: workspaceMap.get(deployment.workspace_id) || 'Unknown Workspace',
-              workspace_id: deployment.workspace_id,
-              type: 'api' as const
-            };
-          }
-          return null;
-        } catch (error) {
-          console.error(`Error fetching API details for ${deployment.deployment_id}:`, error);
-          return null;
+      // 直接从API响应中构建服务数据，无需额外API调用
+      const allApis: EnhancedApiService[] = [];
+      const allChatbots: EnhancedChatbotService[] = [];
+
+      deploymentsResponse.deployments.forEach(deployment => {
+        const workspaceName = workspaceMap.get(deployment.workspace_id) || 'Unknown Workspace';
+
+        if (deployment.deployment_type === 'api' && deployment.api_id) {
+          // 构建API服务对象
+          const apiService: EnhancedApiService = {
+            api_id: deployment.api_id,
+            api_key: deployment.api_key || '',
+            inputs: deployment.inputs || [],
+            outputs: deployment.outputs || [],
+            workspace_id: deployment.workspace_id,
+            created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+            workspaceName,
+            type: 'api' as const
+          };
+          allApis.push(apiService);
+        } 
+        else if (deployment.deployment_type === 'chatbot' && deployment.chatbot_id) {
+          // 构建Chatbot服务对象
+          const chatbotService: EnhancedChatbotService = {
+            chatbot_id: deployment.chatbot_id,
+            chatbot_key: deployment.chatbot_key || '',
+            input: deployment.input || '',
+            output: deployment.output || '',
+            history: deployment.history || null,
+            multi_turn_enabled: deployment.multi_turn_enabled || false,
+            welcome_message: deployment.welcome_message || '',
+            workspace_id: deployment.workspace_id,
+            created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+            workspaceName,
+            type: 'chatbot' as const
+          };
+          allChatbots.push(chatbotService);
         }
       });
-
-      // 并行获取所有Chatbot服务的详细信息
-      const chatbotPromises = chatbotDeployments.map(async (deployment) => {
-        try {
-          const chatbots = await serverOperations.fetchChatbotList(deployment.workspace_id);
-          const targetChatbot = chatbots.find(chatbot => chatbot.chatbot_id === deployment.deployment_id);
-          if (targetChatbot) {
-            return {
-              ...targetChatbot,
-              workspaceName: workspaceMap.get(deployment.workspace_id) || 'Unknown Workspace',
-              workspace_id: deployment.workspace_id,
-              type: 'chatbot' as const
-            };
-          }
-          return null;
-        } catch (error) {
-          console.error(`Error fetching Chatbot details for ${deployment.deployment_id}:`, error);
-          return null;
-        }
-      });
-
-      // 等待所有请求完成
-      const [apiResults, chatbotResults] = await Promise.all([
-        Promise.all(apiPromises),
-        Promise.all(chatbotPromises)
-      ]);
-
-      // 过滤掉null值并转换为最终数据结构
-      const allApis: EnhancedApiService[] = apiResults.filter(Boolean) as EnhancedApiService[];
-      const allChatbots: EnhancedChatbotService[] = chatbotResults.filter(Boolean) as EnhancedChatbotService[];
 
       // 更新缓存时间戳
       const lastFetched: Record<string, number> = {};
       const currentTime = Date.now();
       
       // 为涉及的工作区更新时间戳
-      const involvedWorkspaces = new Set([
-        ...apiDeployments.map(d => d.workspace_id),
-        ...chatbotDeployments.map(d => d.workspace_id)
-      ]);
+      const involvedWorkspaces = new Set(
+        deploymentsResponse.deployments.map(d => d.workspace_id)
+      );
       
       involvedWorkspaces.forEach(workspaceId => {
         lastFetched[workspaceId] = currentTime;
       });
 
+      // 更新全局服务状态
       setGlobalServices(prev => ({
         ...prev,
         apis: allApis,
@@ -302,10 +289,12 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
         error: null
       }));
 
-      console.log(`✅ Fetched deployed services using new unified API:`, {
+      console.log(`✅ Fetched deployed services using optimized unified API:`, {
         totalApis: allApis.length,
         totalChatbots: allChatbots.length,
-        totalDeployments: deploymentsResponse.total_count
+        totalDeployments: deploymentsResponse.total_count,
+        apiServices: allApis.map(api => ({ id: api.api_id, workspace: api.workspaceName })),
+        chatbotServices: allChatbots.map(bot => ({ id: bot.chatbot_id, workspace: bot.workspaceName }))
       });
 
     } catch (error) {
@@ -614,12 +603,6 @@ export const useWorkspaceDeployedServices = (workspaceId: string) => {
   
   const services = getServicesByWorkspace(workspaceId);
   
-  // 如果数据不新鲜，自动刷新
-  useEffect(() => {
-    if (workspaceId && !isWorkspaceDataFresh(workspaceId)) {
-      fetchWorkspaceServices(workspaceId);
-    }
-  }, [workspaceId, fetchWorkspaceServices, isWorkspaceDataFresh]);
   
   return {
     ...services,
