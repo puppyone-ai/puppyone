@@ -105,18 +105,17 @@ const DeployedServicesList: React.FC = () => {
     }
   };
 
-  // 如果没有服务，不显示组件
-  if (services.length === 0 && !isLoading) {
+  // 修改条件判断：只有在有服务时才显示组件
+  if (services.length === 0) {
     return null;
   }
 
   return (
     <div className="w-full">
       {/* 标题栏 */}
-      <div className="text-[#5D6065] text-[11px] font-semibold pl-[16px] font-plus-jakarta-sans pt-[8px]">
+      <div className="text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans pt-[8px]">
         <div className="mb-[16px] flex items-center gap-2">
           <span>Deployed Services</span>
-          <div className="h-[1px] flex-grow bg-[#404040]"></div>
           
           {/* 刷新按钮 */}
           <button
@@ -136,6 +135,7 @@ const DeployedServicesList: React.FC = () => {
               </svg>
             )}
           </button>
+          <div className="h-[1px] flex-grow bg-[#404040]"></div>
         </div>
       </div>
 

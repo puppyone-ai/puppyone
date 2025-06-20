@@ -67,9 +67,6 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
         </ul>
         <AddNewWorkspaceButton />
 
-
-
-
         {/* Spacer to push remaining content */}
         <div className="flex-grow"></div>
       </div>
