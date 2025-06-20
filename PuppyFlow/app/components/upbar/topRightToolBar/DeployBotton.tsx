@@ -259,7 +259,7 @@ function DeployBotton() {
             {(deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-[#CDCDCD] text-[16px]">Deployed Services</h2>
+                  <h2 className="text-[#808080] text-[14px] font-normal">Deployed Services</h2>
                   <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
@@ -288,33 +288,36 @@ function DeployBotton() {
                   {deployedServices.apis.map((api) => (
                     <div
                       key={api.api_id}
-                      className="p-2 bg-[#252525] border border-[#404040] rounded-md hover:bg-[#2A2A2A] transition-colors cursor-pointer"
+                      className="flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]"
                       onClick={() => handleDeployedServiceClick('api', api.api_id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center flex-1 min-w-0">
-                          <div className="mr-2 bg-[#3B9BFF]/20 p-1.5 rounded">
-                            <svg className="w-3 h-3 text-[#3B9BFF]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                              <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[#CDCDCD] text-[12px] font-medium block">API</span>
-                            <code className="text-[#3B9BFF] text-[10px] truncate block">
-                              {api.api_id}
-                            </code>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteApi(api.api_id, e)}
-                          className="ml-2 p-1 rounded hover:bg-[#E74C3C]/20 text-[#E74C3C] transition-colors"
-                          title="Delete API"
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                      {/* 服务类型图标 */}
+                      <div className="w-6 h-6 rounded-md border border-[#60A5FA] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-[#60A5FA]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
                       </div>
+
+                      {/* 服务信息 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white">
+                          {api.api_id.length > 12 ? `${api.api_id.substring(0, 12)}...` : api.api_id}
+                        </div>
+                        <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                          API Service
+                        </div>
+                      </div>
+
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={(e) => handleDeleteApi(api.api_id, e)}
+                        className="flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200 mr-[8px]"
+                        title="Delete API"
+                      >
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
                   ))}
 
@@ -322,34 +325,37 @@ function DeployBotton() {
                   {deployedServices.chatbots.map((chatbot) => (
                     <div
                       key={chatbot.chatbot_id}
-                      className="p-2 bg-[#252525] border border-[#404040] rounded-md hover:bg-[#2A2A2A] transition-colors cursor-pointer"
+                      className="flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer  hover:bg-[#2A2A2A]"
                       onClick={() => handleDeployedServiceClick('chatbot', chatbot.chatbot_id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center flex-1 min-w-0">
-                          <div className="mr-2 bg-[#9B7EDB]/20 p-1.5 rounded">
-                            <svg className="w-3 h-3 text-[#9B7EDB]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                              <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[#CDCDCD] text-[12px] font-medium block">Chatbot</span>
-                            <code className="text-[#9B7EDB] text-[10px] truncate block">
-                              {chatbot.chatbot_id}
-                            </code>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteChatbot(chatbot.chatbot_id, e)}
-                          className="ml-2 p-1 rounded hover:bg-[#E74C3C]/20 text-[#E74C3C] transition-colors"
-                          title="Delete Chatbot"
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                      {/* 服务类型图标 */}
+                      <div className="w-6 h-6 rounded-md border border-[#A78BFA] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-[#A78BFA]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                          <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                        </svg>
                       </div>
+
+                      {/* 服务信息 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white">
+                          {chatbot.chatbot_id.length > 12 ? `${chatbot.chatbot_id.substring(0, 12)}...` : chatbot.chatbot_id}
+                        </div>
+                        <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                          Chatbot Service
+                        </div>
+                      </div>
+
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={(e) => handleDeleteChatbot(chatbot.chatbot_id, e)}
+                        className="flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200 mr-[8px]"
+                        title="Delete Chatbot"
+                      >
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -358,22 +364,54 @@ function DeployBotton() {
 
             {/* 新建部署选项 */}
             <div className={`${(deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0) ? 'border-t border-[#404040] pt-4' : ''}`}>
-              <h2 className="text-[#CDCDCD] text-[16px] mb-4">Create New Deployment</h2>
-              <div className="space-y-3">
+              <h2 className="text-[#808080] text-[14px] font-normal mb-4">Create New Deployment</h2>
+              <div className="space-y-2">
                 {deploymentOptions.map((option) => (
                   <div
                     key={option.id}
-                    className={`p-3 bg-[#1E1E1E] border-[1px] border-[#404040] rounded-[8px] ${option.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#2A2A2A]'} transition duration-200`}
+                    className={`flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A] ${option.disabled ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
                     onClick={() => !option.disabled && setActivePanel(option.id)}
                   >
-                    <div className="flex items-center">
-                      <div className="mr-3 bg-[#2A2A2A] p-2 rounded-full">
-                        {option.icon}
+                    {/* 服务类型图标 */}
+                    <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
+                      option.id === 'api' 
+                        ? 'border-[#606060]' 
+                        : option.id === 'chatbot'
+                        ? 'border-[#606060]'
+                        : 'border-[#606060]'
+                    }`}>
+                      {option.id === 'api' ? (
+                        <svg className="w-3 h-3 text-[#606060]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      ) : option.id === 'chatbot' ? (
+                        <svg className="w-3 h-3 text-[#606060]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                          <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-[#606060]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+                          <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* 服务信息 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white">
+                        {option.label}
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-[#CDCDCD] text-[14px]">{option.label}</h3>
-                        <p className="text-[#808080] text-[12px]">{option.description}</p>
+                      <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                        {option.description}
                       </div>
+                    </div>
+
+                    {/* 右侧加号图标 */}
+                    <div className="flex items-center justify-center w-[24px] h-[24px] text-[#606060] group-hover:text-[#CDCDCD] transition-colors duration-200 mr-[8px]">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                      </svg>
                     </div>
                   </div>
                 ))}
