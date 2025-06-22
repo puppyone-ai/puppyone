@@ -61,7 +61,7 @@ function DeployedApiDetail({
     
     const py = `import requests
 
-api_url = "${API_SERVER_URL}/execute_workflow/${api_id}"
+api_url = "${API_SERVER_URL}/api/${api_id}"
 
 api_key = "${api_key}"
 
@@ -85,7 +85,7 @@ else:
       return py;
     }
 
-    const sh = `curl -X POST "${API_SERVER_URL}/execute_workflow/${api_id}" \\
+    const sh = `curl -X POST "${API_SERVER_URL}/api/${api_id}" \\
 -H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
@@ -98,7 +98,7 @@ ${input_text_gen(inputIds, SHELL)}
 
     const js = `const axios = require('axios');
 
-const apiUrl = "${API_SERVER_URL}/execute_workflow/${api_id}";
+const apiUrl = "${API_SERVER_URL}/api/${api_id}";
 
 const data = {
 ${input_text_gen(inputIds, JAVASCRIPT)}
@@ -387,11 +387,11 @@ axios.post(apiUrl, data, {
             <label className="text-[12px] text-[#808080]">API Endpoint:</label>
             <div className="flex items-center mt-1">
               <code className="flex-1 p-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                {currentApiService.endpoint || `${API_SERVER_URL}/execute_workflow/${currentApiService.api_id}`}
+                {currentApiService.endpoint || `${API_SERVER_URL}/api/${currentApiService.api_id}`}
               </code>
               <button
                 className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
-                onClick={() => navigator.clipboard.writeText(currentApiService.endpoint || `${API_SERVER_URL}/execute_workflow/${currentApiService.api_id}`)}
+                onClick={() => navigator.clipboard.writeText(currentApiService.endpoint || `${API_SERVER_URL}/api/${currentApiService.api_id}`)}
               >
                 <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                   <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
