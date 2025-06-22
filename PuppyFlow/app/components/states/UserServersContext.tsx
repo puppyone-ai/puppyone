@@ -11,7 +11,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useWorkspaces } from './UserWorkspacesContext';
-import { useServerOperations } from '../hooks/useServerMnagement';
+import { useServerOperations } from '../hooks/useServerManagement';
 
 // 统一的服务接口定义
 export interface ApiService {

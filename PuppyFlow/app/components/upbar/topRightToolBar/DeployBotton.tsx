@@ -6,7 +6,7 @@ import { useReactFlow } from '@xyflow/react'
 import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { SYSTEM_URLS } from '@/config/urls'
 import { useServers } from '../../states/UserServersContext'
-import { useServerOperations } from '../../hooks/useServerMnagement'
+import { useServerOperations } from '../../hooks/useServerManagement'
 
 import DeployAsApi from './deployMenu/AddApiServer'
 import DeployAsChatbot from './deployMenu/AddChatbotServer'
