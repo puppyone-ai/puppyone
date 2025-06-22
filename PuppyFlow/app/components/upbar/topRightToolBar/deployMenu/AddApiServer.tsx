@@ -3,6 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 import { useServers } from '@/app/components/states/UserServersContext';
 import { useServerOperations } from '@/app/components/hooks/useServerManagement';
 import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
+import { useAppSettings } from '@/app/components/states/AppSettingsContext';
 import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { SYSTEM_URLS } from '@/config/urls';
@@ -27,6 +28,7 @@ function DeployAsApi({
   
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
+  const { isLocalDeployment } = useAppSettings();
   
   // 简化的本地状态管理
   const [selectedInputs, setSelectedInputs] = useState<string[]>([]);
@@ -134,12 +136,20 @@ function DeployAsApi({
         workspace_id: selectedFlowId
       };
 
+      // Get user token according to API documentation
+      const userToken = serverOperations.getToken();
+      
+
+      // Build headers according to API documentation
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-admin-key": serverOperations.apiServerKey,
+        "x-user-token": userToken || "" // Always send x-user-token, empty string if no token
+      };
+
       const res = await fetch(`${API_SERVER_URL}/config_api`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": serverOperations.apiServerKey
-        },
+        headers,
         body: JSON.stringify(payload)
       });
 
@@ -174,23 +184,6 @@ function DeployAsApi({
     }
   };
 
-  // 使用新的 serverOperations 删除 API
-  const handleDeleteApi = async () => {
-    if (!currentApi || !serverOperations.apiServerKey) return;
-
-    try {
-      // 先调用服务器删除API
-      await serverOperations.deleteApiService(currentApi.api_id);
-      
-      // 服务器删除成功后，从本地状态中移除
-      removeApiService(currentApi.api_id);
-      setShowApiExample(false);
-      
-    } catch (error) {
-      console.error("删除 API 失败:", error);
-      // 可以在这里添加用户提示
-    }
-  };
 
   // 初始化节点选择
   const initializeNodeSelections = () => {
