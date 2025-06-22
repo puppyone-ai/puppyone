@@ -379,14 +379,26 @@ export const useServerOperations = () => {
   // 配置 Chatbot 服务
   const configChatbotService = useCallback(async (params: ConfigChatbotParams): Promise<{ chatbot_id: string; chatbot_key: string; endpoint?: string }> => {
     try {
+      // Get user token according to API documentation
+      const userToken = getToken();
+      
+      // Check if user token is required (for non-local deployments)
+      if (!userToken && !isLocalDeployment) {
+        throw new Error('No user access token found');
+      }
+
+      // Build headers according to API documentation
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-admin-key": apiServerKey,
+        "x-user-token": userToken || "" // Always send x-user-token, empty string if no token
+      };
+
       const res = await fetch(
         `${apiServerUrl}/config_chatbot`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          },
+          headers,
           body: JSON.stringify(params)
         }
       );
@@ -402,7 +414,7 @@ export const useServerOperations = () => {
       console.error(`Error configuring chatbot:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, apiServerKey, getToken, isLocalDeployment]);
 
   // 更新API服务
   const updateApiService = useCallback(async (apiId: string, updates: Partial<ApiService>): Promise<ApiService> => {
