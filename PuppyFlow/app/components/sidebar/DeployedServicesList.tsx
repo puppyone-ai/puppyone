@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAllDeployedServices, useServers } from '../states/UserServersContext';
-import { useDisplaySwitch } from '../hooks/useDisplaySwitch';
-import { useServerOperations } from '../hooks/useServerMnagement';
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
+import { useServerOperations } from '../hooks/useServerManagement';
 import { SYSTEM_URLS } from '@/config/urls';
 import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
 import DeployedServiceOperationMenu from './DeployedServiceOperationMenu';
@@ -108,10 +108,6 @@ const DeployedServicesList: React.FC = () => {
     }
   };
 
-  // 修改条件判断：只有在有服务时才显示组件
-  if (services.length === 0) {
-    return null;
-  }
 
   return (
     <div className="w-full">

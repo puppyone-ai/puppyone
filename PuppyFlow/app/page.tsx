@@ -9,7 +9,7 @@ import BlankWorkspace from "./components/blankworkspace/BlankWorkspace";
 import { AppSettingsProvider } from "./components/states/AppSettingsContext";
 import Link from 'next/link';
 import { ServersProvider } from "./components/states/UserServersContext";
-import { useDisplaySwitch } from "./components/hooks/useDisplaySwitch";
+import { useDisplaySwitch } from "./components/hooks/useDisplayWorkspcaeSwitching";
 import ServerDisplay from "./components/serverDisplay/ServerDisplay";
 
 function InviteCodeVerification({ onVerificationSuccess }: { onVerificationSuccess: () => void }) {
