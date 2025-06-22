@@ -22,6 +22,7 @@ export interface ApiService {
   workspace_id?: string;
   inputs?: string[];
   outputs?: string[];
+  workflow_json?: any;
 }
 
 export interface ChatbotService {
@@ -40,6 +41,7 @@ export interface ChatbotService {
     welcomeMessage: string;
     deployTo: string;
   };
+  workflow_json?: any;
 }
 
 // 服务类型枚举
@@ -214,7 +216,7 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     try {
       // 使用新的统一API获取用户的所有部署服务，包含key信息
       const deploymentsResponse = await serverOperations.fetchUserDeployments({
-        includeDetails: false, // 我们不需要详细的workflow配置
+        includeDetails: true, // 我们不需要详细的workflow配置
         includeKeys: true      // 获取key信息
       });
 
@@ -239,6 +241,7 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
             outputs: deployment.outputs || [],
             workspace_id: deployment.workspace_id,
             created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+            workflow_json: deployment.workflow_json || undefined,
             workspaceName,
             type: 'api' as const
           };
@@ -256,6 +259,7 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
             welcome_message: deployment.welcome_message || '',
             workspace_id: deployment.workspace_id,
             created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+            workflow_json: deployment.workflow_json || undefined,
             workspaceName,
             type: 'chatbot' as const
           };
@@ -288,6 +292,59 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
         isLoading: false,
         error: null
       }));
+
+      // 📝 测试性质的详细日志输出 - 显示所有部署的服务详情
+      console.log('🚀 === 部署服务详细信息总览 ===');
+      console.log(`📊 总计: ${allApis.length} 个 API 服务, ${allChatbots.length} 个 Chatbot 服务`);
+      
+      if (allApis.length > 0) {
+        console.log('\n🔗 API 服务详情:');
+        allApis.forEach((api, index) => {
+          console.log(`  ${index + 1}. API 服务:`);
+          console.log(`     - ID: ${api.api_id}`);
+          console.log(`     - Key: ${api.api_key}`);
+          console.log(`     - 工作区: ${api.workspaceName} (${api.workspace_id})`);
+          console.log(`     - 输入: [${api.inputs?.join(', ') || '无'}]`);
+          console.log(`     - 输出: [${api.outputs?.join(', ') || '无'}]`);
+          console.log(`     - 创建时间: ${api.created_at || '未知'}`);
+          console.log(`     - 端点: ${api.endpoint || '未设置'}`);
+          if (api.workflow_json) {
+            console.log(`     - 工作流配置:`, api.workflow_json);
+          } else {
+            console.log(`     - 工作流配置: 未配置`);
+          }
+          console.log('');
+        });
+      }
+      
+      if (allChatbots.length > 0) {
+        console.log('🤖 Chatbot 服务详情:');
+        allChatbots.forEach((chatbot, index) => {
+          console.log(`  ${index + 1}. Chatbot 服务:`);
+          console.log(`     - ID: ${chatbot.chatbot_id}`);
+          console.log(`     - Key: ${chatbot.chatbot_key}`);
+          console.log(`     - 工作区: ${chatbot.workspaceName} (${chatbot.workspace_id})`);
+          console.log(`     - 输入: ${chatbot.input || '未设置'}`);
+          console.log(`     - 输出: ${chatbot.output || '未设置'}`);
+          console.log(`     - 多轮对话: ${chatbot.multi_turn_enabled ? '启用' : '禁用'}`);
+          console.log(`     - 欢迎消息: ${chatbot.welcome_message || '无'}`);
+          console.log(`     - 历史记录: ${chatbot.history || '无'}`);
+          console.log(`     - 创建时间: ${chatbot.created_at || '未知'}`);
+          console.log(`     - 端点: ${chatbot.endpoint || '未设置'}`);
+          if (chatbot.workflow_json) {
+            console.log(`     - 工作流配置:`, chatbot.workflow_json);
+          } else {
+            console.log(`     - 工作流配置: 未配置`);
+          }
+          console.log('');
+        });
+      }
+      
+      if (allApis.length === 0 && allChatbots.length === 0) {
+        console.log('📭 当前没有部署的服务');
+      }
+      
+      console.log('🏁 === 部署服务信息输出完毕 ===\n');
 
       console.log(`✅ Fetched deployed services using optimized unified API:`, {
         totalApis: allApis.length,
