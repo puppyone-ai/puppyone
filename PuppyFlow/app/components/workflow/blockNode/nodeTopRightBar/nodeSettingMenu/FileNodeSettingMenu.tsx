@@ -2,7 +2,6 @@ import React,{useEffect, useState, useRef, Fragment} from 'react'
 import ReactDOM from 'react-dom'
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext'
 import { useReactFlow , Position} from '@xyflow/react'
-import useFileNodeUploadUtils from '../../../../hooks/useFileNodeUploadUtils'
 import { PuppyStorage_IP_address_for_uploadingFile } from '../../../../hooks/useJsonConstructUtils'
 import { Transition } from '@headlessui/react'
 
@@ -16,7 +15,6 @@ type FileNodeSettingMenuProps = {
 function FileNodeSettingMenu({showSettingMenu, clearMenu, nodeid}: FileNodeSettingMenuProps) {
 
     const {  manageNodeasLocked, setNodeEditable, preventInactivateNode, manageNodeasInput, manageNodeasOutput} = useNodesPerFlowContext()
-    const {onTriggerUploadFile} = useFileNodeUploadUtils()
     const {setNodes, setEdges, getEdges, getNode}  = useReactFlow()
     const [tempUploadInfo, setTempUploadInfo] = useState<{uploadUrl: string, uploadId: string} | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
