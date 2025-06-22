@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { useServers } from '../states/UserServersContext'
-import { useServerOperations } from '../hooks/useServerMnagement'
+import { useServerOperations } from '../hooks/useServerManagement'
 import { Transition } from '@headlessui/react'
 import { Fragment } from 'react'
 

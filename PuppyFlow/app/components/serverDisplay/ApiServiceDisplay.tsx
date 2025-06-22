@@ -4,6 +4,8 @@ import { SYSTEM_URLS } from '@/config/urls';
 import axios from 'axios';
 import 'react-grid-layout/css/styles.css';
 import 'react-grid-layout/css/styles.css';
+import JSONForm from '@/app/components/tableComponent/JSONForm';
+import SimpleJSONEditor from './components/SimpleJSONEditor';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -32,57 +34,61 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
   const generateLayout = () => {
     const inputParams = service.inputs ? Object.keys(service.inputs) : [];
     const outputParams = service.outputs ? Object.keys(service.outputs) : [];
-    const layout: Layout[] = [];
+    
+    // 为不同断点生成布局
+    const generateLayoutForBreakpoint = (cols: number) => {
+      const layout: Layout[] = [];
+      
+      // 输入参数 - 第一列，所有元素都是3x2
+      inputParams.forEach((paramKey, index) => {
+        layout.push({
+          i: `input-${paramKey}`,
+          x: 0,
+          y: index * 3, // 调整间距以适应2的高度，增加间距
+          w: 3,
+          h: 2,
+          minW: 3,
+          minH: 2
+        });
+      });
 
-    // 为每个 input parameter 创建一个 block
-    inputParams.forEach((paramKey, index) => {
-      const row = Math.floor(index / 3); // 每行最多3个参数
-      const col = (index % 3) * 4; // 每个参数占4列宽度
+      // Execute 按钮 - 第二列，3x2
       layout.push({
-        i: `input-${paramKey}`,
-        x: col,
-        y: row * 3, // 从第一行开始，每个参数占3行高度
-        w: 4,
-        h: 3,
-        minW: 3,
+        i: 'execute',
+        x: 4,
+        y: 0,
+        w: 2,
+        h: 2,
+        minW: 2,
         minH: 2
       });
-    });
 
-    // Execute 按钮
-    const executeRow = Math.floor(inputParams.length / 3);
-    layout.push({
-      i: 'execute',
-      x: 0,
-      y: executeRow * 3,
-      w: 2,
-      h: 2,
-      minW: 2,
-      minH: 2
-    });
-
-    // 为每个 output parameter 创建一个 block
-    outputParams.forEach((paramKey, index) => {
-      const outputStartRow = executeRow * 3 + 3; // 在 execute 按钮下方开始
-      const row = Math.floor(index / 3); // 每行最多3个参数
-      const col = (index % 3) * 4; // 每个参数占4列宽度
-      layout.push({
-        i: `output-${paramKey}`,
-        x: col,
-        y: outputStartRow + row * 3, // 从 execute 按钮下方开始
-        w: 4,
-        h: 3,
-        minW: 3,
-        minH: 2
+      // 输出参数 - 第三列，所有元素都是3x2
+      outputParams.forEach((paramKey, index) => {
+        layout.push({
+          i: `output-${paramKey}`,
+          x: 8,
+          y: index * 3, // 调整间距以适应2的高度，增加间距
+          w: 3,
+          h: 2,
+          minW: 3,
+          minH: 2
+        });
       });
-    });
 
-    return layout;
+      return layout;
+    };
+
+    return {
+      lg: generateLayoutForBreakpoint(12),
+      md: generateLayoutForBreakpoint(10),
+      sm: generateLayoutForBreakpoint(6),
+      xs: generateLayoutForBreakpoint(4),
+      xxs: generateLayoutForBreakpoint(2)
+    };
   };
 
-  const [layouts, setLayouts] = useState<{ [key: string]: Layout[] }>({
-    lg: generateLayout()
-  });
+  const [layouts, setLayouts] = useState<{ [key: string]: Layout[] }>(generateLayout());
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -174,7 +180,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
         return (
           <div className="rounded-[8px] border-[1px] flex-1 min-h-0"
             style={{
-              border: "1px solid rgba(109, 113, 119, 0.3)",
+              border: "1px solid rgba(59, 155, 255, 0.3)", // 蓝色边框
               background: "#1C1D1F",
               boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
             }}
@@ -215,14 +221,13 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
         return (
           <div className="rounded-[8px] border-[1px] flex-1 min-h-0"
             style={{
-              border: "1px solid rgba(109, 113, 119, 0.3)",
+              border: "1px solid rgba(155, 126, 219, 0.3)", // 紫色边框
               background: "#1C1D1F",
               boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
             }}
           >
-            <div className="p-4 h-full flex flex-col">
-              <div className="mb-2">
-                <span className="text-[10px] text-[#888] uppercase tracking-wide">JSON/STRUCTURED DATA</span>
+            <div className="h-full flex flex-col">
+              <div className="p-2 pb-0">
                 {blockInfo.collection_configs && blockInfo.collection_configs.length > 0 && (
                   <div className="mt-1">
                     <span className="text-[8px] text-[#F59E0B] bg-[#2A2A1A] px-1.5 py-0.5 rounded">
@@ -231,19 +236,22 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                   </div>
                 )}
               </div>
-              <textarea
-                value={typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
-                onChange={(e) => {
-                  try {
-                    const parsed = JSON.parse(e.target.value);
-                    handleInputChange(key, parsed, 'object');
-                  } catch {
-                    handleInputChange(key, e.target.value, 'string');
-                  }
-                }}
-                className="w-full flex-1 bg-transparent border-none text-[#CDCDCD] text-sm focus:outline-none resize-none font-mono placeholder:text-[#666666] placeholder:italic font-plus-jakarta-sans"
-                placeholder={`Enter JSON data for ${blockInfo.label}...`}
-              />
+              <div className="flex-1 min-h-0">
+                <SimpleJSONEditor
+                  value={typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
+                  onChange={(newValue) => {
+                    try {
+                      // 尝试解析 JSON，如果成功则存储为对象，否则存储为字符串
+                      const parsedValue = JSON.parse(newValue);
+                      handleInputChange(key, parsedValue, 'object');
+                    } catch {
+                      // JSON 解析失败，存储为字符串
+                      handleInputChange(key, newValue, 'string');
+                    }
+                  }}
+                  placeholder={`Enter JSON data for ${blockInfo.label}...`}
+                />
+              </div>
             </div>
           </div>
         );
@@ -296,38 +304,53 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
     }
   };
 
-  // 获取 block 类型对应的颜色和图标
+  // 获取 block 类型对应的颜色和 SVG 图标
   const getBlockTypeStyle = (blockType: string) => {
     switch (blockType) {
       case 'text':
         return {
-          color: '#4A90E2',
-          bgColor: '#1A2A3A',
-          icon: 'T'
+          color: '#3B9BFF',
+          icon: (
+            <svg width="16" height="16" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 8H17" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M3 12H15" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+              <path d="M3 16H13" className="stroke-[#3B9BFF]" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          )
         };
       case 'structured':
         return {
-          color: '#F59E0B',
-          bgColor: '#2A2A1A',
-          icon: '{}'
+          color: '#9B7EDB',
+          icon: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-[#9B7EDB]" />
+              <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-[#9B7EDB]" />
+              <path d="M9 9H11V11H9V9Z" className="fill-[#9B7EDB]" />
+              <path d="M9 13H11V15H9V13Z" className="fill-[#9B7EDB]" />
+              <path d="M13 9H15V11H13V9Z" className="fill-[#9B7EDB]" />
+              <path d="M13 13H15V15H13V13Z" className="fill-[#9B7EDB]" />
+            </svg>
+          )
         };
-      case 'number':
+      case 'file':
         return {
-          color: '#10B981',
-          bgColor: '#1A2A2A',
-          icon: '#'
-        };
-      case 'boolean':
-        return {
-          color: '#8B5CF6',
-          bgColor: '#2A1A2A',
-          icon: 'B'
+          color: '#9E7E5F',
+          icon: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 6H10L12 8H20V18H4V6Z" className="fill-transparent stroke-[#9E7E5F]" strokeWidth="1.5" />
+              <path d="M8 13.5H16" className="stroke-[#9E7E5F]" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          )
         };
       default:
         return {
           color: '#6B7280',
-          bgColor: '#1A1A1A',
-          icon: '?'
+          icon: (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" className="stroke-[#6B7280]" strokeWidth="1.5" />
+              <path d="M12 8V16M12 6H12.01" className="stroke-[#6B7280]" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          )
         };
     }
   };
@@ -339,21 +362,36 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
     
     return (
       <div className="rounded-[8px] px-[12px] pt-[12px] pb-[12px] text-[#CDCDCD] bg-[#2A2A2A] break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden h-full relative flex flex-col group">
+        {/* 右上角 INPUT 标签 - 无颜色 */}
+        <div className="absolute top-2 right-2 z-10">
+          <span className="text-[8px] text-[#888888] px-1.5 py-0.5 rounded font-mono">
+            INPUT
+          </span>
+        </div>
+        
         {/* Header bar */}
         <div className="h-[24px] w-full max-w-full rounded-[4px] flex items-center justify-between mb-2 flex-shrink-0">
           <div className="flex items-center gap-[6px] hover:cursor-grab active:cursor-grabbing group">
-            <span className="flex items-center justify-start font-[400] text-[12px] leading-[18px] font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]">
-              {blockInfo.label}
-            </span>
-            <span 
-              className="text-[8px] px-1.5 py-0.5 rounded font-mono"
-              style={{ 
-                color: typeStyle.color, 
-                backgroundColor: typeStyle.bgColor 
-              }}
-            >
-              {blockInfo.type.toUpperCase()}
-            </span>
+            <div className="flex items-center gap-[4px]">
+              {typeStyle.icon}
+              <span 
+                className="flex items-center justify-start font-[400] text-[12px] leading-[18px] font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] transition-colors"
+                style={{
+                  '--active-color': typeStyle.color
+                } as React.CSSProperties}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.color = typeStyle.color;
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.color = '';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '';
+                }}
+              >
+                {blockInfo.label}
+              </span>
+            </div>
           </div>
         </div>
         
@@ -372,21 +410,36 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
     
     return (
       <div className="rounded-[8px] px-[12px] pt-[12px] pb-[12px] text-[#CDCDCD] bg-[#252525] break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden h-full relative flex flex-col group">
+        {/* 右上角 OUTPUT 标签 - 无颜色 */}
+        <div className="absolute top-2 right-2 z-10">
+          <span className="text-[8px] text-[#888888] px-1.5 py-0.5 rounded font-mono">
+            OUTPUT
+          </span>
+        </div>
+        
         {/* Header bar */}
         <div className="h-[24px] w-full max-w-full rounded-[4px] flex items-center justify-between mb-2 flex-shrink-0">
           <div className="flex items-center gap-[6px] hover:cursor-grab active:cursor-grabbing group">
-            <span className="flex items-center justify-start font-[400] text-[12px] leading-[18px] font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]">
-              {blockInfo.label}
-            </span>
-            <span 
-              className="text-[8px] px-1.5 py-0.5 rounded font-mono"
-              style={{ 
-                color: typeStyle.color, 
-                backgroundColor: typeStyle.bgColor 
-              }}
-            >
-              {blockInfo.type.toUpperCase()}
-            </span>
+            <div className="flex items-center gap-[4px]">
+              {typeStyle.icon}
+              <span 
+                className="flex items-center justify-start font-[400] text-[12px] leading-[18px] font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] transition-colors"
+                style={{
+                  '--active-color': typeStyle.color
+                } as React.CSSProperties}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.color = typeStyle.color;
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.color = '';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '';
+                }}
+              >
+                {blockInfo.label}
+              </span>
+            </div>
           </div>
           
           <div className="min-w-[60px] min-h-[24px] flex items-center justify-end">
@@ -598,16 +651,19 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
 
               {/* Execute Button */}
               <div key="execute" className="rounded-[8px] px-[12px] pt-[12px] pb-[12px] text-[#CDCDCD] bg-[#2A2A2A] break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden h-full relative flex flex-col group">
-                {/* Header bar matching JsonNode style */}
-                <div className="h-[24px] w-full max-w-full rounded-[4px] flex items-center justify-between mb-2">
-                  {/* Left side with label and type badge */}
+
+                
+                {/* Header bar */}
+                <div className="h-[24px] w-full max-w-full rounded-[4px] flex items-center justify-between mb-2 flex-shrink-0">
                   <div className="flex items-center gap-[6px] hover:cursor-grab active:cursor-grabbing group">
-                    <span className="flex items-center justify-start font-[400] text-[12px] leading-[18px] font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] group-active:text-[#9B7EDB]">
-                      Execute
-                    </span>
-                    <span className="text-[8px] text-[#22C55E] bg-[#1A2A1A] px-1.5 py-0.5 rounded">
-                      ACTION
-                    </span>
+                    <div className="flex items-center gap-[4px]">
+                      <svg className="w-4 h-4" fill="#22C55E" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      <span className="flex items-center justify-start font-[400] text-[12px] leading-[18px] font-plus-jakarta-sans truncate text-[#6D7177] group-hover:text-[#CDCDCD] transition-colors">
+                        Run
+                      </span>
+                    </div>
                   </div>
                 </div>
                 
@@ -618,7 +674,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                     className={`py-2 px-4 rounded-lg font-medium transition-all flex items-center gap-2 font-plus-jakarta-sans ${
                       isExecuting
                         ? 'bg-[#666666] text-[#AAAAAA] cursor-not-allowed'
-                        : 'bg-[#22C55E] hover:bg-[#16A34A] text-white hover:shadow-lg'
+                        : 'bg-[#22C55E] hover:bg-[#16A34A] text-black hover:shadow-lg'
                     }`}
                   >
                     {isExecuting ? (
@@ -631,7 +687,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                       </>
                     ) : (
                       <>
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 fill-black" viewBox="0 0 24 24">
                           <path d="M8 5v14l11-7z"/>
                         </svg>
                         Run
