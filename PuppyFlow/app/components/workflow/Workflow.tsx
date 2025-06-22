@@ -30,7 +30,6 @@ import FileNode from './blockNode/FileNode'
 
 import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
-import ResultBlockNode from './blockNode/ResultNode'
 import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge'
 import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils'
 import { markerEnd } from './connectionLineStyles/ConfigToTargetEdge'
@@ -58,7 +57,6 @@ import { useWorkspaces } from '../states/UserWorkspacesContext'
 
 const nodeTypes = {
   'text': TextBlockNode,
-  'none': ResultBlockNode,
   'file': FileNode,
   'weblink': WebLinkNode,
   'structured': JsonBlockNode,

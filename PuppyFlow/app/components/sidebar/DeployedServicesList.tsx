@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAllDeployedServices, useServers } from '../states/UserServersContext';
-import { useDisplaySwitch } from '../hooks/useDisplaySwitch';
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
 import { useServerOperations } from '../hooks/useServerManagement';
 import { SYSTEM_URLS } from '@/config/urls';
 import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';

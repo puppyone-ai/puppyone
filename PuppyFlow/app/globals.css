@@ -578,7 +578,7 @@
 .json-form .monaco-editor-background,
 .json-form .monaco-editor .margin-view-overlays,
 .json-form .monaco-editor .margin-view-overlays .line-numbers {
-  background-color: #1C1D1F !important;
+  background-color: transparent !important;
   border: none !important;
   outline: none !important;
 }
