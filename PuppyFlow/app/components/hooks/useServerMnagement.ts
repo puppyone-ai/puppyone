@@ -32,7 +32,7 @@ interface DeploymentItem {
   api_id?: string;
   inputs?: string[];
   outputs?: string[];
-  api_key?: string; // 当include_keys=true时
+  api_key?: string;
   
   // Chatbot服务字段
   chatbot_id?: string;
@@ -42,14 +42,14 @@ interface DeploymentItem {
   multi_turn_enabled?: boolean;
   welcome_message?: string;
   integrations?: object;
-  chatbot_key?: string; // 当include_keys=true时
+  chatbot_key?: string;
   
   // 通用字段
   workspace_id: string;
   deployment_type: 'api' | 'chatbot';
   created_at: number;
   updated_at: number;
-  workflow_json?: object; // 当include_details=true时
+  workflow_json?: object;
 }
 
 // 更新响应接口
@@ -75,68 +75,194 @@ export const useServerOperations = () => {
   const apiServerUrl = SYSTEM_URLS.API_SERVER.BASE;
   const { isLocalDeployment } = useAppSettings();
 
-  // 获取用户 token（与其他 hook 保持一致）
+  // 获取用户 token
   const getToken = (isLocal?: boolean): string | undefined => {
     const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
     if (useLocal) {
-      return 'local-token'; // 本地部署不需要真实 token
+      return 'local-token';
     }
     return Cookies.get('access_token');
   };
 
-  // 获取单个工作区的API列表
-  const fetchApiList = useCallback(async (workspaceId: string): Promise<ApiService[]> => {
+  // 获取用户的所有部署服务 - 基础 API 调用
+  const fetchUserDeployments = useCallback(async (params: FetchUserDeploymentsParams = {}): Promise<UserDeploymentsResponse> => {
     try {
-      const res = await fetch(
-        `${apiServerUrl}/list_apis/${workspaceId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
-        }
-      );
+      const useLocal = params.isLocal !== undefined ? params.isLocal : isLocalDeployment;
+      
+      const queryParams = new URLSearchParams();
+      if (params.deploymentType) {
+        queryParams.append('deployment_type', params.deploymentType);
+      }
+      if (params.includeDetails !== undefined) {
+        queryParams.append('include_details', params.includeDetails.toString());
+      }
+      if (params.includeKeys !== undefined) {
+        queryParams.append('include_keys', params.includeKeys.toString());
+      }
+
+      const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      const userToken = getToken(useLocal);
+      
+      if (!userToken && !useLocal) {
+        throw new Error('No user access token found');
+      }
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "x-admin-key": apiServerKey
+      };
+
+      if (userToken) {
+        headers["x-user-token"] = userToken;
+      }
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers,
+        credentials: 'include'
+      });
 
       if (!res.ok) {
-        if (res.status === 404) return [];
-        throw new Error(`Failed to fetch API list: ${res.status}`);
+        const errorText = await res.text();
+        throw new Error(`Failed to fetch user deployments: ${res.status} - ${errorText}`);
       }
 
       const data = await res.json();
-      return data.apis || [];
+      console.log(`✅ Fetched ${data.total_count} deployments for user`);
+      return data;
     } catch (error) {
-      console.error(`Error fetching API list for workspace ${workspaceId}:`, error);
-      return [];
+      console.error(`Error fetching user deployments:`, error);
+      throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, apiServerKey, isLocalDeployment]);
 
-  // 获取单个工作区的Chatbot列表
-  const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotService[]> => {
+  // 获取所有增强服务 - 统一的数据转换逻辑
+  const fetchAllEnhancedServices = useCallback(async (workspaces: Array<{workspace_id: string, workspace_name: string}>): Promise<{
+    apis: EnhancedApiService[];
+    chatbots: EnhancedChatbotService[];
+    totalCount: number;
+  }> => {
+    if (!workspaces.length) {
+      return {
+        apis: [],
+        chatbots: [],
+        totalCount: 0
+      };
+    }
+
     try {
-      const res = await fetch(
-        `${apiServerUrl}/list_chatbots/${workspaceId}?include_keys=true`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
-          }
+      const deploymentsResponse = await fetchUserDeployments({
+        includeDetails: true,
+        includeKeys: true
+      });
+
+      const workspaceMap = new Map(workspaces.map(w => [w.workspace_id, w.workspace_name]));
+      const allApis: EnhancedApiService[] = [];
+      const allChatbots: EnhancedChatbotService[] = [];
+
+      deploymentsResponse.deployments.forEach(deployment => {
+        const workspaceName = workspaceMap.get(deployment.workspace_id) || 'Unknown Workspace';
+
+        if (deployment.deployment_type === 'api' && deployment.api_id) {
+          allApis.push({
+            api_id: deployment.api_id,
+            api_key: deployment.api_key || '',
+            inputs: deployment.inputs || [],
+            outputs: deployment.outputs || [],
+            workspace_id: deployment.workspace_id,
+            created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+            workflow_json: deployment.workflow_json || undefined,
+            workspaceName,
+            type: 'api' as const
+          });
+        } else if (deployment.deployment_type === 'chatbot' && deployment.chatbot_id) {
+          allChatbots.push({
+            chatbot_id: deployment.chatbot_id,
+            chatbot_key: deployment.chatbot_key || '',
+            input: deployment.input || '',
+            output: deployment.output || '',
+            history: deployment.history || null,
+            multi_turn_enabled: deployment.multi_turn_enabled || false,
+            welcome_message: deployment.welcome_message || '',
+            workspace_id: deployment.workspace_id,
+            created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+            workflow_json: deployment.workflow_json || undefined,
+            workspaceName,
+            type: 'chatbot' as const
+          });
         }
-      );
+      });
 
-      if (!res.ok) {
-        if (res.status === 404) return [];
-        throw new Error(`Failed to fetch chatbot list: ${res.status}`);
-      }
+      return {
+        apis: allApis,
+        chatbots: allChatbots,
+        totalCount: deploymentsResponse.total_count
+      };
 
-      const data = await res.json();
-      return data.chatbots || [];
     } catch (error) {
-      console.error(`Error fetching chatbot list for workspace ${workspaceId}:`, error);
-      return [];
+      console.error("Error fetching all enhanced services:", error);
+      throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [fetchUserDeployments]);
+
+  // 获取单个工作区的增强服务 - 使用统一的 API
+  const fetchWorkspaceEnhancedServices = useCallback(async (
+    workspaceId: string,
+    workspaceName: string
+  ): Promise<{
+    apis: EnhancedApiService[];
+    chatbots: EnhancedChatbotService[];
+  }> => {
+    try {
+      // 使用统一的 API 获取所有部署，然后过滤特定工作区
+      const deploymentsResponse = await fetchUserDeployments({
+        includeDetails: true,
+        includeKeys: true
+      });
+
+      const apis: EnhancedApiService[] = [];
+      const chatbots: EnhancedChatbotService[] = [];
+
+      deploymentsResponse.deployments
+        .filter(deployment => deployment.workspace_id === workspaceId)
+        .forEach(deployment => {
+          if (deployment.deployment_type === 'api' && deployment.api_id) {
+            apis.push({
+              api_id: deployment.api_id,
+              api_key: deployment.api_key || '',
+              inputs: deployment.inputs || [],
+              outputs: deployment.outputs || [],
+              workspace_id: deployment.workspace_id,
+              created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+              workflow_json: deployment.workflow_json || undefined,
+              workspaceName,
+              type: 'api' as const
+            });
+          } else if (deployment.deployment_type === 'chatbot' && deployment.chatbot_id) {
+            chatbots.push({
+              chatbot_id: deployment.chatbot_id,
+              chatbot_key: deployment.chatbot_key || '',
+              input: deployment.input || '',
+              output: deployment.output || '',
+              history: deployment.history || null,
+              multi_turn_enabled: deployment.multi_turn_enabled || false,
+              welcome_message: deployment.welcome_message || '',
+              workspace_id: deployment.workspace_id,
+              created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
+              workflow_json: deployment.workflow_json || undefined,
+              workspaceName,
+              type: 'chatbot' as const
+            });
+          }
+        });
+
+      return { apis, chatbots };
+
+    } catch (error) {
+      console.error(`Error fetching enhanced services for workspace ${workspaceId}:`, error);
+      throw error;
+    }
+  }, [fetchUserDeployments]);
 
   // 删除API服务
   const deleteApiService = useCallback(async (apiId: string): Promise<void> => {
@@ -250,7 +376,7 @@ export const useServerOperations = () => {
     }
   }, [apiServerUrl, apiServerKey]);
 
-  // 新增：配置 Chatbot 服务（符合文档标准）
+  // 配置 Chatbot 服务
   const configChatbotService = useCallback(async (params: ConfigChatbotParams): Promise<{ chatbot_id: string; chatbot_key: string; endpoint?: string }> => {
     try {
       const res = await fetch(
@@ -334,89 +460,20 @@ export const useServerOperations = () => {
     }
   }, [apiServerUrl, apiServerKey]);
 
-  // 获取用户的所有部署服务
-  const fetchUserDeployments = useCallback(async (params: FetchUserDeploymentsParams = {}): Promise<UserDeploymentsResponse> => {
-    try {
-      const useLocal = params.isLocal !== undefined ? params.isLocal : isLocalDeployment;
-      
-      // 构建查询参数
-      const queryParams = new URLSearchParams();
-      if (params.deploymentType) {
-        queryParams.append('deployment_type', params.deploymentType);
-      }
-      if (params.includeDetails !== undefined) {
-        queryParams.append('include_details', params.includeDetails.toString());
-      }
-      if (params.includeKeys !== undefined) {
-        queryParams.append('include_keys', params.includeKeys.toString());
-      }
-
-      const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-
-      // 获取用户 token
-      const userToken = getToken(useLocal);
-      if (!userToken && !useLocal) {
-        throw new Error('No user access token found');
-      }
-
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-admin-key": apiServerKey
-      };
-
-      // 添加用户认证
-      if (userToken) {
-        headers["x-user-token"] = userToken;
-      }
-
-      console.log('🔄 Fetching user deployments with headers:', {
-        url,
-        hasAdminKey: !!apiServerKey,
-        hasUserToken: !!userToken,
-        isLocal: useLocal
-      });
-
-      const res = await fetch(url, {
-        method: "GET",
-        headers,
-        credentials: 'include'
-      });
-
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('❌ Failed to fetch user deployments:', {
-          status: res.status,
-          statusText: res.statusText,
-          error: errorText
-        });
-        throw new Error(`Failed to fetch user deployments: ${res.status} - ${errorText}`);
-      }
-
-      const data = await res.json();
-      console.log(`✅ Fetched ${data.total_count} deployments for user`);
-      return data;
-    } catch (error) {
-      console.error(`Error fetching user deployments:`, error);
-      throw error;
-    }
-  }, [apiServerUrl, apiServerKey, isLocalDeployment]);
-
   return {
-    // 获取操作
-    fetchApiList,
-    fetchChatbotList,
+    // 核心数据获取 - 只保留增强版本
+    fetchAllEnhancedServices,
+    fetchWorkspaceEnhancedServices,
+    
+    // 基础 API 调用（供内部使用）
     fetchUserDeployments,
     
-    // 删除操作
+    // CRUD 操作
     deleteApiService,
     deleteChatbotService,
-    
-    // 创建操作
     createApiService,
     createChatbotService,
     configChatbotService,
-    
-    // 更新操作
     updateApiService,
     updateChatbotService,
     
@@ -431,16 +488,6 @@ export const useServerOperations = () => {
 export const useServerManagement = () => {
   const operations = useServerOperations();
 
-  // 获取工作区的所有服务
-  const fetchWorkspaceAllServices = useCallback(async (workspaceId: string) => {
-    const [apis, chatbots] = await Promise.all([
-      operations.fetchApiList(workspaceId),
-      operations.fetchChatbotList(workspaceId)
-    ]);
-
-    return { apis, chatbots };
-  }, [operations]);
-
   // 删除任意类型的服务
   const deleteService = useCallback(async (serviceId: string, serviceType: 'api' | 'chatbot') => {
     if (serviceType === 'api') {
@@ -452,7 +499,6 @@ export const useServerManagement = () => {
 
   return {
     ...operations,
-    fetchWorkspaceAllServices,
     deleteService
   };
 }; 
