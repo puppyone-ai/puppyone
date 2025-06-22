@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
-import { useDisplaySwitch } from '../hooks/useDisplaySwitch'
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching'
 import FlowElementOperationMenu from './FlowElementOperationMenu'
 
 type FlowElementProps = {

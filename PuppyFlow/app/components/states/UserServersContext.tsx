@@ -11,7 +11,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useWorkspaces } from './UserWorkspacesContext';
-import { useServerOperations } from '../hooks/useServerMnagement';
+import { useServerOperations } from '../hooks/useServerManagement';
 
 // 统一的服务接口定义
 export interface ApiService {
@@ -22,6 +22,7 @@ export interface ApiService {
   workspace_id?: string;
   inputs?: string[];
   outputs?: string[];
+  workflow_json?: any;
 }
 
 export interface ChatbotService {
@@ -40,6 +41,7 @@ export interface ChatbotService {
     welcomeMessage: string;
     deployTo: string;
   };
+  workflow_json?: any;
 }
 
 // 服务类型枚举
@@ -63,9 +65,7 @@ export type EnhancedService = EnhancedApiService | EnhancedChatbotService;
 interface GlobalDeployedServices {
   apis: EnhancedApiService[];
   chatbots: EnhancedChatbotService[];
-  lastFetched: Record<string, number>; // 按工作区ID记录最后获取时间
   isLoading: boolean;
-  error: string | null;
 }
 
 // Context 类型定义
@@ -79,7 +79,6 @@ interface ServersContextType {
   // 初始化状态
   isInitialized: boolean;
   isLoading: boolean;
-  initializationError: string | null;
   
   // 显示状态操作
   setShowingId: (id: string | null) => void;
@@ -117,7 +116,6 @@ interface ServersContextType {
   
   // 状态判断方法
   isServiceShowing: (serviceId: string) => boolean;
-  isWorkspaceDataFresh: (workspaceId: string, maxAge?: number) => boolean;
   
   // 初始化方法
   reinitialize: () => Promise<void>;
@@ -127,9 +125,7 @@ interface ServersContextType {
 const initialGlobalServices: GlobalDeployedServices = {
   apis: [],
   chatbots: [],
-  lastFetched: {},
-  isLoading: false,
-  error: null
+  isLoading: false
 };
 
 // 创建 Context
@@ -149,163 +145,73 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
   const [displayOrNot, setDisplayOrNot] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 获取单个工作区的服务
-  const fetchWorkspaceServices = useCallback(async (workspaceId: string) => {
-    if (!serverOperations.apiServerKey) return;
-
-    const workspace = workspaces.find(w => w.workspace_id === workspaceId);
-    if (!workspace) return;
-
-    try {
-      const [apis, chatbots] = await Promise.all([
-        serverOperations.fetchApiList(workspaceId),
-        serverOperations.fetchChatbotList(workspaceId)
-      ]);
-
-      setGlobalServices(prev => {
-        // 移除该工作区的旧数据
-        const filteredApis = prev.apis.filter(api => api.workspace_id !== workspaceId);
-        const filteredChatbots = prev.chatbots.filter(chatbot => chatbot.workspace_id !== workspaceId);
-
-        // 添加新数据，包含 type 字段
-        const enhancedApis: EnhancedApiService[] = apis.map(api => ({
-          ...api,
-          workspaceName: workspace.workspace_name,
-          workspace_id: workspaceId,
-          type: 'api' as const
-        }));
-
-        const enhancedChatbots: EnhancedChatbotService[] = chatbots.map(chatbot => ({
-          ...chatbot,
-          workspaceName: workspace.workspace_name,
-          workspace_id: workspaceId,
-          type: 'chatbot' as const
-        }));
-
-        return {
-          ...prev,
-          apis: [...filteredApis, ...enhancedApis],
-          chatbots: [...filteredChatbots, ...enhancedChatbots],
-          lastFetched: {
-            ...prev.lastFetched,
-            [workspaceId]: Date.now()
-          }
-        };
-      });
-
-    } catch (error) {
-      console.error(`Error fetching services for workspace ${workspaceId}:`, error);
-      setGlobalServices(prev => ({
-        ...prev,
-        error: `Failed to fetch services for workspace ${workspace.workspace_name}`
-      }));
-    }
-  }, [workspaces, serverOperations]);
-
-  // 获取所有工作区的服务 - 使用新的统一 API（优化版本）
+  // 简洁的获取所有服务
   const fetchAllServices = useCallback(async () => {
     if (!workspaces.length) {
       setGlobalServices(prev => ({ ...prev, apis: [], chatbots: [] }));
       return;
     }
 
-    setGlobalServices(prev => ({ ...prev, isLoading: true, error: null }));
+    setGlobalServices(prev => ({ ...prev, isLoading: true }));
 
     try {
-      // 使用新的统一API获取用户的所有部署服务，包含key信息
-      const deploymentsResponse = await serverOperations.fetchUserDeployments({
-        includeDetails: false, // 我们不需要详细的workflow配置
-        includeKeys: true      // 获取key信息
-      });
-
-      console.log('🔄 Fetched deployments from new unified API:', deploymentsResponse);
-
-      // 创建工作区ID到工作区名称的映射
-      const workspaceMap = new Map(workspaces.map(w => [w.workspace_id, w.workspace_name]));
-
-      // 直接从API响应中构建服务数据，无需额外API调用
-      const allApis: EnhancedApiService[] = [];
-      const allChatbots: EnhancedChatbotService[] = [];
-
-      deploymentsResponse.deployments.forEach(deployment => {
-        const workspaceName = workspaceMap.get(deployment.workspace_id) || 'Unknown Workspace';
-
-        if (deployment.deployment_type === 'api' && deployment.api_id) {
-          // 构建API服务对象
-          const apiService: EnhancedApiService = {
-            api_id: deployment.api_id,
-            api_key: deployment.api_key || '',
-            inputs: deployment.inputs || [],
-            outputs: deployment.outputs || [],
-            workspace_id: deployment.workspace_id,
-            created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
-            workspaceName,
-            type: 'api' as const
-          };
-          allApis.push(apiService);
-        } 
-        else if (deployment.deployment_type === 'chatbot' && deployment.chatbot_id) {
-          // 构建Chatbot服务对象
-          const chatbotService: EnhancedChatbotService = {
-            chatbot_id: deployment.chatbot_id,
-            chatbot_key: deployment.chatbot_key || '',
-            input: deployment.input || '',
-            output: deployment.output || '',
-            history: deployment.history || null,
-            multi_turn_enabled: deployment.multi_turn_enabled || false,
-            welcome_message: deployment.welcome_message || '',
-            workspace_id: deployment.workspace_id,
-            created_at: deployment.created_at ? new Date(deployment.created_at * 1000).toISOString() : undefined,
-            workspaceName,
-            type: 'chatbot' as const
-          };
-          allChatbots.push(chatbotService);
-        }
-      });
-
-      // 更新缓存时间戳
-      const lastFetched: Record<string, number> = {};
-      const currentTime = Date.now();
+      const { apis, chatbots } = await serverOperations.fetchAllEnhancedServices(workspaces);
       
-      // 为涉及的工作区更新时间戳
-      const involvedWorkspaces = new Set(
-        deploymentsResponse.deployments.map(d => d.workspace_id)
-      );
-      
-      involvedWorkspaces.forEach(workspaceId => {
-        lastFetched[workspaceId] = currentTime;
-      });
-
-      // 更新全局服务状态
       setGlobalServices(prev => ({
         ...prev,
-        apis: allApis,
-        chatbots: allChatbots,
-        lastFetched: {
-          ...prev.lastFetched,
-          ...lastFetched
-        },
-        isLoading: false,
-        error: null
+        apis,
+        chatbots,
+        isLoading: false
       }));
-
-      console.log(`✅ Fetched deployed services using optimized unified API:`, {
-        totalApis: allApis.length,
-        totalChatbots: allChatbots.length,
-        totalDeployments: deploymentsResponse.total_count,
-        apiServices: allApis.map(api => ({ id: api.api_id, workspace: api.workspaceName })),
-        chatbotServices: allChatbots.map(bot => ({ id: bot.chatbot_id, workspace: bot.workspaceName }))
-      });
-
     } catch (error) {
-      console.error("Error fetching all deployed services:", error);
-      setGlobalServices(prev => ({
-        ...prev,
-        isLoading: false,
-        error: 'Failed to fetch deployed services'
-      }));
+      console.error("Error fetching services:", error);
+      setGlobalServices(prev => ({ ...prev, isLoading: false }));
     }
-  }, [workspaces, serverOperations]);
+  }, [workspaces, serverOperations.fetchAllEnhancedServices]);
+
+  // 自动初始化：当workspaces可用时获取所有服务
+  useEffect(() => {
+    const initializeServices = async () => {
+      if (workspaces.length > 0 && !isInitialized) {
+        console.log('🚀 Auto-initializing servers context with user services...');
+        try {
+          await fetchAllServices();
+          setIsInitialized(true);
+          console.log('✅ Servers context initialized successfully');
+        } catch (error) {
+          console.error('❌ Failed to initialize servers context:', error);
+        }
+      }
+    };
+
+    initializeServices();
+  }, [workspaces, fetchAllServices, isInitialized]);
+
+  // 简洁的获取工作区服务
+  const fetchWorkspaceServices = useCallback(async (workspaceId: string) => {
+    const workspace = workspaces.find(w => w.workspace_id === workspaceId);
+    if (!workspace) return;
+
+    try {
+      const { apis, chatbots } = await serverOperations.fetchWorkspaceEnhancedServices(
+        workspaceId, 
+        workspace.workspace_name
+      );
+
+      setGlobalServices(prev => {
+        const filteredApis = prev.apis.filter(api => api.workspace_id !== workspaceId);
+        const filteredChatbots = prev.chatbots.filter(chatbot => chatbot.workspace_id !== workspaceId);
+
+        return {
+          ...prev,
+          apis: [...filteredApis, ...apis],
+          chatbots: [...filteredChatbots, ...chatbots]
+        };
+      });
+    } catch (error) {
+      console.error(`Error fetching workspace services:`, error);
+    }
+  }, [workspaces, serverOperations.fetchWorkspaceEnhancedServices]);
 
   // 刷新服务 - 修复依赖问题
   const refreshServices = useCallback(async () => {
@@ -490,33 +396,6 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     };
   }, [globalServices]);
 
-  // 检查工作区数据是否新鲜
-  const isWorkspaceDataFresh = useCallback((workspaceId: string, maxAge: number = 5 * 60 * 1000) => {
-    const lastFetch = globalServices.lastFetched[workspaceId];
-    if (!lastFetch) return false;
-    return Date.now() - lastFetch < maxAge;
-  }, [globalServices.lastFetched]);
-
-  // 修复初始化逻辑 - 移除 fetchAllServices 从依赖数组
-  useEffect(() => {
-    let isMounted = true;
-    
-    const initializeServices = async () => {
-      if (workspaces.length > 0 && serverOperations.apiServerKey && !isInitialized) {
-        await fetchAllServices();
-        if (isMounted) {
-          setIsInitialized(true);
-        }
-      }
-    };
-
-    initializeServices();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [workspaces.length, serverOperations.apiServerKey, isInitialized]);
-
   const contextValue: ServersContextType = {
     // 基础状态
     globalServices,
@@ -527,7 +406,6 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     // 初始化状态
     isInitialized,
     isLoading: globalServices.isLoading,
-    initializationError: globalServices.error,
     
     // 显示状态操作
     setShowingId,
@@ -558,7 +436,6 @@ export const ServersProvider = ({ children }: ServersProviderProps) => {
     
     // 状态判断方法
     isServiceShowing,
-    isWorkspaceDataFresh,
     
     // 初始化方法
     reinitialize
@@ -588,8 +465,7 @@ export const useAllDeployedServices = () => {
   return {
     apis,
     chatbots,
-    isLoading: globalServices.isLoading,
-    error: globalServices.error
+    isLoading: globalServices.isLoading
   };
 };
 
@@ -597,17 +473,14 @@ export const useWorkspaceDeployedServices = (workspaceId: string) => {
   const { 
     getServicesByWorkspace, 
     fetchWorkspaceServices, 
-    isWorkspaceDataFresh,
     globalServices 
   } = useServers();
   
   const services = getServicesByWorkspace(workspaceId);
   
-  
   return {
     ...services,
     isLoading: globalServices.isLoading,
-    error: globalServices.error,
     refresh: () => fetchWorkspaceServices(workspaceId)
   };
 }; 
