@@ -572,6 +572,8 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
     );
   });
 
+  CustomResizeHandle.displayName = 'CustomResizeHandle';
+
   return (
     <div className={`w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] bg-[#252525] ${(isResizing || isDragging) ? 'select-none' : ''}`}>
       <div className="w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px] relative">
