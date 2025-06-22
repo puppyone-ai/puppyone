@@ -11,6 +11,9 @@ const ServerDisplay: React.FC = () => {
     isLoading 
   } = useServers();
 
+  // 🔍 添加调试信息 - 检查从 context 获取的 service 数据
+  console.log('🔍 ServerDisplay - currentServiceJson:', currentServiceJson);
+
   // 如果正在加载
   if (isLoading) {
     return (
@@ -40,8 +43,12 @@ const ServerDisplay: React.FC = () => {
 
   // 根据服务类型渲染不同的内容
   if (currentServiceJson.type === 'api') {
+    console.log('🔍 ServerDisplay - 传递给 ApiServiceDisplay 的 service:', currentServiceJson);
+    console.log('🔍 ServerDisplay - API service workflow_json:', currentServiceJson.workflow_json);
     return <ApiServiceDisplay service={currentServiceJson} />;
   } else if (currentServiceJson.type === 'chatbot') {
+    console.log('🔍 ServerDisplay - 传递给 ChatbotServiceDisplay 的 service:', currentServiceJson);
+    console.log('🔍 ServerDisplay - Chatbot service workflow_json:', currentServiceJson.workflow_json);
     return <ChatbotServiceDisplay service={currentServiceJson} />;
   }
 

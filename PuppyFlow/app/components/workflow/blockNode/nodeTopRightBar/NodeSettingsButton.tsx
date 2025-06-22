@@ -8,7 +8,6 @@ import JsonNodeSettingMenu from './nodeSettingMenu/JsonNodeSettingMenu'
 import FileNodeSettingMenu from './nodeSettingMenu/FileNodeSettingMenu'
 import WebLinkNodeSettingMenu from './nodeSettingMenu/WebLinkNodeSettingMenu'
 import DatabaseNodeSettingMenu from './nodeSettingMenu/DatabaseNodeSettingMenu'
-import SwitchNodeSettingMenu from './nodeSettingMenu/SwitchNodeSettingMenu'
 type settingControllerProps = {
     nodeid: string,
 }
@@ -94,8 +93,6 @@ function NodeSettingsController({nodeid}: settingControllerProps) {
             case "database":
             case "vector_database":
                 return <DatabaseNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
-            case "switch":
-                return <SwitchNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
             default:
                 return <TextNodeSettingMenu showSettingMenu={showSettingMenu} clearMenu={clearMenu} nodeid={nodeid}/>
         }
