@@ -153,6 +153,10 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                       editable: false,
                      },
                     type: node.nodeType,
+                    measured: {
+                      width: 240,
+                      height: 176,
+                    },
                     width: 240,
                     height: 176,
                 }
