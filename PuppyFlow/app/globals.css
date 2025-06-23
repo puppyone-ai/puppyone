@@ -409,7 +409,7 @@
 
   /* 自定义行号背景色 */
 .ace-github-dark .ace_gutter {
-  background: #1C1D1F; /* 设置为和编辑器背景一样的颜色 */
+  background-color: #1C1D1F; /* 设置为和编辑器背景一样的颜色 */
   color: #FFFFFF; /* 设置行号的颜色 */
 }
 
@@ -605,7 +605,7 @@
 .text-editor .monaco-editor,
 .text-editor .monaco-editor .margin,
 .text-editor .monaco-editor-background {
-  background-color: #252525 !important; /* 你可以设置任何颜色 */
+  background-color: transparent !important;
   border: none !important;
   outline: none !important;
 }

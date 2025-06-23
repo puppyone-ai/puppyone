@@ -1,61 +1,73 @@
 import React, {useState, useRef, useEffect} from 'react';
 import Editor, { EditorProps, loader, OnMount, OnChange, } from "@monaco-editor/react";
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { useReactFlow } from '@xyflow/react';
 // import { useMonacoTheme } from '../../hooks/useMonacoTheme';
 // import { themeManager } from '../../hooks/themeManager';
+
 type TextEditorProps = {
     preventParentDrag: () => void,
     allowParentDrag: () => void,
-    parentId: string,
+    value: string,
+    onChange: (value: string) => void,
     placeholder?: string,
     widthStyle?: number,
     heightStyle?: number,
 }
 
+// 为 TextEditor 定义一个透明背景的主题
+const TEXT_EDITOR_THEME = 'customTextEditorTheme';
+const textEditorThemeData: Monaco.editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [],
+  colors: {
+    'editor.background': '#00000000', // 完全透明的背景
+    'editor.foreground': '#CDCDCD',
+    'editorLineNumber.foreground': '#6D7177',
+    'editorLineNumber.activeForeground': '#CDCDCD',
+    'editor.selectionBackground': '#264F78',
+    'editor.inactiveSelectionBackground': '#3A3D41',
+    'editorIndentGuide.background': 'rgba(109, 113, 119, 0.3)',
+    'editorIndentGuide.activeBackground': 'rgba(109, 113, 119, 0.6)',
+  }
+};
 
-const TextEditor = ({preventParentDrag, 
-                    allowParentDrag,
-                    parentId, 
-                    placeholder = "",
-                    widthStyle = 0,
-                    heightStyle=0}:TextEditorProps) => {
+const TextEditor = ({
+    preventParentDrag, 
+    allowParentDrag,
+    value,
+    onChange,
+    placeholder = "",
+    widthStyle = 0,
+    heightStyle = 0
+}: TextEditorProps) => {
 
     // const [jsonValue, setJsonValue] = useState("");
         
     const [IsFocused, setIsFocused] = useState(false)
     const [isEmpty, setIsEmpty] = useState(true);
     const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
-    const {getNode, setNodes} = useReactFlow()
     const textEditorRef = useRef<HTMLDivElement>(null)
     // const applyTheme = useMonacoTheme(TEXT_EDITOR_THEME, textEditorThemeData)
 
 
     useEffect(() => {
-      const parent = getNode(parentId)
-      if (parent && parent.data.content) {
-        setIsEmpty(false)
-      }
-      else {
-        setIsEmpty(true)
-      }
-    }, [getNode(parentId)?.data.content])
+        setIsEmpty(!value || value.trim().length === 0);
+    }, [value])
 
-  
-
-
-    const updateNodeContent = (newValue: string) => {
-      setNodes(prevNodes => (prevNodes.map(node => node.id === parentId ? {
-        ...node,
-        data: {...node.data, content: newValue}
-      } : node)))
-    }
-   
+    // 添加主题定义
+    useEffect(() => {
+      const defineTheme = async () => {
+        const monaco = await loader.init();
+        monaco.editor.defineTheme(TEXT_EDITOR_THEME, textEditorThemeData);
+      };
+      defineTheme();
+    }, []);
 
     const handleChange: OnChange = (newValue: string | undefined) => {
       const isValueEmpty = !newValue || newValue.trim().length === 0;
       setIsEmpty(isValueEmpty);
-      updateNodeContent(isValueEmpty ? "" : newValue);
+      onChange(isValueEmpty ? "" : newValue);
 
       if (editorRef.current) {
         const editorElement = editorRef.current.getContainerDomNode();
@@ -103,14 +115,13 @@ const TextEditor = ({preventParentDrag,
         return ""
       }
 
-      
-
-
-    
+    // 计算实际的宽高样式 - 类似 JSONForm 的处理
+    const actualWidth = widthStyle === 0 ? "100%" : widthStyle;
+    const actualHeight = heightStyle === 0 ? "100%" : heightStyle;
 
   return (
     <div ref={textEditorRef} className={`relative flex justify-start items-center rounded-[4px] cursor-pointer`}
-    style={{width: widthStyle, height: heightStyle}}>
+    style={{width: actualWidth, height: actualHeight}}>
     {isEmpty && (
       <div className="absolute w-full h-full flex items-start justify-start text-center text-[#6D7177] text-[12px] font-[700] leading-normal pointer-events-none z-[10] font-plus-jakarta-sans">
         {placeholder}
@@ -119,11 +130,11 @@ const TextEditor = ({preventParentDrag,
     <Editor
       className='text-editor'
       defaultLanguage="text"
-      // theme={themeManager.getCurrentTheme()}
-      width={widthStyle}
-      height={heightStyle}
+      theme={TEXT_EDITOR_THEME}
+      width={actualWidth}
+      height={actualHeight}
       onChange={handleChange}
-      value= {typeof getNode(parentId)?.data.content === 'string' ? getNode(parentId)?.data.content as string: InputFallback(getNode(parentId)?.data.content)}
+      value={typeof value === 'string' ? value : InputFallback(value)}
       options={{
         fontFamily: "'Plus Jakarta Sans', sans-serif",
         unicodeHighlight: {

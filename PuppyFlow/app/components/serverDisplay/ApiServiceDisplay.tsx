@@ -5,7 +5,7 @@ import axios from 'axios';
 import 'react-grid-layout/css/styles.css';
 import 'react-grid-layout/css/styles.css';
 import JSONForm from '@/app/components/tableComponent/JSONForm';
-import SimpleJSONEditor from './components/SimpleJSONEditor';
+import TextEditor from '@/app/components/tableComponent/TextEditor';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
@@ -186,12 +186,12 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
             }}
           >
             <div className="p-4 h-full flex flex-col">
-              <textarea
+              <TextEditor
                 value={value}
-                onChange={(e) => handleInputChange(key, e.target.value, 'string')}
-                className="w-full flex-1 bg-transparent border-none text-[#CDCDCD] text-sm focus:outline-none resize-none placeholder:text-[#666666] placeholder:italic font-plus-jakarta-sans"
+                onChange={(newValue) => handleInputChange(key, newValue, 'string')}
                 placeholder={blockInfo.data?.content || `Enter ${blockInfo.label}...`}
-                style={{ lineHeight: '28px' }}
+                preventParentDrag={() => {}}
+                allowParentDrag={() => {}}
               />
             </div>
           </div>
@@ -238,7 +238,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                 )}
               </div>
               <div className="flex-1 min-h-0">
-                <SimpleJSONEditor
+                <JSONForm
                   value={typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
                   onChange={(newValue) => {
                     try {
@@ -251,6 +251,8 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                     }
                   }}
                   placeholder={`Enter JSON data for ${blockInfo.label}...`}
+                  preventParentDrag={() => {}}
+                  allowParentDrag={() => {}}
                 />
               </div>
             </div>
