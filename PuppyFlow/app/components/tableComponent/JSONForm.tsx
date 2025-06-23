@@ -60,6 +60,8 @@ const JSONForm = ({preventParentDrag,
     const [isEmpty, setIsEmpty] = useState(true);
     const {setNodes, getNode} = useReactFlow()
     const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
+    // 添加用于存储监听器清理函数的 ref
+    const editorDisposablesRef = useRef<Monaco.IDisposable[]>([])
     const {getSourceNodeIdWithLabel} = useJsonConstructUtils()
     const variableRef = useRef<{id: string, label: string}[]>([])
     const jsonFormRef = useRef<HTMLDivElement>(null)
@@ -199,17 +201,20 @@ const JSONForm = ({preventParentDrag,
 
       const handleEditorDidMount: OnMount = (editor, monaco) => {
         editorRef.current = editor
-        editor.onDidFocusEditorWidget(() => {
+        
+        // 创建监听器并保存清理函数
+        const focusDisposable = editor.onDidFocusEditorWidget(() => {
           setIsFocused(true);
           preventParentDrag()
-        //   console.log("Editor is now focused");
         });
-    
-        editor.onDidBlurEditorWidget(() => {
+
+        const blurDisposable = editor.onDidBlurEditorWidget(() => {
           setIsFocused(false);
           allowParentDrag()
-        //   console.log("Editor lost focus");
         });
+
+        // 保存清理函数
+        editorDisposablesRef.current = [focusDisposable, blurDisposable]
 
          // 初始化时检查是否为空
          const isValueEmpty = !editor.getValue().trim();
@@ -227,29 +232,45 @@ const JSONForm = ({preventParentDrag,
           
         }
 
-
-      const InputFallback = (type:any, e:any):string=>{
-        const result = JSON.stringify(e)
-        if(typeof result === 'string'){
-          return result
-        }
-        console.error("get error input:","type", type,"object",e)
-        return ""
+    // 添加清理 useEffect
+    useEffect(() => {
+      return () => {
+        // 清理 Monaco Editor 监听器
+        editorDisposablesRef.current.forEach(disposable => {
+          disposable.dispose()
+        })
+        editorDisposablesRef.current = []
       }
+    }, [])
 
-
-      const valueTraceLog = (v: string, trace: string) => {
-        // console.log(v, trace);
-        return v;
+    const InputFallback = (type:any, e:any):string=>{
+      const result = JSON.stringify(e)
+      if(typeof result === 'string'){
+        return result
       }
+      console.error("get error input:","type", type,"object",e)
+      return ""
+    }
+
+
+    const valueTraceLog = (v: string, trace: string) => {
+      // console.log(v, trace);
+      return v;
+    }
       
     
+
+    // 计算实际的宽高样式
+    const actualWidth = widthStyle === 0 ? "100%" : widthStyle;
+    const actualHeight = heightStyle === 0 ? "100%" : heightStyle;
+    const editorWidth = widthStyle === 0 ? "100%" : widthStyle - 8;
+    const editorHeight = heightStyle === 0 ? "100%" : heightStyle - 12;
 
   return (
     <div ref={jsonFormRef} className={`relative flex flex-col border-none rounded-[8px] cursor-pointer pl-[2px] pt-[8px] bg-[#1C1D1F] ${isOnGeneratingNewNode ? 'pointer-events-none' : ''}`}
     style={{
-      width: widthStyle,
-      height: heightStyle,
+      width: actualWidth,
+      height: actualHeight,
       opacity: isOnGeneratingNewNode ? '0.7' : '1'
     }}>
     {isEmpty && (
@@ -261,8 +282,8 @@ const JSONForm = ({preventParentDrag,
       className='json-form'
       defaultLanguage="json"
       theme={JSON_FORM_THEME}
-      width={widthStyle-8 }
-      height={heightStyle - 12}
+      width={editorWidth}
+      height={editorHeight}
       onChange={handleChange}
       value={(typeof getNode(parentId)?.data.content ==='string'?
                 valueTraceLog(getNode(parentId)?.data.content as string,"from node data"):

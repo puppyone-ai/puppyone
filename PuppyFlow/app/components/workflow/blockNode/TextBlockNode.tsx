@@ -49,7 +49,8 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
+  // 移除 contentSize 状态
+  // const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
   // const [self, setSelf] = useState<nodeState | null>(searchNode(id))
   const labelRef = useRef<HTMLInputElement | null>(null) // 管理label input field 的宽度
   const labelContainerRef = useRef<HTMLDivElement | null>(null) // 管理labelContainer的宽度 = possible width of label input field + left logo svg
@@ -155,64 +156,21 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     })
   }
 
-
-  useEffect(() => {
-    if (!contentRef.current) return;
-
-    const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContentSize({ width, height });
-      }
-    });
-
-    resizeObserver.observe(contentRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
-
-
-
   // 管理labelContainer的宽度
   useEffect(() => {
-    // const onLabelContainerFocus = () => {
-    //   if (labelContainerRef.current) {
-    //     if (contentRef.current) {
-    //       labelContainerRef.current.style.width = `${contentRef.current.clientWidth - 16}px`
-    //     }
-    //   }
-    // }
-
-    const onLabelContainerBlur = () => {
-
-      if (labelContainerRef.current) {
-
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!labelContainerRef.current?.contains(e.target as HTMLElement) && 
+          !(e.target as HTMLElement).classList.contains("renameButton")) {
         setNodeUneditable(id)
       }
     }
 
-    if (labelContainerRef.current) {
-
-
-      document.addEventListener("click", (e: MouseEvent) => {
-        if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
-          onLabelContainerBlur()
-        }
-      })
-    }
-
+    document.addEventListener("click", handleClickOutside)
+    
     return () => {
-      if (labelContainerRef.current) {
-        document.removeEventListener("click", (e: MouseEvent) => {
-          if (!labelContainerRef.current?.contains(e.target as HTMLElement)) {
-            onLabelContainerBlur()
-          }
-        })
-      }
+      document.removeEventListener("click", handleClickOutside)
     }
-  }, [])
+  }, [id]) // 添加 id 作为依赖
 
   // 自动聚焦，同时需要让cursor focus 到input 的最后一位
   useEffect(() => {
@@ -222,9 +180,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       labelRef.current.setSelectionRange(length, length);
     }
   }, [editable, id]);
-
-
-
 
   // 管理 label onchange， 注意：若是当前的workflow中已经存在同样的id，那么不回重新对于这个node进行initialized，那么此时label就是改变了也不会rendering 最新的值，所以我们必须要通过这个useEffect来确保label的值是最新的，同时需要update measureSpanRef 中需要被测量的内容
   useEffect(() => {
@@ -237,8 +192,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       }
     }
   }, [label, id, isLocalEdit])
-
-
 
   const onFocus: () => void = () => {
     preventInactivateNode()
@@ -437,8 +390,8 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             <TextEditor
               preventParentDrag={preventNodeDrag}
               allowParentDrag={allowNodeDrag}
-              widthStyle={contentSize.width - 16} // 减去左右padding (16px)
-              heightStyle={contentSize.height - 32} // 保持原来的高度
+              widthStyle={0} // 0 表示使用 100%
+              heightStyle={0} // 0 表示使用 100%
               placeholder='Text'
               parentId={id}
             />
@@ -454,10 +407,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         {/* <TextEditorBlockNote preventParentDrag={preventNodeDrag} allowParentDrag={allowNodeDrag}
           widthStyle={contentSize.width} heightStyle={contentSize.height}
           placeholder='[{"type": "paragraph", "content": "Text"}]' parentId={id} /> */}
-
-
-
-
 
         {/* the resizer in the bottom right corner */}
         <NodeResizeControl
@@ -504,27 +453,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         <WhiteBallHandle id={`${id}-d`} type="source" sourceNodeId={id}
           isConnectable={isConnectable}
           position={Position.Left} />
-        {/* <Handle
-            type="target"
-            position={Position.Top}
-            style={{
-              position: "absolute",
-              width: "calc(100%)",
-              height: "calc(100%)",
-              top: "0",
-              left: "0",
-              borderRadius: "0",
-              transform: "translate(0px, 0px)",
-              background: "transparent",
-              // border: isActivated ? "1px solid #4599DF" : "none",
-              border: "1px solid transparent",
-              zIndex: !isOnConnect ? "-1" : "1",
-              // maybe consider about using stored isActivated
-            }}
-          isConnectable={isConnectable}
-          onMouseEnter={() => setIsTargetHandleTouched(true)}
-          onMouseLeave={() => setIsTargetHandleTouched(false)}
-        />   */}
         <Handle
           id={`${id}-a`}
           type="target"

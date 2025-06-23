@@ -103,14 +103,13 @@ const TextEditor = ({preventParentDrag,
         return ""
       }
 
-      
-
-
-    
+    // 计算实际的宽高样式 - 类似 JSONForm 的处理
+    const actualWidth = widthStyle === 0 ? "100%" : widthStyle;
+    const actualHeight = heightStyle === 0 ? "100%" : heightStyle;
 
   return (
     <div ref={textEditorRef} className={`relative flex justify-start items-center rounded-[4px] cursor-pointer`}
-    style={{width: widthStyle, height: heightStyle}}>
+    style={{width: actualWidth, height: actualHeight}}>
     {isEmpty && (
       <div className="absolute w-full h-full flex items-start justify-start text-center text-[#6D7177] text-[12px] font-[700] leading-normal pointer-events-none z-[10] font-plus-jakarta-sans">
         {placeholder}
@@ -120,8 +119,8 @@ const TextEditor = ({preventParentDrag,
       className='text-editor'
       defaultLanguage="text"
       // theme={themeManager.getCurrentTheme()}
-      width={widthStyle}
-      height={heightStyle}
+      width={actualWidth}
+      height={actualHeight}
       onChange={handleChange}
       value= {typeof getNode(parentId)?.data.content === 'string' ? getNode(parentId)?.data.content as string: InputFallback(getNode(parentId)?.data.content)}
       options={{
