@@ -1,6 +1,6 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React, { useRef, useEffect, useState, ReactElement, Fragment } from 'react'
+import React, { useRef, useEffect, useState, ReactElement, Fragment, useCallback } from 'react'
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
@@ -97,7 +97,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
   const labelContainerRef = useRef<HTMLDivElement | null>(null)
   const labelRef = useRef<HTMLInputElement | null>(null)
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
@@ -149,57 +148,21 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     }
   }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
-  useEffect(() => {
-    if (!contentRef.current) return;
-
-    const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContentSize({ width, height });
-      }
-    });
-
-    resizeObserver.observe(contentRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
-
   // 管理labelContainer的宽度
   useEffect(() => {
-    // const onLabelContainerFocus = () => {
-    //   if (labelContainerRef.current) {
-    //     if (contentRef.current) {
-    //       labelContainerRef.current.style.width = `${contentRef.current.clientWidth - 16}px`
-    //     }
-    //   }
-    // }
-
-    const onLabelContainerBlur = () => {
-      if (labelContainerRef.current) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!labelContainerRef.current?.contains(e.target as HTMLElement) && 
+          !(e.target as HTMLElement).classList.contains("renameButton")) {
         setNodeUneditable(id)
       }
     }
 
-    if (labelContainerRef.current) {
-      document.addEventListener("click", (e: MouseEvent) => {
-        if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
-          onLabelContainerBlur()
-        }
-      })
-    }
-
+    document.addEventListener("click", handleClickOutside)
+    
     return () => {
-      if (labelContainerRef.current) {
-        document.removeEventListener("click", (e: MouseEvent) => {
-          if (!labelContainerRef.current?.contains(e.target as HTMLElement)) {
-            onLabelContainerBlur()
-          }
-        })
-      }
+      document.removeEventListener("click", handleClickOutside)
     }
-  }, [])
+  }, [id]) // 添加 id 作为依赖
 
   // 自动聚焦，同时需要让cursor focus 到input 的最后一位
   useEffect(() => {
@@ -210,19 +173,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     }
   }, [editable, id]);
 
-
-
   // 管理 label onchange， 注意：若是当前的workflow中已经存在同样的id，那么不回重新对于这个node进行initialized，那么此时label就是改变了也不会rendering 最新的值，所以我们必须要通过这个useEffect来确保label的值是最新的，同时需要update measureSpanRef 中需要被测量的内容
   useEffect(() => {
     const currentLabel = getNode(id)?.data?.label as string | undefined
     if (currentLabel !== undefined && currentLabel !== nodeLabel && !isLocalEdit) {
-
       setNodeLabel(currentLabel)
     }
   }, [label, id, isLocalEdit])
-
-
-
 
   const onFocus: () => void = () => {
     preventInactivateNode()
@@ -230,7 +187,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     if (curRef && !curRef.classList.contains("nodrag")) {
       curRef.classList.add("nodrag")
     }
-
   }
 
   const onBlur: () => void = () => {
@@ -247,6 +203,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     }
   }
 
+  // 添加 JSON 内容同步函数
+  const updateNodeContent = useCallback((newValue: string) => {
+    setNodes(prevNodes => (prevNodes.map(node => node.id === id ? {
+      ...node,
+      data: {...node.data, content: newValue}
+    } : node)))
+  }, [id, setNodes])
 
   // for rendering diffent logo of upper right tag
   const renderTagLogo = () => {
@@ -270,11 +233,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     return '100%'
   }
 
-
   const [userInput, setUserInput] = useState<string | undefined>("input view")
 
   const [showSettingMenu, setShowSettingMenu] = useState(false)
-
 
   useEffect(
     () => {
@@ -282,7 +243,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     }
     , []
   )
-
 
   // 添加点击外部关闭菜单的逻辑
   useEffect(() => {
@@ -516,8 +476,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node`}>
-
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node flex flex-col`}>
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}
@@ -591,35 +550,24 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           </div>
         </div>
 
-
-
         {/* JSON Editor */}
         {isLoading ? <SkeletonLoadingIcon /> :
-          <div className={`rounded-[8px] ${borderColor} border-[1px]`}
+          <div className={`rounded-[8px] ${borderColor} border-[1px] flex-1 min-h-0 overflow-hidden`}
             style={{
               border: "1px solid rgba(109, 113, 119, 0.5)",
               background: "#1C1D1F",
               boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
             }}
           >
-            {
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
-
-                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-                  placeholder='["JSON"]'
-                  parentId={id}
-                  widthStyle={contentSize.width - 16}
-                  heightStyle={contentSize.height - 36}
-                  inputvalue={userInput}
-                  synced={true}
-                />
-
-              </div>
-            }
+            <JSONForm 
+              preventParentDrag={onFocus} 
+              allowParentDrag={onBlur}
+              placeholder='["JSON"]'
+              value={content || ""}
+              onChange={updateNodeContent}
+              widthStyle={0}  // 0 表示使用 100%
+              heightStyle={0} // 0 表示使用 100%
+            />
           </div>
         }
 
@@ -658,12 +606,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             </svg>
           </div>
         </NodeResizeControl>
-
-
-        {/* {index_name && 
-        <div className='absolute bottom-[40px] left-[40px] h-[16px] font-plus-jakarta-sans px-[4px] py-[3px] flex items-center justify-center rounded-[4px] border-[0.5px] border-solid border-[#3E3E41] bg-gradient-to-r from-[#E55D87] to-[#5FC3E4]
-         text-main-black-theme text-[8px] font-bold'>Embedded</div>
-        } */}
 
         <WhiteBallHandle id={`${id}-a`} type="source" sourceNodeId={id}
           isConnectable={isConnectable} position={Position.Top} />
