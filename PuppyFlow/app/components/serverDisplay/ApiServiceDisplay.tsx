@@ -191,6 +191,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                 onChange={(e) => handleInputChange(key, e.target.value, 'string')}
                 className="w-full flex-1 bg-transparent border-none text-[#CDCDCD] text-sm focus:outline-none resize-none placeholder:text-[#666666] placeholder:italic font-plus-jakarta-sans"
                 placeholder={blockInfo.data?.content || `Enter ${blockInfo.label}...`}
+                style={{ lineHeight: '28px' }}
               />
             </div>
           </div>
@@ -673,7 +674,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                   <button
                     onClick={executeWorkflow}
                     disabled={isExecuting}
-                    className={`py-2 px-4 rounded-lg font-medium transition-all flex items-center gap-2 font-plus-jakarta-sans ${
+                    className={`py-2 px-4 rounded-lg font-medium transition-all flex items-center gap-2 font-plus-jakarta-sans text-[14px] ${
                       isExecuting
                         ? 'bg-[#666666] text-[#AAAAAA] cursor-not-allowed'
                         : 'bg-[#22C55E] hover:bg-[#16A34A] text-black hover:shadow-lg'

@@ -144,7 +144,7 @@ const SimpleJSONEditor: React.FC<SimpleJSONEditorProps> = ({
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: '14px',
             fontWeight: 'light',
-            lineHeight: '24px',
+            lineHeight: '28px',
             padding: '8px 8px 8px 0',
             scrollbarWidth: 'thin',
             wordWrap: 'break-word',
