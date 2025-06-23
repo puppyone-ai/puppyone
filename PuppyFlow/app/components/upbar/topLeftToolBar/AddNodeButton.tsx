@@ -153,6 +153,8 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                       editable: false,
                      },
                     type: node.nodeType,
+                    width: 240,
+                    height: 176,
                 }
             ];
         });
