@@ -97,7 +97,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const [contentSize, setContentSize] = useState({ width: 0, height: 0 })
   const labelContainerRef = useRef<HTMLDivElement | null>(null)
   const labelRef = useRef<HTMLInputElement | null>(null)
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
@@ -149,57 +148,22 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     }
   }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
-  useEffect(() => {
-    if (!contentRef.current) return;
-
-    const resizeObserver = new ResizeObserver(entries => {
-      for (let entry of entries) {
-        const { width, height } = entry.contentRect;
-        setContentSize({ width, height });
-      }
-    });
-
-    resizeObserver.observe(contentRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
 
   // 管理labelContainer的宽度
   useEffect(() => {
-    // const onLabelContainerFocus = () => {
-    //   if (labelContainerRef.current) {
-    //     if (contentRef.current) {
-    //       labelContainerRef.current.style.width = `${contentRef.current.clientWidth - 16}px`
-    //     }
-    //   }
-    // }
-
-    const onLabelContainerBlur = () => {
-      if (labelContainerRef.current) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!labelContainerRef.current?.contains(e.target as HTMLElement) && 
+          !(e.target as HTMLElement).classList.contains("renameButton")) {
         setNodeUneditable(id)
       }
     }
 
-    if (labelContainerRef.current) {
-      document.addEventListener("click", (e: MouseEvent) => {
-        if (!labelContainerRef.current?.contains(e.target as HTMLElement) && !(e.target as HTMLElement).classList.contains("renameButton")) {
-          onLabelContainerBlur()
-        }
-      })
-    }
-
+    document.addEventListener("click", handleClickOutside)
+    
     return () => {
-      if (labelContainerRef.current) {
-        document.removeEventListener("click", (e: MouseEvent) => {
-          if (!labelContainerRef.current?.contains(e.target as HTMLElement)) {
-            onLabelContainerBlur()
-          }
-        })
-      }
+      document.removeEventListener("click", handleClickOutside)
     }
-  }, [])
+  }, [id]) // 添加 id 作为依赖
 
   // 自动聚焦，同时需要让cursor focus 到input 的最后一位
   useEffect(() => {
@@ -516,7 +480,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node`}>
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node flex flex-col`}>
 
 
         {/* the top bar of a block */}
@@ -595,31 +559,23 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         {/* JSON Editor */}
         {isLoading ? <SkeletonLoadingIcon /> :
-          <div className={`rounded-[8px] ${borderColor} border-[1px]`}
+          <div className={`rounded-[8px] ${borderColor} border-[1px] flex-1 min-h-0 overflow-hidden`}
             style={{
               border: "1px solid rgba(109, 113, 119, 0.5)",
               background: "#1C1D1F",
               boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
             }}
           >
-            {
-              <div style={{
-                width: 'fit-content',
-                maxWidth: calculateMaxLabelContainerWidth(),
-                overflow: "hidden"
-              }}>
-
-                <JSONForm preventParentDrag={onFocus} allowParentDrag={onBlur}
-                  placeholder='["JSON"]'
-                  parentId={id}
-                  widthStyle={contentSize.width - 16}
-                  heightStyle={contentSize.height - 36}
-                  inputvalue={userInput}
-                  synced={true}
-                />
-
-              </div>
-            }
+            <JSONForm 
+              preventParentDrag={onFocus} 
+              allowParentDrag={onBlur}
+              placeholder='["JSON"]'
+              parentId={id}
+              inputvalue={userInput}
+              synced={true}
+              widthStyle={0}  // 0 表示使用 100%
+              heightStyle={0} // 0 表示使用 100%
+            />
           </div>
         }
 
