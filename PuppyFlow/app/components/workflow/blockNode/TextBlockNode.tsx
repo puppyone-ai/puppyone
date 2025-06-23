@@ -1,6 +1,6 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useState, useCallback } from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import TextEditor from '../../tableComponent/TextEditor'
@@ -31,7 +31,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
-  const { getNode } = useReactFlow()
+  const { getNode, setNodes } = useReactFlow()
   const { 
     activatedNode, 
     isOnConnect, 
@@ -267,6 +267,16 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     manageNodeasLocked(id);
   }
 
+  // 添加 updateNodeContent 函数
+  const updateNodeContent = useCallback((newValue: string) => {
+    setNodes(prevNodes => prevNodes.map(node => 
+      node.id === id ? {
+        ...node,
+        data: { ...node.data, content: newValue }
+      } : node
+    ))
+  }, [id, setNodes])
+
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
       {/* Add tags for input, output and locked states */}
@@ -384,8 +394,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         {/* the plain text editor */}
         <div className="pl-[8px] flex-1 relative">
- 
-
           {isLoading ? <SkeletonLoadingIcon /> :
             <TextEditor
               preventParentDrag={preventNodeDrag}
@@ -393,7 +401,8 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
               widthStyle={0} // 0 表示使用 100%
               heightStyle={0} // 0 表示使用 100%
               placeholder='Text'
-              parentId={id}
+              value={content || ""}
+              onChange={updateNodeContent}
             />
           }
         </div>
