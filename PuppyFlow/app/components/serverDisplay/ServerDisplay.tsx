@@ -62,7 +62,7 @@ const ServerDisplay: React.FC = () => {
         const welcomeMessage: ChatMessage = {
           id: 'welcome-message',
           role: 'assistant',
-          content: '你好！我是你的AI助手，有什么可以帮助你的吗？',
+          content: 'Hello, how can I assist you today?',
           timestamp: new Date()
         };
         messages = [welcomeMessage, newMessage];
