@@ -1,12 +1,173 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SYSTEM_URLS } from '@/config/urls';
-import { ChatInterfaceDeployed } from 'puppychat';
+import { ChatInterface } from 'puppychat';
+
+// 定义聊天消息的类型
+interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+// 定义聊天历史的类型
+interface ChatHistory {
+  messages: ChatMessage[];
+}
 
 interface ChatbotServiceDisplayProps {
   service: any;
+  chatHistory?: ChatHistory;
+  onUpdateChatHistory?: (chatbotId: string, newMessage: ChatMessage) => void;
+  onClearChatHistory?: (chatbotId: string) => void;
 }
 
-const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }) => {
+// 自定义的 ChatInterfaceDeployed 组件，使用外部传入的聊天历史
+const CustomChatInterfaceDeployed: React.FC<{
+  chatbotId: string;
+  baseUrl: string;
+  chatbotKey: string;
+  inputBlockId: string;
+  historyBlockId: string;
+  chatHistory: ChatHistory;
+  onUpdateChatHistory?: (chatbotId: string, newMessage: ChatMessage) => void;
+  onClearChatHistory?: (chatbotId: string) => void;
+  [key: string]: any;
+}> = ({ 
+  chatbotId, 
+  baseUrl, 
+  chatbotKey, 
+  inputBlockId, 
+  historyBlockId, 
+  chatHistory, 
+  onUpdateChatHistory, 
+  onClearChatHistory,
+  ...otherProps 
+}) => {
+  
+  // 自定义的消息处理函数
+  const handleSendMessage = async (message: string): Promise<string> => {
+    try {
+      // 准备请求头
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${chatbotKey}`
+      };
+
+      // 准备请求体
+      const requestBody: any = {
+        input: {
+          [inputBlockId]: message
+        }
+      };
+
+      // 添加聊天历史（如果可用）
+      if (chatHistory.messages.length > 0) {
+        // 将聊天历史转换为 API 期望的格式
+        const apiChatHistory = chatHistory.messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }));
+        
+        requestBody.chat_history = {
+          [historyBlockId]: apiChatHistory
+        };
+      }
+
+      // 构造端点 URL
+      const endpoint = `${baseUrl}/chat/${chatbotId}`;
+      console.log(`🔍 发送消息到端点: ${endpoint}`);
+      console.log('🔍 请求体:', requestBody);
+
+      // 添加用户消息到聊天历史
+      if (onUpdateChatHistory) {
+        const userMessage: ChatMessage = {
+          id: Date.now().toString(),
+          role: 'user',
+          content: message,
+          timestamp: new Date()
+        };
+        onUpdateChatHistory(chatbotId, userMessage);
+      }
+
+      // 发送 API 请求
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // 从输出对象中提取响应
+        const outputKeys = Object.keys(data.output || {});
+        const botResponse = outputKeys.length > 0 ? data.output[outputKeys[0]] : 'No response received';
+        
+        // 添加助手消息到聊天历史
+        if (onUpdateChatHistory) {
+          const assistantMessage: ChatMessage = {
+            id: (Date.now() + 1).toString(),
+            role: 'assistant',
+            content: botResponse,
+            timestamp: new Date()
+          };
+          onUpdateChatHistory(chatbotId, assistantMessage);
+        }
+        
+        return botResponse;
+      } else {
+        throw new Error(`API 调用失败，状态码: ${response.status}`);
+      }
+    } catch (error) {
+      console.error(`🔍 与聊天机器人 ${chatbotId} 通信时出错:`, error);
+      
+      // 添加错误消息到聊天历史
+      if (onUpdateChatHistory) {
+        const errorMessage: ChatMessage = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: '抱歉，我暂时无法处理您的请求。请稍后再试。',
+          timestamp: new Date()
+        };
+        onUpdateChatHistory(chatbotId, errorMessage);
+      }
+      
+      return '抱歉，我暂时无法处理您的请求。请稍后再试。';
+    }
+  };
+
+  // 将聊天历史转换为 puppychat 期望的格式
+  const initialMessages = chatHistory.messages.map(msg => ({
+    id: msg.id,
+    sender: msg.role === 'assistant' ? 'bot' as const : 'user' as const,
+    content: msg.content,
+    timestamp: msg.timestamp
+  }));
+
+
+  // 自定义清空聊天历史的函数
+  const handleClearChat = () => {
+    if (onClearChatHistory) {
+      onClearChatHistory(chatbotId);
+    }
+  };
+
+  return (
+    <ChatInterface
+      onSendMessage={handleSendMessage}
+      initialMessages={initialMessages}
+      {...otherProps}
+    />
+  );
+};
+
+const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ 
+  service, 
+  chatHistory = { messages: [] }, 
+  onUpdateChatHistory, 
+  onClearChatHistory 
+}) => {
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
   const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(false);
 
@@ -54,6 +215,79 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
         <span>History Node: <span className={`break-all ${service.history ? "text-[#2DFF7C]" : "text-[#606060]"}`}>
           {service.history || 'Not configured (optional)'}
         </span></span>
+      </div>
+
+      {/* 聊天历史信息 */}
+      <div className="text-[11px] text-[#505050] mt-4 pt-4 border-t border-[#333] break-words">
+        <span>Chat History: <span className="text-[#4599DF] break-all">
+          {chatHistory.messages.length} messages stored
+        </span></span>
+      </div>
+      
+      {chatHistory.messages.length > 0 && (
+        <div className="text-[10px] text-[#666666] mt-2 max-h-20 overflow-y-auto">
+          {chatHistory.messages.slice(-3).map((msg, index) => (
+            <div key={msg.id} className="mb-1">
+              <span className={`${msg.role === 'user' ? 'text-[#4599DF]' : 'text-[#9B7EDB]'}`}>
+                {msg.role === 'user' ? 'User' : 'Assistant'}:
+              </span>
+              <span className="text-[#888888] ml-1 truncate block">
+                {msg.content.substring(0, 50)}{msg.content.length > 50 ? '...' : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 测试按钮 */}
+      <div className="mt-4 pt-4 border-t border-[#333]">
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (onUpdateChatHistory) {
+                const testMessage: ChatMessage = {
+                  id: Date.now().toString(),
+                  role: 'user',
+                  content: `测试消息 ${new Date().toLocaleTimeString()}`,
+                  timestamp: new Date()
+                };
+                onUpdateChatHistory(service.chatbot_id, testMessage);
+                console.log('🔍 添加测试用户消息:', testMessage);
+              }
+            }}
+            className="px-2 py-1 text-[10px] bg-[#4599DF] text-white rounded hover:bg-[#3A7BC8] transition-colors"
+          >
+            添加用户消息
+          </button>
+          <button
+            onClick={() => {
+              if (onUpdateChatHistory) {
+                const testMessage: ChatMessage = {
+                  id: Date.now().toString(),
+                  role: 'assistant',
+                  content: `测试回复 ${new Date().toLocaleTimeString()}`,
+                  timestamp: new Date()
+                };
+                onUpdateChatHistory(service.chatbot_id, testMessage);
+                console.log('🔍 添加测试助手消息:', testMessage);
+              }
+            }}
+            className="px-2 py-1 text-[10px] bg-[#9B7EDB] text-white rounded hover:bg-[#8A6FD1] transition-colors"
+          >
+            添加助手消息
+          </button>
+          <button
+            onClick={() => {
+              if (onClearChatHistory) {
+                onClearChatHistory(service.chatbot_id);
+                console.log('🔍 清空聊天历史');
+              }
+            }}
+            className="px-2 py-1 text-[10px] bg-[#FF6B6B] text-white rounded hover:bg-[#E55A5A] transition-colors"
+          >
+            清空历史
+          </button>
+        </div>
       </div>
     </>
   );
@@ -114,12 +348,15 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
             <div className="px-[32px] pb-[16px]">
               <div className="w-full h-[calc(100vh-220px)] flex items-center justify-center relative">
                 <div className="w-full h-full [&>*]:!shadow-none">
-                  <ChatInterfaceDeployed
+                  <CustomChatInterfaceDeployed
                     chatbotId={service.chatbot_id}
                     baseUrl={API_SERVER_URL}
                     chatbotKey={service.chatbot_key || ''}
                     inputBlockId={service.input || 'input_block'}
                     historyBlockId={service.history || 'history_block'}
+                    chatHistory={chatHistory}
+                    onUpdateChatHistory={onUpdateChatHistory}
+                    onClearChatHistory={onClearChatHistory}
                     title="Deployed Chatbot"
                     placeholder={service.input ? "Type your message here..." : "Configure input node first..."}
                     welcomeMessage={service.welcome_message || "Welcome to your deployed chatbot! Start chatting to interact with your bot."}
