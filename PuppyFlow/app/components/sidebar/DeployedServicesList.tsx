@@ -89,15 +89,7 @@ const DeployedServicesList: React.FC = () => {
   const handleServiceClick = (service: DeployedService) => {
     // 使用新的 switch hook 切换到服务显示
     switchToServiceById(service.id);
-    
-    // 添加成功切换的日志
-    console.log(`✅ Successfully switched to ${service.type} service:`, {
-      serviceId: service.id,
-      serviceName: service.id.length > 12 ? `${service.id.substring(0, 12)}...` : service.id,
-      serviceType: service.type,
-      workspaceName: service.workspaceName,
-      workspaceId: service.workspaceId
-    });
+
     
     // 对于API，复制端点到剪贴板
     if (service.type === 'api') {
