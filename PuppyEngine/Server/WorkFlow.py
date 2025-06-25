@@ -303,9 +303,13 @@ class WorkFlow():
         return [bid for bid, state in self.block_states.items() if state == "processed"]
 
     @global_exception_handler(5202, "Error Processing Workflow", True)
-    def process(self) -> Generator[Dict[str, Any], None, None]:
+    def process(self, usage_callback = None) -> Generator[Dict[str, Any], None, None]:
         """
         Process the workflow with concurrent edge execution
+        
+        Args:
+            usage_callback: 可选的usage消费回调函数，每个edge执行成功后会调用
+                          函数签名: callback(edge_metadata: dict) -> None
         """
         try:
             log_info(f"Starting workflow processing for task {self.task_id}")
@@ -321,7 +325,7 @@ class WorkFlow():
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
 
-                processed_block_ids = self._process_batch_results(parallel_batch)
+                processed_block_ids = self._process_batch_results(parallel_batch, usage_callback)
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
@@ -392,7 +396,8 @@ class WorkFlow():
 
     def _process_batch_results(
         self,
-        batch: Set[str]
+        batch: Set[str],
+        usage_callback = None
     ) -> Set[str]:
         # Stage 1: Mark processing states
         with self.state_lock:
@@ -401,7 +406,7 @@ class WorkFlow():
 
         try:
             # Stage 2: Process batch concurrently
-            outputs = self._execute_edge_batch(batch)
+            outputs = self._execute_edge_batch(batch, usage_callback)
             log_info(f"Batch processing output: {outputs}")
 
             # Stage 3: Update states atomically
@@ -425,7 +430,8 @@ class WorkFlow():
 
     def _execute_edge_batch(
         self,
-        edge_batch: Set[str]
+        edge_batch: Set[str],
+        usage_callback = None
     ) -> Dict[str, Any]:
         """
         Execute a batch of edges concurrently
@@ -457,7 +463,7 @@ class WorkFlow():
             for future in concurrent.futures.as_completed(futures):
                 edge_id = futures[future]
                 try:
-                    results = self._process_edge_result(edge_id, results, future)
+                    results = self._process_edge_result(edge_id, results, future, usage_callback)
                 except Exception as e:
                     # 移除exc_info参数，使用格式化字符串
                     log_error(f"Edge {edge_id} execution failed with error: {str(e)}\n{traceback.format_exc()}")
@@ -504,13 +510,15 @@ class WorkFlow():
         self,
         edge_id: str,
         results: Dict[str, Any],
-        future: concurrent.futures.Future
+        future: concurrent.futures.Future,
+        usage_callback = None
     ) -> Dict[str, Any]:
         """
         Process the result of an edge execution
         """
 
         edge_result = future.result()
+        execution_success = edge_result.status == "completed" and not edge_result.error
 
         # Detailed execution result logging
         log_msg = (
@@ -518,18 +526,142 @@ class WorkFlow():
             f"\n------------------------"
             f"\nEdge ID: {edge_id}"
             f"\nStatus: {edge_result.status}"
+            f"\nSuccess: {execution_success}"
             f"\nExecution Time: {edge_result.end_time - edge_result.start_time}"
         )
 
         if edge_result.error:
             log_msg += f"\nError: {str(edge_result.error)}"
             log_error(log_msg)
-            raise edge_result.error
 
         log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
         log_info(log_msg)
-        if edge_result.status == "completed":
-            # Map results to output blocks
+        
+        # 无论成功还是失败，都记录usage event
+        if usage_callback:
+            try:
+                # 收集edge的输入block状态（执行前）
+                input_block_ids = list(self.edge_to_inputs_mapping.get(edge_id, []))
+                input_blocks_snapshot = {}
+                for block_id in input_block_ids:
+                    block_info = self.blocks.get(block_id, {})
+                    input_blocks_snapshot[block_id] = {
+                        "label": block_info.get("label"),
+                        "type": block_info.get("type"),
+                        "data": {
+                            "content": block_info.get("data", {}).get("content"),
+                            "embedding_view": block_info.get("data", {}).get("embedding_view", [])
+                        },
+                        "looped": block_info.get("looped", False),
+                        "collection_configs": block_info.get("collection_configs", {})
+                    }
+                
+                # 收集edge的输出block状态（执行后）
+                output_block_ids = list(self.edge_to_outputs_mapping.get(edge_id, []))
+                output_blocks_snapshot = {}
+                
+                if execution_success:
+                    # 成功执行：记录实际的输出结果
+                    for block_id in output_block_ids:
+                        if block_id in results:
+                            block_info = self.blocks.get(block_id, {})
+                            output_blocks_snapshot[block_id] = {
+                                "label": block_info.get("label"),
+                                "type": block_info.get("type"),
+                                "data": {
+                                    "content": results[block_id],  # 使用执行结果
+                                    "embedding_view": block_info.get("data", {}).get("embedding_view", [])
+                                },
+                                "looped": block_info.get("looped", False),
+                                "collection_configs": block_info.get("collection_configs", {})
+                            }
+                else:
+                    # 失败执行：记录原始的输出block状态（未被修改）
+                    for block_id in output_block_ids:
+                        block_info = self.blocks.get(block_id, {})
+                        output_blocks_snapshot[block_id] = {
+                            "label": block_info.get("label"),
+                            "type": block_info.get("type"),
+                            "data": {
+                                "content": block_info.get("data", {}).get("content"),  # 保持原状
+                                "embedding_view": block_info.get("data", {}).get("embedding_view", [])
+                            },
+                            "looped": block_info.get("looped", False),
+                            "collection_configs": block_info.get("collection_configs", {}),
+                            "execution_failed": True  # 标记这个block由于执行失败未被更新
+                        }
+                
+                # 构造edge的简化payload（用于这次执行的配置）
+                edge_info = self.edges.get(edge_id, {})
+                edge_simple_payload = {
+                    "edge_id": edge_id,
+                    "type": edge_info.get("type"),
+                    "data": {
+                        **edge_info.get("data", {}),
+                        # 包含实际使用的输入输出映射
+                        "actual_inputs": {bid: input_blocks_snapshot.get(bid, {}).get("label", bid) for bid in input_block_ids},
+                        "actual_outputs": {bid: output_blocks_snapshot.get(bid, {}).get("label", bid) for bid in output_block_ids}
+                    }
+                }
+                
+                # 构造当前workflow的完整payload快照
+                complete_workflow_payload = {
+                    "version": getattr(self, "version", "0.1"),
+                    "blocks": dict(self.blocks),  # 当前所有blocks的状态
+                    "edges": dict(self.edges),    # 当前所有edges的配置
+                    "task_id": self.task_id,
+                    "execution_context": {
+                        "current_edge": edge_id,
+                        "block_states": dict(self.block_states),
+                        "edge_states": dict(self.edge_states),
+                        "execution_timestamp": edge_result.end_time,
+                        "execution_success": execution_success
+                    }
+                }
+
+                edge_type = edge_info.get("type", "unknown")
+                edge_metadata = {
+                    "edge_id": edge_id,
+                    "edge_type": edge_type,
+                    "execution_time": edge_result.end_time - edge_result.start_time,
+                    "task_id": self.task_id,
+                    "execution_success": execution_success,  # 关键字段：记录执行是否成功
+                    
+                    # 错误信息（如果有）
+                    "error_info": {
+                        "has_error": bool(edge_result.error),
+                        "error_message": str(edge_result.error) if edge_result.error else None,
+                        "error_type": type(edge_result.error).__name__ if edge_result.error else None,
+                        "edge_status": edge_result.status
+                    } if edge_result.error else None,
+                    
+                    # 输入输出block快照
+                    "input_blocks_snapshot": input_blocks_snapshot,
+                    "output_blocks_snapshot": output_blocks_snapshot,
+                    
+                    # edge配置和执行payload
+                    "edge_simple_payload": edge_simple_payload,
+                    
+                    # 完整workflow状态快照
+                    "complete_workflow_payload": complete_workflow_payload,
+                    
+                    # 统计信息
+                    "stats": {
+                        "input_block_count": len(input_block_ids),
+                        "output_block_count": len(output_block_ids),
+                        "total_blocks_in_workflow": len(self.blocks),
+                        "total_edges_in_workflow": len(self.edges),
+                        "completed_edges_count": sum(1 for state in self.edge_states.values() if state == "completed"),
+                        "failed_edges_count": sum(1 for state in self.edge_states.values() if state == "failed")
+                    }
+                }
+                usage_callback(edge_metadata)
+            except Exception as e:
+                log_error(f"Usage callback failed for edge {edge_id}: {str(e)}")
+                # 不抛出异常，避免影响workflow执行
+
+        if execution_success:
+            # 只有成功执行才更新结果
             for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
                 # If the edge is type of ifelse, the result is a set of block contents
                 if self.edges.get(edge_id, {}).get("type") == "ifelse":
@@ -539,7 +671,10 @@ class WorkFlow():
                     results[block_id] = edge_result.result
                 log_info(f"[DEBUG] Block {block_id} updated with result type: {type(edge_result.result)}")
         else:
-            log_warning(f"Edge {edge_id} completed but status is {edge_result.status}")
+            log_warning(f"Edge {edge_id} execution failed, results not updated")
+            # 失败的情况下，重新抛出错误
+            if edge_result.error:
+                raise edge_result.error
 
         return results
 
