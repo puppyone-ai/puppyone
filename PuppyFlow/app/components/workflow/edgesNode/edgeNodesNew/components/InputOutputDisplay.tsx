@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect} from 'react';
 import { Node } from '@xyflow/react';
 
 type NodeType = 'text' | 'file' | 'structured';
@@ -10,6 +10,7 @@ interface InputOutputDisplayProps {
     getTargetNodeIdWithLabel: (id: string) => Array<{ id: string, label: string }>;
     supportedInputTypes?: NodeType[];
     supportedOutputTypes?: NodeType[];
+    onUpdate?: () => void; 
 }
 
 export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
@@ -18,8 +19,12 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
     getSourceNodeIdWithLabel,
     getTargetNodeIdWithLabel,
     supportedInputTypes = ['text', 'file', 'structured'],
-    supportedOutputTypes = ['text', 'file', 'structured']
+    supportedOutputTypes = ['text', 'file', 'structured'],
+    onUpdate
 }) => {
+    useEffect(() => {
+        onUpdate?.();
+      });
     const [copiedLabel, setCopiedLabel] = useState<string | null>(null);
 
     const copyToClipboard = (text: string) => {

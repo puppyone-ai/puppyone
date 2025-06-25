@@ -213,7 +213,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         onStructuredOutputChange(isStructured_output)
     }, [isStructured_output])
 
-    // 更新sourceNodeLabels
+    // 初始化sourceNodeLabels
     useEffect(() => {
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
         // 收集标签和类型
@@ -226,7 +226,28 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
             };
         });
         setSourceNodeLabels(labelsWithTypes);
-    }, [id, getNode])
+    },[])
+
+    // 更新sourceNodeLabels
+    const updateSourceNodeLabels = useCallback(() => {
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
+        // 收集标签和类型
+        const labelsWithTypes = sourceNodeIdWithLabelGroup.map(node => {
+            const nodeInfo = getNode(node.id);
+            const nodeType = nodeInfo?.type || 'text';
+            return {
+                label: node.label,
+                type: nodeType
+            };
+        });
+        
+        // 检查是否有实际变化
+        const currentLabels = JSON.stringify(labelsWithTypes);
+        const prevLabels = JSON.stringify(sourceNodeLabels);
+        if (currentLabels !== prevLabels) {
+            setSourceNodeLabels(labelsWithTypes);
+        }
+    }, [id, getSourceNodeIdWithLabel, getNode, sourceNodeLabels]);
 
     // 组件初始化
     useEffect(() => {
@@ -469,6 +490,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text', 'structured']}
                             supportedOutputTypes={['text', 'structured']}
+                            onUpdate={updateSourceNodeLabels}
                         />
                     </li>
 

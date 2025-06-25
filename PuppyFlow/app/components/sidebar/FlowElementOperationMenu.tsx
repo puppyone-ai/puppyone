@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import { Transition } from '@headlessui/react'
 import { Fragment } from 'react'
 
@@ -13,7 +13,7 @@ type FlowElementOperationMenuProps = {
 
 function FlowElementOperationMenu({flowId, show, handleOperationMenuHide, buttonRef}: FlowElementOperationMenuProps) {
 
-    const {removeFlow, editFlowName} = useFlowsPerUserContext()
+    const { removeWorkspace, updateWorkspace, workspaceManagement } = useWorkspaces()
     const renameDialogRef = useRef<HTMLDialogElement>(null)
     const newNameInputRef = useRef<HTMLInputElement>(null)
     const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 })
@@ -49,7 +49,10 @@ function FlowElementOperationMenu({flowId, show, handleOperationMenuHide, button
             e.preventDefault()
             if (newNameInputRef.current?.value) {
                 console.log(newNameInputRef.current?.value, "start to rename")
-                await editFlowName(flowId, newNameInputRef.current?.value)
+                const result = await workspaceManagement.renameWorkspace(flowId, newNameInputRef.current?.value)
+                if (result) {
+                    updateWorkspace(flowId, { workspace_name: result.workspace_name })
+                }
             }
             else {
                 alert('Please enter a name')
@@ -58,6 +61,17 @@ function FlowElementOperationMenu({flowId, show, handleOperationMenuHide, button
             console.error(error)
         } finally {
             handleRenameDialogClose()
+        }
+    }
+
+    const handleDelete = async () => {
+        try {
+            const success = await workspaceManagement.deleteWorkspace(flowId)
+            if (success) {
+                removeWorkspace(flowId)
+            }
+        } catch (error) {
+            console.error('Error deleting workspace:', error)
         }
     }
 
@@ -107,7 +121,7 @@ function FlowElementOperationMenu({flowId, show, handleOperationMenuHide, button
                                     e.stopPropagation()
                                     e.preventDefault()
                                     handleOperationMenuHide()
-                                    removeFlow(flowId)
+                                    handleDelete()
                                 }}
                             >
                                 <div className='flex justify-center items-center'>

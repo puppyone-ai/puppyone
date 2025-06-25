@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAllDeployedServices } from '../states/GlobalDeployedServicesContext';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useAllDeployedServices, useServers } from '../states/UserServersContext';
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
+import { useServerOperations } from '../hooks/useServerManagement';
 import { SYSTEM_URLS } from '@/config/urls';
 import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
+import DeployedServiceOperationMenu from './DeployedServiceOperationMenu';
 
 // 定义简化的服务类型
 interface DeployedService {
@@ -11,13 +14,8 @@ interface DeployedService {
   workspaceId: string;
 }
 
-// API和Chatbot的接口定义
-interface ApiInfo {
-  api_id: string;
-  workspace_id?: string;
-}
-
-interface ChatbotInfo {
+// Chatbot详细信息接口
+interface ChatbotDetails {
   chatbot_id: string;
   chatbot_key: string;
   workspace_id?: string;
@@ -31,6 +29,8 @@ interface ChatbotInfo {
 
 const DeployedServicesList: React.FC = () => {
   const { apis, chatbots, isLoading } = useAllDeployedServices();
+  const { isServiceShowing, displayOrNot, refreshServices } = useServers();
+  const { switchToServiceById } = useDisplaySwitch();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   // 转换数据格式
@@ -49,228 +49,181 @@ const DeployedServicesList: React.FC = () => {
     }))
   ];
 
-  const [isExpanded, setIsExpanded] = useState(true); // 默认展开
-  const [selectedChatbot, setSelectedChatbot] = useState<{
-    id: string;
-    workspaceId: string;
-    input?: string;
-    output?: string;
-    history?: string;
-    chatbotKey?: string;
-    endpoint?: string;
-  } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [serviceIdShowOperationMenu, setServiceIdShowOperationMenu] = useState<string | null>(null);
+  const [hoveredServiceId, setHoveredServiceId] = useState<string | null>(null);
 
-  // 获取单个工作区的API列表
-  const fetchApiList = useCallback(async (workspaceId: string): Promise<ApiInfo[]> => {
-    try {
-      const res = await fetch(
-        `${API_SERVER_URL}/list_apis/${workspaceId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": process.env.NEXT_PUBLIC_API_SERVER_KEY || ''
-          }
-        }
-      );
+  // 使用 refs 来存储每个服务的按钮引用
+  const buttonRefs = useRef<{ [key: string]: React.RefObject<HTMLButtonElement> }>({});
 
-      if (!res.ok) {
-        if (res.status === 404) return [];
-        throw new Error(`Failed to fetch API list: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.apis || [];
-    } catch (error) {
-      console.error(`Error fetching API list for workspace ${workspaceId}:`, error);
-      return [];
+  // 为每个服务创建或获取 button ref
+  const getButtonRef = (serviceId: string) => {
+    if (!buttonRefs.current[serviceId]) {
+      buttonRefs.current[serviceId] = React.createRef<HTMLButtonElement>();
     }
-  }, []);
-
-  // 获取单个工作区的Chatbot列表
-  const fetchChatbotList = useCallback(async (workspaceId: string): Promise<ChatbotInfo[]> => {
-    try {
-      const res = await fetch(
-        `${API_SERVER_URL}/list_chatbots/${workspaceId}?include_keys=true`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "x-admin-key": process.env.NEXT_PUBLIC_API_SERVER_KEY || ''
-          }
-        }
-      );
-
-      if (!res.ok) {
-        if (res.status === 404) return [];
-        throw new Error(`Failed to fetch chatbot list: ${res.status}`);
-      }
-
-      const data = await res.json();
-      return data.chatbots || [];
-    } catch (error) {
-      console.error(`Error fetching chatbot list for workspace ${workspaceId}:`, error);
-      return [];
-    }
-  }, []);
-
-  // 获取所有已部署的服务
-  const fetchAllServices = useCallback(async () => {
-    // 移除所有数据获取逻辑，直接使用从全局Context获取的数据
-  }, []);
-
-  // 初始化时获取数据
-  useEffect(() => {
-    if (services.length > 0) {
-      fetchAllServices();
-    }
-  }, [services, fetchAllServices]);
-
-  // 切换展开状态
-  const toggleExpanded = () => {
-    setIsExpanded(!isExpanded);
+    return buttonRefs.current[serviceId];
   };
 
-  // 处理chatbot点击
-  const handleChatbotClick = async (service: DeployedService) => {
-    if (service.type !== 'chatbot') return;
+  // 处理刷新
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshServices();
+      console.log('✅ Services refreshed successfully');
+    } catch (error) {
+      console.error('❌ Failed to refresh services:', error);
+    } finally {
+      // 确保至少显示500ms的加载状态，让用户看到反馈
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 500);
+    }
+  };
 
-    // 从已获取的服务列表中找到对应的 chatbot 信息
-    const allChatbots = await fetchChatbotList(service.workspaceId);
-    const chatbotDetails = allChatbots.find(chatbot => chatbot.chatbot_id === service.id);
-
-    setSelectedChatbot({
-      id: service.id,
-      workspaceId: service.workspaceId,
-      input: chatbotDetails?.input,
-      output: chatbotDetails?.output,
-      history: chatbotDetails?.history,
-      chatbotKey: chatbotDetails?.chatbot_key,
-      endpoint: chatbotDetails?.endpoint
-    });
+  // 处理操作菜单显示/隐藏
+  const handleOperationMenuShow = (serviceId: string | null) => {
+    setServiceIdShowOperationMenu(serviceId);
   };
 
   // 处理服务点击
   const handleServiceClick = (service: DeployedService) => {
-    if (service.type === 'chatbot') {
-      handleChatbotClick(service);
-    } else if (service.type === 'api') {
-      // 对于API，可以复制端点或显示其他信息
+    // 使用新的 switch hook 切换到服务显示
+    switchToServiceById(service.id);
+    
+    // 添加成功切换的日志
+    console.log(`✅ Successfully switched to ${service.type} service:`, {
+      serviceId: service.id,
+      serviceName: service.id.length > 12 ? `${service.id.substring(0, 12)}...` : service.id,
+      serviceType: service.type,
+      workspaceName: service.workspaceName,
+      workspaceId: service.workspaceId
+    });
+    
+    // 对于API，复制端点到剪贴板
+    if (service.type === 'api') {
       const endpoint = `${API_SERVER_URL}/execute_workflow/${service.id}`;
       navigator.clipboard.writeText(endpoint).then(() => {
-        console.log('API endpoint copied to clipboard');
+        console.log('📋 API endpoint copied to clipboard:', endpoint);
       });
     }
   };
 
-  // 关闭chatbot界面
-  const closeChatbot = () => {
-    setSelectedChatbot(null);
-  };
-
-  // 如果没有服务，不显示组件
-  if (services.length === 0 && !isLoading) {
-    return null;
-  }
 
   return (
-    <>
-      <div className="w-full">
-        {/* 标题栏 - 可点击区域扩展到父元素顶部 */}
-        <button 
-          onClick={toggleExpanded}
-          className="w-full text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans hover:text-[#CDCDCD] rounded transition-colors pt-[8px] group"
-        >
-          <div className="mb-[16px] flex items-center gap-2">
-            <span>Deployed Services</span>
-            <div className="h-[1px] flex-grow bg-[#404040] group-hover:bg-[#CDCDCD] transition-colors"></div>
-            <div className="flex items-center justify-center w-[16px] h-[16px]">
-              {isLoading ? (
-                <svg className="animate-spin w-3 h-3 text-[#5D6065] group-hover:text-[#CDCDCD] transition-colors" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              ) : (
-                <svg 
-                  width="12" 
-                  height="12" 
-                  viewBox="0 0 12 12" 
-                  fill="none" 
-                  xmlns="http://www.w3.org/2000/svg"
-                  className={`transition-all duration-200 ${!isExpanded ? 'rotate-180' : ''}`}
-                >
-                  <path d="M3 4.5L6 7.5L9 4.5" stroke="#5D6065" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-[#CDCDCD] transition-colors"/>
-                </svg>
-              )}
-            </div>
-          </div>
-        </button>
-
-        {/* 服务列表 */}
-        {isExpanded && (
-          <div className="space-y-[4px] max-h-[200px] overflow-y-auto pr-[4px]">
-            {services.map((service) => (
-              <div 
-                key={service.id}
-                onClick={() => handleServiceClick(service)}
-                className="flex items-center gap-[8px] py-[6px] px-[16px] rounded-md hover:bg-[#313131] transition-colors group cursor-pointer"
-                title={service.type === 'chatbot' ? 'Click to open chat interface' : 'Click to copy API endpoint'}
-              >
-                {/* 服务类型图标 */}
-                <div className={`p-1 rounded flex-shrink-0 ${
-                  service.type === 'api' 
-                    ? 'bg-[#3B82F6]/20' 
-                    : 'bg-[#8B5CF6]/20'
-                }`}>
-                  {service.type === 'api' ? (
-                    <svg className="w-3 h-3 text-[#60A5FA]" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  ) : (
-                    <svg className="w-3 h-3 text-[#A78BFA]" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                      <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-                    </svg>
-                  )}
-                </div>
-
-                {/* 服务信息 */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-medium text-[#CDCDCD] group-hover:text-white truncate">
-                    {service.id.length > 12 ? `${service.id.substring(0, 12)}...` : service.id}
-                  </div>
-                  <div className="text-[10px] text-[#808080] truncate">
-                    {service.workspaceName}
-                  </div>
-                </div>
-
-                {/* 交互提示图标 */}
-                {service.type === 'chatbot' && (
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-3 h-3 text-[#A78BFA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+    <div className="w-full">
+      {/* 标题栏 */}
+      <div className="text-[#5D6065] text-[11px] font-semibold pl-[16px] pr-[8px] font-plus-jakarta-sans pt-[8px]">
+        <div className="mb-[16px] flex items-center gap-2">
+          <span>Deployed Services</span>
+          
+          {/* 刷新按钮 */}
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className={`flex items-center justify-center w-[32px] h-[32px] rounded-md transition-all duration-200 group ${
+              isRefreshing 
+                ? 'bg-[#313131] text-[#CDCDCD] cursor-not-allowed' 
+                : 'hover:bg-[#313131] text-[#5D6065] hover:text-[#FFFFFF]'
+            }`}
+            title={isRefreshing ? "Refreshing..." : "Refresh services"}
+          >
+            <svg 
+              className={`w-4 h-4 transition-transform duration-500 ${isRefreshing ? 'animate-spin' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg"
+              style={isRefreshing ? { animationDirection: 'reverse' } : {}}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+          <div className="h-[1px] flex-grow bg-[#404040]"></div>
+        </div>
       </div>
 
-      {/* Chatbot测试界面 */}
-      {selectedChatbot && (
-        <ChatbotTestInterface
-          apiEndpoint={selectedChatbot.endpoint || `${API_SERVER_URL}/chat/${selectedChatbot.id}`}
-          chatbotId={selectedChatbot.id}
-          apiKey={selectedChatbot.chatbotKey}
-          onClose={closeChatbot}
-          input={selectedChatbot.input}
-          output={selectedChatbot.output}
-          history={selectedChatbot.history}
-        />
-      )}
-    </>
+      {/* 服务列表 */}
+      <div className="space-y-[4px] max-h-[50vh] overflow-y-auto">
+        {services.map((service) => {
+          // 修改选中状态的判断逻辑：只有当 displayOrNot 为 true 且选中了该服务时才显示为选中状态
+          const isSelected = displayOrNot && isServiceShowing(service.id);
+          const isHover = hoveredServiceId === service.id;
+          const buttonRef = getButtonRef(service.id);
+          
+          return (
+            <div 
+              key={service.id}
+              onClick={() => handleServiceClick(service)}
+              onMouseEnter={() => setHoveredServiceId(service.id)}
+              onMouseLeave={() => setHoveredServiceId(null)}
+              className={`flex items-center gap-[12px] py-[8px] pl-[16px] pr-[4px] rounded-md transition-colors group cursor-pointer h-[40px] ${
+                isSelected 
+                  ? 'bg-[#454545] hover:bg-[#454545]' 
+                  : 'hover:bg-[#313131]'
+              }`}
+              title={service.type === 'chatbot' ? 'Click to open chat interface' : 'Click to copy API endpoint'}
+            >
+              {/* 服务类型图标 */}
+              <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
+                service.type === 'api' 
+                  ? 'border-[#60A5FA]' 
+                  : 'border-[#A78BFA]'
+              }`}>
+                {service.type === 'api' ? (
+                  <svg className="w-3 h-3 text-[#60A5FA]" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-3 h-3 text-[#A78BFA]" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                    <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                  </svg>
+                )}
+              </div>
+
+              {/* 服务信息 */}
+              <div className="flex-1 min-w-0">
+                <div className={`text-[11px] font-medium truncate ${
+                  isSelected ? 'text-white' : 'text-[#CDCDCD] group-hover:text-white'
+                }`}>
+                  {service.id.length > 12 ? `${service.id.substring(0, 12)}...` : service.id}
+                </div>
+                <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                  {service.workspaceName}
+                </div>
+              </div>
+
+              {/* 操作菜单按钮 */}
+              <div className={`w-[24px] h-[24px] ${serviceIdShowOperationMenu === service.id || isHover ? 'flex' : 'hidden'}`}>
+                <button
+                  ref={buttonRef}
+                  className='flex items-center justify-center w-[24px] h-[24px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-200'
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleOperationMenuShow(serviceIdShowOperationMenu === service.id ? null : service.id)
+                  }}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" className="group transition-colors duration-200">
+                    <path d="M7 11H9V13H7V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200" />
+                    <path d="M16 11H18V13H16V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200" />
+                    <path d="M11.5 11H13.5V13H11.5V11Z" className="fill-[#5D6065] group-hover:fill-white transition-colors duration-200" />
+                  </svg>
+                </button>
+                <DeployedServiceOperationMenu
+                  serviceId={service.id}
+                  serviceType={service.type}
+                  workspaceName={service.workspaceName}
+                  show={serviceIdShowOperationMenu === service.id}
+                  handleOperationMenuHide={() => handleOperationMenuShow(null)}
+                  buttonRef={buttonRef}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };
 

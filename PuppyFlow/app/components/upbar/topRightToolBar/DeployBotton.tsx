@@ -3,10 +3,10 @@
 import { Menu, Transition } from '@headlessui/react'
 import React, { useState, Fragment, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import { useFlowsPerUserContext } from '../../states/FlowsPerUserContext'
+import { useWorkspaces } from '../../states/UserWorkspacesContext'
 import { SYSTEM_URLS } from '@/config/urls'
-import { DeployPanelProvider } from '../../states/DeployPanelContext'
-import { useDeploymentStatus } from './deployMenu/hook/useDeploymentStatus'
+import { useServers } from '../../states/UserServersContext'
+import { useServerOperations } from '../../hooks/useServerManagement'
 
 import DeployAsApi from './deployMenu/AddApiServer'
 import DeployAsChatbot from './deployMenu/AddChatbotServer'
@@ -16,7 +16,8 @@ import DeployedChatbotDetail from './deployMenu/DeployedChatbotDetail'
 
 
 function DeployBotton() {
-  const { setWorkspaces, selectedFlowId, workspaces } = useFlowsPerUserContext()
+  const { setWorkspaces, showingItem, workspaces } = useWorkspaces()
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE
 
   // 仅保留顶层菜单所需的状态
@@ -24,36 +25,52 @@ function DeployBotton() {
   const [activePanel, setActivePanel] = useState<string | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   
-  // 使用部署状态hook
-  const { deployedServices, fetchDeployedServices, deleteApi, deleteChatbot } = useDeploymentStatus({
-    selectedFlowId
-  });
+  // 🔄 修改：直接从 UserServersContext 同步获取服务数据
+  const { 
+    getServicesByWorkspace, 
+    globalServices,
+    fetchWorkspaceServices,
+  } = useServers();
 
-  // 初始化引用
-  const initializedRef = useRef<boolean>(false);
+  // 🔄 修改：同步获取当前工作区的服务
+  const workspaceServices = selectedFlowId ? getServicesByWorkspace(selectedFlowId) : { apis: [], chatbots: [] };
+  const { apis, chatbots } = workspaceServices;
+
+  // 使用ServerOperations获取实际的删除API方法
+  const { deleteApiService, deleteChatbotService } = useServerOperations();
+  
+  // 使用UserServersContext的本地状态管理方法
+  const { removeApiService, removeChatbotService } = useServers();
+
+  // 转换为原有格式以保持兼容性
+  const deployedServices = {
+    apis: apis.map(api => ({
+      api_id: api.api_id,
+      api_key: api.api_key,
+      endpoint: api.endpoint,
+      created_at: api.created_at,
+      workspace_id: api.workspace_id,
+      inputs: api.inputs,
+      outputs: api.outputs
+    })),
+    chatbots: chatbots.map(chatbot => ({
+      chatbot_id: chatbot.chatbot_id,
+      chatbot_key: chatbot.chatbot_key,
+      endpoint: chatbot.endpoint,
+      created_at: chatbot.created_at,
+      workspace_id: chatbot.workspace_id,
+      input: chatbot.input,
+      output: chatbot.output,
+      history: chatbot.history,
+      multi_turn_enabled: chatbot.multi_turn_enabled,
+      welcome_message: chatbot.welcome_message
+    })),
+  };
 
   // 添加刷新状态
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 当菜单打开时获取已部署的服务
-  useEffect(() => {
-    if (isMenuOpen && selectedFlowId && !initializedRef.current) {
-      console.log('🚀 Fetching deployed services for flowId:', selectedFlowId);
-      initializedRef.current = true;
-      fetchDeployedServices().then(() => {
-        console.log('✅ Deployed services fetched successfully');
-      }).catch((error) => {
-        console.error('❌ Failed to fetch deployed services:', error);
-      });
-    }
-  }, [isMenuOpen, selectedFlowId, fetchDeployedServices]);
-
-  // 当selectedFlowId变化时重置初始化状态
-  useEffect(() => {
-    initializedRef.current = false;
-  }, [selectedFlowId]);
-  
-  // List of deployment options - 移除isDeployed字段
+  // List of deployment options
   const deploymentOptions = [
     { 
       id: 'api', 
@@ -90,23 +107,37 @@ function DeployBotton() {
     },
   ];
 
-  // 处理删除API
+  // 处理删除API - 修复：先调用实际的API删除，再更新本地状态
   const handleDeleteApi = async (apiId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // 防止触发父元素的点击事件
     try {
-      await deleteApi(apiId);
+      // 1. 先调用实际的API删除服务器端的服务
+      await deleteApiService(apiId);
+      
+      // 2. 删除成功后，更新本地状态
+      removeApiService(apiId);
+      
+      console.log(`✅ API ${apiId} deleted successfully from both server and local state`);
     } catch (error) {
       console.error("Failed to delete API:", error);
+      // 如果服务器删除失败，不更新本地状态，保持数据一致性
     }
   };
 
-  // 处理删除Chatbot
+  // 处理删除Chatbot - 修复：先调用实际的API删除，再更新本地状态
   const handleDeleteChatbot = async (chatbotId: string, event: React.MouseEvent) => {
     event.stopPropagation(); // 防止触发父元素的点击事件
     try {
-      await deleteChatbot(chatbotId);
+      // 1. 先调用实际的API删除服务器端的服务
+      await deleteChatbotService(chatbotId);
+      
+      // 2. 删除成功后，更新本地状态
+      removeChatbotService(chatbotId);
+      
+      console.log(`✅ Chatbot ${chatbotId} deleted successfully from both server and local state`);
     } catch (error) {
       console.error("Failed to delete chatbot:", error);
+      // 如果服务器删除失败，不更新本地状态，保持数据一致性
     }
   };
 
@@ -119,7 +150,9 @@ function DeployBotton() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await fetchDeployedServices();
+      if (selectedFlowId) {
+        await fetchWorkspaceServices(selectedFlowId);  // 🔄 修改为调用工作区级别的刷新
+      }
     } catch (error) {
       console.error("Failed to refresh deployed services:", error);
     } finally {
@@ -210,7 +243,7 @@ function DeployBotton() {
             {(deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0) && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-[#CDCDCD] text-[16px]">Deployed Services</h2>
+                  <h2 className="text-[#808080] text-[14px] font-normal">Deployed Services</h2>
                   <button
                     onClick={handleRefresh}
                     disabled={isRefreshing}
@@ -239,33 +272,36 @@ function DeployBotton() {
                   {deployedServices.apis.map((api) => (
                     <div
                       key={api.api_id}
-                      className="p-2 bg-[#252525] border border-[#404040] rounded-md hover:bg-[#2A2A2A] transition-colors cursor-pointer"
+                      className="flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]"
                       onClick={() => handleDeployedServiceClick('api', api.api_id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center flex-1 min-w-0">
-                          <div className="mr-2 bg-[#3B9BFF]/20 p-1.5 rounded">
-                            <svg className="w-3 h-3 text-[#3B9BFF]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                              <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[#CDCDCD] text-[12px] font-medium block">API</span>
-                            <code className="text-[#3B9BFF] text-[10px] truncate block">
-                              {api.api_id}
-                            </code>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteApi(api.api_id, e)}
-                          className="ml-2 p-1 rounded hover:bg-[#E74C3C]/20 text-[#E74C3C] transition-colors"
-                          title="Delete API"
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                      {/* 服务类型图标 */}
+                      <div className="w-6 h-6 rounded-md border border-[#60A5FA] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-[#60A5FA]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
                       </div>
+
+                      {/* 服务信息 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white">
+                          {api.api_id.length > 12 ? `${api.api_id.substring(0, 12)}...` : api.api_id}
+                        </div>
+                        <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                          API Service
+                        </div>
+                      </div>
+
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={(e) => handleDeleteApi(api.api_id, e)}
+                        className="flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200 mr-[8px]"
+                        title="Delete API"
+                      >
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
                   ))}
 
@@ -273,34 +309,37 @@ function DeployBotton() {
                   {deployedServices.chatbots.map((chatbot) => (
                     <div
                       key={chatbot.chatbot_id}
-                      className="p-2 bg-[#252525] border border-[#404040] rounded-md hover:bg-[#2A2A2A] transition-colors cursor-pointer"
+                      className="flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer  hover:bg-[#2A2A2A]"
                       onClick={() => handleDeployedServiceClick('chatbot', chatbot.chatbot_id)}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center flex-1 min-w-0">
-                          <div className="mr-2 bg-[#9B7EDB]/20 p-1.5 rounded">
-                            <svg className="w-3 h-3 text-[#9B7EDB]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                              <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                              <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
-                            </svg>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[#CDCDCD] text-[12px] font-medium block">Chatbot</span>
-                            <code className="text-[#9B7EDB] text-[10px] truncate block">
-                              {chatbot.chatbot_id}
-                            </code>
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => handleDeleteChatbot(chatbot.chatbot_id, e)}
-                          className="ml-2 p-1 rounded hover:bg-[#E74C3C]/20 text-[#E74C3C] transition-colors"
-                          title="Delete Chatbot"
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                      {/* 服务类型图标 */}
+                      <div className="w-6 h-6 rounded-md border border-[#A78BFA] flex items-center justify-center flex-shrink-0">
+                        <svg className="w-3 h-3 text-[#A78BFA]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                          <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                        </svg>
                       </div>
+
+                      {/* 服务信息 */}
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white">
+                          {chatbot.chatbot_id.length > 12 ? `${chatbot.chatbot_id.substring(0, 12)}...` : chatbot.chatbot_id}
+                        </div>
+                        <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                          Chatbot Service
+                        </div>
+                      </div>
+
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={(e) => handleDeleteChatbot(chatbot.chatbot_id, e)}
+                        className="flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200 mr-[8px]"
+                        title="Delete Chatbot"
+                      >
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -309,22 +348,54 @@ function DeployBotton() {
 
             {/* 新建部署选项 */}
             <div className={`${(deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0) ? 'border-t border-[#404040] pt-4' : ''}`}>
-              <h2 className="text-[#CDCDCD] text-[16px] mb-4">Create New Deployment</h2>
-              <div className="space-y-3">
+              <h2 className="text-[#808080] text-[14px] font-normal mb-4">Create New Deployment</h2>
+              <div className="space-y-2">
                 {deploymentOptions.map((option) => (
                   <div
                     key={option.id}
-                    className={`p-3 bg-[#1E1E1E] border-[1px] border-[#404040] rounded-[8px] ${option.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-[#2A2A2A]'} transition duration-200`}
+                    className={`flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A] ${option.disabled ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
                     onClick={() => !option.disabled && setActivePanel(option.id)}
                   >
-                    <div className="flex items-center">
-                      <div className="mr-3 bg-[#2A2A2A] p-2 rounded-full">
-                        {option.icon}
+                    {/* 服务类型图标 */}
+                    <div className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
+                      option.id === 'api' 
+                        ? 'border-[#606060]' 
+                        : option.id === 'chatbot'
+                        ? 'border-[#606060]'
+                        : 'border-[#606060]'
+                    }`}>
+                      {option.id === 'api' ? (
+                        <svg className="w-3 h-3 text-[#606060]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path fillRule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      ) : option.id === 'chatbot' ? (
+                        <svg className="w-3 h-3 text-[#606060]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
+                          <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-[#606060]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+                          <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* 服务信息 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white">
+                        {option.label}
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-[#CDCDCD] text-[14px]">{option.label}</h3>
-                        <p className="text-[#808080] text-[12px]">{option.description}</p>
+                      <div className="text-[9px] text-[#808080] truncate mt-[1px]">
+                        {option.description}
                       </div>
+                    </div>
+
+                    {/* 右侧加号图标 */}
+                    <div className="flex items-center justify-center w-[24px] h-[24px] text-[#606060] group-hover:text-[#CDCDCD] transition-colors duration-200 mr-[8px]">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                      </svg>
                     </div>
                   </div>
                 ))}
@@ -378,15 +449,9 @@ function DeployBotton() {
 }
 
 export default function DeployBottonWrapper() {
-  const { selectedFlowId, workspaces, setWorkspaces } = useFlowsPerUserContext();
+  const { showingItem, workspaces, setWorkspaces } = useWorkspaces();
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
-  return (
-    <DeployPanelProvider 
-      flowId={selectedFlowId} 
-      workspaces={workspaces}
-      setWorkspaces={setWorkspaces}
-    >
-      <DeployBotton />
-    </DeployPanelProvider>
-  );
+  // 不再需要 DeployPanelProvider，直接返回组件
+  return <DeployBotton />;
 }

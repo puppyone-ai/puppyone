@@ -312,22 +312,27 @@
 /* 根据节点尺寸区分 Block Node 和 Edge Node */
 
 
-/* Block Node 的选中样式 */
-.react-flow__node.selected .block-node {
-  border-color: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5),  /* 外发光 */
-             0 0 20px rgba(255, 255, 255, 0.3),  /* 中发光 */
-             0 0 30px rgba(255, 255, 255, 0.1);  /* 内发光 */
-}
+  /* Text Block Node 的选中样式 */
+  .react-flow__node.selected .text-block-node {
+    border-color: #4599DF;  /* main-blue 主题色 */
+    border-radius: 16px;
+  }
 
+  /* Json Block Node 的选中样式 */
+  .react-flow__node.selected .json-block-node {
+    border-color: #9B7EDB;  /* 紫色主题色 */
+    border-radius: 16px;
+  }
+
+  /* File Block Node 的选中样式 */
+  .react-flow__node.selected .file-block-node {
+    border-color: #BF9A78;  /* 棕色主题色 */
+    border-radius: 16px;
+  }
 /* Edge Node 的选中样式 */
 .react-flow__node.selected .edge-node {
-  border-color: #ffffff;
+  border-color: #FFA73D;  /* main-orange 主题色 */
   border-radius: 8px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5),  /* 外发光 */
-             0 0 20px rgba(255, 255, 255, 0.3),  /* 中发光 */
-             0 0 30px rgba(255, 255, 255, 0.1);  /* 内发光 */
 }
 
 /* 定义流动动画 */
@@ -404,7 +409,7 @@
 
   /* 自定义行号背景色 */
 .ace-github-dark .ace_gutter {
-  background: #1C1D1F; /* 设置为和编辑器背景一样的颜色 */
+  background-color: #1C1D1F; /* 设置为和编辑器背景一样的颜色 */
   color: #FFFFFF; /* 设置行号的颜色 */
 }
 
@@ -573,7 +578,7 @@
 .json-form .monaco-editor-background,
 .json-form .monaco-editor .margin-view-overlays,
 .json-form .monaco-editor .margin-view-overlays .line-numbers {
-  background-color: #1C1D1F !important;
+  background-color: transparent !important;
   border: none !important;
   outline: none !important;
 }
@@ -600,7 +605,7 @@
 .text-editor .monaco-editor,
 .text-editor .monaco-editor .margin,
 .text-editor .monaco-editor-background {
-  background-color: #252525 !important; /* 你可以设置任何颜色 */
+  background-color: transparent !important;
   border: none !important;
   outline: none !important;
 }
@@ -1016,4 +1021,46 @@
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
+}
+
+/* React Grid Layout drag shadow customization */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(96, 165, 250, 0.15) !important;
+  border: 2px dashed #60A5FA !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 25px rgba(96, 165, 250, 0.25), 
+              0 4px 15px rgba(96, 165, 250, 0.15) !important;
+}
+
+.react-grid-item.react-dragging {
+  box-shadow: 0 12px 30px rgba(96, 165, 250, 0.3), 
+              0 6px 20px rgba(96, 165, 250, 0.2), 
+              0 0 0 1px rgba(96, 165, 250, 0.4) !important;
+  transform: scale(1.02) !important;
+  transition: all 0.2s ease !important;
+}
+
+.react-grid-item.react-resizing {
+  box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3), 
+              0 4px 15px rgba(107, 114, 128, 0.2) !important;
+}
+
+/* Hide the default react-grid-layout resize handle */
+.react-grid-item > .react-resizable-handle::before {
+  display: none !important;
+}
+
+.react-grid-item > .react-resizable-handle::after {
+  display: none !important;
+}
+
+/* Alternative approach - hide the entire default handle background */
+.react-grid-item > .react-resizable-handle {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Hide any default resize handle content */
+.react-grid-item > .react-resizable-handle:not(.custom-resize-handle) {
+  background-image: none !important;
 }
