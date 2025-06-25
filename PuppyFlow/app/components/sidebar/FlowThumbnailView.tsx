@@ -1,5 +1,5 @@
 import React, { useState, Fragment } from 'react'
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext'
+import { useWorkspaces } from '../states/UserWorkspacesContext'
 import { Transition } from '@headlessui/react'
 
 type FlowThumbnailViewProps = {
@@ -7,8 +7,11 @@ type FlowThumbnailViewProps = {
 }
 
 function FlowThumbnailView({showFlowMenu}: FlowThumbnailViewProps) {
-  const {workspaces, handleFlowSwitch, selectedFlowId} = useFlowsPerUserContext()
+  const { workspaces, setShowingWorkspace, showingItem } = useWorkspaces()
   const [hoveredFlowId, setHoveredFlowId] = useState<string | null>(null);
+
+  // 获取当前选中的工作区 ID
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
 
   return (
     <Transition
@@ -23,29 +26,29 @@ function FlowThumbnailView({showFlowMenu}: FlowThumbnailViewProps) {
     >
       <ul className="min-w-[128px] w-fit bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col absolute top-[110px] left-[60px] z-[2000000000]">
         {workspaces.map((workspace, index) => (
-          <React.Fragment key={workspace.flowId}>
+          <React.Fragment key={workspace.workspace_id}>
             <li 
                 className={`w-full rounded-[4px] ${
-                  workspace.flowId === selectedFlowId 
+                  workspace.workspace_id === selectedFlowId 
                     ? 'bg-[#3E3E41]' 
-                    : hoveredFlowId === workspace.flowId 
+                    : hoveredFlowId === workspace.workspace_id 
                       ? 'bg-[#3E3E41]' 
                       : ''
                 }`}
-                onMouseEnter={() => setHoveredFlowId(workspace.flowId)}
+                onMouseEnter={() => setHoveredFlowId(workspace.workspace_id)}
                 onMouseLeave={() => setHoveredFlowId(null)}
             >
                 <button 
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        if (workspace.flowId !== selectedFlowId) {
-                            handleFlowSwitch(workspace.flowId);
+                        if (workspace.workspace_id !== selectedFlowId) {
+                            setShowingWorkspace(workspace.workspace_id);
                         }
                     }}
                     className="px-[8px] rounded-[4px] bg-inherit w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-medium tracking-[0.5px] cursor-pointer whitespace-nowrap"
                 >
-                    {workspace.flowTitle}
+                    {workspace.workspace_name}
                 </button>
             </li>
             {index < workspaces.length - 1 && (

@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import ChatbotTestInterface from './ChatbotTestInterface';
-import { useDeployPanelContext } from '@/app/components/states/DeployPanelContext';
-import { useAddNewChatbotServer } from './hook/useAddNewChatbotServer';
+import { useWorkspaceDeployedServices, useServers } from '@/app/components/states/UserServersContext';
+import { useServerOperations } from '@/app/components/hooks/useServerManagement';
+import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
+import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
+import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
 import { SYSTEM_URLS } from '@/config/urls';
 
 interface DeployAsChatbotProps {
@@ -16,15 +19,17 @@ function DeployAsChatbot({
 }: DeployAsChatbotProps) {
   const { getNodes, getEdges } = useReactFlow();
 
-  // 从简化的 context 获取必要信息
-  const {
-    deployedServices
-  } = useDeployPanelContext();
+  // 使用新的 context 和 hooks
+  const { chatbots: deployedChatbots, isLoading: servicesLoading } = useWorkspaceDeployedServices(selectedFlowId || '');
+  const { addChatbotService, removeChatbotService } = useServers();
+  const { configChatbotService } = useServerOperations();
+  const { workspaces } = useWorkspaces();
+  
+  // 构建器 hooks
+  const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
+  const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
-  // 使用部署 hook
-  const { isDeploying, deployError, deployNewChatbot } = useAddNewChatbotServer();
-
-  // 简化的本地状态管理
+  // 本地状态管理
   const [selectedInputs, setSelectedInputs] = useState<{ id: string, label: string }[]>([]);
   const [selectedOutputs, setSelectedOutputs] = useState<{ id: string, label: string }[]>([]);
   const [selectedChatHistory, setSelectedChatHistory] = useState<{ id: string, label: string }[]>([]);
@@ -35,9 +40,13 @@ function DeployAsChatbot({
   const [activeTab, setActiveTab] = useState<'details' | 'bubble' | null>(null);
   const [showChatbotTest, setShowChatbotTest] = useState<boolean>(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  
+  // 部署状态
+  const [isDeploying, setIsDeploying] = useState<boolean>(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
 
   // 获取当前已部署的聊天机器人
-  const currentChatbot = deployedServices.chatbots.find(chatbot => chatbot.workspace_id === selectedFlowId);
+  const currentChatbot = deployedChatbots.find(chatbot => chatbot.workspace_id === selectedFlowId);
   const isDeployed = currentChatbot !== null;
 
   // 统一管理 API Server URL
@@ -96,7 +105,64 @@ function DeployAsChatbot({
     }
   }, [selectedFlowId, initializeNodeSelections]);
 
-  // 简化的部署处理逻辑
+  // 构建工作流 JSON 的函数
+  const constructWorkflowJson = () => {
+    const allNodes = getNodes();
+    const reactFlowEdges = getEdges();
+    
+    // 创建blocks对象
+    let blocks: { [key: string]: any } = {};
+    let edges: { [key: string]: any } = {};
+    
+    // 定义哪些节点类型属于 block 节点
+    const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
+    
+    // 处理所有节点
+    allNodes.forEach(node => {
+      const nodeId = node.id;
+      // 确保 nodeLabel 是字符串类型
+      const nodeLabel = node.data?.label || nodeId;
+      
+      // 根据节点类型决定如何构建JSON
+      if (blockNodeTypes.includes(node.type || '')) {
+        try {
+          // 使用区块节点构建函数
+          const blockJson = buildBlockNodeJson(nodeId);
+          
+          // 确保节点标签正确
+          blocks[nodeId] = {
+            ...blockJson,
+            label: String(nodeLabel) // 确保 label 是字符串
+          };
+        } catch (e) {
+          console.warn(`无法使用blockNodeBuilder构建节点 ${nodeId}:`, e);
+          
+          // 回退到默认行为
+          blocks[nodeId] = {
+            label: String(nodeLabel), // 确保 label 是字符串
+            type: node.type || '',
+            data: {...node.data} // 确保复制数据而不是引用
+          };
+        }
+      } else {
+        // 非 block 节点 (edge节点)
+        try {
+          // 构建边的JSON并添加到edges对象中
+          const edgeJson = buildEdgeNodeJson(nodeId);
+          edges[nodeId] = edgeJson;
+        } catch (e) {
+          console.warn(`无法构建边节点 ${nodeId} 的JSON:`, e);
+        }
+      }
+    });
+    
+    return {
+      blocks,
+      edges
+    };
+  };
+
+  // 修改后的部署处理逻辑
   const handleDeploy = async () => {
     if (!selectedFlowId) {
       console.error("缺少必要的部署参数");
@@ -108,23 +174,63 @@ function DeployAsChatbot({
       return;
     }
 
-    // 直接传递参数，不需要预构建 workflow_json
-    const params = {
-      input: selectedInputs[0].id,
-      output: selectedOutputs[0].id,
-      history: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
-      workspace_id: selectedFlowId,
-      multi_turn_enabled: chatbotConfig.multiTurn,
-      welcome_message: chatbotConfig.welcomeMessage,
-      integrations: {}
-    };
+    setIsDeploying(true);
+    setDeployError(null);
 
-    const success = await deployNewChatbot(params);
-    
-    if (success) {
-      console.log('聊天机器人部署成功');
-    } else {
-      console.error('聊天机器人部署失败:', deployError);
+    try {
+      // 构建工作流 JSON
+      const workflow_json = constructWorkflowJson();
+      
+      // 构建部署参数
+      const configParams = {
+        workflow_json,
+        input: selectedInputs[0].id,
+        output: selectedOutputs[0].id,
+        history: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+        workspace_id: selectedFlowId,
+        multi_turn_enabled: chatbotConfig.multiTurn,
+        welcome_message: chatbotConfig.welcomeMessage,
+        integrations: {}
+      };
+
+      // 使用 hook 中的方法调用 API
+      const { chatbot_id, chatbot_key, endpoint } = await configChatbotService(configParams);
+
+      // 获取工作区名称
+      const workspace = workspaces.find(w => w.workspace_id === selectedFlowId);
+      const workspaceName = workspace?.workspace_name || 'Unknown Workspace';
+
+      // 检查是否已有部署的聊天机器人（重新部署的情况）
+      if (currentChatbot) {
+        removeChatbotService(currentChatbot.chatbot_id);
+      }
+
+      // 添加新的聊天机器人服务到 context
+      addChatbotService({
+        chatbot_id: chatbot_id,
+        chatbot_key: chatbot_key,
+        endpoint: endpoint || `${API_SERVER_URL}/api/${chatbot_id}`,
+        created_at: new Date().toISOString(),
+        workspace_id: selectedFlowId,
+        input: selectedInputs[0].id,
+        output: selectedOutputs[0].id,
+        history: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+        multi_turn_enabled: chatbotConfig.multiTurn,
+        welcome_message: chatbotConfig.welcomeMessage,
+        config: {
+          multiTurn: chatbotConfig.multiTurn,
+          welcomeMessage: chatbotConfig.welcomeMessage,
+          deployTo: 'chatbot'
+        }
+      }, workspaceName);
+
+      console.log('Chatbot 部署成功，Chatbot Key 已存储到 context:', chatbot_key);
+
+    } catch (error) {
+      console.error("部署失败:", error);
+      setDeployError(error instanceof Error ? error.message : "部署失败");
+    } finally {
+      setIsDeploying(false);
     }
   };
 

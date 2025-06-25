@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useDashboardContext } from './states/DashBoardContext';
-import { useFlowsPerUserContext } from '../states/FlowsPerUserContext';
 import { SYSTEM_URLS } from '@/config/urls';
-import { useAllDeployedServices } from '../states/GlobalDeployedServicesContext';
+import { useAllDeployedServices } from '../states/UserServersContext';
 
 // 定义服务类型
 interface DeployedService {
@@ -37,7 +36,7 @@ interface ChatbotInfo {
 }
 
 const DeployedServers: React.FC = () => {
-  const { apis, chatbots, isLoading, error } = useAllDeployedServices();
+  const { apis, chatbots, isLoading } = useAllDeployedServices();
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   // 转换数据格式
