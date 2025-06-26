@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useServers } from '../states/UserServersContext';
 import ChatbotServiceDisplay from './ChatbotServiceDisplay';
 import ApiServiceDisplay from './ApiServiceDisplay';
 import axios from 'axios';
+import { Layout } from 'react-grid-layout';
 
 // 定义聊天消息的类型
 interface ChatMessage {
@@ -17,6 +18,19 @@ interface ChatHistory {
   messages: ChatMessage[];
 }
 
+// API服务状态接口
+interface ApiServiceState {
+  layouts: { [key: string]: Layout[] };
+  inputValues: Record<string, any>;
+  output: any;
+  isExecuting: boolean;
+  error: string | null;
+  executionTime: number | null;
+  isConfigExpanded: boolean;
+  isResizing: boolean;
+  isDragging: boolean;
+}
+
 const ServerDisplay: React.FC = () => {
   const { 
     currentServiceJson, 
@@ -26,6 +40,116 @@ const ServerDisplay: React.FC = () => {
 
   // 聊天历史状态容器，使用 chatbot_id 作为 key
   const [chatHistories, setChatHistories] = useState<Record<string, ChatHistory>>({});
+
+  // API服务状态容器，使用 api_id 作为 key
+  const [apiServiceStates, setApiServiceStates] = useState<Record<string, ApiServiceState>>({});
+
+  // 获取当前API服务的状态
+  const getCurrentApiServiceState = useCallback((apiId: string): ApiServiceState => {
+    const existingState = apiServiceStates[apiId];
+    if (existingState) {
+      return existingState;
+    }
+
+    // 如果没有现有状态，创建默认状态
+    const defaultState: ApiServiceState = {
+      layouts: {},
+      inputValues: {},
+      output: null,
+      isExecuting: false,
+      error: null,
+      executionTime: null,
+      isConfigExpanded: false,
+      isResizing: false,
+      isDragging: false
+    };
+
+    return defaultState;
+  }, [apiServiceStates]);
+
+  // 更新API服务状态
+  const updateApiServiceState = useCallback((apiId: string, updates: Partial<ApiServiceState>) => {
+    setApiServiceStates(prev => ({
+      ...prev,
+      [apiId]: {
+        ...getCurrentApiServiceState(apiId),
+        ...updates
+      }
+    }));
+  }, [getCurrentApiServiceState]);
+
+  // 生成布局的函数
+  const generateLayout = useCallback((service: any) => {
+    const inputParams = service.inputs ? Object.keys(service.inputs) : [];
+    const outputParams = service.outputs ? Object.keys(service.outputs) : [];
+    
+    // 为不同断点生成布局
+    const generateLayoutForBreakpoint = (cols: number) => {
+      const layout: Layout[] = [];
+      
+      // 输入参数 - 第一列，所有元素都是3x2
+      inputParams.forEach((paramKey: string, index: number) => {
+        layout.push({
+          i: `input-${paramKey}`,
+          x: 0,
+          y: index * 3,
+          w: 3,
+          h: 2,
+          minW: 3,
+          minH: 2
+        });
+      });
+
+      // Execute 按钮 - 第二列，3x2
+      layout.push({
+        i: 'execute',
+        x: 4,
+        y: 0,
+        w: 2,
+        h: 2,
+        minW: 2,
+        minH: 2
+      });
+
+      // 输出参数 - 第三列，所有元素都是3x2
+      outputParams.forEach((paramKey: string, index: number) => {
+        layout.push({
+          i: `output-${paramKey}`,
+          x: 8,
+          y: index * 3,
+          w: 3,
+          h: 2,
+          minW: 3,
+          minH: 2
+        });
+      });
+
+      return layout;
+    };
+
+    return {
+      lg: generateLayoutForBreakpoint(12),
+      md: generateLayoutForBreakpoint(10),
+      sm: generateLayoutForBreakpoint(6),
+      xs: generateLayoutForBreakpoint(4),
+      xxs: generateLayoutForBreakpoint(2)
+    };
+  }, []);
+
+  // 计算当前API服务的布局
+  const currentApiLayouts = useMemo(() => {
+    if (currentServiceJson?.type === 'api' && currentServiceJson.api_id) {
+      const apiId = currentServiceJson.api_id;
+      const currentApiState = getCurrentApiServiceState(apiId);
+      
+      // 如果布局为空，生成初始布局
+      if (Object.keys(currentApiState.layouts).length === 0) {
+        return generateLayout(currentServiceJson);
+      }
+      return currentApiState.layouts;
+    }
+    return {};
+  }, [currentServiceJson, getCurrentApiServiceState, generateLayout]);
 
   // 获取当前聊天机器人的聊天历史
   const getCurrentChatHistory = (): ChatHistory => {
@@ -166,13 +290,76 @@ const ServerDisplay: React.FC = () => {
 
   // 根据服务类型渲染不同的内容
   if (currentServiceJson.type === 'api') {
-    // console.log('🔍 ServerDisplay - 传递给 ApiServiceDisplay 的 service:', currentServiceJson);
-    // console.log('🔍 ServerDisplay - API service workflow_json:', currentServiceJson.workflow_json);
-    return <ApiServiceDisplay service={currentServiceJson} />;
-  } else if (currentServiceJson.type === 'chatbot') {
-    // console.log('🔍 ServerDisplay - 传递给 ChatbotServiceDisplay 的 service:', currentServiceJson);
-    // console.log('🔍 ServerDisplay - Chatbot service workflow_json:', currentServiceJson.workflow_json);
+    const apiId = currentServiceJson.api_id;
+    const currentApiState = getCurrentApiServiceState(apiId);
     
+    // API服务状态更新回调函数
+    const onLayoutChange = (newLayouts: { [key: string]: Layout[] }) => {
+      updateApiServiceState(apiId, { layouts: newLayouts });
+    };
+
+    const onInputChange = (key: string, value: any, type: string) => {
+      const newValue = type === 'number' ? (value === '' ? '' : Number(value)) : value;
+      updateApiServiceState(apiId, {
+        inputValues: {
+          ...currentApiState.inputValues,
+          [key]: newValue
+        }
+      });
+    };
+
+    const onOutputChange = (newOutput: any) => {
+      updateApiServiceState(apiId, { output: newOutput });
+    };
+
+    const onExecutingChange = (isExecuting: boolean) => {
+      updateApiServiceState(apiId, { isExecuting });
+    };
+
+    const onErrorChange = (error: string | null) => {
+      updateApiServiceState(apiId, { error });
+    };
+
+    const onExecutionTimeChange = (executionTime: number | null) => {
+      updateApiServiceState(apiId, { executionTime });
+    };
+
+    const onConfigExpandedChange = (isConfigExpanded: boolean) => {
+      updateApiServiceState(apiId, { isConfigExpanded });
+    };
+
+    const onResizingChange = (isResizing: boolean) => {
+      updateApiServiceState(apiId, { isResizing });
+    };
+
+    const onDraggingChange = (isDragging: boolean) => {
+      updateApiServiceState(apiId, { isDragging });
+    };
+
+    return (
+      <ApiServiceDisplay 
+        service={currentServiceJson}
+        layouts={currentApiLayouts}
+        inputValues={currentApiState.inputValues}
+        output={currentApiState.output}
+        isExecuting={currentApiState.isExecuting}
+        error={currentApiState.error}
+        executionTime={currentApiState.executionTime}
+        isConfigExpanded={currentApiState.isConfigExpanded}
+        isResizing={currentApiState.isResizing}
+        isDragging={currentApiState.isDragging}
+        onLayoutChange={onLayoutChange}
+        onInputChange={onInputChange}
+        onOutputChange={onOutputChange}
+        onExecutingChange={onExecutingChange}
+        onErrorChange={onErrorChange}
+        onExecutionTimeChange={onExecutionTimeChange}
+        onConfigExpandedChange={onConfigExpandedChange}
+        onResizingChange={onResizingChange}
+        onDraggingChange={onDraggingChange}
+      />
+    );
+  } else if (currentServiceJson.type === 'chatbot') {
     // 获取当前聊天机器人的聊天历史
     const currentChatHistory = getCurrentChatHistory();
     
