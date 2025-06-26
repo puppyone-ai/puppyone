@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
 import { SYSTEM_URLS } from '@/config/urls';
 import axios from 'axios';
@@ -11,84 +11,52 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 
 interface ApiServiceDisplayProps {
   service: any;
+  layouts: { [key: string]: Layout[] };
+  inputValues: Record<string, any>;
+  output: any;
+  isExecuting: boolean;
+  error: string | null;
+  executionTime: number | null;
+  isConfigExpanded: boolean;
+  isResizing: boolean;
+  isDragging: boolean;
+  onLayoutChange: (layouts: { [key: string]: Layout[] }) => void;
+  onInputChange: (key: string, value: any, type: string) => void;
+  onOutputChange: (output: any) => void;
+  onExecutingChange: (isExecuting: boolean) => void;
+  onErrorChange: (error: string | null) => void;
+  onExecutionTimeChange: (executionTime: number | null) => void;
+  onConfigExpandedChange: (isConfigExpanded: boolean) => void;
+  onResizingChange: (isResizing: boolean) => void;
+  onDraggingChange: (isDragging: boolean) => void;
 }
 
-const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service }) => {
+const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ 
+  service,
+  layouts,
+  inputValues,
+  output,
+  isExecuting,
+  error,
+  executionTime,
+  isConfigExpanded,
+  isResizing,
+  isDragging,
+  onLayoutChange,
+  onInputChange,
+  onOutputChange,
+  onExecutingChange,
+  onErrorChange,
+  onExecutionTimeChange,
+  onConfigExpandedChange,
+  onResizingChange,
+  onDraggingChange
+}) => {
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
   const endpoint = `${API_SERVER_URL}/api/${service.api_id}`;
   
   // 🔍 添加详细的调试信息 - 查看 service 对象的完整结构
   console.log('🔍 ApiServiceDisplay - 接收到的 service 对象:', service);
-
-  // State for input values, output, and execution status
-  const [inputValues, setInputValues] = useState<Record<string, any>>({});
-  const [output, setOutput] = useState<any>(null);
-  const [isExecuting, setIsExecuting] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [executionTime, setExecutionTime] = useState<number | null>(null);
-  const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(false);
-  const [isResizing, setIsResizing] = useState<boolean>(false);
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-
-  // 动态生成布局，每个 input parameter 都是一个独立的 block
-  const generateLayout = () => {
-    const inputParams = service.inputs ? Object.keys(service.inputs) : [];
-    const outputParams = service.outputs ? Object.keys(service.outputs) : [];
-    
-    // 为不同断点生成布局
-    const generateLayoutForBreakpoint = (cols: number) => {
-      const layout: Layout[] = [];
-      
-      // 输入参数 - 第一列，所有元素都是3x2
-      inputParams.forEach((paramKey, index) => {
-        layout.push({
-          i: `input-${paramKey}`,
-          x: 0,
-          y: index * 3, // 调整间距以适应2的高度，增加间距
-          w: 3,
-          h: 2,
-          minW: 3,
-          minH: 2
-        });
-      });
-
-      // Execute 按钮 - 第二列，3x2
-      layout.push({
-        i: 'execute',
-        x: 4,
-        y: 0,
-        w: 2,
-        h: 2,
-        minW: 2,
-        minH: 2
-      });
-
-      // 输出参数 - 第三列，所有元素都是3x2
-      outputParams.forEach((paramKey, index) => {
-        layout.push({
-          i: `output-${paramKey}`,
-          x: 8,
-          y: index * 3, // 调整间距以适应2的高度，增加间距
-          w: 3,
-          h: 2,
-          minW: 3,
-          minH: 2
-        });
-      });
-
-      return layout;
-    };
-
-    return {
-      lg: generateLayoutForBreakpoint(12),
-      md: generateLayoutForBreakpoint(10),
-      sm: generateLayoutForBreakpoint(6),
-      xs: generateLayoutForBreakpoint(4),
-      xxs: generateLayoutForBreakpoint(2)
-    };
-  };
-
-  const [layouts, setLayouts] = useState<{ [key: string]: Layout[] }>(generateLayout());
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -99,19 +67,11 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
     }
   };
 
-  // Handle input value changes
-  const handleInputChange = (key: string, value: any, type: string) => {
-    setInputValues(prev => ({
-      ...prev,
-      [key]: type === 'number' ? (value === '' ? '' : Number(value)) : value
-    }));
-  };
-
   // Execute the API workflow
   const executeWorkflow = async () => {
-    setIsExecuting(true);
-    setError(null);
-    setOutput(null);
+    onExecutingChange(true);
+    onErrorChange(null);
+    onOutputChange(null);
     
     const startTime = Date.now();
     
@@ -134,21 +94,21 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
       });
       
       const endTime = Date.now();
-      setExecutionTime(endTime - startTime);
-      setOutput(response.data);
+      onExecutionTimeChange(endTime - startTime);
+      onOutputChange(response.data);
     } catch (err: any) {
       const endTime = Date.now();
-      setExecutionTime(endTime - startTime);
+      onExecutionTimeChange(endTime - startTime);
       
       if (err.response) {
-        setError(`API Error (${err.response.status}): ${err.response.data?.message || err.response.data || 'Unknown error'}`);
+        onErrorChange(`API Error (${err.response.status}): ${err.response.data?.message || err.response.data || 'Unknown error'}`);
       } else if (err.request) {
-        setError('Network Error: Unable to reach the API server');
+        onErrorChange('Network Error: Unable to reach the API server');
       } else {
-        setError(`Error: ${err.message}`);
+        onErrorChange(`Error: ${err.message}`);
       }
     } finally {
-      setIsExecuting(false);
+      onExecutingChange(false);
     }
   };
 
@@ -188,7 +148,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
             <div className="p-4 h-full flex flex-col">
               <TextEditor
                 value={value}
-                onChange={(newValue) => handleInputChange(key, newValue, 'string')}
+                onChange={(newValue) => onInputChange(key, newValue, 'string')}
                 placeholder={blockInfo.data?.content || `Enter ${blockInfo.label}...`}
                 preventParentDrag={() => {}}
                 allowParentDrag={() => {}}
@@ -210,7 +170,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
               <input
                 type="number"
                 value={value}
-                onChange={(e) => handleInputChange(key, e.target.value, 'number')}
+                onChange={(e) => onInputChange(key, e.target.value, 'number')}
                 className="w-full flex-1 bg-transparent border-none text-[#CDCDCD] text-sm focus:outline-none placeholder:text-[#666666] placeholder:italic font-plus-jakarta-sans"
                 placeholder={`Enter ${blockInfo.label}...`}
               />
@@ -244,10 +204,10 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                     try {
                       // 尝试解析 JSON，如果成功则存储为对象，否则存储为字符串
                       const parsedValue = JSON.parse(newValue);
-                      handleInputChange(key, parsedValue, 'object');
+                      onInputChange(key, parsedValue, 'object');
                     } catch {
                       // JSON 解析失败，存储为字符串
-                      handleInputChange(key, newValue, 'string');
+                      onInputChange(key, newValue, 'string');
                     }
                   }}
                   placeholder={`Enter JSON data for ${blockInfo.label}...`}
@@ -271,7 +231,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
             <div className="p-4 h-full flex flex-col justify-center">
               <select
                 value={value.toString()}
-                onChange={(e) => handleInputChange(key, e.target.value === 'true', 'boolean')}
+                onChange={(e) => onInputChange(key, e.target.value === 'true', 'boolean')}
                 className="w-full bg-transparent border-none text-[#CDCDCD] text-sm focus:outline-none font-plus-jakarta-sans"
               >
                 <option value="" className="bg-[#1C1D1F] text-[#666666]">Select...</option>
@@ -297,7 +257,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
               </div>
               <textarea
                 value={typeof value === 'object' ? JSON.stringify(value, null, 2) : value}
-                onChange={(e) => handleInputChange(key, e.target.value, 'string')}
+                onChange={(e) => onInputChange(key, e.target.value, 'string')}
                 className="w-full flex-1 bg-transparent border-none text-[#CDCDCD] text-sm focus:outline-none resize-none placeholder:text-[#666666] placeholder:italic font-plus-jakarta-sans"
                 placeholder={`Enter ${blockInfo.label}...`}
               />
@@ -516,24 +476,24 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
     </>
   );
 
-  const onLayoutChange = (layout: Layout[], layouts: { [key: string]: Layout[] }) => {
-    setLayouts(layouts);
+  const handleLayoutChange = (layout: Layout[], allLayouts: { [key: string]: Layout[] }) => {
+    onLayoutChange(allLayouts);
   };
 
   const onResizeStart = () => {
-    setIsResizing(true);
+    onResizingChange(true);
   };
 
   const onResizeStop = () => {
-    setIsResizing(false);
+    onResizingChange(false);
   };
 
   const onDragStart = () => {
-    setIsDragging(true);
+    onDraggingChange(true);
   };
 
   const onDragStop = () => {
-    setIsDragging(false);
+    onDraggingChange(false);
   };
 
   const CustomResizeHandle = React.forwardRef<HTMLDivElement>((props, ref) => {
@@ -602,7 +562,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
                   <div className="relative">
                     <div className="bg-[#1A1A1A] rounded-full border border-[#333] flex-shrink-0">
                       <button
-                        onClick={() => setIsConfigExpanded(!isConfigExpanded)}
+                        onClick={() => onConfigExpandedChange(!isConfigExpanded)}
                         className="w-10 h-10 flex items-center justify-center text-left hover:bg-[#222] transition-colors rounded-full"
                       >
                         <svg 
@@ -631,7 +591,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({ service 
             <ResponsiveGridLayout
               className="layout"
               layouts={layouts}
-              onLayoutChange={onLayoutChange}
+              onLayoutChange={handleLayoutChange}
               onResizeStart={onResizeStart}
               onResizeStop={onResizeStop}
               onDragStart={onDragStart}
