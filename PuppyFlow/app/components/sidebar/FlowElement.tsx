@@ -77,9 +77,7 @@ function FlowElement({ FlowId, FlowName, isDirty = false, handleOperationMenuSho
       onClick={(e) => {
         e.preventDefault()
         e.stopPropagation()
-        if (FlowId !== selectedFlowId) {
-          handleFlowSwitch(FlowId)
-        }
+        handleFlowSwitch(FlowId) 
       }}>
       <div className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
       ${isSelected ? 'text-white' : 'text-[#CDCDCD]'}
