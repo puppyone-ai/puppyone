@@ -81,7 +81,9 @@ function SaveButton() {
 
   return (
     <div className="relative flex flex-col items-center">
-      <button className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[36px] rounded-[8px] bg-[#252525] border-[1px] hover:bg-[#3E3E41] transition-colors ${
+      <button 
+        data-attr="workspace-save-button"
+        className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[36px] rounded-[8px] bg-[#252525] border-[1px] hover:bg-[#3E3E41] transition-colors ${
         saveState === "idle" 
           ? "border-[#3E3E41]" 
           : saveState === "success" 

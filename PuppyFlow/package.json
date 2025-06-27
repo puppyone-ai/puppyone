@@ -55,6 +55,8 @@
     "next": "^14.2.5",
     "nookies": "^2.5.2",
     "npm": "^11.4.2",
+    "posthog-js": "^1.255.1",
+    "posthog-node": "^5.1.1",
     "puppychat": "^1.0.8",
     "react": "^18",
     "react-ace": "^12.0.0",
