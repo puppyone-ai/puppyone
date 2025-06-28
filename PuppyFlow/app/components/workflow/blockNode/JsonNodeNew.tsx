@@ -4,18 +4,23 @@ import React, { useRef, useEffect, useState, ReactElement, Fragment, useCallback
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
-import JSONForm from '../../tableComponent/JSONForm'
+// 更新导入 - 使用新的 TreeJSONForm
+import TreeJSONForm from '../../tableComponent/TreeJSONForm'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
 import { useWorkspaces } from "../../states/UserWorkspacesContext"
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
+import RichJSONForm from '../../tableComponent/RichJSONForm/RichJSONForm'
+import JSONForm from '../../tableComponent/JSONForm'
+
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu'
 import useIndexingUtils from './hooks/useIndexingUtils'
 import NodeSettingsController from './JsonNodeTopSettingBar/NodeSettingsButton'
 import NodeIndexingButton from './JsonNodeTopSettingBar/NodeIndexingButton'
 import NodeLoopButton from './JsonNodeTopSettingBar/NodeLoopButton'
+import NodeViewToggleButton from './JsonNodeTopSettingBar/NodeViewToggleButton'
 
 type methodNames = "cosine"
 type modelNames = "text-embedding-ada-002"
@@ -151,14 +156,14 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // 管理labelContainer的宽度
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (!labelContainerRef.current?.contains(e.target as HTMLElement) && 
-          !(e.target as HTMLElement).classList.contains("renameButton")) {
+      if (!labelContainerRef.current?.contains(e.target as HTMLElement) &&
+        !(e.target as HTMLElement).classList.contains("renameButton")) {
         setNodeUneditable(id)
       }
     }
 
     document.addEventListener("click", handleClickOutside)
-    
+
     return () => {
       document.removeEventListener("click", handleClickOutside)
     }
@@ -207,7 +212,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const updateNodeContent = useCallback((newValue: string) => {
     setNodes(prevNodes => (prevNodes.map(node => node.id === id ? {
       ...node,
-      data: {...node.data, content: newValue}
+      data: { ...node.data, content: newValue }
     } : node)))
   }, [id, setNodes])
 
@@ -281,60 +286,60 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const onRemoveIndex = async (index: number) => {
     // 获取当前要删除的项
     const itemToRemove = indexingList[index];
-    
+
     // 如果是向量索引类型，先显示"删除中"状态
     if (itemToRemove && itemToRemove.type === 'vector') {
       // 创建带有"删除中"状态的索引列表副本
       const updatedList = [...indexingList];
       (updatedList[index] as VectorIndexingItem).status = 'deleting';
-      
+
       // 立即更新UI显示删除中状态
       setNodes(nodes => nodes.map(node =>
-        node.id === id ? { 
-          ...node, 
-          data: { 
-            ...node.data, 
-            indexingList: updatedList 
-          } 
+        node.id === id ? {
+          ...node,
+          data: {
+            ...node.data,
+            indexingList: updatedList
+          }
         } : node
       ));
     }
-    
+
     try {
       // 调用删除函数，添加setVectorIndexingStatus参数
       const { success, newList } = await handleRemoveIndex(
-        index, 
+        index,
         indexingList,
         id,
         getUserId,
         setVectorIndexingStatus  // 添加缺少的参数
       );
-      
+
       // 更新节点状态
       setNodes(nodes => nodes.map(node =>
-        node.id === id ? { 
-          ...node, 
-          data: { 
-            ...node.data, 
-            indexingList: newList 
-          } 
+        node.id === id ? {
+          ...node,
+          data: {
+            ...node.data,
+            indexingList: newList
+          }
         } : node
       ));
     } catch (error) {
       console.error("Error removing index:", error);
-      
+
       // 如果是向量索引且发生异常，将状态设为错误并保留该项
       if (itemToRemove && itemToRemove.type === 'vector') {
         const errorList = [...indexingList];
         (errorList[index] as VectorIndexingItem).status = 'error';
-        
+
         setNodes(nodes => nodes.map(node =>
-          node.id === id ? { 
-            ...node, 
-            data: { 
-              ...node.data, 
-              indexingList: errorList 
-            } 
+          node.id === id ? {
+            ...node,
+            data: {
+              ...node.data,
+              indexingList: errorList
+            }
           } : node
         ));
       }
@@ -359,64 +364,64 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           collection_name: ''
         }
       };
-      
+
       // 先将临时项添加到索引列表
       const tempIndexingList = [...indexingList, temporaryItem];
-      
+
       // 立即更新 UI 显示处理中状态
       setNodes(nodes => nodes.map(node =>
-        node.id === id ? { 
-          ...node, 
-          data: { 
-            ...node.data, 
-            indexingList: tempIndexingList 
-          } 
+        node.id === id ? {
+          ...node,
+          data: {
+            ...node.data,
+            indexingList: tempIndexingList
+          }
         } : node
       ));
-      
+
       // 调用 handleAddIndex 处理实际的索引创建
       const finalIndexingList = await handleAddIndex(
-        id, 
-        newItem, 
-        indexingList, 
+        id,
+        newItem,
+        indexingList,
         setVectorIndexingStatus,
         getUserId
       );
-      
+
       // 如果成功获取到更新后的索引列表
       if (finalIndexingList) {
         // 找到新添加的索引项(最后一项)并确保其状态被正确更新为'done'
         const updatedListWithStatus = [...finalIndexingList];
         const lastIndex = updatedListWithStatus.length - 1;
-        
+
         if (lastIndex >= 0 && updatedListWithStatus[lastIndex].type === 'vector') {
           (updatedListWithStatus[lastIndex] as VectorIndexingItem).status = 'done';
         }
-        
+
         setNodes(nodes => nodes.map(node =>
-          node.id === id ? { 
-            ...node, 
-            data: { 
-              ...node.data, 
-              indexingList: updatedListWithStatus 
-            } 
+          node.id === id ? {
+            ...node,
+            data: {
+              ...node.data,
+              indexingList: updatedListWithStatus
+            }
           } : node
         ));
       } else {
         // 如果索引创建失败，更新临时项的状态为错误
         const errorIndexingList = [...tempIndexingList];
         const errorItemIndex = errorIndexingList.length - 1;
-        
+
         if (errorItemIndex >= 0 && errorIndexingList[errorItemIndex].type === 'vector') {
           (errorIndexingList[errorItemIndex] as VectorIndexingItem).status = 'error';
-          
+
           setNodes(nodes => nodes.map(node =>
-            node.id === id ? { 
-              ...node, 
-              data: { 
-                ...node.data, 
-                indexingList: errorIndexingList 
-              } 
+            node.id === id ? {
+              ...node,
+              data: {
+                ...node.data,
+                indexingList: errorIndexingList
+              }
             } : node
           ));
         }
@@ -424,13 +429,13 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     } else {
       // 如果不是向量索引类型，直接处理
       const newIndexingList = await handleAddIndex(
-        id, 
-        newItem, 
-        indexingList, 
+        id,
+        newItem,
+        indexingList,
         setVectorIndexingStatus,
         getUserId
       );
-      
+
       if (newIndexingList) {
         setNodes(nodes => nodes.map(node =>
           node.id === id ? { ...node, data: { ...node.data, indexingList: newIndexingList } } : node
@@ -438,6 +443,9 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       }
     }
   };
+
+  // 添加视图切换状态
+  const [useRichEditor, setUseRichEditor] = useState(false); // 默认使用传统 JSONForm
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
@@ -476,7 +484,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1.5px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node flex flex-col`}>
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node flex flex-col`}>
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}
@@ -535,10 +543,16 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           {/* top-right toolbar */}
           <div className="min-w-[60px] min-h-[24px] z-[100000] flex items-center justify-end gap-[8px]">
             {/* NodeToolBar */}
-            <NodeSettingsController nodeid={id}/>
-            
+            <NodeSettingsController nodeid={id} />
+
+            {/* 使用新的 NodeViewToggleButton 组件 */}
+            <NodeViewToggleButton
+              useRichEditor={useRichEditor}
+              onToggle={() => setUseRichEditor(!useRichEditor)}
+            />
+
             {/* 使用 NodeIndexingButton 组件，传递所需的索引操作函数 */}
-            <NodeIndexingButton 
+            <NodeIndexingButton
               nodeid={id}
               indexingList={indexingList}
               onAddIndex={onAddIndex}
@@ -550,24 +564,37 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           </div>
         </div>
 
-        {/* JSON Editor */}
+        {/* JSON Editor - 根据状态切换不同的编辑器 */}
         {isLoading ? <SkeletonLoadingIcon /> :
-          <div className={`rounded-[8px] ${borderColor} border-[1px] flex-1 min-h-0 overflow-hidden`}
+          <div className={`flex-1 min-h-0 overflow-hidden`}
             style={{
-              border: "1px solid rgba(109, 113, 119, 0.5)",
-              background: "#1C1D1F",
-              boxShadow: "inset 0px 1px 2px rgba(0, 0, 0, 0.2)",
+              background: "transparent",
+              boxShadow: "none",
             }}
           >
-            <JSONForm 
-              preventParentDrag={onFocus} 
-              allowParentDrag={onBlur}
-              placeholder='["JSON"]'
-              value={content || ""}
-              onChange={updateNodeContent}
-              widthStyle={0}  // 0 表示使用 100%
-              heightStyle={0} // 0 表示使用 100%
-            />
+            {useRichEditor ? (
+              <RichJSONForm
+                preventParentDrag={onFocus}
+                allowParentDrag={onBlur}
+                placeholder='Create your JSON structure...'
+                value={content || ""}
+                onChange={updateNodeContent}
+                widthStyle={0}  // 0 表示使用 100%
+                heightStyle={0} // 0 表示使用 100%
+                readonly={locked}
+              />
+            ) : (
+              <JSONForm
+                preventParentDrag={onFocus}
+                allowParentDrag={onBlur}
+                placeholder='{"key": "value"}'
+                value={content || ""}
+                onChange={updateNodeContent}
+                widthStyle={0}  // 0 表示使用 100%
+                heightStyle={0} // 0 表示使用 100%
+                readonly={locked}
+              />
+            )}
           </div>
         }
 
@@ -577,17 +604,16 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           style={{
             position: 'absolute', right: "0px", bottom: "0px", cursor: 'se-resize',
             background: 'transparent',
-            border: 'none',
-            display: isLoading ? "none" : "flex"
+            border: 'none'
           }}
         >
           <div
             style={{
               position: "absolute",
               visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
-              right: "8px",
-              bottom: "8px",
-              display: 'flex',
+              right: "0px",
+              bottom: "0px",
+              display: "flex",
               justifyContent: 'center',
               alignItems: 'center',
               backgroundColor: 'transparent',
