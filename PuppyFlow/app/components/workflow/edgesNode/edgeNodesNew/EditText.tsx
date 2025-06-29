@@ -5,6 +5,7 @@ import InputOutputDisplay from './components/InputOutputDisplay'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { PuppyDropdown } from "../../../misc/PuppyDropDown"
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
+import { UI_COLORS } from '@/app/utils/colors'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -31,6 +32,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
+    const [isHovered, setIsHovered] = useState(false)
 
     // 常量定义
     const RET_ALL = "return all"
@@ -158,7 +160,13 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node`}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors`}
+                style={{
+                    borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
+                    color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY
+                }}
             >
                 Edit <br /> Text
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
@@ -206,7 +214,13 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
 
             {/* Configuration Menu */}
             {isMenuOpen && (
-                <ul ref={menuRef} className="absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
+                <ul 
+                    ref={menuRef} 
+                    className="absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg"
+                    style={{
+                        borderColor: UI_COLORS.EDGENODE_BORDER_GREY
+                    }}
+                >
                     <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                         <div className='flex flex-row gap-[8px] justify-center items-center'>
                             <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>

@@ -6,6 +6,7 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
+import { UI_COLORS } from '@/app/utils/colors'
 
 // 首先定义一个索引项接口 - 移到组件外部
 interface IndexingItem {
@@ -50,6 +51,7 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
+    const [isHovered, setIsHovered] = useState(false)
 
     // 状态管理 - 保留在主组件中
     const [query, setQuery] = useState<{ id: string, label: string }>(
@@ -291,7 +293,13 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button
                 onClick={onClickButton}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node`}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors`}
+                style={{
+                    borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
+                    color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY
+                }}
             >
                 Retrieve
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
@@ -339,7 +347,13 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
 
             {/* Configuration Menu (integrated directly) */}
             {isMenuOpen && (
-                <ul ref={menuRef} className="absolute top-[64px] text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg">
+                <ul 
+                    ref={menuRef} 
+                    className="absolute top-[64px] text-white w-[320px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg"
+                    style={{
+                        borderColor: UI_COLORS.EDGENODE_BORDER_GREY
+                    }}
+                >
                     <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                         <div className='flex flex-row gap-[12px]'>
                             <div className='flex flex-row gap-[8px] justify-center items-center'>
