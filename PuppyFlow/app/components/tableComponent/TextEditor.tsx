@@ -12,6 +12,7 @@ type TextEditorProps = {
     placeholder?: string,
     widthStyle?: number,
     heightStyle?: number,
+    autoHeight?: boolean,
 }
 
 // 为 TextEditor 定义一个透明背景的主题
@@ -39,13 +40,15 @@ const TextEditor = ({
     onChange,
     placeholder = "",
     widthStyle = 0,
-    heightStyle = 0
+    heightStyle = 0,
+    autoHeight = false
 }: TextEditorProps) => {
 
     // const [jsonValue, setJsonValue] = useState("");
         
     const [IsFocused, setIsFocused] = useState(false)
     const [isEmpty, setIsEmpty] = useState(true);
+    const [editorHeight, setEditorHeight] = useState(heightStyle || 32);
     const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null)
     const textEditorRef = useRef<HTMLDivElement>(null)
     // const applyTheme = useMonacoTheme(TEXT_EDITOR_THEME, textEditorThemeData)
@@ -64,6 +67,25 @@ const TextEditor = ({
       defineTheme();
     }, []);
 
+    // 自动调整高度的函数
+    const updateEditorHeight = () => {
+      if (autoHeight && editorRef.current) {
+        const editor = editorRef.current;
+        const contentHeight = editor.getContentHeight();
+        const minHeight = 24;
+        const maxHeight = 600; // 设置最大高度避免过高
+        const newHeight = Math.min(Math.max(contentHeight, minHeight), maxHeight);
+        
+        if (newHeight !== editorHeight) {
+          setEditorHeight(newHeight);
+          // 需要在下一个 tick 中调整布局
+          setTimeout(() => {
+            editor.layout();
+          }, 0);
+        }
+      }
+    };
+
     const handleChange: OnChange = (newValue: string | undefined) => {
       const isValueEmpty = !newValue || newValue.trim().length === 0;
       setIsEmpty(isValueEmpty);
@@ -76,6 +98,11 @@ const TextEditor = ({
         } else {
           editorElement.classList.remove('hideLineNumbers');
         }
+      }
+
+      // 自动调整高度
+      if (autoHeight) {
+        setTimeout(updateEditorHeight, 0);
       }
     };
 
@@ -108,6 +135,13 @@ const TextEditor = ({
           textEditorRef.current.classList.add('text-editor');
         }
 
+        // 如果启用自动高度，监听内容变化
+        if (autoHeight) {
+          editor.onDidContentSizeChange(updateEditorHeight);
+          // 初始化时调整高度
+          setTimeout(updateEditorHeight, 100);
+        }
+
       };
 
       const InputFallback = (e:any):string=>{
@@ -117,7 +151,7 @@ const TextEditor = ({
 
     // 计算实际的宽高样式 - 类似 JSONForm 的处理
     const actualWidth = widthStyle === 0 ? "100%" : widthStyle;
-    const actualHeight = heightStyle === 0 ? "100%" : heightStyle;
+    const actualHeight = autoHeight ? editorHeight : (heightStyle === 0 ? "100%" : heightStyle);
 
   return (
     <div ref={textEditorRef} className={`relative flex justify-start items-center rounded-[4px] cursor-pointer`}
@@ -147,7 +181,7 @@ const TextEditor = ({
         scrollbar: {
           useShadows: false,
           horizontal: 'auto',
-          vertical: 'auto',
+          vertical: autoHeight ? 'hidden' : 'auto', // 自动高度时隐藏垂直滚动条
           horizontalScrollbarSize: 8,
           verticalScrollbarSize: 8,
           horizontalSliderSize: 8,
