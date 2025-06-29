@@ -5,6 +5,7 @@ import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
+import { UI_COLORS } from '@/app/utils/colors'
 
 // 前端节点配置数据
 export type ChunkingConfigNodeData = {
@@ -39,6 +40,7 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const { getNode, setNodes } = useReactFlow()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [isHovered, setIsHovered] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const newDelimiterRef = useRef<HTMLInputElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
@@ -197,7 +199,13 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px] edge-node`}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] gap-[8px] edge-node transition-colors`}
+                style={{
+                    borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
+                    color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY
+                }}
             >
                 Chunk <br /> By Character
                 {/* Source handles */}
@@ -249,7 +257,10 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
             {isMenuOpen && (
                 <ul
                     ref={menuRef}
-                    className="absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg"
+                    className="absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg"
+                    style={{
+                        borderColor: UI_COLORS.EDGENODE_BORDER_GREY
+                    }}
                 >
                     <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
                         <div className='flex flex-row gap-[12px]'>

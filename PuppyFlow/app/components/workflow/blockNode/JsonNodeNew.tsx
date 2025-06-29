@@ -546,10 +546,10 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             <NodeSettingsController nodeid={id} />
 
             {/* 使用新的 NodeViewToggleButton 组件 */}
-            <NodeViewToggleButton
+            {/* <NodeViewToggleButton
               useRichEditor={useRichEditor}
               onToggle={() => setUseRichEditor(!useRichEditor)}
-            />
+            /> */}
 
             {/* 使用 NodeIndexingButton 组件，传递所需的索引操作函数 */}
             <NodeIndexingButton
