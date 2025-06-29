@@ -1,5 +1,6 @@
 import { getBezierPath, useInternalNode, EdgeProps, getSmoothStepPath, BaseEdge, Position } from '@xyflow/react';
 import { getEdgeParams } from '../../hooks/useFloatingEdgeUtils';
+import { UI_COLORS } from '../../../utils/colors';
  
 function FloatingEdge({ id, 
     source, 
@@ -11,7 +12,7 @@ function FloatingEdge({ id,
     },
     style = {
         strokeWidth: "4px",
-        stroke: "#CDCDCD",
+        stroke: UI_COLORS.LINE,
         fill:"transparent"
   } }:EdgeProps) {
   const sourceNode = useInternalNode(source);
@@ -89,7 +90,7 @@ function FloatingEdge({ id,
                 <path
                   d="M2 2L11 11L2 20"
                   fill="none"
-                  stroke="#CDCDCD"
+                  stroke={UI_COLORS.LINE}
                   strokeWidth="4"
                 />
               </marker>  
@@ -106,7 +107,7 @@ function FloatingEdge({ id,
                 <path
                   d="M2 2L11 11L2 20"
                   fill="none"
-                  stroke="#FFA73D"
+                  stroke={UI_COLORS.LINE}
                   strokeWidth="4"
                 />
               </marker>
