@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useServers } from '../states/UserServersContext';
 import ChatbotServiceDisplay from './ChatbotServiceDisplay';
 import ApiServiceDisplay from './ApiServiceDisplay';
-import axios from 'axios';
+import { ServerDisplayProvider } from './ServerDisplayContext';
+import { useServiceValidation, useLayoutGeneration } from './useServerDisplay';
 
-const ServerDisplay: React.FC = () => {
+const ServerDisplayContent: React.FC = () => {
   const { 
     currentServiceJson, 
     currentShowingId,
     isLoading 
   } = useServers();
 
-  // 🔍 添加调试信息 - 检查从 context 获取的 service 数据
-  console.log('🔍 ServerDisplay - currentServiceJson:', currentServiceJson);
+  const { isValidApiService, isValidChatbotService } = useServiceValidation(currentServiceJson);
+  const { generateLayoutForService } = useLayoutGeneration();
 
   // 如果正在加载
   if (isLoading) {
@@ -42,14 +43,20 @@ const ServerDisplay: React.FC = () => {
   }
 
   // 根据服务类型渲染不同的内容
-  if (currentServiceJson.type === 'api') {
-    console.log('🔍 ServerDisplay - 传递给 ApiServiceDisplay 的 service:', currentServiceJson);
-    console.log('🔍 ServerDisplay - API service workflow_json:', currentServiceJson.workflow_json);
-    return <ApiServiceDisplay service={currentServiceJson} />;
-  } else if (currentServiceJson.type === 'chatbot') {
-    console.log('🔍 ServerDisplay - 传递给 ChatbotServiceDisplay 的 service:', currentServiceJson);
-    console.log('🔍 ServerDisplay - Chatbot service workflow_json:', currentServiceJson.workflow_json);
-    return <ChatbotServiceDisplay service={currentServiceJson} />;
+  if (isValidApiService) {
+    return (
+      <ApiServiceDisplay 
+        service={currentServiceJson}
+        generateLayout={generateLayoutForService}
+      />
+    );
+  } else if (isValidChatbotService) {
+    return (
+      <ChatbotServiceDisplay 
+        key={currentShowingId}
+        service={currentServiceJson}
+      />
+    );
   }
 
   return (
@@ -59,6 +66,14 @@ const ServerDisplay: React.FC = () => {
         <div className="text-[#888888] text-sm">Service type not supported</div>
       </div>
     </div>
+  );
+};
+
+const ServerDisplay: React.FC = () => {
+  return (
+    <ServerDisplayProvider>
+      <ServerDisplayContent />
+    </ServerDisplayProvider>
   );
 };
 
