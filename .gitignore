@@ -83,3 +83,7 @@ json_received.json
 
 # Workspace data
 **/workspace_data/
+
+# million
+.million/
+
