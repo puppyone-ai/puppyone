@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic'
 import DeployedServicesList from './DeployedServicesList'
 import DeploymentTypeLogo from './DeploymentTypeLogo'
 import { useAppSettings } from '../states/AppSettingsContext'
+import { useAllDeployedServices } from '../states/UserServersContext'
 
 type SidebarFullScreenProps = {
   setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
@@ -29,7 +30,11 @@ const DialogPortal = dynamic(() =>
 function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   const { workspaces } = useWorkspaces()
   const { userSubscriptionStatus, isLoadingSubscriptionStatus } = useAppSettings()
+  const { apis, chatbots } = useAllDeployedServices()
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<string | null>(null)
+
+  // Check if there are any deployed services
+  const hasDeployedServices = apis.length > 0 || chatbots.length > 0
 
   const handleOperationMenuShow = (flowId: string | null) => {
     if (!flowId) {
@@ -43,11 +48,6 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
     <div className="flex-col font-normal px-[8px] py-[16px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className="flex flex-col items-start pb-[8px] relative self-stretch w-full h-full overflow-hidden">
-
-        {/* Deployed Services List */}
-        <div className="mt-[8px] relative self-stretch w-full">
-          <DeployedServicesList />
-        </div>
 
         <div className="w-full text-[#5D6065] text-[11px] font-semibold pt-[24px] pl-[16px] pr-[8px] font-plus-jakarta-sans">
           <div className="mb-[16px] flex items-center gap-2">
@@ -71,6 +71,13 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
 
         {/* Spacer */}
         <div className="flex-grow"></div>
+        
+        {/* Deployed Services List - moved to bottom and conditionally rendered */}
+        {hasDeployedServices && (
+          <div className="mt-[8px] relative self-stretch w-full">
+            <DeployedServicesList />
+          </div>
+        )}
         
         {/* 订阅状态显示 - 加载状态 */}
         {isLoadingSubscriptionStatus && (
