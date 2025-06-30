@@ -101,6 +101,12 @@ export function useBaseEdgeNodeLogic({
                 isOutput: true,
                 editable: false,
             },
+            width: 240,
+            height: 176,
+            measured: {
+                width: 240,
+                height: 176,
+            },
             type: 'text',
         };
 
