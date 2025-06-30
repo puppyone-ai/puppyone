@@ -9,6 +9,8 @@ import Dashboard from '../userDashBoard/DashBoardNew'
 import dynamic from 'next/dynamic'
 import DeployedServicesList from './DeployedServicesList'
 import DeploymentTypeLogo from './DeploymentTypeLogo'
+import { useAppSettings } from '../states/AppSettingsContext'
+import { useAllDeployedServices } from '../states/UserServersContext'
 
 type SidebarFullScreenProps = {
   setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>,
@@ -27,7 +29,12 @@ const DialogPortal = dynamic(() =>
 
 function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   const { workspaces } = useWorkspaces()
+  const { userSubscriptionStatus, isLoadingSubscriptionStatus } = useAppSettings()
+  const { apis, chatbots } = useAllDeployedServices()
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<string | null>(null)
+
+  // Check if there are any deployed services
+  const hasDeployedServices = apis.length > 0 || chatbots.length > 0
 
   const handleOperationMenuShow = (flowId: string | null) => {
     if (!flowId) {
@@ -42,18 +49,13 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className="flex flex-col items-start pb-[8px] relative self-stretch w-full h-full overflow-hidden">
 
-        {/* Deployed Services List - Moved to be right after workspaces */}
-        <div className="mt-[8px] relative self-stretch w-full">
-          <DeployedServicesList />
-        </div>
-
         <div className="w-full text-[#5D6065] text-[11px] font-semibold pt-[24px] pl-[16px] pr-[8px] font-plus-jakarta-sans">
           <div className="mb-[16px] flex items-center gap-2">
             <span>Workpaces</span>
             <div className="h-[1px] flex-grow bg-[#404040]"></div>
           </div>
         </div>
-        <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-240px)] ">
+        <ul className="flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-320px)]">
           {workspaces.map((workspace) => (
             <FlowElement
               key={workspace.workspace_id}
@@ -67,22 +69,42 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
         </ul>
         <AddNewWorkspaceButton />
 
-        {/* Spacer to push remaining content */}
+        {/* Spacer */}
         <div className="flex-grow"></div>
+        
+        {/* Deployed Services List - moved to bottom and conditionally rendered */}
+        {hasDeployedServices && (
+          <div className="mt-[8px] relative self-stretch w-full">
+            <DeployedServicesList />
+          </div>
+        )}
+        
+        {/* 订阅状态显示 - 加载状态 */}
+        {isLoadingSubscriptionStatus && (
+          <div className="flex items-center justify-center p-2">
+            <div className="w-3 h-3 border border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin"></div>
+          </div>
+        )}
       </div>
 
-      {/* Deployment Type Logo - Positioned absolutely in bottom left corner */}
-      <div className="absolute bottom-[8px] left-[8px]">
+      {/* 展开状态底部 - 左对齐：DeploymentTypeLogo 和订阅状态都靠左 */}
+      <div className="absolute bottom-[8px] left-[8px] right-[8px] flex items-center gap-2">
         <DeploymentTypeLogo />
+        {userSubscriptionStatus && (
+          <span className="text-[#8B8B8B] text-[10px] font-medium">
+            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+          </span>
+        )}
       </div>
     </div>
   )
 }
 
 function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
+  const { userSubscriptionStatus } = useAppSettings()
   const [showFlowMenu, setShowFlowMenu] = useState(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
-  const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers'>('settings')
+  const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'usage' | 'servers'>('settings')
 
   const handleCloseDialog = () => {
     settingsDialogRef.current?.close()
@@ -141,8 +163,18 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
 
       <FlowThumbnailView showFlowMenu={showFlowMenu} />
 
-      {/* Deployment Type Logo - Positioned absolutely in bottom left corner */}
-      <div className="absolute bottom-[8px] left-[16px]">
+      {/* Spacer */}
+      <div className="flex-grow"></div>
+
+      {/* 收缩状态底部 - 上下排版：订阅状态在上，DeploymentTypeLogo 在下 */}
+      <div className="absolute bottom-[8px] flex flex-col items-center gap-1">
+        {/* 订阅状态 */}
+        {userSubscriptionStatus && (
+          <span className="text-[#8B8B8B] text-[10px] font-medium">
+            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+          </span>
+        )}
+        {/* Deployment Type Logo */}
         <DeploymentTypeLogo />
       </div>
 

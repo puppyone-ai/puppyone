@@ -34,7 +34,7 @@ const config: Config = {
         'main-bright-blue': "#D7F3FF",
         'main-black-theme': "#252525",
         'main-grey': "#CDCDCD",
-        'main-deep-grey': "#6D7177"
+        'main-deep-grey': "#3E3E41"
       },
       backgroundColor: {
         'sidebar-grey': "#3E3E41",
@@ -45,7 +45,7 @@ const config: Config = {
         'main-green': "#39BC66",
         'main-bright-blue': "#D7F3FF",
         'main-grey': "#CDCDCD",
-        'main-deep-grey': "#6D7177"
+        'main-deep-grey': "#3E3E41"
       },
       textColor: {
         'main-blue': "#4599DF",

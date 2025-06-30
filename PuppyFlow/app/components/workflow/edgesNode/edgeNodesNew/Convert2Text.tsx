@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
+import { UI_COLORS } from '@/app/utils/colors'
 
 export type ModifyConfigNodeData = {
     content: string | null,
@@ -15,6 +16,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [isHovered, setIsHovered] = useState(false)
     const { getNode } = useReactFlow()
 
     // 使用基础 edge node 逻辑，只传入最小必要参数
@@ -78,11 +80,20 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
         zIndex: !isOnConnect ? "-1" : "1",
     };
 
+    // 动态样式
+    const buttonStyle = {
+        borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
+        color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
+    };
+
     return (
         <div className='p-[3px] w-[80px] h-[48px]'>
             <button 
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] border-[#CDCDCD] text-[#CDCDCD] bg-[#181818] hover:border-main-orange hover:text-main-orange flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node`} 
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node`}
+                style={buttonStyle}
                 onClick={onClickButton}
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
             >
                 Convert to<br /> Text
 
