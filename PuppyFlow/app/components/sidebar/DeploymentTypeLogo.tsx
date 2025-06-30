@@ -12,17 +12,17 @@ function DeploymentTypeLogo() {
   return (
     <div className="relative">
       <div 
-        className="flex items-center justify-center w-[32px] h-[32px] rounded-md cursor-pointer select-none hover:bg-[#313131] transition-colors duration-200"
+        className="flex items-center justify-center w-[40px] h-[40px] rounded-md cursor-pointer select-none hover:bg-[#313131] transition-colors duration-200"
         onClick={handleDeploymentTypeClick}
       >
         {/* Conditional icon for deployment type */}
         {process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE === 'Local' ? (
-          <svg className="w-3 h-3 text-[#5D6065]" fill="currentColor" viewBox="0 0 14 10" xmlns="http://www.w3.org/2000/svg">
+          <svg className="w-4 h-4 text-[#5D6065]" fill="currentColor" viewBox="0 0 14 10" xmlns="http://www.w3.org/2000/svg">
             <path d="M0 8C0 7.73478 0.105357 7.48043 0.292893 7.29289C0.48043 7.10536 0.734784 7 1 7H13C13.2652 7 13.5196 7.10536 13.7071 7.29289C13.8946 7.48043 14 7.73478 14 8V9C14 9.26522 13.8946 9.51957 13.7071 9.70711C13.5196 9.89464 13.2652 10 13 10H1C0.734784 10 0.48043 9.89464 0.292893 9.70711C0.105357 9.51957 0 9.26522 0 9V8Z" fill="#6D7177"/>
             <path d="M12 0C12.2652 0 12.5195 0.105432 12.707 0.292969C12.8946 0.480505 13 0.734784 13 1V7H11V2H3V7H1V1C1 0.734784 1.10543 0.480505 1.29297 0.292969C1.48051 0.105432 1.73478 0 2 0H12Z" fill="#6D7177"/>
           </svg>
         ) : (
-          <svg className="w-3 h-3 text-[#5D6065] mx-auto" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+          <svg className="w-4 h-4 text-[#5D6065] mx-auto" fill="currentColor" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
             <path d="M4.5 10.5a2.5 2.5 0 01-.48-4.95 3.5 3.5 0 016.96 0 2.5 2.5 0 01-.48 4.95h-6z"/>
           </svg>
         )}

@@ -43,8 +43,8 @@ export type DashboardContextType = {
   removeLocalModel: (id: string) => void;
   
   // Tab navigation
-  activeTab: 'settings' | 'models' | 'billing' | 'servers';
-  onTabChange: (tab: 'settings' | 'models' | 'billing' | 'servers') => void;
+  activeTab: 'settings' | 'models' | 'billing' | 'usage' | 'servers';
+  onTabChange: (tab: 'settings' | 'models' | 'billing' | 'usage' | 'servers') => void;
   onClose: () => void;
 };
 
@@ -54,8 +54,8 @@ export const DashboardContext = createContext<DashboardContextType | undefined>(
 // Provider props
 type DashboardProviderProps = {
   children: ReactElement | null;
-  activeTab: 'settings' | 'models' | 'billing' | 'servers';
-  onTabChange: (tab: 'settings' | 'models' | 'billing' | 'servers') => void;
+  activeTab: 'settings' | 'models' | 'billing' | 'usage' | 'servers';
+  onTabChange: (tab: 'settings' | 'models' | 'billing' | 'usage' | 'servers') => void;
   onClose: () => void;
 };
 
