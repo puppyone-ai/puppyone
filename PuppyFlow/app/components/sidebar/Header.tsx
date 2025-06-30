@@ -21,7 +21,7 @@ function Header({ setFlowFullScreen }: HeaderProps) {
 
   const { userName } = useWorkspaces()
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
-  const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers'>('settings')
+  const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'servers' | 'usage'>('settings')
 
   const handleCloseDialog = () => {
     settingsDialogRef.current?.close()
