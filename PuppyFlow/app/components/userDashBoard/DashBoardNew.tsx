@@ -3,11 +3,12 @@ import { DashboardProvider, useDashboardContext } from './states/DashBoardContex
 import Settings from './Settings';
 import Models from './Models';
 import Billing from './Billing';
+import Usage from './Usage';
 import DeployedServers from './DeployedServer';
 
 type DashboardProps = {
-  activeTab: 'settings' | 'models' | 'billing' | 'servers';
-  onTabChange: (tab: 'settings' | 'models' | 'billing' | 'servers') => void;
+  activeTab: 'settings' | 'models' | 'billing' | 'usage' | 'servers';
+  onTabChange: (tab: 'settings' | 'models' | 'billing' | 'usage' | 'servers') => void;
   onClose: () => void;
 };
 
@@ -51,6 +52,16 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                 Deployed Servers
               </button>
               <button
+                onClick={() => onTabChange('usage')}
+                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
+                  activeTab === 'usage'
+                    ? 'bg-[#36404A] text-[#60A5FA]'
+                    : 'text-[#888888] hover:bg-[#333333] hover:text-white'
+                }`}
+              >
+                Usage
+              </button>
+              <button
                 onClick={() => onTabChange('billing')}
                 className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
                   activeTab === 'billing'
@@ -71,6 +82,8 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               <Models />
             ) : activeTab === 'servers' ? (
               <DeployedServers />
+            ) : activeTab === 'usage' ? (
+              <Usage />
             ) : (
               <Billing />
             )}

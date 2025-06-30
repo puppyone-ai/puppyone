@@ -33,6 +33,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';
+import { useUserSubscription, UserSubscriptionStatus } from '../hooks/useUserSubscription';
 
 // 定义模型类型
 export type Model = {
@@ -64,6 +65,11 @@ type AppSettingsContextType = {
   addLocalModel: (model: Omit<Model, 'isLocal'>) => void;
   removeLocalModel: (id: string) => void;
   refreshLocalModels: () => Promise<void>;
+  
+  // 用户订阅状态相关
+  userSubscriptionStatus: UserSubscriptionStatus | null;
+  isLoadingSubscriptionStatus: boolean;
+  fetchUserSubscriptionStatus: () => Promise<void>;
   
   // 警告消息相关
   warns: WarnMessage[];
@@ -114,6 +120,13 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     retryAttempts: 2,
     retryDelay: 1000,
   });
+
+  // 使用用户订阅状态 hook
+  const {
+    userSubscriptionStatus,
+    isLoadingSubscriptionStatus,
+    fetchUserSubscriptionStatus,
+  } = useUserSubscription(isLocalDeployment);
   
   // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
@@ -208,7 +221,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
   const removeLocalModel = (id: string) => {
     setLocalModels(localModels.filter(model => model.id !== id));
   };
-  
+
   return (
     <AppSettingsContext.Provider
       value={{
@@ -222,6 +235,9 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
         addLocalModel,
         removeLocalModel,
         refreshLocalModels,
+        userSubscriptionStatus,
+        isLoadingSubscriptionStatus,
+        fetchUserSubscriptionStatus,
         warns,
         addWarn,
         removeWarn,
