@@ -1,6 +1,6 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React, { useRef, useEffect, useState, useCallback } from 'react'
+import React, { useRef, useEffect, useState, useCallback, memo } from 'react'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import TextEditor from '../../tableComponent/TextEditor'
@@ -27,7 +27,7 @@ type TextBlockNodeProps = NodeProps<Node<TextBlockNodeData>>
 
 const TextEditorBlockNote = dynamic(() => import('../../tableComponent/TextEditorBlockNote'), { ssr: false })
 
-function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, inputEdgeNodeID, outputEdgeNodeID, editable, isInput, isOutput } }: TextBlockNodeProps) {
+const TextBlockNode = memo(function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, inputEdgeNodeID, outputEdgeNodeID, editable, isInput, isOutput } }: TextBlockNodeProps) {
 
 
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
@@ -604,6 +604,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
 
   )
-}
+})
 
 export default TextBlockNode
