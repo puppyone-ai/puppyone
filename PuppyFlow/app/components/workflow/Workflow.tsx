@@ -54,6 +54,7 @@ import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
+import useThrottle from '../hooks/useThrottle'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -161,6 +162,15 @@ function Workflow() {
   
   const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
+  // 性能记录相关状态
+  const renderCountRef = useRef(0);
+  const [showPerformanceInfo, setShowPerformanceInfo] = useState(false);
+  const lastRenderTimeRef = useRef<Date>(new Date());
+  
+  // 增加渲染计数
+  renderCountRef.current += 1;
+  lastRenderTimeRef.current = new Date();
+  
   // 直接在组件内定义空数组作为默认值
   const emptyNodes: Node[] = [];
   const emptyEdges: Edge[] = [];
@@ -188,10 +198,10 @@ function Workflow() {
   };
 
   // 创建自定义的onNodesChange处理器，确保在变更后节点也保持正确顺序
-  const onNodesChange = (changes: NodeChange[]) => {
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
     onUnsortedNodesChange(changes);
     setUnsortedNodes((prevNodes) => sortNodesByType(prevNodes));
-  };
+  }, [onUnsortedNodesChange, setUnsortedNodes]);
 
   // 设置鼠标样式
   useEffect(() => {
@@ -451,6 +461,19 @@ function Workflow() {
     }
   }, [nodes]);
 
+  // 性能信息切换处理函数
+  const togglePerformanceInfo = () => {
+    setShowPerformanceInfo(!showPerformanceInfo);
+  };
+
+  // 重置渲染计数
+  const resetRenderCount = () => {
+    renderCountRef.current = 0;
+    lastRenderTimeRef.current = new Date();
+    // 强制重新渲染以更新显示
+    setShowPerformanceInfo(showPerformanceInfo);
+  };
+
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
       <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
@@ -500,6 +523,39 @@ function Workflow() {
         >
           <Upbar />
           <Background color="#646464" variant={BackgroundVariant.Dots} gap={16} />
+
+          {/* 性能记录控件 - 仅在开发环境显示 */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="absolute bottom-[10px] right-[10px] z-20">
+              <div className="bg-[#2a2a2a] border border-[#404040] rounded-[6px] p-[8px] shadow-lg">
+                <div className="flex items-center gap-[8px] mb-[4px]">
+                  <button
+                    onClick={togglePerformanceInfo}
+                    className="text-[#808080] hover:text-[#a0a0a0] text-[12px] font-medium transition-colors"
+                  >
+                    {showPerformanceInfo ? '隐藏性能' : '显示性能'}
+                  </button>
+                  <button
+                    onClick={resetRenderCount}
+                    className="text-[#808080] hover:text-[#a0a0a0] text-[12px] font-medium transition-colors"
+                  >
+                    重置计数
+                  </button>
+                </div>
+                
+                {showPerformanceInfo && (
+                  <div className="text-[#a0a0a0] text-[11px] space-y-[2px]">
+                    <div>渲染次数: <span className="text-[#4ade80] font-mono">{renderCountRef.current}</span></div>
+                    <div>节点数量: <span className="text-[#4ade80] font-mono">{nodes.length}</span></div>
+                    <div>边数量: <span className="text-[#4ade80] font-mono">{edges.length}</span></div>
+                    <div>工作区: <span className="text-[#4ade80] font-mono">{selectedFlowId || '无'}</span></div>
+                    <div>最后渲染时间: <span className="text-[#4ade80] font-mono">{lastRenderTimeRef.current.toLocaleTimeString()}</span></div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          
           <div className="absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]">
             <a
               href="https://www.puppyagent.com/"
