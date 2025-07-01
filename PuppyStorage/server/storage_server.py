@@ -13,7 +13,21 @@ from server.routes.vector_routes import vector_router
 
 
 try:
-    app = FastAPI()
+    # 根据部署类型决定是否启用文档接口
+    DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "local").lower()
+
+    # 生产环境禁用文档接口
+    if DEPLOYMENT_TYPE == "remote":
+        app = FastAPI(
+            docs_url=None,
+            redoc_url=None,
+            openapi_url=None
+        )
+        log_info("Remote deployment: Documentation endpoints disabled")
+    else:
+        # 本地环境启用文档接口
+        app = FastAPI()
+        log_info("Local deployment: Documentation endpoints enabled at /docs and /redoc")
 
     # Add CORS middleware
     app.add_middleware(
