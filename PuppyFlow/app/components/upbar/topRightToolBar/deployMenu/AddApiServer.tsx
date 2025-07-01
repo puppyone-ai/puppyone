@@ -136,16 +136,19 @@ function DeployAsApi({
         workspace_id: selectedFlowId
       };
 
-      // Get user token according to API documentation
       const userToken = serverOperations.getToken();
       
 
       // Build headers according to API documentation
       const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        "x-admin-key": serverOperations.apiServerKey,
-        "x-user-token": userToken || "" // Always send x-user-token, empty string if no token
+        "Content-Type": "application/json"
       };
+
+      if (userToken) {
+        headers["Authorization"] = `Bearer ${userToken}`;
+      } else if (isLocalDeployment) {
+        headers["x-admin-key"] = serverOperations.apiServerKey;
+      }
 
       const res = await fetch(`${API_SERVER_URL}/config_api`, {
         method: "POST",
