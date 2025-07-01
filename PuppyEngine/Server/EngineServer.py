@@ -669,6 +669,13 @@ async def get_data(
             content={"error": ae.message, "code": "AUTH_ERROR"}, 
             status_code=ae.status_code
         )
+    except HTTPException as he:
+        # 专门处理FastAPI的HTTPException，确保状态码正确传递
+        log_error(f"HTTP error: {he.detail}")
+        return JSONResponse(
+            content={"error": he.detail, "code": "HTTP_ERROR"}, 
+            status_code=he.status_code
+        )
     except UsageError as ue:
         # 确保在异常情况下也释放锁
         data_store.release_task_lock(task_id)
@@ -835,6 +842,13 @@ async def send_data(
         return JSONResponse(
             content={"error": ae.message, "code": "AUTH_ERROR"}, 
             status_code=ae.status_code
+        )
+    except HTTPException as he:
+        # 专门处理FastAPI的HTTPException，确保状态码正确传递
+        log_error(f"HTTP error: {he.detail}")
+        return JSONResponse(
+            content={"error": he.detail, "code": "HTTP_ERROR"}, 
+            status_code=he.status_code
         )
     except UsageError as ue:
         log_error(f"Usage error: {ue.message}")
