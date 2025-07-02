@@ -143,7 +143,7 @@ function DeployAsApi({
       // Build headers according to API documentation
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${userToken || ""}` // Use Bearer token authentication
+        "x-user-token": `Bearer ${userToken || ""}` // Use Bearer token authentication
       };
 
       const res = await fetch(`${API_SERVER_URL}/config_api`, {
@@ -268,7 +268,7 @@ api_url = "${API_SERVER_URL}/api/${api_id}"
 api_key = "${api_key}"
 
 headers = {
-    "Authorization": f"Bearer {api_key}",
+    "x-user-token": f"Bearer {api_key}",
     "Content-Type": "application/json"
 }
 
@@ -284,7 +284,7 @@ else:
     print("Error:", response.status_code, response.json())`;
 
     const sh = `curl -X POST "${API_SERVER_URL}/api/${api_id}" \\
--H "Authorization: Bearer ${api_key}" \\
+-H "x-user-token: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
 ${input_text_gen(selectedInputs, SHELL)}
@@ -300,7 +300,7 @@ ${input_text_gen(selectedInputs, JAVASCRIPT)}
 
 axios.post(apiUrl, data, {
     headers: {
-        "Authorization": "Bearer ${api_key}",
+        "x-user-token": "Bearer ${api_key}",
         "Content-Type": "application/json"
     }
 })
