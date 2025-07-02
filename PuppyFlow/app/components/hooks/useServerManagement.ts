@@ -71,7 +71,6 @@ interface FetchUserDeploymentsParams {
 
 // Hook for API operations
 export const useServerOperations = () => {
-  const apiServerKey = process.env.NEXT_PUBLIC_API_SERVER_KEY || '';
   const apiServerUrl = SYSTEM_URLS.API_SERVER.BASE;
   const { isLocalDeployment } = useAppSettings();
 
@@ -109,12 +108,8 @@ export const useServerOperations = () => {
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-admin-key": apiServerKey
+        "Authorization": `Bearer ${userToken || ""}`
       };
-
-      if (userToken) {
-        headers["x-user-token"] = userToken;
-      }
 
       const res = await fetch(url, {
         method: "GET",
@@ -134,7 +129,7 @@ export const useServerOperations = () => {
       console.error(`Error fetching user deployments:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey, isLocalDeployment]);
+  }, [apiServerUrl, isLocalDeployment]);
 
   // 获取所有增强服务 - 统一的数据转换逻辑
   const fetchAllEnhancedServices = useCallback(async (workspaces: Array<{workspace_id: string, workspace_name: string}>): Promise<{
@@ -267,13 +262,14 @@ export const useServerOperations = () => {
   // 删除API服务
   const deleteApiService = useCallback(async (apiId: string): Promise<void> => {
     try {
+      const userToken = getToken();
       const res = await fetch(
         `${apiServerUrl}/delete_api/${apiId}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "Authorization": `Bearer ${userToken || ""}`
           }
         }
       );
@@ -287,18 +283,19 @@ export const useServerOperations = () => {
       console.error(`Error deleting API ${apiId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, getToken]);
 
   // 删除Chatbot服务
   const deleteChatbotService = useCallback(async (chatbotId: string): Promise<void> => {
     try {
+      const userToken = getToken();
       const res = await fetch(
         `${apiServerUrl}/delete_chatbot/${chatbotId}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "Authorization": `Bearer ${userToken || ""}`
           }
         }
       );
@@ -312,18 +309,19 @@ export const useServerOperations = () => {
       console.error(`Error deleting chatbot ${chatbotId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, getToken]);
 
   // 创建API服务
   const createApiService = useCallback(async (workspaceId: string, apiData: Partial<ApiService>): Promise<ApiService> => {
     try {
+      const userToken = getToken();
       const res = await fetch(
         `${apiServerUrl}/create_api`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "Authorization": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -343,18 +341,19 @@ export const useServerOperations = () => {
       console.error(`Error creating API:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, getToken]);
 
   // 创建Chatbot服务
   const createChatbotService = useCallback(async (workspaceId: string, chatbotData: Partial<ChatbotService>): Promise<ChatbotService> => {
     try {
+      const userToken = getToken();
       const res = await fetch(
         `${apiServerUrl}/create_chatbot`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "Authorization": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -374,7 +373,7 @@ export const useServerOperations = () => {
       console.error(`Error creating chatbot:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, getToken]);
 
   // 配置 Chatbot 服务
   const configChatbotService = useCallback(async (params: ConfigChatbotParams): Promise<{ chatbot_id: string; chatbot_key: string; endpoint?: string }> => {
@@ -390,8 +389,7 @@ export const useServerOperations = () => {
       // Build headers according to API documentation
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-admin-key": apiServerKey,
-        "x-user-token": userToken || "" // Always send x-user-token, empty string if no token
+        "Authorization": `Bearer ${userToken || ""}`
       };
 
       const res = await fetch(
@@ -414,18 +412,19 @@ export const useServerOperations = () => {
       console.error(`Error configuring chatbot:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey, getToken, isLocalDeployment]);
+  }, [apiServerUrl, getToken, isLocalDeployment]);
 
   // 更新API服务
   const updateApiService = useCallback(async (apiId: string, updates: Partial<ApiService>): Promise<ApiService> => {
     try {
+      const userToken = getToken();
       const res = await fetch(
         `${apiServerUrl}/update_api/${apiId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "Authorization": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify(updates)
         }
@@ -442,18 +441,19 @@ export const useServerOperations = () => {
       console.error(`Error updating API ${apiId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, getToken]);
 
   // 更新Chatbot服务
   const updateChatbotService = useCallback(async (chatbotId: string, updates: Partial<ChatbotService>): Promise<ChatbotService> => {
     try {
+      const userToken = getToken();
       const res = await fetch(
         `${apiServerUrl}/update_chatbot/${chatbotId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "x-admin-key": apiServerKey
+            "Authorization": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify(updates)
         }
@@ -470,7 +470,7 @@ export const useServerOperations = () => {
       console.error(`Error updating chatbot ${chatbotId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, apiServerKey]);
+  }, [apiServerUrl, getToken]);
 
   return {
     // 核心数据获取 - 只保留增强版本
@@ -490,7 +490,6 @@ export const useServerOperations = () => {
     updateChatbotService,
     
     // 配置信息
-    apiServerKey,
     apiServerUrl,
     getToken
   };
