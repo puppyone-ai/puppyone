@@ -1,8 +1,9 @@
 import { getBezierPath, useInternalNode, EdgeProps, getSmoothStepPath, BaseEdge, Position } from '@xyflow/react';
 import { getEdgeParams } from '../../hooks/useFloatingEdgeUtils';
 import { UI_COLORS } from '../../../utils/colors';
+import { memo } from 'react';
  
-function FloatingEdge({ id, 
+const FloatingEdge = memo(function FloatingEdge({ id, 
     source, 
     target, 
     markerEnd, 
@@ -115,8 +116,8 @@ function FloatingEdge({ id,
           <BaseEdge id={id} path={edgePath} markerEnd={`url(#custom-arrow-${selected ? "selected" : "default"})`} style={style}  />
         </>
       );
- }
-}
- 
+  }
+});
+
 export default FloatingEdge;
 

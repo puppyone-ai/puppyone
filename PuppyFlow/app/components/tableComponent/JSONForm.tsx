@@ -1,5 +1,5 @@
 'use client'
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, memo} from 'react';
 // import Editor, { EditorProps, loader, OnMount, OnChange, } from "@monaco-editor/react";
 import type { EditorProps, OnMount, OnChange, } from "@monaco-editor/react";
 import {loader} from "@monaco-editor/react";
@@ -41,7 +41,7 @@ const jsonFormThemeData: Monaco.editor.IStandaloneThemeData = {
   }
 };
 
-const JSONForm = ({
+const JSONForm = memo(({
     preventParentDrag, 
     allowParentDrag, 
     placeholder = "",
@@ -204,6 +204,8 @@ const JSONForm = ({
     />
     </div>
   );
-};
+});
+
+JSONForm.displayName = 'JSONForm';
 
 export default JSONForm;

@@ -1,4 +1,4 @@
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, memo} from 'react';
 import Editor, { EditorProps, loader, OnMount, OnChange, } from "@monaco-editor/react";
 import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 // import { useMonacoTheme } from '../../hooks/useMonacoTheme';
@@ -33,7 +33,7 @@ const textEditorThemeData: Monaco.editor.IStandaloneThemeData = {
   }
 };
 
-const TextEditor = ({
+const TextEditor = memo(({
     preventParentDrag, 
     allowParentDrag,
     value,
@@ -214,6 +214,8 @@ const TextEditor = ({
     />
     </div>
   );
-};
+});
+
+TextEditor.displayName = 'TextEditor';
 
 export default TextEditor;

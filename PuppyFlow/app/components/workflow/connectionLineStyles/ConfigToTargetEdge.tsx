@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   BaseEdge,
   EdgeProps,
@@ -17,7 +17,7 @@ export const markerEnd = {
   strokeWidth: 0.1, 
 }
 
-export default function ConfigToTargetEdge ({
+const ConfigToTargetEdge = memo(function ConfigToTargetEdge ({
   id,
   source,
   target,
@@ -133,6 +133,6 @@ export default function ConfigToTargetEdge ({
       <BaseEdge path={edgePath} markerEnd={`url(#custom-arrow-${selected ? "selected" : "default"})`} style={style}  />
     </>
   );
-}
+});
 
-
+export default ConfigToTargetEdge;

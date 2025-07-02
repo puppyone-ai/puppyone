@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { memo } from 'react'
 
-function SkeletonLoadingIcon() {
+const SkeletonLoadingIcon = memo(function SkeletonLoadingIcon() {
   return (
     <div className="skeleton-container">
       <div className="skeleton-line w-[calc(100%-24px)]"></div>
@@ -8,6 +8,6 @@ function SkeletonLoadingIcon() {
       <div className="skeleton-line w-[calc(100%-64px)]"></div>
     </div>
   )
-}
+})
 
 export default SkeletonLoadingIcon

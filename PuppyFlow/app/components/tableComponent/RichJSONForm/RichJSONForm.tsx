@@ -1,5 +1,5 @@
 'use client'
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import TypeSelector from './TypeSelector';
 import TextComponent from './TextComponent';
@@ -43,7 +43,7 @@ const cleanEmptyElements = (data: any): any => {
     return data;
 };
 
-const JSONViewer = ({
+const JSONViewer = memo(({
     preventParentDrag, 
     allowParentDrag, 
     placeholder = "Enter JSON data...",
@@ -234,6 +234,8 @@ const JSONViewer = ({
             </div>
         </OverflowProvider>
     );
-};
+});
+
+JSONViewer.displayName = 'JSONViewer';
 
 export default JSONViewer;

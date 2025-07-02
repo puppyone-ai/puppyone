@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import {
   BaseEdge,
   EdgeProps,
@@ -11,7 +11,7 @@ import {
 
 
 
-export default function SourceToConfigEdge ({
+const SourceToConfigEdge = memo(function SourceToConfigEdge ({
   id,
   source,
   target,
@@ -234,6 +234,8 @@ useEffect(() => {
       <BaseEdge path={edgePath} markerEnd={markerEnd} style={style}  />
     </>
   );
-}
+});
+
+export default SourceToConfigEdge;
 
 

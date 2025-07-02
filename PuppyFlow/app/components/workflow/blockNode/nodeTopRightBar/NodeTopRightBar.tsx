@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import React, {useState, memo} from 'react'
 import NodeSettingsController from './NodeSettingsButton'
 import FullScreenController from './FullScreenButton'
 // import { useNodeContext } from '@/app/components/states/NodeContext'
@@ -10,7 +10,7 @@ type NodeToolBarProps = {
     
 }
 
-function NodeToolBar({Parentnodeid, ParentNodetype}: NodeToolBarProps) {
+const NodeToolBar = memo(function NodeToolBar({Parentnodeid, ParentNodetype}: NodeToolBarProps) {
 
     const isDisplayFullScreenController = ParentNodetype === "text" || ParentNodetype === "structured" || ParentNodetype === "none"
 
@@ -22,6 +22,6 @@ function NodeToolBar({Parentnodeid, ParentNodetype}: NodeToolBarProps) {
             {/* {isDisplayFullScreenController ? <FullScreenController nodeid={Parentnodeid} /> : null} */}
         </div>
     )
-}
+})
 
 export default NodeToolBar

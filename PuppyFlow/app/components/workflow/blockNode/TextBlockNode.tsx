@@ -217,21 +217,30 @@ const TextBlockNode = memo(function TextBlockNode({ isConnectable, id, type, dat
     }
   }
 
-  const preventNodeDrag = () => {
+  // 添加 updateNodeContent 函数
+  const updateNodeContent = useCallback((newValue: string) => {
+    setNodes(prevNodes => prevNodes.map(node => 
+      node.id === id ? {
+        ...node,
+        data: { ...node.data, content: newValue }
+      } : node
+    ))
+  }, [id, setNodes])
 
+  // 优化函数定义，使用useCallback
+  const preventNodeDrag = useCallback(() => {
     const curRef = componentRef.current
     if (curRef && !curRef.classList.contains("nodrag")) {
       curRef.classList.add("nodrag")
     }
-  }
+  }, [])
 
-  const allowNodeDrag = () => {
-
+  const allowNodeDrag = useCallback(() => {
     const curRef = componentRef.current
-    if (curRef) {
+    if (curRef && curRef.classList.contains("nodrag")) {
       curRef.classList.remove("nodrag")
     }
-  }
+  }, [])
 
 
   // for rendering diffent logo of upper right tag
@@ -266,16 +275,6 @@ const TextBlockNode = memo(function TextBlockNode({ isConnectable, id, type, dat
   const toggleNodeLocked = () => {
     manageNodeasLocked(id);
   }
-
-  // 添加 updateNodeContent 函数
-  const updateNodeContent = useCallback((newValue: string) => {
-    setNodes(prevNodes => prevNodes.map(node => 
-      node.id === id ? {
-        ...node,
-        data: { ...node.data, content: newValue }
-      } : node
-    ))
-  }, [id, setNodes])
 
   return (
     <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>

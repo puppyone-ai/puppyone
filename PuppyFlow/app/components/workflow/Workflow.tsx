@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import {
   ReactFlow,
   addEdge,
@@ -56,6 +56,7 @@ import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
 import useThrottle from '../hooks/useThrottle'
 
+// 将nodeTypes和edgeTypes移到组件外部，避免每次渲染都重新创建
 const nodeTypes = {
   'text': TextBlockNode,
   'file': FileNode,
@@ -85,10 +86,14 @@ const edgeTypes = {
   'floating': FloatingEdge,
 }
 
+// 将fitViewOptions移到组件外部
 const fitViewOptions = {
   maxZoom: 0.7,
-
 }
+
+// 将空数组移到组件外部
+const emptyNodes: Node[] = [];
+const emptyEdges: Edge[] = [];
 
 // This section defines custom hooks for controlling zoom and pan behavior
 // in the ReactFlow canvas. The zoom is only enabled when Ctrl key is pressed,
@@ -171,10 +176,6 @@ function Workflow() {
   renderCountRef.current += 1;
   lastRenderTimeRef.current = new Date();
   
-  // 直接在组件内定义空数组作为默认值
-  const emptyNodes: Node[] = [];
-  const emptyEdges: Edge[] = [];
-  
   // 获取当前工作区内容
   const currentWorkspaceContent = getCurrentWorkspaceContent();
   
@@ -202,6 +203,35 @@ function Workflow() {
     onUnsortedNodesChange(changes);
     setUnsortedNodes((prevNodes) => sortNodesByType(prevNodes));
   }, [onUnsortedNodesChange, setUnsortedNodes]);
+
+  // 记忆化ReactFlow样式对象
+  const reactFlowStyle = useMemo(() => ({
+    width: "100%",
+    height: "100%",
+  }), []);
+
+  // 记忆化snapGrid数组
+  const snapGrid = useMemo((): [number, number] => [16, 16], []);
+
+  // 记忆化deleteKeyCode数组
+  const deleteKeyCode = useMemo(() => ['Backspace', 'Delete'], []);
+
+  // 记忆化panOnDrag配置
+  const panOnDragConfig = useMemo(() => canPan ? true : [1], [canPan]);
+
+  // 记忆化其他配置对象
+  const nodesDraggable = useMemo(() => !isOnGeneratingNewNode, [isOnGeneratingNewNode]);
+  const nodesConnectable = useMemo(() => !isOnGeneratingNewNode, [isOnGeneratingNewNode]);
+  const elementsSelectable = useMemo(() => !isOnGeneratingNewNode, [isOnGeneratingNewNode]);
+  const zoomOnPinch = useMemo(() => true, []);
+  const panOnScroll = useMemo(() => true, []);
+  const panOnScrollSpeed = useMemo(() => 1, []);
+  const minZoom = useMemo(() => 0.2, []);
+  const maxZoom = useMemo(() => 1.5, []);
+  const snapToGrid = useMemo(() => true, []);
+  const fitView = useMemo(() => true, []);
+  const selectionMode = useMemo(() => SelectionMode.Full, []);
+  const selectionOnDrag = useMemo(() => true, []);
 
   // 设置鼠标样式
   useEffect(() => {
@@ -236,7 +266,7 @@ function Workflow() {
       setUnsortedNodes([]);
       setEdges([]);
     }
-  }, [currentWorkspaceContent, selectedFlowId]);
+  }, [currentWorkspaceContent, selectedFlowId, setUnsortedNodes, setEdges, setViewport]);
 
   // 定期保存 ReactFlow 状态到工作区
   const lastSavedContent = useRef<string>('');
@@ -319,24 +349,24 @@ function Workflow() {
     setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges))
     allowActivateOtherNodesWhenConnectEnd()
 
-  }, [setEdges])
+  }, [isOnGeneratingNewNode, judgeNodeIsEdgeNode, setEdges, allowActivateOtherNodesWhenConnectEnd])
 
-  const onConnectStart = (event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
+  const onConnectStart = useCallback((event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
     if (isOnGeneratingNewNode) return
     event.preventDefault()
     event.stopPropagation()
     if (nodeId) preventInactivateNode()
     preventActivateOtherNodesWhenConnectStart()
-  }
+  }, [isOnGeneratingNewNode, preventInactivateNode, preventActivateOtherNodesWhenConnectStart])
 
-  const onConnectEnd = (event: MouseEvent | TouchEvent) => {
+  const onConnectEnd = useCallback((event: MouseEvent | TouchEvent) => {
     if (isOnGeneratingNewNode) return
     event.preventDefault()
     event.stopPropagation()
     allowActivateOtherNodesWhenConnectEnd()
-  }
+  }, [isOnGeneratingNewNode, allowActivateOtherNodesWhenConnectEnd])
 
-  const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id: string) => {
+  const bringToFront = useCallback((event: React.MouseEvent<Element, MouseEvent>, id: string) => {
     setNodes((nds: Node[]) => {
       const nodeIndex = nds.findIndex((node) => node.id === id);
       const node = nds[nodeIndex];
@@ -347,26 +377,39 @@ function Workflow() {
     });
 
     activateNode(id)
-  };
+  }, [setNodes, activateNode]);
 
-  const onNodeMouseLeave = (id: string) => {
+  const onNodeMouseLeave = useCallback((id: string) => {
     if (preventInactivated || isOnGeneratingNewNode) return
     inactivateNode(id)
-  }
+  }, [preventInactivated, isOnGeneratingNewNode, inactivateNode])
 
-  const onNodeClick = (id: string) => {
+  const onNodeClick = useCallback((id: string) => {
     if (isOnGeneratingNewNode) return
     if (!judgeNodeIsEdgeNode(id)) {
       clearEdgeActivation()
     }
     activateNode(id)
     preventInactivateNode()
-  }
+  }, [isOnGeneratingNewNode, judgeNodeIsEdgeNode, clearEdgeActivation, activateNode, preventInactivateNode])
 
-  const onPaneClick = () => {
+  const onPaneClick = useCallback(() => {
     if (isOnGeneratingNewNode) return
     clearAll()
-  }
+  }, [isOnGeneratingNewNode, clearAll])
+
+  // 记忆化事件处理函数
+  const onNodeMouseEnter = useCallback((event: React.MouseEvent<Element, MouseEvent>, node: Node) => {
+    bringToFront(event, node.id)
+  }, [bringToFront])
+
+  const onNodeClickHandler = useCallback((event: React.MouseEvent<Element, MouseEvent>, node: Node) => {
+    onNodeClick(node.id)
+  }, [onNodeClick])
+
+  const onNodeMouseLeaveHandler = useCallback((event: React.MouseEvent<Element, MouseEvent>, node: Node) => {
+    onNodeMouseLeave(node.id)
+  }, [onNodeMouseLeave])
 
   useEffect(() => {
     const handleWheel = (e: any) => {
@@ -432,7 +475,7 @@ function Workflow() {
     }
 
     setEdgesIds(getEdges().map((edge) => edge.id))
-  }, [getEdges()])
+  }, [getEdges(), edgesIds])
 
   // 在 Workflow.tsx 中添加一个监听器，每当节点变更时进行排序
   useEffect(() => {
@@ -459,29 +502,26 @@ function Workflow() {
       console.warn('Node order is incorrect, reordering...');
       setNodes(sortNodesByType(nodes));
     }
-  }, [nodes]);
+  }, [nodes, setNodes]);
 
   // 性能信息切换处理函数
-  const togglePerformanceInfo = () => {
-    setShowPerformanceInfo(!showPerformanceInfo);
-  };
+  const togglePerformanceInfo = useCallback(() => {
+    setShowPerformanceInfo(prev => !prev);
+  }, []);
 
   // 重置渲染计数
-  const resetRenderCount = () => {
+  const resetRenderCount = useCallback(() => {
     renderCountRef.current = 0;
     lastRenderTimeRef.current = new Date();
     // 强制重新渲染以更新显示
-    setShowPerformanceInfo(showPerformanceInfo);
-  };
+    setShowPerformanceInfo(prev => prev);
+  }, []);
 
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
       <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
         <ReactFlow id="flowChart"
-          style={{
-            width: "100%",
-            height: "100%",
-          }}
+          style={reactFlowStyle}
           connectionLineComponent={CustomConnectionLine}
           nodes={nodes}
           edges={edges}
@@ -491,33 +531,29 @@ function Workflow() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
-          nodesDraggable={!isOnGeneratingNewNode}
-          nodesConnectable={!isOnGeneratingNewNode}
-          elementsSelectable={!isOnGeneratingNewNode}
-          onNodeMouseEnter={(event, node) => {
-            bringToFront(event, node.id)
-          }}
-          onNodeMouseLeave={(event, node) => {
-            onNodeMouseLeave(node.id)
-          }}
-          onNodeClick={(event, node) => onNodeClick(node.id)}
+          nodesDraggable={nodesDraggable}
+          nodesConnectable={nodesConnectable}
+          elementsSelectable={elementsSelectable}
+          onNodeMouseEnter={onNodeMouseEnter}
+          onNodeMouseLeave={onNodeMouseLeaveHandler}
+          onNodeClick={onNodeClickHandler}
           onConnectStart={onConnectStart}
           onConnectEnd={onConnectEnd}
           onPaneClick={onPaneClick}
-          snapToGrid={true}
-          snapGrid={[16, 16]}
-          fitView
-          deleteKeyCode={['Backspace', 'Delete']}  // 同时支持Backspace和Delete键
-          minZoom={0.2}           // 最小缩放级别
-          maxZoom={1.5}
+          snapToGrid={snapToGrid}
+          snapGrid={snapGrid}
+          fitView={fitView}
+          deleteKeyCode={deleteKeyCode}
+          minZoom={minZoom}
+          maxZoom={maxZoom}
           zoomOnScroll={canZoom}
-          zoomOnPinch={true}
-          panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
-          panOnScroll={true}          // 重新启用默认的滚动行为
-          panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
-          selectionMode={SelectionMode.Full}
-          selectionOnDrag={true}  // 启用拖拽选择
-          className="nocursor"             // 可选：添加自定义样式
+          zoomOnPinch={zoomOnPinch}
+          panOnDrag={panOnDragConfig}
+          panOnScroll={panOnScroll}
+          panOnScrollSpeed={panOnScrollSpeed}
+          selectionMode={selectionMode}
+          selectionOnDrag={selectionOnDrag}
+          className="nocursor"
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
         >

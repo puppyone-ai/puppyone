@@ -1,6 +1,6 @@
 'use client'
 import { NodeProps, Node, Handle, Position, useReactFlow, NodeResizeControl } from '@xyflow/react'
-import React, { useRef, useEffect, useState, ReactElement, Fragment, useCallback } from 'react'
+import React, { useRef, useEffect, useState, ReactElement, Fragment, useCallback, memo } from 'react'
 // import { nodeState, useNodeContext } from '../../states/NodeContext'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import WhiteBallHandle from '../handles/WhiteBallHandle'
@@ -88,7 +88,7 @@ type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
 // 注意：PathNode 类型已经在 TreePathEditor 组件中导出，这里不需要重复定义
 
-function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name, indexingList = [] } }: JsonBlockNodeProps) {
+const JsonBlockNode = memo(function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name, indexingList = [] } }: JsonBlockNodeProps) {
   const { fetchUserId } = useWorkspaceManagement()
   const { userId } = useWorkspaces()
 
@@ -763,7 +763,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
     </div >
 
-  )
-}
+  );
+});
 
-export default JsonBlockNode
+export default JsonBlockNode;

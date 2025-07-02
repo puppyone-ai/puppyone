@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, memo } from 'react'
 import { HandleProps, Handle, Position, Connection, useReactFlow } from '@xyflow/react'
 import EdgeMenu1 from '../edgesNode/edgeNodesCreatingMenu/EdgeSelectorMenu'
 import { useNodeContext } from '../../states/NodeContext'
@@ -13,7 +13,7 @@ type WhiteBallHandleProps = HandleProps & {
 type HandleNames = "TopSrcHandle" | "BottomSrcHandle" | "LeftSrcHandle" | "RightSrcHandle";
 
 
-function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
+const WhiteBallHandle = memo(function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
 
     // console.log(sourceNodeId)
     // design handle bar with multiple handles, must add id for handle
@@ -230,8 +230,8 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
             />
         </>
     );
-}
+});
 
-export default WhiteBallHandle
+export default WhiteBallHandle;
 
 
