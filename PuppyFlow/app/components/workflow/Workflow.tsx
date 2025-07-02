@@ -161,6 +161,7 @@ function Workflow() {
   
   const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
   
+
   // 直接在组件内定义空数组作为默认值
   const emptyNodes: Node[] = [];
   const emptyEdges: Edge[] = [];
@@ -188,10 +189,10 @@ function Workflow() {
   };
 
   // 创建自定义的onNodesChange处理器，确保在变更后节点也保持正确顺序
-  const onNodesChange = (changes: NodeChange[]) => {
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
     onUnsortedNodesChange(changes);
     setUnsortedNodes((prevNodes) => sortNodesByType(prevNodes));
-  };
+  }, [onUnsortedNodesChange, setUnsortedNodes]);
 
   // 设置鼠标样式
   useEffect(() => {
@@ -451,6 +452,7 @@ function Workflow() {
     }
   }, [nodes]);
 
+
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
       <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
@@ -500,6 +502,7 @@ function Workflow() {
         >
           <Upbar />
           <Background color="#646464" variant={BackgroundVariant.Dots} gap={16} />
+          
           <div className="absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]">
             <a
               href="https://www.puppyagent.com/"
