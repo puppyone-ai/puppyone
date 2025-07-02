@@ -121,7 +121,7 @@ function DeployAsApi({
 
   // 使用新的 serverOperations 处理部署逻辑
   const handleDeploy = async () => {
-    if (!selectedFlowId || !serverOperations.apiServerKey) {
+    if (!selectedFlowId) {
       console.error("缺少必要的部署参数");
       return;
     }
@@ -143,8 +143,7 @@ function DeployAsApi({
       // Build headers according to API documentation
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-admin-key": serverOperations.apiServerKey,
-        "x-user-token": userToken || "" // Always send x-user-token, empty string if no token
+        "Authorization": `Bearer ${userToken || ""}` // Use Bearer token authentication
       };
 
       const res = await fetch(`${API_SERVER_URL}/config_api`, {
