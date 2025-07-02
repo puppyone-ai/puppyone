@@ -108,7 +108,7 @@ export const useServerOperations = () => {
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${userToken || ""}`
+        "x-user-token": `Bearer ${userToken || ""}`
       };
 
       const res = await fetch(url, {
@@ -269,7 +269,7 @@ export const useServerOperations = () => {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${userToken || ""}`
+            "x-user-token": `Bearer ${userToken || ""}`
           }
         }
       );
@@ -295,7 +295,7 @@ export const useServerOperations = () => {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${userToken || ""}`
+            "x-user-token": `Bearer ${userToken || ""}`
           }
         }
       );
@@ -321,7 +321,7 @@ export const useServerOperations = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${userToken || ""}`
+            "x-user-token": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -353,7 +353,7 @@ export const useServerOperations = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${userToken || ""}`
+            "x-user-token": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -389,7 +389,7 @@ export const useServerOperations = () => {
       // Build headers according to API documentation
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${userToken || ""}`
+        "x-user-token": `Bearer ${userToken || ""}`
       };
 
       const res = await fetch(
@@ -424,7 +424,7 @@ export const useServerOperations = () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${userToken || ""}`
+            "x-user-token": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify(updates)
         }
@@ -453,7 +453,7 @@ export const useServerOperations = () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${userToken || ""}`
+            "x-user-token": `Bearer ${userToken || ""}`
           },
           body: JSON.stringify(updates)
         }
