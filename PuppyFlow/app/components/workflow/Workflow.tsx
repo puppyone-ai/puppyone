@@ -52,8 +52,10 @@ import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
+import ServerTextBlockNode from './serverNode/ServerNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
+import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -76,12 +78,14 @@ const nodeTypes = {
   'generate': Generate,
   'load': Load,
   'group': GroupNode,
+  'serverText': ServerTextBlockNode,
 }
 
 const edgeTypes = {
   'STC': SourceToConfigEdge,
   'CTT': ConfigToTargetEdge,
   'floating': FloatingEdge,
+  'serverDashed': ServerDashedEdge,
 }
 
 const fitViewOptions = {
@@ -293,13 +297,20 @@ function Workflow() {
     if (isOnGeneratingNewNode) return
     const targetIsEdgeNode = judgeNodeIsEdgeNode(connection.target)
     const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source)
+    
     if (targetIsEdgeNode && sourceIsEdgeNode ||
       !targetIsEdgeNode && !sourceIsEdgeNode
     ) return
+
+    // 檢查 source 節點是否是 serverText 類型
+    const sourceNode = getNode(connection.source)
+    const isServerNode = sourceNode?.type === 'serverText'
+    
     const edge: Edge = {
       ...connection,
       id: `connection-${Date.now()}`,
-      type: 'floating',
+      // 如果是 server node 連接，使用 serverDashed，否則使用 floating
+      type: isServerNode ? 'serverDashed' : 'floating',
       data: {
         connectionType: !sourceIsEdgeNode && targetIsEdgeNode ? 'STC' : 'CTT'
       },
@@ -309,7 +320,7 @@ function Workflow() {
     setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges))
     allowActivateOtherNodesWhenConnectEnd()
 
-  }, [setEdges])
+  }, [setEdges, getNode, judgeNodeIsEdgeNode, markerEnd, allowActivateOtherNodesWhenConnectEnd])
 
   const onConnectStart = (event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
     if (isOnGeneratingNewNode) return
