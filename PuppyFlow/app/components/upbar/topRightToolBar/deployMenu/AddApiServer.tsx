@@ -137,7 +137,7 @@ function DeployAsApi({
       };
 
       // Get user token according to API documentation
-      const userToken = serverOperations.getToken();
+      const userToken = serverOperations.getUserToken();
       
 
       // Build headers according to API documentation

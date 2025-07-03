@@ -88,7 +88,7 @@ type AppSettingsContextType = {
   // 认证相关
   getAuthHeaders: () => HeadersInit;
   getUserToken: (forceLocal?: boolean) => string | undefined;
-  getCustomAuthHeaders: (headerName?: string) => HeadersInit;
+  getCustomAuthHeaders: (headerName?: string) => Record<string, string>;
   
   // 警告消息相关
   warns: WarnMessage[];
@@ -276,7 +276,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
   };
 
   // 获取带有自定义header名称的认证headers
-  const getCustomAuthHeaders = (headerName: string = 'Authorization'): HeadersInit => {
+  const getCustomAuthHeaders = (headerName: string = 'Authorization'): Record<string, string> => {
     const token = getUserToken();
     return token ? { [headerName]: `Bearer ${token}` } : {};
   };
