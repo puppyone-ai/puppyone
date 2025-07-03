@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'No token provided' }, { status: 400 })
   }
 
-  const { status, isValid } = await verifyToken(token)
+  const { status, isValid } = await verifyToken()
   
   if (isValid) {
     return NextResponse.json({ message: 'Token verified successfully' }, { status: 200 })
