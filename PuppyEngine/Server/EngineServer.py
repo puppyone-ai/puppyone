@@ -1,5 +1,5 @@
 """
-Engine Server - FastAPI Implementation with Concurrency Controls
+Engine Server - FastAPI Implementation with Concurrency Controls and User Authentication
 
 Core Design Patterns:
 --------------------
@@ -45,6 +45,12 @@ Core Design Patterns:
    - No shared mutable state between components
    - Follows object-oriented principles of encapsulation and responsibility
 
+8. User Authentication & Usage Tracking:
+   - Each request requires user authentication via JWT token
+   - Usage is checked before workflow execution
+   - Run consumption is tracked per workflow execution
+   - Supports both local mode (skip checks) and remote mode (call user system)
+
 Engineering Decisions:
 ---------------------
 1. Minimal State Design:
@@ -63,6 +69,7 @@ Engineering Decisions:
    - Input validation in send_data ensures data integrity
    - Workflow creation validation prevents null/invalid workflows
    - Task existence validation before processing
+   - User authentication validation before any processing
 
 4. Copy vs Reference Pattern:
    - Chose copy-based model over reference-based for future extensibility
@@ -70,6 +77,12 @@ Engineering Decisions:
    - Simplifies future implementation of signature-based permissions
    - Easier to migrate to distributed processing in the future
    - Reduces tight coupling between system components
+
+5. Authentication & Usage Integration:
+   - Non-blocking usage checks for better performance
+   - Usage consumption happens during workflow execution
+   - Graceful fallback for local development mode
+   - Comprehensive error reporting for usage-related issues
 
 Future Expansion Architecture:
 ----------------------------
@@ -95,11 +108,18 @@ The system is designed to evolve toward more advanced patterns:
    - Central data store with logical tenant separation
    - Cross-tenant workflows with explicit permission boundaries
 
+4. Advanced Usage Tracking:
+   - Per-block usage consumption tracking
+   - Different usage types for different block types
+   - Usage quotas and rate limiting
+   - Advanced analytics and billing integration
+
 The copy-based model provides better encapsulation and clearer boundaries for these
 future enhancements, especially for security and distributed processing features.
 
 The server implements a straightforward synchronous workflow processor with concurrent
-request handling capabilities through FastAPI's asynchronous model.
+request handling capabilities through FastAPI's asynchronous model, enhanced with
+user authentication and usage tracking capabilities.
 """
 
 import sys
@@ -111,13 +131,16 @@ import uuid
 import time
 from threading import Lock, Thread
 from collections import defaultdict
+from typing import Optional
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 
 from Server.WorkFlow import WorkFlow
 from Server.JsonValidation import JsonValidator
+from Server.auth_module import auth_module, AuthenticationError, User
+from Server.usage_module import usage_module, UsageError
 from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error, log_warning, log_debug
 
@@ -402,9 +425,32 @@ async def get_data(
     wait: bool = True,  # 是否等待锁释放
     timeout: float = 60.0,  # 等待超时时间(秒)
     retry_attempts: int = 5,  # 重试次数
-    retry_delay: float = 0.5  # 每次重试间隔(秒)
+    retry_delay: float = 0.5,  # 每次重试间隔(秒)
+    authorization: str = Header(None, alias="Authorization"),  # 用户认证（直接调用时使用）
+    x_user_id: str = Header(None, alias="x-user-id")  # 来自API Server的用户ID（优先使用）
 ):
+    user_token = None
+    user = None
+    
     try:
+        # 简化认证逻辑：优先使用x-user-id，其次使用Authorization
+        if x_user_id:
+            # 来自API Server的请求，用户已经过验证
+            log_info(f"使用API Server提供的用户ID: {x_user_id}")
+            user = User(user_id=x_user_id)
+        elif auth_module.requires_auth():
+            # 直接调用Engine Server，需要验证JWT token
+            user_token = auth_module.extract_user_token(authorization)
+            if not user_token:
+                raise HTTPException(status_code=401, detail="用户认证token是必需的")
+            
+            user = await auth_module.verify_user_token(user_token)
+            log_info(f"用户认证成功: {user.user_id}")
+        else:
+            # 本地模式，使用默认用户
+            log_info("本地模式，使用默认用户")
+            user = User(user_id="local-user")
+        
         # 尝试获取任务锁，根据wait参数决定是否阻塞等待
         if not data_store.acquire_task_lock(task_id, blocking=wait, timeout=timeout if wait else None):
             raise PuppyException(
@@ -414,7 +460,7 @@ async def get_data(
             )
         
         connection_id = f"{task_id}-{uuid.uuid4().hex[:8]}"
-        log_info(f"Connection {connection_id}: Starting EventSource stream for task {task_id}")
+        log_info(f"Connection {connection_id}: Starting EventSource stream for task {task_id} (用户: {user.user_id})")
         
         async def stream_data():          
             try:
@@ -468,21 +514,101 @@ async def get_data(
                         error_msg
                     )
                 
-                log_info(f"Connection {connection_id}: Workflow found, beginning processing")
+                log_info(f"Connection {connection_id}: Workflow found, beginning processing (用户: {user.user_id})")
                 
                 # 记录开始时间
                 start_time = time.time()
                 last_yield_time = start_time
                 yield_count = 0
+                total_runs_consumed = 0
                 log_debug(f"Connection {connection_id}: Starting data streaming at {start_time}")
+                
+                # 定义edge级别的usage消费回调
+                async def edge_usage_callback(edge_metadata):
+                    nonlocal total_runs_consumed
+                    execution_success = edge_metadata.get("execution_success", False)
+                    
+                    if usage_module.requires_usage_check():
+                        try:
+                            # 更新事件元数据
+                            event_metadata = {
+                                "task_id": task_id,
+                                "connection_id": connection_id,
+                                "edge_id": edge_metadata["edge_id"],
+                                "edge_type": edge_metadata["edge_type"],
+                                "execution_time": edge_metadata["execution_time"],
+                                "execution_success": execution_success,
+                                "workflow_type": "engine_execution"
+                            }
+                            
+                            # 添加错误信息（如果有）
+                            if edge_metadata.get("error_info"):
+                                event_metadata["error_info"] = edge_metadata["error_info"]
+                            
+                            if execution_success:
+                                # 成功执行的edge：消费usage
+                                # 根据可用的认证信息选择合适的方法
+                                if user_token:
+                                    # 有用户token，使用基于token的方法
+                                    await usage_module.consume_usage_async(
+                                        user_token=user_token,
+                                        usage_type="runs",
+                                        amount=1,
+                                        event_metadata=event_metadata
+                                    )
+                                else:
+                                    # 只有用户ID，使用基于用户ID的方法
+                                    await usage_module.consume_usage_by_user_id_async(
+                                        user_id=user.user_id,
+                                        usage_type="runs",
+                                        amount=1,
+                                        event_metadata=event_metadata
+                                    )
+                                total_runs_consumed += 1
+                                log_debug(f"Connection {connection_id}: Usage consumed for successful edge {edge_metadata['edge_id']} ({edge_metadata['edge_type']})")
+                            else:
+                                # 失败执行的edge：不消费usage，但记录事件用于调试分析
+                                # 可以选择调用一个专门的失败事件记录接口，或者在event_metadata中标记为失败
+                                event_metadata["consumed_amount"] = 0  # 明确标记未消费usage
+                                event_metadata["failure_reason"] = "edge_execution_failed"
+                                
+                                # 这里可以选择调用特殊的失败事件记录接口
+                                # 或者使用现有接口但amount=0
+                                if user_token:
+                                    await usage_module.consume_usage_async(
+                                        user_token=user_token,
+                                        usage_type="runs",
+                                        amount=0,  # 失败不消费usage
+                                        event_metadata=event_metadata
+                                    )
+                                else:
+                                    await usage_module.consume_usage_by_user_id_async(
+                                        user_id=user.user_id,
+                                        usage_type="runs",
+                                        amount=0,  # 失败不消费usage
+                                        event_metadata=event_metadata
+                                    )
+                                log_warning(f"Connection {connection_id}: Edge execution failed, no usage consumed for edge {edge_metadata['edge_id']} ({edge_metadata['edge_type']}). Error: {edge_metadata.get('error_info', {}).get('error_message', 'Unknown error')}")
+                            
+                        except UsageError as ue:
+                            log_error(f"Connection {connection_id}: Usage error during edge execution: {ue.message}")
+                            # Usage不足，抛出异常中断整个workflow
+                            raise ue
+                        except Exception as ue:
+                            log_error(f"Connection {connection_id}: Unexpected usage error: {str(ue)}")
+                            # 意外的usage错误，继续执行但记录警告
+                            log_warning(f"Connection {connection_id}: Continuing execution despite usage error")
+                
+                # 初始化异步usage处理
+                workflow.initialize_async_usage_processing(edge_usage_callback)
                 
                 # 使用上下文管理器自动管理资源
                 with workflow:
-                    for yielded_blocks in workflow.process():
+                    for yielded_blocks in workflow.process(edge_usage_callback):
                         if not yielded_blocks:
                             continue
                         
-                        log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks")
+                        log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks (total runs consumed: {total_runs_consumed})")
                         
                         # 记录 yield 前的时间
                         current_time = time.time()
@@ -493,26 +619,39 @@ async def get_data(
                         log_debug(f"Connection {connection_id}: Yield #{yield_count} - Time since last yield: {time_since_last:.3f}s, Total time: {time_since_start:.3f}s")
                         
                         # 使用自定义序列化函数处理datetime等特殊类型
-                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False}, default=json_serializer)}\n\n"
+                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False, 'runs_consumed': total_runs_consumed}, default=json_serializer)}\n\n"
                         
                         # 更新最后一次 yield 的时间
                         last_yield_time = time.time()
                         yield_after_time = last_yield_time - current_time
                         log_debug(f"Connection {connection_id}: Yield #{yield_count} completed - Yield operation took: {yield_after_time:.3f}s")
                     
+                    # 处理待处理的usage任务（如果有异步环境不可用的情况）
+                    try:
+                        workflow.process_pending_usage_tasks_sync(edge_usage_callback)
+                        log_info(f"Connection {connection_id}: Pending usage tasks processed")
+                    except Exception as e:
+                        log_warning(f"Connection {connection_id}: Error processing pending usage tasks: {str(e)}")
+                    
                     # 记录最终完成信号的时间
                     final_time = time.time()
                     time_since_last = final_time - last_yield_time
                     total_time = final_time - start_time
                     
-                    log_info(f"Connection {connection_id}: Processing complete, sending completion signal")
+                    log_info(f"Connection {connection_id}: Processing complete, sending completion signal (总计消费 {total_runs_consumed} runs)")
                     log_debug(f"Connection {connection_id}: Final completion signal - Time since last yield: {time_since_last:.3f}s, Total processing time: {total_time:.3f}s")
                     
-                    yield f"data: {json.dumps({'is_complete': True})}\n\n"
+                    yield f"data: {json.dumps({'is_complete': True, 'total_runs_consumed': total_runs_consumed, 'user_id': user.user_id})}\n\n"
                     
                     completion_after_time = time.time() - final_time
                     log_debug(f"Connection {connection_id}: Completion signal sent - Operation took: {completion_after_time:.3f}s, Total yields: {yield_count}")
                 
+            except AuthenticationError as ae:
+                log_error(f"Connection {connection_id}: Authentication error: {ae.message}")
+                yield f"data: {json.dumps({'error': ae.message, 'code': 'AUTH_ERROR'})}\n\n"
+            except UsageError as ue:
+                log_error(f"Connection {connection_id}: Usage error: {ue.message}")
+                yield f"data: {json.dumps({'error': f'Usage不足: {ue.message}', 'code': 'USAGE_INSUFFICIENT', 'available': ue.available, 'consumed_so_far': total_runs_consumed})}\n\n"
             except PuppyException as e:
                 log_error(f"Connection {connection_id}: Error during streaming: {str(e)}")
                 yield f"data: {json.dumps({'error': str(e), 'code': e.code, 'message': e.message})}\n\n"
@@ -521,7 +660,7 @@ async def get_data(
                 yield f"data: {json.dumps({'error': 'Internal server error', 'message': 'An unexpected error occurred'})}\n\n"
             finally:
                 # 记录连接关闭
-                log_info(f"Connection {connection_id}: Stream closing, marking task for delayed cleanup")
+                log_info(f"Connection {connection_id}: Stream closing, marking task for delayed cleanup (用户: {user.user_id if user else 'unknown'})")
                 
                 # 所有资源清理集中在finally中
                 try:
@@ -536,6 +675,29 @@ async def get_data(
         
         return StreamingResponse(stream_data(), media_type="text/event-stream")
     
+    except AuthenticationError as ae:
+        # 确保在异常情况下也释放锁
+        data_store.release_task_lock(task_id)
+        log_error(f"Authentication error: {ae.message}")
+        return JSONResponse(
+            content={"error": ae.message, "code": "AUTH_ERROR"}, 
+            status_code=ae.status_code
+        )
+    except HTTPException as he:
+        # 专门处理FastAPI的HTTPException，确保状态码正确传递
+        log_error(f"HTTP error: {he.detail}")
+        return JSONResponse(
+            content={"error": he.detail, "code": "HTTP_ERROR"}, 
+            status_code=he.status_code
+        )
+    except UsageError as ue:
+        # 确保在异常情况下也释放锁
+        data_store.release_task_lock(task_id)
+        log_error(f"Usage error: {ue.message}")
+        return JSONResponse(
+            content={"error": ue.message, "code": "USAGE_ERROR", "available": ue.available}, 
+            status_code=ue.status_code
+        )
     except PuppyException as e:
         # 确保在异常情况下也释放锁
         data_store.release_task_lock(task_id)
@@ -555,11 +717,34 @@ async def get_data(
 
 @app.post("/send_data")
 async def send_data(
-    request: Request
+    request: Request,
+    authorization: str = Header(None, alias="Authorization"),  # 用户认证（直接调用时使用）
+    x_user_id: str = Header(None, alias="x-user-id")  # 来自API Server的用户ID（优先使用）
 ):
     log_info("Sending data to server")
     task_id = None
+    user_token = None
+    user = None
+    
     try:
+        # 简化认证逻辑：优先使用x-user-id，其次使用Authorization
+        if x_user_id:
+            # 来自API Server的请求，用户已经过验证
+            log_info(f"使用API Server提供的用户ID: {x_user_id}")
+            user = User(user_id=x_user_id)
+        elif auth_module.requires_auth():
+            # 直接调用Engine Server，需要验证JWT token
+            user_token = auth_module.extract_user_token(authorization)
+            if not user_token:
+                raise HTTPException(status_code=401, detail="用户认证token是必需的")
+            
+            user = await auth_module.verify_user_token(user_token)
+            log_info(f"用户认证成功: {user.user_id}")
+        else:
+            # 本地模式，使用默认用户
+            log_info("本地模式，使用默认用户")
+            user = User(user_id="local-user")
+        
         data = await request.json()
         task_id = str(uuid.uuid4())
         
@@ -582,7 +767,55 @@ async def send_data(
                 "The 'blocks' field cannot be empty"
             )
         
-        log_info(f"Creating new task {task_id} with {len(blocks)} blocks and {len(edges)} edges")
+        # Usage预检查：根据可用的认证信息选择合适的方法
+        if usage_module.requires_usage_check():
+            try:
+                estimated_runs = len(blocks)
+                
+                if user_token:
+                    # 有token，使用基于token的方法
+                    check_result = await usage_module.check_usage_async(
+                        user_token=user_token,
+                        usage_type="runs",
+                        amount=estimated_runs
+                    )
+                else:
+                    # 只有用户ID，使用基于用户ID的方法
+                    check_result = await usage_module.check_usage_by_user_id_async(
+                        user_id=user.user_id,
+                        usage_type="runs",
+                        amount=estimated_runs
+                    )
+                
+                if not check_result.get("allowed", False):
+                    available = check_result.get("available", 0)
+                    raise UsageError(
+                        f"Usage不足: 预估需要{estimated_runs}个runs，但只有{available}个可用",
+                        status_code=429,
+                        available=available
+                    )
+                
+                log_info(f"Usage预检查通过: 用户 {user.user_id} 有足够的runs (预估需要: {estimated_runs}, 可用: {check_result.get('available', 0)})")
+                
+            except UsageError as ue:
+                log_error(f"Usage预检查失败: {ue.message}")
+                return JSONResponse(
+                    content={
+                        "error": ue.message, 
+                        "code": "USAGE_INSUFFICIENT", 
+                        "available": ue.available,
+                        "estimated_required": estimated_runs
+                    }, 
+                    status_code=ue.status_code
+                )
+            except Exception as ue:
+                log_error(f"Usage预检查发生未预期错误: {str(ue)}")
+                return JSONResponse(
+                    content={"error": "Usage服务错误", "code": "USAGE_SERVICE_ERROR"}, 
+                    status_code=503
+                )
+        
+        log_info(f"Creating new task {task_id} with {len(blocks)} blocks and {len(edges)} edges (用户: {user.user_id})")
         
         try:
             # 1. 在DataStore中存储数据副本
@@ -594,17 +827,22 @@ async def send_data(
             log_info(f"Creating workflow with its own data copy for task {task_id}")
             workflow = WorkFlow(data, task_id=task_id)
             
-            # 3. 存储工作流对象引用
+            # 3. 存储工作流对象引用，并关联用户信息
             data_store.set_workflow(task_id, workflow)
             
-            # 4. 验证数据完整性
+            # 4. 在DataStore中记录用户信息
+            if task_id in data_store.data_store:
+                data_store.data_store[task_id]["user_id"] = user.user_id
+                data_store.data_store[task_id]["user_token"] = user_token
+            
+            # 5. 验证数据完整性
             stored_data = data_store.get_data(task_id)
             if not stored_data.get("blocks"):
                 log_warning(f"Data validation failed for task {task_id}: Blocks were not stored correctly")
                 raise PuppyException(6202, "Data validation failed", "Blocks were not stored correctly")
             
-            log_info(f"Task {task_id} successfully created and workflow initialized")
-            return JSONResponse(content={"task_id": task_id}, status_code=200)
+            log_info(f"Task {task_id} successfully created and workflow initialized (用户: {user.user_id})")
+            return JSONResponse(content={"task_id": task_id, "user_id": user.user_id}, status_code=200)
             
         except Exception as e:
             log_error(f"Error during task creation {task_id}: {str(e)}")
@@ -613,6 +851,25 @@ async def send_data(
                 data_store.cleanup_task(task_id)
             raise
             
+    except AuthenticationError as ae:
+        log_error(f"Authentication error: {ae.message}")
+        return JSONResponse(
+            content={"error": ae.message, "code": "AUTH_ERROR"}, 
+            status_code=ae.status_code
+        )
+    except HTTPException as he:
+        # 专门处理FastAPI的HTTPException，确保状态码正确传递
+        log_error(f"HTTP error: {he.detail}")
+        return JSONResponse(
+            content={"error": he.detail, "code": "HTTP_ERROR"}, 
+            status_code=he.status_code
+        )
+    except UsageError as ue:
+        log_error(f"Usage error: {ue.message}")
+        return JSONResponse(
+            content={"error": ue.message, "code": "USAGE_ERROR", "available": ue.available}, 
+            status_code=ue.status_code
+        )
     except PuppyException as e:
         log_error(f"PuppyEngine error: {str(e)}")
         return JSONResponse(
