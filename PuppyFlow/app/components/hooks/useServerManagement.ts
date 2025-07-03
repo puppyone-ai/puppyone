@@ -8,7 +8,6 @@
 import { useCallback } from 'react';
 import { SYSTEM_URLS } from '@/config/urls';
 import { ApiService, ChatbotService, EnhancedApiService, EnhancedChatbotService } from '../states/UserServersContext';
-import Cookies from 'js-cookie';
 import { useAppSettings } from '../states/AppSettingsContext';
 
 // 添加 chatbot 配置参数接口
@@ -72,16 +71,7 @@ interface FetchUserDeploymentsParams {
 // Hook for API operations
 export const useServerOperations = () => {
   const apiServerUrl = SYSTEM_URLS.API_SERVER.BASE;
-  const { isLocalDeployment } = useAppSettings();
-
-  // 获取用户 token
-  const getToken = (isLocal?: boolean): string | undefined => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
-    if (useLocal) {
-      return 'local-token';
-    }
-    return Cookies.get('access_token');
-  };
+  const { isLocalDeployment, getUserToken, getCustomAuthHeaders } = useAppSettings();
 
   // 获取用户的所有部署服务 - 基础 API 调用
   const fetchUserDeployments = useCallback(async (params: FetchUserDeploymentsParams = {}): Promise<UserDeploymentsResponse> => {
@@ -100,7 +90,7 @@ export const useServerOperations = () => {
       }
 
       const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const userToken = getToken(useLocal);
+      const userToken = getUserToken(useLocal);
       
       if (!userToken && !useLocal) {
         throw new Error('No user access token found');
@@ -108,7 +98,7 @@ export const useServerOperations = () => {
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-user-token": `Bearer ${userToken || ""}`
+        ...getCustomAuthHeaders('x-user-token')
       };
 
       const res = await fetch(url, {
@@ -129,7 +119,7 @@ export const useServerOperations = () => {
       console.error(`Error fetching user deployments:`, error);
       throw error;
     }
-  }, [apiServerUrl, isLocalDeployment]);
+  }, [apiServerUrl, isLocalDeployment, getUserToken, getCustomAuthHeaders]);
 
   // 获取所有增强服务 - 统一的数据转换逻辑
   const fetchAllEnhancedServices = useCallback(async (workspaces: Array<{workspace_id: string, workspace_name: string}>): Promise<{
@@ -262,14 +252,14 @@ export const useServerOperations = () => {
   // 删除API服务
   const deleteApiService = useCallback(async (apiId: string): Promise<void> => {
     try {
-      const userToken = getToken();
+      const userToken = getUserToken();
       const res = await fetch(
         `${apiServerUrl}/delete_api/${apiId}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "x-user-token": `Bearer ${userToken || ""}`
+            ...getCustomAuthHeaders('x-user-token')
           }
         }
       );
@@ -283,19 +273,19 @@ export const useServerOperations = () => {
       console.error(`Error deleting API ${apiId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken]);
+  }, [apiServerUrl, getUserToken, getCustomAuthHeaders]);
 
   // 删除Chatbot服务
   const deleteChatbotService = useCallback(async (chatbotId: string): Promise<void> => {
     try {
-      const userToken = getToken();
+      const userToken = getUserToken();
       const res = await fetch(
         `${apiServerUrl}/delete_chatbot/${chatbotId}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            "x-user-token": `Bearer ${userToken || ""}`
+            ...getCustomAuthHeaders('x-user-token')
           }
         }
       );
@@ -309,19 +299,19 @@ export const useServerOperations = () => {
       console.error(`Error deleting chatbot ${chatbotId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken]);
+  }, [apiServerUrl, getUserToken, getCustomAuthHeaders]);
 
   // 创建API服务
   const createApiService = useCallback(async (workspaceId: string, apiData: Partial<ApiService>): Promise<ApiService> => {
     try {
-      const userToken = getToken();
+      const userToken = getUserToken();
       const res = await fetch(
         `${apiServerUrl}/create_api`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-user-token": `Bearer ${userToken || ""}`
+            ...getCustomAuthHeaders('x-user-token')
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -341,19 +331,19 @@ export const useServerOperations = () => {
       console.error(`Error creating API:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken]);
+  }, [apiServerUrl, getUserToken, getCustomAuthHeaders]);
 
   // 创建Chatbot服务
   const createChatbotService = useCallback(async (workspaceId: string, chatbotData: Partial<ChatbotService>): Promise<ChatbotService> => {
     try {
-      const userToken = getToken();
+      const userToken = getUserToken();
       const res = await fetch(
         `${apiServerUrl}/create_chatbot`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-user-token": `Bearer ${userToken || ""}`
+            ...getCustomAuthHeaders('x-user-token')
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -373,13 +363,13 @@ export const useServerOperations = () => {
       console.error(`Error creating chatbot:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken]);
+  }, [apiServerUrl, getUserToken, getCustomAuthHeaders]);
 
   // 配置 Chatbot 服务
   const configChatbotService = useCallback(async (params: ConfigChatbotParams): Promise<{ chatbot_id: string; chatbot_key: string; endpoint?: string }> => {
     try {
       // Get user token according to API documentation
-      const userToken = getToken();
+      const userToken = getUserToken();
       
       // Check if user token is required (for non-local deployments)
       if (!userToken && !isLocalDeployment) {
@@ -389,7 +379,7 @@ export const useServerOperations = () => {
       // Build headers according to API documentation
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-user-token": `Bearer ${userToken || ""}`
+        ...getCustomAuthHeaders('x-user-token')
       };
 
       const res = await fetch(
@@ -412,19 +402,19 @@ export const useServerOperations = () => {
       console.error(`Error configuring chatbot:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken, isLocalDeployment]);
+  }, [apiServerUrl, getUserToken, isLocalDeployment, getCustomAuthHeaders]);
 
   // 更新API服务
   const updateApiService = useCallback(async (apiId: string, updates: Partial<ApiService>): Promise<ApiService> => {
     try {
-      const userToken = getToken();
+      const userToken = getUserToken();
       const res = await fetch(
         `${apiServerUrl}/update_api/${apiId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "x-user-token": `Bearer ${userToken || ""}`
+            ...getCustomAuthHeaders('x-user-token')
           },
           body: JSON.stringify(updates)
         }
@@ -441,19 +431,19 @@ export const useServerOperations = () => {
       console.error(`Error updating API ${apiId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken]);
+  }, [apiServerUrl, getUserToken, getCustomAuthHeaders]);
 
   // 更新Chatbot服务
   const updateChatbotService = useCallback(async (chatbotId: string, updates: Partial<ChatbotService>): Promise<ChatbotService> => {
     try {
-      const userToken = getToken();
+      const userToken = getUserToken();
       const res = await fetch(
         `${apiServerUrl}/update_chatbot/${chatbotId}`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            "x-user-token": `Bearer ${userToken || ""}`
+            ...getCustomAuthHeaders('x-user-token')
           },
           body: JSON.stringify(updates)
         }
@@ -470,7 +460,7 @@ export const useServerOperations = () => {
       console.error(`Error updating chatbot ${chatbotId}:`, error);
       throw error;
     }
-  }, [apiServerUrl, getToken]);
+  }, [apiServerUrl, getUserToken, getCustomAuthHeaders]);
 
   return {
     // 核心数据获取 - 只保留增强版本
@@ -491,7 +481,7 @@ export const useServerOperations = () => {
     
     // 配置信息
     apiServerUrl,
-    getToken
+    getUserToken
   };
 };
 
