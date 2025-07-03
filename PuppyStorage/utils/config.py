@@ -2,6 +2,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+class ConfigValidationError(Exception):
+    """配置验证错误"""
+    pass
+
 # 定义项目关键路径
 class PathManager:
     _instance = None
@@ -56,6 +60,102 @@ class AppConfig:
         # 这样Railway等平台的环境变量会保持更高优先级
         env_path = Path(__file__).parent.parent / ".env"
         load_dotenv(env_path, override=False)
+        
+        # 验证关键配置项
+        self._validate_config()
+    
+    def _validate_config(self):
+        """验证关键配置项的有效性"""
+        errors = []
+        warnings = []
+        
+        # 验证关键路径的访问权限
+        critical_paths = {
+            "PROJECT_ROOT": paths.PROJECT_ROOT,
+            "STORAGE_ROOT": paths.STORAGE_ROOT
+        }
+        
+        for path_name, path_value in critical_paths.items():
+            if not path_value:
+                errors.append(f"关键路径未设置: {path_name}")
+                continue
+                
+            path_obj = Path(path_value)
+            
+            # 检查路径是否存在
+            if not path_obj.exists():
+                try:
+                    path_obj.mkdir(parents=True, exist_ok=True)
+                    warnings.append(f"自动创建目录: {path_name} -> {path_value}")
+                except Exception as e:
+                    errors.append(f"无法创建目录 {path_name} ({path_value}): {str(e)}")
+                    continue
+            
+            # 检查读写权限
+            if not os.access(path_value, os.R_OK):
+                errors.append(f"路径不可读: {path_name} ({path_value})")
+            
+            if not os.access(path_value, os.W_OK):
+                errors.append(f"路径不可写: {path_name} ({path_value})")
+        
+        # 验证Axiom配置（可选）
+        axiom_token = os.getenv("AXIOM_TOKEN")
+        axiom_org_id = os.getenv("AXIOM_ORG_ID") 
+        axiom_dataset = os.getenv("AXIOM_DATASET")
+        
+        if any([axiom_token, axiom_org_id, axiom_dataset]):
+            # 如果配置了任何Axiom参数，则检查完整性
+            missing_axiom = []
+            if not axiom_token:
+                missing_axiom.append("AXIOM_TOKEN")
+            if not axiom_org_id:
+                missing_axiom.append("AXIOM_ORG_ID")
+            if not axiom_dataset:
+                missing_axiom.append("AXIOM_DATASET")
+            
+            if missing_axiom:
+                warnings.append(
+                    f"Axiom配置不完整，将使用本地日志: 缺少 {', '.join(missing_axiom)}"
+                )
+        
+        # 验证数值型配置
+        numeric_configs = {
+            "STORAGE_MAX_SIZE_GB": ("存储最大容量(GB)", 1, 1000),
+            "CLEANUP_INTERVAL_HOURS": ("清理间隔(小时)", 1, 168),  # 1小时到1周
+        }
+        
+        for config_key, (description, min_val, max_val) in numeric_configs.items():
+            value = os.getenv(config_key)
+            if value:
+                try:
+                    num_value = float(value)
+                    if not (min_val <= num_value <= max_val):
+                        warnings.append(
+                            f"{config_key} ({description}) 值超出推荐范围: {num_value}. "
+                            f"推荐范围: {min_val}-{max_val}"
+                        )
+                except ValueError:
+                    warnings.append(f"{config_key} ({description}) 应为数字，当前值: '{value}'")
+        
+        # 处理错误
+        if errors:
+            error_message = "PuppyStorage配置验证失败，服务无法启动:\n" + "\n".join(f"  - {error}" for error in errors)
+            print(f"\n❌ {error_message}\n")
+            raise ConfigValidationError(error_message)
+        
+        # 处理警告
+        if warnings:
+            warning_message = "\n".join(f"  ⚠️  {warning}" for warning in warnings)
+            print(f"\n⚠️  PuppyStorage配置警告:\n{warning_message}\n")
+        
+        # 打印配置信息（用于调试）
+        print(f"✅ PuppyStorage配置验证通过")
+        print(f"   PROJECT_ROOT={paths.PROJECT_ROOT}")
+        print(f"   STORAGE_ROOT={paths.STORAGE_ROOT}")
+        if axiom_token and axiom_org_id and axiom_dataset:
+            print(f"   Axiom日志: 已配置")
+        else:
+            print(f"   日志模式: 本地")
     
     def get(self, key: str, default=None):
         return os.getenv(key, default)
