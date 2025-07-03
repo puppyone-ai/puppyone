@@ -1,6 +1,6 @@
 import { SYSTEM_URLS } from '@/config/urls'
 
-export async function verifyToken(token: string) {
+export async function verifyToken() {
   try {
     const authServerUrl = SYSTEM_URLS.USER_SYSTEM.BACKEND
     const verifyPath = '/protected'
@@ -8,9 +8,9 @@ export async function verifyToken(token: string) {
     const response = await fetch(`${authServerUrl}${verifyPath}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-      }
+      },
+      credentials: 'include',
     })
 
     return {
