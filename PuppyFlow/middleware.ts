@@ -40,6 +40,6 @@ export async function middleware(request: NextRequest) {
 // 配置需要进行认证的路径
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 } 
