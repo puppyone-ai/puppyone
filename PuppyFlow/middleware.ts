@@ -26,8 +26,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(userPageUrl)
   }
 
-  // 🔥 使用cookie验证，不需要传递token参数
-  const { isValid } = await verifyToken()
+  const { isValid } = await verifyToken(token)
   
   if (isValid) {
     return NextResponse.next()
