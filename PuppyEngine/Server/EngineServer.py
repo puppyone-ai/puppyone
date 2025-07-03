@@ -143,6 +143,7 @@ from Server.auth_module import auth_module, AuthenticationError, User
 from Server.usage_module import usage_module, UsageError
 from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error, log_warning, log_debug
+from Utils.config import config, ConfigValidationError
 
 class DataStore:
     def __init__(
@@ -433,23 +434,42 @@ async def get_data(
     user = None
     
     try:
-        # 简化认证逻辑：优先使用x-user-id，其次使用Authorization
+        # 根据部署类型决定认证策略
+        deployment_type = config.get("DEPLOYMENT_TYPE", "local").lower()
+        
         if x_user_id:
             # 来自API Server的请求，用户已经过验证
             log_info(f"使用API Server提供的用户ID: {x_user_id}")
             user = User(user_id=x_user_id)
-        elif auth_module.requires_auth():
-            # 直接调用Engine Server，需要验证JWT token
+        elif deployment_type == "remote":
+            # 远程部署模式，必须验证JWT token
             user_token = auth_module.extract_user_token(authorization)
             if not user_token:
-                raise HTTPException(status_code=401, detail="用户认证token是必需的")
+                raise HTTPException(status_code=401, detail="远程模式下用户认证token是必需的")
             
             user = await auth_module.verify_user_token(user_token)
-            log_info(f"用户认证成功: {user.user_id}")
+            log_info(f"远程模式用户认证成功: {user.user_id}")
+        elif deployment_type == "local":
+            # 本地开发模式，可以使用默认用户
+            if authorization:
+                # 如果提供了token，尝试验证（可选）
+                try:
+                    user_token = auth_module.extract_user_token(authorization)
+                    if user_token:
+                        user = await auth_module.verify_user_token(user_token)
+                        log_info(f"本地模式用户认证成功: {user.user_id}")
+                    else:
+                        log_info("本地模式，使用默认用户")
+                        user = User(user_id="local-user")
+                except Exception as e:
+                    log_warning(f"本地模式token验证失败，使用默认用户: {str(e)}")
+                    user = User(user_id="local-user")
+            else:
+                log_info("本地模式，使用默认用户")
+                user = User(user_id="local-user")
         else:
-            # 本地模式，使用默认用户
-            log_info("本地模式，使用默认用户")
-            user = User(user_id="local-user")
+            # 未知部署类型，拒绝访问
+            raise HTTPException(status_code=500, detail=f"未知的部署类型: {deployment_type}")
         
         # 尝试获取任务锁，根据wait参数决定是否阻塞等待
         if not data_store.acquire_task_lock(task_id, blocking=wait, timeout=timeout if wait else None):
@@ -727,23 +747,42 @@ async def send_data(
     user = None
     
     try:
-        # 简化认证逻辑：优先使用x-user-id，其次使用Authorization
+        # 根据部署类型决定认证策略
+        deployment_type = config.get("DEPLOYMENT_TYPE", "local").lower()
+        
         if x_user_id:
             # 来自API Server的请求，用户已经过验证
             log_info(f"使用API Server提供的用户ID: {x_user_id}")
             user = User(user_id=x_user_id)
-        elif auth_module.requires_auth():
-            # 直接调用Engine Server，需要验证JWT token
+        elif deployment_type == "remote":
+            # 远程部署模式，必须验证JWT token
             user_token = auth_module.extract_user_token(authorization)
             if not user_token:
-                raise HTTPException(status_code=401, detail="用户认证token是必需的")
+                raise HTTPException(status_code=401, detail="远程模式下用户认证token是必需的")
             
             user = await auth_module.verify_user_token(user_token)
-            log_info(f"用户认证成功: {user.user_id}")
+            log_info(f"远程模式用户认证成功: {user.user_id}")
+        elif deployment_type == "local":
+            # 本地开发模式，可以使用默认用户
+            if authorization:
+                # 如果提供了token，尝试验证（可选）
+                try:
+                    user_token = auth_module.extract_user_token(authorization)
+                    if user_token:
+                        user = await auth_module.verify_user_token(user_token)
+                        log_info(f"本地模式用户认证成功: {user.user_id}")
+                    else:
+                        log_info("本地模式，使用默认用户")
+                        user = User(user_id="local-user")
+                except Exception as e:
+                    log_warning(f"本地模式token验证失败，使用默认用户: {str(e)}")
+                    user = User(user_id="local-user")
+            else:
+                log_info("本地模式，使用默认用户")
+                user = User(user_id="local-user")
         else:
-            # 本地模式，使用默认用户
-            log_info("本地模式，使用默认用户")
-            user = User(user_id="local-user")
+            # 未知部署类型，拒绝访问
+            raise HTTPException(status_code=500, detail=f"未知的部署类型: {deployment_type}")
         
         data = await request.json()
         task_id = str(uuid.uuid4())
@@ -914,12 +953,24 @@ def json_serializer(obj):
 
 if __name__ == "__main__":
     try:
+        log_info("Engine Server 正在启动...")
+        
+        # 配置验证在 config 模块导入时已经执行
+        # 如果有配置错误，程序会在此之前退出
+        log_info("配置验证完成，开始启动服务器...")
+        
         # Use Hypercorn for ASGI server
         import asyncio
         import hypercorn.asyncio
-        config = hypercorn.Config()
-        config.bind = ["127.0.0.1:8001"]
-        asyncio.run(hypercorn.asyncio.serve(app, config))
+        hypercorn_config = hypercorn.Config()
+        hypercorn_config.bind = ["127.0.0.1:8001"]
+        
+        log_info("服务器将在 http://127.0.0.1:8001 启动")
+        asyncio.run(hypercorn.asyncio.serve(app, hypercorn_config))
+        
+    except ConfigValidationError as cve:
+        # 配置验证错误，直接退出（错误信息已在 config.py 中输出）
+        exit(1)
     except PuppyException as e:
         raise
     except Exception as e:

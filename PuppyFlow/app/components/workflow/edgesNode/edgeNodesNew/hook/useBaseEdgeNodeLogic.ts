@@ -5,6 +5,7 @@ import useJsonConstructUtils, {
     NodeJsonType
 } from '../../../../hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
+import { useAppSettings } from '../../../../states/AppSettingsContext';
 import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
 import { nanoid } from 'nanoid';
 
@@ -292,6 +293,7 @@ export function useBaseEdgeNodeLogic({
         resetLoadingUI
     } = useJsonConstructUtils();
     const { clearAll } = useNodesPerFlowContext();
+    const { getAuthHeaders } = useAppSettings();
 
     // 状态管理
     const [isAddFlow, setIsAddFlow] = useState(true);
@@ -405,6 +407,7 @@ export function useBaseEdgeNodeLogic({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify(jsonData)
             });
