@@ -5,12 +5,12 @@ Engine Server 用户认证模块
 支持本地模式和远程认证模式
 """
 
-import os
 import requests
 import logging
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from Utils.logger import log_info, log_error, log_warning, log_debug
+from Utils.config import config
 
 class User(BaseModel):
     """简化的用户模型 - 只需要user_id"""
@@ -28,10 +28,10 @@ class EngineAuthModule:
     
     def __init__(self):
         # 配置参数
-        self.user_system_url = os.getenv("USER_SYSTEM_URL", "http://localhost:8000")
-        self.service_key = os.getenv("SERVICE_KEY")
-        self.timeout = int(os.getenv("AUTH_TIMEOUT", "5"))
-        self.local_mode = os.getenv("DEPLOYMENT_TYPE", "local").lower() == "local"
+        self.user_system_url = config.get("USER_SYSTEM_URL", "http://localhost:8000")
+        self.service_key = config.get("SERVICE_KEY")
+        self.timeout = int(config.get("AUTH_TIMEOUT", "5"))
+        self.local_mode = config.get("DEPLOYMENT_TYPE", "local").lower() == "local"
         
         # 本地模式默认用户
         self.default_user_id = "local-user"

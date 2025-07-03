@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import { Node, Edge } from "@xyflow/react";
-import Cookies from 'js-cookie';
 
 // 类型定义
 interface WorkspaceBasicInfo {
@@ -38,17 +37,8 @@ export type WorkspaceSwitchResult = {
 }
 
 export const useWorkspaceManagement = () => {
-    const { isLocalDeployment } = useAppSettings();
+    const { isLocalDeployment, getUserToken, getAuthHeaders } = useAppSettings();
     const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-
-    // 获取认证 token
-    const getToken = (isLocal?: boolean): string | undefined => {
-        const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
-        if (useLocal) {
-            return 'local-token'; // 本地部署不需要真实 token
-        }
-        return Cookies.get('access_token');
-    };
 
     // 获取用户 ID
     const fetchUserId = async (isLocal?: boolean): Promise<string | undefined> => {
@@ -59,7 +49,7 @@ export const useWorkspaceManagement = () => {
                 return 'local-user';
             } else {
                 // 云端部署模式
-                const userAccessToken = getToken();
+                const userAccessToken = getUserToken();
                 if (!userAccessToken) {
                     throw new Error('No user access token found');
                 }
@@ -69,7 +59,7 @@ export const useWorkspaceManagement = () => {
                     credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${userAccessToken}`
+                        ...getAuthHeaders()
                     }
                 });
 
@@ -202,7 +192,7 @@ export const useWorkspaceManagement = () => {
                 };
             } else {
                 // 云端部署模式
-                const userAccessToken = getToken();
+                const userAccessToken = getUserToken();
                 if (!userAccessToken) {
                     throw new Error('No user access token found');
                 }
@@ -212,7 +202,7 @@ export const useWorkspaceManagement = () => {
                     credentials: 'include',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${userAccessToken}`
+                        ...getAuthHeaders()
                     }
                 });
 

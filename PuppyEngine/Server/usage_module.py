@@ -5,12 +5,12 @@ Engine Server Usage Tracking 模块
 支持本地模式（跳过检查）和远程模式（调用用户系统）
 """
 
-import os
 import json
 import requests
 import asyncio
 from typing import Optional, Dict, Any, Tuple
 from Utils.logger import log_info, log_error, log_warning, log_debug
+from Utils.config import config
 
 class UsageError(Exception):
     """Usage相关错误"""
@@ -25,14 +25,14 @@ class EngineUsageModule:
     
     def __init__(self):
         # 配置参数
-        self.user_system_url = os.getenv("USER_SYSTEM_URL", "http://localhost:8000")
-        self.service_key = os.getenv("SERVICE_KEY")
-        self.timeout = int(os.getenv("USAGE_TIMEOUT", "5"))
-        self.local_mode = os.getenv("DEPLOYMENT_TYPE", "local").lower() == "local"
+        self.user_system_url = config.get("USER_SYSTEM_URL", "http://localhost:8000")
+        self.service_key = config.get("SERVICE_KEY")
+        self.timeout = int(config.get("USAGE_TIMEOUT", "5"))
+        self.local_mode = config.get("DEPLOYMENT_TYPE", "local").lower() == "local"
         
         # 重试配置
-        self.max_retries = int(os.getenv("USAGE_MAX_RETRIES", "3"))
-        self.retry_delay = float(os.getenv("USAGE_RETRY_DELAY", "0.1"))
+        self.max_retries = int(config.get("USAGE_MAX_RETRIES", "3"))
+        self.retry_delay = float(config.get("USAGE_RETRY_DELAY", "0.1"))
         
         log_info(f"Engine Usage模块初始化: mode={'local' if self.local_mode else 'remote'}, user_system={self.user_system_url}")
         

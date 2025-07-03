@@ -33,7 +33,21 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';
-import { useUserSubscription, UserSubscriptionStatus } from '../hooks/useUserSubscription';
+import { SYSTEM_URLS } from '@/config/urls';
+import Cookies from 'js-cookie';
+
+// 定义用户订阅状态类型
+export type UserSubscriptionStatus = {
+  is_premium: boolean;
+  subscription_plan: 'free' | 'premium';
+  subscription_status: 'active' | 'canceled' | 'expired';
+  subscription_period_start: string;
+  subscription_period_end: string;
+  effective_end_date: string;
+  days_left: number;
+  expired_date: string; // legacy字段，用于兼容性
+  polar_subscription_id?: string;
+};
 
 // 定义模型类型
 export type Model = {
@@ -70,6 +84,11 @@ type AppSettingsContextType = {
   userSubscriptionStatus: UserSubscriptionStatus | null;
   isLoadingSubscriptionStatus: boolean;
   fetchUserSubscriptionStatus: () => Promise<void>;
+  
+  // 认证相关
+  getAuthHeaders: () => HeadersInit;
+  getUserToken: (forceLocal?: boolean) => string | undefined;
+  getCustomAuthHeaders: (headerName?: string) => HeadersInit;
   
   // 警告消息相关
   warns: WarnMessage[];
@@ -121,12 +140,9 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     retryDelay: 1000,
   });
 
-  // 使用用户订阅状态 hook
-  const {
-    userSubscriptionStatus,
-    isLoadingSubscriptionStatus,
-    fetchUserSubscriptionStatus,
-  } = useUserSubscription(isLocalDeployment);
+  // 用户订阅状态管理
+  const [userSubscriptionStatus, setUserSubscriptionStatus] = useState<UserSubscriptionStatus | null>(null);
+  const [isLoadingSubscriptionStatus, setIsLoadingSubscriptionStatus] = useState<boolean>(false);
   
   // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
@@ -222,6 +238,118 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     setLocalModels(localModels.filter(model => model.id !== id));
   };
 
+  // 认证相关方法 - 获取认证headers
+  const getAuthHeaders = (): HeadersInit => {
+    // 在本地部署时，可能不需要认证或有不同的认证逻辑
+    if (isLocalDeployment) {
+      // 本地开发环境的逻辑（根据需要调整）
+      const token = Cookies.get('access_token');
+      return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+    
+    // 生产环境始终要求认证
+    const token = Cookies.get('access_token');
+    if (!token) {
+      console.warn('No access token found in production environment');
+      addWarn('认证令牌缺失，请重新登录');
+      return {};
+    }
+    
+    return { 'Authorization': `Bearer ${token}` };
+  };
+
+  // 获取用户token的通用方法
+  const getUserToken = (forceLocal?: boolean): string | undefined => {
+    const useLocal = forceLocal !== undefined ? forceLocal : isLocalDeployment;
+    
+    if (useLocal) {
+      return 'local-token';
+    }
+    
+    const token = Cookies.get('access_token');
+    if (!token && !useLocal) {
+      console.warn('No access token found in production environment');
+      addWarn('认证令牌缺失，请重新登录');
+    }
+    
+    return token;
+  };
+
+  // 获取带有自定义header名称的认证headers
+  const getCustomAuthHeaders = (headerName: string = 'Authorization'): HeadersInit => {
+    const token = getUserToken();
+    return token ? { [headerName]: `Bearer ${token}` } : {};
+  };
+
+  // 获取用户订阅状态
+  const fetchUserSubscriptionStatus = async (): Promise<void> => {
+    if (isLocalDeployment) {
+      // 本地部署模式，设置默认的订阅状态，用量为99999
+      setUserSubscriptionStatus({
+        is_premium: true, // 本地部署默认为premium
+        subscription_plan: 'premium',
+        subscription_status: 'active',
+        subscription_period_start: new Date().toISOString(),
+        subscription_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 一年后
+        effective_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        days_left: 99999, // 本地部署设置为99999天
+        expired_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      });
+      return;
+    }
+
+    // 云端部署模式
+    setIsLoadingSubscriptionStatus(true);
+    
+    try {
+      const userAccessToken = getUserToken();
+      if (!userAccessToken) {
+        throw new Error('No user access token found');
+      }
+
+      const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
+      const response = await fetch(`${UserSystem_Backend_Base_Url}/user_subscription_status`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        }
+      });
+
+      if (response.status !== 200) {
+        const error_data: { error: string } = await response.json();
+        throw new Error(`HTTP error! status: ${response.status}, error message: ${error_data.error}`);
+      }
+
+      const subscriptionData: UserSubscriptionStatus = await response.json();
+      console.log('用户订阅状态:', subscriptionData);
+      
+      setUserSubscriptionStatus(subscriptionData);
+    } catch (error) {
+      console.error('Error fetching user subscription status:', error);
+      
+      // 云端部署失败时，设置默认的免费状态
+      setUserSubscriptionStatus({
+        is_premium: false,
+        subscription_plan: 'free',
+        subscription_status: 'expired',
+        subscription_period_start: '',
+        subscription_period_end: '',
+        effective_end_date: '',
+        days_left: 0,
+        expired_date: '',
+      });
+    } finally {
+      setIsLoadingSubscriptionStatus(false);
+    }
+  };
+
+  // 自动获取订阅状态
+  useEffect(() => {
+    fetchUserSubscriptionStatus();
+  }, [isLocalDeployment]);
+
   return (
     <AppSettingsContext.Provider
       value={{
@@ -238,6 +366,9 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
         userSubscriptionStatus,
         isLoadingSubscriptionStatus,
         fetchUserSubscriptionStatus,
+        getAuthHeaders,
+        getUserToken,
+        getCustomAuthHeaders,
         warns,
         addWarn,
         removeWarn,
