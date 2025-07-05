@@ -46,9 +46,13 @@ sqlalchemy
 vecs
 pymilvus
 qdrant_client
-pinecone[grpc]
-weaviate-client
+pinecone
+weaviate-client==4.9.6
 psycopg2-binary
+
+# gRPC 相关包 - 固定版本避免冲突
+grpcio==1.73.1
+grpcio-tools==1.73.1
 
 #code
 RestrictedPython
