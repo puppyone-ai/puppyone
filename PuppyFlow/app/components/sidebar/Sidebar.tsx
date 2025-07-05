@@ -45,7 +45,7 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   }
 
   return (
-    <div className="flex-col font-normal px-[8px] py-[16px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
+    <div className="flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className="flex flex-col items-start relative self-stretch w-full h-full overflow-hidden">
 
