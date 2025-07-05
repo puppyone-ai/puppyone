@@ -294,6 +294,12 @@
     border: transparent;
   }
 
+
+  .server-node-handle::before {
+    opacity: 1 !important;
+  }
+
+
 /* 可选：添加hover效果 */
 .react-flow__edge:hover .react-flow__edge-path,
 .react-flow__edge:hover #custom-arrow-default path {  /* hover时的边颜色 */

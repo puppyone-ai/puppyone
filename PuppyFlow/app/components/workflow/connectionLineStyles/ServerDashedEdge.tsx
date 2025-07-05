@@ -34,7 +34,7 @@ export default function ServerDashedEdge({
 
   // 定義虛線樣式
   const dashedStyle = {
-    strokeWidth: '1px',           // 非常細的線
+    strokeWidth: '2px',           // 非常細的線
     stroke: '#6B7280',            // 低調的灰色
     strokeDasharray: '4 4',       // 虛線模式：4px實線，4px間隔
     fill: 'none',
