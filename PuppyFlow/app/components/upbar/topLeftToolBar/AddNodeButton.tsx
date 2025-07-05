@@ -10,7 +10,8 @@ export type nodeSmallProps = {
   nodeType: string,
 }
 
-type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1" | "Groupsub1"
+// 注释掉 "Groupsub1" 类型
+type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1" // | "Groupsub1"
 
 function AddNodeButton() {
   const [selectedMenu, setSelectedMenu] = useState(0)
@@ -139,13 +140,13 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
       // 為不同類型的節點設定特殊尺寸
       const getNodeSize = (nodeType: string) => {
         switch (nodeType) {
-          case "serverText":
-            return { width: 160, height: 120 }  // server node 的特殊尺寸
+          case "server":
+            return { width: 144, height: 144 }  // server node 的特殊尺寸
           case "text":
           case "structured":
           case "file":
           case "weblink":
-          case "group":
+          // case "group":  // 注释掉 group 类型
           case "switch":
           default:
             return { width: 240, height: 176 }   // 其他所有 block node 的默認尺寸
@@ -217,9 +218,9 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
       case 'Otherssub1':
         value = 5
         break
-      case 'Groupsub1':
-        value = 6
-        break
+      // case 'Groupsub1':  // 注释掉 group 菜单项
+      //   value = 6
+      //   break
       default:
         value = -1
         break
@@ -240,7 +241,7 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
               Aa
             </span>
           );
-        case "serverText":
+        case "server":
           return (
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <defs>
@@ -444,17 +445,18 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
             </button>
           </div>
 
+          {/* 注释掉整个 Third Section - Layout Elements */}
           {/* Third Section Title */}
-          <div className="flex items-center gap-3 px-2 group mt-1">
+          {/* <div className="flex items-center gap-3 px-2 group mt-1">
             <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2">
               <div className="w-1 h-1 rounded-full bg-purple-500"></div>
               Layout Elements
             </span>
             <div className="h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50"></div>
-          </div>
+          </div> */}
 
           {/* Third Row - Layout Elements */}
-          <div className="grid grid-cols-2 gap-[12px] px-1">
+          {/* <div className="grid grid-cols-2 gap-[12px] px-1">
             <button 
               className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`} 
               onMouseEnter={() => {manageNodeMenuSubMenu("Groupsub1")}}
@@ -476,7 +478,7 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                 <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>Group nodes</div>
               </div>
             </button>
-          </div>
+          </div> */}
 
           {/* Fourth Section Title - Server */}
           <div className="flex items-center gap-3 px-2 group mt-1">
@@ -493,7 +495,7 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
             onClick={(event)=> {
               event.preventDefault()
               event.stopPropagation()
-              handleMouseDown("serverText")
+              handleMouseDown("server")
             }}>
               <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
               <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner relative'>
