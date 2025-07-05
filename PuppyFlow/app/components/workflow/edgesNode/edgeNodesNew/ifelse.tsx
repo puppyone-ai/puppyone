@@ -86,6 +86,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const [isHovered, setIsHovered] = useState(false)
+    const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
 
     // State management
     const [cases, setCases] = useState<CaseItem[]>(() => {
@@ -446,23 +447,72 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
     }
 
     return (
-        <div className='p-[3px] w-[80px] h-[48px]'>
+        <div className='p-[3px] w-[80px] h-[48px] relative'>
+            {/* Invisible hover area between node and run button */}
+            <div
+                className="absolute -top-[40px] left-0 w-full h-[40px]"
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            />
+
+            {/* Run button positioned above the node - show when node or run button is hovered */}
+            <button
+                className={`absolute -top-[40px] left-1/2 transform -translate-x-1/2 w-[57px] h-[24px] rounded-[6px] border-[1px] text-[10px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[4px] transition-all duration-200 ${
+                    (isHovered || isRunButtonHovered) ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{
+                    backgroundColor: isRunButtonHovered ? '#39BC66' : '#181818',
+                    borderColor: isRunButtonHovered ? '#39BC66' : UI_COLORS.EDGENODE_BORDER_GREY,
+                    color: isRunButtonHovered ? '#000' : UI_COLORS.EDGENODE_BORDER_GREY
+                }}
+                onClick={onDataSubmit}
+                disabled={isLoading}
+                onMouseEnter={() => setIsRunButtonHovered(true)}
+                onMouseLeave={() => setIsRunButtonHovered(false)}
+            >
+                <span>
+                    {isLoading ? (
+                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="6" height="8" viewBox="0 0 8 10" fill="none">
+                            <path d="M8 5L0 10V0L8 5Z" fill="currentColor" />
+                        </svg>
+                    )}
+                </span>
+                <span>
+                    {isLoading ? '' : 'Run'}
+                </span>
+            </button>
+
             <button
                 onClick={onClickButton}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors gap-[4px]`}
                 style={{
                     borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
                     color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY
                 }}
             >
-                IF/ELSE
+                {/* IF/ELSE SVG icon */}
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 12V7" stroke="currentColor" strokeWidth="2" />
+                    <path d="M10 2V7L2 7V2" stroke="currentColor" strokeWidth="1.5" />
+                    <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="currentColor" stroke="currentColor" />
+                    <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="currentColor" stroke="currentColor" />
+                </svg>
+                <div className="flex flex-col items-center justify-center leading-tight text-[9px]">
+                    <span>IF/ELSE</span>
+                </div>
+
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
                 <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
                 <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
-                {/* Target handles */}
+                
                 <Handle
                     id={`${id}-a`}
                     type="target"
@@ -500,6 +550,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                     onMouseLeave={() => setIsTargetHandleTouched(false)}
                 />
             </button>
+
             {/* Configuration Menu (integrated directly) */}
             {isMenuOpen && (
                     <ul ref={menuRef} className="w-[535px] absolute top-[64px] text-white rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg"
