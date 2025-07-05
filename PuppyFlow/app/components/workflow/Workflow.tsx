@@ -52,7 +52,7 @@ import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
-import ServerTextBlockNode from './serverNode/ServerNode'
+import ServerNode from './serverNode/ServerNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge'
@@ -78,7 +78,7 @@ const nodeTypes = {
   'generate': Generate,
   'load': Load,
   'group': GroupNode,
-  'serverText': ServerTextBlockNode,
+  'server': ServerNode,
 }
 
 const edgeTypes = {
@@ -303,9 +303,9 @@ function Workflow() {
       !targetIsEdgeNode && !sourceIsEdgeNode
     ) return
 
-    // 檢查 source 節點是否是 serverText 類型
+    // 檢查 source 節點是否是 server 類型
     const sourceNode = getNode(connection.source)
-    const isServerNode = sourceNode?.type === 'serverText'
+    const isServerNode = sourceNode?.type === 'server'
     
     const edge: Edge = {
       ...connection,
