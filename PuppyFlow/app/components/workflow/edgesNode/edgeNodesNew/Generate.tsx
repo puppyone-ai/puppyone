@@ -29,7 +29,7 @@ export type PromptTemplateType =
     | 'content_sorting'
     | 'keyword_search'
     | 'format_conversion'
-    | 'content_matching'
+    | 'content_matching'    
     | 'text_summarization'
     | 'data_filtering'
     | 'document_ranking'
@@ -400,6 +400,8 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                                 supportedInputTypes={['text', 'structured']}
                                 supportedOutputTypes={['text', 'structured']}
+                                inputNodeCategory="blocknode"
+                                outputNodeCategory="blocknode"
                             />
                         </li>
 

@@ -232,6 +232,8 @@ function ChunkingAuto({ data: { subMenuType }, isConnectable, id }: ChunkingAuto
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
                 </ul>

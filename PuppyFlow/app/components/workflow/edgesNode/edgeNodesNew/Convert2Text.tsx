@@ -257,6 +257,8 @@ function Convert2TextConfigMenu({ show, parentId, isLoading, handleDataSubmit }:
                     getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                     supportedInputTypes={['structured']}
                     supportedOutputTypes={['text']}
+                    inputNodeCategory="blocknode"
+                    outputNodeCategory="blocknode"
                 />
             </li>
         </ul>

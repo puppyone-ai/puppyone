@@ -2,14 +2,17 @@ import React, { useState,useEffect} from 'react';
 import { Node } from '@xyflow/react';
 
 type NodeType = 'text' | 'file' | 'structured';
+type NodeCategory = 'blocknode' | 'edgenode' | 'servernode' | 'groupnode' | 'all';
 
 interface InputOutputDisplayProps {
     parentId: string;
     getNode: (id: string) => Node | undefined;
-    getSourceNodeIdWithLabel: (id: string) => Array<{ id: string, label: string }>;
-    getTargetNodeIdWithLabel: (id: string) => Array<{ id: string, label: string }>;
+    getSourceNodeIdWithLabel: (id: string, category?: NodeCategory) => Array<{ id: string, label: string }>;
+    getTargetNodeIdWithLabel: (id: string, category?: NodeCategory) => Array<{ id: string, label: string }>;
     supportedInputTypes?: NodeType[];
     supportedOutputTypes?: NodeType[];
+    inputNodeCategory?: NodeCategory;
+    outputNodeCategory?: NodeCategory;
     onUpdate?: () => void; 
 }
 
@@ -20,6 +23,8 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
     getTargetNodeIdWithLabel,
     supportedInputTypes = ['text', 'file', 'structured'],
     supportedOutputTypes = ['text', 'file', 'structured'],
+    inputNodeCategory = 'blocknode',
+    outputNodeCategory = 'blocknode',
     onUpdate
 }) => {
     useEffect(() => {
@@ -128,11 +133,9 @@ export const InputOutputDisplay: React.FC<InputOutputDisplayProps> = ({
         );
     };
 
-    // 不再过滤源节点，显示所有连接的节点
-    const sourceNodes = getSourceNodeIdWithLabel(parentId);
-
-    // 不再过滤目标节点，显示所有连接的节点
-    const targetNodes = getTargetNodeIdWithLabel(parentId);
+    // 使用节点类别过滤获取源节点和目标节点
+    const sourceNodes = getSourceNodeIdWithLabel(parentId, inputNodeCategory);
+    const targetNodes = getTargetNodeIdWithLabel(parentId, outputNodeCategory);
 
     return (
         <div className='flex flex-row gap-[12px]'>

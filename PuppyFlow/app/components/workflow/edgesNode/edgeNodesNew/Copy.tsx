@@ -246,6 +246,8 @@ function CopyEdgeNode({ data: { subMenuType }, isConnectable, id }: ModifyConfig
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text', 'structured']}
                             supportedOutputTypes={['text', 'structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
                 </ul>

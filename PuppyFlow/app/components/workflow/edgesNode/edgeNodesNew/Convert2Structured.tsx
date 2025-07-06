@@ -409,6 +409,8 @@ function Convert2Structured({ data, isConnectable, id }: ModifyConfigNodeProps) 
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

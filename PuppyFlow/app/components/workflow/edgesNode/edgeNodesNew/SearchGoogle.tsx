@@ -285,6 +285,8 @@ function SearchGoogle({ data, isConnectable, id }: SearchConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

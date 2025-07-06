@@ -458,6 +458,8 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text', 'structured']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

@@ -1,6 +1,7 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
@@ -215,7 +216,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
 
     // 初始化sourceNodeLabels
     useEffect(() => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id, 'blocknode');
         // 收集标签和类型
         const labelsWithTypes = sourceNodeIdWithLabelGroup.map(node => {
             const nodeInfo = getNode(node.id);
@@ -230,7 +231,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
 
     // 更新sourceNodeLabels
     const updateSourceNodeLabels = useCallback(() => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id, 'blocknode');
         // 收集标签和类型
         const labelsWithTypes = sourceNodeIdWithLabelGroup.map(node => {
             const nodeInfo = getNode(node.id);
@@ -583,6 +584,8 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text', 'structured']}
                             supportedOutputTypes={['text', 'structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                             onUpdate={updateSourceNodeLabels}
                         />
                     </li>

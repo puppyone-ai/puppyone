@@ -270,6 +270,8 @@ function ChunkingByLength({ data: { subMenuType }, isConnectable, id }: Chunking
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                                 supportedInputTypes={['text']}
                                 supportedOutputTypes={['structured']}
+                                inputNodeCategory="blocknode"
+                                outputNodeCategory="blocknode"
                             />
                         </li>
 

@@ -315,6 +315,8 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['text']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 
