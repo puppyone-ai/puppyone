@@ -258,6 +258,8 @@ function SearchPerplexity({ data, isConnectable, id }: SearchPerplexityNodeProps
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

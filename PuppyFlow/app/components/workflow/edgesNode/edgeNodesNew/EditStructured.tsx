@@ -393,6 +393,8 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['structured']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

@@ -360,6 +360,8 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

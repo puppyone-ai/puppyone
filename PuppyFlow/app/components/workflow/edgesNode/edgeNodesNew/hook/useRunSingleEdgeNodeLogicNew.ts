@@ -177,8 +177,8 @@ export function useBaseEdgeNodeLogic({
     // Modify defaultConstructJsonData to use the extracted parameters
     const defaultConstructJsonData = (): BaseConstructedJsonData => {
         // 获取源节点和目标节点
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId, 'blocknode');
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId, 'blocknode');
         
         try {
             // 创建blocks对象

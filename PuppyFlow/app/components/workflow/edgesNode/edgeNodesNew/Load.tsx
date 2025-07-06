@@ -244,6 +244,8 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                                 supportedInputTypes={['file']}
                                 supportedOutputTypes={['structured']}
+                                inputNodeCategory="blocknode"
+                                outputNodeCategory="blocknode"
                             />
                         </li>
                     </ul>
