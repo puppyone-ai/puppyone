@@ -1,17 +1,12 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faGoogle } from '@fortawesome/free-brands-svg-icons'
-import useJsonConstructUtils, { NodeJsonType, FileData } from '../../../hooks/useJsonConstructUtils'
-import { backend_IP_address_for_sendingData } from '../../../hooks/useJsonConstructUtils'
-import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
-import { nanoid } from 'nanoid'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '../../../misc/PuppyDropDown'
 import { useAppSettings, Model } from '@/app/components/states/AppSettingsContext'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 export type GenerateConfigNodeData = {
     query_ids: { id: string, label: string } | undefined,
@@ -88,7 +83,7 @@ function Generate({ data, isConnectable, id }: GenerateNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const { getNode, setNodes } = useReactFlow()
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)

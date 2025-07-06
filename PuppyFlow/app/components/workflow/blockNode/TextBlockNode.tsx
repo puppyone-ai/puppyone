@@ -5,12 +5,11 @@ import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import TextEditor from '../../tableComponent/TextEditor'
 import TextEditorTextArea from '../../tableComponent/TextEditorTextArea'
-import TextEditorTipTap from '../../tableComponent/TextEditorTipTap'
 import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import dynamic from 'next/dynamic'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import useGetSourceTarget from '../../hooks/useGetSourceTarget'
 export type TextBlockNodeData = {
   content: string,
   label: string,
@@ -44,7 +43,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     manageNodeasOutput,
     manageNodeasLocked
   } = useNodesPerFlowContext()
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
   // const [isActivated, setIsActivated] = useState(false)
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)

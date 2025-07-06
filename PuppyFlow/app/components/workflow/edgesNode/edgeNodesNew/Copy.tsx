@@ -1,10 +1,10 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import React, { useState, useEffect, useRef } from 'react'
-import useJsonConstructUtils, { NodeJsonType } from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 // 前端节点配置数据（原 ModifyConfigNodeData）
 export type CopyNodeFrontendConfig = {
@@ -43,7 +43,7 @@ function CopyEdgeNode({ data: { subMenuType }, isConnectable, id }: ModifyConfig
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
 
     // 使用新的 BaseEdgeNodeLogic
     const {
