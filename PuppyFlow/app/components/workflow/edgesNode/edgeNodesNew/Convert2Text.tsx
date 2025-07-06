@@ -2,9 +2,9 @@ import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, { useState, useEffect, useRef } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 export type ModifyConfigNodeData = {
     content: string | null,
@@ -206,7 +206,7 @@ type Convert2TextConfigProps = {
 function Convert2TextConfigMenu({ show, parentId, isLoading, handleDataSubmit }: Convert2TextConfigProps) {
     const menuRef = useRef<HTMLUListElement>(null)
     const { getNode } = useReactFlow()
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
 
     return (
         <ul ref={menuRef} className={`absolute top-[64px] text-white w-[320px] rounded-[16px] border-[1px] border-[#6D7177] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg`}>

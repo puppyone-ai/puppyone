@@ -3,8 +3,8 @@ import { NodeProps, Node, Handle, Position, useReactFlow } from '@xyflow/react'
 import React, { useState, useCallback, useMemo } from 'react'
 import { UI_COLORS } from '@/app/utils/colors'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
 import { useRunServerNodeLogic } from '../edgesNode/edgeNodesNew/hook/useRunServerNodeLogic'
+import useGetSourceTarget from '../../hooks/useGetSourceTarget'
 
 export type ServerNodeData = {
   content: string,
@@ -19,7 +19,7 @@ function ServerNode({ isConnectable, id, data: { content, label } }: ServerNodeP
   const [isHovered, setIsHovered] = useState(false)
   const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
   const { setNodes, getNode } = useReactFlow()
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
 
   // 使用新的ServerNode运行逻辑
   const { isLoading, handleDataSubmit } = useRunServerNodeLogic({

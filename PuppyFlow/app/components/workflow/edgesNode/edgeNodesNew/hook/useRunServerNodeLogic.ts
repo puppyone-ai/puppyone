@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import useJsonConstructUtils, {
     backend_IP_address_for_sendingData,
@@ -47,6 +47,7 @@ export function useRunServerNodeLogic({
 
     // State management
     const [isLoading, setIsLoading] = useState(false);
+    const [isComplete, setIsComplete] = useState(true);
 
     // 获取所有连接到ServerNode的targetNodes中的edgeNode
     const getTargetEdgeNodes = () => {
@@ -227,25 +228,34 @@ export function useRunServerNodeLogic({
         } catch (error) {
             console.error("ServerNode 处理API响应时出错:", error);
             window.alert(error);
-        } finally {
-            // 重置结果节点的加载UI
-            resultNodes.forEach(node => {
-                if (node) resetLoadingUI(node.id);
-            });
         }
     };
 
-    // 数据提交主函数
+    // 添加useEffect来处理异步流程
+    useEffect(() => {
+        if (isComplete) return;
+
+        const processServerNode = async () => {
+            try {
+                await sendDataToTargets();
+            } catch (error) {
+                console.error("ServerNode 处理过程中出错:", error);
+            } finally {
+                setIsComplete(true);
+                setIsLoading(false);
+            }
+        };
+
+        processServerNode();
+    }, [isComplete]);
+
+    // 修改数据提交主函数
     const handleDataSubmit = async (...args: any[]) => {
+        if (!isComplete) return;  // 防止重复提交
+        
         setIsLoading(true);
-        try {
-            clearAll();
-            await sendDataToTargets();
-        } catch (error) {
-            console.error("ServerNode 提交数据时出错:", error);
-        } finally {
-            setIsLoading(false);
-        }
+        clearAll();
+        setIsComplete(false);  // 触发useEffect
     };
 
     return {

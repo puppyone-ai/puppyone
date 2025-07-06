@@ -6,7 +6,7 @@ import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
 import ReactDOM from 'react-dom'
 import { useFileUpload, UploadedFile } from './hooks/useFileUpload'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import useGetSourceTarget from '../../hooks/useGetSourceTarget'
 
 export type FileNodeData = {
   content: string,
@@ -61,8 +61,8 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
     onFilesChange: handleFilesChange
   });
 
-  // 添加获取连接节点的工具函数
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  // 使用新的获取连接节点的工具函数
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
 
   // 获取连接的节点
   const sourceNodes = getSourceNodeIdWithLabel(id)

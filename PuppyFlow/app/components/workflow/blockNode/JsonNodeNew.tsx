@@ -7,7 +7,7 @@ import WhiteBallHandle from '../handles/WhiteBallHandle'
 // 更新导入 - 使用新的 TreeJSONForm
 import TreeJSONForm from '../../tableComponent/TreeJSONForm'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import useGetSourceTarget from '../../hooks/useGetSourceTarget'
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
 import { useWorkspaces } from "../../states/UserWorkspacesContext"
 // 导入新组件
@@ -111,7 +111,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [vectorIndexingStatus, setVectorIndexingStatus] = useState<VectorIndexingStatus>('notStarted');
 
   // Get connected nodes
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
   const sourceNodes = getSourceNodeIdWithLabel(id)
   const targetNodes = getTargetNodeIdWithLabel(id)
 

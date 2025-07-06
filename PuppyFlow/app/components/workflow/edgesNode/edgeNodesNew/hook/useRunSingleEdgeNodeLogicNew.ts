@@ -16,6 +16,7 @@ import {
 
 } from './useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from './useBlockNodeBackEndJsonBuilder';
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 
 // Hook 返回值类型
 export interface BaseEdgeNodeLogicReturn {
@@ -36,12 +37,11 @@ export function useBaseEdgeNodeLogic({
     // Basic hooks
     const { getNode, setNodes, setEdges } = useReactFlow();
     const {
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
         streamResult,
         reportError,
         resetLoadingUI
     } = useJsonConstructUtils();
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
     const { clearAll } = useNodesPerFlowContext();
     const { getAuthHeaders } = useAppSettings();
 
