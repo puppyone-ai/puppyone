@@ -548,77 +548,164 @@ async def get_data(
                     nonlocal total_runs_consumed
                     execution_success = edge_metadata.get("execution_success", False)
                     
+                    # 提取基本信息用于日志
+                    task_id = edge_metadata.get("task_id", "unknown")
+                    edge_id = edge_metadata.get("edge_id", "unknown")
+                    edge_type = edge_metadata.get("edge_type", "unknown")
+                    
+                    log_warning(f"[SNAPSHOT-CALLBACK] Task {task_id} Edge {edge_id} ({edge_type}): "
+                               f"Starting usage callback processing - execution_success={execution_success}")
+                    
                     if usage_module.requires_usage_check():
                         try:
-                            # 更新事件元数据
-                            event_metadata = {
-                                "task_id": task_id,
-                                "connection_id": connection_id,
-                                "edge_id": edge_metadata["edge_id"],
-                                "edge_type": edge_metadata["edge_type"],
-                                "execution_time": edge_metadata["execution_time"],
-                                "execution_success": execution_success,
-                                "workflow_type": "engine_execution"
-                            }
-                            
-                            # 添加错误信息（如果有）
-                            if edge_metadata.get("error_info"):
-                                event_metadata["error_info"] = edge_metadata["error_info"]
-                            
-                            if execution_success:
-                                # 成功执行的edge：消费usage
-                                # 根据可用的认证信息选择合适的方法
-                                if user_token:
-                                    # 有用户token，使用基于token的方法
-                                    await usage_module.consume_usage_async(
-                                        user_token=user_token,
-                                        usage_type="runs",
-                                        amount=1,
-                                        event_metadata=event_metadata
-                                    )
-                                else:
-                                    # 只有用户ID，使用基于用户ID的方法
-                                    await usage_module.consume_usage_by_user_id_async(
-                                        user_id=user.user_id,
-                                        usage_type="runs",
-                                        amount=1,
-                                        event_metadata=event_metadata
-                                    )
-                                total_runs_consumed += 1
-                                log_debug(f"Connection {connection_id}: Usage consumed for successful edge {edge_metadata['edge_id']} ({edge_metadata['edge_type']})")
+                            # 使用WorkFlow提供的合规最小化元数据
+                            # 如果WorkFlow已经提供了合规的数据，直接使用
+                            if edge_metadata.get("privacy_compliant") and edge_metadata.get("data_collection_level") == "minimal":
+                                event_metadata = edge_metadata.copy()
+                                # 添加连接上下文信息（系统必需）
+                                event_metadata["connection_id"] = connection_id
+                                event_metadata["workflow_type"] = "engine_execution"
                             else:
-                                # 失败执行的edge：不消费usage，但记录事件用于调试分析
-                                # 可以选择调用一个专门的失败事件记录接口，或者在event_metadata中标记为失败
-                                event_metadata["consumed_amount"] = 0  # 明确标记未消费usage
-                                event_metadata["failure_reason"] = "edge_execution_failed"
+                                # 兼容旧版本：构造最小化的事件元数据
+                                import hashlib
+                                task_hash = hashlib.sha256(f"{task_id}_task_salt".encode()).hexdigest()[:12]
+                                edge_hash = hashlib.sha256(f"{edge_metadata.get('edge_id', 'unknown')}_edge_salt".encode()).hexdigest()[:8]
                                 
-                                # 这里可以选择调用特殊的失败事件记录接口
-                                # 或者使用现有接口但amount=0
-                                if user_token:
-                                    await usage_module.consume_usage_async(
-                                        user_token=user_token,
-                                        usage_type="runs",
-                                        amount=0,  # 失败不消费usage
-                                        event_metadata=event_metadata
-                                    )
+                                event_metadata = {
+                                    "task_hash": task_hash,
+                                    "edge_hash": edge_hash,
+                                    "connection_id": connection_id,
+                                    "edge_type": edge_metadata.get("edge_type", "unknown"),
+                                    "execution_time": edge_metadata.get("execution_time", 0),
+                                    "execution_success": execution_success,
+                                    "workflow_type": "engine_execution",
+                                    "data_collection_level": "minimal",
+                                    "privacy_compliant": True
+                                }
+                                
+                                # 只添加基本错误信息（如果有）
+                                if edge_metadata.get("error_info"):
+                                    event_metadata["error_info"] = {
+                                        "has_error": edge_metadata["error_info"].get("has_error", False),
+                                        "error_type": edge_metadata["error_info"].get("error_type"),
+                                        "error_category": edge_metadata["error_info"].get("error_category", "other")
+                                    }
+                            
+                            # 获取去标识化的ID用于日志
+                            display_task = event_metadata.get("task_hash", task_id)
+                            display_edge = event_metadata.get("edge_hash", edge_id)
+                            
+                            log_warning(f"[COMPLIANT-SUBMIT] Task {display_task} Edge {display_edge}: "
+                                       f"Submitting minimal compliant data to UserSystem - "
+                                       f"data_level={event_metadata.get('data_collection_level', 'unknown')}, "
+                                       f"privacy_compliant={event_metadata.get('privacy_compliant', False)}, "
+                                       f"execution_success={execution_success}")
+                            
+                            # 调用UserSystem并获取详细响应
+                            if user_token:
+                                usage_result = await usage_module.consume_usage_async(
+                                    user_token=user_token,
+                                    usage_type="runs",
+                                    amount=1 if execution_success else 0,
+                                    event_metadata=event_metadata
+                                )
+                            else:
+                                usage_result = await usage_module.consume_usage_by_user_id_async(
+                                    user_id=user.user_id,
+                                    usage_type="runs",
+                                    amount=1 if execution_success else 0,
+                                    event_metadata=event_metadata
+                                )
+                            
+                            # 基于UserSystem的响应记录详细日志
+                            snapshot_info = usage_result.get("snapshot_info", {})
+                            status_details = usage_result.get("status_details", {})
+                            
+                            if usage_result.get("success"):
+                                if execution_success:
+                                    # 成功执行且消费了usage
+                                    total_runs_consumed += 1
+                                    log_warning(f"[COMPLIANT-SUCCESS] Task {display_task} Edge {display_edge}: "
+                                               f"UserSystem confirmed successful compliant data recording - "
+                                               f"event_id={snapshot_info.get('event_id')}, "
+                                               f"consumed={usage_result.get('consumed', 0)}, "
+                                               f"remaining={usage_result.get('remaining', 0)}, "
+                                               f"db_record_created={status_details.get('database_record_created', False)}")
+                                    
+                                    log_info(f"Connection {connection_id}: Successfully consumed 1 run for edge {display_edge} ({edge_type}). Total consumed: {total_runs_consumed}")
                                 else:
-                                    await usage_module.consume_usage_by_user_id_async(
-                                        user_id=user.user_id,
-                                        usage_type="runs",
-                                        amount=0,  # 失败不消费usage
-                                        event_metadata=event_metadata
-                                    )
-                                log_warning(f"Connection {connection_id}: Edge execution failed, no usage consumed for edge {edge_metadata['edge_id']} ({edge_metadata['edge_type']}). Error: {edge_metadata.get('error_info', {}).get('error_message', 'Unknown error')}")
+                                    # 失败执行但成功记录了失败信息
+                                    log_warning(f"[COMPLIANT-FAILURE-RECORDED] Task {display_task} Edge {display_edge}: "
+                                               f"UserSystem confirmed failure data recording - "
+                                               f"event_id={snapshot_info.get('event_id')}, "
+                                               f"consumed={usage_result.get('consumed', 0)}, "
+                                               f"error_info_recorded={bool(event_metadata.get('error_info'))}")
+                                    
+                                    error_category = event_metadata.get('error_info', {}).get('error_category', 'unknown')
+                                    log_warning(f"Connection {connection_id}: Edge execution failed but compliant data recorded for edge {display_edge} ({edge_type}). Error category: {error_category}")
+                                
+                                # 记录UserSystem处理的详细信息
+                                log_info(f"[COMPLIANT-DETAILS] Task {display_task} Edge {display_edge}: "
+                                        f"Processing details - "
+                                        f"consumed_from_base={snapshot_info.get('consumed_from_base', 0)}, "
+                                        f"consumed_from_extra={snapshot_info.get('consumed_from_extra', 0)}, "
+                                        f"user_plan={status_details.get('user_plan', 'unknown')}, "
+                                        f"data_size={snapshot_info.get('snapshot_size_estimate', 0)}B, "
+                                        f"privacy_level={event_metadata.get('data_collection_level', 'unknown')}")
+                                
+                            else:
+                                # UserSystem处理失败
+                                error_msg = usage_result.get("error", "Unknown error")
+                                processing_status = snapshot_info.get("processing_status", "failed")
+                                
+                                log_warning(f"[COMPLIANT-USERSYSTEM-FAILED] Task {display_task} Edge {display_edge}: "
+                                           f"UserSystem failed to process compliant data - "
+                                           f"error={error_msg}, "
+                                           f"processing_status={processing_status}, "
+                                           f"db_record_created={status_details.get('database_record_created', False)}")
+                                
+                                # 如果是usage不足的错误，需要特别处理
+                                if "insufficient" in error_msg.lower() or "not enough" in error_msg.lower():
+                                    log_warning(f"Connection {connection_id}: Insufficient usage for edge {display_edge} ({edge_type}) - {error_msg}")
+                                    # 这种情况下可能需要中断workflow
+                                else:
+                                    log_warning(f"Connection {connection_id}: UserSystem error for edge {display_edge} ({edge_type}) - {error_msg}")
                             
                         except UsageError as ue:
+                            # 获取去标识化ID，如果可用的话
+                            try:
+                                display_task_err = event_metadata.get("task_hash", task_id)
+                                display_edge_err = event_metadata.get("edge_hash", edge_id)
+                            except:
+                                display_task_err = task_id
+                                display_edge_err = edge_id
+                                
                             log_error(f"Connection {connection_id}: Usage error during edge execution: {ue.message}")
+                            log_warning(f"[COMPLIANT-USAGE-ERROR] Task {display_task_err} Edge {display_edge_err}: "
+                                       f"Usage module error - {ue.message}")
                             # Usage不足，抛出异常中断整个workflow
                             raise ue
                         except Exception as ue:
+                            # 获取去标识化ID，如果可用的话
+                            try:
+                                display_task_err = event_metadata.get("task_hash", task_id)
+                                display_edge_err = event_metadata.get("edge_hash", edge_id)
+                            except:
+                                display_task_err = task_id
+                                display_edge_err = edge_id
+                                
                             log_error(f"Connection {connection_id}: Unexpected usage error: {str(ue)}")
+                            log_warning(f"[COMPLIANT-UNEXPECTED-ERROR] Task {display_task_err} Edge {display_edge_err}: "
+                                       f"Unexpected error during UserSystem communication - {str(ue)}")
                             # 意外的usage错误，继续执行但记录警告
                             log_warning(f"Connection {connection_id}: Continuing execution despite usage error")
-                
+                    else:
+                        # 不需要usage检查的情况
+                        display_task_skip = task_id[:12] if task_id else "unknown"
+                        display_edge_skip = edge_id[:8] if edge_id else "unknown"
+                        log_warning(f"[COMPLIANT-SKIP] Task {display_task_skip} Edge {display_edge_skip}: "
+                                   f"Usage check disabled, compliant data not recorded")
+
                 # 初始化异步usage处理
                 workflow.initialize_async_usage_processing(edge_usage_callback)
                 
