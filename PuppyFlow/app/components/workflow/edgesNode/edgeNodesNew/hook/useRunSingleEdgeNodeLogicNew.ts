@@ -6,6 +6,7 @@ import useJsonConstructUtils, {
     NodeJsonType
 } from '../../../../hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
+import { useAppSettings } from '../../../../states/AppSettingsContext';
 import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
 import { nanoid } from 'nanoid';
 import { 
@@ -42,6 +43,7 @@ export function useBaseEdgeNodeLogic({
         resetLoadingUI
     } = useJsonConstructUtils();
     const { clearAll } = useNodesPerFlowContext();
+    const { getAuthHeaders } = useAppSettings();
 
     // Add hooks for JSON building
     const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
@@ -167,6 +169,7 @@ export function useBaseEdgeNodeLogic({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify(jsonData)
             });

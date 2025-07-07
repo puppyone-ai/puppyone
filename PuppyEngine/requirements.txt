@@ -12,9 +12,14 @@ beautifulsoup4
 fastapi[standard]
 
 # Edges
-numpy
+numpy>=2.0.0,<2.1.0
 pandas
 pillow
+torch==2.4.1
+torchvision==0.19.1
+# Scientific computing packages (Apple Silicon compatible)
+numba>=0.59.0,<0.61.0
+llvmlite>=0.42.0,<0.44.0
 cohere
 openai
 litellm
@@ -46,9 +51,13 @@ sqlalchemy
 vecs
 pymilvus
 qdrant_client
-pinecone[grpc]
-weaviate-client
+pinecone
+weaviate-client==4.9.6
 psycopg2-binary
+
+# gRPC 相关包 - 固定版本避免冲突
+grpcio==1.73.1
+grpcio-tools==1.73.1
 
 #code
 RestrictedPython

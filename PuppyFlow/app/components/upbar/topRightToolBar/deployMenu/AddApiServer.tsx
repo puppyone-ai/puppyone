@@ -121,7 +121,7 @@ function DeployAsApi({
 
   // 使用新的 serverOperations 处理部署逻辑
   const handleDeploy = async () => {
-    if (!selectedFlowId || !serverOperations.apiServerKey) {
+    if (!selectedFlowId) {
       console.error("缺少必要的部署参数");
       return;
     }
@@ -137,14 +137,13 @@ function DeployAsApi({
       };
 
       // Get user token according to API documentation
-      const userToken = serverOperations.getToken();
+      const userToken = serverOperations.getUserToken();
       
 
       // Build headers according to API documentation
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
-        "x-admin-key": serverOperations.apiServerKey,
-        "x-user-token": userToken || "" // Always send x-user-token, empty string if no token
+        "x-user-token": `Bearer ${userToken || ""}` // Use Bearer token authentication
       };
 
       const res = await fetch(`${API_SERVER_URL}/config_api`, {
@@ -269,7 +268,7 @@ api_url = "${API_SERVER_URL}/api/${api_id}"
 api_key = "${api_key}"
 
 headers = {
-    "Authorization": f"Bearer {api_key}",
+    "x-user-token": f"Bearer {api_key}",
     "Content-Type": "application/json"
 }
 
@@ -285,7 +284,7 @@ else:
     print("Error:", response.status_code, response.json())`;
 
     const sh = `curl -X POST "${API_SERVER_URL}/api/${api_id}" \\
--H "Authorization: Bearer ${api_key}" \\
+-H "x-user-token: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
 ${input_text_gen(selectedInputs, SHELL)}
@@ -301,7 +300,7 @@ ${input_text_gen(selectedInputs, JAVASCRIPT)}
 
 axios.post(apiUrl, data, {
     headers: {
-        "Authorization": "Bearer ${api_key}",
+        "x-user-token": "Bearer ${api_key}",
         "Content-Type": "application/json"
     }
 })

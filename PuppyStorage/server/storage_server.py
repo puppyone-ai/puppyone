@@ -8,12 +8,31 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from utils.puppy_exception import PuppyException
 from utils.logger import log_info, log_error
+from utils.config import ConfigValidationError
 from server.routes.file_routes import file_router, storage_router
 from server.routes.vector_routes import vector_router
 
 
 try:
-    app = FastAPI()
+    # 配置验证在 utils.config 模块导入时已经执行
+    # 如果有配置错误，程序会在此之前退出
+    log_info("PuppyStorage配置验证完成，正在初始化服务...")
+    
+    # 根据部署类型决定是否启用文档接口
+    DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "local").lower()
+
+    # 生产环境禁用文档接口
+    if DEPLOYMENT_TYPE == "remote":
+        app = FastAPI(
+            docs_url=None,
+            redoc_url=None,
+            openapi_url=None
+        )
+        log_info("Remote deployment: Documentation endpoints disabled")
+    else:
+        # 本地环境启用文档接口
+        app = FastAPI()
+        log_info("Local deployment: Documentation endpoints enabled at /docs and /redoc")
 
     # Add CORS middleware
     app.add_middleware(
@@ -43,6 +62,12 @@ try:
     app.include_router(vector_router)
     app.include_router(file_router)
     app.include_router(storage_router)
+    
+    log_info("PuppyStorage服务初始化完成")
+    
+except ConfigValidationError as cve:
+    # 配置验证错误，直接退出（错误信息已在 config.py 中输出）
+    exit(1)
 except PuppyException as e:
     log_error(f"Server Initialization Error: {str(e)}")
 
@@ -58,13 +83,24 @@ async def health_check():
 
 if __name__ == "__main__":
     try:
+        log_info("PuppyStorage Server 正在启动...")
+        
         import asyncio
         from hypercorn.config import Config
         from hypercorn.asyncio import serve
 
-        config = Config()
-        config.bind = ["127.0.0.1:8002"]
+        # 避免变量名冲突：使用 hypercorn_config 而不是 config
+        hypercorn_config = Config()
+        hypercorn_config.bind = ["127.0.0.1:8002"]
 
-        asyncio.run(serve(app, config))
+        log_info("服务器将在 http://127.0.0.1:8002 启动")
+        asyncio.run(serve(app, hypercorn_config))
+        
+    except ConfigValidationError as cve:
+        # 配置验证错误，直接退出（错误信息已在 config.py 中输出）
+        exit(1)
     except PuppyException as e:
         log_error(f"Unexpected Error in Launching Server: {str(e)}")
+    except Exception as e:
+        log_error(f"Unexpected Error in Launching Server: {str(e)}")
+        raise PuppyException(7000, "Unexpected Error in Launching PuppyStorage Server", str(e))
