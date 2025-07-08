@@ -42,9 +42,43 @@ export async function middleware(request: NextRequest) {
   const url = new URL(request.url)
   const authTokenFromUrl = url.searchParams.get('auth_token')
 
+  // 🔥 调试信息收集
+  const debugInfo = {
+    url: request.url,
+    host: request.headers.get('host'),
+    hasAuthToken: !!authTokenFromUrl,
+    hasCookie: !!token,
+    authTokenPrefix: authTokenFromUrl ? authTokenFromUrl.substring(0, 20) + '...' : null,
+    userPageUrl,
+    backendUrl: SYSTEM_URLS.USER_SYSTEM.BACKEND,
+    env: {
+      NODE_ENV: process.env.NODE_ENV,
+      USER_SYSTEM_FRONTEND_URL: process.env.USER_SYSTEM_FRONTEND_URL,
+      SKIP_MIDDLEWARE: process.env.SKIP_MIDDLEWARE
+    }
+  };
+
   // 检查环境变量以决定是否跳过中间件
   if (process.env.SKIP_MIDDLEWARE === 'true') {
     return NextResponse.next()
+  }
+
+  // 🔥 调试模式检查
+  const debugMode = process.env.DEBUG_AUTH === 'true';
+
+  // 🚨 检查环境配置问题
+  if (userPageUrl.includes('localhost:3000') && request.headers.get('host')?.includes('puppyagent.com')) {
+    if (debugMode) {
+      // 配置错误，在redirect URL中附加调试信息
+      const debugUrl = new URL(userPageUrl);
+      debugUrl.searchParams.set('debug_error', 'config_error');
+      debugUrl.searchParams.set('expected_url', 'https://userserver.puppyagent.com');
+      debugUrl.searchParams.set('actual_url', userPageUrl);
+      return NextResponse.redirect(debugUrl.toString());
+    } else {
+      // 生产模式：静默重定向，不暴露调试信息
+      return NextResponse.redirect(userPageUrl);
+    }
   }
 
   // 优先处理URL中的auth_token（OAuth回调场景）
@@ -81,13 +115,50 @@ export async function middleware(request: NextRequest) {
         }
         
         redirectResponse.cookies.set('access_token', authTokenFromUrl, cookieOptions)
+        
+        // 🔥 只在调试模式下设置调试cookie
+        if (debugMode) {
+          redirectResponse.cookies.set('debug_auth_success', 'true', { 
+            path: '/', 
+            maxAge: 60,
+            httpOnly: false 
+          });
+        }
+        
         return redirectResponse
       } else {
-        return NextResponse.redirect(userPageUrl)
+        if (debugMode) {
+          // 验证失败，在redirect URL中附加调试信息
+          const debugUrl = new URL(userPageUrl);
+          debugUrl.searchParams.set('debug_error', 'token_verification_failed');
+          debugUrl.searchParams.set('status', response.status.toString());
+          debugUrl.searchParams.set('backend_url', fullUrl);
+          debugUrl.searchParams.set('token_prefix', authTokenFromUrl.substring(0, 20));
+          
+          // 尝试获取响应内容
+          try {
+            const responseText = await response.text();
+            debugUrl.searchParams.set('response', responseText.substring(0, 200));
+          } catch (e) {
+            debugUrl.searchParams.set('response', 'failed_to_read');
+          }
+          
+          return NextResponse.redirect(debugUrl.toString());
+        } else {
+          return NextResponse.redirect(userPageUrl);
+        }
       }
     } catch (error) {
-      console.error('Auth token verification error:', error)
-      return NextResponse.redirect(userPageUrl)
+      if (debugMode) {
+        // 网络错误，在redirect URL中附加调试信息
+        const debugUrl = new URL(userPageUrl);
+        debugUrl.searchParams.set('debug_error', 'network_error');
+        debugUrl.searchParams.set('error_message', error instanceof Error ? error.message : 'unknown');
+        debugUrl.searchParams.set('backend_url', SYSTEM_URLS.USER_SYSTEM.BACKEND);
+        return NextResponse.redirect(debugUrl.toString());
+      } else {
+        return NextResponse.redirect(userPageUrl);
+      }
     }
   }
 
@@ -107,11 +178,27 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
       }
     } catch (error) {
-      console.error('Token verification error:', error)
+      if (debugMode) {
+        // Cookie验证失败的情况，在redirect URL中附加调试信息
+        const debugUrl = new URL(userPageUrl);
+        debugUrl.searchParams.set('debug_error', 'cookie_verification_failed');
+        debugUrl.searchParams.set('has_cookie', 'true');
+        debugUrl.searchParams.set('cookie_prefix', token.substring(0, 20));
+        return NextResponse.redirect(debugUrl.toString());
+      }
     }
   }
 
-  return NextResponse.redirect(userPageUrl)
+  if (debugMode) {
+    // 没有任何认证信息的fallback
+    const debugUrl = new URL(userPageUrl);
+    debugUrl.searchParams.set('debug_error', 'no_auth');
+    debugUrl.searchParams.set('has_auth_token', String(!!authTokenFromUrl));
+    debugUrl.searchParams.set('has_cookie', String(!!token));
+    return NextResponse.redirect(debugUrl.toString());
+  } else {
+    return NextResponse.redirect(userPageUrl);
+  }
 }
 
 // 配置需要进行认证的路径
