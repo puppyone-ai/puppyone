@@ -116,7 +116,7 @@ function ServerNode({ isConnectable, id, data: { content, label } }: ServerNodeP
 
   return (
     <div 
-      className='relative p-[3px] w-[144px] h-[144px]'
+      className='relative p-[3px] w-[144px] h-[112px]'
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
@@ -130,7 +130,7 @@ function ServerNode({ isConnectable, id, data: { content, label } }: ServerNodeP
       >
         {/* Label - 顶部 */}
         <div 
-          className="text-[10px] font-[400] text-center opacity-60 transition-colors duration-200"
+          className="text-[12px] font-[600] text-center opacity-60 transition-colors duration-200"
           style={{
             color: isHovered ? '#9CA3AF' : '#6B7280',
             letterSpacing: '0.3px',
@@ -141,7 +141,7 @@ function ServerNode({ isConnectable, id, data: { content, label } }: ServerNodeP
 
         {/* Run button - 中间 */}
         <button
-          className={`w-[90px] h-[40px] rounded-[10px] border-[1px] border-[#39BC66] bg-transparent flex items-center justify-center gap-[6px] transition-all duration-200 hover:bg-main-green hover:border-main-green ${
+          className={`w-[75px] h-[32px] rounded-[8px] border-[1px] border-[#39BC66] bg-transparent flex items-center justify-center gap-[4px] transition-all duration-200 hover:bg-main-green hover:border-main-green ${
             isLoading ? 'opacity-50 cursor-not-allowed' : ''
           }`}
           onClick={onDataSubmit}
@@ -150,14 +150,14 @@ function ServerNode({ isConnectable, id, data: { content, label } }: ServerNodeP
           disabled={isLoading}
         >
           {isLoading ? (
-            <div className="w-4 h-4 border-2 border-[#39BC66] border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-3 h-3 border-2 border-[#39BC66] border-t-transparent rounded-full animate-spin"></div>
           ) : (
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M12 7L3 13V1L12 7Z" fill={isRunButtonHovered ? "#000" : "#39BC66"}/>
             </svg>
           )}
           
-          <span className={`text-[11px] font-[500] transition-colors ${
+          <span className={`text-[12px] font-[600] transition-colors ${
             isRunButtonHovered ? "text-[#000]" : "text-[#39BC66]"
           }`}>
             {isLoading ? "Running..." : "Run"}
