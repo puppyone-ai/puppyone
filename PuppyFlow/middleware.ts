@@ -68,16 +68,31 @@ export async function middleware(request: NextRequest) {
 
   // 🚨 检查环境配置问题
   if (userPageUrl.includes('localhost:3000') && request.headers.get('host')?.includes('puppyagent.com')) {
+    // 🔥 记录配置错误到服务器日志（总是记录，便于运维排查）
+    console.error('🚨 Configuration Mismatch Detected:', {
+      issue: 'production_host_with_dev_frontend_url',
+      current_host: request.headers.get('host'),
+      frontend_url: userPageUrl,
+      suggestion: 'check_USER_SYSTEM_FRONTEND_URL_env_var',
+      original_url: request.url,
+      timestamp: new Date().toISOString()
+    });
+
     if (debugMode) {
-      // 配置错误，在redirect URL中附加调试信息
+      // 🔧 调试模式：提供技术详细信息
       const debugUrl = new URL(userPageUrl);
-      debugUrl.searchParams.set('debug_error', 'config_error');
-      debugUrl.searchParams.set('expected_url', 'https://userserver.puppyagent.com');
-      debugUrl.searchParams.set('actual_url', userPageUrl);
+      debugUrl.searchParams.set('debug_error', 'config_mismatch');
+      debugUrl.searchParams.set('issue', 'production_host_with_dev_frontend_url');
+      debugUrl.searchParams.set('current_host', request.headers.get('host') || 'unknown');
+      debugUrl.searchParams.set('frontend_url', userPageUrl);
+      debugUrl.searchParams.set('suggestion', 'check_USER_SYSTEM_FRONTEND_URL_env_var');
       return NextResponse.redirect(debugUrl.toString());
     } else {
-      // 生产模式：静默重定向，不暴露调试信息
-      return NextResponse.redirect(userPageUrl);
+      // 🎯 生产模式：给用户友好的错误信息
+      const userFriendlyUrl = new URL(userPageUrl);
+      userFriendlyUrl.searchParams.set('error', 'service_configuration');
+      userFriendlyUrl.searchParams.set('message', 'Service temporarily unavailable. Please try again or contact support.');
+      return NextResponse.redirect(userFriendlyUrl.toString());
     }
   }
 
@@ -127,8 +142,17 @@ export async function middleware(request: NextRequest) {
         
         return redirectResponse
       } else {
+        // 🔥 记录token验证失败到服务器日志
+        console.error('🚨 Token Verification Failed:', {
+          status: response.status,
+          backend_url: fullUrl,
+          token_prefix: authTokenFromUrl.substring(0, 20),
+          original_url: request.url,
+          timestamp: new Date().toISOString()
+        });
+
         if (debugMode) {
-          // 验证失败，在redirect URL中附加调试信息
+          // 🔧 调试模式：提供技术详细信息
           const debugUrl = new URL(userPageUrl);
           debugUrl.searchParams.set('debug_error', 'token_verification_failed');
           debugUrl.searchParams.set('status', response.status.toString());
@@ -145,19 +169,35 @@ export async function middleware(request: NextRequest) {
           
           return NextResponse.redirect(debugUrl.toString());
         } else {
-          return NextResponse.redirect(userPageUrl);
+          // 🎯 生产模式：给用户友好的错误信息
+          const userFriendlyUrl = new URL(userPageUrl);
+          userFriendlyUrl.searchParams.set('error', 'authentication_failed');
+          userFriendlyUrl.searchParams.set('message', 'Authentication failed. Please sign in again.');
+          return NextResponse.redirect(userFriendlyUrl.toString());
         }
       }
     } catch (error) {
+      // 🔥 记录网络错误到服务器日志
+      console.error('🚨 Network Error in Auth Token Verification:', {
+        error_message: error instanceof Error ? error.message : 'unknown',
+        backend_url: SYSTEM_URLS.USER_SYSTEM.BACKEND,
+        original_url: request.url,
+        timestamp: new Date().toISOString()
+      });
+
       if (debugMode) {
-        // 网络错误，在redirect URL中附加调试信息
+        // 🔧 调试模式：提供技术详细信息
         const debugUrl = new URL(userPageUrl);
         debugUrl.searchParams.set('debug_error', 'network_error');
         debugUrl.searchParams.set('error_message', error instanceof Error ? error.message : 'unknown');
         debugUrl.searchParams.set('backend_url', SYSTEM_URLS.USER_SYSTEM.BACKEND);
         return NextResponse.redirect(debugUrl.toString());
       } else {
-        return NextResponse.redirect(userPageUrl);
+        // 🎯 生产模式：给用户友好的错误信息
+        const userFriendlyUrl = new URL(userPageUrl);
+        userFriendlyUrl.searchParams.set('error', 'service_unavailable');
+        userFriendlyUrl.searchParams.set('message', 'Service temporarily unavailable. Please try again later.');
+        return NextResponse.redirect(userFriendlyUrl.toString());
       }
     }
   }
@@ -178,26 +218,48 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
       }
     } catch (error) {
+      // 🔥 记录cookie验证失败到服务器日志
+      console.error('🚨 Cookie Verification Failed:', {
+        error_message: error instanceof Error ? error.message : 'unknown',
+        has_cookie: true,
+        cookie_prefix: token.substring(0, 20),
+        original_url: request.url,
+        timestamp: new Date().toISOString()
+      });
+
       if (debugMode) {
-        // Cookie验证失败的情况，在redirect URL中附加调试信息
+        // 🔧 调试模式：提供技术详细信息
         const debugUrl = new URL(userPageUrl);
         debugUrl.searchParams.set('debug_error', 'cookie_verification_failed');
         debugUrl.searchParams.set('has_cookie', 'true');
         debugUrl.searchParams.set('cookie_prefix', token.substring(0, 20));
         return NextResponse.redirect(debugUrl.toString());
       }
+      // 🎯 生产模式：cookie验证失败，静默跳转到登录页（下面统一处理）
     }
   }
 
+  // 🔥 最终fallback：没有有效认证信息
+  console.info('ℹ️ No Valid Authentication Found:', {
+    has_auth_token: !!authTokenFromUrl,
+    has_cookie: !!token,
+    original_url: request.url,
+    timestamp: new Date().toISOString()
+  });
+
   if (debugMode) {
-    // 没有任何认证信息的fallback
+    // 🔧 调试模式：提供技术详细信息
     const debugUrl = new URL(userPageUrl);
     debugUrl.searchParams.set('debug_error', 'no_auth');
     debugUrl.searchParams.set('has_auth_token', String(!!authTokenFromUrl));
     debugUrl.searchParams.set('has_cookie', String(!!token));
     return NextResponse.redirect(debugUrl.toString());
   } else {
-    return NextResponse.redirect(userPageUrl);
+    // 🎯 生产模式：给用户友好的提示信息
+    const userFriendlyUrl = new URL(userPageUrl);
+    userFriendlyUrl.searchParams.set('info', 'login_required');
+    userFriendlyUrl.searchParams.set('message', 'Please sign in to access this application.');
+    return NextResponse.redirect(userFriendlyUrl.toString());
   }
 }
 
