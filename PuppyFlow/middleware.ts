@@ -216,13 +216,85 @@ export async function middleware(request: NextRequest) {
 
       if (response.status === 200) {
         return NextResponse.next()
+      } else {
+        // 🔥 处理特定的错误响应
+        let errorInfo = null
+        try {
+          errorInfo = await response.json()
+        } catch (e) {
+          // 如果无法解析JSON，使用默认处理
+        }
+
+        const errorCode = errorInfo?.error_code
+        const shouldClearCookie = errorCode && ['TOKEN_EXPIRED', 'TOKEN_INVALID', 'TOKEN_MALFORMED'].includes(errorCode)
+
+        // 🔥 记录详细的认证失败信息到服务器日志（保持详细错误类型用于调试）
+        console.error('🚨 Cookie Token Verification Failed:', {
+          status: response.status,
+          error_code: errorCode || 'unknown',
+          error_message: errorInfo?.message || 'unknown',
+          should_clear_cookie: shouldClearCookie,
+          cookie_prefix: token.substring(0, 20),
+          original_url: request.url,
+          timestamp: new Date().toISOString()
+        });
+
+        // 🔥 根据错误类型决定是否清除cookie
+        if (shouldClearCookie) {
+          const redirectResponse = NextResponse.redirect(new URL(userPageUrl))
+          
+          // 清除无效的cookie
+          const cookieDomain = getCookieDomain(request)
+          
+          if (cookieDomain) {
+            redirectResponse.cookies.set('access_token', '', { 
+              path: '/', 
+              domain: cookieDomain,
+              expires: new Date(0)
+            })
+          } else {
+            redirectResponse.cookies.set('access_token', '', { 
+              path: '/',
+              expires: new Date(0)
+            })
+          }
+          
+          if (debugMode) {
+            // 🔧 调试模式：提供技术详细信息
+            const debugUrl = new URL(userPageUrl);
+            debugUrl.searchParams.set('debug_error', 'invalid_token_cleared');
+            debugUrl.searchParams.set('server_error_code', errorCode); // 服务器内部错误码
+            debugUrl.searchParams.set('cookie_cleared', 'true');
+            return NextResponse.redirect(debugUrl.toString());
+          } else {
+            // 🎯 生产模式：统一的用户侧错误类型（安全考虑）
+            const userFriendlyUrl = new URL(userPageUrl);
+            userFriendlyUrl.searchParams.set('error', 'authentication_failed');
+            userFriendlyUrl.searchParams.set('message', 'Authentication failed. Please sign in again.');
+            return NextResponse.redirect(userFriendlyUrl.toString());
+          }
+        }
+        
+        // 🔥 其他错误（如服务不可用）保持cookie，但重定向到登录页
+        if (debugMode) {
+          const debugUrl = new URL(userPageUrl);
+          debugUrl.searchParams.set('debug_error', 'auth_service_error');
+          debugUrl.searchParams.set('error_code', errorCode || 'unknown');
+          debugUrl.searchParams.set('status', response.status.toString());
+          debugUrl.searchParams.set('cookie_preserved', 'true');
+          return NextResponse.redirect(debugUrl.toString());
+        } else {
+          const userFriendlyUrl = new URL(userPageUrl);
+          userFriendlyUrl.searchParams.set('error', 'service_unavailable');
+          userFriendlyUrl.searchParams.set('message', 'Authentication service temporarily unavailable. Please try again later.');
+          return NextResponse.redirect(userFriendlyUrl.toString());
+        }
       }
     } catch (error) {
-      // 🔥 记录cookie验证失败到服务器日志
-      console.error('🚨 Cookie Verification Failed:', {
+      // 🔥 记录网络错误到服务器日志
+      console.error('🚨 Network Error in Cookie Verification:', {
         error_message: error instanceof Error ? error.message : 'unknown',
-        has_cookie: true,
-        cookie_prefix: token.substring(0, 20),
+        backend_url: SYSTEM_URLS.USER_SYSTEM.BACKEND,
         original_url: request.url,
         timestamp: new Date().toISOString()
       });
@@ -230,12 +302,17 @@ export async function middleware(request: NextRequest) {
       if (debugMode) {
         // 🔧 调试模式：提供技术详细信息
         const debugUrl = new URL(userPageUrl);
-        debugUrl.searchParams.set('debug_error', 'cookie_verification_failed');
-        debugUrl.searchParams.set('has_cookie', 'true');
-        debugUrl.searchParams.set('cookie_prefix', token.substring(0, 20));
+        debugUrl.searchParams.set('debug_error', 'network_error');
+        debugUrl.searchParams.set('error_message', error instanceof Error ? error.message : 'unknown');
+        debugUrl.searchParams.set('backend_url', SYSTEM_URLS.USER_SYSTEM.BACKEND);
         return NextResponse.redirect(debugUrl.toString());
+      } else {
+        // 🎯 生产模式：给用户友好的错误信息
+        const userFriendlyUrl = new URL(userPageUrl);
+        userFriendlyUrl.searchParams.set('error', 'service_unavailable');
+        userFriendlyUrl.searchParams.set('message', 'Service temporarily unavailable. Please try again later.');
+        return NextResponse.redirect(userFriendlyUrl.toString());
       }
-      // 🎯 生产模式：cookie验证失败，静默跳转到登录页（下面统一处理）
     }
   }
 
