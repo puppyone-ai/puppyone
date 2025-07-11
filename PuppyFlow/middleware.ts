@@ -204,6 +204,27 @@ export async function middleware(request: NextRequest) {
 
   // 统一验证模式：使用Authorization header验证
   if (token) {
+    // 客户端早期检查Token格式
+    if (token.split('.').length !== 3) {
+      console.error('🚨 Client-side Token Format Invalid:', {
+        cookie_prefix: token.substring(0, 20),
+        original_url: request.url,
+        timestamp: new Date().toISOString()
+      });
+
+      // 直接重定向，不请求后端
+      if (debugMode) {
+        const debugUrl = new URL(userPageUrl);
+        debugUrl.searchParams.set('debug_error', 'client_token_malformed');
+        return NextResponse.redirect(debugUrl.toString());
+      } else {
+        const userFriendlyUrl = new URL(userPageUrl);
+        userFriendlyUrl.searchParams.set('error', 'authentication_failed');
+        userFriendlyUrl.searchParams.set('message', 'Authentication failed due to an invalid token. Please sign in again.');
+        return NextResponse.redirect(userFriendlyUrl.toString());
+      }
+    }
+    
     try {
       const authServerUrl = SYSTEM_URLS.USER_SYSTEM.BACKEND
       const response = await fetch(`${authServerUrl}/protected`, {
@@ -218,11 +239,22 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next()
       } else {
         // 🔥 处理特定的错误响应
-        let errorInfo = null
+        let errorInfo = null;
+        let responseText = '';
         try {
-          errorInfo = await response.json()
+          // 先克隆响应，以防body被消耗
+          const clonedResponse = response.clone();
+          responseText = await clonedResponse.text();
+          errorInfo = JSON.parse(responseText);
         } catch (e) {
-          // 如果无法解析JSON，使用默认处理
+          // 如果无法解析JSON，记录原始响应文本
+          console.error('🚨 Failed to parse JSON from auth response:', {
+            status: response.status,
+            response_text: responseText.substring(0, 500), // 记录部分原始响应
+            original_url: request.url,
+          });
+          // 使用一个默认的错误结构，让后续逻辑可以继续
+          errorInfo = { error_code: 'BACKEND_RESPONSE_NOT_JSON', message: 'Backend returned non-JSON response' };
         }
 
         const errorCode = errorInfo?.error_code
