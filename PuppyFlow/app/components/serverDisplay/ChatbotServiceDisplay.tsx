@@ -8,7 +8,7 @@ interface ChatbotServiceDisplayProps {
   service: any;
 }
 
-// 自定义的 ChatInterfaceDeployed 组件，使用外部传入的聊天历史
+// Custom ChatInterfaceDeployed component using external chat history
 const CustomChatInterfaceDeployed: React.FC<{
   chatbotId: string;
   baseUrl: string;
@@ -31,25 +31,25 @@ const CustomChatInterfaceDeployed: React.FC<{
   ...otherProps 
 }) => {
   
-  // 自定义的消息处理函数
+  // Custom message handling function
   const handleSendMessage = async (message: string): Promise<string> => {
     try {
-      // 准备请求头
+      // Prepare request headers
       const headers = {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${chatbotKey}`
       };
 
-      // 准备请求体
+      // Prepare request body
       const requestBody: any = {
         input: {
           [inputBlockId]: message
         }
       };
 
-      // 添加聊天历史（如果可用）
+      // Add chat history (if available)
       if (chatHistory.messages.length > 0) {
-        // 将聊天历史转换为 API 期望的格式
+        // Convert chat history to API expected format
         const apiChatHistory = chatHistory.messages.map((msg: ChatMessage) => ({
           role: msg.role,
           content: msg.content
@@ -60,12 +60,12 @@ const CustomChatInterfaceDeployed: React.FC<{
         };
       }
 
-      // 构造端点 URL
+      // Construct endpoint URL
       const endpoint = `${baseUrl}/chat/${chatbotId}`;
-      console.log(`🔍 发送消息到端点: ${endpoint}`);
-      console.log('🔍 请求体:', requestBody);
+      console.log(`🔍 Sending message to endpoint: ${endpoint}`);
+      console.log('🔍 Request body:', requestBody);
 
-      // 添加用户消息到聊天历史
+      // Add user message to chat history
       const userMessage: ChatMessage = {
         id: Date.now().toString(),
         role: 'user',
@@ -74,7 +74,7 @@ const CustomChatInterfaceDeployed: React.FC<{
       };
       onUpdateChatHistory(chatbotId, userMessage);
 
-      // 发送 API 请求
+      // Send API request
       const response = await fetch(endpoint, {
         method: 'POST',
         headers,
@@ -84,11 +84,11 @@ const CustomChatInterfaceDeployed: React.FC<{
       if (response.ok) {
         const data = await response.json();
         
-        // 从输出对象中提取响应
+        // Extract response from output object
         const outputKeys = Object.keys(data.output || {});
         const botResponse = outputKeys.length > 0 ? data.output[outputKeys[0]] : 'No response received';
         
-        // 添加助手消息到聊天历史
+        // Add assistant message to chat history
         const assistantMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
@@ -99,25 +99,25 @@ const CustomChatInterfaceDeployed: React.FC<{
         
         return botResponse;
       } else {
-        throw new Error(`API 调用失败，状态码: ${response.status}`);
+        throw new Error(`API call failed with status: ${response.status}`);
       }
     } catch (error) {
-      console.error(`🔍 与聊天机器人 ${chatbotId} 通信时出错:`, error);
+      console.error(`🔍 Error communicating with chatbot ${chatbotId}:`, error);
       
-      // 添加错误消息到聊天历史
+      // Add error message to chat history
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '抱歉，我暂时无法处理您的请求。请稍后再试。',
+        content: 'Sorry, I am temporarily unable to process your request. Please try again later.',
         timestamp: new Date()
       };
       onUpdateChatHistory(chatbotId, errorMessage);
       
-      return '抱歉，我暂时无法处理您的请求。请稍后再试。';
+      return 'Sorry, I am temporarily unable to process your request. Please try again later.';
     }
   };
 
-  // 将聊天历史转换为 puppychat 期望的格式
+  // Convert chat history to puppychat expected format
   const initialMessages = chatHistory.messages.map((msg: ChatMessage) => ({
     id: msg.id,
     sender: msg.role === 'assistant' ? 'bot' as const : 'user' as const,
@@ -125,7 +125,7 @@ const CustomChatInterfaceDeployed: React.FC<{
     timestamp: msg.timestamp
   }));
 
-  // 自定义清空聊天历史的函数
+  // Custom function to clear chat history
   const handleClearChat = () => {
     onClearChatHistory(chatbotId);
   };
@@ -143,11 +143,11 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
   const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(false);
 
-  // 使用hooks
+  // Use hooks
   const { chatHistory, updateChatHistory, clearChatHistory, addTestMessage } = useChatHistory(service.chatbot_id);
   const { copyToClipboard } = useUtils();
 
-  // 状态信息区域组件
+  // Status information section component
   const StatusSection = () => (
     <>
       <div className="text-[11px] text-[#505050] mb-2 break-words">
@@ -184,7 +184,7 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
         </span></span>
       </div>
 
-      {/* 聊天历史信息 */}
+      {/* Chat history information */}
       <div className="text-[11px] text-[#505050] mt-4 pt-4 border-t border-[#333] break-words">
         <span>Chat History: <span className="text-[#4599DF] break-all">
           {chatHistory.messages.length} messages stored
@@ -205,30 +205,6 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
           ))}
         </div>
       )}
-
-      {/* 测试按钮 */}
-      <div className="mt-4 pt-4 border-t border-[#333]">
-        <div className="flex gap-2">
-          <button
-            onClick={() => addTestMessage('user')}
-            className="px-2 py-1 text-[10px] bg-[#4599DF] text-white rounded hover:bg-[#3A7BC8] transition-colors"
-          >
-            添加用户消息
-          </button>
-          <button
-            onClick={() => addTestMessage('assistant')}
-            className="px-2 py-1 text-[10px] bg-[#9B7EDB] text-white rounded hover:bg-[#8A6FD1] transition-colors"
-          >
-            添加助手消息
-          </button>
-          <button
-            onClick={() => clearChatHistory(service.chatbot_id)}
-            className="px-2 py-1 text-[10px] bg-[#FF6B6B] text-white rounded hover:bg-[#E55A5A] transition-colors"
-          >
-            清空历史
-          </button>
-        </div>
-      </div>
     </>
   );
 
@@ -237,7 +213,7 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
       <div className="w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px] relative">
         <div className="w-full h-full overflow-auto">
           <div className="w-full max-w-[1200px] mx-auto h-full">
-            {/* Header - 统一结构 */}
+            {/* Header - unified structure */}
             <div className="bg-transparent">
               <div className="mb-[16px] pb-[16px] border-b border-[#303030] flex items-center px-[16px] pt-[32px]">
                 <div className="flex items-center justify-between w-full">
@@ -254,7 +230,7 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
                     </div>
                   </div>
                   
-                  {/* 配置信息折叠按钮 */}
+                  {/* Configuration information toggle button */}
                   <div className="relative">
                     <div className="bg-[#1A1A1A] rounded-full border border-[#333] flex-shrink-0">
                       <button
@@ -284,7 +260,7 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({ service }
               </div>
             </div>
 
-            {/* 聊天界面容器 */}
+            {/* Chat interface container */}
             <div className="px-[32px] pb-[16px]">
               <div className="w-full h-[calc(100vh-220px)] flex items-center justify-center relative">
                 <div className="w-full h-full [&>*]:!shadow-none">
