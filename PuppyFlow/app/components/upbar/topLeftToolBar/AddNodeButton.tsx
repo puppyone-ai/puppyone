@@ -135,6 +135,25 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
     if (mousePosition) {
       console.log("mousePosition will be set", mousePosition)
       const defaultNodeContent = node.nodeType === "switch" ? "OFF" : ""
+      
+      // 為不同類型的節點設定特殊尺寸
+      const getNodeSize = (nodeType: string) => {
+        switch (nodeType) {
+          case "serverText":
+            return { width: 160, height: 120 }  // server node 的特殊尺寸
+          case "text":
+          case "structured":
+          case "file":
+          case "weblink":
+          case "group":
+          case "switch":
+          default:
+            return { width: 240, height: 176 }   // 其他所有 block node 的默認尺寸
+        }
+      }
+      
+      const nodeSize = getNodeSize(node.nodeType)
+      
       new Promise(resolve => {
         setNodes(prevNodes => {
             resolve(null);  // 在状态更新完成后解析 Promise
@@ -154,11 +173,11 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                      },
                     type: node.nodeType,
                     measured: {
-                      width: 240,
-                      height: 176,
+                      width: nodeSize.width,
+                      height: nodeSize.height,
                     },
-                    width: 240,
-                    height: 176,
+                    width: nodeSize.width,
+                    height: nodeSize.height,
                 }
             ];
         });
@@ -220,6 +239,29 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
             <span className="bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text text-[24px]">
               Aa
             </span>
+          );
+        case "serverText":
+          return (
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="rocketDragGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#10B981" />
+                  <stop offset="100%" stopColor="#059669" />
+                </linearGradient>
+              </defs>
+              {/* Rocket body */}
+              <path d="M12 2L12 10L8 14L8 18L12 16L16 18L16 14L12 10Z" fill="url(#rocketDragGradient)" fillOpacity="0.8"/>
+              {/* Rocket tip */}
+              <path d="M12 2L10 6L14 6Z" fill="url(#rocketDragGradient)"/>
+              {/* Rocket fins */}
+              <path d="M8 14L6 16L8 18Z" fill="url(#rocketDragGradient)" fillOpacity="0.6"/>
+              <path d="M16 14L18 16L16 18Z" fill="url(#rocketDragGradient)" fillOpacity="0.6"/>
+              {/* Rocket flames */}
+              <path d="M10 18L12 22L14 18" fill="#F59E0B" fillOpacity="0.8"/>
+              <path d="M11 19L12 21L13 19" fill="#EF4444" fillOpacity="0.9"/>
+              {/* Window */}
+              <circle cx="12" cy="8" r="1.5" fill="#ffffff" fillOpacity="0.9"/>
+            </svg>
           );
         case "structured":
           return (
@@ -352,16 +394,9 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                       <stop offset="100%" stopColor="#7C3AED" />
                     </linearGradient>
                   </defs>
-                  {/* Main container with clearer border */}
                   <rect x="2" y="2" width="20" height="20" rx="3" stroke="url(#structuredGradient)" strokeWidth="1.5" strokeOpacity="0.5"/>
-                  
-                  {/* Top line - longest */}
                   <rect x="5" y="6" width="14" height="2.5" rx="1" fill="url(#structuredGradient)" fillOpacity="0.9"/>
-                  
-                  {/* Middle line - medium */}
                   <rect x="5" y="11" width="11" height="2.5" rx="1" fill="url(#structuredGradient)" fillOpacity="0.6"/>
-                  
-                  {/* Bottom line - shortest */}
                   <rect x="5" y="16" width="8" height="2.5" rx="1" fill="url(#structuredGradient)" fillOpacity="0.3"/>
                 </svg>
               </div>
@@ -439,6 +474,53 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
               <div className='flex flex-col items-start relative'>
                 <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>Group</div>
                 <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>Group nodes</div>
+              </div>
+            </button>
+          </div>
+
+          {/* Fourth Section Title - Server */}
+          <div className="flex items-center gap-3 px-2 group mt-1">
+            <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2">
+              <div className="w-1 h-1 rounded-full bg-green-500"></div>
+              Server
+            </span>
+            <div className="h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50"></div>
+          </div>
+
+          {/* Fourth Row - Server Elements */}
+          <div className="grid grid-cols-2 gap-[12px] px-1">
+            <button className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#10B981] hover:shadow-green-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`} 
+            onClick={(event)=> {
+              event.preventDefault()
+              event.stopPropagation()
+              handleMouseDown("serverText")
+            }}>
+              <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner relative'>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="rocketGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#10B981" />
+                      <stop offset="100%" stopColor="#059669" />
+                    </linearGradient>
+                  </defs>
+                  {/* Rocket body */}
+                  <path d="M12 2L12 10L8 14L8 18L12 16L16 18L16 14L12 10Z" fill="url(#rocketGradient)" fillOpacity="0.8"/>
+                  {/* Rocket tip */}
+                  <path d="M12 2L10 6L14 6Z" fill="url(#rocketGradient)"/>
+                  {/* Rocket fins */}
+                  <path d="M8 14L6 16L8 18Z" fill="url(#rocketGradient)" fillOpacity="0.6"/>
+                  <path d="M16 14L18 16L16 18Z" fill="url(#rocketGradient)" fillOpacity="0.6"/>
+                  {/* Rocket flames */}
+                  <path d="M10 18L12 22L14 18" fill="#F59E0B" fillOpacity="0.8"/>
+                  <path d="M11 19L12 21L13 19" fill="#EF4444" fillOpacity="0.9"/>
+                  {/* Window */}
+                  <circle cx="12" cy="8" r="1.5" fill="#ffffff" fillOpacity="0.9"/>
+                </svg>
+              </div>
+              <div className='flex flex-col items-start relative'>
+                <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>Server Text</div>
+                <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>Server-side node</div>
               </div>
             </button>
           </div>
