@@ -146,7 +146,7 @@ function useMiddleMousePan() {
   return canPan;
 }
 
-// 添加这个排序函数
+// 简化的排序函数 - 只确保组节点在前面
 const sortNodesByType = (nodes: Node[]) => {
   return [...nodes].sort((a, b) => {
     if (a.type === 'group' && b.type !== 'group') return -1;
@@ -347,8 +347,6 @@ function Workflow() {
       newNodes.push(node);
       return newNodes;
     });
-
-    activateNode(id)
   };
 
   const onNodeMouseLeave = (id: string) => {
@@ -363,6 +361,12 @@ function Workflow() {
     }
     activateNode(id)
     preventInactivateNode()
+    
+    // 如果点击的是组节点，触发重新计算
+    const clickedNode = getNode(id);
+    if (clickedNode?.type === 'group') {
+      // 这里不需要额外处理，因为 GroupNode 组件内部已经处理了点击事件
+    }
   }
 
   const onPaneClick = () => {
@@ -436,32 +440,7 @@ function Workflow() {
     setEdgesIds(getEdges().map((edge) => edge.id))
   }, [getEdges()])
 
-  // 在 Workflow.tsx 中添加一个监听器，每当节点变更时进行排序
-  useEffect(() => {
-    // 验证节点顺序是否正确
-    const isOrderCorrect = (nodes: Node[]) => {
-      const groupIndices = nodes
-        .map((node, index) => node.type === 'group' ? index : -1)
-        .filter(index => index !== -1);
-      
-      if (groupIndices.length === 0) return true;
-      
-      // 检查是否有非组节点在组节点之前
-      return !nodes.some((node, index) => {
-        if (node.type !== 'group' && node.parentId) {
-          const parentIndex = nodes.findIndex(n => n.id === node.parentId);
-          return parentIndex > index; // 如果父节点索引大于子节点索引，顺序不正确
-        }
-        return false;
-      });
-    };
-
-    // 如果顺序不正确，重新排序
-    if (!isOrderCorrect(nodes)) {
-      console.warn('Node order is incorrect, reordering...');
-      setNodes(sortNodesByType(nodes));
-    }
-  }, [nodes]);
+  // 移除了与 parentId 相关的复杂排序逻辑，因为不再使用 ReactFlow 的 parentId 机制
 
 
   return (
