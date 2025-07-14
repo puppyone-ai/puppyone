@@ -57,6 +57,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
+  const [isHovered, setIsHovered] = useState(false) // 添加 hover 状态
 
   // Get connected nodes
   const sourceNodes = getSourceNodeIdWithLabel(id)
@@ -89,10 +90,12 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   useEffect(() => {
     if (activatedNode?.id === id) {
       setBorderColor("border-main-blue");
+    } else if (isHovered) {
+      setBorderColor("border-main-blue"); // hover 时也显示蓝色边框
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
+  }, [activatedNode, isHovered, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
 
 
   const displaySourceNodeLabels = () => {
@@ -277,7 +280,12 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   }, [id, setNodes])
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div 
+      ref={componentRef} 
+      className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {/* Add tags for input, output and locked states */}
       <div className="absolute -top-[28px] h-[24px]  left-0 z-10 flex gap-1.5">
         {isInput && (
