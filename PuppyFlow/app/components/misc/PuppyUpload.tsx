@@ -176,7 +176,7 @@ export const PuppyUpload = ({ handleInputChange, handleDrop, uploadedFiles, setU
                     ref={inputRef}
                     onChange={handleInputChange}
                     onClick={(e) => e.stopPropagation()}
-                    accept=".json, .pdf, .txt, .docx, .csv, .xlsx, .markdown, .md, .mdx"
+                    accept=".json, .pdf, .txt, .doc, .docx, .csv, .xlsx, .markdown, .md, .mdx"
                     multiple
                     className="opacity-0 absolute top-0 left-0 w-full h-full cursor-pointer"
                     style={{
