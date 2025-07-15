@@ -38,17 +38,17 @@ export async function middleware(request: NextRequest) {
   const userPageUrl = SYSTEM_URLS.USER_SYSTEM.FRONTEND
   const token = request.cookies.get('access_token')?.value
   
-  // 检查URL参数中的auth_token（OAuth回调处理）
+  // 检查URL参数中的access_token（OAuth回调处理）
   const url = new URL(request.url)
-  const authTokenFromUrl = url.searchParams.get('auth_token')
+  const authTokenFromUrl = url.searchParams.get('access_token')
 
   // 🔥 调试信息收集
   const debugInfo = {
     url: request.url,
     host: request.headers.get('host'),
-    hasAuthToken: !!authTokenFromUrl,
+    hasAccessToken: !!authTokenFromUrl,
     hasCookie: !!token,
-    authTokenPrefix: authTokenFromUrl ? authTokenFromUrl.substring(0, 20) + '...' : null,
+    accessTokenPrefix: authTokenFromUrl ? authTokenFromUrl.substring(0, 20) + '...' : null,
     userPageUrl,
     backendUrl: SYSTEM_URLS.USER_SYSTEM.BACKEND,
     env: {
@@ -96,7 +96,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 优先处理URL中的auth_token（OAuth回调场景）
+  // 优先处理URL中的access_token（OAuth回调场景）
   if (authTokenFromUrl) {
     try {
       // 验证token
@@ -114,7 +114,7 @@ export async function middleware(request: NextRequest) {
 
       if (response.status === 200) {
         // 移除URL参数，重定向到干净的URL
-        url.searchParams.delete('auth_token')
+        url.searchParams.delete('access_token')
         const cleanUrl = url.toString()
         
         const redirectResponse = NextResponse.redirect(cleanUrl)
@@ -350,7 +350,7 @@ export async function middleware(request: NextRequest) {
 
   // 🔥 最终fallback：没有有效认证信息
   console.info('ℹ️ No Valid Authentication Found:', {
-    has_auth_token: !!authTokenFromUrl,
+    has_access_token: !!authTokenFromUrl,
     has_cookie: !!token,
     original_url: request.url,
     timestamp: new Date().toISOString()
@@ -360,7 +360,7 @@ export async function middleware(request: NextRequest) {
     // 🔧 调试模式：提供技术详细信息
     const debugUrl = new URL(userPageUrl);
     debugUrl.searchParams.set('debug_error', 'no_auth');
-    debugUrl.searchParams.set('has_auth_token', String(!!authTokenFromUrl));
+    debugUrl.searchParams.set('has_access_token', String(!!authTokenFromUrl));
     debugUrl.searchParams.set('has_cookie', String(!!token));
     return NextResponse.redirect(debugUrl.toString());
   } else {
