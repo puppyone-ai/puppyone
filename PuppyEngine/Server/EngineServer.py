@@ -136,7 +136,7 @@ from fastapi.middleware.cors import CORSMiddleware
 DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "local").lower()
 
 # Import DataStore from separate module
-from .DataStore import DataStore
+from Server.DataStore import DataStore
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
