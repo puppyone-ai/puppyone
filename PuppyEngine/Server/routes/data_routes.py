@@ -172,8 +172,10 @@ async def get_data(
                         
                         log_debug(f"Connection {connection_id}: Yield #{yield_count} - Time since last yield: {time_since_last:.3f}s, Total time: {time_since_start:.3f}s")
                         
-                        # 使用自定义序列化函数处理datetime等特殊类型
-                        yield f"data: {json.dumps({'data': yielded_blocks, 'is_complete': False, 'runs_consumed': total_runs_consumed}, default=json_serializer)}\n\n"
+                        # 使用安全的JSON序列化函数处理大文本内容和特殊字符
+                        from Server.utils.serializers import safe_json_serialize
+                        json_data = safe_json_serialize({'data': yielded_blocks, 'is_complete': False, 'runs_consumed': total_runs_consumed})
+                        yield f"data: {json_data}\n\n"
                         
                         # 更新最后一次 yield 的时间
                         last_yield_time = time.time()
@@ -195,14 +197,16 @@ async def get_data(
                     log_info(f"Connection {connection_id}: Processing complete, sending completion signal (总计消费 {total_runs_consumed} runs)")
                     log_debug(f"Connection {connection_id}: Final completion signal - Time since last yield: {time_since_last:.3f}s, Total processing time: {total_time:.3f}s")
                     
-                    yield f"data: {json.dumps({'is_complete': True, 'total_runs_consumed': total_runs_consumed, 'user_id': auth_result.user.user_id})}\n\n"
+                    final_data = safe_json_serialize({'is_complete': True, 'total_runs_consumed': total_runs_consumed, 'user_id': auth_result.user.user_id})
+                    yield f"data: {final_data}\n\n"
                     
                     completion_after_time = time.time() - final_time
                     log_debug(f"Connection {connection_id}: Completion signal sent - Operation took: {completion_after_time:.3f}s, Total yields: {yield_count}")
                 
             except Exception as e:
                 log_error(f"Connection {connection_id}: Error during streaming: {str(e)}")
-                yield f"data: {json.dumps({'error': str(e), 'message': 'Stream processing error'})}\n\n"
+                error_data = safe_json_serialize({'error': str(e), 'message': 'Stream processing error'})
+                yield f"data: {error_data}\n\n"
             finally:
                 # 记录连接关闭
                 log_info(f"Connection {connection_id}: Stream closing, marking task for delayed cleanup (用户: {auth_result.user.user_id})")
