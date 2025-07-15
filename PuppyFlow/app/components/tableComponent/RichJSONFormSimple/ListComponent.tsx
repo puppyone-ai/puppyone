@@ -37,33 +37,37 @@ const ListComponent = ({
     };
 
     return (
-        <div className="border-[1px] border-[#555] rounded-lg bg-[#1a1a1a] m-[8px] p-[8px] shadow-sm group/list relative">
-            <div className="space-y-[4px]">
+        <div className="rounded-lg py-2 bg-[#1a1a1a] shadow-sm group/list relative">
+            <div className="space-y-3">
                 {data.map((item, index) => (
-                    <div key={index} className="group relative hover:bg-[#252525] rounded-lg transition-colors duration-200 ">
-                        <div className="flex items-start gap-[8px]">
-                            {/* Index Badge - 与dict保持相同的缩进 */}
-                            <div className="flex-shrink-0" style={{ width: '64px' }}>
-                                <div className="h-[24px] flex items-center justify-center px-2 my-[16px] mx-[8px] rounded-[4px] bg-[#252525] border border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors max-w-[64px] w-fit">
-                                    <span className="text-[10px] font-semibold text-[#179FFF]">
+                    <div key={index} className="group relative">
+                        <div className="flex items-start gap-3">
+                            {/* Index Badge - 与dict保持相同样式 */}
+                            <div className="flex-shrink-0 mt-[10px]" style={{ width: '80px' }}>
+                                <div className="min-h-[24px] flex items-start px-2 py-1 rounded-[4px] bg-transparent hover:bg-[#252525]/50 transition-colors max-w-[80px] w-fit">
+                                    <span className="text-[14px] font-semibold text-[#179FFF] break-words leading-tight inline-block">
                                         {index}
                                     </span>
                                 </div>
                             </div>
                             
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                                <ComponentRenderer
-                                    data={item}
-                                    path={`[${index}]`}
-                                    readonly={readonly}
-                                    onUpdate={(newValue) => updateItem(index, newValue)}
-                                    preventParentDrag={preventParentDrag}
-                                    allowParentDrag={allowParentDrag}
-                                />
+                            {/* Content with quote-like border */}
+                            <div className="flex-1 min-w-0 relative">
+                                {/* Quote-like left border */}
+                                <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#555555] rounded-full"></div>
+                                <div className="pl-2">
+                                    <ComponentRenderer
+                                        data={item}
+                                        path={`[${index}]`}
+                                        readonly={readonly}
+                                        onUpdate={(newValue) => updateItem(index, newValue)}
+                                        preventParentDrag={preventParentDrag}
+                                        allowParentDrag={allowParentDrag}
+                                    />
+                                </div>
                             </div>
                             
-                            {/* Delete Button - 保持一致的样式 */}
+                            {/* Delete Button */}
                             {!readonly && (
                                 <button
                                     onClick={() => deleteItem(index)}
