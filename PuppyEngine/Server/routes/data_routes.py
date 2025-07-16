@@ -222,7 +222,11 @@ async def get_data(
                 data_store.release_task_lock(task_id)
                 log_info(f"Connection {connection_id}: Stream closed, task lock released")
         
-        return StreamingResponse(stream_data(), media_type="text/event-stream")
+        return StreamingResponse(
+            stream_data(), 
+            media_type="text/event-stream",
+            headers={'X-Accel-Buffering': 'no'}
+        )
     
     except Exception as e:
         # 确保在异常情况下也释放锁
