@@ -159,8 +159,7 @@ async def lifespan(app: FastAPI):
         log_info("Configuration validation completed, starting server...")
         
         # 3. Initialize data store
-        global data_store
-        data_store = DataStore()
+        app.state.data_store = DataStore()
         log_info("DataStore initialized with background cleanup thread")
         
 
@@ -217,9 +216,6 @@ app.include_router(health_router)
 app.include_router(data_router)
 log_info("Routes registered successfully")
 
-# Global data store (will be initialized in lifespan)
-data_store = None
-
 # Note: All initialization logic has been moved to the lifespan context manager above
 
 
@@ -244,8 +240,10 @@ if __name__ == "__main__":
         import hypercorn.asyncio
         hypercorn_config = hypercorn.Config()
         hypercorn_config.bind = ["127.0.0.1:8001"]
+        # Enable hot-reloading for local development
+        hypercorn_config.reload = True
         
-        log_info("服务器将在 http://127.0.0.1:8001 启动")
+        log_info("服务器将在 http://127.0.0.1:8001 启动 (热重载已开启)")
         asyncio.run(hypercorn.asyncio.serve(app, hypercorn_config))
         
     except ConfigValidationError as cve:
