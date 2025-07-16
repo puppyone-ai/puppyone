@@ -107,7 +107,10 @@ type_header_mapping = {
     "xls": "application/vnd.ms-excel",
     "xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
     "xlsb": "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
-    "ods": "application/vnd.oasis.opendocument.spreadsheet"
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "csv": "text/csv",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 }
 
 def generate_short_id(length: int = 8) -> str:
