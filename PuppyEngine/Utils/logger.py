@@ -5,7 +5,7 @@ from Utils.config import config
 
 
 # Configure basic logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 class Logger:
