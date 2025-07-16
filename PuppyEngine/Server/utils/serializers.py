@@ -33,13 +33,12 @@ def json_serializer(obj):
     # Handle other types that might not be JSON serializable
     return str(obj)
 
-def safe_json_serialize(data, max_content_length=50000):
+def safe_json_serialize(data):
     """
     安全的JSON序列化，处理大文本内容和特殊字符
     
     Args:
         data: 要序列化的数据
-        max_content_length: 单个内容字段的最大长度
         
     Returns:
         str: 安全的JSON字符串
@@ -49,8 +48,8 @@ def safe_json_serialize(data, max_content_length=50000):
         import copy
         safe_data = copy.deepcopy(data)
         
-        # 递归处理数据结构，清理和截断内容
-        safe_data = _clean_data_for_serialization(safe_data, max_content_length)
+        # 递归处理数据结构，清理内容
+        safe_data = _clean_data_for_serialization(safe_data)
         
         # 使用自定义序列化器进行JSON序列化
         json_str = json.dumps(safe_data, default=json_serializer, ensure_ascii=False)
@@ -69,25 +68,25 @@ def safe_json_serialize(data, max_content_length=50000):
         }
         return json.dumps(error_data, default=json_serializer)
 
-def _clean_data_for_serialization(obj, max_length):
+def _clean_data_for_serialization(obj):
     """
     递归清理数据结构，处理字符串内容
     """
     if isinstance(obj, dict):
         cleaned = {}
         for key, value in obj.items():
-            cleaned[key] = _clean_data_for_serialization(value, max_length)
+            cleaned[key] = _clean_data_for_serialization(value)
         return cleaned
     elif isinstance(obj, list):
-        return [_clean_data_for_serialization(item, max_length) for item in obj]
+        return [_clean_data_for_serialization(item) for item in obj]
     elif isinstance(obj, str):
-        return _clean_string_content(obj, max_length)
+        return _clean_string_content(obj)
     else:
         return obj
 
-def _clean_string_content(content, max_length):
+def _clean_string_content(content):
     """
-    清理字符串内容，处理特殊字符和长度限制
+    清理字符串内容，处理特殊字符
     """
     if not isinstance(content, str):
         return content
@@ -102,9 +101,5 @@ def _clean_string_content(content, max_length):
     
     # 处理Unicode控制字符
     content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', content)
-    
-    # 长度限制
-    if len(content) > max_length:
-        content = content[:max_length] + f"... [截断，原长度: {len(content)}]"
     
     return content 
