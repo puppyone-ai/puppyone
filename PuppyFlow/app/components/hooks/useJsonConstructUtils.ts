@@ -231,7 +231,27 @@ function useJsonConstructUtils() {
                                 const eventData = line.slice(6); // 移除 'data: ' 前缀
                                 if (eventData.trim() === '') continue;
 
-                                const data = JSON.parse(eventData);
+                                // 增强的JSON解析，处理大文本和格式错误
+                                let data;
+                                try {
+                                    data = JSON.parse(eventData);
+                                } catch (parseError) {
+                                    const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+                                    console.error('JSON parsing failed:', errorMsg);
+                                    console.error('Problematic data length:', eventData.length);
+                                    console.error('Data preview:', eventData.substring(0, 200) + '...');
+                                    
+                                    // 尝试修复常见的JSON问题
+                                    try {
+                                        // 尝试修复未终止的字符串
+                                        const fixedData = eventData.replace(/\\+$/, '').replace(/["\s]*$/, '"');
+                                        data = JSON.parse(fixedData);
+                                        console.log('JSON修复成功');
+                                    } catch (fixError) {
+                                        addWarn(`JSON解析失败，数据可能被截断或格式错误: ${errorMsg}`);
+                                        continue;
+                                    }
+                                }
                                 
                                 if (data.error) {
                                     addWarn(`${data.error}`);
@@ -319,7 +339,27 @@ function useJsonConstructUtils() {
                                 const eventData = line.slice(6); // 移除 'data: ' 前缀
                                 if (eventData.trim() === '') continue;
 
-                                const data = JSON.parse(eventData);
+                                // 增强的JSON解析，处理大文本和格式错误
+                                let data;
+                                try {
+                                    data = JSON.parse(eventData);
+                                } catch (parseError) {
+                                    const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+                                    console.error('JSON parsing failed:', errorMsg);
+                                    console.error('Problematic data length:', eventData.length);
+                                    console.error('Data preview:', eventData.substring(0, 200) + '...');
+                                    
+                                    // 尝试修复常见的JSON问题
+                                    try {
+                                        // 尝试修复未终止的字符串
+                                        const fixedData = eventData.replace(/\\+$/, '').replace(/["\s]*$/, '"');
+                                        data = JSON.parse(fixedData);
+                                        console.log('JSON修复成功');
+                                    } catch (fixError) {
+                                        addWarn(`JSON解析失败，数据可能被截断或格式错误: ${errorMsg}`);
+                                        continue;
+                                    }
+                                }
                                 
                                 if (data.error) {
                                     addWarn(`${data.error}`);
