@@ -4,8 +4,13 @@ from axiom_py import Client
 from Utils.config import config
 
 
+# Get log level from environment variable, default to INFO
+log_level_str = config.get('LOG_LEVEL', 'INFO').upper()
+# Convert string to logging level
+log_level = getattr(logging, log_level_str, logging.INFO)
+
 # Configure basic logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=log_level)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 
 class Logger:
