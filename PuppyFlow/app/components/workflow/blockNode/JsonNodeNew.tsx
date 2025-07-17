@@ -121,7 +121,6 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const [isEditing, setIsEditing] = useState(false)
-  const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   const [vectorIndexingStatus, setVectorIndexingStatus] = useState<VectorIndexingStatus>('notStarted');
   const [isHovered, setIsHovered] = useState(false) // 添加 hover 状态
 
@@ -160,20 +159,14 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     return false;
   };
 
-  // 更新边框状态管理，与 TextBlockNode 保持一致
-  useEffect(() => {
-    if (isLoading) {
-      setBorderColor("border-[#FFA500]"); // 橙色 - 正在加载
-    } else if (isWaitingForFlow) {
-      setBorderColor("border-[#39bc66]"); // 绿色 - 等待流程
-    } else if (activatedNode?.id === id) {
-      setBorderColor("border-[#9B7EDB]"); // 保持原有的紫色主题
-    } else if (isHovered) {
-      setBorderColor("border-[#9B7EDB]"); // hover 时也使用紫色主题
-    } else {
-      setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
-    }
-  }, [activatedNode, isHovered, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id, isLoading, isWaitingForFlow])
+  // 添加纯函数来计算边框颜色
+  const getBorderColor = () => {
+    if (isLoading) return "border-[#FFA500]";
+    if (isWaitingForFlow) return "border-[#39bc66]";
+    if (activatedNode?.id === id) return "border-[#9B7EDB]";
+    if (isHovered) return "border-[#9B7EDB]";
+    return isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey";
+  };
 
   // 管理labelContainer的宽度
   useEffect(() => {
@@ -516,7 +509,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node flex flex-col`}>
+      <div ref={contentRef} id={id} className={`w-full h-full min-w-[240px] min-h-[176px] border-[1px] rounded-[16px] px-[8px] pt-[8px] pb-[8px] ${getBorderColor()} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden json-block-node flex flex-col`}>
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}
