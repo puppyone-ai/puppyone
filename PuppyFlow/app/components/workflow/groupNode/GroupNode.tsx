@@ -1,9 +1,12 @@
 'use client'
 import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { NodeProps, Handle, Position, Node, NodeResizeControl, NodeToolbar, useReactFlow } from '@xyflow/react';
-import { useDetachNodes } from '../../hooks/useNodeDragHandlers';
+import { useDetachNodes, useGroupNodeCalculation } from '../../hooks/useNodeDragHandlers';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
-import { useRunGroupNodeLogic } from '../edgesNode/edgeNodesNew/hook/useRunGroupNodeLogic';
+import { runGroupNode, RunGroupNodeContext } from '../edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 
 export type GroupNodeData = {
   label: string;
@@ -31,16 +34,33 @@ const BACKGROUND_COLORS = [
 function GroupNode({ data, id }: GroupNodeProps) {
   const componentRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const { getNodes, deleteElements, setNodes, getNode, getEdges, setEdges } = useReactFlow();
+  const { getNodes, deleteElements, setNodes, getNode } = useReactFlow();
   const { detachNodes, detachNodesFromGroup } = useDetachNodes();
-  const { activatedNode } = useNodesPerFlowContext();
+  const { recalculateGroupNodes } = useGroupNodeCalculation();
+  const { activatedNode, clearAll } = useNodesPerFlowContext();
   const [isHovered, setIsHovered] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 使用新的GroupNode运行逻辑
-  const { isLoading, handleDataSubmit } = useRunGroupNodeLogic({
-    groupNodeId: id
-  });
+  // 获取所有需要的依赖
+  const { streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI } = useJsonConstructUtils();
+  const { getAuthHeaders } = useAppSettings();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
+
+  // 创建执行上下文
+  const createExecutionContext = useCallback((): RunGroupNodeContext => ({
+    getNode,
+    getNodes,
+    setNodes,
+    getSourceNodeIdWithLabel,
+    getTargetNodeIdWithLabel,
+    clearAll,
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+    getAuthHeaders,
+  }), [getNode, getNodes, setNodes, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI, getAuthHeaders]);
 
   // 获取此组内的所有子节点
   const childNodes = getNodes().filter(node => {
@@ -50,6 +70,14 @@ function GroupNode({ data, id }: GroupNodeProps) {
 
   // 检查当前节点是否被激活
   const isActivated = activatedNode?.id === id;
+
+  // 当组节点被激活时，重新计算组内节点
+  useEffect(() => {
+    if (isActivated) {
+      console.log(`🎯 Group ${id} activated, recalculating nodes...`);
+      recalculateGroupNodes(id);
+    }
+  }, [isActivated, id, recalculateGroupNodes]);
 
   // 获取当前背景颜色
   const currentBackgroundColor = data.backgroundColor || 'transparent';
@@ -68,133 +96,33 @@ function GroupNode({ data, id }: GroupNodeProps) {
   const getBorderStyle = () => {
     if (isActivated) {
       return {
-        border: '1px solid #666666',
-        outline: '1px solid #888888',
-        outlineOffset: '0px',
+        border: '1px solid #888888',
       };
     } else if (isHovered) {
       return {
-        border: '1px solidrgb(30, 24, 24)',
-        outline: '1px solid #888888',
-        outlineOffset: '0px',
+        border: '1px solid #888888',
       };
     } else {
       return {
         border: '1px solid #666666',
-        outline: 'none',
       };
     }
   };
 
-  // 检查节点是否在组的范围内且是允许的类型
-  const isNodeInsideGroup = useCallback((node: Node, groupNode: Node) => {
-    // 首先检查节点类型是否被允许
-    if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
-      return false;
-    }
-
-    const nodeWidth = node.width || 200; // 默认节点宽度
-    const nodeHeight = node.height || 100; // 默认节点高度
-    const groupWidth = groupNode.width || 240;
-    const groupHeight = groupNode.height || 176;
-
-    // 节点中心点
-    const nodeCenterX = node.position.x + nodeWidth / 2;
-    const nodeCenterY = node.position.y + nodeHeight / 2;
-
-    // 组的边界
-    const groupLeft = groupNode.position.x;
-    const groupRight = groupNode.position.x + groupWidth;
-    const groupTop = groupNode.position.y;
-    const groupBottom = groupNode.position.y + groupHeight;
-
-    // 检查节点中心点是否在组内
-    return (
-      nodeCenterX >= groupLeft &&
-      nodeCenterX <= groupRight &&
-      nodeCenterY >= groupTop &&
-      nodeCenterY <= groupBottom
-    );
-  }, []);
-
-  // 重新计算组内的节点
-  const recalculateGroupNodes = useCallback(() => {
-    const currentGroupNode = getNode(id);
-    if (!currentGroupNode) return;
-
-    const allNodes = getNodes();
-    let hasChanges = false;
-    
-    const updatedNodes = allNodes.map(node => {
-      if (node.type === 'group' || node.id === id) {
-        // 确保 group 节点始终在底层，使用负的 z-index
-        if (node.type === 'group') {
-          return {
-            ...node,
-            style: {
-              ...node.style,
-              zIndex: -1  // 改为负值，确保在所有元素之下
-            }
-          };
-        }
-        return node;
-      }
-
-      // 只处理允许的节点类型
-      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
-        return node;
-      }
-
-      const shouldBeInGroup = isNodeInsideGroup(node, currentGroupNode);
-      const groupIds = (node.data as any)?.groupIds || [];
-      const currentlyInGroup = groupIds.includes(id);
-
-      if (shouldBeInGroup && !currentlyInGroup) {
-        // 节点应该在组内但目前不在 - 添加到 groupIds 数组
-        hasChanges = true;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            groupIds: [...groupIds, id]
-          }
-        };
-      } else if (!shouldBeInGroup && currentlyInGroup) {
-        // 节点不应该在组内但目前在 - 从 groupIds 数组中移除
-        hasChanges = true;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            groupIds: groupIds.filter((gid: string) => gid !== id)
-          }
-        };
-      }
-
-      return node;
-    });
-
-    if (hasChanges) {
-      setNodes(updatedNodes);
-      console.log(`🔄 Recalculated nodes for group ${id}`);
-    }
-  }, [id, getNode, getNodes, setNodes, isNodeInsideGroup]);
-
-  // 处理组点击事件
+  // 处理组点击事件 - 移除手动重新计算
   const handleGroupClick = useCallback((e: React.MouseEvent) => {
-    // 只有直接点击组容器时才触发重新计算
-    if (e.target === e.currentTarget) {
-      recalculateGroupNodes();
-    }
-  }, [recalculateGroupNodes]);
+    // 点击时不做任何计算，因为激活时已经自动计算了
+    console.log(`🖱️ Group ${id} clicked`);
+  }, [id]);
 
   // 处理调整大小结束事件
   const handleResizeEnd = useCallback(() => {
     // 延迟一点执行，确保 ReactFlow 已经更新了节点的尺寸
     setTimeout(() => {
-      recalculateGroupNodes();
+      console.log(`📏 Group ${id} resized, recalculating nodes...`);
+      recalculateGroupNodes(id);
     }, 100);
-  }, [recalculateGroupNodes]);
+  }, [id, recalculateGroupNodes]);
 
   // 删除组节点及其所有子节点
   const onDelete = useCallback(() => {
@@ -213,11 +141,31 @@ function GroupNode({ data, id }: GroupNodeProps) {
     detachNodesFromGroup(childIds, id);
   }, [detachNodesFromGroup, childNodes, id]);
 
-  // 运行组的逻辑
+  // 运行组的逻辑 - 使用新的执行函数
   const onRunGroup = useCallback(async () => {
-    console.log('Running group:', id);
-    await handleDataSubmit();
-  }, [id, handleDataSubmit]);
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      console.log('Running group:', id);
+      const context = createExecutionContext();
+      await runGroupNode({
+        groupNodeId: id,
+        context,
+        // 可以选择不提供 constructJsonData，使用默认实现
+      });
+    } catch (error) {
+      console.error('运行组节点失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, isLoading, createExecutionContext]);
+
+  // 手动重新计算按钮（调试用）
+  const onManualRecalculate = useCallback(() => {
+    console.log(`🔄 Manual recalculate for group ${id}`);
+    recalculateGroupNodes(id);
+  }, [id, recalculateGroupNodes]);
 
   // 获取当前颜色的显示名称
   const getCurrentColorName = () => {
@@ -260,11 +208,24 @@ function GroupNode({ data, id }: GroupNodeProps) {
           </div>
 
           {/* 按钮组 - 右上角 */}
-          <div className="absolute top-6 right-6 z-50  nodrag">
+          <div className="absolute top-6 right-6 z-50 nodrag">
             <div className="flex gap-2.5 bg-[#1A1A1A]/90 backdrop-blur-sm border border-[#333333]/80 rounded-lg p-2 shadow-lg z-50">
+              {/* 添加手动重新计算按钮（调试用） */}
+              <button
+                onClick={onManualRecalculate}
+                className="w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md"
+                title="Recalculate Nodes"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 4V10H7" stroke="#CDCDCD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M23 20V14H17" stroke="#CDCDCD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14L18.36 18.36A9 9 0 0 1 3.51 15" stroke="#CDCDCD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+
               <button
                 onClick={onDetachAll}
-                className=" w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md"
+                className="w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md"
                 style={{ display: childNodes.length ? 'flex' : 'none' }}
                 title="Detach All"
               >
@@ -276,7 +237,7 @@ function GroupNode({ data, id }: GroupNodeProps) {
               
               <button
                 onClick={onDelete}
-                className=" w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#E53E3E] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#E53E3E] flex items-center justify-center transition-all duration-200 hover:shadow-md"
+                className="w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#E53E3E] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#E53E3E] flex items-center justify-center transition-all duration-200 hover:shadow-md"
                 title="Delete"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -366,7 +327,7 @@ function GroupNode({ data, id }: GroupNodeProps) {
           </div>
         </>
 
-        {/* 子节点指示 - 在空白时显示提示，需要考虑 toolbar 的空间 */}
+        {/* 子节点指示 - 在空白时显示提示 */}
         {childNodes.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center text-[#6D7177] text-sm opacity-50 nodrag mt-12">
             Drag nodes here

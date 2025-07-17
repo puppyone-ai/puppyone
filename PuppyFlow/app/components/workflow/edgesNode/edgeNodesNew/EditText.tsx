@@ -1,11 +1,13 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { PuppyDropdown } from "../../../misc/PuppyDropDown"
-import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
+import { useAppSettings } from '@/app/components/states/AppSettingsContext'
+import { runSingleEdgeNode, RunSingleEdgeNodeContext } from './hook/runSingleEdgeNodeExecutor'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -28,12 +30,17 @@ type ModifyConfigNodeProps = NodeProps<Node<ModifyConfigNodeData>>
 function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode, setNodes } = useReactFlow()
+    const { getNode, getInternalNode, setNodes, setEdges } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
+    
+    // 获取所有需要的依赖
+    const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getAuthHeaders } = useAppSettings()
 
     // 常量定义
     const RET_ALL = "return all"
@@ -60,13 +67,43 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
             : 100
     )
 
-    // 使用Hook处理执行逻辑
-    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
-        parentId: id,
-        targetNodeType: "text"
-    });
+    // 创建执行上下文
+    const createExecutionContext = useCallback((): RunSingleEdgeNodeContext => ({
+        getNode,
+        setNodes,
+        setEdges,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
+        getAuthHeaders,
+    }), [getNode, setNodes, setEdges, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, reportError, resetLoadingUI, getAuthHeaders]);
+
+    // 使用执行函数的 handleDataSubmit
+    const handleDataSubmit = useCallback(async () => {
+        if (isLoading) return;
+        
+        setIsLoading(true);
+        try {
+            const context = createExecutionContext();
+            await runSingleEdgeNode({
+                parentId: id,
+                targetNodeType: 'text',
+                context,
+                // 可以选择不提供 constructJsonData，使用默认实现
+            });
+        } catch (error) {
+            console.error('执行失败:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [id, isLoading, createExecutionContext]);
 
     useEffect(() => {
+        console.log(getInternalNode(id))
+
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)
@@ -185,7 +222,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
                     {isLoading ? (
                         <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 818-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                         </svg>
                     ) : (
                         <svg xmlns="http://www.w3.org/2000/svg" width="6" height="8" viewBox="0 0 8 10" fill="none">
@@ -292,7 +329,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
                                     {isLoading ? (
                                         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 718-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
                                     ) : (
                                         <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">

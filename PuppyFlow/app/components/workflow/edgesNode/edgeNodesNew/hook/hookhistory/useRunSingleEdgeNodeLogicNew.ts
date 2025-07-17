@@ -4,10 +4,10 @@ import useJsonConstructUtils, {
     backend_IP_address_for_sendingData,
     BasicNodeData,
     NodeJsonType
-} from '../../../../hooks/useJsonConstructUtils';
-import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
-import { useAppSettings } from '../../../../states/AppSettingsContext';
-import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
+} from '../../../../../hooks/useJsonConstructUtils';
+import { useNodesPerFlowContext } from '../../../../../states/NodesPerFlowContext';
+import { useAppSettings } from '../../../../../states/AppSettingsContext';
+import { markerEnd } from '../../../../connectionLineStyles/ConfigToTargetEdge';
 import { nanoid } from 'nanoid';
 import { 
     useEdgeNodeBackEndJsonBuilder,
@@ -34,6 +34,8 @@ export function useBaseEdgeNodeLogic({
     constructJsonData?: () => BaseConstructedJsonData;
 }): BaseEdgeNodeLogicReturn {
     
+    console.log(`🔄 [useBaseEdgeNodeLogic - SingleEdge] Hook初始化 - parentId: ${parentId}, targetNodeType: ${targetNodeType}`);
+    
     // Basic hooks
     const { getNode, setNodes, setEdges } = useReactFlow();
     const {
@@ -54,10 +56,16 @@ export function useBaseEdgeNodeLogic({
 
     // 创建新的目标节点
     const createNewTargetNode = async () => {
+        console.log(`🔧 [SingleEdge - createNewTargetNode] 开始创建新的目标节点 - parentId: ${parentId}`);
+        
         const parentEdgeNode = getNode(parentId);
-        if (!parentEdgeNode) return;
+        if (!parentEdgeNode) {
+            console.error(`❌ [SingleEdge - createNewTargetNode] 找不到父节点: ${parentId}`);
+            return;
+        }
 
         const newTargetId = nanoid(6);
+        console.log(`🔧 [SingleEdge - createNewTargetNode] 生成新节点ID: ${newTargetId}`);
 
         const location = {
             x: parentEdgeNode.position.x + 160,
@@ -96,15 +104,19 @@ export function useBaseEdgeNodeLogic({
             markerEnd: markerEnd,
         };
 
+        console.log(`🔧 [SingleEdge - createNewTargetNode] 创建新节点和边，准备添加到画布`);
+
         await Promise.all([
             new Promise(resolve => {
                 setNodes(prevNodes => {
+                    console.log(`📊 [SingleEdge - createNewTargetNode] 添加节点到画布，当前节点数: ${prevNodes.length}`);
                     resolve(null);
                     return [...prevNodes, newNode];
                 });
             }),
             new Promise(resolve => {
                 setEdges(prevEdges => {
+                    console.log(`📊 [SingleEdge - createNewTargetNode] 添加边到画布，当前边数: ${prevEdges.length}`);
                     resolve(null);
                     return [...prevEdges, newEdge];
                 });
@@ -112,20 +124,31 @@ export function useBaseEdgeNodeLogic({
         ]);
 
         // 更新父节点引用
+        console.log(`🔧 [SingleEdge - createNewTargetNode] 更新父节点引用`);
         setNodes(prevNodes => prevNodes.map(node => {
             if (node.id === parentId) {
                 return { ...node, data: { ...node.data, resultNode: newTargetId } };
             }
             return node;
         }));
+
+        console.log(`✅ [SingleEdge - createNewTargetNode] 成功创建新的目标节点: ${newTargetId}`);
     };
 
     // 发送数据到目标节点
     const sendDataToTargets = async () => {
+        console.log(`🚀 [SingleEdge - sendDataToTargets] 开始发送数据到目标节点 - parentId: ${parentId}`);
+        
         const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
-        if (targetNodeIdWithLabelGroup.length === 0) return;
+        console.log(`📊 [SingleEdge - sendDataToTargets] 找到${targetNodeIdWithLabelGroup.length}个目标节点`);
+        
+        if (targetNodeIdWithLabelGroup.length === 0) {
+            console.log(`❌ [SingleEdge - sendDataToTargets] 没有找到目标节点`);
+            return;
+        }
 
         // 设置所有目标节点为加载状态
+        console.log(`🔄 [SingleEdge - sendDataToTargets] 设置目标节点为加载状态`);
         setNodes(prevNodes => prevNodes.map(node => {
             if (targetNodeIdWithLabelGroup.some(targetNode => targetNode.id === node.id)) {
                 return { ...node, data: { ...node.data, content: "", isLoading: true } };
@@ -134,10 +157,14 @@ export function useBaseEdgeNodeLogic({
         }));
 
         try {
+            console.log(`🔧 [SingleEdge - sendDataToTargets] 开始构建JSON数据`);
+            
             // 优先使用自定义的 JSON 构建函数，如果没有则使用默认的
             const jsonData = customConstructJsonData ? customConstructJsonData() : defaultConstructJsonData();
             console.log("JSON Data:", jsonData);
 
+            console.log(`🌐 [SingleEdge - sendDataToTargets] 开始发送HTTP请求`);
+            
             const response = await fetch(`${backend_IP_address_for_sendingData}`, {
                 method: 'POST',
                 headers: {
@@ -148,6 +175,8 @@ export function useBaseEdgeNodeLogic({
             });
 
             if (!response.ok) {
+                console.error(`❌ [SingleEdge - sendDataToTargets] HTTP请求失败: ${response.status}`);
+                
                 targetNodeIdWithLabelGroup.forEach(node => {
                     reportError(node.id, `HTTP Error: ${response.status}`);
                 });
@@ -157,17 +186,24 @@ export function useBaseEdgeNodeLogic({
             const result = await response.json();
             console.log('Backend Response:', result);
 
+            console.log(`🔄 [SingleEdge - sendDataToTargets] 开始流式处理，准备处理${targetNodeIdWithLabelGroup.length}个目标节点`);
+
             // 流式处理结果
-            const streamPromises = await Promise.all(targetNodeIdWithLabelGroup.map(node =>
-                streamResult(result.task_id, node.id).then(res => {
+            const streamPromises = await Promise.all(targetNodeIdWithLabelGroup.map(node => {
+                console.log(`🔄 [SingleEdge - sendDataToTargets] 开始流式处理节点: ${node.id}`);
+                return streamResult(result.task_id, node.id).then(res => {
                     console.log(`NODE ${node.id} STREAM COMPLETE:`, res);
                     return res;
-                })
-            ));
+                });
+            }));
+            
+            console.log(`✅ [SingleEdge - sendDataToTargets] 所有节点流式处理完成`);
         } catch (error) {
             console.warn(error);
             window.alert(error);
         } finally {
+            console.log(`🔄 [SingleEdge - sendDataToTargets] 开始重置加载UI`);
+            
             targetNodeIdWithLabelGroup.forEach(node => {
                 resetLoadingUI(node.id);
             });
@@ -176,16 +212,24 @@ export function useBaseEdgeNodeLogic({
 
     // Modify defaultConstructJsonData to use the extracted parameters
     const defaultConstructJsonData = (): BaseConstructedJsonData => {
+        console.log(`🔧 [SingleEdge - defaultConstructJsonData] 开始构建默认JSON数据 - parentId: ${parentId}`);
+        
         // 获取源节点和目标节点
         const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId, 'blocknode');
         const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId, 'blocknode');
+        
+        console.log(`📊 [SingleEdge - defaultConstructJsonData] 源节点数: ${sourceNodeIdWithLabelGroup.length}, 目标节点数: ${targetNodeIdWithLabelGroup.length}`);
         
         try {
             // 创建blocks对象
             let blocks: { [key: string]: NodeJsonType } = {};
             
+            console.log(`🔧 [SingleEdge - defaultConstructJsonData] 开始添加源节点信息`);
+            
             // 添加源节点信息 - 使用 buildBlockNodeJson
             sourceNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
+                console.log(`🔧 [SingleEdge - defaultConstructJsonData] 处理源节点: ${nodeId}`);
+                
                 try {
                     // 使用区块节点构建函数
                     const blockJson = buildBlockNodeJson(nodeId);
@@ -195,6 +239,8 @@ export function useBaseEdgeNodeLogic({
                         ...blockJson,
                         label: nodeLabel
                     };
+                    
+                    console.log(`✅ [SingleEdge - defaultConstructJsonData] 成功构建源节点: ${nodeId}`);
                 } catch (e) {
                     console.warn(`无法使用blockNodeBuilder构建节点 ${nodeId}:`, e);
                     
@@ -207,8 +253,12 @@ export function useBaseEdgeNodeLogic({
                 }
             });
             
+            console.log(`🔧 [SingleEdge - defaultConstructJsonData] 开始添加目标节点信息`);
+            
             // 添加目标节点信息
             targetNodeIdWithLabelGroup.forEach(({ id: nodeId, label: nodeLabel }) => {
+                console.log(`🔧 [SingleEdge - defaultConstructJsonData] 处理目标节点: ${nodeId}`);
+                
                 // 获取节点类型
                 const nodeType = getNode(nodeId)?.type as string;
                 
@@ -220,8 +270,12 @@ export function useBaseEdgeNodeLogic({
                 };
             });
             
+            console.log(`🔧 [SingleEdge - defaultConstructJsonData] 开始构建边的JSON`);
+            
             // 构建边的JSON - 使用 buildEdgeNodeJson
             const edgeJson = buildEdgeNodeJson(parentId);
+            
+            console.log(`✅ [SingleEdge - defaultConstructJsonData] 成功构建JSON数据`);
             
             return {
                 blocks,
@@ -256,25 +310,34 @@ export function useBaseEdgeNodeLogic({
 
     // 数据提交主函数 - 现在包含完整的执行逻辑
     const handleDataSubmit = async (...args: any[]) => {
+        console.log(`🚀 [SingleEdge - handleDataSubmit] 开始处理数据提交 - parentId: ${parentId}, isLoading: ${isLoading}`);
+        
         setIsLoading(true);
         try {
+            console.log(`🔄 [SingleEdge - handleDataSubmit] 执行clearAll`);
             clearAll();
 
             const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+            console.log(`📊 [SingleEdge - handleDataSubmit] 找到${targetNodeIdWithLabelGroup.length}个目标节点`);
 
             if (targetNodeIdWithLabelGroup.length === 0) {
+                console.log(`🔧 [SingleEdge - handleDataSubmit] 没有目标节点，创建新的目标节点`);
                 // 如果没有目标节点，创建一个新的
                 await createNewTargetNode();
             } else {
+                console.log(`🚀 [SingleEdge - handleDataSubmit] 有目标节点，直接发送数据`);
                 // 如果有目标节点，直接发送数据
                 await sendDataToTargets();
             }
         } catch (error) {
             console.error("Error submitting data:", error);
         } finally {
+            console.log(`🔄 [SingleEdge - handleDataSubmit] 完成处理数据提交，设置isLoading为false`);
             setIsLoading(false);
         }
     };
+
+    console.log(`🔄 [SingleEdge] Hook返回状态 - isLoading: ${isLoading}`);
 
     return {
         isLoading,

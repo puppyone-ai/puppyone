@@ -52,7 +52,6 @@ import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
-import ServerNode from './serverNode/ServerNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge'
@@ -78,7 +77,6 @@ const nodeTypes = {
   'generate': Generate,
   'load': Load,
   'group': GroupNode,
-  'server': ServerNode,
 }
 
 const edgeTypes = {
