@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import {
   ReactFlow,
   addEdge,
@@ -52,8 +52,10 @@ import LLM from './edgesNode/edgeNodesNew/LLM'
 import Generate from './edgesNode/edgeNodesNew/Generate'
 import Load from './edgesNode/edgeNodesNew/Load'
 import GroupNode from './groupNode/GroupNode'
+import ServerNode from './serverNode/ServerNode'
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
 import { useWorkspaces } from '../states/UserWorkspacesContext'
+import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge'
 
 const nodeTypes = {
   'text': TextBlockNode,
@@ -76,12 +78,14 @@ const nodeTypes = {
   'generate': Generate,
   'load': Load,
   'group': GroupNode,
+  'server': ServerNode,
 }
 
 const edgeTypes = {
   'STC': SourceToConfigEdge,
   'CTT': ConfigToTargetEdge,
   'floating': FloatingEdge,
+  'serverDashed': ServerDashedEdge,
 }
 
 const fitViewOptions = {
@@ -142,15 +146,6 @@ function useMiddleMousePan() {
   return canPan;
 }
 
-// 添加这个排序函数
-const sortNodesByType = (nodes: Node[]) => {
-  return [...nodes].sort((a, b) => {
-    if (a.type === 'group' && b.type !== 'group') return -1;
-    if (a.type !== 'group' && b.type === 'group') return 1;
-    return 0;
-  });
-};
-
 function Workflow() {
   const { 
     showingItem, 
@@ -178,21 +173,49 @@ function Workflow() {
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
 
-  // 创建可排序的节点和变更函数
-  const nodes = sortNodesByType(unsortedNodes);
-  const setNodes = (nodesFn: any) => {
-    if (typeof nodesFn === 'function') {
-      setUnsortedNodes((prevNodes) => sortNodesByType(nodesFn(prevNodes)));
-    } else {
-      setUnsortedNodes(sortNodesByType(nodesFn));
+  // 用于管理节点的 z-index 层级
+  const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>({});
+  const [maxZIndex, setMaxZIndex] = useState(1000);
+
+  // 删除原来的 bringToFront 函数，替换为基于 z-index 的实现
+  const elevateNode = (nodeId: string) => {
+    // 检查节点类型，如果是 group 节点则不提升层级
+    const node = getNode(nodeId);
+    if (node?.type === 'group') {
+      return;
     }
+    
+    const newZIndex = maxZIndex + 1;
+    setNodeZIndexMap(prev => ({
+      ...prev,
+      [nodeId]: newZIndex
+    }));
+    setMaxZIndex(newZIndex);
   };
 
-  // 创建自定义的onNodesChange处理器，确保在变更后节点也保持正确顺序
+  // 修改节点数据，为每个节点添加 z-index 样式
+  const nodesWithZIndex = useMemo(() => {
+    return unsortedNodes.map(node => ({
+      ...node,
+      style: {
+        ...node.style,
+        zIndex: node.type === 'group' 
+          ? -1 // group 节点始终在最底层，使用负值
+          : nodeZIndexMap[node.id] || 100 // 其他节点的默认 z-index 为 100
+      }
+    }));
+  }, [unsortedNodes, nodeZIndexMap]);
+
+  // 更新 nodes 的定义
+  const nodes = nodesWithZIndex;
+
+  // 删除原来的 setNodes 重新定义，直接使用 setUnsortedNodes
+  const setNodes = setUnsortedNodes;
+
+  // 修改 onNodesChange 处理器，移除排序逻辑
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     onUnsortedNodesChange(changes);
-    setUnsortedNodes((prevNodes) => sortNodesByType(prevNodes));
-  }, [onUnsortedNodesChange, setUnsortedNodes]);
+  }, [onUnsortedNodesChange]);
 
   // 设置鼠标样式
   useEffect(() => {
@@ -212,7 +235,7 @@ function Workflow() {
       });
       
       // 更新节点和边
-      setUnsortedNodes(sortNodesByType(currentWorkspaceContent.blocks || []));
+      setUnsortedNodes(currentWorkspaceContent.blocks || []);
       setEdges(currentWorkspaceContent.edges || []);
       
       // 更新视口（如果有的话）
@@ -294,13 +317,20 @@ function Workflow() {
     if (isOnGeneratingNewNode) return
     const targetIsEdgeNode = judgeNodeIsEdgeNode(connection.target)
     const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source)
+    
     if (targetIsEdgeNode && sourceIsEdgeNode ||
       !targetIsEdgeNode && !sourceIsEdgeNode
     ) return
+
+    // 檢查 source 節點是否是 server 類型
+    const sourceNode = getNode(connection.source)
+    const isServerNode = sourceNode?.type === 'server'
+    
     const edge: Edge = {
       ...connection,
       id: `connection-${Date.now()}`,
-      type: 'floating',
+      // 如果是 server node 連接，使用 serverDashed，否則使用 floating
+      type: isServerNode ? 'serverDashed' : 'floating',
       data: {
         connectionType: !sourceIsEdgeNode && targetIsEdgeNode ? 'STC' : 'CTT'
       },
@@ -310,7 +340,7 @@ function Workflow() {
     setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges))
     allowActivateOtherNodesWhenConnectEnd()
 
-  }, [setEdges])
+  }, [setEdges, getNode, judgeNodeIsEdgeNode, markerEnd, allowActivateOtherNodesWhenConnectEnd])
 
   const onConnectStart = (event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
     if (isOnGeneratingNewNode) return
@@ -327,19 +357,6 @@ function Workflow() {
     allowActivateOtherNodesWhenConnectEnd()
   }
 
-  const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id: string) => {
-    setNodes((nds: Node[]) => {
-      const nodeIndex = nds.findIndex((node) => node.id === id);
-      const node = nds[nodeIndex];
-      const newNodes = [...nds];
-      newNodes.splice(nodeIndex, 1);
-      newNodes.push(node);
-      return newNodes;
-    });
-
-    activateNode(id)
-  };
-
   const onNodeMouseLeave = (id: string) => {
     if (preventInactivated || isOnGeneratingNewNode) return
     inactivateNode(id)
@@ -352,6 +369,12 @@ function Workflow() {
     }
     activateNode(id)
     preventInactivateNode()
+    
+    // 如果点击的是组节点，触发重新计算
+    const clickedNode = getNode(id);
+    if (clickedNode?.type === 'group') {
+      // 这里不需要额外处理，因为 GroupNode 组件内部已经处理了点击事件
+    }
   }
 
   const onPaneClick = () => {
@@ -425,32 +448,7 @@ function Workflow() {
     setEdgesIds(getEdges().map((edge) => edge.id))
   }, [getEdges()])
 
-  // 在 Workflow.tsx 中添加一个监听器，每当节点变更时进行排序
-  useEffect(() => {
-    // 验证节点顺序是否正确
-    const isOrderCorrect = (nodes: Node[]) => {
-      const groupIndices = nodes
-        .map((node, index) => node.type === 'group' ? index : -1)
-        .filter(index => index !== -1);
-      
-      if (groupIndices.length === 0) return true;
-      
-      // 检查是否有非组节点在组节点之前
-      return !nodes.some((node, index) => {
-        if (node.type !== 'group' && node.parentId) {
-          const parentIndex = nodes.findIndex(n => n.id === node.parentId);
-          return parentIndex > index; // 如果父节点索引大于子节点索引，顺序不正确
-        }
-        return false;
-      });
-    };
-
-    // 如果顺序不正确，重新排序
-    if (!isOrderCorrect(nodes)) {
-      console.warn('Node order is incorrect, reordering...');
-      setNodes(sortNodesByType(nodes));
-    }
-  }, [nodes]);
+  // 移除了与 parentId 相关的复杂排序逻辑，因为不再使用 ReactFlow 的 parentId 机制
 
 
   return (
@@ -473,8 +471,9 @@ function Workflow() {
           nodesDraggable={!isOnGeneratingNewNode}
           nodesConnectable={!isOnGeneratingNewNode}
           elementsSelectable={!isOnGeneratingNewNode}
+          elevateNodesOnSelect={true}  // 启用 ReactFlow 的内置节点选中提升功能
           onNodeMouseEnter={(event, node) => {
-            bringToFront(event, node.id)
+            elevateNode(node.id)  // 使用新的 elevateNode 函数
           }}
           onNodeMouseLeave={(event, node) => {
             onNodeMouseLeave(node.id)
@@ -491,12 +490,12 @@ function Workflow() {
           maxZoom={1.5}
           zoomOnScroll={canZoom}
           zoomOnPinch={true}
-          panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
-          panOnScroll={true}          // 重新启用默认的滚动行为
-          panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
+          panOnDrag={canPan ? true : [1]}
+          panOnScroll={true}
+          panOnScrollSpeed={1}
           selectionMode={SelectionMode.Full}
-          selectionOnDrag={true}  // 启用拖拽选择
-          className="nocursor"             // 可选：添加自定义样式
+          selectionOnDrag={true}
+          className="nocursor"
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
         >

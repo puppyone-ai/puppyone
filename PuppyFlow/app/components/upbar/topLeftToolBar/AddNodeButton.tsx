@@ -10,6 +10,7 @@ export type nodeSmallProps = {
   nodeType: string,
 }
 
+// 恢复 "Groupsub1" 类型
 type menuNameType = null | "Textsub1" | "StructuredTextsub1" | "Filesub1" | "Switchsub1" | "VectorDatabasesub1" | "Otherssub1" | "Groupsub1"
 
 function AddNodeButton() {
@@ -135,6 +136,23 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
     if (mousePosition) {
       console.log("mousePosition will be set", mousePosition)
       const defaultNodeContent = node.nodeType === "switch" ? "OFF" : ""
+      
+      // 為不同類型的節點設定特殊尺寸
+      const getNodeSize = (nodeType: string) => {
+        switch (nodeType) {
+          case "text":
+          case "structured":
+          case "file":
+          case "weblink":
+          case "group":  // 恢复 group 类型
+          case "switch":
+          default:
+            return { width: 240, height: 176 }   // 其他所有 block node 的默認尺寸
+        }
+      }
+      
+      const nodeSize = getNodeSize(node.nodeType)
+      
       new Promise(resolve => {
         setNodes(prevNodes => {
             resolve(null);  // 在状态更新完成后解析 Promise
@@ -154,11 +172,11 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                      },
                     type: node.nodeType,
                     measured: {
-                      width: 240,
-                      height: 176,
+                      width: nodeSize.width,
+                      height: nodeSize.height,
                     },
-                    width: 240,
-                    height: 176,
+                    width: nodeSize.width,
+                    height: nodeSize.height,
                 }
             ];
         });
@@ -198,7 +216,7 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
       case 'Otherssub1':
         value = 5
         break
-      case 'Groupsub1':
+      case 'Groupsub1':  // 恢复 group 菜单项
         value = 6
         break
       default:
@@ -352,16 +370,9 @@ function NodeMenu({selectedMenu, clearMenu}: {selectedMenu: number, clearMenu: (
                       <stop offset="100%" stopColor="#7C3AED" />
                     </linearGradient>
                   </defs>
-                  {/* Main container with clearer border */}
                   <rect x="2" y="2" width="20" height="20" rx="3" stroke="url(#structuredGradient)" strokeWidth="1.5" strokeOpacity="0.5"/>
-                  
-                  {/* Top line - longest */}
                   <rect x="5" y="6" width="14" height="2.5" rx="1" fill="url(#structuredGradient)" fillOpacity="0.9"/>
-                  
-                  {/* Middle line - medium */}
                   <rect x="5" y="11" width="11" height="2.5" rx="1" fill="url(#structuredGradient)" fillOpacity="0.6"/>
-                  
-                  {/* Bottom line - shortest */}
                   <rect x="5" y="16" width="8" height="2.5" rx="1" fill="url(#structuredGradient)" fillOpacity="0.3"/>
                 </svg>
               </div>

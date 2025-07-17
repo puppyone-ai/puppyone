@@ -6,6 +6,7 @@ import useJsonConstructUtils, {
     NodeJsonType
 } from '../../../../hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
+import { useAppSettings } from '../../../../states/AppSettingsContext';
 import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
 import { nanoid } from 'nanoid';
 import { 
@@ -15,6 +16,7 @@ import {
 
 } from './useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from './useBlockNodeBackEndJsonBuilder';
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 
 // Hook 返回值类型
 export interface BaseEdgeNodeLogicReturn {
@@ -35,47 +37,20 @@ export function useBaseEdgeNodeLogic({
     // Basic hooks
     const { getNode, setNodes, setEdges } = useReactFlow();
     const {
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
         streamResult,
         reportError,
         resetLoadingUI
     } = useJsonConstructUtils();
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
     const { clearAll } = useNodesPerFlowContext();
+    const { getAuthHeaders } = useAppSettings();
 
     // Add hooks for JSON building
     const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
     const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
-
     // State management
-    const [isAddFlow, setIsAddFlow] = useState(true);
-    const [isComplete, setIsComplete] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
-
-    // 执行流程
-    useEffect(() => {
-        if (isComplete) return;
-
-        const runWithTargetNodes = async () => {
-            try {
-                const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
-
-                if (targetNodeIdWithLabelGroup.length === 0 && !isAddFlow) {
-                    await createNewTargetNode();
-                    setIsAddFlow(true);
-                } else if (isAddFlow) {
-                    await sendDataToTargets();
-                }
-            } catch (error) {
-                console.error("Error in runWithTargetNodes:", error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        runWithTargetNodes();
-    }, [isAddFlow, isComplete, parentId]);
 
     // 创建新的目标节点
     const createNewTargetNode = async () => {
@@ -167,6 +142,7 @@ export function useBaseEdgeNodeLogic({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    ...getAuthHeaders(),
                 },
                 body: JSON.stringify(jsonData)
             });
@@ -195,15 +171,14 @@ export function useBaseEdgeNodeLogic({
             targetNodeIdWithLabelGroup.forEach(node => {
                 resetLoadingUI(node.id);
             });
-            setIsComplete(true);
         }
     };
 
     // Modify defaultConstructJsonData to use the extracted parameters
     const defaultConstructJsonData = (): BaseConstructedJsonData => {
         // 获取源节点和目标节点
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId);
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(parentId, 'blocknode');
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId, 'blocknode');
         
         try {
             // 创建blocks对象
@@ -279,29 +254,24 @@ export function useBaseEdgeNodeLogic({
         }
     };
 
-    // 使用自定义或默认的 constructJsonData
-    const finalConstructJsonData = customConstructJsonData || defaultConstructJsonData();
-
-    // 数据提交主函数
+    // 数据提交主函数 - 现在包含完整的执行逻辑
     const handleDataSubmit = async (...args: any[]) => {
         setIsLoading(true);
         try {
-            await new Promise(resolve => {
-                clearAll();
-                resolve(null);
-            });
+            clearAll();
 
             const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(parentId);
 
             if (targetNodeIdWithLabelGroup.length === 0) {
-                setIsAddFlow(false);
+                // 如果没有目标节点，创建一个新的
+                await createNewTargetNode();
             } else {
-                setIsAddFlow(true);
+                // 如果有目标节点，直接发送数据
+                await sendDataToTargets();
             }
-
-            setIsComplete(false);
         } catch (error) {
             console.error("Error submitting data:", error);
+        } finally {
             setIsLoading(false);
         }
     };
