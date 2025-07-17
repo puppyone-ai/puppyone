@@ -37,14 +37,14 @@ const ListComponent = ({
     };
 
     return (
-        <div className="border-2 border-[#555] rounded-lg bg-[#1a1a1a] p-4 shadow-sm group/list relative">
-            <div className="space-y-3">
+        <div className="border-[1px] border-[#555] rounded-lg bg-[#1a1a1a] m-[8px] p-[8px] shadow-sm group/list relative">
+            <div className="space-y-[4px]">
                 {data.map((item, index) => (
-                    <div key={index} className="group relative">
-                        <div className="flex items-start gap-3">
+                    <div key={index} className="group relative hover:bg-[#252525] rounded-lg transition-colors duration-200 ">
+                        <div className="flex items-start gap-[8px]">
                             {/* Index Badge - 与dict保持相同的缩进 */}
-                            <div className="flex-shrink-0 mt-1" style={{ width: '80px' }}>
-                                <div className="h-[24px] flex items-center justify-center px-2 rounded-[4px] bg-[#252525] border border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors max-w-[80px] w-fit">
+                            <div className="flex-shrink-0" style={{ width: '64px' }}>
+                                <div className="h-[24px] flex items-center justify-center px-2 my-[16px] mx-[8px] rounded-[4px] bg-[#252525] border border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors max-w-[64px] w-fit">
                                     <span className="text-[10px] font-semibold text-[#179FFF]">
                                         {index}
                                     </span>

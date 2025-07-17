@@ -30,7 +30,7 @@ const TextComponent = ({
 
     return (
         <div className="w-full">
-            <div className={`w-full px-[16px] py-[8px] bg-[#2a2a2a] rounded-md overflow-hidden ${readonly ? 'opacity-60' : ''}`}>
+            <div className={`w-full p-[8px] m-[8px] bg-transparent hover:bg-[#303030] rounded-md overflow-hidden transition-colors duration-200 ${readonly ? 'opacity-60' : ''}`}>
                 <TextEditor
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}

@@ -1,5 +1,6 @@
 import { useReactFlow } from '@xyflow/react';
-import useJsonConstructUtils, { NodeJsonType } from '../../../../hooks/useJsonConstructUtils';
+import { NodeJsonType } from '../../../../hooks/useJsonConstructUtils';
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 
 // 基础类型定义
 export type BaseNodeData = {
@@ -337,7 +338,7 @@ export type EdgeNodeJsonData = BaseEdgeJsonType;
 export function useEdgeNodeBackEndJsonBuilder() {
     // 基础hooks
     const { getNode } = useReactFlow();
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils();
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
 
     // 修改构建节点JSON的主函数，只返回边的JSON
     const buildEdgeNodeJson = (nodeId: string): EdgeNodeJsonData => {
@@ -350,9 +351,9 @@ export function useEdgeNodeBackEndJsonBuilder() {
         const nodeData = node.data;
         const nodeType = node.type as EdgeNodeType;
         
-        // 获取源节点和目标节点（仅用于构建边的JSON）
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeId);
-        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(nodeId);
+        // 获取源节点和目标节点，只获取 blocknode 类型
+        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(nodeId, 'blocknode');
+        const targetNodeIdWithLabelGroup = getTargetNodeIdWithLabel(nodeId, 'blocknode'); // 输出可以是所有类型
         
         // 根据节点类型构建相应的JSON
         let edgeJson: BaseEdgeJsonType;

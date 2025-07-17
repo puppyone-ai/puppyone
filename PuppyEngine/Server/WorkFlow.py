@@ -14,8 +14,9 @@ from Utils.logger import log_info, log_warning, log_error
 import json
 import threading
 import concurrent.futures
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Set, Any, Tuple, Generator
+from typing import List, Dict, Set, Any, Tuple, Generator, Callable, Optional
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
 from Utils.puppy_exception import global_exception_handler, PuppyException
@@ -231,6 +232,8 @@ class WorkFlow():
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
         
+        # 移除异步队列和相关状态
+        
         log_info(f"Workflow initialized with {len(self.blocks)} blocks and {len(self.edges)} edges")
 
     def _validate_single_flow(
@@ -303,9 +306,13 @@ class WorkFlow():
         return [bid for bid, state in self.block_states.items() if state == "processed"]
 
     @global_exception_handler(5202, "Error Processing Workflow", True)
-    def process(self) -> Generator[Dict[str, Any], None, None]:
+    def process(self, usage_callback = None) -> Generator[Dict[str, Any], None, None]:
         """
         Process the workflow with concurrent edge execution
+        
+        Args:
+            usage_callback: 可选的usage消费回调函数，每个edge执行成功后会调用
+                          函数签名: callback(edge_metadata: dict) -> None
         """
         try:
             log_info(f"Starting workflow processing for task {self.task_id}")
@@ -321,7 +328,7 @@ class WorkFlow():
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
 
-                processed_block_ids = self._process_batch_results(parallel_batch)
+                processed_block_ids = self._process_batch_results(parallel_batch, usage_callback)
                 processed_blocks = {
                     block_id: self.blocks.get(block_id, {}) 
                     for block_id in processed_block_ids
@@ -341,10 +348,15 @@ class WorkFlow():
         清理工作流相关资源
         """
         try:
+            # 停止异步usage处理
+            # self.stop_async_usage_processing()
+            
             # 关闭线程池
             if hasattr(self, 'thread_executor') and self.thread_executor:
                 self.thread_executor.shutdown(wait=True)
                 self.thread_executor = None
+            
+            # 移除所有异步usage处理相关逻辑
             
             # 清理所有内部数据
             if hasattr(self, 'blocks'):
@@ -365,6 +377,116 @@ class WorkFlow():
             log_info(f"Workflow resources cleaned up for task {self.task_id}")
         except Exception as e:
             log_error(f"Error during workflow cleanup: {str(e)}")
+
+    # 移除所有异步usage处理相关的方法
+
+    # ❌ _collect_edge_metadata_async 方法已被删除 - 违反数据最小化原则
+    # 
+    # 此方法收集了完整的用户内容快照，包括：
+    # - input_blocks_snapshot: 完整的用户输入内容
+    # - output_blocks_snapshot: 完整的AI输出内容  
+    # - complete_workflow_payload: 完整的工作流结构
+    #
+    # 这些数据远超计费需要，违反GDPR数据最小化原则。
+    # 请使用 _collect_minimal_metadata_compliant 方法替代。
+
+    def _collect_minimal_metadata_compliant(self, edge_id: str, edge_result, results: Dict[str, Any], execution_success: bool) -> Dict[str, Any]:
+        """
+        收集符合数据最小化原则的edge元数据
+        只收集计费和基本系统维护必要的信息
+        
+        Args:
+            edge_id: edge ID
+            edge_result: edge执行结果
+            results: 当前结果字典
+            execution_success: 执行是否成功
+            
+        Returns:
+            Dict: 最小化的合规元数据
+        """
+        try:
+            # 获取edge基本信息
+            edge_info = self.edges.get(edge_id)
+            edge_type = edge_info.get("type", "unknown")
+            
+            # 生成去标识化的ID
+            import hashlib
+            task_hash = hashlib.sha256(f"{self.task_id}_task_salt".encode()).hexdigest()[:12]
+            edge_hash = hashlib.sha256(f"{edge_id}_edge_salt".encode()).hexdigest()[:8]
+            
+            # 最小化的合规元数据
+            minimal_metadata = {
+                # 添加原始ID用于追踪
+                "task_id": self.task_id,
+                "edge_id": edge_id,
+                
+                # 基本执行信息（计费必需）
+                "edge_type": edge_type,
+                "execution_success": execution_success,
+                "execution_time": (edge_result.end_time - edge_result.start_time).total_seconds(),
+                
+                # 去标识化的追踪ID
+                "task_hash": task_hash,
+                "edge_hash": edge_hash,
+                
+                # 基本错误信息（系统维护必需）
+                "error_info": {
+                    "has_error": bool(edge_result.error),
+                    "error_type": type(edge_result.error).__name__ if edge_result.error else None,
+                    "error_category": self._categorize_error(edge_result.error) if edge_result.error else None
+                } if edge_result.error else None,
+                
+                # 最小化统计信息（系统监控必需）
+                "basic_stats": {
+                    "input_count": len(self.edge_to_inputs_mapping.get(edge_id, [])),
+                    "output_count": len(self.edge_to_outputs_mapping.get(edge_id, [])),
+                    "workflow_edge_count": len(self.edges)  # 去个人化的工作流复杂度
+                },
+                
+                # 合规标识
+                "data_collection_level": "minimal",
+                "privacy_compliant": True
+            }
+            
+            # 记录合规收集确认
+            log_info(f"[COMPLIANT-COLLECT] Task {task_hash} Edge {edge_hash} ({edge_type}): "
+                    f"Collected minimal compliant data, execution_success={execution_success}")
+            
+            return minimal_metadata
+            
+        except Exception as e:
+            log_error(f"Error collecting minimal metadata for {edge_id}: {str(e)}")
+            # 返回最基本的信息
+            return {
+                "edge_type": "unknown",
+                "execution_success": execution_success,
+                "execution_time": 0,
+                "data_collection_level": "minimal",
+                "collection_error": str(e)
+            }
+    
+    def _categorize_error(self, error) -> str:
+        """
+        将错误分类为基本类型（不暴露具体错误内容）
+        """
+        if not error:
+            return None
+            
+        error_str = str(error).lower()
+        if "timeout" in error_str:
+            return "timeout"
+        elif "connection" in error_str or "network" in error_str:
+            return "connection"
+        elif "permission" in error_str or "auth" in error_str:
+            return "permission"
+        elif "rate limit" in error_str:
+            return "rate_limit"
+        elif "validation" in error_str or "invalid" in error_str:
+            return "validation"
+        elif "memory" in error_str or "resource" in error_str:
+            return "resource"
+        else:
+            return "other"
 
     def _find_parallel_batches(
         self
@@ -392,7 +514,8 @@ class WorkFlow():
 
     def _process_batch_results(
         self,
-        batch: Set[str]
+        batch: Set[str],
+        usage_callback = None
     ) -> Set[str]:
         # Stage 1: Mark processing states
         with self.state_lock:
@@ -401,7 +524,7 @@ class WorkFlow():
 
         try:
             # Stage 2: Process batch concurrently
-            outputs = self._execute_edge_batch(batch)
+            outputs = self._execute_edge_batch(batch, usage_callback)
             log_info(f"Batch processing output: {outputs}")
 
             # Stage 3: Update states atomically
@@ -425,7 +548,8 @@ class WorkFlow():
 
     def _execute_edge_batch(
         self,
-        edge_batch: Set[str]
+        edge_batch: Set[str],
+        usage_callback = None
     ) -> Dict[str, Any]:
         """
         Execute a batch of edges concurrently
@@ -457,7 +581,7 @@ class WorkFlow():
             for future in concurrent.futures.as_completed(futures):
                 edge_id = futures[future]
                 try:
-                    results = self._process_edge_result(edge_id, results, future)
+                    results = self._process_edge_result(edge_id, results, future, usage_callback)
                 except Exception as e:
                     # 移除exc_info参数，使用格式化字符串
                     log_error(f"Edge {edge_id} execution failed with error: {str(e)}\n{traceback.format_exc()}")
@@ -504,13 +628,15 @@ class WorkFlow():
         self,
         edge_id: str,
         results: Dict[str, Any],
-        future: concurrent.futures.Future
+        future: concurrent.futures.Future,
+        usage_callback = None
     ) -> Dict[str, Any]:
         """
         Process the result of an edge execution
         """
 
         edge_result = future.result()
+        execution_success = edge_result.status == "completed" and not edge_result.error
 
         # Detailed execution result logging
         log_msg = (
@@ -518,18 +644,42 @@ class WorkFlow():
             f"\n------------------------"
             f"\nEdge ID: {edge_id}"
             f"\nStatus: {edge_result.status}"
+            f"\nSuccess: {execution_success}"
             f"\nExecution Time: {edge_result.end_time - edge_result.start_time}"
         )
 
         if edge_result.error:
             log_msg += f"\nError: {str(edge_result.error)}"
             log_error(log_msg)
-            raise edge_result.error
 
         log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
         log_info(log_msg)
-        if edge_result.status == "completed":
-            # Map results to output blocks
+        
+        # 无论成功还是失败，都记录usage event
+        if usage_callback:
+            try:
+                # 使用合规的最小化数据收集
+                edge_metadata = self._collect_minimal_metadata_compliant(edge_id, edge_result, results, execution_success)
+                
+                # 在新的事件循环中同步执行异步回调
+                def run_async_callback():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(usage_callback(edge_metadata))
+                    finally:
+                        loop.close()
+                
+                # 在单独的线程中运行，避免阻塞
+                callback_thread = threading.Thread(target=run_async_callback)
+                callback_thread.start()
+                log_info(f"Usage processing submitted for edge {edge_id}")
+
+            except Exception as e:
+                log_error(f"Usage processing setup failed for edge {edge_id}: {str(e)}")
+
+        if execution_success:
+            # 只有成功执行才更新结果
             for block_id in self.edge_to_outputs_mapping.get(edge_id, []):
                 # If the edge is type of ifelse, the result is a set of block contents
                 if self.edges.get(edge_id, {}).get("type") == "ifelse":
@@ -539,7 +689,10 @@ class WorkFlow():
                     results[block_id] = edge_result.result
                 log_info(f"[DEBUG] Block {block_id} updated with result type: {type(edge_result.result)}")
         else:
-            log_warning(f"Edge {edge_id} completed but status is {edge_result.status}")
+            log_warning(f"Edge {edge_id} execution failed, results not updated")
+            # 失败的情况下，重新抛出错误
+            if edge_result.error:
+                raise edge_result.error
 
         return results
 

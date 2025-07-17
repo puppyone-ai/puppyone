@@ -1,12 +1,11 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, { useState, useEffect, useRef } from 'react'
-import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
-import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 // 首先定义一个索引项接口 - 移到组件外部
 interface IndexingItem {
@@ -48,10 +47,11 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const { getNode, setNodes } = useReactFlow()
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const [isHovered, setIsHovered] = useState(false)
+    const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
 
     // 状态管理 - 保留在主组件中
     const [query, setQuery] = useState<{ id: string, label: string }>(
@@ -290,23 +290,75 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
     };
 
     return (
-        <div className='p-[3px] w-[80px] h-[48px]'>
+        <div className='p-[3px] w-[80px] h-[48px] relative'>
+            {/* Invisible hover area between node and run button */}
+            <div
+                className="absolute -top-[40px] left-0 w-full h-[40px]"
+                onMouseEnter={() => setIsHovered(true)}
+                onMouseLeave={() => setIsHovered(false)}
+            />
+
+            {/* Run button positioned above the node - show when node or run button is hovered */}
+            <button
+                className={`absolute -top-[40px] left-1/2 transform -translate-x-1/2 w-[57px] h-[24px] rounded-[6px] border-[1px] text-[10px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[4px] transition-all duration-200 ${
+                    (isHovered || isRunButtonHovered) ? 'opacity-100' : 'opacity-0'
+                }`}
+                style={{
+                    backgroundColor: isRunButtonHovered ? '#39BC66' : '#181818',
+                    borderColor: isRunButtonHovered ? '#39BC66' : UI_COLORS.EDGENODE_BORDER_GREY,
+                    color: isRunButtonHovered ? '#000' : UI_COLORS.EDGENODE_BORDER_GREY
+                }}
+                onClick={onDataSubmit}
+                disabled={isLoading}
+                onMouseEnter={() => setIsRunButtonHovered(true)}
+                onMouseLeave={() => setIsRunButtonHovered(false)}
+            >
+                <span>
+                    {isLoading ? (
+                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="6" height="8" viewBox="0 0 8 10" fill="none">
+                            <path d="M8 5L0 10V0L8 5Z" fill="currentColor" />
+                        </svg>
+                    )}
+                </span>
+                <span>
+                    {isLoading ? '' : 'Run'}
+                </span>
+            </button>
+
             <button
                 onClick={onClickButton}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors`}
+                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors gap-[4px]`}
                 style={{
                     borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
                     color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY
                 }}
             >
-                Retrieve
+                {/* Retrieve SVG icon */}
+                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 14 14">
+                    <path fill="currentColor" d="m0 14 4.597-.446-2.684-3.758L0 14Zm6.768-5.325-4.071 2.907.465.651 4.07-2.908-.465-.65Z" />
+                    <path stroke="currentColor" strokeWidth="1.5" d="M7 9V2" />
+                    <path fill="currentColor" d="M7 0 4.69 4h4.62L7 0Z" />
+                    <path stroke="currentColor" strokeWidth="1.5" d="m7 9-5 3.5" />
+                    <path fill="currentColor" d="m14 14-4.597-.446 2.684-3.758L14 14ZM7.232 8.675l4.071 2.907-.465.651-4.07-2.908.465-.65Z" />
+                    <path stroke="currentColor" strokeWidth="1.5" d="m7 9 5 3.5" />
+                </svg>
+                <div className="flex flex-col items-center justify-center leading-tight text-[9px]">
+                    <span>Retrieve</span>
+                </div>
+
+                {/* ... existing handles remain the same ... */}
                 <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
                 <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
                 <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
                 <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
-                {/* Target handles */}
+                
                 <Handle
                     id={`${id}-a`}
                     type="target"
@@ -406,6 +458,8 @@ function Retrieving({ isConnectable, id }: RetrievingConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text', 'structured']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

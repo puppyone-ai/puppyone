@@ -20,6 +20,9 @@ export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.
 export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/generate_urls`
 export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`
 
+// 认证功能已完全迁移到 AppSettingsContext
+// 请使用 useAppSettings().getAuthHeaders() 获取认证headers
+
 export type BasicNodeData = JsonNodeData | FileNodeData |  TextBlockNodeData | WebLinkNodeData | {content: string | any, subtype?: string, model?: string, method?: string, vdb_type?: string, index_name?: string}
 
 export interface NodeJsonType {
@@ -49,7 +52,7 @@ export type ProcessingData = {
 function useJsonConstructUtils() {
     const {getEdges, getNode, setNodes, getNodes, getViewport} = useReactFlow()
     // const {warns,setWarns} = useContext(WarnsContext);
-    const { warns, addWarn } = useAppSettings();
+    const { warns, addWarn, getAuthHeaders } = useAppSettings();
     // const {searchNode, totalCount} = useNodeContext()
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -176,174 +179,235 @@ function useJsonConstructUtils() {
 
     /*
         开放一个持久化的通话session，持续的获得 message 展示在前端 ，session 持续时长 5min
+        使用fetch stream模式替代EventSource以支持认证headers
     */
     const streamResult = useCallback(async (taskId: string, resultNode: string | null) => {
-        return new Promise((resolve, reject) => {
-
-        const eventSource = new EventSource(`${backend_IP_address_for_receivingData}/${taskId}`);
-    
-        eventSource.onmessage = (event) => {
-            // console.log('!!Raw event data:', typeof event.data, event.data);
+        return new Promise(async (resolve, reject) => {
+            let timeoutId: NodeJS.Timeout | null = null;
             
             try {
-                // 步骤 1: 将单引号替换为双引号，python format not valid
-                // let jsonString = event.data.replace(/'/g, '"');
-                // const data = JSON.parse(jsonString, (key, value) => {
-                //     if (typeof value === 'string') {
-                //     return value.replace(/\\n/g, '\n');
-                //     }
-                //     return value;
-                // });
-                // console.log(data);
-                const data = JSON.parse(event.data)
-                if(data.error){
-                    addWarn(`${data.error}`)
+                const response = await fetch(`${backend_IP_address_for_receivingData}/${taskId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        ...getAuthHeaders(),
+                    },
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+
+                if (!response.body) {
+                    throw new Error('Response body is null');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                // 设置超时机制
+                timeoutId = setTimeout(() => {
+                    console.log('Connection timed out');
+                    reader.cancel();
+                    reject(new Error("Connection timed out"));
+                }, 300000); // 5分钟超时
+
+                // 读取流数据
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        console.log('Stream completed');
+                        break;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const eventData = line.slice(6); // 移除 'data: ' 前缀
+                                if (eventData.trim() === '') continue;
+
+                                // 增强的JSON解析，处理大文本和格式错误
+                                let data;
+                                try {
+                                    data = JSON.parse(eventData);
+                                } catch (parseError) {
+                                    const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+                                    console.error('JSON parsing failed:', errorMsg);
+                                    console.error('Problematic data length:', eventData.length);
+                                    console.error('Data preview:', eventData.substring(0, 200) + '...');
+                                    
+                                    // 尝试修复常见的JSON问题
+                                    try {
+                                        // 尝试修复未终止的字符串
+                                        const fixedData = eventData.replace(/\\+$/, '').replace(/["\s]*$/, '"');
+                                        data = JSON.parse(fixedData);
+                                        console.log('JSON修复成功');
+                                    } catch (fixError) {
+                                        addWarn(`JSON解析失败，数据可能被截断或格式错误: ${errorMsg}`);
+                                        continue;
+                                    }
+                                }
+                                
+                                if (data.error) {
+                                    addWarn(`${data.error}`);
+                                }
+
+                                // 检查是否收到完成信号
+                                if (data.is_complete === true) {
+                                    console.log('Processing completed');
+                                    if (timeoutId) clearTimeout(timeoutId);
+                                    resolve(true);
+                                    return;
+                                }
+
+                                updateUI(data, resultNode);
+
+                            } catch (error) {
+                                addWarn(`Error processing event data: ${error}`);
+                                console.error('Error processing event data:', error);
+                            }
+                        }
+                    }
                 }
                 
-                
-                
-    
-                // 解析数据
-                // const data: ProcessingData = JSON.parse(jsonString);
-                
-                // console.log('Parsed data: !!', data);
-    
-                // 检查是否收到完成信号
-                if (data.is_complete === true) {
-                    // console.log(getNodes())
-                    // console.log('Processing completed');
-                    eventSource.close();
-                    resolve(true)
-                    return;
-                }
-    
-                // 更新UI或进行其他操作
-                // if (ifCodeConfigNodePass) {
-                //     updateUIForCode(data, resultNode);
-                // }
-                // else {
-                //     updateUI(data, resultNode);
-                // }
-                updateUI(data, resultNode);
+                if (timeoutId) clearTimeout(timeoutId);
+                resolve(true);
 
             } catch (error) {
-                addWarn(`Error processing event data: ${error}`)
-                console.error('Error processing event data:', error);
-                reject(error)
+                if (timeoutId) clearTimeout(timeoutId);
+                console.error('Stream failed:', error);
+                reject(error);
             }
-        };
-    
-        eventSource.onerror = (error) => {
-            console.error('EventSource failed:', error);
-            eventSource.close();
-            reject(error)
-        };
-    
-        // 可选：添加一个超时机制
-        const timeout = setTimeout(() => {
-            console.log('Connection timed out');
-            eventSource.close();
-            reject(new Error("Connection timed out"))
-        }, 300000); // 5分钟超时
-    
-        // 使用 addEventListener 来监听 'close' 事件
-        eventSource.addEventListener('close', () => {
-            clearTimeout(timeout);
-            console.log('EventSource connection closed');
-            // 可以在这里添加其他清理工作或状态更新
-            });
-        })
+        });
     }, []);
 
 
     const streamResultForMultipleNodes = useCallback(async (taskId: string, resultNodes: string[]) => {
         
-        return new Promise((resolve, reject) => {
+        return new Promise(async (resolve, reject) => {
+            let timeoutId: NodeJS.Timeout | null = null;
 
-        const eventSource = new EventSource(`${backend_IP_address_for_receivingData}/${taskId}`);
-    
-        eventSource.onmessage = (event) => {
-            // console.log('Raw event data: !!', typeof event.data, event.data);
-            
             try {
-                // 步骤 1: 将单引号替换为双引号，python format not valid
-                // let jsonString = event.data.replace(/'/g, '"');
-                // const data = JSON.parse(jsonString, (key, value) => {
-                //     if (typeof value === 'string') {
-                //     return value.replace(/\\n/g, '\n');
-                //     }
-                //     return value;
-                // });
-                // console.log(data);
-                // const data = deepParseJSON(event.data)
+                const response = await fetch(`${backend_IP_address_for_receivingData}/${taskId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/event-stream',
+                        'Cache-Control': 'no-cache',
+                        ...getAuthHeaders(),
+                    },
+                });
 
-                let data: any
-                try{
-                    console.log("event",event)
-                    //event.data ="{\"error\": \"[PE_ERROR_4101]: Error Evaluating Cases!\\nCause: 'conditions'\"}" ERROR
-                    data = JSON.parse(event.data)
-                    if(data.error){
-                        addWarn(`${data.error}`)
+                if (!response.ok) {
+                    throw new Error(`HTTP Error: ${response.status}`);
+                }
+
+                if (!response.body) {
+                    throw new Error('Response body is null');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                // 设置超时机制
+                timeoutId = setTimeout(() => {
+                    console.log('Connection timed out');
+                    reader.cancel();
+                    addWarn("Connection timed out");
+                    reject(new Error("Connection timed out"));
+                }, 300000); // 5分钟超时
+
+                // 读取流数据
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        console.log('Stream completed');
+                        break;
                     }
-                }catch(error){
-                    console.error('Error convert event data json to object by json parse:', error);
-                    addWarn(`Error convert event data json to object by json parse: ${error}`)
-                    reject(error)
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const eventData = line.slice(6); // 移除 'data: ' 前缀
+                                if (eventData.trim() === '') continue;
+
+                                // 增强的JSON解析，处理大文本和格式错误
+                                let data;
+                                try {
+                                    data = JSON.parse(eventData);
+                                } catch (parseError) {
+                                    const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+                                    console.error('JSON parsing failed:', errorMsg);
+                                    console.error('Problematic data length:', eventData.length);
+                                    console.error('Data preview:', eventData.substring(0, 200) + '...');
+                                    
+                                    // 尝试修复常见的JSON问题
+                                    try {
+                                        // 尝试修复未终止的字符串
+                                        const fixedData = eventData.replace(/\\+$/, '').replace(/["\s]*$/, '"');
+                                        data = JSON.parse(fixedData);
+                                        console.log('JSON修复成功');
+                                    } catch (fixError) {
+                                        addWarn(`JSON解析失败，数据可能被截断或格式错误: ${errorMsg}`);
+                                        continue;
+                                    }
+                                }
+                                
+                                if (data.error) {
+                                    addWarn(`${data.error}`);
+                                }
+
+                                // 检查是否收到完成信号
+                                if (data.is_complete === true) {
+                                    console.log('Processing completed');
+                                    
+                                    // 清空所有resultNodes的isWaitingForFlow状态
+                                    setNodes(prevNodes => prevNodes.map(node => {
+                                        if (resultNodes.includes(node.id)) {
+                                            return {
+                                                ...node,
+                                                data: {
+                                                    ...node.data,
+                                                    isWaitingForFlow: false
+                                                }
+                                            };
+                                        }
+                                        return node;
+                                    }));
+                                    
+                                    if (timeoutId) clearTimeout(timeoutId);
+                                    resolve(true);
+                                    return;
+                                }
+
+                                updateUIForMultipleNodes(data, resultNodes);
+
+                            } catch (error) {
+                                console.error('Error convert event data json to object by json parse:', error);
+                                addWarn(`Error convert event data json to object by json parse: ${error}`);
+                            }
+                        }
+                    }
                 }
                 
-                
-    
-                // 解析数据
-                // const data: ProcessingData = JSON.parse(jsonString);
-                
-                // console.log('Parsed data: !!', data);
-    
-                // 检查是否收到完成信号
-                if (data.is_complete === true) {
-                    // console.log(getNodes())
-                    // console.log('Processing completed');
-                    eventSource.close();
-                    resolve(true)
-                    return;
-                }
-    
-                // 更新UI或进行其他操作
-                // if (ifCodeConfigNodePass) {
-                //     updateUIForCode(data, resultNode);
-                // }
-                // else {
-                //     updateUI(data, resultNode);
-                // }
-                updateUIForMultipleNodes(data, resultNodes);
+                if (timeoutId) clearTimeout(timeoutId);
+                resolve(true);
 
             } catch (error) {
-                console.error('Error processing event data:', error);
-                reject(error)
+                if (timeoutId) clearTimeout(timeoutId);
+                addWarn(`EventSource failed: ${error}`);
+                console.error('EventSource failed:', error);
+                reject(error);
             }
-        };
-    
-        eventSource.onerror = (error) => {
-            addWarn(`EventSource failed: ${error}`)
-            console.error('EventSource failed:', error);
-            eventSource.close();
-            reject(error)
-        };
-    
-        // 可选：添加一个超时机制
-        const timeout = setTimeout(() => {
-            console.log('Connection timed out');
-            eventSource.close();
-            addWarn("Connection timed out")
-            reject(new Error("Connection timed out"))
-        }, 300000); // 5分钟超时
-    
-        // 使用 addEventListener 来监听 'close' 事件
-        eventSource.addEventListener('close', () => {
-            clearTimeout(timeout);
-            console.log('EventSource connection closed');
-            // 可以在这里添加其他清理工作或状态更新
-            });
-        })
+        });
     }, [])
 
   
@@ -430,10 +494,7 @@ function useJsonConstructUtils() {
             // 将jsonResult.data 转换为 Map
             console.log(jsonResult, "jsonResult from backend")
             const data = new Map(Object.entries(jsonResult.data));
-            // console.log(`Received ${data.length} file(s)`);
-            // console.log(getNodes(), "current nodes in reactflow")
             
-            // {"data": {"LX9eMG": {"label": "LX9eMG", "type": "structured", "data": {"content": []}}}, "is_complete": false}
             if (!resultNodes.length) return
             const targets = resultNodes.filter(resultNode => getNode(resultNode))
             if (!targets.length) return
@@ -452,7 +513,8 @@ function useJsonConstructUtils() {
                         data: {
                             ...node.data,
                             content: (item.type ?? node.type) === "structured" ? JSON.stringify(item.data.content): item.data.content,
-                            isLoading: false
+                            isLoading: false,
+                            isWaitingForFlow: true  // 从loading变为等待flow完成
                         }
                     }: node)))
                 }
