@@ -13,17 +13,19 @@ export type GroupNodeData = {
 
 type GroupNodeProps = NodeProps<Node<GroupNodeData>>
 
+// 定义允许进入组的节点类型（只允许 block nodes）
+const ALLOWED_NODE_TYPES = ['text', 'file', 'weblink', 'structured'];
+
 // Notion风格的暗色系颜色配置
 const BACKGROUND_COLORS = [
   { name: 'Default', value: 'transparent', preview: '#2A2B2D' },
-  { name: 'Gray', value: 'rgba(55, 53, 47, 0.12)', preview: '#37352F' },
-  { name: 'Brown', value: 'rgba(68, 42, 30, 0.12)', preview: '#442A1E' },
-  { name: 'Red', value: 'rgba(93, 23, 21, 0.12)', preview: '#5D1715' },
-  { name: 'Orange', value: 'rgba(73, 41, 14, 0.12)', preview: '#49290E' },
-  { name: 'Green', value: 'rgba(28, 56, 41, 0.12)', preview: '#1C3829' },
-  { name: 'Blue', value: 'rgba(24, 51, 71, 0.12)', preview: '#183347' },
-  { name: 'Purple', value: 'rgba(60, 45, 73, 0.12)', preview: '#3C2D49' },
-  { name: 'Pink', value: 'rgba(69, 39, 60, 0.12)', preview: '#45273C' },
+  { name: 'Gray', value: 'rgba(85, 83, 77, 0.2)', preview: '#55534D' },
+  { name: 'Brown', value: 'rgba(108, 72, 60, 0.2)', preview: '#6C483C' },
+  { name: 'Red', value: 'rgba(143, 63, 61, 0.2)', preview: '#8F3F3D' },
+  { name: 'Green', value: 'rgba(68, 106, 91, 0.2)', preview: '#446A5B' },
+  { name: 'Blue', value: 'rgba(64, 101, 131, 0.2)', preview: '#406583' },
+  { name: 'Purple', value: 'rgba(110, 95, 133, 0.2)', preview: '#6E5F85' },
+  { name: 'Pink', value: 'rgba(119, 89, 110, 0.2)', preview: '#77596E' },
 ];
 
 function GroupNode({ data, id }: GroupNodeProps) {
@@ -62,34 +64,35 @@ function GroupNode({ data, id }: GroupNodeProps) {
     setShowColorPicker(false);
   }, [id, setNodes]);
 
-  // 计算边框颜色
-  const getBorderColor = () => {
-    if (isLoading) {
-      return '#39BC66'; // 运行时绿色
-    } else if (isActivated) {
-      return '#888888'; // 激活时
+  // 计算边框样式 - 使用outline向外扩展
+  const getBorderStyle = () => {
+    if (isActivated) {
+      return {
+        border: '1px solid #666666',
+        outline: '1px solid #888888',
+        outlineOffset: '0px',
+      };
     } else if (isHovered) {
-      return '#888888'; // hover时灰色
+      return {
+        border: '1px solidrgb(30, 24, 24)',
+        outline: '1px solid #888888',
+        outlineOffset: '0px',
+      };
     } else {
-      return '#666666'; // 默认颜色
+      return {
+        border: '1px solid #666666',
+        outline: 'none',
+      };
     }
   };
 
-  // 计算边框宽度
-  const getBorderWidth = () => {
-    if (isLoading) {
-      return '3px'; // 运行时固定为3px
-    } else if (isActivated) {
-      return '2px';
-    } else if (isHovered) {
-      return '2px';
-    } else {
-      return '1px';
-    }
-  };
-
-  // 检查节点是否在组的范围内
+  // 检查节点是否在组的范围内且是允许的类型
   const isNodeInsideGroup = useCallback((node: Node, groupNode: Node) => {
+    // 首先检查节点类型是否被允许
+    if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
+      return false;
+    }
+
     const nodeWidth = node.width || 200; // 默认节点宽度
     const nodeHeight = node.height || 100; // 默认节点高度
     const groupWidth = groupNode.width || 240;
@@ -124,6 +127,21 @@ function GroupNode({ data, id }: GroupNodeProps) {
     
     const updatedNodes = allNodes.map(node => {
       if (node.type === 'group' || node.id === id) {
+        // 确保 group 节点始终在底层，使用负的 z-index
+        if (node.type === 'group') {
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              zIndex: -1  // 改为负值，确保在所有元素之下
+            }
+          };
+        }
+        return node;
+      }
+
+      // 只处理允许的节点类型
+      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
         return node;
       }
 
@@ -209,443 +227,451 @@ function GroupNode({ data, id }: GroupNodeProps) {
 
   return (
     <div
-      ref={componentRef}
-      className="relative w-full h-full  min-w-[240px] min-h-[176px] cursor-default"
+      className="relative w-full h-full min-w-[240px] min-h-[176px] cursor-default"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* 添加呼吸动画的样式 */}
-      <style jsx>{`
-        @keyframes groupBreathe {
-          0% {
-            border-color: rgba(57, 188, 102, 0.2);
-          }
-          50% {
-            border-color: rgba(57, 188, 102, 1);
-          }
-          100% {
-            border-color: rgba(57, 188, 102, 0.2);
-          }
-        }
-        
-        .group-breathing {
-          animation: groupBreathe 2s ease-in-out infinite;
-          border-width: 3px !important;
-        }
-      `}</style>
-
-      {/* NodeToolbar 必须在节点内部，使用 isVisible 控制显示 */}
-      <NodeToolbar 
-        isVisible={isActivated || isHovered}
-        position={Position.Top} 
-        offset={10} 
-        className="nodrag"
-      >
-        <div className="flex items-center gap-3">
-          {/* 按钮组 */}
-          <div className="flex gap-2 bg-[#181818] border border-[#333333] rounded-md p-1.5 shadow-lg">
-            <button
-              onClick={onRunGroup}
-              disabled={isLoading}
-              className={`px-2 py-1 text-xs bg-[#2A2B2D] hover:bg-[#39BC66] text-white rounded flex items-center gap-1.5 transition-colors ${isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-            >
-              {isLoading ? (
-                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M8 5V19L19 12L8 5Z" fill="currentColor" />
-                </svg>
-              )}
-              {isLoading ? 'Running...' : 'Run'}
-            </button>
-            
-            {/* 分隔符 */}
-            <div className="w-px h-6 bg-[#555555]"></div>
-            
-            {/* 颜色选择器按钮 */}
-            <div className="relative">
-              <button
-                onClick={() => setShowColorPicker(!showColorPicker)}
-                className="px-2 py-1 h-6 text-xs bg-[#2A2B2D] hover:bg-[#3A3B3D] text-white rounded flex items-center gap-1.5 transition-colors"
-                title={`Background: ${getCurrentColorName()}`}
-              >
-                <div 
-                  className="w-3 h-3 rounded border border-[#555555]"
-                  style={{ backgroundColor: currentBackgroundColor === 'transparent' ? '#2A2B2D' : currentBackgroundColor }}
-                ></div>
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M6 9L12 15L18 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </button>
-
-              {/* 颜色选择器面板 */}
-              {showColorPicker && (
-                <div className="absolute top-full left-0 mt-1 bg-[#181818] border border-[#333333] rounded-md p-2 shadow-lg z-50 min-w-[180px]">
-                  <div className="grid grid-cols-5 gap-1.5">
-                    {BACKGROUND_COLORS.map((color) => (
-                      <button
-                        key={color.name}
-                        onClick={() => updateBackgroundColor(color.value)}
-                        className={`w-7 h-7 rounded-full border-2 transition-all hover:scale-110 ${
-                          currentBackgroundColor === color.value 
-                            ? 'border-[#60A5FA] ring-1 ring-[#60A5FA] ring-opacity-50' 
-                            : 'border-[#444444] hover:border-[#666666]'
-                        }`}
-                        style={{ 
-                          backgroundColor: color.value === 'transparent' ? '#2A2B2D' : color.preview 
-                        }}
-                        title={color.name}
-                      >
-                        {color.value === 'transparent' && (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <div className="w-3 h-0.5 bg-[#888888] rotate-45"></div>
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <button
-              onClick={onDetachAll}
-              className="px-2 py-1 text-xs bg-[#2A2B2D] hover:bg-[#3A3B3D] text-white rounded flex items-center justify-center transition-colors"
-              style={{ display: childNodes.length ? 'flex' : 'none' }}
-              title="Detach All"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 14L4 9L9 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M20 20V13C20 11.9391 19.5786 10.9217 18.8284 10.1716C18.0783 9.42143 17.0609 9 16 9H4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-            <button
-              onClick={onDelete}
-              className="px-2 py-1 text-xs bg-[#2A2B2D] hover:bg-[#E53E3E] text-white rounded flex items-center justify-center transition-colors"
-              title="Delete"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z" stroke="currentColor" fill="none" strokeWidth="2" />
-                <path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" stroke="currentColor" fill="none" strokeWidth="2" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Group 标签 - 移到工具栏框外面右侧 */}
-          <div className="flex items-center gap-2">
-            <span className="font-[600] text-[11px] leading-[16px] font-plus-jakarta-sans text-[#6D7177]">
-              {`Group ${data.label}`}
-            </span>
-            {/* 子节点数量指示器 */}
-            {childNodes.length > 0 && (
-              <div className="text-[9px] text-[#6D7177] bg-[#2A2B2D] px-1.5 py-0.5 rounded">
-                {childNodes.length} {childNodes.length === 1 ? 'node' : 'nodes'}
-              </div>
-            )}
-          </div>
-        </div>
-      </NodeToolbar>
-
       <div
         ref={contentRef}
         id={id}
-        className={`w-full h-full min-w-[240px] min-h-[176px] rounded-[24px] overflow-hidden nodrag transition-colors ${
-          isLoading ? 'group-breathing' : ''
-        }`}
+        className="relative w-full h-full min-w-[240px] min-h-[176px] rounded-[24px] overflow-hidden nodrag transition-all duration-100"
         style={{
           borderRadius: '16px',
-          borderWidth: getBorderWidth(),
-          borderStyle: 'solid',
           backgroundColor: currentBackgroundColor,
-          borderColor: getBorderColor(),
+          ...getBorderStyle(),
         }}
         onClick={handleGroupClick}
       >
-        {/* 子节点指示 - 在空白时显示提示 */}
+        {/* 内部 Toolbar - 一直显示 */}
+        <>
+          {/* Group 标签 - 左上角 */}
+          <div className="absolute top-6 left-6 z-50 nodrag">
+            <div className="flex items-center gap-2.5">
+              <span className="font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]">
+                {`Group ${data.label}`}
+              </span>
+              {/* 子节点数量指示器 */}
+              {childNodes.length > 0 && (
+                <div className="text-[10px] text-[#666666] px-1 py-0.5 rounded">
+                  ({childNodes.length} {childNodes.length === 1 ? 'node' : 'nodes'})
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 按钮组 - 右上角 */}
+          <div className="absolute top-6 right-6 z-50  nodrag">
+            <div className="flex gap-2.5 bg-[#1A1A1A]/90 backdrop-blur-sm border border-[#333333]/80 rounded-lg p-2 shadow-lg z-50">
+              <button
+                onClick={onDetachAll}
+                className=" w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md"
+                style={{ display: childNodes.length ? 'flex' : 'none' }}
+                title="Detach All"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 14L4 9L9 4" stroke="#CDCDCD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M20 20V13C20 11.9391 19.5786 10.9217 18.8284 10.1716C18.0783 9.42143 17.0609 9 16 9H4" stroke="#CDCDCD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              
+              <button
+                onClick={onDelete}
+                className=" w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#E53E3E] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#E53E3E] flex items-center justify-center transition-all duration-200 hover:shadow-md"
+                title="Delete"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z" stroke="#CDCDCD" fill="none" strokeWidth="2" />
+                  <path d="M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" stroke="#CDCDCD" fill="none" strokeWidth="2" />
+                </svg>
+              </button>
+
+              {/* 分隔符 */}
+              <div className="w-px h-[32px] bg-[#555555]/80"></div>
+              
+              {/* 颜色选择器按钮 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  className="p-[8px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center gap-2 transition-all duration-200 hover:shadow-md"
+                  title={`Background: ${getCurrentColorName()}`}
+                >
+                  <div 
+                    className="w-3.5 h-3.5 rounded border border-[#555555] shadow-sm"
+                    style={{ backgroundColor: currentBackgroundColor === 'transparent' ? '#2A2B2D' : currentBackgroundColor }}
+                  ></div>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M6 9L12 15L18 9" stroke="#CDCDCD" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+
+                {/* 颜色选择器面板 */}
+                {showColorPicker && (
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-[#1A1A1A]/95 backdrop-blur-md border border-[#333333] rounded-lg p-2 shadow-2xl z-50 min-w-[100px]">
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {BACKGROUND_COLORS.map((color) => (
+                        <button
+                          key={color.name}
+                          onClick={() => updateBackgroundColor(color.value)}
+                          className={`w-4 h-4 rounded-md border-2 transition-all hover:scale-110 shadow-sm ${
+                            currentBackgroundColor === color.value 
+                              ? 'border-[#60A5FA] ring-1 ring-[#60A5FA] ring-opacity-50 shadow-md' 
+                              : 'border-0 hover:border-[#666666] hover:shadow-md'
+                          }`}
+                          style={{ 
+                            backgroundColor: color.value === 'transparent' ? '#2A2B2D' : color.preview 
+                          }}
+                          title={color.name}
+                        >
+                          {color.value === 'transparent' && (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <div className="w-2.5 h-0.5 bg-[#CDCDCD] rotate-45"></div>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <button
+                onClick={onRunGroup}
+                disabled={isLoading}
+                className={`px-3 py-1.5 h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#39BC66] text-[#CDCDCD] hover:text-black rounded-md border border-[#444444] hover:border-[#39BC66] flex items-center gap-2 transition-all duration-200 ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md'
+                  }`}
+              >
+                {isLoading ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-colors duration-200">
+                    <path d="M8 5V19L19 12L8 5Z" fill="currentColor" />
+                  </svg>
+                )}
+                {isLoading ? 'Running...' : 'Test Run'}
+              </button>
+              
+              <button
+                onClick={() => console.log('Deploy group:', id)}
+                className="px-3 py-1.5 h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#FFA73D] text-[#CDCDCD] hover:text-black rounded-md border border-[#444444] hover:border-[#FFA73D] flex items-center gap-2 transition-all duration-200 hover:shadow-md"
+                title="Deploy Group"
+              >
+                <svg width="14" height="12" viewBox="0 0 18 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-colors duration-200">
+                  <path d="M14.5 11L17.5 15H14.5V11Z" fill="currentColor" />
+                  <path d="M3.5 11V15H0.5L3.5 11Z" fill="currentColor" />
+                  <path fillRule="evenodd" clipRule="evenodd" d="M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z" fill="currentColor" />
+                </svg>
+                Deploy
+              </button>
+            </div>
+          </div>
+        </>
+
+        {/* 子节点指示 - 在空白时显示提示，需要考虑 toolbar 的空间 */}
         {childNodes.length === 0 && (
-          <div className="absolute inset-0 flex items-center justify-center text-[#6D7177] text-sm opacity-50 nodrag">
+          <div className="absolute inset-0 flex items-center justify-center text-[#6D7177] text-sm opacity-50 nodrag mt-12">
             Drag nodes here
           </div>
         )}
 
-        {/* 调整手柄在节点被激活或hover时显示 */}
-        {(isActivated || isHovered) && (
-          <>
-            {/* 右侧中间调整手柄 */}
-            <NodeResizeControl
-              position="right"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+        {/* 调整手柄 - 始终渲染但通过opacity控制显示 */}
+        <>
+          {/* 右侧中间调整手柄 */}
+          <NodeResizeControl
+            position="right"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              right: "0px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              cursor: 'e-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                right: "0px",
+                position: "absolute",
+                right: "8px",
                 top: "50%",
                 transform: "translateY(-50%)",
-                cursor: 'e-resize',
-                background: 'transparent',
-                border: 'none'
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "12px",
+                height: "32px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  right: "8px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "12px",
-                  height: "32px",
-                }}
-              >
-                <div className="w-1 h-6 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-1 h-6 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 底部中间调整手柄 */}
-            <NodeResizeControl
-              position="bottom"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 底部中间调整手柄 */}
+          <NodeResizeControl
+            position="bottom"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              bottom: "0px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              cursor: 's-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                bottom: "0px",
+                position: "absolute",
+                bottom: "8px",
                 left: "50%",
                 transform: "translateX(-50%)",
-                cursor: 's-resize',
-                background: 'transparent',
-                border: 'none'
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "32px",
+                height: "12px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "8px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "32px",
-                  height: "12px",
-                }}
-              >
-                <div className="w-6 h-1 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-6 h-1 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 左侧中间调整手柄 */}
-            <NodeResizeControl
-              position="left"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 左侧中间调整手柄 */}
+          <NodeResizeControl
+            position="left"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              left: "0px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              cursor: 'w-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                left: "0px",
+                position: "absolute",
+                left: "8px",
                 top: "50%",
                 transform: "translateY(-50%)",
-                cursor: 'w-resize',
-                background: 'transparent',
-                border: 'none'
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "12px",
+                height: "32px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  left: "8px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "12px",
-                  height: "32px",
-                }}
-              >
-                <div className="w-1 h-6 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-1 h-6 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 顶部中间调整手柄 */}
-            <NodeResizeControl
-              position="top"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 顶部中间调整手柄 */}
+          <NodeResizeControl
+            position="top"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              top: "0px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              cursor: 'n-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                top: "0px",
+                position: "absolute",
+                top: "8px",
                 left: "50%",
                 transform: "translateX(-50%)",
-                cursor: 'n-resize',
-                background: 'transparent',
-                border: 'none'
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "32px",
+                height: "12px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  top: "8px",
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "32px",
-                  height: "12px",
-                }}
-              >
-                <div className="w-6 h-1 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-6 h-1 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 角落调整手柄 */}
-            {/* 右下角调整手柄 */}
-            <NodeResizeControl
-              position="bottom-right"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 角落调整手柄 */}
+          {/* 右下角调整手柄 */}
+          <NodeResizeControl
+            position="bottom-right"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              right: "0px",
+              bottom: "0px",
+              cursor: 'se-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                right: "0px",
-                bottom: "0px",
-                cursor: 'se-resize',
-                background: 'transparent',
-                border: 'none'
+                position: "absolute",
+                right: "8px",
+                bottom: "8px",
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "16px",
+                height: "16px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  right: "8px",
-                  bottom: "8px",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "16px",
-                  height: "16px",
-                }}
-              >
-                <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 左下角调整手柄 */}
-            <NodeResizeControl
-              position="bottom-left"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 左下角调整手柄 */}
+          <NodeResizeControl
+            position="bottom-left"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              left: "0px",
+              bottom: "0px",
+              cursor: 'sw-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                left: "0px",
-                bottom: "0px",
-                cursor: 'sw-resize',
-                background: 'transparent',
-                border: 'none'
+                position: "absolute",
+                left: "8px",
+                bottom: "8px",
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "16px",
+                height: "16px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  left: "8px",
-                  bottom: "8px",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "16px",
-                  height: "16px",
-                }}
-              >
-                <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 右上角调整手柄 */}
-            <NodeResizeControl
-              position="top-right"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 右上角调整手柄 */}
+          <NodeResizeControl
+            position="top-right"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              right: "0px",
+              top: "0px",
+              cursor: 'ne-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                right: "0px",
-                top: "0px",
-                cursor: 'ne-resize',
-                background: 'transparent',
-                border: 'none'
+                position: "absolute",
+                right: "8px",
+                top: "8px",
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "16px",
+                height: "16px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  right: "8px",
-                  top: "8px",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "16px",
-                  height: "16px",
-                }}
-              >
-                <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
+              <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
 
-            {/* 左上角调整手柄 */}
-            <NodeResizeControl
-              position="top-left"
-              minWidth={240}
-              minHeight={176}
-              onResizeEnd={handleResizeEnd}
+          {/* 左上角调整手柄 */}
+          <NodeResizeControl
+            position="top-left"
+            minWidth={240}
+            minHeight={176}
+            onResizeEnd={handleResizeEnd}
+            style={{
+              position: 'absolute',
+              left: "0px",
+              top: "0px",
+              cursor: 'nw-resize',
+              background: 'transparent',
+              border: 'none',
+              opacity: (isActivated || isHovered) ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: (isActivated || isHovered) ? 'auto' : 'none'
+            }}
+          >
+            <div
               style={{
-                position: 'absolute',
-                left: "0px",
-                top: "0px",
-                cursor: 'nw-resize',
-                background: 'transparent',
-                border: 'none'
+                position: "absolute",
+                left: "8px",
+                top: "8px",
+                display: "flex",
+                justifyContent: 'center',
+                alignItems: 'center',
+                backgroundColor: 'transparent',
+                zIndex: "200000",
+                width: "16px",
+                height: "16px",
               }}
             >
-              <div
-                style={{
-                  position: "absolute",
-                  left: "8px",
-                  top: "8px",
-                  display: "flex",
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  backgroundColor: 'transparent',
-                  zIndex: "200000",
-                  width: "16px",
-                  height: "16px",
-                }}
-              >
-                <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-colors"></div>
-              </div>
-            </NodeResizeControl>
-          </>
-        )}
+              <div className="w-2 h-2 bg-[#6D7177] hover:bg-[#CDCDCD] rounded-full transition-all duration-200"></div>
+            </div>
+          </NodeResizeControl>
+        </>
       </div>
     </div>
   );

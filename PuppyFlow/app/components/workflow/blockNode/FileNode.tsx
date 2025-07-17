@@ -12,6 +12,7 @@ export type FileNodeData = {
   content: string,
   label: string,
   isLoading: boolean,
+  isWaitingForFlow: boolean,
   locked: boolean,
   isInput: boolean,
   isOutput: boolean,
@@ -21,8 +22,18 @@ export type FileNodeData = {
 
 type FileNodeProps = NodeProps<Node<FileNodeData>>
 
-function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput, editable }, type, isConnectable, id }: FileNodeProps) {
-  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside } = useNodesPerFlowContext()
+function FileNode({ data: { content, label, isLoading, isWaitingForFlow, locked, isInput, isOutput, editable }, type, isConnectable, id }: FileNodeProps) {
+  const { 
+    activatedNode, 
+    isOnConnect, 
+    isOnGeneratingNewNode, 
+    setNodeUneditable, 
+    editNodeLabel, 
+    preventInactivateNode, 
+    allowInactivateNodeWhenClickOutside,
+    activateNode,
+    inactivateNode
+  } = useNodesPerFlowContext()
   const { getNode, setNodes } = useReactFlow()
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
@@ -33,6 +44,7 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
   const [isLocalEdit, setIsLocalEdit] = useState(false)
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
+  const [isHovered, setIsHovered] = useState(false)
 
   // 从节点加载初始文件
   const initialFiles = React.useMemo(() => {
@@ -77,12 +89,18 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
   const effectiveIsOutput = isOutput || dynamicIsOutput
 
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isLoading) {
+      setBorderColor("border-[#FFA500]");
+    } else if (isWaitingForFlow) {
+      setBorderColor("border-[#39bc66]");
+    } else if (activatedNode?.id === id) {
+      setBorderColor("border-[#BF9A78]");
+    } else if (isHovered) {
       setBorderColor("border-[#BF9A78]");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, effectiveIsInput, effectiveIsOutput, id])
+  }, [activatedNode, isHovered, isOnConnect, isTargetHandleTouched, locked, effectiveIsInput, effectiveIsOutput, id, isLoading, isWaitingForFlow])
 
   // 管理labelContainer的宽度
   useEffect(() => {
@@ -170,7 +188,17 @@ function FileNode({ data: { content, label, isLoading, locked, isInput, isOutput
   }
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div 
+      ref={componentRef} 
+      className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}
+      onMouseEnter={() => {
+        setIsHovered(true)
+        activateNode(id)
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false)
+      }}
+    >
       <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
         {effectiveIsInput && (
           <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">

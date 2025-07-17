@@ -1080,3 +1080,20 @@
 .scrollbar-hide::-webkit-scrollbar {
     display: none;             /* Chrome, Safari and Opera */
 }
+
+/* TextBlock Loading 呼吸效果 - 只影响边框 */
+.breathing-border {
+  animation: breathing-border 1.5s infinite;
+}
+
+@keyframes breathing-border {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
