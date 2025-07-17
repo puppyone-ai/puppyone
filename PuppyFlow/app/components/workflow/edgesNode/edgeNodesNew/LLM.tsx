@@ -6,10 +6,11 @@ import InputOutputDisplay from './components/InputOutputDisplay'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
 import PromptEditor, { PromptMessage } from '../../components/promptEditor'
-import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { useAppSettings, Model } from '@/app/components/states/AppSettingsContext'
 import { UI_COLORS } from '@/app/utils/colors'
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
+import { runSingleEdgeNode, RunSingleEdgeNodeContext } from './hook/runSingleEdgeNodeExecutor'
 
 export type LLMConfigNodeData = {
     looped: boolean | undefined,
@@ -56,10 +57,15 @@ export type ConstructedLLMJsonData = {
 function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode, setNodes } = useReactFlow()
+    const { getNode, setNodes, setEdges } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
+    
+    // 获取所有需要的依赖
+    const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getAuthHeaders } = useAppSettings()
     
     // 使用 AppSettingsContext
     const { availableModels, isLocalDeployment } = useAppSettings()
@@ -160,6 +166,40 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
         return (getNode(id)?.data?.content as PromptMessage[]) || defaultMessages;
     });
 
+    // 创建执行上下文
+    const createExecutionContext = useCallback((): RunSingleEdgeNodeContext => ({
+        getNode,
+        setNodes,
+        setEdges,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
+        getAuthHeaders,
+    }), [getNode, setNodes, setEdges, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, reportError, resetLoadingUI, getAuthHeaders]);
+
+    // 使用执行函数的 handleDataSubmit
+    const handleDataSubmit = useCallback(async () => {
+        if (isLoading) return;
+        
+        setIsLoading(true);
+        try {
+            const context = createExecutionContext();
+            await runSingleEdgeNode({
+                parentId: id,
+                targetNodeType: 'text',
+                context,
+                // 可以选择不提供 constructJsonData，使用默认实现
+            });
+        } catch (error) {
+            console.error('执行失败:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [id, isLoading, createExecutionContext]);
+
     // 处理 PromptEditor 的变更
     const handleMessagesChange = useCallback((updatedMessages: PromptMessage[]) => {
         messagesRef.current = updatedMessages;
@@ -182,12 +222,6 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
             type: label.type
         }));
     }, [sourceNodeLabels]);
-
-    // Replace the useBaseEdgeNodeLogic call with minimal parameters
-    const { isLoading, handleDataSubmit } = useBaseEdgeNodeLogic({
-        parentId: id,
-        targetNodeType: "text"
-    });
 
     // 修改数据提交处理
     const onDataSubmit = useCallback(() => {
@@ -384,6 +418,7 @@ function LLM({ isConnectable, id }: LLMConfigNodeProps) {
     // 添加停止函数
     const onStopExecution = useCallback(() => {
         console.log("Stop execution");
+        setIsLoading(false);
         // 暂时可以留空，或者调用相应的停止API
     }, []);
 

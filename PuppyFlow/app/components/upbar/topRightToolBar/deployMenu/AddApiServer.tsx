@@ -4,8 +4,8 @@ import { useServers } from '@/app/components/states/UserServersContext';
 import { useServerOperations } from '@/app/components/hooks/useServerManagement';
 import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
 import { useAppSettings } from '@/app/components/states/AppSettingsContext';
-import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useEdgeNodeBackEndJsonBuilder';
-import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/useBlockNodeBackEndJsonBuilder';
+import { useEdgeNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/hookhistory/useEdgeNodeBackEndJsonBuilder';
+import { useBlockNodeBackEndJsonBuilder } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/hookhistory/useBlockNodeBackEndJsonBuilder';
 import { SYSTEM_URLS } from '@/config/urls';
 
 interface DeployAsApiProps {

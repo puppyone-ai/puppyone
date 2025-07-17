@@ -4,9 +4,9 @@ import useJsonConstructUtils, {
     backend_IP_address_for_sendingData,
     BasicNodeData,
     NodeJsonType
-} from '../../../../hooks/useJsonConstructUtils';
-import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
-import { useAppSettings } from '../../../../states/AppSettingsContext';
+} from '../../../../../hooks/useJsonConstructUtils';
+import { useNodesPerFlowContext } from '../../../../../states/NodesPerFlowContext';
+import { useAppSettings } from '../../../../../states/AppSettingsContext';
 import {
     useEdgeNodeBackEndJsonBuilder,
     EdgeNodeType,
@@ -28,6 +28,8 @@ export function useRunGroupNodeLogic({
     groupNodeId: string;
     constructJsonData?: () => BaseConstructedJsonData;
 }): GroupNodeLogicReturn {
+
+    console.log(`🔄 [useRunGroupNodeLogic] Hook初始化 - groupNodeId: ${groupNodeId}`);
 
     // Basic hooks
     const { getNode, setNodes, getNodes } = useReactFlow();
@@ -52,7 +54,10 @@ export function useRunGroupNodeLogic({
 
     // 步骤1: 获取组内所有的 BlockNode
     const getGroupBlockNodes = () => {
+        console.log(`📊 [getGroupBlockNodes] 开始执行 - groupNodeId: ${groupNodeId}`);
+        
         const allNodes = getNodes();
+        console.log(`📊 [getGroupBlockNodes] 获取所有节点数量: ${allNodes.length}`);
         
         // 定义blockNode的类型
         const blockNodeTypes = ['text', 'file', 'weblink', 'structured'];
@@ -65,39 +70,58 @@ export function useRunGroupNodeLogic({
             return isInGroup && isBlockNode;
         });
 
-        return groupBlockNodes.map(node => ({
+        console.log(`📊 [getGroupBlockNodes] 组内BlockNode数量: ${groupBlockNodes.length}`);
+        
+        const result = groupBlockNodes.map(node => ({
             id: node.id,
             label: String(node.data?.label || node.id)
         }));
+        
+        console.log(`📊 [getGroupBlockNodes] 执行完成，返回:`, result);
+        return result;
     };
 
     // 步骤1: 根据组内的blocknode找到它的input和output的edgenode
     const collectAllRelatedEdgeNodes = (blockNodes: { id: string, label: string }[]) => {
+        console.log(`🔗 [collectAllRelatedEdgeNodes] 开始执行 - 处理${blockNodes.length}个block nodes`);
+        
         const allEdgeNodes = new Set<string>();
 
         blockNodes.forEach(blockNode => {
+            console.log(`🔗 [collectAllRelatedEdgeNodes] 处理blockNode: ${blockNode.id}`);
+            
             // 获取每个blockNode的源节点（连入该block的edge nodes）
             const sourceNodes = getSourceNodeIdWithLabel(blockNode.id, 'edgenode');
+            console.log(`🔗 [collectAllRelatedEdgeNodes] ${blockNode.id} 的源节点数量: ${sourceNodes.length}`);
+            
             sourceNodes.forEach(sourceNode => {
                 allEdgeNodes.add(sourceNode.id);
             });
 
             // 获取每个blockNode的目标节点（从该block连出的edge nodes）
             const targetNodes = getTargetNodeIdWithLabel(blockNode.id, 'edgenode');
+            console.log(`🔗 [collectAllRelatedEdgeNodes] ${blockNode.id} 的目标节点数量: ${targetNodes.length}`);
+            
             targetNodes.forEach(targetNode => {
                 allEdgeNodes.add(targetNode.id);
             });
         });
 
-        return Array.from(allEdgeNodes);
+        const result = Array.from(allEdgeNodes);
+        console.log(`🔗 [collectAllRelatedEdgeNodes] 执行完成，找到${result.length}个edge nodes`);
+        return result;
     };
 
     // 步骤2: 确定哪些edgenode要被提交到后端：input和output都至少有一个blocknode在group里面
     const filterValidEdgeNodes = (edgeNodeIds: string[], groupBlockNodeIds: string[]) => {
+        console.log(`✅ [filterValidEdgeNodes] 开始执行 - 处理${edgeNodeIds.length}个edge nodes`);
+        
         const validEdgeNodes: string[] = [];
         const groupBlockNodeSet = new Set(groupBlockNodeIds);
 
         edgeNodeIds.forEach(edgeNodeId => {
+            console.log(`✅ [filterValidEdgeNodes] 处理edge node: ${edgeNodeId}`);
+            
             // 获取该edge node的输入节点（source nodes）
             const inputNodes = getSourceNodeIdWithLabel(edgeNodeId, 'blocknode');
             const inputNodeIds = inputNodes.map(node => node.id);
@@ -121,11 +145,14 @@ export function useRunGroupNodeLogic({
             }
         });
 
+        console.log(`✅ [filterValidEdgeNodes] 执行完成，${validEdgeNodes.length}个有效edge nodes`);
         return validEdgeNodes;
     };
 
     // 步骤3: 根据确定好的要提交到后端的edgenode，找到所有input和output的blocknode（无论在不在group里面），然后剔除相同的
     const collectAllRelatedBlockNodes = (validEdgeNodeIds: string[]) => {
+        console.log(`📦 [collectAllRelatedBlockNodes] 开始执行 - 处理${validEdgeNodeIds.length}个有效edge nodes`);
+        
         const allBlockNodes = new Set<string>();
 
         // 处理每个有效的edge node
@@ -154,6 +181,8 @@ export function useRunGroupNodeLogic({
 
     // 构建包含所有相关节点的JSON数据
     const constructGroupNodeJson = (): BaseConstructedJsonData => {
+        console.log(`🚀 [constructGroupNodeJson] 开始构建JSON数据`);
+        
         try {
             // 步骤1: 获取组内所有 block nodes
             const groupBlockNodes = getGroupBlockNodes();
@@ -179,6 +208,8 @@ export function useRunGroupNodeLogic({
             console.log('📦 步骤3 - 所有相关的block nodes:', allRelatedBlockNodeIds);
 
             // 步骤4: 使用确定要提交到后端的blocknode和edgenode构建JSON
+            console.log(`🔧 [constructGroupNodeJson] 开始构建blocks和edges`);
+            
             let blocks: { [key: string]: NodeJsonType } = {};
             let edges: { [key: string]: any } = {};
 
@@ -187,6 +218,8 @@ export function useRunGroupNodeLogic({
 
             // 构建所有相关的block nodes
             allRelatedBlockNodeIds.forEach(blockNodeId => {
+                console.log(`🔧 [constructGroupNodeJson] 构建block node: ${blockNodeId}`);
+                
                 const node = getNode(blockNodeId);
                 if (!node) return;
 
@@ -201,6 +234,7 @@ export function useRunGroupNodeLogic({
                             ...blockJson,
                             label: String(nodeLabel)
                         };
+                        console.log(`✅ [constructGroupNodeJson] 成功构建block node: ${blockNodeId}`);
                     } catch (e) {
                         console.warn(`无法使用blockNodeBuilder构建节点 ${blockNodeId}:`, e);
 
@@ -216,9 +250,12 @@ export function useRunGroupNodeLogic({
 
             // 构建所有有效的 edge nodes的JSON
             validEdgeNodeIds.forEach(edgeNodeId => {
+                console.log(`🔧 [constructGroupNodeJson] 构建edge node: ${edgeNodeId}`);
+                
                 try {
                     const edgeJson = buildEdgeNodeJson(edgeNodeId);
                     edges[edgeNodeId] = edgeJson;
+                    console.log(`✅ [constructGroupNodeJson] 成功构建edge node: ${edgeNodeId}`);
                 } catch (e) {
                     console.warn(`无法构建边节点 ${edgeNodeId} 的JSON:`, e);
                 }
@@ -267,6 +304,8 @@ export function useRunGroupNodeLogic({
 
     // 步骤5: 发送数据到后端并保持现有的更新逻辑
     const sendDataToTargets = async () => {
+        console.log(`🚀 [sendDataToTargets] 开始发送数据到后端`);
+        
         const groupBlockNodes = getGroupBlockNodes();
 
         if (groupBlockNodes.length === 0) {
@@ -337,6 +376,8 @@ export function useRunGroupNodeLogic({
         }));
 
         try {
+            console.log(`🌐 [sendDataToTargets] 开始发送HTTP请求`);
+            
             const response = await fetch(`${backend_IP_address_for_sendingData}`, {
                 method: 'POST',
                 headers: {
@@ -358,6 +399,8 @@ export function useRunGroupNodeLogic({
 
             // 处理后端返回的数据并更新节点
             if (result && result.task_id) {
+                console.log(`🔄 [sendDataToTargets] 开始流式处理，task_id: ${result.task_id}`);
+                
                 // 使用输出节点的ID进行流式处理
                 const resultNodeIds = Array.from(outputNodeIds);
                 
@@ -392,14 +435,19 @@ export function useRunGroupNodeLogic({
 
     // 添加useEffect来处理异步流程
     useEffect(() => {
+        console.log(`🔄 [useEffect] 执行 - isComplete: ${isComplete}`);
+        
         if (isComplete) return;
 
         const processGroupNode = async () => {
+            console.log(`🔄 [processGroupNode] 开始处理Group节点`);
+            
             try {
                 await sendDataToTargets();
             } catch (error) {
                 console.error("GroupNode 处理过程中出错:", error);
             } finally {
+                console.log(`🔄 [processGroupNode] 完成处理Group节点`);
                 setIsComplete(true);
                 setIsLoading(false);
             }
@@ -410,12 +458,17 @@ export function useRunGroupNodeLogic({
 
     // 修改数据提交主函数
     const handleDataSubmit = async (...args: any[]) => {
+        console.log(`🚀 [handleDataSubmit] 开始处理数据提交 - isComplete: ${isComplete}`);
+        
         if (!isComplete) return;  // 防止重复提交
 
+        console.log(`🔄 [handleDataSubmit] 设置loading状态和触发流程`);
         setIsLoading(true);
         clearAll();
         setIsComplete(false);  // 触发useEffect
     };
+
+    console.log(`🔄 [useRunGroupNodeLogic] Hook返回状态 - isLoading: ${isLoading}`);
 
     return {
         isLoading,
