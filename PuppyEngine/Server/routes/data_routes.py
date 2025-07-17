@@ -18,7 +18,7 @@ from Server.utils.response_utils import (
     create_usage_insufficient_response, 
     create_usage_service_error_response
 )
-from Server.utils.serializers import json_serializer
+from Server.utils.serializers import json_serializer, safe_json_serialize
 from Server.WorkFlow import WorkFlow
 from Server.usage_module import UsageError
 from Utils.puppy_exception import PuppyException
@@ -30,6 +30,7 @@ data_router = APIRouter()
 @data_router.get("/get_data/{task_id}")
 async def get_data(
     task_id: str,
+    request: Request,
     wait: bool = True,  # 是否等待锁释放
     timeout: float = 60.0,  # 等待超时时间(秒)
     retry_attempts: int = 5,  # 重试次数
@@ -41,6 +42,7 @@ async def get_data(
     
     Args:
         task_id: Task identifier
+        request: FastAPI request object
         wait: Whether to wait for lock release
         timeout: Wait timeout in seconds
         retry_attempts: Number of retry attempts
@@ -50,10 +52,8 @@ async def get_data(
     Returns:
         StreamingResponse: Server-sent events stream
     """
+    data_store = request.app.state.data_store
     try:
-        # Import data_store here to avoid circular import
-        from Server.EngineServer import data_store
-        
         # 尝试获取任务锁，根据wait参数决定是否阻塞等待
         if not data_store.acquire_task_lock(task_id, blocking=wait, timeout=timeout if wait else None):
             raise PuppyException(
@@ -153,9 +153,6 @@ async def get_data(
                         # 意外的usage错误，继续执行但记录警告
                         log_warning(f"Connection {connection_id}: Continuing execution despite usage error")
                 
-                # 初始化异步usage处理
-                workflow.initialize_async_usage_processing(edge_usage_callback)
-                
                 # 使用上下文管理器自动管理资源
                 with workflow:
                     for yielded_blocks in workflow.process(edge_usage_callback):
@@ -173,7 +170,6 @@ async def get_data(
                         log_debug(f"Connection {connection_id}: Yield #{yield_count} - Time since last yield: {time_since_last:.3f}s, Total time: {time_since_start:.3f}s")
                         
                         # 使用安全的JSON序列化函数处理大文本内容和特殊字符
-                        from Server.utils.serializers import safe_json_serialize
                         json_data = safe_json_serialize({'data': yielded_blocks, 'is_complete': False, 'runs_consumed': total_runs_consumed})
                         yield f"data: {json_data}\n\n"
                         
@@ -181,13 +177,6 @@ async def get_data(
                         last_yield_time = time.time()
                         yield_after_time = last_yield_time - current_time
                         log_debug(f"Connection {connection_id}: Yield #{yield_count} completed - Yield operation took: {yield_after_time:.3f}s")
-                    
-                    # 处理待处理的usage任务（如果有异步环境不可用的情况）
-                    try:
-                        workflow.process_pending_usage_tasks_sync(edge_usage_callback)
-                        log_info(f"Connection {connection_id}: Pending usage tasks processed")
-                    except Exception as e:
-                        log_warning(f"Connection {connection_id}: Error processing pending usage tasks: {str(e)}")
                     
                     # 记录最终完成信号的时间
                     final_time = time.time()
@@ -230,7 +219,6 @@ async def get_data(
     
     except Exception as e:
         # 确保在异常情况下也释放锁
-        from Server.EngineServer import data_store
         data_store.release_task_lock(task_id)
         return create_error_response(e, task_id)
 
@@ -252,11 +240,9 @@ async def send_data(
     """
     log_info("Sending data to server")
     task_id = None
+    data_store = request.app.state.data_store
     
     try:
-        # Import data_store here to avoid circular import
-        from Server.EngineServer import data_store
-        
         data = await request.json()
         task_id = str(uuid.uuid4())
         
