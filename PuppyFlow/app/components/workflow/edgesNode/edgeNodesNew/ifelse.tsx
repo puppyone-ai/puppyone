@@ -5,9 +5,11 @@ import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
 import { nanoid } from 'nanoid'
-import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
+import { useAppSettings } from '@/app/components/states/AppSettingsContext'
+import { runSingleEdgeNode, RunSingleEdgeNodeContext } from './hook/runSingleEdgeNodeExecutor'
 
 export type ChooseConfigNodeData = {
     looped?: boolean | undefined,
@@ -81,12 +83,17 @@ export type ConstructedChooseJsonData = {
 function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode, setNodes } = useReactFlow()
+    const { getNode, setNodes, setEdges } = useReactFlow()
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
+
+    // 获取所有需要的依赖
+    const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getAuthHeaders } = useAppSettings()
 
     // State management
     const [cases, setCases] = useState<CaseItem[]>(() => {
@@ -113,14 +120,38 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
     // Source node labels with type info
     const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([])
 
-    // Replace the useIfElseLogic hook with useBaseEdgeNodeLogic
-    const { 
-        isLoading,
-        handleDataSubmit 
-    } = useBaseEdgeNodeLogic({
-        parentId: id,
-        targetNodeType: 'ifelse',  // Specify the node type as ifelse
-    });
+    // 创建执行上下文
+    const createExecutionContext = useCallback((): RunSingleEdgeNodeContext => ({
+        getNode,
+        setNodes,
+        setEdges,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
+        getAuthHeaders,
+    }), [getNode, setNodes, setEdges, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, reportError, resetLoadingUI, getAuthHeaders]);
+
+    // 使用执行函数的 handleDataSubmit
+    const handleDataSubmit = useCallback(async () => {
+        if (isLoading) return;
+        
+        setIsLoading(true);
+        try {
+            const context = createExecutionContext();
+            await runSingleEdgeNode({
+                parentId: id,
+                targetNodeType: 'ifelse',
+                context,
+            });
+        } catch (error) {
+            console.error('执行失败:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [id, isLoading, createExecutionContext]);
 
     // Initialize component
     useEffect(() => {
@@ -446,6 +477,13 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
         });
     }
 
+    // 添加停止函数
+    const onStopExecution = useCallback(() => {
+        console.log("Stop execution");
+        setIsLoading(false);
+        // 暂时可以留空，或者调用相应的停止API
+    }, []);
+
     return (
         <div className='p-[3px] w-[80px] h-[48px] relative'>
             {/* Invisible hover area between node and run button */}
@@ -461,20 +499,19 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                     (isHovered || isRunButtonHovered) ? 'opacity-100' : 'opacity-0'
                 }`}
                 style={{
-                    backgroundColor: isRunButtonHovered ? '#39BC66' : '#181818',
-                    borderColor: isRunButtonHovered ? '#39BC66' : UI_COLORS.EDGENODE_BORDER_GREY,
+                    backgroundColor: isRunButtonHovered ? (isLoading ? '#FFA73D' : '#39BC66') : '#181818',
+                    borderColor: isRunButtonHovered ? (isLoading ? '#FFA73D' : '#39BC66') : UI_COLORS.EDGENODE_BORDER_GREY,
                     color: isRunButtonHovered ? '#000' : UI_COLORS.EDGENODE_BORDER_GREY
                 }}
-                onClick={onDataSubmit}
-                disabled={isLoading}
+                onClick={isLoading ? onStopExecution : onDataSubmit}
+                disabled={false}
                 onMouseEnter={() => setIsRunButtonHovered(true)}
                 onMouseLeave={() => setIsRunButtonHovered(false)}
             >
                 <span>
                     {isLoading ? (
-                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <svg width="6" height="6" viewBox="0 0 6 6" fill="none">
+                            <rect width="6" height="6" fill="currentColor" />
                         </svg>
                     ) : (
                         <svg xmlns="http://www.w3.org/2000/svg" width="6" height="8" viewBox="0 0 8 10" fill="none">
@@ -483,7 +520,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                     )}
                 </span>
                 <span>
-                    {isLoading ? '' : 'Run'}
+                    {isLoading ? 'Stop' : 'Run'}
                 </span>
             </button>
 
@@ -493,8 +530,8 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                 onMouseLeave={() => setIsHovered(false)}
                 className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors gap-[4px]`}
                 style={{
-                    borderColor: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY,
-                    color: isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY
+                    borderColor: isLoading ? '#FFA73D' : (isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY),
+                    color: isLoading ? '#FFA73D' : (isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY)
                 }}
             >
                 {/* IF/ELSE SVG icon */}
@@ -574,14 +611,18 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                             </div>
                         </div>
                         <div className='flex flex-row gap-[8px] items-center justify-center'>
-                            <button className='w-[57px] h-[26px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                                onClick={onDataSubmit}
-                                disabled={isLoading}>
+                            <button 
+                                className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                                style={{
+                                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66'
+                                }}
+                                onClick={isLoading ? onStopExecution : onDataSubmit}
+                                disabled={false}
+                            >
                                 <span>
                                     {isLoading ? (
-                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                                            <rect width="8" height="8" fill="currentColor" />
                                         </svg>
                                     ) : (
                                         <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
@@ -590,7 +631,7 @@ function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
                                     )}
                                 </span>
                                 <span>
-                                    {isLoading ? '' : 'Run'}
+                                    {isLoading ? 'Stop' : 'Run'}
                                 </span>
                             </button>
                         </div>

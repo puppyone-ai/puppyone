@@ -59,7 +59,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [nodeLabel, setNodeLabel] = useState(label ?? id)
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
-  const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   const [isHovered, setIsHovered] = useState(false) // 添加 hover 状态
 
   // Get connected nodes
@@ -87,22 +86,6 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
       if (isOutput) manageNodeasOutput(id);
     }
   }, [sourceNodes.length, targetNodes.length, isInput, isOutput, id]);
-
-
-
-  useEffect(() => {
-    if (isLoading) {
-      setBorderColor("border-[#FFA500]"); // 绿色 - 正在加载
-    } else if (isWaitingForFlow) {
-      setBorderColor("border-[#39bc66]"); // 橙色 - 等待流程
-    } else if (activatedNode?.id === id) {
-      setBorderColor("border-main-blue");
-    } else if (isHovered) {
-      setBorderColor("border-main-blue");
-    } else {
-      setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
-    }
-  }, [activatedNode, isHovered, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id, isLoading, isWaitingForFlow])
 
 
   const displaySourceNodeLabels = () => {
@@ -286,6 +269,15 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     ))
   }, [id, setNodes])
 
+  // 添加一个纯函数来计算边框颜色
+  const getBorderColor = () => {
+    if (isLoading) return "border-[#FFA500]";
+    if (isWaitingForFlow) return "border-[#39bc66]";
+    if (activatedNode?.id === id) return "border-main-blue";
+    if (isHovered) return "border-main-blue";
+    return isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey";
+  };
+
   return (
     <div
       ref={componentRef}
@@ -342,7 +334,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
       </div>
 
-      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[240px] min-h-[176px] rounded-[16px] px-[8px] pt-[8px] pb-[4px] ${borderColor} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden flex flex-col text-block-node`}>
+      <div ref={contentRef} id={id} className={`w-full h-full border-[1.5px] min-w-[240px] min-h-[176px] rounded-[16px] px-[8px] pt-[8px] pb-[4px] ${getBorderColor()} text-[#CDCDCD] bg-main-black-theme break-words font-plus-jakarta-sans text-base leading-5 font-[400] overflow-hidden flex flex-col text-block-node`}>
 
         {/* the top bar of a block */}
         <div ref={labelContainerRef}

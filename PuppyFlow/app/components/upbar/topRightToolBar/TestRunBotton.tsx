@@ -1,19 +1,26 @@
 import React, { useState } from 'react'
-import { useBaseEdgeNodeLogic } from '../../workflow/edgesNode/edgeNodesNew/hook/useRunAllLogic'
 import { useReactFlow } from '@xyflow/react'
+import { runAllNodes, RunAllNodesContext } from '../../workflow/edgesNode/edgeNodesNew/hook/runAllNodesExecutor'
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
+import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
+import { useAppSettings } from '@/app/components/states/AppSettingsContext'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 function TestRunBotton() {
   const [hovered, setHovered] = useState(false)
   const [isComplete, setIsComplete] = useState(true)
-  const { getNodes } = useReactFlow()
+  const { getNodes, getNode, setNodes, getEdges } = useReactFlow()
   
-  // 初始化 useBaseEdgeNodeLogic
-  // 注意：这里我们传入一个临时ID作为parentId，因为我们是全局运行
-  // 实际中，你可能需要动态找到一个主节点或根节点作为parentId
-  const { handleDataSubmit, } = useBaseEdgeNodeLogic({
-    onComplete: () => setIsComplete(true),
-    onStart: () => setIsComplete(false)
-  })
+  // 获取需要的hooks
+  const {
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI
+  } = useJsonConstructUtils()
+  const { clearAll } = useNodesPerFlowContext()
+  const { getAuthHeaders } = useAppSettings()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
 
   const onDataSubmit = async () => {
     // 如果正在加载中，则不执行
@@ -33,13 +40,35 @@ function TestRunBotton() {
       // 设置为处理中
       setIsComplete(false)
       
-      // 执行处理逻辑
-      await handleDataSubmit()
+      // 创建执行上下文
+      const context: RunAllNodesContext = {
+        getNode,
+        getNodes,
+        getEdges,
+        setNodes,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        streamResultForMultipleNodes,
+        reportError,
+        resetLoadingUI,
+        getAuthHeaders
+      }
+      
+      // 执行全局运行
+      await runAllNodes({
+        context,
+        onComplete: () => setIsComplete(true),
+        onStart: () => console.log('开始全局运行')
+      })
       
       console.log('All nodes have been processed successfully')
     } catch (error) {
       console.error('Error processing nodes:', error)
       alert('An error occurred while processing nodes. See console for details.')
+    } finally {
+      setIsComplete(true)
     }
   }
 

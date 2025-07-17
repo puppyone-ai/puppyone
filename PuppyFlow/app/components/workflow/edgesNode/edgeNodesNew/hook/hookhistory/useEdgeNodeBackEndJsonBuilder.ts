@@ -1,5 +1,5 @@
 import { useReactFlow } from '@xyflow/react';
-import { NodeJsonType } from '../../../../hooks/useJsonConstructUtils';
+import { NodeJsonType } from '../../../../../hooks/useJsonConstructUtils';
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 
 // 基础类型定义
