@@ -1,11 +1,13 @@
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
+import { useAppSettings } from '@/app/components/states/AppSettingsContext'
+import { runSingleEdgeNode, RunSingleEdgeNodeContext } from './hook/runSingleEdgeNodeExecutor'
 
 // 前端节点配置数据
 export type ChunkingConfigNodeData = {
@@ -38,13 +40,18 @@ const commonDelimiters = [
 function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: ChunkingByCharacterProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode, setNodes } = useReactFlow()
+    const { getNode, getInternalNode, setNodes, setEdges } = useReactFlow()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
+    const [isLoading, setIsLoading] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const newDelimiterRef = useRef<HTMLInputElement>(null)
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
+    
+    // 获取所有需要的依赖
+    const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
+    const { getAuthHeaders } = useAppSettings()
 
     // 使用 delimiters 状态
     const [delimiters, setDelimiters] = useState<string[]>(() => {
@@ -88,14 +95,39 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
         }
     }, [delimiters, id, getNode, setNodes]);
 
-    // 使用基础 edge node 逻辑，简化参数
-    const {
-        isLoading,
-        handleDataSubmit
-    } = useBaseEdgeNodeLogic({
-        parentId: id,
-        targetNodeType: 'structured'
-    });
+    // 创建执行上下文
+    const createExecutionContext = useCallback((): RunSingleEdgeNodeContext => ({
+        getNode,
+        setNodes,
+        setEdges,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
+        getAuthHeaders,
+    }), [getNode, setNodes, setEdges, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, reportError, resetLoadingUI, getAuthHeaders]);
+
+    // 使用执行函数的 handleDataSubmit
+    const handleDataSubmit = useCallback(async () => {
+        if (isLoading) return;
+        
+        setIsLoading(true);
+        try {
+            const context = createExecutionContext();
+            await runSingleEdgeNode({
+                parentId: id,
+                targetNodeType: 'structured',
+                context,
+                // 可以选择不提供 constructJsonData，使用默认实现
+            });
+        } catch (error) {
+            console.error('执行失败:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [id, isLoading, createExecutionContext]);
 
     // 添加新的分隔符
     const addDelimiter = (value: string) => {
@@ -121,6 +153,8 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
 
     // 初始化和清理
     useEffect(() => {
+        console.log(getInternalNode(id))
+
         if (!isOnGeneratingNewNode) {
             clearAll()
             activateEdge(id)

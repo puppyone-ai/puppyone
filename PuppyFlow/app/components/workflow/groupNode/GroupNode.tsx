@@ -3,7 +3,10 @@ import React, { useRef, useCallback, useState, useEffect } from 'react';
 import { NodeProps, Handle, Position, Node, NodeResizeControl, NodeToolbar, useReactFlow } from '@xyflow/react';
 import { useDetachNodes, useGroupNodeCalculation } from '../../hooks/useNodeDragHandlers';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
-import { useRunGroupNodeLogic } from '../edgesNode/edgeNodesNew/hook/useRunGroupNodeLogic';
+import { runGroupNode, RunGroupNodeContext } from '../edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 
 export type GroupNodeData = {
   label: string;
@@ -31,17 +34,33 @@ const BACKGROUND_COLORS = [
 function GroupNode({ data, id }: GroupNodeProps) {
   const componentRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const { getNodes, deleteElements, setNodes } = useReactFlow();
+  const { getNodes, deleteElements, setNodes, getNode } = useReactFlow();
   const { detachNodes, detachNodesFromGroup } = useDetachNodes();
   const { recalculateGroupNodes } = useGroupNodeCalculation();
-  const { activatedNode } = useNodesPerFlowContext();
+  const { activatedNode, clearAll } = useNodesPerFlowContext();
   const [isHovered, setIsHovered] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // 使用新的GroupNode运行逻辑
-  const { isLoading, handleDataSubmit } = useRunGroupNodeLogic({
-    groupNodeId: id
-  });
+  // 获取所有需要的依赖
+  const { streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI } = useJsonConstructUtils();
+  const { getAuthHeaders } = useAppSettings();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
+
+  // 创建执行上下文
+  const createExecutionContext = useCallback((): RunGroupNodeContext => ({
+    getNode,
+    getNodes,
+    setNodes,
+    getSourceNodeIdWithLabel,
+    getTargetNodeIdWithLabel,
+    clearAll,
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+    getAuthHeaders,
+  }), [getNode, getNodes, setNodes, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI, getAuthHeaders]);
 
   // 获取此组内的所有子节点
   const childNodes = getNodes().filter(node => {
@@ -77,20 +96,15 @@ function GroupNode({ data, id }: GroupNodeProps) {
   const getBorderStyle = () => {
     if (isActivated) {
       return {
-        border: '1px solid #666666',
-        outline: '1px solid #888888',
-        outlineOffset: '0px',
+        border: '1px solid #888888',
       };
     } else if (isHovered) {
       return {
-        border: '1px solid rgb(30, 24, 24)',
-        outline: '1px solid #888888',
-        outlineOffset: '0px',
+        border: '1px solid #888888',
       };
     } else {
       return {
         border: '1px solid #666666',
-        outline: 'none',
       };
     }
   };
@@ -127,11 +141,25 @@ function GroupNode({ data, id }: GroupNodeProps) {
     detachNodesFromGroup(childIds, id);
   }, [detachNodesFromGroup, childNodes, id]);
 
-  // 运行组的逻辑
+  // 运行组的逻辑 - 使用新的执行函数
   const onRunGroup = useCallback(async () => {
-    console.log('Running group:', id);
-    await handleDataSubmit();
-  }, [id, handleDataSubmit]);
+    if (isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      console.log('Running group:', id);
+      const context = createExecutionContext();
+      await runGroupNode({
+        groupNodeId: id,
+        context,
+        // 可以选择不提供 constructJsonData，使用默认实现
+      });
+    } catch (error) {
+      console.error('运行组节点失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, isLoading, createExecutionContext]);
 
   // 手动重新计算按钮（调试用）
   const onManualRecalculate = useCallback(() => {
