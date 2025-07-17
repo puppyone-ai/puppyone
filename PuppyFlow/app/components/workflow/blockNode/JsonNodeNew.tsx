@@ -7,7 +7,7 @@ import WhiteBallHandle from '../handles/WhiteBallHandle'
 // 更新导入 - 使用新的 TreeJSONForm
 import TreeJSONForm from '../../tableComponent/TreeJSONForm'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import useGetSourceTarget from '../../hooks/useGetSourceTarget'
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
 import { useWorkspaces } from "../../states/UserWorkspacesContext"
 // 导入新组件
@@ -70,6 +70,7 @@ export type JsonNodeData = {
   content: string,
   label: string,
   isLoading: boolean,
+  isWaitingForFlow: boolean,  // 添加这个字段
   locked: boolean,
   isInput: boolean,
   isOutput: boolean,
@@ -88,7 +89,7 @@ type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>
 
 // 注意：PathNode 类型已经在 TreePathEditor 组件中导出，这里不需要重复定义
 
-function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, isInput, isOutput, editable, index_name, indexingList = [] } }: JsonBlockNodeProps) {
+function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoading, isWaitingForFlow, locked, isInput, isOutput, editable, index_name, indexingList = [] } }: JsonBlockNodeProps) {
   const { fetchUserId } = useWorkspaceManagement()
   const { userId } = useWorkspaces()
 
@@ -96,7 +97,20 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // selectHandle = 1: TOP, 2: RIGHT, 3: BOTTOM, 4: LEFT. 
   // Initialization: 0
   // const [selectedHandle, setSelectedHandle] = useState<Position | null>(null)
-  const { activatedNode, isOnConnect, isOnGeneratingNewNode, setNodeUneditable, editNodeLabel, preventInactivateNode, allowInactivateNodeWhenClickOutside, clearAll, manageNodeasInput, manageNodeasOutput } = useNodesPerFlowContext()
+  const { 
+    activatedNode, 
+    isOnConnect, 
+    isOnGeneratingNewNode, 
+    setNodeUneditable, 
+    editNodeLabel, 
+    preventInactivateNode, 
+    allowInactivateNodeWhenClickOutside, 
+    clearAll, 
+    manageNodeasInput, 
+    manageNodeasOutput,
+    activateNode,  // 添加 activateNode 方法
+    inactivateNode  // 添加 inactivateNode 方法
+  } = useNodesPerFlowContext()
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow()
   // for linking to handle bar, it will be highlighed.
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
@@ -109,9 +123,10 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isEditing, setIsEditing] = useState(false)
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
   const [vectorIndexingStatus, setVectorIndexingStatus] = useState<VectorIndexingStatus>('notStarted');
+  const [isHovered, setIsHovered] = useState(false) // 添加 hover 状态
 
   // Get connected nodes
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
   const sourceNodes = getSourceNodeIdWithLabel(id)
   const targetNodes = getTargetNodeIdWithLabel(id)
 
@@ -145,13 +160,20 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
     return false;
   };
 
+  // 更新边框状态管理，与 TextBlockNode 保持一致
   useEffect(() => {
-    if (activatedNode?.id === id) {
-      setBorderColor("border-[#9B7EDB]");
+    if (isLoading) {
+      setBorderColor("border-[#FFA500]"); // 橙色 - 正在加载
+    } else if (isWaitingForFlow) {
+      setBorderColor("border-[#39bc66]"); // 绿色 - 等待流程
+    } else if (activatedNode?.id === id) {
+      setBorderColor("border-[#9B7EDB]"); // 保持原有的紫色主题
+    } else if (isHovered) {
+      setBorderColor("border-[#9B7EDB]"); // hover 时也使用紫色主题
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
+  }, [activatedNode, isHovered, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id, isLoading, isWaitingForFlow])
 
   // 管理labelContainer的宽度
   useEffect(() => {
@@ -448,7 +470,17 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [useRichEditor, setUseRichEditor] = useState(false); // 默认使用传统 JSONForm
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div 
+      ref={componentRef} 
+      className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}
+      onMouseEnter={() => {
+        setIsHovered(true)
+        activateNode(id)  // 鼠标悬浮时激活节点
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false)
+      }}
+    >
       {/* Add tags for input, output and locked states */}
       <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
         {isInput && (

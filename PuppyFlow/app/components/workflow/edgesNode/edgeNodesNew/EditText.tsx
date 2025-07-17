@@ -2,10 +2,10 @@ import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, { useState, useEffect, useRef } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { PuppyDropdown } from "../../../misc/PuppyDropDown"
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -29,7 +29,7 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const { getNode, setNodes } = useReactFlow()
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const [isHovered, setIsHovered] = useState(false)
@@ -315,6 +315,8 @@ function EditText({ data, isConnectable, id }: ModifyConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['text']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

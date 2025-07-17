@@ -2,11 +2,11 @@ import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
 import React, { useState, useEffect, useRef } from 'react'
 import InputOutputDisplay from './components/InputOutputDisplay'
-import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { PuppyDropdown } from "../../../misc/PuppyDropDown"
 import { nanoid } from 'nanoid'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 export type ModifyConfigNodeData = {
     subMenuType: string | null,
@@ -36,7 +36,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
     const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const { getNode, setNodes } = useReactFlow()
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
@@ -393,6 +393,8 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['structured']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 
