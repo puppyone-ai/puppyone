@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react'
 import {
   ReactFlow,
   addEdge,
@@ -146,15 +146,6 @@ function useMiddleMousePan() {
   return canPan;
 }
 
-// 简化的排序函数 - 只确保组节点在前面
-const sortNodesByType = (nodes: Node[]) => {
-  return [...nodes].sort((a, b) => {
-    if (a.type === 'group' && b.type !== 'group') return -1;
-    if (a.type !== 'group' && b.type === 'group') return 1;
-    return 0;
-  });
-};
-
 function Workflow() {
   const { 
     showingItem, 
@@ -182,21 +173,49 @@ function Workflow() {
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
 
-  // 创建可排序的节点和变更函数
-  const nodes = sortNodesByType(unsortedNodes);
-  const setNodes = (nodesFn: any) => {
-    if (typeof nodesFn === 'function') {
-      setUnsortedNodes((prevNodes) => sortNodesByType(nodesFn(prevNodes)));
-    } else {
-      setUnsortedNodes(sortNodesByType(nodesFn));
+  // 用于管理节点的 z-index 层级
+  const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>({});
+  const [maxZIndex, setMaxZIndex] = useState(1000);
+
+  // 删除原来的 bringToFront 函数，替换为基于 z-index 的实现
+  const elevateNode = (nodeId: string) => {
+    // 检查节点类型，如果是 group 节点则不提升层级
+    const node = getNode(nodeId);
+    if (node?.type === 'group') {
+      return;
     }
+    
+    const newZIndex = maxZIndex + 1;
+    setNodeZIndexMap(prev => ({
+      ...prev,
+      [nodeId]: newZIndex
+    }));
+    setMaxZIndex(newZIndex);
   };
 
-  // 创建自定义的onNodesChange处理器，确保在变更后节点也保持正确顺序
+  // 修改节点数据，为每个节点添加 z-index 样式
+  const nodesWithZIndex = useMemo(() => {
+    return unsortedNodes.map(node => ({
+      ...node,
+      style: {
+        ...node.style,
+        zIndex: node.type === 'group' 
+          ? -1 // group 节点始终在最底层，使用负值
+          : nodeZIndexMap[node.id] || 100 // 其他节点的默认 z-index 为 100
+      }
+    }));
+  }, [unsortedNodes, nodeZIndexMap]);
+
+  // 更新 nodes 的定义
+  const nodes = nodesWithZIndex;
+
+  // 删除原来的 setNodes 重新定义，直接使用 setUnsortedNodes
+  const setNodes = setUnsortedNodes;
+
+  // 修改 onNodesChange 处理器，移除排序逻辑
   const onNodesChange = useCallback((changes: NodeChange[]) => {
     onUnsortedNodesChange(changes);
-    setUnsortedNodes((prevNodes) => sortNodesByType(prevNodes));
-  }, [onUnsortedNodesChange, setUnsortedNodes]);
+  }, [onUnsortedNodesChange]);
 
   // 设置鼠标样式
   useEffect(() => {
@@ -216,7 +235,7 @@ function Workflow() {
       });
       
       // 更新节点和边
-      setUnsortedNodes(sortNodesByType(currentWorkspaceContent.blocks || []));
+      setUnsortedNodes(currentWorkspaceContent.blocks || []);
       setEdges(currentWorkspaceContent.edges || []);
       
       // 更新视口（如果有的话）
@@ -338,17 +357,6 @@ function Workflow() {
     allowActivateOtherNodesWhenConnectEnd()
   }
 
-  const bringToFront = (event: React.MouseEvent<Element, MouseEvent>, id: string) => {
-    setNodes((nds: Node[]) => {
-      const nodeIndex = nds.findIndex((node) => node.id === id);
-      const node = nds[nodeIndex];
-      const newNodes = [...nds];
-      newNodes.splice(nodeIndex, 1);
-      newNodes.push(node);
-      return newNodes;
-    });
-  };
-
   const onNodeMouseLeave = (id: string) => {
     if (preventInactivated || isOnGeneratingNewNode) return
     inactivateNode(id)
@@ -463,8 +471,9 @@ function Workflow() {
           nodesDraggable={!isOnGeneratingNewNode}
           nodesConnectable={!isOnGeneratingNewNode}
           elementsSelectable={!isOnGeneratingNewNode}
+          elevateNodesOnSelect={true}  // 启用 ReactFlow 的内置节点选中提升功能
           onNodeMouseEnter={(event, node) => {
-            bringToFront(event, node.id)
+            elevateNode(node.id)  // 使用新的 elevateNode 函数
           }}
           onNodeMouseLeave={(event, node) => {
             onNodeMouseLeave(node.id)
@@ -481,12 +490,12 @@ function Workflow() {
           maxZoom={1.5}
           zoomOnScroll={canZoom}
           zoomOnPinch={true}
-          panOnDrag={canPan ? true : [1]}  // 当 canPan 为 true 时允许任何地方拖动，否则只允许中键拖动
-          panOnScroll={true}          // 重新启用默认的滚动行为
-          panOnScrollSpeed={1}       // 增加滚动速度，默认是 0.5
+          panOnDrag={canPan ? true : [1]}
+          panOnScroll={true}
+          panOnScrollSpeed={1}
           selectionMode={SelectionMode.Full}
-          selectionOnDrag={true}  // 启用拖拽选择
-          className="nocursor"             // 可选：添加自定义样式
+          selectionOnDrag={true}
+          className="nocursor"
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
         >

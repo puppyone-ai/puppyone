@@ -3,6 +3,9 @@ import { useCallback } from 'react';
 import { OnNodeDrag, useReactFlow, type Node } from '@xyflow/react';
 import useManageReactFlowUtils from './useManageReactFlowUtils';
 
+// 定义允许进入组的节点类型（只允许 block nodes）
+const ALLOWED_NODE_TYPES = ['text', 'file', 'weblink', 'structured'];
+
 // 排序节点，确保组节点在前面渲染
 const sortNodes = (a: Node, b: Node): number => {
   if (a.type === b.type) {
@@ -23,13 +26,18 @@ export function useNodeDragHandlers() {
         return;
       }
 
+      // 只允许 block nodes 进入组
+      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
+        return;
+      }
+
       // 获取与当前节点相交的组节点
       const intersections = getIntersectingNodes(node).filter(
         (n) => n.type === 'group'
       );
 
       if (intersections.length > 0) {
-        let nextNodes: Node[] = getNodes().map((n) => {
+        const nextNodes: Node[] = getNodes().map((n) => {
           if (n.id === node.id) {
             const currentGroupIds = (n.data as any)?.groupIds || [];
             const newGroupIds = [...new Set([...currentGroupIds, ...intersections.map(g => g.id)])];
@@ -54,7 +62,7 @@ export function useNodeDragHandlers() {
           return n;
         });
         
-        nextNodes = nextNodes.sort(sortNodes);
+        // 删除数组排序逻辑，直接设置节点
         setNodes(nextNodes);
       }
     },
@@ -66,6 +74,11 @@ export function useNodeDragHandlers() {
     (_, node) => {
       // 跳过组节点自身
       if (node.type === 'group') {
+        return;
+      }
+
+      // 只允许 block nodes 进入组
+      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
         return;
       }
 
@@ -90,6 +103,8 @@ export function useNodeDragHandlers() {
                 ...n.style,
                 borderColor: isNewIntersecting && hasNewIntersection ? '#9B7EDB' : '#555555',
                 borderWidth: isNewIntersecting && hasNewIntersection ? '3px' : '2.5px',
+                // 确保 group 节点始终在底层，使用负值
+                zIndex: -1
               },
             };
           }
@@ -133,7 +148,7 @@ export function useDetachNodes() {
     [setNodes, getNodes]
   );
 
-  // 新增：从特定组中分离节点
+  // 从特定组中分离节点
   const detachNodesFromGroup = useCallback(
     (nodeIds: string[], groupId: string) => {
       setNodes(
