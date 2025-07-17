@@ -8,6 +8,7 @@ import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
 import { useAppSettings } from '../../../../states/AppSettingsContext';
 import { markerEnd } from '../../../connectionLineStyles/ConfigToTargetEdge';
 import { nanoid } from 'nanoid';
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 
 // 基础类型定义
 export type BaseNodeData = {
@@ -286,12 +287,11 @@ export function useBaseEdgeNodeLogic({
     // 基础 hooks
     const { getNode, setNodes, setEdges } = useReactFlow();
     const {
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
         streamResult,
         reportError,
         resetLoadingUI
     } = useJsonConstructUtils();
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const { clearAll } = useNodesPerFlowContext();
     const { getAuthHeaders } = useAppSettings();
 

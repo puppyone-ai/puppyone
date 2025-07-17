@@ -1,11 +1,11 @@
 import { Handle, Position, NodeProps, Node } from '@xyflow/react'
 import React, { useState, useEffect, useRef } from 'react'
 import { useReactFlow } from '@xyflow/react'
-import useJsonConstructUtils from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 // 前端节点配置数据
 export type ChunkingConfigNodeData = {
@@ -44,7 +44,7 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
     const menuRef = useRef<HTMLUListElement>(null)
     const newDelimiterRef = useRef<HTMLInputElement>(null)
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
 
     // 使用 delimiters 状态
     const [delimiters, setDelimiters] = useState<string[]>(() => {
@@ -360,6 +360,8 @@ function ChunkingByCharacter({ data: { subMenuType }, isConnectable, id }: Chunk
                             getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                             supportedInputTypes={['text']}
                             supportedOutputTypes={['structured']}
+                            inputNodeCategory="blocknode"
+                            outputNodeCategory="blocknode"
                         />
                     </li>
 

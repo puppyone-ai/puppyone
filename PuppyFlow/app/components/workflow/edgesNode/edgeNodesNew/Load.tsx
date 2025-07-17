@@ -1,12 +1,12 @@
 'use client'
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
 import React, { useState, useEffect, useRef } from 'react'
-import useJsonConstructUtils, { NodeJsonType } from '../../../hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext'
 import InputOutputDisplay from './components/InputOutputDisplay'
 import { useBaseEdgeNodeLogic } from './hook/useRunSingleEdgeNodeLogicNew'
 import { BaseConstructedJsonData } from './hook/useEdgeNodeBackEndJsonBuilder'
 import { UI_COLORS } from '@/app/utils/colors'
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
 
 // 前端节点配置数据
 export type LoadNodeFrontendConfig = {
@@ -38,7 +38,7 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
     const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
     const { getNode } = useReactFlow()
     const [isMenuOpen, setIsMenuOpen] = useState(false)
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
     const [isHovered, setIsHovered] = useState(false)
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
     
@@ -244,6 +244,8 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
                                 getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
                                 supportedInputTypes={['file']}
                                 supportedOutputTypes={['structured']}
+                                inputNodeCategory="blocknode"
+                                outputNodeCategory="blocknode"
                             />
                         </li>
                     </ul>

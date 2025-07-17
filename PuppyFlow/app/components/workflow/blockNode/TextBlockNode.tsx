@@ -5,16 +5,16 @@ import WhiteBallHandle from '../handles/WhiteBallHandle'
 import NodeToolBar from './nodeTopRightBar/NodeTopRightBar'
 import TextEditor from '../../tableComponent/TextEditor'
 import TextEditorTextArea from '../../tableComponent/TextEditorTextArea'
-import TextEditorTipTap from '../../tableComponent/TextEditorTipTap'
 import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils'
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon'
 import dynamic from 'next/dynamic'
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext'
-import useJsonConstructUtils from '../../hooks/useJsonConstructUtils'
+import useGetSourceTarget from '../../hooks/useGetSourceTarget'
 export type TextBlockNodeData = {
   content: string,
   label: string,
   isLoading: boolean,
+  isWaitingForFlow: boolean,
   locked: boolean,
   isInput: boolean,
   isOutput: boolean,
@@ -27,24 +27,26 @@ type TextBlockNodeProps = NodeProps<Node<TextBlockNodeData>>
 
 const TextEditorBlockNote = dynamic(() => import('../../tableComponent/TextEditorBlockNote'), { ssr: false })
 
-function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, locked, inputEdgeNodeID, outputEdgeNodeID, editable, isInput, isOutput } }: TextBlockNodeProps) {
+function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoading, isWaitingForFlow, locked, inputEdgeNodeID, outputEdgeNodeID, editable, isInput, isOutput } }: TextBlockNodeProps) {
 
 
   // const { addNode, deleteNode, activateNode, nodes, searchNode, inactivateNode, clear, isOnConnect, allowActivateNode, preventInactivateNode, allowInactivateNode, disallowEditLabel} = useNodeContext()
   const { getNode, setNodes } = useReactFlow()
-  const { 
-    activatedNode, 
-    isOnConnect, 
-    isOnGeneratingNewNode, 
-    setNodeUneditable, 
-    editNodeLabel, 
-    preventInactivateNode, 
+  const {
+    activatedNode,
+    isOnConnect,
+    isOnGeneratingNewNode,
+    setNodeUneditable,
+    editNodeLabel,
+    preventInactivateNode,
     allowInactivateNodeWhenClickOutside,
     manageNodeasInput,
     manageNodeasOutput,
-    manageNodeasLocked
+    manageNodeasLocked,
+    activateNode,
+    inactivateNode
   } = useNodesPerFlowContext()
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useJsonConstructUtils()
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
   // const [isActivated, setIsActivated] = useState(false)
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
   const componentRef = useRef<HTMLDivElement | null>(null)
@@ -58,11 +60,12 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   const [isLocalEdit, setIsLocalEdit] = useState(false); //使用 isLocalEdit 标志来区分本地编辑和外部更新。只有内部编辑：才能触发 更新 data.label, 只有外部更新才能触发 更新 nodeLabel
   const measureSpanRef = useRef<HTMLSpanElement | null>(null) // 用于测量 labelContainer 的宽度
   const [borderColor, setBorderColor] = useState("border-main-deep-grey")
+  const [isHovered, setIsHovered] = useState(false) // 添加 hover 状态
 
   // Get connected nodes
   const sourceNodes = getSourceNodeIdWithLabel(id)
   const targetNodes = getTargetNodeIdWithLabel(id)
-  
+
   // 使用已从 ReactFlow 加载的 isInput, isOutput 状态
   // 不再使用动态计算的方式：
   // const isInput = sourceNodes.length === 0 && targetNodes.length > 0
@@ -72,7 +75,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   useEffect(() => {
     const isAutoDetectInput = sourceNodes.length === 0 && targetNodes.length > 0;
     const isAutoDetectOutput = targetNodes.length === 0 && sourceNodes.length > 0;
-    
+
     // 仅当当前状态与自动检测不一致时更新状态
     if (isAutoDetectInput && !isInput) {
       manageNodeasInput(id);
@@ -86,14 +89,20 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   }, [sourceNodes.length, targetNodes.length, isInput, isOutput, id]);
 
 
-  
+
   useEffect(() => {
-    if (activatedNode?.id === id) {
+    if (isLoading) {
+      setBorderColor("border-[#FFA500]"); // 绿色 - 正在加载
+    } else if (isWaitingForFlow) {
+      setBorderColor("border-[#39bc66]"); // 橙色 - 等待流程
+    } else if (activatedNode?.id === id) {
+      setBorderColor("border-main-blue");
+    } else if (isHovered) {
       setBorderColor("border-main-blue");
     } else {
       setBorderColor(isOnConnect && isTargetHandleTouched ? "border-main-orange" : "border-main-deep-grey");
     }
-  }, [activatedNode, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id])
+  }, [activatedNode, isHovered, isOnConnect, isTargetHandleTouched, locked, isInput, isOutput, id, isLoading, isWaitingForFlow])
 
 
   const displaySourceNodeLabels = () => {
@@ -159,14 +168,14 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   // 管理labelContainer的宽度
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (!labelContainerRef.current?.contains(e.target as HTMLElement) && 
-          !(e.target as HTMLElement).classList.contains("renameButton")) {
+      if (!labelContainerRef.current?.contains(e.target as HTMLElement) &&
+        !(e.target as HTMLElement).classList.contains("renameButton")) {
         setNodeUneditable(id)
       }
     }
 
     document.addEventListener("click", handleClickOutside)
-    
+
     return () => {
       document.removeEventListener("click", handleClickOutside)
     }
@@ -269,7 +278,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
   // 添加 updateNodeContent 函数
   const updateNodeContent = useCallback((newValue: string) => {
-    setNodes(prevNodes => prevNodes.map(node => 
+    setNodes(prevNodes => prevNodes.map(node =>
       node.id === id ? {
         ...node,
         data: { ...node.data, content: newValue }
@@ -278,11 +287,21 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
   }, [id, setNodes])
 
   return (
-    <div ref={componentRef} className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}>
+    <div
+      ref={componentRef}
+      className={`relative w-full h-full min-w-[240px] min-h-[176px] ${isOnGeneratingNewNode ? 'cursor-crosshair' : 'cursor-default'}`}
+      onMouseEnter={() => {
+        setIsHovered(true)
+        activateNode(id)
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false)
+      }}
+    >
       {/* Add tags for input, output and locked states */}
       <div className="absolute -top-[28px] h-[24px]  left-0 z-10 flex gap-1.5">
         {isInput && (
-          <div 
+          <div
             className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black cursor-pointer"
             onClick={toggleNodeInput}
           >
@@ -296,7 +315,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
 
         {isOutput && (
-          <div 
+          <div
             className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black cursor-pointer"
             onClick={toggleNodeOutput}
           >
@@ -310,7 +329,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         )}
 
         {locked && (
-          <div 
+          <div
             className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black cursor-pointer"
             onClick={toggleNodeLocked}
           >
@@ -394,7 +413,8 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         {/* the plain text editor */}
         <div className="pl-[8px] flex-1 relative">
-          {isLoading ? <SkeletonLoadingIcon /> :
+          {isLoading ?
+            <SkeletonLoadingIcon /> :
             <TextEditor
               preventParentDrag={preventNodeDrag}
               allowParentDrag={allowNodeDrag}
@@ -551,7 +571,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           onMouseLeave={() => setIsTargetHandleTouched(false)}
         />
 
-      </div>        
+      </div>
       {/* the panel of source nodes and target nodes */}
       {/* <div className="absolute left-0 -bottom-[2px] transform translate-y-full w-full flex gap-2 z-10"
         {displaySourceNodeLabels().length > 0 && (
@@ -599,7 +619,7 @@ function TextBlockNode({ isConnectable, id, type, data: { content, label, isLoad
         ))}
       </div> 
       */}
-   
+
     </div>
 
 
