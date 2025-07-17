@@ -296,6 +296,10 @@ export async function runSingleEdgeNode({
         if (targetNodeIdWithLabelGroup.length === 0) {
             console.log(`🔧 [runSingleEdgeNode] 没有目标节点，创建新的目标节点`);
             await createNewTargetNode(parentId, context);
+            
+            // 创建完新目标节点后，发送数据到新创建的目标节点
+            console.log(`🚀 [runSingleEdgeNode] 新目标节点创建完成，开始发送数据`);
+            await sendDataToTargets(parentId, context, constructJsonData);
         } else {
             console.log(`🚀 [runSingleEdgeNode] 有目标节点，直接发送数据`);
             await sendDataToTargets(parentId, context, constructJsonData);
