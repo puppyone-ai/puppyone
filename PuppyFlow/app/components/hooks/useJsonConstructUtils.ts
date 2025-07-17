@@ -368,6 +368,21 @@ function useJsonConstructUtils() {
                                 // 检查是否收到完成信号
                                 if (data.is_complete === true) {
                                     console.log('Processing completed');
+                                    
+                                    // 清空所有resultNodes的isWaitingForFlow状态
+                                    setNodes(prevNodes => prevNodes.map(node => {
+                                        if (resultNodes.includes(node.id)) {
+                                            return {
+                                                ...node,
+                                                data: {
+                                                    ...node.data,
+                                                    isWaitingForFlow: false
+                                                }
+                                            };
+                                        }
+                                        return node;
+                                    }));
+                                    
                                     if (timeoutId) clearTimeout(timeoutId);
                                     resolve(true);
                                     return;
@@ -479,10 +494,7 @@ function useJsonConstructUtils() {
             // 将jsonResult.data 转换为 Map
             console.log(jsonResult, "jsonResult from backend")
             const data = new Map(Object.entries(jsonResult.data));
-            // console.log(`Received ${data.length} file(s)`);
-            // console.log(getNodes(), "current nodes in reactflow")
             
-            // {"data": {"LX9eMG": {"label": "LX9eMG", "type": "structured", "data": {"content": []}}}, "is_complete": false}
             if (!resultNodes.length) return
             const targets = resultNodes.filter(resultNode => getNode(resultNode))
             if (!targets.length) return
@@ -501,7 +513,8 @@ function useJsonConstructUtils() {
                         data: {
                             ...node.data,
                             content: (item.type ?? node.type) === "structured" ? JSON.stringify(item.data.content): item.data.content,
-                            isLoading: false
+                            isLoading: false,
+                            isWaitingForFlow: true  // 从loading变为等待flow完成
                         }
                     }: node)))
                 }

@@ -294,6 +294,12 @@
     border: transparent;
   }
 
+
+  .server-node-handle::before {
+    opacity: 1 !important;
+  }
+
+
 /* 可选：添加hover效果 */
 .react-flow__edge:hover .react-flow__edge-path,
 .react-flow__edge:hover #custom-arrow-default path {  /* hover时的边颜色 */
@@ -1063,4 +1069,31 @@
 /* Hide any default resize handle content */
 .react-grid-item > .react-resizable-handle:not(.custom-resize-handle) {
   background-image: none !important;
+}
+
+/* 隐藏滚动条但保持滚动功能 */
+.scrollbar-hide {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;             /* Chrome, Safari and Opera */
+}
+
+/* TextBlock Loading 呼吸效果 - 只影响边框 */
+.breathing-border {
+  animation: breathing-border 1.5s infinite;
+}
+
+@keyframes breathing-border {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 0.6;
+  }
 }

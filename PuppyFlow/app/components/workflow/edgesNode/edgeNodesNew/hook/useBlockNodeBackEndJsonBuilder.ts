@@ -26,31 +26,34 @@ export function useBlockNodeBackEndJsonBuilder() {
         if (!node) {
             throw new Error(`节点 ${nodeId} 不存在`);
         }
-        
+
         const nodeType = node.type as string;
         const nodeData = node.data;
-        
+
         // 根据节点类型构建相应的 JSON
         switch (nodeType) {
             case "text":
+                console.log("finish the construction of text node", nodeData);
                 return buildTextNodeJson(nodeId, nodeData);
+
             case "structured":
+                console.log("finish the construction of structured node", nodeData);
                 return buildStructuredNodeJson(nodeId, nodeData);
             default:
                 throw new Error(`不支持的区块节点类型: ${nodeType}`);
         }
     };
-    
+
     // 构建文本节点 JSON
     const buildTextNodeJson = (nodeId: string, nodeData: any): BlockNodeJsonData => {
         const node = getNode(nodeId);
         if (!node) {
             throw new Error(`节点 ${nodeId} 不存在`);
         }
-        
+
         // 提取节点标签
         const label = nodeData.label || node.id;
-        
+
         return {
             label,
             type: "text",
@@ -61,22 +64,22 @@ export function useBlockNodeBackEndJsonBuilder() {
             collection_configs: []
         };
     };
-    
+
     // 构建结构化节点 JSON
     const buildStructuredNodeJson = (nodeId: string, nodeData: any): BlockNodeJsonData => {
         const node = getNode(nodeId);
         if (!node) {
             throw new Error(`节点 ${nodeId} 不存在`);
         }
-        
+
         // 提取节点标签
         const label = nodeData.label || node.id;
-        
+
         // 处理内容 - 确保结构化内容是解析过的 JSON
         let parsedContent = nodeData.content;
-        
+
         // 如果内容是字符串且看起来像 JSON，尝试解析
-        if (typeof parsedContent === 'string' && 
+        if (typeof parsedContent === 'string' &&
             (parsedContent.trim().startsWith('{') || parsedContent.trim().startsWith('['))) {
             try {
                 parsedContent = JSON.parse(parsedContent);
@@ -85,7 +88,7 @@ export function useBlockNodeBackEndJsonBuilder() {
                 // 解析失败时保持原始字符串
             }
         }
-        
+
         // 获取 indexingList 中的所有 collection_configs
         let collectionConfigs: any[] = [];
         if (nodeData.indexingList && Array.isArray(nodeData.indexingList) && nodeData.indexingList.length > 0) {
@@ -93,7 +96,7 @@ export function useBlockNodeBackEndJsonBuilder() {
                 .filter((item: any) => item.collection_configs)
                 .map((item: any) => item.collection_configs);
         }
-        
+
         return {
             label,
             type: "structured",
@@ -104,6 +107,6 @@ export function useBlockNodeBackEndJsonBuilder() {
             collection_configs: collectionConfigs
         };
     };
-    
+
     return { buildBlockNodeJson };
 }
