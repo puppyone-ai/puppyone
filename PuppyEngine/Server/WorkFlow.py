@@ -232,10 +232,7 @@ class WorkFlow():
         self.thread_executor = ThreadPoolExecutor(max_workers=self.max_workers)
         self.state_lock = threading.Lock()
         
-        # Initialize async usage task queue for non-blocking usage processing
-        self.usage_task_queue = None
-        self.usage_processing_active = False
-        self.pending_usage_tasks = []  # 临时存储待处理的usage任务
+        # 移除异步队列和相关状态
         
         log_info(f"Workflow initialized with {len(self.blocks)} blocks and {len(self.edges)} edges")
 
@@ -352,20 +349,14 @@ class WorkFlow():
         """
         try:
             # 停止异步usage处理
-            self.stop_async_usage_processing()
+            # self.stop_async_usage_processing()
             
             # 关闭线程池
             if hasattr(self, 'thread_executor') and self.thread_executor:
                 self.thread_executor.shutdown(wait=True)
                 self.thread_executor = None
             
-            # 清理异步队列和待处理任务
-            if hasattr(self, 'usage_task_queue') and self.usage_task_queue:
-                # 不需要显式清理Queue，让它被垃圾回收
-                self.usage_task_queue = None
-            
-            if hasattr(self, 'pending_usage_tasks'):
-                self.pending_usage_tasks.clear()
+            # 移除所有异步usage处理相关逻辑
             
             # 清理所有内部数据
             if hasattr(self, 'blocks'):
@@ -387,156 +378,7 @@ class WorkFlow():
         except Exception as e:
             log_error(f"Error during workflow cleanup: {str(e)}")
 
-    def initialize_async_usage_processing(self, usage_callback: Optional[Callable] = None):
-        """
-        初始化异步usage处理队列和后台任务
-        
-        Args:
-            usage_callback: 异步usage处理回调函数
-        """
-        if not usage_callback:
-            return
-            
-        try:
-            # 尝试获取当前事件循环，如果不存在则创建一个
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # 如果没有运行中的事件循环，记录信息但不创建
-                log_info(f"No async event loop available for task {self.task_id}, usage will be processed synchronously")
-                return
-            
-            # 创建异步队列
-            self.usage_task_queue = asyncio.Queue()
-            self.usage_processing_active = True
-            
-            # 启动后台usage处理任务
-            asyncio.create_task(self._process_usage_tasks_async(usage_callback))
-            log_info(f"Async usage processing initialized for task {self.task_id}")
-            
-        except Exception as e:
-            log_warning(f"Failed to initialize async usage processing for task {self.task_id}: {str(e)}")
-
-    async def _process_usage_tasks_async(self, usage_callback: Callable):
-        """
-        后台异步处理usage任务队列
-        
-        Args:
-            usage_callback: 异步usage处理回调函数
-        """
-        log_info(f"Starting async usage task processor for task {self.task_id}")
-        
-        try:
-            while self.usage_processing_active:
-                try:
-                    # 等待队列中的任务，设置合理的超时
-                    task_data = await asyncio.wait_for(
-                        self.usage_task_queue.get(),
-                        timeout=0.5  # 500ms超时，允许定期检查active状态
-                    )
-                    
-                    # 处理usage任务
-                    await self._handle_single_usage_task_async(task_data, usage_callback)
-                    
-                    # 标记任务完成
-                    self.usage_task_queue.task_done()
-                    
-                except asyncio.TimeoutError:
-                    # 超时是正常的，继续循环检查active状态
-                    continue
-                except Exception as e:
-                    log_error(f"Error processing usage task for task {self.task_id}: {str(e)}")
-                    
-        except Exception as e:
-            log_error(f"Usage task processor error for task {self.task_id}: {str(e)}")
-        finally:
-            log_info(f"Async usage task processor stopped for task {self.task_id}")
-
-    async def _handle_single_usage_task_async(self, task_data: Dict[str, Any], usage_callback: Callable):
-        """
-        处理单个usage任务
-        
-        Args:
-            task_data: 包含edge_metadata的任务数据
-            usage_callback: 异步usage处理回调函数
-        """
-        try:
-            edge_metadata = task_data.get("edge_metadata")
-            if edge_metadata:
-                await usage_callback(edge_metadata)
-                log_info(f"Async usage task completed for edge {edge_metadata.get('edge_id', 'unknown')}")
-        except Exception as e:
-            log_error(f"Failed to process usage task: {str(e)}")
-
-    def submit_usage_task_async(self, edge_metadata: Dict[str, Any]) -> bool:
-        """
-        提交usage任务到异步队列（非阻塞）
-        
-        Args:
-            edge_metadata: edge执行的元数据
-            
-        Returns:
-            bool: 是否成功提交到队列
-        """
-        if not self.usage_task_queue or not self.usage_processing_active:
-            # 如果队列未初始化，添加到待处理列表
-            self.pending_usage_tasks.append({"edge_metadata": edge_metadata})
-            log_info(f"Usage task queued for later processing (edge: {edge_metadata.get('edge_id', 'unknown')})")
-            return False
-        
-        try:
-            # 非阻塞方式放入队列
-            self.usage_task_queue.put_nowait({"edge_metadata": edge_metadata})
-            log_info(f"Usage task submitted to async queue for edge {edge_metadata.get('edge_id', 'unknown')}")
-            return True
-        except asyncio.QueueFull:
-            log_warning(f"Usage task queue full, processing synchronously for edge {edge_metadata.get('edge_id', 'unknown')}")
-            return False
-        except Exception as e:
-            log_error(f"Failed to submit usage task: {str(e)}")
-            return False
-
-    def stop_async_usage_processing(self):
-        """
-        停止异步usage处理
-        """
-        if self.usage_processing_active:
-            self.usage_processing_active = False
-            log_info(f"Async usage processing stopped for task {self.task_id}")
-
-    def process_pending_usage_tasks_sync(self, usage_callback: Optional[Callable] = None):
-        """
-        同步处理待处理的usage任务（用于没有异步环境的情况）
-        
-        Args:
-            usage_callback: 同步usage处理回调函数
-        """
-        if not self.pending_usage_tasks or not usage_callback:
-            return
-            
-        log_info(f"Processing {len(self.pending_usage_tasks)} pending usage tasks synchronously")
-        
-        for task_data in self.pending_usage_tasks:
-            try:
-                edge_metadata = task_data.get("edge_metadata")
-                if edge_metadata:
-                    # 如果callback是异步的，需要在新的事件循环中运行
-                    if asyncio.iscoroutinefunction(usage_callback):
-                        try:
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            loop.run_until_complete(usage_callback(edge_metadata))
-                            loop.close()
-                        except Exception as e:
-                            log_error(f"Error in async callback execution: {str(e)}")
-                    else:
-                        usage_callback(edge_metadata)
-                        
-            except Exception as e:
-                log_error(f"Error processing pending usage task: {str(e)}")
-        
-        self.pending_usage_tasks.clear()
-        log_info(f"Completed processing pending usage tasks for task {self.task_id}")
+    # 移除所有异步usage处理相关的方法
 
     # ❌ _collect_edge_metadata_async 方法已被删除 - 违反数据最小化原则
     # 
@@ -564,7 +406,7 @@ class WorkFlow():
         """
         try:
             # 获取edge基本信息
-            edge_info = self.edges.get(edge_id, {})
+            edge_info = self.edges.get(edge_id)
             edge_type = edge_info.get("type", "unknown")
             
             # 生成去标识化的ID
@@ -574,10 +416,14 @@ class WorkFlow():
             
             # 最小化的合规元数据
             minimal_metadata = {
+                # 添加原始ID用于追踪
+                "task_id": self.task_id,
+                "edge_id": edge_id,
+                
                 # 基本执行信息（计费必需）
                 "edge_type": edge_type,
                 "execution_success": execution_success,
-                "execution_time": edge_result.end_time - edge_result.start_time,
+                "execution_time": (edge_result.end_time - edge_result.start_time).total_seconds(),
                 
                 # 去标识化的追踪ID
                 "task_hash": task_hash,
@@ -809,22 +655,28 @@ class WorkFlow():
         log_msg += f"\nOutput Blocks: {list(self.edge_to_outputs_mapping.get(edge_id, []))}"
         log_info(log_msg)
         
-        # 无论成功还是失败，都记录usage event（异步处理，不阻塞主流程）
+        # 无论成功还是失败，都记录usage event
         if usage_callback:
             try:
                 # 使用合规的最小化数据收集
                 edge_metadata = self._collect_minimal_metadata_compliant(edge_id, edge_result, results, execution_success)
                 
-                # 尝试异步提交任务，如果失败则同步处理
-                submitted = self.submit_usage_task_async(edge_metadata)
+                # 在新的事件循环中同步执行异步回调
+                def run_async_callback():
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        loop.run_until_complete(usage_callback(edge_metadata))
+                    finally:
+                        loop.close()
                 
-                if not submitted:
-                    # 如果异步提交失败，添加到待处理列表，但不记录详细日志
-                    log_info(f"Task {edge_metadata.get('task_hash', self.task_id)} Edge {edge_metadata.get('edge_hash', edge_id)}: Queued for sync usage processing")
-                    
+                # 在单独的线程中运行，避免阻塞
+                callback_thread = threading.Thread(target=run_async_callback)
+                callback_thread.start()
+                log_info(f"Usage processing submitted for edge {edge_id}")
+
             except Exception as e:
                 log_error(f"Usage processing setup failed for edge {edge_id}: {str(e)}")
-                # 不抛出异常，避免影响workflow执行
 
         if execution_success:
             # 只有成功执行才更新结果
