@@ -1,123 +1,120 @@
 'use client'
 import { useCallback } from 'react';
 import { OnNodeDrag, useReactFlow, type Node } from '@xyflow/react';
-import useManageReactFlowUtils from './useManageReactFlowUtils';
 
 // 定义允许进入组的节点类型（只允许 block nodes）
 const ALLOWED_NODE_TYPES = ['text', 'file', 'weblink', 'structured'];
 
-// 排序节点，确保组节点在前面渲染
-const sortNodes = (a: Node, b: Node): number => {
-  if (a.type === b.type) {
-    return 0;
-  }
-  return a.type === 'group' ? -1 : 1;
-};
-
 export function useNodeDragHandlers() {
-  const { getIntersectingNodes, getNodes, setNodes } = useReactFlow();
-  const { judgeNodeIsEdgeNode } = useManageReactFlowUtils();
+  const { getNodes, setNodes } = useReactFlow();
 
-  // 节点拖拽结束时处理函数
-  const onNodeDragStop: OnNodeDrag = useCallback(
-    (_, node) => {
-      // 跳过组节点自身
-      if (node.type === 'group') {
-        return;
-      }
+  // 完全移除拖拽过程中的计算
+  const onNodeDrag: OnNodeDrag = useCallback(() => {
+    // 拖拽过程中什么都不做
+  }, []);
 
-      // 只允许 block nodes 进入组
-      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
-        return;
-      }
-
-      // 获取与当前节点相交的组节点
-      const intersections = getIntersectingNodes(node).filter(
-        (n) => n.type === 'group'
-      );
-
-      if (intersections.length > 0) {
-        const nextNodes: Node[] = getNodes().map((n) => {
-          if (n.id === node.id) {
-            const currentGroupIds = (n.data as any)?.groupIds || [];
-            const newGroupIds = [...new Set([...currentGroupIds, ...intersections.map(g => g.id)])];
-            
-            return {
-              ...n,
-              data: {
-                ...n.data,
-                groupIds: newGroupIds
-              }
-            } as Node;
-          }
-          
-          // 清除所有组节点的高亮样式
-          if (n.type === 'group') {
-            return {
-              ...n,
-              className: '',
-            };
-          }
-
-          return n;
-        });
-        
-        // 删除数组排序逻辑，直接设置节点
-        setNodes(nextNodes);
-      }
-    },
-    [getIntersectingNodes, getNodes, setNodes]
-  );
-
-  // 节点拖拽过程中处理函数
-  const onNodeDrag: OnNodeDrag = useCallback(
-    (_, node) => {
-      // 跳过组节点自身
-      if (node.type === 'group') {
-        return;
-      }
-
-      // 只允许 block nodes 进入组
-      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
-        return;
-      }
-
-      // 获取与当前节点相交的组节点
-      const intersections = getIntersectingNodes(node).filter(
-        (n) => n.type === 'group'
-      );
-      
-      // 检查是否有新的相交组（不在当前 groupIds 中）
-      const currentGroupIds = (node.data as any)?.groupIds || [];
-      const hasNewIntersection = intersections.some(g => !currentGroupIds.includes(g.id));
-      
-      setNodes((nds) => {
-        return nds.map((n) => {
-          if (n.type === 'group') {
-            // 高亮新相交的组节点
-            const isNewIntersecting = intersections.some(i => i.id === n.id) && 
-                                    !currentGroupIds.includes(n.id);
-            return {
-              ...n,
-              style: {
-                ...n.style,
-                borderColor: isNewIntersecting && hasNewIntersection ? '#9B7EDB' : '#555555',
-                borderWidth: isNewIntersecting && hasNewIntersection ? '3px' : '2.5px',
-                // 确保 group 节点始终在底层，使用负值
-                zIndex: -1
-              },
-            };
-          }
-          return n;
-        });
-      });
-    },
-    [getIntersectingNodes, setNodes]
-  );
+  // 拖拽结束时也不做任何计算
+  const onNodeDragStop: OnNodeDrag = useCallback(() => {
+    // 拖拽结束时什么都不做
+  }, []);
 
   return {
-    onNodeDragStop,
     onNodeDrag,
+    onNodeDragStop,
+  };
+}
+
+// 组节点激活时的计算逻辑
+export function useGroupNodeCalculation() {
+  const { getNodes, setNodes, getNode } = useReactFlow();
+
+  // 检查节点是否在组的范围内且是允许的类型
+  const isNodeInsideGroup = useCallback((node: Node, groupNode: Node) => {
+    // 首先检查节点类型是否被允许
+    if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
+      return false;
+    }
+
+    const nodeWidth = node.width || 200;
+    const nodeHeight = node.height || 100;
+    const groupWidth = groupNode.width || 240;
+    const groupHeight = groupNode.height || 176;
+
+    // 节点中心点
+    const nodeCenterX = node.position.x + nodeWidth / 2;
+    const nodeCenterY = node.position.y + nodeHeight / 2;
+
+    // 组的边界
+    const groupLeft = groupNode.position.x;
+    const groupRight = groupNode.position.x + groupWidth;
+    const groupTop = groupNode.position.y;
+    const groupBottom = groupNode.position.y + groupHeight;
+
+    // 检查节点中心点是否在组内
+    return (
+      nodeCenterX >= groupLeft &&
+      nodeCenterX <= groupRight &&
+      nodeCenterY >= groupTop &&
+      nodeCenterY <= groupBottom
+    );
+  }, []);
+
+  // 重新计算组内的节点 - 只在组激活时调用
+  const recalculateGroupNodes = useCallback((groupId: string) => {
+    const currentGroupNode = getNode(groupId);
+    if (!currentGroupNode) return;
+
+    const allNodes = getNodes();
+    let hasChanges = false;
+    
+    const updatedNodes = allNodes.map(node => {
+      // 跳过组节点本身
+      if (node.type === 'group' || node.id === groupId) {
+        return node;
+      }
+
+      // 只处理允许的节点类型
+      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
+        return node;
+      }
+
+      const shouldBeInGroup = isNodeInsideGroup(node, currentGroupNode);
+      const groupIds = (node.data as any)?.groupIds || [];
+      const currentlyInGroup = groupIds.includes(groupId);
+
+      if (shouldBeInGroup && !currentlyInGroup) {
+        // 节点应该在组内但目前不在 - 添加到 groupIds 数组
+        hasChanges = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            groupIds: [...groupIds, groupId]
+          }
+        };
+      } else if (!shouldBeInGroup && currentlyInGroup) {
+        // 节点不应该在组内但目前在 - 从 groupIds 数组中移除
+        hasChanges = true;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            groupIds: groupIds.filter((gid: string) => gid !== groupId)
+          }
+        };
+      }
+
+      return node;
+    });
+
+    if (hasChanges) {
+      setNodes(updatedNodes);
+      console.log(`🔄 Recalculated nodes for group ${groupId}`);
+    }
+  }, [getNode, getNodes, setNodes, isNodeInsideGroup]);
+
+  return {
+    recalculateGroupNodes,
   };
 }
 
