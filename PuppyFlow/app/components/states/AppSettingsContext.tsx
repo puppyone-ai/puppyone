@@ -322,10 +322,21 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
         throw new Error(`HTTP error! status: ${response.status}, error message: ${error_data.error}`);
       }
 
-      const subscriptionData: UserSubscriptionStatus = await response.json();
+      const subscriptionData: any = await response.json();
       console.log('用户订阅状态:', subscriptionData);
       
-      setUserSubscriptionStatus(subscriptionData);
+      // 字段名映射：将 API 返回的字段名转换为前端期望的字段名
+      setUserSubscriptionStatus({
+        is_premium: subscriptionData.is_premium ?? false,
+        subscription_plan: subscriptionData.plan ?? 'free',
+        subscription_status: subscriptionData.status ?? 'expired',
+        subscription_period_start: subscriptionData.period_start ?? '',
+        subscription_period_end: subscriptionData.period_end ?? '',
+        effective_end_date: subscriptionData.effective_end_date ?? '',
+        days_left: subscriptionData.days_left ?? 0,
+        expired_date: subscriptionData.expired_date ?? '',
+        polar_subscription_id: subscriptionData.polar_subscription_id,
+      });
     } catch (error) {
       console.error('Error fetching user subscription status:', error);
       
