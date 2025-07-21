@@ -195,11 +195,12 @@ type providerType = {
 }
 
 export const NodesPerFlowContextProvider = ({children}: providerType): ReactElement => {
+    const contextValue = NodesPerFlowUtils();
     return (
-        <NodesPerFlowContext.Provider value={NodesPerFlowUtils()}>
+        <NodesPerFlowContext.Provider value={contextValue}>
             {children}
         </NodesPerFlowContext.Provider>
-        )
+    )
 }
 
 
