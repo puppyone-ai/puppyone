@@ -47,7 +47,7 @@ const Usage: React.FC = () => {
               <span className={`text-[14px] font-medium ${
                 userSubscriptionStatus.is_premium ? 'text-[#16A34A]' : 'text-[#888888]'
               }`}>
-                {userSubscriptionStatus.subscription_plan.toUpperCase()}
+                {userSubscriptionStatus.subscription_plan?.toUpperCase() || 'FREE'}
               </span>
             </div>
             <div className="flex items-center justify-between">
@@ -55,7 +55,7 @@ const Usage: React.FC = () => {
               <span className={`text-[14px] font-medium capitalize ${
                 userSubscriptionStatus.subscription_status === 'active' ? 'text-[#16A34A]' : 'text-[#F59E0B]'
               }`}>
-                {userSubscriptionStatus.subscription_status}
+                {userSubscriptionStatus.subscription_status || 'expired'}
               </span>
             </div>
             {!isLocalDeployment && (
