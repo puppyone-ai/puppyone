@@ -9,6 +9,8 @@ gunicorn
 waitress
 hypercorn
 beautifulsoup4
+lxml
+readability-lxml
 fastapi[standard]
 
 # Edges
