@@ -47,7 +47,7 @@ const Usage: React.FC = () => {
               <span className={`text-[14px] font-medium ${
                 userSubscriptionStatus.is_premium ? 'text-[#16A34A]' : 'text-[#888888]'
               }`}>
-                {userSubscriptionStatus.subscription_plan.toUpperCase()}
+                {userSubscriptionStatus.subscription_plan?.toUpperCase() || 'UNKNOWN'}
               </span>
             </div>
             <div className="flex items-center justify-between">
