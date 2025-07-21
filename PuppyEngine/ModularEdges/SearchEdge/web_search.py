@@ -18,11 +18,11 @@ from ModularEdges.SearchEdge.search_strategy import SearchStrategy
 class WebSearchStrategy(SearchStrategy):
     """Web Search using Google & DuckDuckGo."""
 
+    @global_exception_handler(3503, "Error Processing Web Content")
     def _fetch_and_parse(self, item: dict) -> dict | None:
         """Fetch URL content and parse it to extract the main content and title."""
         url = item.get("link")
         if not url:
-            print(f"       ⚠️ No URL found in item")
             return None
 
         try:
@@ -53,12 +53,10 @@ class WebSearchStrategy(SearchStrategy):
                 verify=True  # Explicit SSL verification
             )
             
-            print(f"       📄 {url[:50]}... → {response.status_code}")
             response.raise_for_status()
 
             # Check if we got content
             if not response.content:
-                print(f"       ⚠️ Empty response content")
                 return None
 
             # Smart encoding detection and handling
@@ -68,7 +66,6 @@ class WebSearchStrategy(SearchStrategy):
             if response.encoding and response.encoding.lower() != 'iso-8859-1':
                 try:
                     text_content = response.text
-                    print(f"       📝 Using detected encoding: {response.encoding}")
                 except (UnicodeDecodeError, LookupError):
                     text_content = None
             
@@ -77,7 +74,6 @@ class WebSearchStrategy(SearchStrategy):
                 for encoding in ['utf-8', 'latin-1', 'cp1252', 'iso-8859-1']:
                     try:
                         text_content = response.content.decode(encoding, errors='strict')
-                        print(f"       📝 Using fallback encoding: {encoding}")
                         break
                     except (UnicodeDecodeError, LookupError):
                         continue
@@ -85,74 +81,47 @@ class WebSearchStrategy(SearchStrategy):
             # Method 3: Last resort - ignore errors
             if text_content is None:
                 text_content = response.content.decode('utf-8', errors='ignore')
-                print(f"       ⚠️ Using UTF-8 with error ignoring")
             
             # Basic content validation
             if len(text_content.strip()) < 100:
-                print(f"       ⚠️ Content too short after decoding: {len(text_content)} chars")
                 return None
                 
             # Check for obvious encoding issues (too many replacement characters)
             replacement_ratio = text_content.count('�') / max(len(text_content), 1)
             if replacement_ratio > 0.1:  # More than 10% replacement characters
-                print(f"       ⚠️ High replacement character ratio: {replacement_ratio:.2%}")
                 return None
 
             # Try to extract readable content using text instead of bytes
-            try:
-                doc = Document(text_content)
-            except Exception as e:
-                print(f"       ❌ Document parsing failed: {e}")
-                return None
+            doc = Document(text_content)
             
             # Use readability's title and summary for better quality
             title = doc.title()
             summary_html = doc.summary()
             
             if not summary_html or len(summary_html.strip()) < 50:
-                print(f"       ⚠️ No readable content extracted")
                 return None
             
             # Parse HTML to get clean text with explicit parser
-            try:
-                soup = BeautifulSoup(summary_html, 'html.parser')
-                content = soup.get_text(separator=' ', strip=True)
-            except Exception as e:
-                print(f"       ❌ HTML parsing failed: {e}")
-                return None
+            soup = BeautifulSoup(summary_html, 'html.parser')
+            content = soup.get_text(separator=' ', strip=True)
             
             # Final content validation and cleaning
             if len(content.strip()) < 50:  # Minimum content length
-                print(f"       ⚠️ Content too short: {len(content)} chars")
                 return None
             
             # Check for garbled content (high ratio of non-printable or weird chars)
             printable_chars = sum(1 for c in content if c.isprintable() or c.isspace())
             printable_ratio = printable_chars / max(len(content), 1)
             if printable_ratio < 0.8:  # Less than 80% printable characters
-                print(f"       ⚠️ Low printable character ratio: {printable_ratio:.2%}")
                 return None
             
             item['title'] = title or item.get('title', 'No title')
             item['content'] = content
             
-            print(f"       ✅ Extracted {len(content)} chars (printable: {printable_ratio:.1%})")
             return item
             
-        except requests.exceptions.SSLError as e:
-            print(f"       ❌ SSL Error: {e}")
-            return None
-        except requests.exceptions.Timeout as e:
-            print(f"       ❌ Timeout: {e}")
-            return None
-        except requests.exceptions.ConnectionError as e:
-            print(f"       ❌ Connection Error: {e}")
-            return None
-        except requests.exceptions.HTTPError as e:
-            print(f"       ❌ HTTP Error: {e}")
-            return None
-        except Exception as e:
-            print(f"       ❌ Parse Error: {type(e).__name__}: {e}")
+        except Exception:
+            # Silently filter out failed items
             return None
 
     def search(
@@ -186,10 +155,6 @@ class WebSearchStrategy(SearchStrategy):
         """
         Perform a search using the Google Custom Search API with batch fetching.
         """
-        print(f"\n🔧 Google Search Debug Info:")
-        print(f"   Query: '{self.query}'")
-        print(f"   Target results: {top_k}")
-        
         # Google API limits: num ∈ [1,10], max 100 total results
         max_per_request = 10
         max_total_results = 100
@@ -198,23 +163,16 @@ class WebSearchStrategy(SearchStrategy):
         target_raw_results = min(top_k * 2, max_total_results)  # Get 2x target for filtering
         batches_needed = (target_raw_results + max_per_request - 1) // max_per_request
         
-        print(f"   Target raw results: {target_raw_results}")
-        print(f"   Batches needed: {batches_needed}")
-        
         all_items = []
         current_start = 1
         
         for batch_num in range(batches_needed):
-            print(f"\n   📥 Batch {batch_num + 1}/{batches_needed}:")
-            
             # Calculate results needed for this batch
             remaining_needed = target_raw_results - len(all_items)
             if remaining_needed <= 0:
-                print("     ✓ Enough results collected, stopping")
                 break
                 
             batch_size = min(max_per_request, remaining_needed)
-            print(f"     Requesting: {batch_size} results starting from {current_start}")
             
             # Make API request for this batch
             url = "https://www.googleapis.com/customsearch/v1"
@@ -226,68 +184,37 @@ class WebSearchStrategy(SearchStrategy):
                 "start": current_start
             }
 
-            try:
-                api_response = requests.get(url, params=params)
-                print(f"     API Response Status: {api_response.status_code}")
+            api_response = requests.get(url, params=params)
+            api_response.raise_for_status()
+            
+            response_json = api_response.json()
+            batch_items = response_json.get("items", [])
+            
+            if not batch_items:
+                # No more results available
+                break
                 
-                if api_response.status_code != 200:
-                    print(f"     ❌ API Error Response: {api_response.text}")
-                    api_response.raise_for_status()
-                
-                response_json = api_response.json()
-                batch_items = response_json.get("items", [])
-                
-                print(f"     ✓ Received: {len(batch_items)} items")
-                
-                if not batch_items:
-                    print("     ℹ️ No more results available from API")
-                    break
-                    
-                all_items.extend(batch_items)
-                current_start += batch_size
-                
-                # Log some details about received items
-                for i, item in enumerate(batch_items[:2]):  # Show first 2 items
-                    title = item.get('title', 'No title')[:50]
-                    link = item.get('link', 'No link')
-                    print(f"       Item {i+1}: {title}... ({link})")
-                
-                # Stop if we have enough or hit API limits
-                if len(all_items) >= target_raw_results or current_start > max_total_results:
-                    print(f"     ✓ Collection complete: {len(all_items)} total items")
-                    break
-                    
-            except requests.exceptions.RequestException as e:
-                print(f"     ❌ Request failed: {e}")
-                raise
-
-        print(f"\n   📊 API Collection Summary:")
-        print(f"     Total items from API: {len(all_items)}")
+            all_items.extend(batch_items)
+            current_start += batch_size
+            
+            # Stop if we have enough or hit API limits
+            if len(all_items) >= target_raw_results or current_start > max_total_results:
+                break
 
         if not all_items:
-            print("     ❌ No items collected from API")
             return []
 
         # Process all items with concurrent content fetching
-        print(f"\n   🔄 Processing content for {len(all_items)} items...")
         results = []
         with ThreadPoolExecutor(max_workers=min(len(all_items), 10)) as executor:
             future_to_item = {executor.submit(self._fetch_and_parse, item): item for item in all_items}
-            for i, future in enumerate(as_completed(future_to_item)):
+            for future in as_completed(future_to_item):
                 result = future.result()
                 if result:
-                    content_len = len(result.get('content', ''))
-                    print(f"     ✓ Item {i+1}: {content_len} chars content")
                     results.append(result)
                     # Stop when we have enough high-quality results
                     if len(results) >= top_k:
-                        print(f"     ✓ Target reached: {len(results)} results")
                         break
-                else:
-                    print(f"     ✗ Item {i+1}: Failed to parse content")
-        
-        print(f"\n   📋 Final Summary:")
-        print(f"     Successfully processed: {len(results)} results")
         
         return results[:top_k]
 
