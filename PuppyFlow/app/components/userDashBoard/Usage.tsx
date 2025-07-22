@@ -1,8 +1,140 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppSettings } from '../states/AppSettingsContext';
+import { SYSTEM_URLS } from '@/config/urls';
+
+// 定义用量数据类型
+type UsageData = {
+  llm_calls: {
+    used: number;
+    total: number;
+    remaining: number;
+  };
+  runs: {
+    used: number;
+    total: number;
+    remaining: number;
+  };
+};
 
 const Usage: React.FC = () => {
-  const { userSubscriptionStatus, isLoadingSubscriptionStatus } = useAppSettings();
+  const { userSubscriptionStatus, isLoadingSubscriptionStatus, getAuthHeaders } = useAppSettings();
+  const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+
+  // 获取用量数据
+  const fetchUsageData = async () => {
+    if (!userSubscriptionStatus) return;
+    
+    setIsLoadingUsage(true);
+    try {
+      const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
+      
+      // 并行请求两个API
+      const [llmResponse, runsResponse] = await Promise.all([
+        fetch(`${UserSystem_Backend_Base_Url}/usage/check/llm_calls`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          }
+        }),
+        fetch(`${UserSystem_Backend_Base_Url}/usage/check/runs`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          }
+        })
+      ]);
+
+      if (llmResponse.ok && runsResponse.ok) {
+        const llmData = await llmResponse.json();
+        const runsData = await runsResponse.json();
+        
+        setUsageData({
+          llm_calls: {
+            used: llmData.used || 0,
+            total: llmData.total || 0,
+            remaining: llmData.remaining || 0
+          },
+          runs: {
+            used: runsData.used || 0,
+            total: runsData.total || 0,
+            remaining: runsData.remaining || 0
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching usage data:', error);
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  };
+
+  // 当订阅状态更新时，获取用量数据
+  useEffect(() => {
+    if (userSubscriptionStatus) {
+      const isLocalDeployment = userSubscriptionStatus.days_left === 99999;
+      if (!isLocalDeployment) {
+        fetchUsageData();
+      }
+    }
+  }, [userSubscriptionStatus]);
+
+  // 获取计划限制
+  const getPlanLimits = () => {
+    if (userSubscriptionStatus?.is_premium) {
+      return {
+        llm_calls: 200,
+        runs: 1000
+      };
+    } else {
+      return {
+        llm_calls: 50,
+        runs: 100
+      };
+    }
+  };
+
+  // 渲染用量进度条
+  const renderUsageBar = (used: number, total: number, label: string) => {
+    const percentage = total > 0 ? (used / total) * 100 : 0;
+    const isNearLimit = percentage >= 80;
+    const isOverLimit = percentage >= 100;
+    
+    return (
+      <div className="space-y-2">
+        <div className="flex justify-between items-center">
+          <span className="text-[14px] text-white">{label}</span>
+          <span className="text-[14px] text-[#888888]">
+            {used} / {total}
+          </span>
+        </div>
+        <div className="w-full bg-[#404040] rounded-full h-2">
+          <div 
+            className={`h-2 rounded-full transition-all duration-300 ${
+              isOverLimit ? 'bg-[#EF4444]' : 
+              isNearLimit ? 'bg-[#F59E0B]' : 'bg-[#16A34A]'
+            }`}
+            style={{ width: `${Math.min(percentage, 100)}%` }}
+          ></div>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-[14px] text-[#888888]">
+            {total - used} remaining
+          </span>
+          <span className={`text-[12px] font-medium ${
+            isOverLimit ? 'text-[#EF4444]' : 
+            isNearLimit ? 'text-[#F59E0B]' : 'text-[#16A34A]'
+          }`}>
+            {percentage.toFixed(1)}% used
+          </span>
+        </div>
+      </div>
+    );
+  };
 
   if (isLoadingSubscriptionStatus) {
     return (
@@ -32,6 +164,7 @@ const Usage: React.FC = () => {
   }
 
   const isLocalDeployment = userSubscriptionStatus.days_left === 99999;
+  const planLimits = getPlanLimits();
 
   return (
     <div className="space-y-6 max-h-[500px] pr-2">
@@ -105,17 +238,55 @@ const Usage: React.FC = () => {
                   <p className="text-[12px] text-[#888888] mt-1">Local deployment with no restrictions</p>
                 </div>
               ) : (
-                <div className="text-center py-4">
-                  <div className="text-[#16A34A] text-[18px] mb-2">🎉</div>
-                  <span className="text-[14px] text-[#16A34A] font-medium">Premium Features Unlocked</span>
-                  <p className="text-[12px] text-[#888888] mt-1">Enjoy enhanced limits and premium features</p>
+                <div className="space-y-4">
+                  <div className="text-center py-2">
+                    <div className="text-[#16A34A] text-[18px] mb-2">🎉</div>
+                    <span className="text-[14px] text-[#16A34A] font-medium">Premium Features Unlocked</span>
+                    <p className="text-[12px] text-[#888888] mt-1">Enhanced limits and premium features</p>
+                  </div>
+                  
+                  {/* Premium用户用量显示 */}
+                  {usageData ? (
+                    <div className="space-y-4 pt-2">
+                      {renderUsageBar(usageData.llm_calls.used, planLimits.llm_calls, "LLM Calls")}
+                      {renderUsageBar(usageData.runs.used, planLimits.runs, "Single Runs")}
+                    </div>
+                  ) : isLoadingUsage ? (
+                    <div className="text-center py-2">
+                      <div className="w-4 h-4 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin mx-auto mb-2"></div>
+                      <span className="text-[12px] text-[#888888]">Loading usage data...</span>
+                    </div>
+                  ) : (
+                    <div className="text-center py-2">
+                      <span className="text-[12px] text-[#888888]">Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs</span>
+                    </div>
+                  )}
                 </div>
               )
             ) : (
-              <div className="text-center py-4">
-                <div className="text-[#888888] text-[18px] mb-2">📊</div>
-                <span className="text-[14px] text-[#888888] font-medium">Free Plan Limits</span>
-                <p className="text-[12px] text-[#666666] mt-1">Upgrade to premium for unlimited access</p>
+              <div className="space-y-4">
+                <div className="text-center py-2">
+                  <div className="text-[#888888] text-[18px] mb-2">📊</div>
+                  <span className="text-[14px] text-[#888888] font-medium">Free Plan Limits</span>
+                  <p className="text-[12px] text-[#666666] mt-1">Upgrade to premium for unlimited access</p>
+                </div>
+                
+                {/* Free用户用量显示 */}
+                {usageData ? (
+                  <div className="space-y-4 pt-2">
+                    {renderUsageBar(usageData.llm_calls.used, planLimits.llm_calls, "LLM Calls")}
+                    {renderUsageBar(usageData.runs.used, planLimits.runs, "Single Runs")}
+                  </div>
+                ) : isLoadingUsage ? (
+                  <div className="text-center py-2">
+                    <div className="w-4 h-4 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin mx-auto mb-2"></div>
+                    <span className="text-[12px] text-[#888888]">Loading usage data...</span>
+                  </div>
+                ) : (
+                  <div className="text-center py-2">
+                    <span className="text-[12px] text-[#888888]">Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

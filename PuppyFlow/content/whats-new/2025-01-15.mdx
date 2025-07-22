@@ -1,0 +1,18 @@
+---
+title: 'React Flow 12.4.0'
+description: 'Changelog for React Flow version 12.4.0'
+authors: [xyflow]
+date: '2025-01-15'
+---
+
+New year, new minor release :) This release contains mostly fixes but also introduces a new [`useNodeConnections`](/api-reference/hooks/use-node-connections) that is the successor of `useHandleConnections`.
+
+### Minor Changes
+
+- [#4725](https://github.com/xyflow/xyflow/pull/4725) Add `useNodeConnections` hook to track all connections to a node. Can be filtered by handleType and handleId.
+
+### Patch Changes
+
+- [#4947](https://github.com/xyflow/xyflow/pull/4947) Export ResizeControlVariant correctly as a value.
+- [#4880](https://github.com/xyflow/xyflow/pull/4880) Thanks [@crimx](https://github.com/crimx)! - Add type check for all event targets
+- [#4929](https://github.com/xyflow/xyflow/pull/4929) Optimize selections and take into account if edges connected to selected nodes are actually selectable.

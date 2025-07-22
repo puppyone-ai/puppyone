@@ -1,0 +1,173 @@
+---
+description: Learn how to build your first static flow with React Flow.
+---
+
+import { Callout, Steps } from 'nextra/components';
+import { RemoteCodeViewer } from 'xy-shared/server';
+
+# Building a Flow
+
+In the following pages we will introduce you to the core concepts of React Flow and
+explain how to create a basic interactive flow. A flow consists of
+[nodes](/api-reference/types/node), [edges](/api-reference/types/edge) and the viewport.
+
+To follow along with this guide you will need to have a React project set up and install
+the `@xyflow/react` package:
+
+```bash copy npm2yarn
+npm install @xyflow/react
+```
+
+## Creating the flow
+
+Let's start by creating an empty flow with viewport
+[`<Controls />`](/api-reference/components/controls) and a dotted
+[`<Background />`](/api-reference/components/background).
+
+<Steps>
+### Add imports
+First, we need to import some basic components from the `@xyflow/react` package 
+and the **css stylesheet**, which is **required** for React Flow to work:
+
+```jsx "import '@xyflow/react/dist/style.css';"
+import { ReactFlow, Background, Controls } from '@xyflow/react';
+import '@xyflow/react/dist/style.css';
+```
+
+### Render ReactFlow
+
+Now we create a React component, that renders our flow. The **width and height** on the
+parent container are **required** because React Flow uses these dimensions.
+
+```jsx "height: '100%', width: '100%'"
+export default function App() {
+  return (
+    <div style={{ height: '100%', width: '100%' }}>
+      <ReactFlow>
+        <Background />
+        <Controls />
+      </ReactFlow>
+    </div>
+  );
+}
+```
+
+### Empty flow
+
+That's it! You have created your first empty flow 🎉
+
+<RemoteCodeViewer aspectRatio="4" route="learn/building-a-flow-1" framework="react" />
+
+</Steps>
+
+## Adding nodes
+
+Now that the flow is set up, it's time to add nodes — each node represents an element in
+your diagram with a specific position and content.
+
+<Steps> 
+### Create node objects
+
+Outside of your React component, create an array of [node](/api-reference/types/node)
+objects. Each node object needs a unique `id` and a `position`. Let's also add a label to
+them:
+
+```jsx
+const initialNodes = [
+  {
+    id: 'n1',
+    position: { x: 0, y: 0 },
+    data: { label: 'Node 1' },
+    type: 'input',
+  },
+  {
+    id: 'n2',
+    position: { x: 100, y: 100 },
+    data: { label: 'Node 2' },
+  },
+];
+```
+
+### Add nodes to the flow
+
+Now we can pass our `initialNodes` array to the `<ReactFlow />` component using the
+`nodes` prop:
+
+```jsx "nodes={initialNodes}"
+<ReactFlow nodes={initialNodes}>
+  <Background />
+  <Controls />
+</ReactFlow>
+```
+
+### Flow with nodes
+
+This gives us a flow with two labeled nodes 🎉
+
+<RemoteCodeViewer aspectRatio="4" route="learn/building-a-flow-2" framework="react" />
+
+</Steps>
+
+We have several built-in nodes that you can explore in the
+[node](/api-reference/types/node) reference. However, once you start building your own
+application, you will want to use [custom nodes](/learn/customization/custom-nodes).
+
+## Adding edges
+
+Now that we have two nodes, let's connect them with an edge.
+
+<Steps>
+### Create an edge
+
+To create an edge, we define an array of [edge](/api-reference/types/edge) objects. Each
+edge object needs to have an `id`, a `source` (where the edge begins), and a `target`
+(where it ends). In this example, we use the `id` values of the two nodes we created so
+far (`n1` and `n2`) to define the edge:
+
+```js
+const initialEdges = [
+  {
+    id: 'n1-n2',
+    source: 'n1',
+    target: 'n2',
+  },
+];
+```
+
+This edge connects the node with `id: 'n1'` (the source) to the node with `id: 'n2'` (the
+target).
+
+<RemoteCodeViewer aspectRatio="4" route="learn/building-a-flow-3" framework="react" />
+
+### Label the edge
+
+Let's give this edge two properties that are built into React Flow, a `label` and a
+`type: "step"`.
+
+```jsx {6-7}
+const initialEdges = [
+  {
+    id: 'n1-n2',
+    source: 'n1',
+    target: 'n2',
+    type: 'step',
+    label: 'connects with',
+  },
+];
+```
+
+### Basic flow
+
+Now we have completed a basic flow with nodes and edges! 🎉
+
+<RemoteCodeViewer aspectRatio="4" route="learn/building-a-flow-4" framework="react" />
+
+</Steps>
+
+## Full code example 🏁
+
+<RemoteCodeViewer route="learn/building-a-flow-4" framework="react" />
+
+You took your first steps in React Flow! You might have realized that you can't drag or
+otherwise interact with nodes. On the next page you'll learn how to make the flow
+interactive.

@@ -1,0 +1,58 @@
+---
+title: New release 11.10.0!
+description: We released React Flow v11.10.0 with deprecations and some bugfixes.
+authors: [moritz]
+date: '2023-11-10'
+---
+
+We want to make the migration for v12 as smooth as possible. That's why we added deprecation warnings for the following util functions:
+
+#### Rename `useReactFlow.project` to `useReactFlow.screenToFlowPosition`
+
+⚠️ **changes**: no need to subtract react flow bounds anymore!
+
+before:
+
+```js
+const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect();
+
+const position = reactFlowInstance.project({
+  x: event.clientX - reactFlowBounds.left,
+  y: event.clientY - reactFlowBounds.top,
+});
+```
+
+after:
+
+```js
+const position = reactFlowInstance.screenToFlowPosition({
+  x: event.clientX,
+  y: event.clientY,
+});
+```
+
+#### Rename `getTransformForBounds` to `getViewportForBounds`
+
+⚠️ **changes**: returns `{ x: number, y: number, zoom: number }` instead of `[number, number, number]`.
+
+before:
+
+```js
+const [x, y, zoom] = getTransformForBounds(bounds, width, height, 0.5, 2);
+```
+
+after:
+
+```js
+const { x, y, zoom } = getViewportForBounds(bounds, width, height, 0.5, 2);
+```
+
+#### Rename `getRectOfNodes` to `getNodesBounds`
+
+no changes, just a renaming.
+
+### New features
+
+- added `useReactFlow.flowToScreenPosition` for completion
+
+Besides that we fixed some bugs 🐛 You can find all change in the [v11.10.0 Github release](https://github.com/xyflow/xyflow/releases/tag/11.10.0).

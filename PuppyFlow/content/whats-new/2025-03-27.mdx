@@ -1,0 +1,67 @@
+---
+title: 'React Flow 12.5.0'
+description: 'Changelog for React Flow version 12.5.0'
+authors: [xyflow]
+date: '2025-03-27'
+---
+
+### `fitView` just got a lot better!
+
+Have ever struggled with making `fitView` work right after adding or changing your nodes? Does your code look something like this?
+
+```ts
+setNodes((nodes) => [nodes, ...newNode]);
+requestAnimationFrame(() => {
+  fitView();
+});
+// renders the node first and then fits the view :(
+```
+
+Well, you are in for a treat! No more hacks, no more `setTimeout` or `requestAnimationFrame` and no more split second frames of unfitted views!
+
+```ts
+setNodes((nodes) => [nodes, ...newNode]);
+fitView(); // it just works.
+// adding a new node and fitting the view happens at the same time
+```
+
+#### One more thing
+
+You might have realized that the `padding` value for `fitViewOptions` is quite a weird fella! What does `padding: 0.3` even mean? Well we don't know either, so you you can now pass pixel values `'25px'`, viewport percentages `'10%'` and true pros can now even
+
+```ts
+const fitViewOptions = {
+  padding: {
+    /** horizontal */
+    x: '100px',
+    /** vertical */
+    y: '50px',
+    /** e.g. top overwrites x */
+    top: '25px',
+    /** mix and match units */
+    left: '15%',
+    /** legacy units still work */
+    bottom: 0.1,
+    /** have a modal on the right that stretches 50% over the screen? */
+    right: '50%',
+  },
+};
+```
+
+```ts
+setNodes((nodes) => [nodes, ...newNode]);
+fitView(); // it just works.
+// adding a new node and fitting the view happens at the same time
+```
+
+### New Features
+
+- [#5067](https://github.com/xyflow/xyflow/pull/5067) Define different fitView paddings for each side in 'px' or '%'.
+
+### Patch Changes
+
+- [#5067](https://github.com/xyflow/xyflow/pull/5067) Fix fitView not working immediately after adding new nodes
+- [#5059](https://github.com/xyflow/xyflow/pull/5059) Prevent onPaneClick when connection is in progress.
+- [#5093](https://github.com/xyflow/xyflow/pull/5093) Hidden nodes are not displayed in the mini map anymore
+- [#5090](https://github.com/xyflow/xyflow/pull/5090) Release key even when an inout field is focused
+- Thanks [@dimaMachina](https://github.com/dimaMachina)! - for improving TSDoc comments for `BackgroundProps`, `EdgeLabelOptions`, `ControlProps`, `NodeToolbarProps`, `EdgeLabelRendererProps`, `EdgeLabelOptions` and `EdgeTextProps`

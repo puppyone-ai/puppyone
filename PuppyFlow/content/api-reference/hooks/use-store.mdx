@@ -1,0 +1,99 @@
+---
+description:
+  'This hook can be used to subscribe to internal state changes of the React Flow
+  component. The useStore hook is re-exported from the Zustand state management
+  library, so you should check out their docs for more details.'
+---
+
+import { Callout } from 'nextra/components';
+
+# useStore()
+
+[Source on GitHub](https://github.com/xyflow/xyflow/blob/main/packages/react/src/hooks/useStore.ts)
+
+This hook can be used to subscribe to internal state changes of the React Flow
+component. The `useStore` hook is re-exported from the [Zustand](https://github.com/pmndrs/zustand)
+state management library, so you should check out their docs for more details.
+
+<Callout type="info">
+  This hook should only be used if there is no other way to access the internal
+  state. For many of the common use cases, there are dedicated hooks available
+  such as [`useReactFlow`](/api-reference/hooks/use-react-flow),
+  [`useViewport`](/api-reference/hooks/use-viewport), etc.
+</Callout>
+
+```jsx
+import { ReactFlow, useStore } from '@xyflow/react';
+
+const nodesLengthSelector = (state) =>
+  state.nodes.length || 0;
+
+const NodesLengthDisplay = () => {
+  const nodesLength = useStore(nodesLengthSelector);
+
+  return <div>The current number of nodes is: {nodesLength}</div>;
+};
+
+function Flow() {
+  return (
+    <ReactFlow nodes={[...]}>
+      <NodesLengthDisplay />
+    </ReactFlow>
+  );
+}
+```
+
+This example computes the number of nodes eagerly. Whenever the number of nodes
+in the flow changes, the `<NodesLengthDisplay />` component will re-render. This
+is in contrast to the example in the [`useStoreApi`](/api-reference/hooks/use-store-api) hook that only
+computes the number of nodes when a button is clicked.
+
+Choosing whether to calculate values on-demand or to subscribe to changes as they
+happen is a bit of a balancing act. On the one hand, putting too many heavy
+calculations in an event handler can make your app feel sluggish or unresponsive.
+On the other hand, computing values eagerly can lead to slow or unnecessary
+re-renders.
+
+We make both this hook and [`useStoreApi`](/api-reference/hooks/use-store-api) available so that you
+can choose the approach that works best for your use-case.
+
+## Signature
+
+<APIDocs functionName="useStore" />
+
+## Examples
+
+### Triggering store actions
+
+You can manipulate the internal React Flow state by triggering internal actions
+through the `useStore` hook. These actions are already used internally throughout
+the library, but you can also use them to implement custom functionality.
+
+```jsx
+import { useStore } from '@xyflow/react';
+
+const setMinZoomSelector = (state) => state.setMinZoom;
+
+function MinZoomSetter() {
+  const setMinZoom = useStore(setMinZoomSelector);
+
+  return <button onClick={() => setMinZoom(6)}>set min zoom</button>;
+}
+```
+
+## TypeScript
+
+This hook can be typed by typing the selector function. See this
+[section in our TypeScript guide](/learn/advanced-use/typescript#nodetype-edgetype-unions) for more information.
+
+```tsx
+const nodes = useStore((s: ReactFlowState<CustomNodeType>) => ({
+  nodes: s.nodes,
+}));
+```
+
+## Notes
+
+- You should define your store selector function _outside_ of the component that
+  uses it, or use React's `useCallback` hook to memoize the function. Not doing
+  this can incur a slight performance penalty.

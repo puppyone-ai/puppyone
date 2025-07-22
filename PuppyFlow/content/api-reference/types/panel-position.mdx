@@ -1,0 +1,25 @@
+---
+description:
+  'This type is mostly used to help position things on top of the flow viewport.
+  For example both the MiniMap and Controls components take a position prop of
+  this type.'
+---
+
+# PanelPosition
+
+[Source on GitHub](https://github.com/xyflow/xyflow/blob/main/packages/system/src/types/general.ts/#L111-L112)
+
+This type is mostly used to help position things on top of the flow viewport. For
+example both the [`<MiniMap />`](/api-reference/components/minimap) and
+[`<Controls />`](/api-reference/components/controls) components take a `position`
+prop of this type.
+
+```ts
+export type PanelPosition =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+```
