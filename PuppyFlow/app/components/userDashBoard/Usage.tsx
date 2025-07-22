@@ -5,14 +5,14 @@ import { SYSTEM_URLS } from '@/config/urls';
 // 定义用量数据类型
 type UsageData = {
   llm_calls: {
-    used: number;
-    total: number;
-    remaining: number;
+    used: number;      // current_usage
+    total: number;     // base_limit + extra_balance
+    remaining: number; // available
   };
   runs: {
-    used: number;
-    total: number;
-    remaining: number;
+    used: number;      // current_usage
+    total: number;     // base_limit + extra_balance
+    remaining: number; // available
   };
 };
 
@@ -55,14 +55,14 @@ const Usage: React.FC = () => {
         
         setUsageData({
           llm_calls: {
-            used: llmData.used || 0,
-            total: llmData.total || 0,
-            remaining: llmData.remaining || 0
+            used: llmData.current_usage || 0,
+            total: llmData.base_limit + (llmData.extra_balance || 0),
+            remaining: llmData.available || 0
           },
           runs: {
-            used: runsData.used || 0,
-            total: runsData.total || 0,
-            remaining: runsData.remaining || 0
+            used: runsData.current_usage || 0,
+            total: runsData.base_limit + (runsData.extra_balance || 0),
+            remaining: runsData.available || 0
           }
         });
       }
