@@ -228,7 +228,34 @@ const Usage: React.FC = () => {
 
         {/* Usage Limits */}
         <div className="bg-[#333333] rounded-lg p-4">
-          <h4 className="text-[16px] font-medium text-[#AAAAAA] mb-3">Usage Limits</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-[16px] font-medium text-[#AAAAAA]">Usage Limits</h4>
+            {!isLocalDeployment && (
+              <button
+                onClick={fetchUsageData}
+                disabled={isLoadingUsage}
+                className={`flex items-center gap-2 px-3 py-1 rounded-md text-[12px] font-medium transition-colors ${
+                  isLoadingUsage
+                    ? 'bg-[#404040] text-[#666666] cursor-not-allowed'
+                    : 'bg-[#404040] text-[#AAAAAA] hover:bg-[#505050] hover:text-white'
+                }`}
+              >
+                {isLoadingUsage ? (
+                  <>
+                    <div className="w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin"></div>
+                    <span>Refreshing...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>Refresh</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
           <div className="space-y-3">
             {userSubscriptionStatus.is_premium ? (
               isLocalDeployment ? (
