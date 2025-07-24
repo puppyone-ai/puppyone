@@ -231,25 +231,11 @@ export const useWorkspaceManagement = () => {
     const createWorkspace = async (workspaceId: string, workspaceName: string, userId?: string): Promise<WorkspaceBasicInfo | undefined> => {
         try {
             if (isLocalDeployment) {
-                // 本地部署模式的创建逻辑
-                const response = await fetch('/api/workspace/create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        workspace_id: workspaceId,
-                        workspace_name: workspaceName
-                    })
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    return {
-                        workspace_id: data.workspace_id,
-                        workspace_name: data.workspace_name
-                    };
-                }
+                // 本地部署模式：直接返回workspace信息，目录会在保存时创建
+                return {
+                    workspace_id: workspaceId,
+                    workspace_name: workspaceName
+                };
             } else {
                 // 云端部署模式
                 let finalUserId = userId;
