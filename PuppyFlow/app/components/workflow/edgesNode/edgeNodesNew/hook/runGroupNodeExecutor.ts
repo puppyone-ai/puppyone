@@ -446,4 +446,34 @@ export async function runGroupNode({
         console.error("Error executing group node:", error);
         throw error;
     }
+}
+
+// 新增：只构建JSON数据而不执行的函数
+export function buildGroupNodeJson({
+    groupNodeId,
+    context,
+    constructJsonData
+}: {
+    groupNodeId: string;
+    context: RunGroupNodeContext;
+    constructJsonData?: () => BaseConstructedJsonData;
+}): BaseConstructedJsonData {
+    console.log(`🔧 [buildGroupNodeJson] 开始构建JSON数据 - groupNodeId: ${groupNodeId}`);
+    
+    try {
+        // 直接调用JSON构建函数，不执行发送和状态更新
+        const jsonData = constructGroupNodeJson(groupNodeId, context, constructJsonData);
+        
+        console.log(`✅ [buildGroupNodeJson] JSON构建完成:`, {
+            blocksCount: Object.keys(jsonData.blocks).length,
+            edgesCount: Object.keys(jsonData.edges).length,
+            blockIds: Object.keys(jsonData.blocks),
+            edgeIds: Object.keys(jsonData.edges)
+        });
+        
+        return jsonData;
+    } catch (error) {
+        console.error("Error building group node JSON:", error);
+        throw error;
+    }
 } 
