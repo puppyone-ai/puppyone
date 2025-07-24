@@ -1,12 +1,21 @@
 'use client'
-import React, { useRef, useCallback, useState, useEffect } from 'react';
+import React, { useRef, useCallback, useState, useEffect, Fragment } from 'react';
+import ReactDOM from 'react-dom';
 import { NodeProps, Handle, Position, Node, NodeResizeControl, NodeToolbar, useReactFlow } from '@xyflow/react';
+import { Menu, Transition } from '@headlessui/react'
 import { useDetachNodes, useGroupNodeCalculation } from '../../hooks/useNodeDragHandlers';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { runGroupNode, RunGroupNodeContext } from '../edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
 import { useAppSettings } from '../../states/AppSettingsContext';
 import useGetSourceTarget from '../../hooks/useGetSourceTarget';
+import { useWorkspaces } from '../../states/UserWorkspacesContext';
+import { useServers } from '../../states/UserServersContext';
+import { useServerOperations } from '../../hooks/useServerManagement';
+import { SYSTEM_URLS } from '@/config/urls';
+
+// Import the new toolbar component
+import { GroupDeployToolbar } from './GroupDeployToolbar';
 
 export type GroupNodeData = {
   label: string;
@@ -31,7 +40,7 @@ const BACKGROUND_COLORS = [
   { name: 'Pink', value: 'rgba(119, 89, 110, 0.2)', preview: '#77596E' },
 ];
 
-function GroupNode({ data, id }: GroupNodeProps) {
+function GroupNode({ data, id, selected }: GroupNodeProps) {
   const componentRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const { getNodes, deleteElements, setNodes, getNode } = useReactFlow();
@@ -42,6 +51,14 @@ function GroupNode({ data, id }: GroupNodeProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Add workspace context for deployment
+  const { showingItem } = useWorkspaces();
+  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
+
+  // Deployment state
+  const [deployHovered, setDeployHovered] = useState(false);
+  const [showDeployMenu, setShowDeployMenu] = useState(false);
+  
   // 获取所有需要的依赖
   const { streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI } = useJsonConstructUtils();
   const { getAuthHeaders } = useAppSettings();
@@ -174,11 +191,11 @@ function GroupNode({ data, id }: GroupNodeProps) {
   };
 
   return (
-    <div
-      className="relative w-full h-full min-w-[240px] min-h-[176px] cursor-default"
+    <div className="relative w-full h-full min-w-[240px] min-h-[176px] cursor-default"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* 内层容器 - 保持 overflow-hidden */}
       <div
         ref={contentRef}
         id={id}
@@ -311,21 +328,33 @@ function GroupNode({ data, id }: GroupNodeProps) {
                 {isLoading ? 'Running...' : 'Test Run'}
               </button>
               
-              <button
-                onClick={() => console.log('Deploy group:', id)}
-                className="px-3 py-1.5 h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#FFA73D] text-[#CDCDCD] hover:text-black rounded-md border border-[#444444] hover:border-[#FFA73D] flex items-center gap-2 transition-all duration-200 hover:shadow-md"
-                title="Deploy Group"
-              >
-                <svg width="14" height="12" viewBox="0 0 18 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-colors duration-200">
-                  <path d="M14.5 11L17.5 15H14.5V11Z" fill="currentColor" />
-                  <path d="M3.5 11V15H0.5L3.5 11Z" fill="currentColor" />
-                  <path fillRule="evenodd" clipRule="evenodd" d="M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z" fill="currentColor" />
-                </svg>
-                Deploy
-              </button>
+              {/* Deploy Button */}
+                <button 
+                  className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[32px] rounded-[8px] bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D] group`}
+                  onMouseEnter={() => setDeployHovered(true)}
+                  onMouseLeave={() => setDeployHovered(false)}
+                onClick={() => setShowDeployMenu(!showDeployMenu)}
+                >
+                  <svg width="18" height="15" viewBox="0 0 18 15" fill="none" xmlns="http://www.w3.org/2000/svg" className="transition-[stroke]">
+                    <path className="transition-[fill]" d="M14.5 11L17.5 15H14.5V11Z" fill={deployHovered === true ? "#000" : "#CDCDCD"} />
+                    <path className="transition-[fill]" d="M3.5 11V15H0.5L3.5 11Z" fill={deployHovered === true ? "#000" : "#CDCDCD"} />
+                    <path className="transition-[fill]" fillRule="evenodd" clipRule="evenodd" d="M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z" fill={deployHovered === true ? "#000" : "#CDCDCD"} />
+                  </svg>
+                  <div className={`text-[14px] font-normal leading-normal transition-colors ${deployHovered === true ? "text-[#000]" : "text-[#CDCDCD]"}`}>Deploy</div>
+                </button>
             </div>
           </div>
         </>
+
+        {/* Deploy Menu - 简单的absolute定位元素 */}
+        {showDeployMenu && (
+          <div className="absolute top-20 right-6 z-40 nodrag">
+            <GroupDeployToolbar 
+              groupNodeId={id} 
+              onClose={() => setShowDeployMenu(false)}
+            />
+          </div>
+        )}
 
         {/* 子节点指示 - 在空白时显示提示 */}
         {childNodes.length === 0 && (
@@ -334,7 +363,7 @@ function GroupNode({ data, id }: GroupNodeProps) {
           </div>
         )}
 
-        {/* 调整手柄 - 始终渲染但通过opacity控制显示 */}
+        {/* 调整手柄保持不变... */}
         <>
           {/* 右侧中间调整手柄 */}
           <NodeResizeControl
@@ -374,7 +403,7 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 底部中间调整手柄 */}
+          {/* 其他调整手柄保持不变... */}
           <NodeResizeControl
             position="bottom"
             minWidth={240}
@@ -412,7 +441,6 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 左侧中间调整手柄 */}
           <NodeResizeControl
             position="left"
             minWidth={240}
@@ -450,7 +478,6 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 顶部中间调整手柄 */}
           <NodeResizeControl
             position="top"
             minWidth={240}
@@ -488,8 +515,6 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 角落调整手柄 */}
-          {/* 右下角调整手柄 */}
           <NodeResizeControl
             position="bottom-right"
             minWidth={240}
@@ -525,7 +550,6 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 左下角调整手柄 */}
           <NodeResizeControl
             position="bottom-left"
             minWidth={240}
@@ -561,7 +585,6 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 右上角调整手柄 */}
           <NodeResizeControl
             position="top-right"
             minWidth={240}
@@ -597,7 +620,6 @@ function GroupNode({ data, id }: GroupNodeProps) {
             </div>
           </NodeResizeControl>
 
-          {/* 左上角调整手柄 */}
           <NodeResizeControl
             position="top-left"
             minWidth={240}
