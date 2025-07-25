@@ -45,12 +45,12 @@ class ModifyConvert2Structured(ModifyStrategy):
                 # Fall back to mixed content extraction
                 return self._extract_mixed_content_to_list(self.content)
             case "split_by_length":
-                text_unit_size = self.extra_configs.get("text_unit_size", 1000)
+                text_unit_size = self.extra_configs.get("length_separator", 1000)
                 if not isinstance(text_unit_size, int) or text_unit_size <= 0:
                     raise ValueError("text_unit_size must be a positive integer")
                 return [self.content[i:i+text_unit_size] for i in range(0, len(self.content), text_unit_size)]
             case "split_by_character":
-                delimiters = self.extra_configs.get("delimiters", [","])
+                delimiters = self.extra_configs.get("list_separator", [","])
                 if not delimiters:
                     return [self.content]
                 return self.split_string_by_multiple_delimiters(self.content, delimiters)
