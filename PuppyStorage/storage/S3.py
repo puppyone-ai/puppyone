@@ -30,8 +30,8 @@ class S3StorageAdapter(StorageAdapter):
             secret_access_key = config.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
             bucket = config.get("CLOUDFLARE_R2_BUCKET")
             
-            # 打印配置信息（不包含敏感信息）
-            log_info(f"初始化S3客户端，端点: {endpoint_url}, 存储桶: {bucket}")
+            # Print configuration information (excluding sensitive data)
+            log_info(f"Initializing S3 client, endpoint: {endpoint_url}, bucket: {bucket}")
             
             self.s3_client = client(
                 's3',
@@ -47,7 +47,7 @@ class S3StorageAdapter(StorageAdapter):
                 )
             )
             self.bucket = bucket
-            log_info(f"使用S3存储，存储桶: {self.bucket}")
+            log_info(f"Using S3 storage, bucket: {self.bucket}")
         except Exception as e:
             log_error(f"初始化S3客户端失败: {str(e)}")
             raise
@@ -109,20 +109,20 @@ class S3StorageAdapter(StorageAdapter):
             
     def save_file(self, key: str, file_data: bytes, content_type: str) -> bool:
         try:
-            log_info(f"尝试上传文件到S3: {key}, 内容类型: {content_type}, 存储桶: {self.bucket}")
+            log_info(f"Attempting to upload file to S3: {key}, content type: {content_type}, bucket: {self.bucket}")
             self.s3_client.put_object(
                 Bucket=self.bucket,
                 Key=key,
                 Body=file_data,
                 ContentType=content_type
             )
-            log_info(f"文件已上传到S3: {key}")
+            log_info(f"File uploaded to S3: {key}")
             return True
         except Exception as e:
-            log_error(f"上传文件到S3失败: {str(e)}")
-            # 添加更多错误信息
+            log_error(f"Failed to upload file to S3: {str(e)}")
+            # Add more error information
             if hasattr(e, 'response'):
-                log_error(f"错误响应: {e.response}")
+                log_error(f"Error response: {e.response}")
             return False
     
     def get_file(self, key: str) -> tuple:
