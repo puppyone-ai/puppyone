@@ -40,21 +40,21 @@ class StorageManager:
             storage_type = self._get_storage_type()
             
             if storage_type == "local":
-                log_info("初始化本地文件系统存储")
+                log_info("Initializing local file system storage")
                 self._adapter = LocalStorageAdapter()
             else:  # "remote" or "s3"
-                log_info("初始化S3远程存储")
+                log_info("Initializing S3 remote storage")
                 self._adapter = S3StorageAdapter()
                 
         except Exception as e:
-            log_error(f"初始化存储适配器失败: {str(e)}")
-            # 如果S3初始化失败，回退到本地存储
+            log_error(f"Failed to initialize storage adapter: {str(e)}")
+            # If S3 initialization fails, fallback to local storage
             if storage_type != "local":
-                log_info("S3存储初始化失败，回退到本地存储")
+                log_info("S3 storage initialization failed, falling back to local storage")
                 try:
                     self._adapter = LocalStorageAdapter()
                 except Exception as fallback_error:
-                    log_error(f"本地存储初始化也失败: {str(fallback_error)}")
+                    log_error(f"Local storage initialization also failed: {str(fallback_error)}")
                     raise
             else:
                 raise
@@ -76,11 +76,11 @@ class StorageManager:
         elif deployment_type == "remote":
             return "remote"
         elif deployment_type:
-            log_info(f"未识别的部署类型 '{deployment_type}'，仅支持 'local' 或 'remote'，默认使用 remote")
+            log_info(f"Unrecognized deployment type '{deployment_type}', only 'local' or 'remote' supported, defaulting to remote")
             return "remote"
         
-        # 默认配置：远程存储
-        log_info("未找到 DEPLOYMENT_TYPE 配置，默认使用远程存储")
+        # Default configuration: remote storage
+        log_info("DEPLOYMENT_TYPE configuration not found, defaulting to remote storage")
         return "remote"
     
     def get_adapter(self) -> StorageAdapter:
@@ -98,11 +98,11 @@ class StorageManager:
         
         if storage_type.lower() == "local":
             if not isinstance(self._adapter, LocalStorageAdapter):
-                log_info(f"存储类型从 {old_type} 切换到 local")
+                log_info(f"Storage type switched from {old_type} to local")
                 self._adapter = LocalStorageAdapter()
         else:  # remote/s3
             if not isinstance(self._adapter, S3StorageAdapter):
-                log_info(f"存储类型从 {old_type} 切换到 remote")
+                log_info(f"Storage type switched from {old_type} to remote")
                 self._adapter = S3StorageAdapter()
     
     def get_storage_info(self) -> dict:
