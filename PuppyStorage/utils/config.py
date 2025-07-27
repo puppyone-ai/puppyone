@@ -2,6 +2,53 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
+def validate_axiom_connection(axiom_token, axiom_org_id, axiom_dataset):
+    """
+    Validate Axiom connection by attempting to connect and perform a simple operation
+    
+    Args:
+        axiom_token: Axiom API token
+        axiom_org_id: Axiom organization ID
+        axiom_dataset: Axiom dataset name
+        
+    Returns:
+        tuple: (is_valid: bool, error_message: str or None)
+    """
+    try:
+        from axiom_py import Client
+        
+        # Initialize Axiom client
+        client = Client(axiom_token, axiom_org_id)
+        
+        # Try to verify connection by listing datasets or getting dataset info
+        try:
+            # Attempt to get dataset information to verify both connection and dataset existence
+            dataset_info = client.datasets.get(axiom_dataset)
+            if dataset_info:
+                return True, None
+            else:
+                return False, f"Dataset '{axiom_dataset}' not found"
+        except Exception as dataset_error:
+            # If getting specific dataset fails, try listing all datasets to verify connection
+            try:
+                client.datasets.list()
+                return False, f"Connection successful but dataset '{axiom_dataset}' is not accessible: {str(dataset_error)}"
+            except Exception:
+                # If listing datasets also fails, it's likely a connection/auth issue
+                raise dataset_error
+                
+    except ImportError:
+        return False, "axiom_py package not installed"
+    except Exception as e:
+        error_msg = str(e)
+        # Provide more specific error messages for common issues
+        if "authentication" in error_msg.lower() or "unauthorized" in error_msg.lower():
+            return False, f"Authentication failed - please check AXIOM_TOKEN and AXIOM_ORG_ID: {error_msg}"
+        elif "network" in error_msg.lower() or "connection" in error_msg.lower():
+            return False, f"Network connection failed - please check internet connectivity: {error_msg}"
+        else:
+            return False, f"Axiom connection failed: {error_msg}"
+
 class ConfigValidationError(Exception):
     """Configuration validation error"""
     pass
@@ -117,6 +164,17 @@ class AppConfig:
                 warnings.append(
                     f"Incomplete Axiom configuration, will use local logging: missing {', '.join(missing_axiom)}"
                 )
+            else:
+                # All Axiom parameters are present, validate connection
+                is_valid, error_msg = validate_axiom_connection(axiom_token, axiom_org_id, axiom_dataset)
+                if not is_valid:
+                    warnings.append(f"Axiom connection validation failed, will use local logging: {error_msg}")
+                    # Set a flag to indicate Axiom validation failed (for print statements later)
+                    axiom_validation_failed = True
+                else:
+                    axiom_validation_failed = False
+        else:
+            axiom_validation_failed = False
         
         # Validate numeric configurations
         numeric_configs = {
@@ -152,8 +210,10 @@ class AppConfig:
         print(f"✅ PuppyStorage configuration validation passed")
         print(f"   PROJECT_ROOT={paths.PROJECT_ROOT}")
         print(f"   STORAGE_ROOT={paths.STORAGE_ROOT}")
-        if axiom_token and axiom_org_id and axiom_dataset:
-            print(f"   Axiom logging: configured")
+        if axiom_token and axiom_org_id and axiom_dataset and not axiom_validation_failed:
+            print(f"   Axiom logging: configured and verified")
+        elif axiom_token and axiom_org_id and axiom_dataset and axiom_validation_failed:
+            print(f"   Axiom logging: configured but connection failed, using local logging")
         else:
             print(f"   Logging mode: local")
     
