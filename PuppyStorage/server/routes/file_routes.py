@@ -252,9 +252,9 @@ async def delete_file(key: str):
             content_name = parts[2]
             
             storage_adapter.delete_file(key)
-            log_info(f"已删除用户 {user_id} 的文件: {key}")
+            log_info(f"Deleted file for user {user_id}: {key}")
             return FileDeleteResponse(
-                message=f"已成功删除文件: {content_name}",
+                message=f"File deleted successfully: {content_name}",
                 user_id=user_id,
                 content_id=content_id,
                 deleted_at=int(time.time())
