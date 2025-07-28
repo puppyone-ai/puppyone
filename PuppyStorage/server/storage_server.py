@@ -11,6 +11,7 @@ from utils.logger import log_info, log_error
 from utils.config import ConfigValidationError
 from server.routes.file_routes import file_router, storage_router
 from server.routes.vector_routes import vector_router
+from server.routes.multipart_routes import multipart_router
 
 
 try:
@@ -47,21 +48,39 @@ try:
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         error_details = exc.errors()
         error_messages = []
+        
+        # 清理error_details，确保可以JSON序列化
+        cleaned_details = []
         for error in error_details:
             field = " -> ".join(str(x) for x in error["loc"])
             message = error["msg"]
             error_messages.append(f"{field}: {message}")
+            
+            # 创建一个可以JSON序列化的错误详情
+            cleaned_error = {
+                "type": error.get("type", "validation_error"),
+                "loc": error.get("loc", []),
+                "msg": message,
+                "input": str(error.get("input", "")) if error.get("input") is not None else None
+            }
+            cleaned_details.append(cleaned_error)
         
         error_message = "; ".join(error_messages)
-        raise PuppyException(
-            error_code=3000,  # Validation error code
-            error_message="Validation Error",
-            cause=error_message
+        
+        # 直接返回422状态码，使用清理过的数据
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": cleaned_details,
+                "error": "Validation Error",
+                "message": error_message
+            }
         )
 
     app.include_router(vector_router)
     app.include_router(file_router)
     app.include_router(storage_router)
+    app.include_router(multipart_router)
     
     log_info("PuppyStorage service initialization completed")
     
