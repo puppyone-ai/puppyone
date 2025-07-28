@@ -309,14 +309,20 @@ class GeneratorConfigParser(EdgeConfigParser):
         )
     
     def _process_field_content(self, field_ids, variable_values):
-        """Convert a list of block IDs to actual content strings"""
+        """Convert a list of block IDs to actual content strings using intelligent serialization"""
         result = []
         for block_id in field_ids:
             if block_id in variable_values:
                 content = variable_values[block_id]
-                if isinstance(content, (list, dict)):
-                    # Convert structured content to string
-                    content = json.dumps(content)
+                
+                # Best Practice: Intelligent Serialization
+                if isinstance(content, list) and all(isinstance(item, str) for item in content):
+                    # It's a list of strings (documents/paragraphs), join them naturally
+                    content = "\n\n".join(content)
+                elif isinstance(content, (list, dict)):
+                    # It's a true structured object, so JSON is appropriate
+                    content = json.dumps(content, indent=2, ensure_ascii=False)
+                
                 result.append(str(content))
         return result
     
