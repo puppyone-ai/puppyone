@@ -79,3 +79,11 @@ user_prompts:
   data_prompt: |
     Data:
     {data}
+  text_summarization: |
+    Please analyze and summarize the following documents:
+
+    Documents:
+    {context}
+
+    User's Request:
+    {query}
