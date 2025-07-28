@@ -1,0 +1,61 @@
+{
+    "blocks": {
+      "D1mNDP": {
+        "label": "D1mNDP",
+        "type": "structured",
+        "data": {
+          "content": [
+            "Strategic Impact: Why This MattersThis is more than a pricing change; it's a fundamental shift in our user relationship and market positioning.#### 4.1. ",
+            "| High. ",
+            " **Drastically Reduce User Cognitive Load:** Simplify the user's decision-making process by providing a single, predictable metric for consumption.2. ",
+            "Users are unsure which quota will be the bottleneck. ",
+            "Executive Summary (TL;DR)This document proposes a fundamental evolution of our pricing strategy. "
+          ]
+        },
+        "looped": false,
+        "collection_configs": []
+      },
+      "uUTqMa": {
+        "label": "uUTqMa",
+        "type": "text",
+        "data": {
+          "content": "有什么重点信息吗"
+        },
+        "looped": false,
+        "collection_configs": []
+      },
+      "sGuiQu": {
+        "label": "sGuiQu",
+        "type": "text",
+        "data": {
+          "content": ""
+        }
+      }
+    },
+    "edges": {
+      "generate-1753679514737": {
+        "type": "generator",
+        "data": {
+          "queries": [
+            "uUTqMa"
+          ],
+          "docs": [
+            "D1mNDP"
+          ],
+          "sys_prompt_template": "text_summarization",
+          "user_prompt_template": "text_summarization",
+          "hoster": "openrouter",
+          "model": "openai/gpt-4o-mini",
+          "max_tokens": 2048,
+          "inputs": {
+            "D1mNDP": "D1mNDP",
+            "uUTqMa": "uUTqMa"
+          },
+          "outputs": {
+            "sGuiQu": "sGuiQu"
+          },
+          "structured_output": false
+        }
+      }
+    }
+  }
