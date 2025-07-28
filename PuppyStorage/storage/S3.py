@@ -5,6 +5,7 @@ import sys
 import logging
 import uuid
 from urllib.parse import quote
+from typing import Optional, Dict, Any, List
 
 # 添加项目根目录到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -139,6 +140,169 @@ class S3StorageAdapter(StorageAdapter):
             # 其他错误才使用ERROR级别日志
             log_error(f"从S3获取文件失败: {str(e)}")
             return None, None
+
+    # === Multipart Upload Coordinator Implementation ===
+    
+    def init_multipart_upload(self, key: str, content_type: Optional[str] = None) -> Dict[str, Any]:
+        """初始化S3分块上传"""
+        try:
+            params = {
+                'Bucket': self.bucket,
+                'Key': key
+            }
+            if content_type:
+                params['ContentType'] = content_type
+            
+            response = self.s3_client.create_multipart_upload(**params)
+            upload_id = response['UploadId']
+            
+            # 计算过期时间（24小时后）
+            import time
+            expires_at = int(time.time()) + (24 * 60 * 60)
+            
+            result = {
+                "upload_id": upload_id,
+                "key": key,
+                "expires_at": expires_at,
+                "max_parts": 10000,  # S3最大分块数量
+                "min_part_size": 5 * 1024 * 1024  # 5MB（除最后一块外）
+            }
+            
+            log_info(f"S3分块上传初始化成功: key={key}, upload_id={upload_id}")
+            return result
+            
+        except Exception as e:
+            log_error(f"S3分块上传初始化失败: {str(e)}")
+            raise
+    
+    def get_multipart_upload_url(self, key: str, upload_id: str, part_number: int, expires_in: int = 300) -> Dict[str, Any]:
+        """获取S3分块上传的预签名URL"""
+        try:
+            # 首先验证上传是否还存在
+            try:
+                self.s3_client.list_parts(
+                    Bucket=self.bucket,
+                    Key=key,
+                    UploadId=upload_id,
+                    MaxParts=1
+                )
+            except self.s3_client.exceptions.NoSuchUpload:
+                raise Exception(f"Upload ID {upload_id} not found or has been aborted")
+            
+            upload_url = self.s3_client.generate_presigned_url(
+                'upload_part',
+                Params={
+                    'Bucket': self.bucket,
+                    'Key': key,
+                    'UploadId': upload_id,
+                    'PartNumber': part_number
+                },
+                ExpiresIn=expires_in
+            )
+            
+            import time
+            expires_at = int(time.time()) + expires_in
+            
+            result = {
+                "upload_url": upload_url,
+                "part_number": part_number,
+                "expires_at": expires_at
+            }
+            
+            log_debug(f"S3分块上传URL生成成功: key={key}, part_number={part_number}")
+            return result
+            
+        except Exception as e:
+            log_error(f"S3分块上传URL生成失败: {str(e)}")
+            raise
+    
+    def complete_multipart_upload(self, key: str, upload_id: str, parts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """完成S3分块上传"""
+        try:
+            # 构建parts列表，S3要求按PartNumber排序
+            multipart_upload = {
+                'Parts': sorted(parts, key=lambda x: x['PartNumber'])
+            }
+            
+            response = self.s3_client.complete_multipart_upload(
+                Bucket=self.bucket,
+                Key=key,
+                UploadId=upload_id,
+                MultipartUpload=multipart_upload
+            )
+            
+            # 获取文件大小（可选）
+            try:
+                head_response = self.s3_client.head_object(Bucket=self.bucket, Key=key)
+                file_size = head_response.get('ContentLength', 0)
+            except:
+                file_size = 0
+            
+            result = {
+                "success": True,
+                "key": key,
+                "size": file_size,
+                "etag": response.get('ETag', '').strip('"')
+            }
+            
+            log_info(f"S3分块上传完成: key={key}, size={file_size}")
+            return result
+            
+        except Exception as e:
+            log_error(f"S3分块上传完成失败: {str(e)}")
+            raise
+    
+    def abort_multipart_upload(self, key: str, upload_id: str) -> Dict[str, Any]:
+        """中止S3分块上传"""
+        try:
+            self.s3_client.abort_multipart_upload(
+                Bucket=self.bucket,
+                Key=key,
+                UploadId=upload_id
+            )
+            
+            result = {
+                "success": True,
+                "upload_id": upload_id
+            }
+            
+            log_info(f"S3分块上传中止成功: key={key}, upload_id={upload_id}")
+            return result
+            
+        except self.s3_client.exceptions.NoSuchUpload:
+            # 上传已经不存在，视为成功
+            log_info(f"S3分块上传已不存在，视为中止成功: key={key}, upload_id={upload_id}")
+            return {
+                "success": True,
+                "upload_id": upload_id
+            }
+        except Exception as e:
+            log_error(f"S3分块上传中止失败: {str(e)}")
+            raise
+    
+    def list_multipart_uploads(self, prefix: Optional[str] = None) -> List[Dict[str, Any]]:
+        """列出进行中的S3分块上传"""
+        try:
+            params = {'Bucket': self.bucket}
+            if prefix:
+                params['Prefix'] = prefix
+            
+            response = self.s3_client.list_multipart_uploads(**params)
+            
+            uploads = []
+            for upload in response.get('Uploads', []):
+                uploads.append({
+                    "key": upload['Key'],
+                    "upload_id": upload['UploadId'],
+                    "initiated": int(upload['Initiated'].timestamp())
+                })
+            
+            log_debug(f"S3分块上传列表查询成功: 找到{len(uploads)}个进行中的上传")
+            return uploads
+            
+        except Exception as e:
+            log_error(f"S3分块上传列表查询失败: {str(e)}")
+            raise
 
 if __name__ == "__main__":
     import unittest
