@@ -19,12 +19,12 @@ LOCAL_SERVER_URL = config.get("LOCAL_SERVER_URL", "http://localhost:8002")
 
 class LocalStorageAdapter(StorageAdapter):
     def __init__(self):
-        # 设置本地持久化目录
+        # Set local persistent directory
         self.base_path = os.path.join(LOCAL_STORAGE_PATH, "storage_files")
         
-        # 确保目录存在
+        # Ensure directory exists
         os.makedirs(self.base_path, exist_ok=True)
-        log_info(f"本地存储路径: {self.base_path}")
+        log_info(f"Local storage path: {self.base_path}")
         
     def _get_file_path(self, key: str) -> str:
         return os.path.join(self.base_path, key)
@@ -73,10 +73,10 @@ class LocalStorageAdapter(StorageAdapter):
             with open(file_path, 'wb') as f:
                 f.write(file_data)
             
-            log_info(f"文件已保存到本地: {file_path}")
+            log_info(f"File saved to local storage: {file_path}")
             return True
         except Exception as e:
-            log_error(f"保存本地文件失败: {str(e)}")
+            log_error(f"Failed to save local file: {str(e)}")
             return False
     
     def get_file(self, key: str) -> tuple:

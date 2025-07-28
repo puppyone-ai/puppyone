@@ -29,7 +29,7 @@ const DialogPortal = dynamic(() =>
 
 function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   const { workspaces } = useWorkspaces()
-  const { userSubscriptionStatus, isLoadingSubscriptionStatus } = useAppSettings()
+  const { userSubscriptionStatus, isLoadingSubscriptionStatus, isLocalDeployment } = useAppSettings()
   const { apis, chatbots } = useAllDeployedServices()
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<string | null>(null)
 
@@ -43,6 +43,16 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
       setFlowIdShowOperationMenu(prev => prev === flowId ? null : flowId)
     }
   }
+
+  // Show Get Pro button for FREE users OR local deployment users
+  const shouldShowGetProButton = userSubscriptionStatus && (
+    !userSubscriptionStatus.is_premium || isLocalDeployment
+  )
+
+  // Handle Get Pro button click
+  const handleGetProClick = () => {
+    window.open('https://www.puppyagent.com/pricing', '_blank');
+  };
 
   return (
     <div className="flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out">
@@ -86,13 +96,24 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
           </div>
         )}
 
-        {/* 展开状态底部 - 正常布局而非absolute */}
+        {/* 展开状态底部 - 包含图标、订阅状态和Get Pro按钮在同一行 */}
         <div className="mt-[8px] px-[8px] py-[4px] flex items-center gap-2 self-stretch">
           <DeploymentTypeLogo />
           {userSubscriptionStatus && (
             <span className="text-[#8B8B8B] text-[10px] font-medium">
               {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
             </span>
+          )}
+          
+          {/* Get Pro Button for FREE users and LOCAL users */}
+          {shouldShowGetProButton && (
+            <button 
+              onClick={handleGetProClick}
+              className="ml-auto border border-[#404040] hover:border-[#5A5A5A] text-[#8B8B8B] hover:text-[#CCCCCC] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 hover:bg-[#313131] flex items-center gap-1"
+            >
+              <span>Get Pro</span>
+              <span className="text-[10px]">→</span>
+            </button>
           )}
         </div>
       </div>
@@ -101,7 +122,7 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
 }
 
 function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
-  const { userSubscriptionStatus } = useAppSettings()
+  const { userSubscriptionStatus, isLocalDeployment } = useAppSettings()
   const [showFlowMenu, setShowFlowMenu] = useState(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null)
   const [activeTab, setActiveTab] = useState<'settings' | 'models' | 'billing' | 'usage' | 'servers'>('settings')
@@ -133,6 +154,16 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, []);
+
+  // Show Get Pro button for FREE users OR local deployment users
+  const shouldShowGetProButton = userSubscriptionStatus && (
+    !userSubscriptionStatus.is_premium || isLocalDeployment
+  )
+
+  // Handle Get Pro button click
+  const handleGetProClick = () => {
+    window.open('https://www.puppyagent.com/pricing', '_blank');
+  };
 
   return (
     <div className='w-[64px] h-screen bg-[#252525] flex flex-col items-center pt-[16px] gap-[16px] transition-all duration-300 ease-in-out relative'>
@@ -166,14 +197,28 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
       {/* Spacer */}
       <div className="flex-grow"></div>
 
-      {/* 收缩状态底部 - 正常布局而非absolute */}
+      {/* 收缩状态底部 - 包含订阅状态、图标和Get Pro按钮 */}
       <div className="mb-[8px] flex flex-col items-center gap-1">
-        {/* 订阅状态 */}
-        {userSubscriptionStatus && (
-          <span className="text-[#8B8B8B] text-[10px] font-medium">
-            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
-          </span>
-        )}
+        {/* 订阅状态和Get Pro按钮在同一行 */}
+        <div className="flex items-center gap-1">
+          {userSubscriptionStatus && (
+            <span className="text-[#8B8B8B] text-[9px] font-medium">
+              {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+            </span>
+          )}
+          
+          {/* Get Pro Button for FREE users and LOCAL users */}
+          {shouldShowGetProButton && (
+            <button 
+              onClick={handleGetProClick}
+              className="border border-[#404040] hover:border-[#5A5A5A] text-[#8B8B8B] hover:text-[#CCCCCC] text-[9px] font-medium py-[2px] px-[4px] rounded transition-all duration-200 hover:bg-[#313131] flex items-center gap-[2px]"
+            >
+              <span>Pro</span>
+              <span className="text-[9px]">→</span>
+            </button>
+          )}
+        </div>
+        
         {/* Deployment Type Logo */}
         <DeploymentTypeLogo />
       </div>
