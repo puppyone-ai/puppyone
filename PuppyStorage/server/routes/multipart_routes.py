@@ -16,6 +16,9 @@ from typing import Optional, List, Dict, Any
 # 移除PuppyException，使用FastAPI原生异常处理
 from utils.logger import log_info, log_error, log_debug
 from storage import get_storage
+# 导入认证模块
+from server.auth import verify_user_and_resource_access, User, get_auth_provider
+from fastapi import Header
 
 # Create multipart router
 multipart_router = APIRouter(prefix="/multipart", tags=["multipart"])
@@ -105,32 +108,50 @@ def generate_request_id() -> str:
     """生成用于追踪的请求ID"""
     return f"req_{uuid.uuid4().hex[:12]}"
 
-def validate_key_access(key: str, user_context: Optional[Dict] = None) -> bool:
-    """验证key访问权限（未来可扩展为真实的权限验证）"""
-    # 目前简单验证格式，未来可以加入真实的用户权限验证
+def validate_key_format(key: str) -> bool:
+    """验证key格式是否正确"""
+    # 验证格式：user_id/content_id/content_name
     parts = key.split('/')
-    return len(parts) >= 3
+    return len(parts) >= 3 and all(part.strip() for part in parts)
 
 # === API Endpoints ===
 
+async def verify_init_auth(
+    request_data: MultipartInitRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+) -> User:
+    """验证初始化上传的认证和权限"""
+    return await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
+
+
 @multipart_router.post("/init", response_model=MultipartInitResponse)
-async def init_multipart_upload(request_data: MultipartInitRequest):
+async def init_multipart_upload(
+    request_data: MultipartInitRequest,
+    current_user: User = Depends(verify_init_auth)
+):
     """
     初始化分块上传
     
     为指定的key创建一个新的分块上传会话。
     返回upload_id和上传参数，客户端后续使用upload_id获取分块上传URL。
+    
+    需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
     
     try:
-        log_info(f"[{request_id}] 初始化分块上传: key={request_data.key}, content_type={request_data.content_type}")
+        log_info(f"[{request_id}] 初始化分块上传: user={current_user.user_id}, key={request_data.key}, content_type={request_data.content_type}")
         
-        # 验证key访问权限
-        if not validate_key_access(request_data.key):
+        # 验证key格式（认证和权限已由依赖验证完成）
+        if not validate_key_format(request_data.key):
             raise HTTPException(
-                status_code=403,
-                detail="Access denied to this key path"
+                status_code=400,
+                detail="Invalid key format. Expected: user_id/content_id/content_name"
             )
         
         # 调用存储适配器初始化分块上传
@@ -157,24 +178,42 @@ async def init_multipart_upload(request_data: MultipartInitRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def verify_url_auth(
+    request_data: MultipartUrlRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+) -> User:
+    """验证获取上传URL的认证和权限"""
+    return await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
+
+
 @multipart_router.post("/get_upload_url", response_model=MultipartUrlResponse)
-async def get_multipart_upload_url(request_data: MultipartUrlRequest):
+async def get_multipart_upload_url(
+    request_data: MultipartUrlRequest,
+    current_user: User = Depends(verify_url_auth)
+):
     """
     获取分块上传URL
     
     为指定的upload_id和part_number生成一个预签名的上传URL。
     客户端使用这个URL直接向存储服务上传分块数据。
+    
+    需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
     
     try:
-        log_debug(f"[{request_id}] 获取分块上传URL: upload_id={request_data.upload_id}, part_number={request_data.part_number}")
+        log_debug(f"[{request_id}] 获取分块上传URL: user={current_user.user_id}, upload_id={request_data.upload_id}, part_number={request_data.part_number}")
         
-        # 验证key访问权限
-        if not validate_key_access(request_data.key):
+        # 验证key格式（认证和权限已由依赖验证完成）
+        if not validate_key_format(request_data.key):
             raise HTTPException(
-                status_code=403,
-                detail="Access denied to this key path"
+                status_code=400,
+                detail="Invalid key format. Expected: user_id/content_id/content_name"
             )
         
         # 调用存储适配器获取上传URL
@@ -201,24 +240,42 @@ async def get_multipart_upload_url(request_data: MultipartUrlRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def verify_complete_auth(
+    request_data: MultipartCompleteRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+) -> User:
+    """验证完成上传的认证和权限"""
+    return await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
+
+
 @multipart_router.post("/complete", response_model=MultipartCompleteResponse)
-async def complete_multipart_upload(request_data: MultipartCompleteRequest):
+async def complete_multipart_upload(
+    request_data: MultipartCompleteRequest,
+    current_user: User = Depends(verify_complete_auth)
+):
     """
     完成分块上传
     
     将所有已上传的分块合并为最终文件。
     客户端必须提供所有分块的ETag和PartNumber信息。
+    
+    需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
     
     try:
-        log_info(f"[{request_id}] 完成分块上传: upload_id={request_data.upload_id}, parts_count={len(request_data.parts)}")
+        log_info(f"[{request_id}] 完成分块上传: user={current_user.user_id}, upload_id={request_data.upload_id}, parts_count={len(request_data.parts)}")
         
-        # 验证key访问权限
-        if not validate_key_access(request_data.key):
+        # 验证key格式（认证和权限已由依赖验证完成）
+        if not validate_key_format(request_data.key):
             raise HTTPException(
-                status_code=403,
-                detail="Access denied to this key path"
+                status_code=400,
+                detail="Invalid key format. Expected: user_id/content_id/content_name"
             )
         
         # 转换parts格式
@@ -251,23 +308,41 @@ async def complete_multipart_upload(request_data: MultipartCompleteRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+async def verify_abort_auth(
+    request_data: MultipartAbortRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+) -> User:
+    """验证中止上传的认证和权限"""
+    return await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
+
+
 @multipart_router.post("/abort", response_model=MultipartAbortResponse)
-async def abort_multipart_upload(request_data: MultipartAbortRequest):
+async def abort_multipart_upload(
+    request_data: MultipartAbortRequest,
+    current_user: User = Depends(verify_abort_auth)
+):
     """
     中止分块上传
     
     取消指定的分块上传会话，清理所有相关资源。
+    
+    需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
     
     try:
-        log_info(f"[{request_id}] 中止分块上传: upload_id={request_data.upload_id}")
+        log_info(f"[{request_id}] 中止分块上传: user={current_user.user_id}, upload_id={request_data.upload_id}")
         
-        # 验证key访问权限
-        if not validate_key_access(request_data.key):
+        # 验证key格式（认证和权限已由依赖验证完成）
+        if not validate_key_format(request_data.key):
             raise HTTPException(
-                status_code=403,
-                detail="Access denied to this key path"
+                status_code=400,
+                detail="Invalid key format. Expected: user_id/content_id/content_name"
             )
         
         # 调用存储适配器中止上传
