@@ -13,6 +13,8 @@ import random
 import string
 import hashlib
 
+# 注意：DEPLOYMENT_TYPE 需要在服务启动前设置，测试时设置无效
+
 # 添加项目根目录到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
@@ -21,13 +23,52 @@ sys.path.insert(0, parent_dir)
 from utils.logger import log_info, log_error, log_debug
 
 class MultipartAPITester:
-    def __init__(self, base_url="http://127.0.0.1:8002"):
+    def __init__(self, base_url="http://127.0.0.1:8002", user_system_url="http://localhost:8000"):
         self.base_url = base_url
+        self.user_system_url = user_system_url
         self.session = requests.Session()
+        self.auth_token = None
+        self.test_user_id = None
         
+    def setup_authentication(self):
+        """设置认证token"""
+        try:
+            # 1. 创建测试用户
+            response = self.session.post(f"{self.user_system_url}/test/create-test-user")
+            if response.status_code != 200:
+                log_error(f"创建测试用户失败: {response.status_code}")
+                return False
+            
+            user_data = response.json()
+            self.test_user_id = user_data["user_id"]
+            log_info(f"测试用户ID: {self.test_user_id}")
+            
+            # 2. 生成认证token
+            response = self.session.post(f"{self.user_system_url}/test/generate-tokens")
+            if response.status_code != 200:
+                log_error(f"生成token失败: {response.status_code}")
+                return False
+                
+            token_data = response.json()
+            self.auth_token = token_data["tokens"]["valid"]
+            log_info("认证token获取成功")
+            
+            return True
+            
+        except Exception as e:
+            log_error(f"设置认证失败: {str(e)}")
+            return False
+    
+    def get_auth_headers(self):
+        """获取认证header"""
+        if self.auth_token:
+            return {"Authorization": f"Bearer {self.auth_token}"}
+        return {}
+    
     def generate_test_key(self) -> str:
         """生成测试用的key"""
-        user_id = "test_user"
+        # 使用实际的用户ID或者fallback到test_user
+        user_id = self.test_user_id if self.test_user_id else "test_user"
         content_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
         content_name = "test_multipart_file.txt"
         return f"{user_id}/{content_id}/{content_name}"
@@ -57,7 +98,8 @@ class MultipartAPITester:
                 json={
                     "key": key,
                     "content_type": "text/plain"
-                }
+                },
+                headers=self.get_auth_headers()
             )
             
             if init_response.status_code != 200:
@@ -89,7 +131,8 @@ class MultipartAPITester:
                         "upload_id": upload_id,
                         "part_number": part_number,
                         "expires_in": 600
-                    }
+                    },
+                    headers=self.get_auth_headers()
                 )
                 
                 if url_response.status_code != 200:
@@ -136,7 +179,8 @@ class MultipartAPITester:
                     "key": key,
                     "upload_id": upload_id,
                     "parts": parts
-                }
+                },
+                headers=self.get_auth_headers()
             )
             
             if complete_response.status_code != 200:
@@ -199,7 +243,8 @@ class MultipartAPITester:
             
             init_response = self.session.post(
                 f"{self.base_url}/multipart/init",
-                json={"key": key}
+                json={"key": key},
+                headers=self.get_auth_headers()
             )
             
             if init_response.status_code != 200:
@@ -216,7 +261,8 @@ class MultipartAPITester:
                     "key": key,
                     "upload_id": upload_id,
                     "part_number": 1
-                }
+                },
+                headers=self.get_auth_headers()
             )
             
             if url_response.status_code != 200:
@@ -239,7 +285,8 @@ class MultipartAPITester:
                 json={
                     "key": key,
                     "upload_id": upload_id
-                }
+                },
+                headers=self.get_auth_headers()
             )
             
             if abort_response.status_code != 200:
@@ -260,7 +307,8 @@ class MultipartAPITester:
                         "key": key,
                         "upload_id": upload_id,
                         "part_number": 2
-                    }
+                    },
+                    headers=self.get_auth_headers()
                 )
                 
                 if url_response.status_code == 200:
@@ -290,7 +338,8 @@ class MultipartAPITester:
                 
                 init_response = self.session.post(
                     f"{self.base_url}/multipart/init",
-                    json={"key": key}
+                    json={"key": key},
+                    headers=self.get_auth_headers()
                 )
                 
                 if init_response.status_code == 200:
@@ -375,7 +424,7 @@ class MultipartAPITester:
                 {
                     "name": "不存在的upload_id",
                     "request": {
-                        "key": "test_user/abc123/test.txt",
+                        "key": f"{self.test_user_id or 'test_user'}/abc123/test.txt",
                         "upload_id": "non-existent-id",
                         "part_number": 1
                     },
@@ -385,7 +434,7 @@ class MultipartAPITester:
                 {
                     "name": "无效的part_number",
                     "request": {
-                        "key": "test_user/abc123/test.txt",
+                        "key": f"{self.test_user_id or 'test_user'}/abc123/test.txt",
                         "upload_id": "some-id",
                         "part_number": 0
                     },
@@ -398,7 +447,8 @@ class MultipartAPITester:
             for test_case in test_cases:
                 response = self.session.post(
                     f"{self.base_url}{test_case['endpoint']}",
-                    json=test_case["request"]
+                    json=test_case["request"],
+                    headers=self.get_auth_headers()
                 )
                 
                 if response.status_code == test_case["expected_status"]:
@@ -416,6 +466,13 @@ class MultipartAPITester:
     def run_all_tests(self):
         """运行所有测试"""
         log_info("开始运行PuppyStorage分块上传API测试套件")
+        
+        # 首先尝试设置认证（如果服务在远程模式）
+        try:
+            if not self.setup_authentication():
+                log_info("认证设置失败，尝试无认证模式（可能是本地模式）")
+        except Exception as e:
+            log_info(f"认证设置异常，继续无认证模式: {str(e)}")
         
         tests = [
             ("服务健康检查", self.test_service_health),
