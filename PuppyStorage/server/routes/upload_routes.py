@@ -20,8 +20,8 @@ from storage import get_storage
 from server.auth import verify_user_and_resource_access, User, get_auth_provider
 from fastapi import Header
 
-# Create multipart router
-multipart_router = APIRouter(prefix="/multipart", tags=["multipart"])
+# Create upload router
+upload_router = APIRouter(prefix="/upload", tags=["upload"])
 
 # 获取存储适配器
 storage_adapter = get_storage()
@@ -129,7 +129,7 @@ async def verify_init_auth(
     )
 
 
-@multipart_router.post("/init", response_model=MultipartInitResponse)
+@upload_router.post("/init", response_model=MultipartInitResponse)
 async def init_multipart_upload(
     request_data: MultipartInitRequest,
     current_user: User = Depends(verify_init_auth)
@@ -191,7 +191,7 @@ async def verify_url_auth(
     )
 
 
-@multipart_router.post("/get_upload_url", response_model=MultipartUrlResponse)
+@upload_router.post("/get_upload_url", response_model=MultipartUrlResponse)
 async def get_multipart_upload_url(
     request_data: MultipartUrlRequest,
     current_user: User = Depends(verify_url_auth)
@@ -253,7 +253,7 @@ async def verify_complete_auth(
     )
 
 
-@multipart_router.post("/complete", response_model=MultipartCompleteResponse)
+@upload_router.post("/complete", response_model=MultipartCompleteResponse)
 async def complete_multipart_upload(
     request_data: MultipartCompleteRequest,
     current_user: User = Depends(verify_complete_auth)
@@ -321,7 +321,7 @@ async def verify_abort_auth(
     )
 
 
-@multipart_router.post("/abort", response_model=MultipartAbortResponse)
+@upload_router.post("/abort", response_model=MultipartAbortResponse)
 async def abort_multipart_upload(
     request_data: MultipartAbortRequest,
     current_user: User = Depends(verify_abort_auth)
@@ -366,7 +366,7 @@ async def abort_multipart_upload(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@multipart_router.get("/list", response_model=MultipartListResponse)
+@upload_router.get("/list", response_model=MultipartListResponse)
 async def list_multipart_uploads(prefix: Optional[str] = None):
     """
     列出进行中的分块上传
@@ -397,7 +397,7 @@ async def list_multipart_uploads(prefix: Optional[str] = None):
 
 # === Special endpoint for local storage chunk upload ===
 
-@multipart_router.put("/upload/{upload_id}/{part_number}")
+@upload_router.put("/chunk/{upload_id}/{part_number}")
 async def upload_chunk_to_local(upload_id: str, part_number: int, request: Request):
     """
     本地存储分块上传端点
@@ -461,30 +461,4 @@ async def upload_chunk_to_local(upload_id: str, part_number: int, request: Reque
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# === Health check ===
-
-@multipart_router.get("/health")
-async def multipart_health():
-    """分块上传服务健康检查"""
-    try:
-        # 简单检查存储适配器是否正常
-        uploads = storage_adapter.list_multipart_uploads()
-        
-        return JSONResponse(
-            content={
-                "status": "healthy",
-                "service": "multipart",
-                "active_uploads": len(uploads),
-                "timestamp": int(time.time())
-            }
-        )
-    except Exception as e:
-        log_error(f"分块上传服务健康检查失败: {str(e)}")
-        return JSONResponse(
-            content={
-                "status": "unhealthy",
-                "error": str(e),
-                "timestamp": int(time.time())
-            },
-            status_code=500
-        ) 
+ 

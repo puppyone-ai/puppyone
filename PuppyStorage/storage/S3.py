@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 import uuid
+import time
 from urllib.parse import quote
 from typing import Optional, Dict, Any, List
 
@@ -303,6 +304,46 @@ class S3StorageAdapter(StorageAdapter):
         except Exception as e:
             log_error(f"S3分块上传列表查询失败: {str(e)}")
             raise
+    
+    # === 新增的下载协调器方法 ===
+    
+    def get_download_url(self, key: str, expires_in: int = 3600) -> dict:
+        """
+        生成下载URL（新的协调器模式）
+        
+        对于S3存储，返回一个有时效的预签名下载URL
+        """
+        try:
+            # 生成预签名下载URL
+            download_url = self.s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': self.bucket, 'Key': key},
+                ExpiresIn=expires_in
+            )
+            
+            log_debug(f"S3预签名下载URL生成成功: key={key}, expires_in={expires_in}")
+            
+            return {
+                "download_url": download_url,
+                "key": key,
+                "expires_at": int(time.time()) + expires_in
+            }
+            
+        except Exception as e:
+            log_error(f"S3预签名下载URL生成失败: {str(e)}")
+            raise
+    
+    async def stream_from_disk(self, key: str, range_header: Optional[str] = None):
+        """
+        对于S3存储适配器，此方法不适用
+        
+        S3存储的流式传输通过预签名URL直接与S3服务进行，
+        不需要通过服务器中转
+        """
+        raise NotImplementedError(
+            "stream_from_disk is not implemented for S3StorageAdapter. "
+            "Use get_download_url to get a presigned URL for direct S3 access."
+        )
 
 if __name__ == "__main__":
     import unittest
