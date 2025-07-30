@@ -55,7 +55,7 @@ const TextEditor = ({
 
 
     useEffect(() => {
-        setIsEmpty(!value || value.trim().length === 0);
+        setIsEmpty(!value || String(value).trim().length === 0);
     }, [value])
 
     // 添加主题定义

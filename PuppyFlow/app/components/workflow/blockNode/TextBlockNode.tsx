@@ -99,6 +99,14 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     const sourceNodes = getSourceNodeIdWithLabel(id);
     const targetNodes = getTargetNodeIdWithLabel(id);
 
+    // 添加动态计算逻辑，与 FileNode 保持一致
+    const dynamicIsInput = sourceNodes.length === 0 && targetNodes.length > 0;
+    const dynamicIsOutput = targetNodes.length === 0 && sourceNodes.length > 0;
+
+    // 使用已有属性或动态计算的值
+    const effectiveIsInput = isInput || dynamicIsInput;
+    const effectiveIsOutput = isOutput || dynamicIsOutput;
+
     // 优化点 4: 使用 useMemo 缓存边框颜色的计算逻辑
     const borderColor = useMemo(() => {
       if (isLoading) return "border-[#FFA500]";
@@ -199,18 +207,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       componentRef.current?.classList.remove("nodrag");
     }, []);
 
-    const toggleNodeInput = useCallback(
-      () => manageNodeasInput(id),
-      [manageNodeasInput, id]
-    );
-    const toggleNodeOutput = useCallback(
-      () => manageNodeasOutput(id),
-      [manageNodeasOutput, id]
-    );
-    const toggleNodeLocked = useCallback(
-      () => manageNodeasLocked(id),
-      [manageNodeasLocked, id]
-    );
+    // 移除了 toggleNodeInput, toggleNodeOutput, toggleNodeLocked 函数
 
     const updateNodeContent = useCallback(
       (newValue: string) => {
@@ -368,13 +365,10 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Tags for input, output, locked states */}
+        {/* Tags for input, output, locked states - 移除了交互性 */}
         <div className="absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5">
-          {isInput && (
-            <div
-              className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black cursor-pointer"
-              onClick={toggleNodeInput}
-            >
+          {effectiveIsInput && (
+            <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black">
               <svg
                 width="16"
                 height="16"
@@ -407,11 +401,8 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
               <span>INPUT</span>
             </div>
           )}
-          {isOutput && (
-            <div
-              className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black cursor-pointer"
-              onClick={toggleNodeOutput}
-            >
+          {effectiveIsOutput && (
+            <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black">
               <svg
                 width="16"
                 height="16"
@@ -445,10 +436,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
             </div>
           )}
           {locked && (
-            <div
-              className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black cursor-pointer"
-              onClick={toggleNodeLocked}
-            >
+            <div className="px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black">
               <svg
                 width="16"
                 height="16"
