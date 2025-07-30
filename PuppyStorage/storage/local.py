@@ -43,16 +43,18 @@ class LocalStorageAdapter(StorageAdapter):
             os.makedirs(directory, exist_ok=True)
 
     def generate_upload_url(self, key: str, content_type: str, expires_in: int = 300) -> str:
-        # 直接返回上传URL，使用key作为路径参数
-        return f"{LOCAL_SERVER_URL}/storage/upload/{key}?content_type={content_type}"
+        # 注意：这是旧的API，新的分块上传应该使用 /upload/init 和 /upload/get_upload_url
+        # 保留此方法是为了向后兼容
+        return f"{LOCAL_SERVER_URL}/files/upload/{key}?content_type={content_type}"
 
     def generate_download_url(self, key: str, expires_in: int = 86400) -> str:
-        # 返回一个用于下载文件的URL
-        return f"{LOCAL_SERVER_URL}/storage/download/{key}"
+        # 注意：这是旧的API，新的下载应该使用 /download/url
+        # 保留此方法是为了向后兼容
+        return f"{LOCAL_SERVER_URL}/download/stream/{key}"
 
     def generate_delete_url(self, key: str, expires_in: int = 300) -> str:
         """生成删除文件的URL - 本地存储直接返回删除endpoint"""
-        return f"{LOCAL_SERVER_URL}/storage/delete/{key}"
+        return f"{LOCAL_SERVER_URL}/files/delete/{key}"
 
     def delete_file(self, key: str) -> bool:
         try:
@@ -188,7 +190,7 @@ class LocalStorageAdapter(StorageAdapter):
                 raise Exception(f"Upload ID {upload_id} not found or expired")
             
             # 生成本地上传URL
-            upload_url = f"{LOCAL_SERVER_URL}/multipart/upload/{upload_id}/{part_number}"
+            upload_url = f"{LOCAL_SERVER_URL}/upload/chunk/{upload_id}/{part_number}"
             
             expires_at = int(time.time()) + expires_in
             
@@ -369,6 +371,137 @@ class LocalStorageAdapter(StorageAdapter):
             
         except Exception as e:
             log_error(f"本地分块保存失败: {str(e)}")
+            raise
+    
+    # === 新增的下载协调器方法 ===
+    
+    def get_download_url(self, key: str, expires_in: int = 3600) -> dict:
+        """
+        生成下载URL（新的协调器模式）
+        
+        对于本地存储，返回指向 /download/stream/{key} 的URL
+        """
+        try:
+            # 检查文件是否存在
+            if not self.check_file_exists(key):
+                raise FileNotFoundError(f"File not found: {key}")
+            
+            # 生成本地流式传输URL
+            download_url = f"{LOCAL_SERVER_URL}/download/stream/{key}"
+            
+            return {
+                "download_url": download_url,
+                "key": key,
+                "expires_at": int(time.time()) + expires_in
+            }
+        except Exception as e:
+            log_error(f"生成本地下载URL失败: {str(e)}")
+            raise
+    
+    def _resolve_safe_path(self, key: str) -> str:
+        """
+        安全地解析文件路径，防止路径遍历攻击
+        """
+        # 规范化路径，移除 '..' 等
+        normalized_key = os.path.normpath(key)
+        
+        # 禁止使用绝对路径或向上遍历的路径
+        if os.path.isabs(normalized_key) or normalized_key.startswith('..'):
+            raise PermissionError("非法路径格式")
+
+        # 构建完整路径
+        full_path = os.path.join(self.base_path, normalized_key)
+
+        # 再次规范化，并校验最终路径是否仍在我们的存储根目录之下
+        real_base = os.path.realpath(self.base_path)
+        real_full = os.path.realpath(full_path)
+        
+        if not real_full.startswith(real_base):
+            raise PermissionError("禁止访问存储目录之外的路径")
+            
+        return full_path
+    
+    async def stream_from_disk(self, key: str, range_header: Optional[str] = None):
+        """
+        从磁盘流式传输文件
+        
+        支持HTTP Range请求，用于实现分段下载
+        """
+        try:
+            # 使用安全路径解析
+            file_path = self._resolve_safe_path(key)
+            
+            if not os.path.exists(file_path):
+                raise FileNotFoundError(f"File not found: {key}")
+            
+            file_size = os.path.getsize(file_path)
+            start, end = 0, file_size - 1
+            status_code = 200
+            content_range = None
+            
+            # 解析Range请求头
+            if range_header:
+                try:
+                    range_str = range_header.replace("bytes=", "")
+                    start_str, end_str = range_str.split("-", 1)
+                    
+                    if start_str:
+                        start = int(start_str)
+                    if end_str:
+                        end = int(end_str)
+                    else:
+                        end = file_size - 1
+                    
+                    # 验证范围有效性
+                    if start < 0 or start >= file_size:
+                        raise ValueError("Invalid range start")
+                    if end >= file_size:
+                        end = file_size - 1
+                    if start > end:
+                        raise ValueError("Invalid range: start > end")
+                    
+                    status_code = 206  # Partial Content
+                    content_range = f"bytes {start}-{end}/{file_size}"
+                    
+                except (ValueError, IndexError) as e:
+                    # 如果Range头格式错误，返回整个文件
+                    log_error(f"无效的Range请求头: {range_header}, 错误: {str(e)}")
+                    start, end = 0, file_size - 1
+                    status_code = 200
+                    content_range = None
+            
+            # 创建文件迭代器
+            async def file_iterator():
+                try:
+                    with open(file_path, "rb") as f:
+                        f.seek(start)
+                        bytes_to_read = (end - start) + 1
+                        chunk_size = 65536  # 64KB chunks
+                        
+                        while bytes_to_read > 0:
+                            chunk_size_to_read = min(chunk_size, bytes_to_read)
+                            chunk = f.read(chunk_size_to_read)
+                            if not chunk:
+                                break
+                            bytes_to_read -= len(chunk)
+                            yield chunk
+                except Exception as e:
+                    log_error(f"文件流式传输过程中发生错误: {str(e)}")
+                    raise
+            
+            # 返回实际读取的字节数
+            actual_size = (end - start) + 1 if status_code == 206 else file_size
+            
+            return file_iterator(), status_code, content_range, actual_size
+            
+        except PermissionError as e:
+            log_error(f"路径遍历攻击尝试被阻止: key={key}")
+            raise
+        except FileNotFoundError:
+            log_error(f"本地文件不存在: {key}")
+            raise
+        except Exception as e:
+            log_error(f"本地文件流式传输失败: {str(e)}")
             raise
 
 if __name__ == "__main__":

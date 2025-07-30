@@ -77,9 +77,8 @@ from storage import get_storage
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
 
-# Create router
-file_router = APIRouter(prefix="/file", tags=["file"])
-storage_router = APIRouter(prefix="/storage", tags=["storage"])
+# Create management router (for file metadata and management operations)
+management_router = APIRouter(prefix="/files", tags=["files"])
 
 # 获取存储适配器 - 使用统一的存储管理器
 storage_adapter = get_storage()
@@ -150,8 +149,8 @@ def _get_path_key(user_id: str, content_id: str, content_name: str) -> str:
     return f"{user_id}/{content_id}/{content_name}"
 
 @global_exception_handler(error_code=4001, error_message="Failed to generate file URLs")
-@file_router.post("/generate_urls/{content_type}")
-@file_router.get("/generate_urls")
+@management_router.post("/generate_urls/{content_type}")
+@management_router.get("/generate_urls")
 async def generate_file_urls(request: Request, content_type: str = None):
     try:
         data = await request.json()
@@ -210,7 +209,7 @@ async def generate_file_urls(request: Request, content_type: str = None):
 
 
 @global_exception_handler(error_code=4006, error_message="Missing file key parameter")
-@storage_router.delete("/delete")
+@management_router.delete("/delete")
 async def delete_file_without_key():
     """处理不带key参数的删除请求 - 提供明确的错误信息"""
     log_error("删除文件请求缺少必要的key参数")
@@ -225,7 +224,7 @@ async def delete_file_without_key():
     )
 
 @global_exception_handler(error_code=4002, error_message="Failed to delete file")
-@storage_router.delete("/delete/{key:path}")
+@management_router.delete("/delete/{key:path}")
 async def delete_file(key: str):
     try:
         # 先检查路径格式
@@ -269,53 +268,4 @@ async def delete_file(key: str):
         log_error(f"删除文件时发生错误: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@global_exception_handler(error_code=4003, error_message="Failed to upload file")
-@storage_router.put("/upload/{key:path}")
-async def upload_file(
-    request: Request,
-    key: str,  # 从路径参数获取
-    content_type: str = Query(...)
-):
-    try:
-        file_data = await request.body()
-        if storage_adapter.save_file(key, file_data, content_type):
-            return FileUploadResponse(
-                message="文件上传成功",
-                key=key
-            )
-        else:
-            return JSONResponse(
-                content={"error": "文件上传失败"},
-                status_code=500
-            )
-    except Exception as e:
-        log_error(f"上传文件时发生错误: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@global_exception_handler(error_code=4004, error_message="Failed to download file")
-@storage_router.get("/download/{key:path}")
-async def download_file(key: str):
-    try:
-        file_data, content_type = storage_adapter.get_file(key)
-        if file_data is None:
-            return JSONResponse(
-                content={"error": "文件不存在"},
-                status_code=404
-            )
-        
-        # 获取文件名并处理中文字符编码问题
-        filename = extract_filename_from_key(key)
-        
-        # 构建符合RFC 6266标准的Content-Disposition头
-        content_disposition = build_content_disposition_header(filename)
-        
-        return StreamingResponse(
-            iter([file_data]),
-            media_type=content_type,
-            headers={
-                "Content-Disposition": content_disposition
-            }
-        )
-    except Exception as e:
-        log_error(f"下载文件时发生错误: {str(e)}")
-        return JSONResponse(content={"error": str(e)}, status_code=500)
