@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional, List, Dict, Any, Tuple
 
 class StorageAdapter(ABC):
     @abstractmethod
@@ -27,11 +28,24 @@ class StorageAdapter(ABC):
         pass
     
     @abstractmethod
-    def save_file(self, key: str, file_data: bytes, content_type: str) -> bool:
-        """保存文件"""
+    def save_file(self, key: str, file_data: bytes, content_type: str, match_etag: Optional[str] = None) -> bool:
+        """
+        保存文件
+        
+        Args:
+            key: 文件的存储路径
+            file_data: 文件内容
+            content_type: 文件的MIME类型
+            match_etag: 可选的ETag值，用于乐观锁控制。如果提供且不匹配当前文件的ETag，则抛出ConditionFailedError
+            
+        Returns:
+            bool: 保存成功返回True
+            
+        Raises:
+            ConditionFailedError: 当match_etag不匹配时
+        """
         pass
     
     @abstractmethod
     def get_file(self, key: str) -> tuple:
         """获取文件内容和类型"""
-        pass 

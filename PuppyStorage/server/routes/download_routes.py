@@ -33,9 +33,9 @@ class DownloadUrlResponse(BaseModel):
 
 def validate_key_format(key: str) -> bool:
     """验证key格式是否正确"""
-    # 验证格式：user_id/content_id/content_name
+    # 验证格式：user_id/block_id/version_id/chunk_name
     parts = key.split('/')
-    return len(parts) >= 3 and all(part.strip() for part in parts)
+    return len(parts) >= 4 and all(part.strip() for part in parts)
 
 async def verify_download_auth(
     key: str = Query(..., description="文件的完整路径标识符"),

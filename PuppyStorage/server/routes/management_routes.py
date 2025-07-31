@@ -64,10 +64,11 @@ import time
 import logging
 import random
 import string
+from datetime import datetime
 from urllib.parse import quote  # 添加URL编码支持
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from fastapi import APIRouter, Request, Response, UploadFile, File, Form, Query
+from fastapi import APIRouter, Request, Response, UploadFile, File, Form, Query, HTTPException, Depends
 from fastapi.responses import JSONResponse, StreamingResponse
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.logger import log_info, log_error
@@ -76,6 +77,8 @@ from utils.file_utils import build_content_disposition_header, extract_filename_
 from storage import get_storage
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, Literal
+# 导入认证模块
+from server.auth import verify_user_and_resource_access, User
 
 # Create management router (for file metadata and management operations)
 management_router = APIRouter(prefix="/files", tags=["files"])
@@ -267,5 +270,4 @@ async def delete_file(key: str):
     except Exception as e:
         log_error(f"删除文件时发生错误: {str(e)}")
         return JSONResponse(content={"error": str(e)}, status_code=500)
-
 
