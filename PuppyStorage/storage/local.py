@@ -162,7 +162,7 @@ class LocalStorageAdapter(StorageAdapter):
     
     def _infer_content_type(self, file_path: str) -> str:
         """从文件扩展名推断内容类型"""
-            ext = os.path.splitext(file_path)[1].lower()
+        ext = os.path.splitext(file_path)[1].lower()
         content_type_map = {
                     '.txt': 'text/plain',
                     '.md': 'text/markdown',
