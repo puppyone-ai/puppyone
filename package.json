@@ -1,0 +1,21 @@
+{
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.2",
+    "prettier": "^3.6.2"
+  },
+  "scripts": {
+    "prepare": "husky install",
+    "format:frontend": "prettier --write \"PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}\"",
+    "format:backend": "black --config pyproject.toml PuppyEngine/ PuppyStorage/",
+    "format:all": "npm run format:frontend && npm run format:backend"
+  },
+  "lint-staged": {
+    "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}": [
+      "node scripts/format-frontend.js"
+    ],
+    "{PuppyEngine,PuppyStorage}/**/*.py": [
+      "node scripts/format-python.js"
+    ]
+  }
+}
