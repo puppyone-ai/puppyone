@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import uuid
+import json
 from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -102,6 +103,19 @@ class MultipartListResponse(BaseModel):
     uploads: List[Dict[str, Any]] = Field(..., description="进行中的上传列表")
     count: int = Field(..., description="上传数量")
     message: str = Field(default="查询成功")
+
+class ManifestUpdateRequest(BaseModel):
+    user_id: str = Field(..., description="用户ID")
+    block_id: str = Field(..., description="数据块ID")
+    version_id: str = Field(..., description="版本ID")
+    expected_etag: Optional[str] = Field(None, description="期望的ETag值，用于乐观锁")
+    new_chunk: Dict[str, Any] = Field(..., description="新增的数据块信息")
+    status: Optional[str] = Field(None, description="可选的状态更新")
+
+class ManifestUpdateResponse(BaseModel):
+    success: bool = Field(..., description="操作是否成功")
+    etag: str = Field(..., description="更新后的ETag")
+    message: str = Field(default="清单更新成功")
 
 # === Helper Functions ===
 
@@ -459,5 +473,110 @@ async def upload_chunk_to_local(upload_id: str, part_number: int, request: Reque
         raise
     except Exception as e:
         log_error(f"[{request_id}] 本地存储分块上传失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# === Manifest Management Endpoint ===
+
+@upload_router.put("/manifest", response_model=ManifestUpdateResponse)
+async def update_manifest(
+    request_data: ManifestUpdateRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+):
+    """
+    创建或增量更新manifest文件
+    
+    这个端点支持流式更新manifest.json文件，允许生产者在数据块创建时
+    实时更新清单，消费者可以通过轮询该文件来获取最新的数据块列表。
+    
+    需要提供 Authorization: Bearer <jwt_token> header
+    """
+    request_id = generate_request_id()
+    
+    try:
+        # 构建manifest文件的key
+        manifest_key = f"{request_data.user_id}/{request_data.block_id}/{request_data.version_id}/manifest.json"
+        
+        # 验证用户权限
+        current_user = await verify_user_and_resource_access(
+            resource_key=manifest_key,
+            authorization=authorization,
+            auth_provider=auth_provider
+        )
+        
+        log_info(f"[{request_id}] 更新manifest: user={current_user.user_id}, manifest_key={manifest_key}")
+        
+        # 尝试读取现有的manifest
+        try:
+            current_content, content_type, current_etag = storage_adapter.get_file_with_metadata(manifest_key)
+            current_manifest = json.loads(current_content.decode('utf-8'))
+            log_debug(f"[{request_id}] 读取现有manifest: etag={current_etag}")
+        except Exception:
+            # 文件不存在，创建新的manifest
+            current_manifest = {
+                "version": "1.0",
+                "block_id": request_data.block_id,
+                "version_id": request_data.version_id,
+                "created_at": datetime.utcnow().isoformat(),
+                "status": "generating",
+                "chunks": []
+            }
+            current_etag = None
+            log_debug(f"[{request_id}] 创建新manifest")
+        
+        # 检查乐观锁
+        if request_data.expected_etag is not None and current_etag != request_data.expected_etag:
+            log_error(f"[{request_id}] ETag不匹配: expected={request_data.expected_etag}, current={current_etag}")
+            raise HTTPException(
+                status_code=409,
+                detail=f"ETag mismatch. Expected: {request_data.expected_etag}, Current: {current_etag}"
+            )
+        
+        # 更新manifest
+        current_manifest["updated_at"] = datetime.utcnow().isoformat()
+        
+        # 添加新的chunk信息
+        current_manifest["chunks"].append(request_data.new_chunk)
+        
+        # 更新状态（如果提供）
+        if request_data.status:
+            current_manifest["status"] = request_data.status
+        
+        # 保存更新后的manifest
+        updated_content = json.dumps(current_manifest, indent=2).encode('utf-8')
+        
+        try:
+            success = storage_adapter.save_file(
+                key=manifest_key,
+                file_data=updated_content,
+                content_type="application/json",
+                match_etag=current_etag
+            )
+            
+            if not success:
+                raise HTTPException(status_code=500, detail="Failed to save manifest")
+            
+        except Exception as e:
+            if "ConditionFailedError" in str(type(e).__name__):
+                log_error(f"[{request_id}] 并发冲突: {str(e)}")
+                raise HTTPException(status_code=409, detail="Concurrent modification detected")
+            raise
+        
+        # 获取新的ETag
+        _, _, new_etag = storage_adapter.get_file_with_metadata(manifest_key)
+        
+        log_info(f"[{request_id}] Manifest更新成功: new_etag={new_etag}")
+        
+        return ManifestUpdateResponse(
+            success=True,
+            etag=new_etag,
+            message="清单更新成功"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"[{request_id}] Manifest更新失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
