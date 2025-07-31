@@ -109,22 +109,53 @@ class S3StorageAdapter(StorageAdapter):
         except:
             return False
             
-    def save_file(self, key: str, file_data: bytes, content_type: str) -> bool:
+    def save_file(self, key: str, file_data: bytes, content_type: str, match_etag: Optional[str] = None) -> bool:
+        """
+        保存文件到S3，支持条件写入
+        
+        Args:
+            key: 文件的存储路径
+            file_data: 文件内容
+            content_type: 文件的MIME类型
+            match_etag: 可选的ETag值，用于乐观锁控制
+            
+        Returns:
+            bool: 保存成功返回True
+            
+        Raises:
+            ConditionFailedError: 当match_etag不匹配时
+        """
         try:
             log_info(f"Attempting to upload file to S3: {key}, content type: {content_type}, bucket: {self.bucket}")
-            self.s3_client.put_object(
-                Bucket=self.bucket,
-                Key=key,
-                Body=file_data,
-                ContentType=content_type
-            )
+            
+            params = {
+                'Bucket': self.bucket,
+                'Key': key,
+                'Body': file_data,
+                'ContentType': content_type
+            }
+            
+            # 如果提供了match_etag，添加条件写入参数
+            if match_etag is not None:
+                params['IfMatch'] = match_etag
+                
+            self.s3_client.put_object(**params)
             log_info(f"File uploaded to S3: {key}")
             return True
+            
+        except self.s3_client.exceptions.ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == 'PreconditionFailed':
+                # ETag不匹配，抛出自定义异常
+                from storage.exceptions import ConditionFailedError
+                raise ConditionFailedError(f"ETag mismatch for key: {key}")
+            else:
+                log_error(f"Failed to upload file to S3: {str(e)}")
+                if hasattr(e, 'response'):
+                    log_error(f"Error response: {e.response}")
+                return False
         except Exception as e:
             log_error(f"Failed to upload file to S3: {str(e)}")
-            # Add more error information
-            if hasattr(e, 'response'):
-                log_error(f"Error response: {e.response}")
             return False
     
     def get_file(self, key: str) -> tuple:
@@ -344,6 +375,74 @@ class S3StorageAdapter(StorageAdapter):
             "stream_from_disk is not implemented for S3StorageAdapter. "
             "Use get_download_url to get a presigned URL for direct S3 access."
         )
+    
+    def get_file_with_metadata(self, key: str) -> tuple:
+        """
+        获取文件内容、类型和ETag
+        
+        Returns:
+            tuple: (文件内容, 内容类型, ETag)
+        """
+        try:
+            response = self.s3_client.get_object(Bucket=self.bucket, Key=key)
+            file_data = response['Body'].read()
+            content_type = response.get('ContentType', 'application/octet-stream')
+            # S3返回的ETag包含引号，需要去除
+            etag = response.get('ETag', '').strip('"')
+            return file_data, content_type, etag
+        except self.s3_client.exceptions.NoSuchKey:
+            log_debug(f"请求的S3文件不存在: {key}")
+            raise FileNotFoundError(f"File not found: {key}")
+        except Exception as e:
+            log_error(f"从S3获取文件失败: {str(e)}")
+            raise
+    
+    def list_objects(self, prefix: str, delimiter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        列出指定前缀下的对象
+        
+        Args:
+            prefix: 对象键的前缀
+            delimiter: 分隔符，用于模拟目录结构
+            
+        Returns:
+            List[Dict[str, Any]]: 对象列表
+        """
+        try:
+            params = {
+                'Bucket': self.bucket,
+                'Prefix': prefix
+            }
+            
+            if delimiter:
+                params['Delimiter'] = delimiter
+            
+            results = []
+            
+            # 使用分页处理大量对象
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(**params)
+            
+            for page in page_iterator:
+                # 添加文件对象
+                for content in page.get('Contents', []):
+                    results.append({
+                        "key": content['Key'],
+                        "size": content['Size'],
+                        "last_modified": content['LastModified'].isoformat() if hasattr(content['LastModified'], 'isoformat') else str(content['LastModified'])
+                    })
+                
+                # 添加"目录"（公共前缀）
+                for common_prefix in page.get('CommonPrefixes', []):
+                    results.append({
+                        "prefix": common_prefix['Prefix']
+                    })
+            
+            return results
+            
+        except Exception as e:
+            log_error(f"列出S3对象失败: {str(e)}")
+            raise
 
 if __name__ == "__main__":
     import unittest
@@ -487,4 +586,3 @@ if __name__ == "__main__":
                 self.fail(f"获取不存在的文件时出错: {str(e)}")
     
     # 运行测试
-    unittest.main() 

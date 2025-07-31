@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import uuid
+from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from fastapi import APIRouter, Request, HTTPException, Depends
@@ -34,12 +35,12 @@ class MultipartInitRequest(BaseModel):
     
     @validator('key')
     def validate_key_format(cls, v):
-        """验证key格式：user_id/content_id/content_name"""
+        """验证key格式：user_id/block_id/version_id/chunk_name"""
         if not v or not isinstance(v, str):
             raise ValueError('Key must be a non-empty string')
         parts = v.split('/')
-        if len(parts) < 3:
-            raise ValueError('Key must follow format: user_id/content_id/content_name')
+        if len(parts) < 4:
+            raise ValueError('Key must follow format: user_id/block_id/version_id/chunk_name')
         if any(not part.strip() for part in parts):
             raise ValueError('Key parts cannot be empty')
         return v
@@ -460,5 +461,3 @@ async def upload_chunk_to_local(upload_id: str, part_number: int, request: Reque
         log_error(f"[{request_id}] 本地存储分块上传失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
- 

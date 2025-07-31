@@ -4,7 +4,9 @@ import uuid
 import time
 import sys
 import json
-from typing import Optional, Dict, Any, List
+import hashlib
+from typing import Optional, Dict, Any, List, Tuple
+from datetime import datetime
 
 # 添加项目根目录到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +16,7 @@ sys.path.insert(0, parent_dir)
 from utils.config import config
 from utils.logger import log_info, log_error
 from storage.base import StorageAdapter
+from storage.exceptions import ConditionFailedError, FileNotFoundError as StorageFileNotFoundError
 
 # 使用新的路径管理系统获取存储路径
 LOCAL_STORAGE_PATH = config.get_path("STORAGE_ROOT")
@@ -75,16 +78,58 @@ class LocalStorageAdapter(StorageAdapter):
     def check_file_exists(self, key: str) -> bool:
         return os.path.exists(self._get_file_path(key))
     
-    def save_file(self, key: str, file_data: bytes, content_type: str) -> bool:
+    def _calculate_etag(self, file_path: str) -> str:
+        """计算文件的ETag（使用MD5哈希）"""
+        md5_hash = hashlib.md5()
+        with open(file_path, 'rb') as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                md5_hash.update(chunk)
+        return md5_hash.hexdigest()
+    
+    def save_file(self, key: str, file_data: bytes, content_type: str, match_etag: Optional[str] = None) -> bool:
+        """
+        保存文件到本地存储，支持条件写入
+        
+        Args:
+            key: 文件的存储路径
+            file_data: 文件内容
+            content_type: 文件的MIME类型
+            match_etag: 可选的ETag值，用于乐观锁控制
+            
+        Returns:
+            bool: 保存成功返回True
+            
+        Raises:
+            ConditionFailedError: 当match_etag不匹配时
+        """
         try:
             file_path = self._get_file_path(key)
             self._ensure_directory_exists(file_path)
             
+            # 如果提供了match_etag，检查现有文件的ETag
+            if match_etag is not None and os.path.exists(file_path):
+                current_etag = self._calculate_etag(file_path)
+                if current_etag != match_etag:
+                    raise ConditionFailedError(f"ETag mismatch for key: {key}")
+            
+            # 写入文件
             with open(file_path, 'wb') as f:
                 f.write(file_data)
             
+            # 保存元数据（包括content_type）
+            metadata_path = file_path + '.metadata'
+            metadata = {
+                'content_type': content_type,
+                'etag': self._calculate_etag(file_path),
+                'last_modified': datetime.now().isoformat()
+            }
+            with open(metadata_path, 'w') as f:
+                json.dump(metadata, f)
+            
             log_info(f"File saved to local storage: {file_path}")
             return True
+        except ConditionFailedError:
+            raise
         except Exception as e:
             log_error(f"Failed to save local file: {str(e)}")
             return False
@@ -98,11 +143,27 @@ class LocalStorageAdapter(StorageAdapter):
             with open(file_path, 'rb') as f:
                 file_data = f.read()
             
-            # 尝试从文件扩展名推断内容类型
-            content_type = "application/octet-stream"
+            # 尝试从元数据文件获取content_type
+            metadata_path = file_path + '.metadata'
+            if os.path.exists(metadata_path):
+                try:
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        content_type = metadata.get('content_type', 'application/octet-stream')
+                except:
+                    content_type = self._infer_content_type(file_path)
+            else:
+                content_type = self._infer_content_type(file_path)
+            
+            return file_data, content_type
+        except Exception as e:
+            log_error(f"获取本地文件失败: {str(e)}")
+            return None, None
+    
+    def _infer_content_type(self, file_path: str) -> str:
+        """从文件扩展名推断内容类型"""
             ext = os.path.splitext(file_path)[1].lower()
-            if ext in ['.txt', '.md', '.json', '.html', '.css', '.js', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.mp3', '.wav', '.mp4', '.webm', '.pdf', '.zip']:
-                content_type = {
+        content_type_map = {
                     '.txt': 'text/plain',
                     '.md': 'text/markdown',
                     '.json': 'application/json',
@@ -120,12 +181,8 @@ class LocalStorageAdapter(StorageAdapter):
                     '.webm': 'video/webm',
                     '.pdf': 'application/pdf',
                     '.zip': 'application/zip'
-                }.get(ext, 'application/octet-stream')
-            
-            return file_data, content_type
-        except Exception as e:
-            log_error(f"获取本地文件失败: {str(e)}")
-            return None, None
+        }
+        return content_type_map.get(ext, 'application/octet-stream')
 
     # === Multipart Upload Coordinator Implementation ===
     
@@ -503,6 +560,135 @@ class LocalStorageAdapter(StorageAdapter):
         except Exception as e:
             log_error(f"本地文件流式传输失败: {str(e)}")
             raise
+    
+    def get_file_with_metadata(self, key: str) -> Tuple[bytes, str, Optional[str]]:
+        """
+        获取文件内容、类型和ETag
+        
+        Returns:
+            Tuple[bytes, str, Optional[str]]: (文件内容, 内容类型, ETag)
+        """
+        try:
+            file_path = self._get_file_path(key)
+            if not os.path.exists(file_path):
+                raise StorageFileNotFoundError(f"File not found: {key}")
+            
+            # 读取文件内容
+            with open(file_path, 'rb') as f:
+                file_data = f.read()
+            
+            # 读取元数据
+            metadata_path = file_path + '.metadata'
+            if os.path.exists(metadata_path):
+                try:
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        content_type = metadata.get('content_type', 'application/octet-stream')
+                        etag = metadata.get('etag')
+                except:
+                    content_type = self._infer_content_type(file_path)
+                    etag = self._calculate_etag(file_path)
+            else:
+                content_type = self._infer_content_type(file_path)
+                etag = self._calculate_etag(file_path)
+            
+            return file_data, content_type, etag
+            
+        except StorageFileNotFoundError:
+            raise
+        except Exception as e:
+            log_error(f"获取本地文件失败: {str(e)}")
+            raise
+    
+    def list_objects(self, prefix: str, delimiter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        列出指定前缀下的对象，模拟S3的list_objects_v2行为
+        
+        Args:
+            prefix: 对象键的前缀
+            delimiter: 分隔符，用于模拟目录结构
+            
+        Returns:
+            List[Dict[str, Any]]: 对象列表
+        """
+        try:
+            results = []
+            prefix_path = os.path.join(self.base_path, prefix.lstrip('/'))
+            
+            # 如果前缀路径不存在，返回空列表
+            if not os.path.exists(prefix_path):
+                return results
+            
+            # 用于存储已经添加的公共前缀
+            common_prefixes = set()
+            
+            # 遍历目录
+            for root, dirs, files in os.walk(prefix_path):
+                # 计算相对路径
+                rel_root = os.path.relpath(root, self.base_path)
+                if rel_root == '.':
+                    rel_root = ''
+                
+                # 如果使用了delimiter，需要模拟S3的行为
+                if delimiter:
+                    # 计算当前目录相对于prefix的路径
+                    rel_path = os.path.relpath(root, prefix_path)
+                    if rel_path == '.':
+                        rel_path = ''
+                    
+                    # 如果当前目录不是prefix本身，且包含delimiter，则只处理第一级
+                    if rel_path and delimiter in rel_path:
+                        # 获取第一级目录名
+                        first_level = rel_path.split(delimiter)[0]
+                        common_prefix = os.path.join(prefix, first_level, '').replace('\\', '/')
+                        if common_prefix not in common_prefixes:
+                            common_prefixes.add(common_prefix)
+                            results.append({"prefix": common_prefix})
+                        continue
+                    
+                    # 处理当前目录下的子目录（作为公共前缀）
+                    for dir_name in dirs:
+                        dir_key = os.path.join(rel_root, dir_name, '').replace('\\', '/')
+                        if dir_key.startswith(prefix):
+                            common_prefix = dir_key
+                            if common_prefix not in common_prefixes:
+                                common_prefixes.add(common_prefix)
+                                results.append({"prefix": common_prefix})
+                
+                # 处理文件
+                for filename in files:
+                    # 跳过元数据文件
+                    if filename.endswith('.metadata'):
+                        continue
+                    
+                    file_key = os.path.join(rel_root, filename).replace('\\', '/')
+                    
+                    # 只包含匹配前缀的文件
+                    if file_key.startswith(prefix):
+                        # 如果使用了delimiter，检查文件是否在当前"目录"级别
+                        if delimiter:
+                            rel_path = file_key[len(prefix):]
+                            if delimiter in rel_path:
+                                continue
+                        
+                        file_path = os.path.join(root, filename)
+                        file_stat = os.stat(file_path)
+                        
+                        results.append({
+                            "key": file_key,
+                            "size": file_stat.st_size,
+                            "last_modified": datetime.fromtimestamp(file_stat.st_mtime).isoformat()
+                        })
+                
+                # 如果使用了delimiter，不递归子目录
+                if delimiter:
+                    dirs.clear()
+            
+            return results
+            
+        except Exception as e:
+            log_error(f"列出本地对象失败: {str(e)}")
+            raise
 
 if __name__ == "__main__":
     # 创建适配器实例并运行测试
@@ -529,4 +715,3 @@ if __name__ == "__main__":
     
     # 删除文件
     delete_result = adapter.delete_file(test_key)
-    print(f"删除文件结果: {'成功' if delete_result else '失败'}") 

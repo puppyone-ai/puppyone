@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from utils.puppy_exception import PuppyException
 from utils.logger import log_info, log_error
 from utils.config import ConfigValidationError
+from storage.exceptions import ConditionFailedError
 from server.routes.management_routes import management_router
 from server.routes.vector_routes import vector_router
 from server.routes.upload_routes import upload_router
@@ -76,6 +77,18 @@ try:
                 "detail": cleaned_details,
                 "error": "Validation Error",
                 "message": error_message
+            }
+        )
+    
+    @app.exception_handler(ConditionFailedError)
+    async def condition_failed_exception_handler(request: Request, exc: ConditionFailedError):
+        """处理条件写入失败异常（ETag不匹配）"""
+        return JSONResponse(
+            status_code=409,  # Conflict
+            content={
+                "error": "Condition Failed",
+                "message": str(exc),
+                "detail": "The resource has been modified by another process. Please re-fetch and try again."
             }
         )
 
