@@ -13,9 +13,6 @@
   "lint-staged": {
     "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}": [
       "node scripts/format-frontend.js"
-    ],
-    "{PuppyEngine,PuppyStorage}/**/*.py": [
-      "node scripts/format-python.js"
     ]
   }
 }
