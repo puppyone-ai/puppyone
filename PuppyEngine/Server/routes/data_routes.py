@@ -5,6 +5,7 @@ Data processing routes for Engine Server
 import json
 import uuid
 import time
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends
@@ -21,6 +22,7 @@ from Server.utils.response_utils import (
 from Server.utils.serializers import json_serializer, safe_json_serialize
 from Server.WorkFlow import WorkFlow
 from Server.usage_module import UsageError
+from Server.dependencies import get_storage_client
 from Utils.puppy_exception import PuppyException
 from Utils.logger import log_info, log_error, log_warning, log_debug
 
@@ -35,7 +37,9 @@ async def get_data(
     timeout: float = 60.0,  # 等待超时时间(秒)
     retry_attempts: int = 5,  # 重试次数
     retry_delay: float = 0.5,  # 每次重试间隔(秒)
-    auth_result: AuthenticationResult = Depends(authenticate_user)
+    streaming_mode: bool = False,  # 是否使用流式处理模式
+    auth_result: AuthenticationResult = Depends(authenticate_user),
+    storage_client = Depends(get_storage_client)
 ):
     """
     Get data stream for a task.
@@ -126,6 +130,9 @@ async def get_data(
                 total_runs_consumed = 0
                 log_debug(f"Connection {connection_id}: Starting data streaming at {start_time}")
                 
+                # Check if streaming mode is enabled
+                enable_streaming = streaming_mode or os.getenv("ENABLE_STREAMING_STORAGE", "false").lower() == "true"
+                
                 # 定义edge级别的usage消费回调
                 async def edge_usage_callback(edge_metadata):
                     nonlocal total_runs_consumed
@@ -155,28 +162,55 @@ async def get_data(
                 
                 # 使用上下文管理器自动管理资源
                 with workflow:
-                    for yielded_blocks in workflow.process(edge_usage_callback):
-                        if not yielded_blocks:
-                            continue
+                    if enable_streaming and hasattr(workflow, 'process_streaming'):
+                        # Use streaming mode
+                        log_info(f"Connection {connection_id}: Using streaming mode")
                         
-                        log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks (total runs consumed: {total_runs_consumed})")
-                        
-                        # 记录 yield 前的时间
-                        current_time = time.time()
-                        time_since_last = current_time - last_yield_time
-                        time_since_start = current_time - start_time
-                        yield_count += 1
-                        
-                        log_debug(f"Connection {connection_id}: Yield #{yield_count} - Time since last yield: {time_since_last:.3f}s, Total time: {time_since_start:.3f}s")
-                        
-                        # 使用安全的JSON序列化函数处理大文本内容和特殊字符
-                        json_data = safe_json_serialize({'data': yielded_blocks, 'is_complete': False, 'runs_consumed': total_runs_consumed})
-                        yield f"data: {json_data}\n\n"
-                        
-                        # 更新最后一次 yield 的时间
-                        last_yield_time = time.time()
-                        yield_after_time = last_yield_time - current_time
-                        log_debug(f"Connection {connection_id}: Yield #{yield_count} completed - Yield operation took: {yield_after_time:.3f}s")
+                        # Process with streaming signals
+                        async for signal in workflow.process_streaming(storage_client, edge_usage_callback):
+                            current_time = time.time()
+                            yield_count += 1
+                            
+                            # Convert signal to SSE format
+                            signal_data = {
+                                'type': 'streaming_signal',
+                                'signal': signal,
+                                'is_complete': False,
+                                'runs_consumed': total_runs_consumed
+                            }
+                            
+                            # Special handling for batch_completed signals
+                            if signal.get('type') == 'batch_completed':
+                                signal_data['data'] = signal.get('outputs', {})
+                            
+                            json_data = safe_json_serialize(signal_data)
+                            yield f"data: {json_data}\n\n"
+                            
+                            log_debug(f"Connection {connection_id}: Streaming signal #{yield_count}: {signal.get('type')}")
+                    else:
+                        # Use traditional processing mode
+                        for yielded_blocks in workflow.process(edge_usage_callback):
+                            if not yielded_blocks:
+                                continue
+                            
+                            log_info(f"Connection {connection_id}: Yielding data block with {len(yielded_blocks)} blocks (total runs consumed: {total_runs_consumed})")
+                            
+                            # 记录 yield 前的时间
+                            current_time = time.time()
+                            time_since_last = current_time - last_yield_time
+                            time_since_start = current_time - start_time
+                            yield_count += 1
+                            
+                            log_debug(f"Connection {connection_id}: Yield #{yield_count} - Time since last yield: {time_since_last:.3f}s, Total time: {time_since_start:.3f}s")
+                            
+                            # 使用安全的JSON序列化函数处理大文本内容和特殊字符
+                            json_data = safe_json_serialize({'data': yielded_blocks, 'is_complete': False, 'runs_consumed': total_runs_consumed})
+                            yield f"data: {json_data}\n\n"
+                            
+                            # 更新最后一次 yield 的时间
+                            last_yield_time = time.time()
+                            yield_after_time = last_yield_time - current_time
+                            log_debug(f"Connection {connection_id}: Yield #{yield_count} completed - Yield operation took: {yield_after_time:.3f}s")
                     
                     # 记录最终完成信号的时间
                     final_time = time.time()
@@ -226,7 +260,8 @@ async def get_data(
 @data_router.post("/send_data")
 async def send_data(
     request: Request,
-    auth_result: AuthenticationResult = Depends(authenticate_user)
+    auth_result: AuthenticationResult = Depends(authenticate_user),
+    storage_client = Depends(get_storage_client)
 ):
     """
     Send data to create a new task.
@@ -289,7 +324,13 @@ async def send_data(
             # 2. 创建工作流并传入完整数据和任务ID
             # WorkFlow将维护自己的数据副本
             log_info(f"Creating workflow with its own data copy for task {task_id}")
-            workflow = WorkFlow(data, task_id=task_id)
+            
+            # Always pass storage client if available - WorkFlow will decide based on content size
+            workflow = WorkFlow(
+                data, 
+                task_id=task_id,
+                storage_client=storage_client
+            )
             
             # 3. 存储工作流对象引用，并关联用户信息
             data_store.set_workflow(task_id, workflow)

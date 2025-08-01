@@ -162,7 +162,13 @@ async def lifespan(app: FastAPI):
         app.state.data_store = DataStore()
         log_info("DataStore initialized with background cleanup thread")
         
-
+        # 4. Initialize shared httpx client for storage operations
+        import httpx
+        app.state.httpx_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            limits=httpx.Limits(max_keepalive_connections=25, max_connections=100)
+        )
+        log_info("HTTPx AsyncClient initialized for storage operations")
         
         log_info("--- Engine Server startup completed ---")
         
@@ -180,6 +186,11 @@ async def lifespan(app: FastAPI):
     
     # Application shutdown code
     log_info("--- Engine Server shutting down ---")
+    
+    # Clean up httpx client
+    if hasattr(app.state, 'httpx_client'):
+        await app.state.httpx_client.aclose()
+        log_info("HTTPx AsyncClient closed")
 
 # Initialize FastAPI App based on deployment type
 if DEPLOYMENT_TYPE == "remote":

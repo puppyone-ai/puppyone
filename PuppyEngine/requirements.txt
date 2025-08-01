@@ -5,6 +5,8 @@ duckduckgo_search
 # Server and Request
 axiom_py
 requests
+httpx
+anyio
 gunicorn
 waitress
 hypercorn

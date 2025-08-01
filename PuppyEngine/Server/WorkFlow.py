@@ -9,18 +9,21 @@ warnings.simplefilter("ignore", UserWarning)
 warnings.simplefilter("ignore", FutureWarning)
 
 # 移除标准logging配置，使用自定义日志函数
-from Utils.logger import log_info, log_warning, log_error
+from Utils.logger import log_info, log_warning, log_error, log_debug
 
 import json
 import threading
 import concurrent.futures
 import asyncio
+import anyio
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Dict, Set, Any, Tuple, Generator, Callable, Optional
+from typing import List, Dict, Set, Any, Tuple, Generator, Callable, Optional, AsyncGenerator
 from Server.JsonConverter import JsonConverter
 from ModularEdges.EdgeExecutor import EdgeExecutor
 from Utils.puppy_exception import global_exception_handler, PuppyException
 import traceback
+from datetime import datetime
+from clients.streaming_json_handler import StreamingJSONHandler, StreamingJSONAggregator
 
 
 """
@@ -184,7 +187,8 @@ class WorkFlow():
         json_data: Dict[str, Dict[str, str]],
         latest_version: str = "0.1",
         step_mode: bool = False,
-        task_id: str = None
+        task_id: str = None,
+        storage_client: Optional[Any] = None
     ):
         """
         Initialize the workflow with its own data copy.
@@ -194,9 +198,11 @@ class WorkFlow():
             latest_version: The latest version of the schema 
             step_mode: If True, enable step-by-step execution mode
             task_id: The task ID to associate this workflow with (optional)
+            storage_client: Optional storage client for external data operations
         """
         self.step_mode = step_mode
         self.task_id = task_id
+        self.storage_client = storage_client
         
         if task_id:
             log_info(f"Creating workflow for task {task_id}")
@@ -304,6 +310,99 @@ class WorkFlow():
         self
     ) -> List[str]:
         return [bid for bid, state in self.block_states.items() if state == "processed"]
+    
+    async def _prefetch_inputs(self) -> List[str]:
+        """
+        Prefetch external input blocks before processing
+        
+        This method:
+        1. Identifies blocks with storage_class="external"
+        2. Downloads their content from storage
+        3. Updates the block content in memory
+        
+        Returns:
+            List of block IDs that were prefetched
+            
+        Raises:
+            PuppyException: If prefetch fails for any block
+        """
+        if not self.storage_client:
+            log_info("No storage client available, skipping prefetch")
+            return []
+        
+        prefetched_blocks = []
+        
+        try:
+            for block_id, block_data in self.blocks.items():
+                # Check if this is an external block that needs prefetching
+                storage_class = block_data.get("storage_class", "internal")
+                
+                if storage_class == "external" and self.block_states[block_id] == "pending":
+                    try:
+                        # Check for external_metadata first (new format)
+                        external_metadata = block_data.get("data", {}).get("external_metadata")
+                        
+                        if external_metadata:
+                            # New format with external metadata
+                            resource_key = external_metadata.get("resource_key", "")
+                            is_chunked = external_metadata.get("chunked", False)
+                            
+                            if is_chunked:
+                                # Use prefetch and reconstruct for chunked content
+                                log_info(f"Prefetching and reconstructing chunked block {block_id} from {resource_key}")
+                                content = await self._prefetch_and_reconstruct(resource_key, external_metadata)
+                            else:
+                                # Simple prefetch for non-chunked content
+                                log_info(f"Prefetching external block {block_id} from {resource_key}")
+                                content = await self.storage_client.prefetch_resource(resource_key)
+                                
+                                # Decode based on content type
+                                content_type = external_metadata.get("content_type", "text")
+                                if content_type == "text" and isinstance(content, bytes):
+                                    content = content.decode('utf-8')
+                                elif content_type == "structured" and isinstance(content, bytes):
+                                    content = json.loads(content.decode('utf-8'))
+                        else:
+                            # Legacy format: resource key directly in content
+                            resource_key = block_data.get("data", {}).get("content", "")
+                            
+                            # Skip if content is empty or doesn't look like a resource key
+                            if not resource_key or "/" not in resource_key:
+                                log_warning(f"Block {block_id} marked as external but has invalid resource key: {resource_key}")
+                                continue
+                            
+                            log_info(f"Prefetching external block {block_id} from {resource_key} (legacy format)")
+                            
+                            # Download the content
+                            content = await self.storage_client.prefetch_resource(resource_key)
+                            
+                            # Update block content based on type
+                            if block_data.get("type") == "text" and isinstance(content, bytes):
+                                content = content.decode('utf-8')
+                        
+                        # Update block content
+                        block_data["data"]["content"] = content
+                        
+                        # Mark as successfully prefetched
+                        prefetched_blocks.append(block_id)
+                        log_info(f"Successfully prefetched block {block_id}")
+                        
+                    except Exception as e:
+                        log_error(f"Failed to prefetch block {block_id}: {str(e)}")
+                        raise PuppyException(
+                            5205,
+                            "External Block Prefetch Failed",
+                            f"Failed to load external block {block_id}: {str(e)}"
+                        )
+            
+            if prefetched_blocks:
+                log_info(f"Prefetched {len(prefetched_blocks)} external blocks: {prefetched_blocks}")
+            
+            return prefetched_blocks
+            
+        except Exception as e:
+            log_error(f"Prefetch operation failed: {str(e)}")
+            raise
 
     @global_exception_handler(5202, "Error Processing Workflow", True)
     def process(self, usage_callback = None) -> Generator[Dict[str, Any], None, None]:
@@ -341,6 +440,97 @@ class WorkFlow():
             
         finally:
             # 确保在处理完成后自动清理资源
+            self.cleanup_resources()
+    
+    async def process_streaming(self, storage_client=None, usage_callback=None) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Process workflow with streaming support
+        
+        This method provides real-time signals about workflow execution,
+        including prefetch operations and streaming uploads.
+        
+        Args:
+            storage_client: Storage client for external operations
+            usage_callback: Callback for usage tracking
+            
+        Yields:
+            Dict containing signal type and data:
+            - {"type": "prefetch_started"}
+            - {"type": "prefetch_completed", "blocks": [...]}
+            - {"type": "batch_processing", "batch": [...]}
+            - {"type": "batch_completed", "outputs": {...}}
+            - {"type": "upload_started", "block_id": "..."}
+            - {"type": "upload_completed", "block_id": "...", "resource_key": "..."}
+            - {"type": "workflow_completed"}
+        """
+        # Override storage client if provided
+        if storage_client:
+            self.storage_client = storage_client
+        
+        try:
+            # Step 1: Prefetch external inputs
+            yield {"type": "prefetch_started"}
+            
+            prefetched_blocks = await self._prefetch_inputs()
+            
+            yield {
+                "type": "prefetch_completed",
+                "blocks": prefetched_blocks,
+                "count": len(prefetched_blocks)
+            }
+            
+            # Step 2: Process workflow batches
+            log_info(f"Starting streaming workflow processing for task {self.task_id}")
+            
+            parallel_batch = self._find_parallel_batches()
+            batch_count = 0
+            
+            while parallel_batch:
+                batch_count += 1
+                
+                yield {
+                    "type": "batch_processing",
+                    "batch": list(parallel_batch),
+                    "batch_number": batch_count
+                }
+                
+                if self.step_mode:
+                    # In step mode, we can't use input(), so just log
+                    log_info(f"Step mode: Would execute batch #{batch_count}")
+                
+                # Process batch
+                processed_block_ids = self._process_batch_results(parallel_batch, usage_callback)
+                processed_blocks = {
+                    block_id: self.blocks.get(block_id, {})
+                    for block_id in processed_block_ids
+                }
+                
+                # Check for external uploads
+                for block_id in processed_block_ids:
+                    if self.blocks.get(block_id, {}).get("storage_class") == "external":
+                        resource_key = self.blocks[block_id]["data"]["content"]
+                        if "/" in str(resource_key):  # It's a resource key
+                            yield {
+                                "type": "upload_completed",
+                                "block_id": block_id,
+                                "resource_key": resource_key
+                            }
+                
+                yield {
+                    "type": "batch_completed",
+                    "outputs": processed_blocks,
+                    "batch_number": batch_count
+                }
+                
+                # Find next batch
+                parallel_batch = self._find_parallel_batches()
+            
+            log_info(f"Streaming workflow processing completed for task {self.task_id}")
+            
+            yield {"type": "workflow_completed", "total_batches": batch_count}
+            
+        finally:
+            # Ensure cleanup
             self.cleanup_resources()
 
     def cleanup_resources(self):
@@ -527,7 +717,12 @@ class WorkFlow():
             outputs = self._execute_edge_batch(batch, usage_callback)
             log_info(f"Batch processing output: {outputs}")
 
-            # Stage 3: Update states atomically
+            # Stage 3: Handle external storage for output blocks if storage client available
+            # This will apply smart storage strategy based on size/type
+            if self.storage_client:
+                outputs = self._handle_external_outputs(outputs)
+
+            # Stage 4: Update states atomically
             with self.state_lock:
                 # Update block states
                 for bid, content in outputs.items():
@@ -599,6 +794,252 @@ class WorkFlow():
             # 移除exc_info参数，使用格式化字符串
             log_error(f"Batch execution failed: {str(e)}\n{traceback.format_exc()}")
             raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
+    
+    def _handle_external_outputs(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle external storage for output blocks
+        
+        This method determines storage strategy based on:
+        1. Explicit storage_class="external" marking
+        2. Content size exceeding threshold (auto-external)
+        3. Binary content types
+        
+        Args:
+            outputs: Dictionary of block_id -> content
+            
+        Returns:
+            Modified outputs dictionary with resource keys for external blocks
+        """
+        modified_outputs = outputs.copy()
+        
+        # Get size threshold from environment (default 1MB)
+        size_threshold = int(os.getenv("EXTERNAL_STORAGE_THRESHOLD_BYTES", str(1024 * 1024)))
+        
+        for block_id, content in outputs.items():
+            block_data = self.blocks.get(block_id, {})
+            storage_class = block_data.get("storage_class", "internal")
+            
+            # Calculate content size
+            content_size = self._calculate_content_size(content)
+            
+            # Determine if should use external storage
+            should_use_external = False
+            reason = ""
+            
+            if storage_class == "external":
+                should_use_external = True
+                reason = "explicitly marked as external"
+            elif content_size > size_threshold:
+                should_use_external = True
+                reason = f"size ({content_size:,} bytes) exceeds threshold ({size_threshold:,} bytes)"
+                # Update storage_class for future reference
+                block_data["storage_class"] = "external"
+            elif isinstance(content, bytes) and content_size > size_threshold // 4:
+                # Binary content with lower threshold
+                should_use_external = True
+                reason = f"binary content ({content_size:,} bytes) exceeds binary threshold"
+                block_data["storage_class"] = "external"
+            
+            if should_use_external:
+                log_info(f"Uploading block {block_id} to external storage: {reason}")
+                
+                try:
+                    # Determine block type
+                    block_type = "text"  # default
+                    if isinstance(content, bytes):
+                        block_type = "binary"
+                    elif isinstance(content, (dict, list)):
+                        block_type = "structured"
+                    elif block_data.get("type") in ["structured", "binary"]:
+                        block_type = block_data.get("type")
+                    
+                    # Use anyio to call async storage upload from sync context
+                    resource_key = anyio.from_thread.run(
+                        self._upload_to_storage,
+                        block_id,
+                        content,
+                        block_type
+                    )
+                    
+                    # Replace content with resource key
+                    modified_outputs[block_id] = resource_key
+                    log_info(f"Successfully uploaded block {block_id} to {resource_key}")
+                    
+                except Exception as e:
+                    log_error(f"Failed to upload block {block_id} to storage: {str(e)}")
+                    # Keep original content on failure
+                    log_warning(f"Falling back to internal storage for block {block_id}")
+            else:
+                log_debug(f"Block {block_id} remains in internal storage (size: {content_size:,} bytes)")
+        
+        return modified_outputs
+    
+    def _calculate_content_size(self, content: Any) -> int:
+        """
+        Calculate the size of content in bytes
+        
+        Args:
+            content: The content to measure
+            
+        Returns:
+            Size in bytes
+        """
+        if isinstance(content, bytes):
+            return len(content)
+        elif isinstance(content, str):
+            return len(content.encode('utf-8'))
+        elif isinstance(content, (dict, list)):
+            # For structured data, estimate JSON size
+            return len(json.dumps(content).encode('utf-8'))
+        else:
+            # For other types, convert to string first
+            return len(str(content).encode('utf-8'))
+    
+    async def _upload_to_storage(self, block_id: str, content: Any, block_type: str = "text") -> str:
+        """
+        Upload content to storage with content-type aware chunking
+        
+        Args:
+            block_id: Block identifier
+            content: Content to upload
+            block_type: Type of content (text, structured, binary)
+            
+        Returns:
+            Resource key for the uploaded content
+        """
+        # Extract user_id from task context (simplified for now)
+        user_id = "default_user"  # TODO: Get from auth context
+        
+        # Generate version ID based on timestamp
+        version_id = datetime.utcnow().strftime("%Y%m%d_%H%M%S_%f")
+        
+        # Create content-type aware chunk generator
+        async def chunk_generator():
+            chunk_size = 1024 * 1024  # 1MB chunks
+            
+            if block_type == "structured" and isinstance(content, (list, dict)):
+                # Use StreamingJSONHandler for structured data
+                handler = StreamingJSONHandler(mode="jsonl")
+                if isinstance(content, dict):
+                    data_items = [content]
+                else:
+                    data_items = content
+                
+                chunk_num = 0
+                for chunk_bytes in handler.split_to_jsonl(data_items):
+                    chunk_num += 1
+                    yield (f"data_{chunk_num:04d}.jsonl", chunk_bytes)
+                    
+            elif block_type == "binary" and isinstance(content, bytes):
+                # Split binary content into chunks
+                chunk_num = 0
+                for i in range(0, len(content), chunk_size):
+                    chunk_num += 1
+                    chunk_data = content[i:i + chunk_size]
+                    yield (f"binary_{chunk_num:04d}.bin", chunk_data)
+                    
+            else:
+                # Text content handling (including single structured objects)
+                if isinstance(content, str):
+                    data_bytes = content.encode('utf-8')
+                elif isinstance(content, bytes):
+                    data_bytes = content
+                else:
+                    # Convert to JSON string for other types
+                    data_bytes = json.dumps(content).encode('utf-8')
+                
+                # Split large text content into chunks
+                if len(data_bytes) > chunk_size:
+                    chunk_num = 0
+                    for i in range(0, len(data_bytes), chunk_size):
+                        chunk_num += 1
+                        chunk_data = data_bytes[i:i + chunk_size]
+                        yield (f"text_{chunk_num:04d}.txt", chunk_data)
+                else:
+                    # Small content as single chunk
+                    extension = ".txt" if block_type == "text" else ".json"
+                    yield (f"content{extension}", data_bytes)
+        
+        # Upload to storage with external metadata
+        version_base = await self.storage_client.stream_upload_version(
+            user_id=user_id,
+            block_id=block_id,
+            version_id=version_id,
+            chunk_generator=chunk_generator()
+        )
+        
+        # Store external metadata in block data
+        external_metadata = {
+            "resource_key": version_base,
+            "content_type": block_type,
+            "chunked": True,  # Always assume chunked for external storage
+            "uploaded_at": datetime.utcnow().isoformat()
+        }
+        
+        # Update block with external metadata
+        if block_id in self.blocks:
+            self.blocks[block_id]["data"]["external_metadata"] = external_metadata
+        
+        return version_base
+
+    async def _prefetch_and_reconstruct(self, resource_key: str, external_metadata: Dict[str, Any]) -> Any:
+        """
+        Prefetch and reconstruct chunked content from storage
+        
+        Args:
+            resource_key: Base resource key (manifest location)
+            external_metadata: Metadata about the external content
+            
+        Returns:
+            Reconstructed content
+        """
+        try:
+            content_type = external_metadata.get("content_type", "text")
+            
+            # Download manifest
+            manifest_key = f"{resource_key}/manifest.json"
+            manifest_data = await self.storage_client.get_manifest(manifest_key)
+            
+            log_debug(f"Reconstructing {content_type} content from {len(manifest_data.get('chunks', []))} chunks")
+            
+            if content_type == "structured":
+                # Reconstruct structured data using StreamingJSONAggregator
+                aggregator = StreamingJSONAggregator()
+                all_objects = []
+                
+                for chunk_info in manifest_data.get('chunks', []):
+                    chunk_name = chunk_info.get('name', '')
+                    if chunk_name.endswith('.jsonl'):
+                        chunk_key = f"{resource_key}/{chunk_name}"
+                        chunk_data = await self.storage_client.download_chunk(chunk_key)
+                        new_objects = aggregator.add_jsonl_chunk(chunk_data)
+                        all_objects.extend(new_objects)
+                
+                # Return single object or list based on original structure
+                if len(all_objects) == 1:
+                    return all_objects[0]
+                return all_objects
+                
+            else:
+                # Reconstruct text or binary content
+                reconstructed_data = b""
+                
+                for chunk_info in manifest_data.get('chunks', []):
+                    chunk_name = chunk_info.get('name', '')
+                    chunk_key = f"{resource_key}/{chunk_name}"
+                    chunk_data = await self.storage_client.download_chunk(chunk_key)
+                    reconstructed_data += chunk_data
+                
+                # Decode text content
+                if content_type == "text":
+                    return reconstructed_data.decode('utf-8')
+                else:
+                    # Return binary data as-is
+                    return reconstructed_data
+                    
+        except Exception as e:
+            log_error(f"Failed to reconstruct content from {resource_key}: {str(e)}")
+            raise
 
     def _prepare_block_configs(
         self,
@@ -661,19 +1102,14 @@ class WorkFlow():
                 # 使用合规的最小化数据收集
                 edge_metadata = self._collect_minimal_metadata_compliant(edge_id, edge_result, results, execution_success)
                 
-                # 在新的事件循环中同步执行异步回调
-                def run_async_callback():
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        loop.run_until_complete(usage_callback(edge_metadata))
-                    finally:
-                        loop.close()
-                
-                # 在单独的线程中运行，避免阻塞
-                callback_thread = threading.Thread(target=run_async_callback)
-                callback_thread.start()
-                log_info(f"Usage processing submitted for edge {edge_id}")
+                # 使用 anyio 从同步线程安全地调用异步回调
+                try:
+                    anyio.from_thread.run(usage_callback, edge_metadata)
+                    log_info(f"Usage processing completed for edge {edge_id}")
+                except Exception as callback_error:
+                    log_error(f"Error in usage callback: {str(callback_error)}")
+                    # Don't fail the edge execution due to usage tracking errors
+                    pass
 
             except Exception as e:
                 log_error(f"Usage processing setup failed for edge {edge_id}: {str(e)}")
