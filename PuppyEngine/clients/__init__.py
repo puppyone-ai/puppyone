@@ -1,0 +1,1 @@
+"""Storage client module for PuppyEngine"""

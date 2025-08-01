@@ -117,6 +117,17 @@ class ManifestUpdateResponse(BaseModel):
     etag: str = Field(..., description="更新后的ETag")
     message: str = Field(default="清单更新成功")
 
+class DirectChunkUploadRequest(BaseModel):
+    key: str = Field(..., description="文件存储键")
+    content_type: str = Field(default="application/octet-stream", description="内容类型")
+
+class DirectChunkUploadResponse(BaseModel):
+    success: bool = Field(..., description="上传是否成功")
+    key: str = Field(..., description="文件存储键")
+    etag: str = Field(..., description="文件ETag")
+    size: int = Field(..., description="文件大小（字节）")
+    uploaded_at: int = Field(..., description="上传时间戳")
+
 # === Helper Functions ===
 
 def generate_request_id() -> str:
@@ -578,5 +589,68 @@ async def update_manifest(
         raise
     except Exception as e:
         log_error(f"[{request_id}] Manifest更新失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@upload_router.post("/chunk/direct", response_model=DirectChunkUploadResponse)
+async def upload_chunk_direct(
+    request: Request,
+    metadata: DirectChunkUploadRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+):
+    """
+    直接上传chunk到最终存储位置
+    这是简化后的上传API，不涉及multipart协调
+    """
+    request_id = generate_request_id()
+    log_info(f"[{request_id}] 开始直接chunk上传: key={metadata.key}")
+    
+    try:
+        # 验证key格式
+        if not validate_key_format(metadata.key):
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid key format. Expected: user_id/content_id/content_name"
+            )
+        
+        # 提取用户ID进行认证
+        user_id = metadata.key.split('/')[0]
+        
+        # 用户认证和访问权限验证
+        user = await verify_user_and_resource_access(
+            authorization, user_id, metadata.key, 
+            required_action="write",
+            auth_provider=auth_provider
+        )
+        
+        # 读取请求体的chunk数据
+        chunk_data = await request.body()
+        if not chunk_data:
+            raise HTTPException(status_code=400, detail="No chunk data provided")
+        
+        log_info(f"[{request_id}] 开始保存chunk: size={len(chunk_data)}")
+        
+        # 直接保存chunk
+        result = storage_adapter.save_chunk_direct(
+            key=metadata.key,
+            chunk_data=chunk_data,
+            content_type=metadata.content_type
+        )
+        
+        response = DirectChunkUploadResponse(
+            success=result["success"],
+            key=result["key"],
+            etag=result["etag"],
+            size=result["size"],
+            uploaded_at=result["uploaded_at"]
+        )
+        
+        log_info(f"[{request_id}] 直接chunk上传成功: key={metadata.key}, size={len(chunk_data)}")
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"[{request_id}] 直接chunk上传失败: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
