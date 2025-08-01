@@ -24,13 +24,13 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
 
-  // Python related configuration
-  "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter"
-  },
+  // // Python related configuration
+  // "[python]": {
+  //   "editor.defaultFormatter": "ms-python.black-formatter"
+  // },
 
-  // Black formatter configuration
-  "black-formatter.args": ["--config", "pyproject.toml"],
+  // // Black formatter configuration
+  // "black-formatter.args": ["--config", "pyproject.toml"],
 
   // Prettier configuration
   "prettier.configPath": ".prettierrc",

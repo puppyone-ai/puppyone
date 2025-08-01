@@ -2,18 +2,19 @@
 
 > 📖 **在Notion上查看**: [Code Formatting Guide](https://www.notion.so/puppyagent/Code-Formatting-Guide-241bbe13bfbb800e99aaf706fa6751aa?source=copy_link)
 
+> ⚠️ **重要通知**：**Python 后端代码格式化已暂时禁用**
+> 
+> 目前只启用前端代码（JavaScript/TypeScript）的格式化功能。Python 代码格式化将合适的时候启用。
 
 ## 1. 为什么需要代码格式化？
 
-在团队协作中，每个开发者都有自己的编码习惯和风格偏好。如果没有统一的代码格式标准，会导致：
+如果统一的代码格式标准，会导致：
 
 - **代码审查困难**：格式差异掩盖了真正的逻辑变更
 - **Git 历史混乱**：无意义的格式修改产生大量噪音提交
 - **维护成本增加**：不一致的代码风格降低可读性
 
-因此，我们需要一套**自动化、无感知**的代码格式化机制。
-
-## 2. 双重防护机制的设计原理
+## 2. 双重防护机制
 
 我们设计了一套**双重防护机制**，确保任何进入代码库的代码都符合统一标准：
 
@@ -29,28 +30,22 @@
 - **技术实现**：Git Hooks (Husky) + lint-staged
 - **目的**：作为最后的安全网，防止任何未格式化的代码进入代码库
 
-### **为什么需要两道防线？**
-
-- **第一道防线**解决了**开发体验**问题：让你在写代码时就能看到美观的格式
-- **第二道防线**解决了**质量保证**问题：即使第一道防线失效，也能确保代码库的一致性
-
-这种设计让你可以专注于业务逻辑，而不用担心代码格式问题。
 
 ## 3. 技术架构说明
 
-### **前端格式化工具链**
+### **前端格式化工具链** ✅ **已启用**
 ```
 VS Code/Cursor Prettier 插件 → .prettierrc 配置文件 → Prettier (npm 包)
 ```
 
-### **后端格式化工具链**
+### **后端格式化工具链** ⏸️ **暂时禁用**
 ```
 VS Code/Cursor Black Formatter 插件 → pyproject.toml 配置文件 → Black (Python 包)
 ```
 
 ### **Git 钩子工具链**
 ```
-git commit → Husky → lint-staged → Prettier/Black → 格式化成功/失败
+git commit → Husky → lint-staged → Prettier → 格式化成功/失败
 ```
 
 ---
@@ -66,17 +61,17 @@ git commit → Husky → lint-staged → Prettier/Black → 格式化成功/失�
 git pull origin qubits
 ```
 
-### **步骤 2：安装 VS Code/Cursor/Cursor 插件**
+### **步骤 2：安装 VS Code/Cursor 插件**
 
-打开 VS Code/Cursor，按 `Ctrl+Shift+X` 打开插件市场，搜索并安装以下两个插件：
+打开 VS Code/Cursor，按 `Ctrl+Shift+X` 打开插件市场，搜索并安装以下插件：
 
-1. **Prettier - Code formatter**
+1. **Prettier - Code formatter** ✅ **必需**
    - 作者：Prettier
    - 用途：格式化前端代码（JavaScript, TypeScript, CSS 等）
 
-2. **Black Formatter**
+2. **Black Formatter** ⏸️ **暂时不需要**
    - 作者：Microsoft
-   - 用途：格式化 Python 代码
+   - 用途：格式化 Python 代码（当前已禁用）
 
 > **💡 提示**：安装完成后，VS Code/Cursor 会自动读取项目中的 `.vscode/settings.json` 文件，我已经在该文件中编写了必要的格式化设置。
 
@@ -93,9 +88,11 @@ npm install
 - **Husky**：Git 钩子管理工具
 - **lint-staged**：只对暂存文件执行操作的工具
 
-### **步骤 4：配置 Python 环境**
+### **步骤 4：配置 Python 环境** ⏸️ **暂时跳过**
 
-由于 Black 是 Python 工具，我们需要在独立的虚拟环境中安装它：
+> **⚠️ 注意**：由于 Python 代码格式化已暂时禁用，此步骤可以跳过。
+
+~~由于 Black 是 Python 工具，我们需要在独立的虚拟环境中安装它：~~
 
 ```bash
 # 创建 Python 虚拟环境
@@ -119,7 +116,7 @@ pip install -r requirements-dev.txt
 
 #### **测试第一道防线（IDE 格式化）**
 
-**测试前端格式化：**
+**测试前端格式化：** ✅ **正常工作**
 
 1. 在 VS Code/Cursor 中打开项目中的任意 `.ts` 或 `.js` 文件
 2. 故意破坏代码格式，比如：
@@ -137,35 +134,39 @@ pip install -r requirements-dev.txt
    };
    ```
 
-**测试 Python 格式化：**
+**测试 Python 格式化：** ⏸️ **暂时禁用**
 
-1. 在 VS Code/Cursor 中打开项目中的任意 `.py` 文件
-2. 故意破坏代码格式，比如：
-   ```python
-   # 故意写成这样的混乱格式
-   def hello(name,age):
-       return f'Hello {name}, you are {age} years old'
-   ```
-3. 按 `Ctrl+S` 保存文件
-4. **预期结果**：代码应该自动变成：
-   ```python
-   def hello(name, age):
-       return f"Hello {name}, you are {age} years old"
-   ```
+> **⚠️ 注意**：Python 代码格式化已暂时禁用，保存 Python 文件时不会自动格式化。
+
+~~1. 在 VS Code/Cursor 中打开项目中的任意 `.py` 文件~~
+~~2. 故意破坏代码格式，比如：~~
+~~   ```python~~
+~~   # 故意写成这样的混乱格式~~
+~~   def hello(name,age):~~
+~~       return f'Hello {name}, you are {age} years old'~~
+~~   ```~~
+~~3. 按 `Ctrl+S` 保存文件~~
+~~4. **预期结果**：代码应该自动变成：~~
+~~   ```python~~
+~~   def hello(name, age):~~
+~~       return f"Hello {name}, you are {age} years old"~~
+~~   ```~~
 
 #### **测试第二道防线（Git 提交前格式化）**
 
 1. 创建一个测试文件，故意写一些格式不规范的代码
 2. 将文件添加到 Git 暂存区：
    ```bash
-   git add test-file.ts  # 或 test-file.py
+   git add test-file.ts  # 前端文件会正常格式化
+   # git add test-file.py  # Python 文件暂时不会格式化
    ```
 3. 尝试提交：
    ```bash
    git commit -m "test formatting"
    ```
 4. **预期结果**：
-   - 如果文件格式有问题，lint-staged 会自动修复并重新暂存
+   - **前端文件**：如果格式有问题，lint-staged 会自动修复并重新暂存
+   - **Python 文件**：暂时跳过格式化检查
    - 如果修复成功，提交会正常完成
    - 如果修复失败，会显示错误信息，提交被阻止
 
@@ -173,7 +174,7 @@ pip install -r requirements-dev.txt
 
 如果你想确认工具是否使用了正确的配置，可以查看 VS Code/Cursor 的输出面板：
 
-**查看 Prettier 输出：**
+**查看 Prettier 输出：** ✅ **正常工作**
 1. 按 `Ctrl+Shift+U` 打开输出面板
 2. 在下拉菜单中选择 "Prettier"
 3. 保存一个前端文件，你应该看到类似信息：
@@ -182,23 +183,27 @@ pip install -r requirements-dev.txt
    ["INFO" - 19:43:40] PrettierInstance: ... "version": "3.6.2"
    ```
 
-**查看 Black 输出：**
-1. 在输出面板下拉菜单中选择 "Black Formatter"
-2. 保存一个 Python 文件，你应该看到类似信息：
-   ```
-   python.exe -m black --config pyproject.toml --stdin-filename ...
-   All done! ✨ 🍰 ✨
-   1 file reformatted
-   ```
+**查看 Black 输出：** ⏸️ **暂时禁用**
+> **⚠️ 注意**：由于 Python 格式化已禁用，Black 输出面板将不会显示格式化信息。
+
+~~1. 在输出面板下拉菜单中选择 "Black Formatter"~~
+~~2. 保存一个 Python 文件，你应该看到类似信息：~~
+~~   ```~~
+~~   python.exe -m black --config pyproject.toml --stdin-filename ...~~
+~~   All done! ✨ 🍰 ✨~~
+~~   1 file reformatted~~
+~~   ```~~
 
 ## 5. 日常使用
 
 配置完成后，你的日常开发流程变得非常简单：
 
 1. **正常编写代码** - 不用担心格式问题
-2. **保存文件** (`Ctrl+S`) - 第一道防线自动格式化
-3. **提交代码** (`git commit`) - 第二道防线确保质量
+2. **保存文件** (`Ctrl+S`) - 第一道防线自动格式化（仅前端）
+3. **提交代码** (`git commit`) - 第二道防线确保质量（仅前端）
 4. **享受一致、美观的代码库** 🎉
+
+> **💡 提示**：Python 代码暂时需要手动保持格式一致性，建议遵循 PEP 8 规范。
 
 ## 6. 常见问题解决
 
@@ -209,6 +214,7 @@ pip install -r requirements-dev.txt
 2. 检查 VS Code/Cursor 设置中的 "Format On Save" 是否开启
 3. 查看输出面板中的错误信息
 4. 确认 `.vscode/settings.json` 文件存在
+5. **注意**：Python 文件暂时不会自动格式化，这是正常现象
 
 ### **问题：Git 提交被阻止**
 
@@ -217,23 +223,19 @@ pip install -r requirements-dev.txt
 2. 修复提示的问题（通常是语法错误）
 3. 重新添加修改后的文件：`git add .`
 4. 再次提交：`git commit -m "your message"`
-
-### **问题：Python 格式化不工作**
-
-确认：
-1. Python 虚拟环境已激活
-2. Black 已正确安装在虚拟环境中
-3. VS Code/Cursor 能找到正确的 Python 解释器路径
-
----
+-
 
 ## 7. 总结
 
 通过这套双重防护机制，你可以：
 
 - ✅ **专注业务逻辑**：不再为代码格式分心
-- ✅ **提高代码质量**：自动化确保一致性
+- ✅ **提高代码质量**：自动化确保一致性（前端）
 - ✅ **改善团队协作**：减少格式相关的代码审查噪音
-- ✅ **提升开发效率**：无需手动调整代码格式
+- ✅ **提升开发效率**：无需手动调整代码格式（前端）
+
+> **📝 当前状态**：
+> - ✅ **前端代码格式化**：完全正常工作
+> - ⏸️ **Python 代码格式化**：暂时禁用，将在后续版本中重新启用
 
 记住：**一次配置，终身受益**。现在就开始享受自动化代码格式化带来的便利吧！
