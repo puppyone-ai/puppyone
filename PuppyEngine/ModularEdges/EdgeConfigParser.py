@@ -568,6 +568,24 @@ class ModifyConfigParser(EdgeConfigParser):
         return extra_configs
 
 
+class DeepResearchConfigParser(EdgeConfigParser):
+    @global_exception_handler(3910, "Error Parsing Deep Research Edge")
+    def parse(
+        self,
+        variable_replace_field: str = "query"
+    ) -> ParsedEdgeParams:
+        # For now, treat like SearchConfigParser, but can be extended for more complex config
+        is_loop, init_configs, extra_configs = self._prase_single_block_content(
+            variable_replace_field,
+            base_fields={}
+        )
+        return ParsedEdgeParams(
+            init_configs=init_configs,
+            extra_configs=extra_configs,
+            is_loop=is_loop
+        )
+
+
 class ConfigParserFactory:
     """Factory for creating edge config parsers"""
 
@@ -582,7 +600,8 @@ class ConfigParserFactory:
         "rewrite": QueryRewriteConfigParser,
         "code": CodeConfigParser,
         "ifelse": ConditionConfigParser,
-        "modify": ModifyConfigParser
+        "modify": ModifyConfigParser,
+        "deep_research": DeepResearchConfigParser
     }
 
     @classmethod
