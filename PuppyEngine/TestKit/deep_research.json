@@ -1,0 +1,67 @@
+{
+    "blocks": {
+        "query_input": {
+            "label": "query_input",
+            "type": "text",
+            "data": {
+                "content": "What are the latest developments in artificial intelligence?"
+            },
+            "looped": false
+        },
+        "research_result": {
+            "label": "research_result",
+            "type": "structured",
+            "data": {
+                "content": "",
+                "embedding_view": []
+            },
+            "looped": false
+        }
+    },
+    "edges": {
+        "deep_research-1738445447198": {
+            "type": "deep_research",
+            "data": {
+                "inputs": {
+                    "query_input": "query_input"
+                },
+                "outputs": {
+                    "research_result": "research_result"
+                },
+                "query_id": {
+                    "query_input": "query_input"
+                },
+                "extra_configs": {
+                    "max_rounds": 3,
+                    "llm_model": "openai/gpt-4o-mini",
+                    "vector_config": {
+                        "enabled": true,
+                        "data_source": [
+                            {
+                                "index_item": {
+                                    "collection_configs": {
+                                        "collection_name": "collection_SbL677_1754072570340",
+                                        "model": "text-embedding-ada-002",
+                                        "vdb_type": "pgvector"
+                                    }
+                                }
+                            }
+                        ],
+                        "top_k": 3,
+                        "threshold": 0.01
+                    },
+                    "web_config": {
+                        "top_k": 3,
+                        "sub_search_type": "google"
+                    },
+                    "perplexity_config": {
+                        "model": "openai/gpt-4o-mini",
+                        "sub_search_type": "perplexity"
+                    }
+                },
+                "looped": false
+            }
+        }
+    },
+    "version": "0.1"
+} 
