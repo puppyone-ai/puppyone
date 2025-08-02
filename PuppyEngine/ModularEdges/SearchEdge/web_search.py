@@ -95,13 +95,11 @@ class WebSearchStrategy(SearchStrategy):
             if text_content is None:
                 text_content = response.content.decode('utf-8', errors='ignore')
             
-            # Basic content validation
-            if len(text_content.strip()) < 100:
-                if filter_unreachable:
+            # Basic content validation (can be disabled)
+            disable_content_filtering = self.extra_configs.get("disable_content_filtering", False)
+            if not disable_content_filtering:
+                if len(text_content.strip()) < 100:
                     return None
-                else:
-                    item['content'] = default_error_message
-                    return item
                 
             # Check for obvious encoding issues (too many replacement characters)
             replacement_ratio = text_content.count('�') / max(len(text_content), 1)
@@ -119,34 +117,24 @@ class WebSearchStrategy(SearchStrategy):
             title = doc.title()
             summary_html = doc.summary()
             
-            if not summary_html or len(summary_html.strip()) < 50:
-                if filter_unreachable:
+            if not disable_content_filtering:
+                if not summary_html or len(summary_html.strip()) < 50:
                     return None
-                else:
-                    item['content'] = default_error_message
-                    return item
             
             # Parse HTML to get clean text with explicit parser
             soup = BeautifulSoup(summary_html, 'html.parser')
             content = soup.get_text(separator=' ', strip=True)
             
-            # Final content validation and cleaning
-            if len(content.strip()) < 50:  # Minimum content length
-                if filter_unreachable:
+            # Final content validation and cleaning (can be disabled)
+            if not disable_content_filtering:
+                if len(content.strip()) < 50:  # Minimum content length
                     return None
-                else:
-                    item['content'] = default_error_message
-                    return item
-            
-            # Check for garbled content (high ratio of non-printable or weird chars)
-            printable_chars = sum(1 for c in content if c.isprintable() or c.isspace())
-            printable_ratio = printable_chars / max(len(content), 1)
-            if printable_ratio < 0.8:  # Less than 80% printable characters
-                if filter_unreachable:
+                
+                # Check for garbled content (high ratio of non-printable or weird chars)
+                printable_chars = sum(1 for c in content if c.isprintable() or c.isspace())
+                printable_ratio = printable_chars / max(len(content), 1)
+                if printable_ratio < 0.8:  # Less than 80% printable characters
                     return None
-                else:
-                    item['content'] = default_error_message
-                    return item
             
             item['title'] = title or item.get('title', 'No title')
             item['content'] = content
@@ -197,7 +185,11 @@ class WebSearchStrategy(SearchStrategy):
         max_total_results = 100
         
         # Calculate how many batches we need
-        target_raw_results = min(top_k * 2, max_total_results)  # Get 2x target for filtering
+        disable_quality_filtering = self.extra_configs.get("disable_quality_filtering", False)
+        if disable_quality_filtering:
+            target_raw_results = top_k  # Don't get extra results for filtering
+        else:
+            target_raw_results = min(top_k * 2, max_total_results)  # Get 2x target for filtering
         batches_needed = (target_raw_results + max_per_request - 1) // max_per_request
         
         all_items = []
