@@ -1,0 +1,56 @@
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | \.pytest_cache
+  | __pycache__
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+  | alembic/versions
+  | node_modules
+  | .coverage
+  | htmlcov
+  | .env
+  | .vscode
+  | .idea
+  | logs
+  | tmp
+  | temp
+  | cache
+  | static
+  | media
+  | uploads
+  | downloads
+  | docs/_build
+  | site-packages
+  | lib
+  | include
+  | bin
+)/
+| migrations/.*\.py$
+| alembic/versions/.*\.py$
+| manage\.py$
+| wsgi\.py$
+| asgi\.py$
+| settings/.*\.py$
+| config/.*\.py$
+| conftest\.py$
+| test_.*\.py$
+| .*_test\.py$
+| setup\.py$
+| fabfile\.py$
+| gulpfile\.py$
+| webpack\.config\.py$
+'''
