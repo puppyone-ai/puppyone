@@ -157,7 +157,7 @@ const TextEditor = ({
     <div ref={textEditorRef} className={`relative flex justify-start items-center rounded-[4px] cursor-pointer`}
     style={{width: actualWidth, height: actualHeight}}>
     {isEmpty && (
-      <div className="absolute w-full h-full flex items-start justify-start text-center text-[#6D7177] text-[12px] font-[700] leading-normal pointer-events-none z-[10] font-plus-jakarta-sans">
+      <div className="absolute w-full h-full flex items-start justify-start text-center text-[#6D7177] text-[12px] italic leading-normal pointer-events-none z-[10] font-plus-jakarta-sans">
         {placeholder}
       </div>
     )}
