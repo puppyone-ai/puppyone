@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { SYSTEM_URLS } from '@/config/urls';
-import { Node, Edge } from "@xyflow/react";
+import { Node, Edge, MarkerType } from "@xyflow/react";
 
 // 类型定义
 interface WorkspaceBasicInfo {
@@ -183,7 +183,7 @@ export const useWorkspaceManagement = () => {
                 const userIdResult = await fetchUserId(true);
                 const userNameResult = await fetchUserName(undefined, true);
                 const workspacesResult = await fetchWorkspacesList(undefined, true);
-                
+
                 return {
                     user_id: userIdResult || 'local-user',
                     user_name: userNameResult || 'Puppy',
@@ -207,7 +207,7 @@ export const useWorkspaceManagement = () => {
                 });
 
                 if (response.status !== 200) {
-                    const error_data: {error: string} = await response.json();
+                    const error_data: { error: string } = await response.json();
                     throw new Error(`HTTP error! status: ${response.status}, error message: ${error_data.error}`);
                 }
 
@@ -217,7 +217,7 @@ export const useWorkspaceManagement = () => {
             }
         } catch (error) {
             console.error('Error in initializeUserData:', error);
-            
+
             return {
                 user_id: useLocal ? 'local-user' : '',
                 user_name: useLocal ? 'Puppy' : '',
@@ -436,10 +436,10 @@ export const useWorkspaceManagement = () => {
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ 
-                        flowId: workspaceId, 
-                        json: content, 
-                        timestamp 
+                    body: JSON.stringify({
+                        flowId: workspaceId,
+                        json: content,
+                        timestamp
                     }),
                 });
 
@@ -584,13 +584,15 @@ export const useWorkspaceManagement = () => {
     // 验证工作区 JSON 结构
     const validateWorkspaceJson = (json: any): boolean => {
         if (!json) return false;
-        
+
         const hasValidBlocks = Array.isArray(json?.blocks);
         const hasValidEdges = Array.isArray(json?.edges);
-        
+
         return hasValidBlocks && hasValidEdges;
     };
 
+    // 获取默认工作区模板
+    // 获取默认工作区模板
     // 获取默认工作区模板
     const getDefaultWorkspaceTemplate = (): WorkspaceJSON => {
         return {
@@ -598,46 +600,146 @@ export const useWorkspaceManagement = () => {
                 {
                     id: "llmnew-default",
                     type: "llmnew",
-                    position: { x: 0, y: 0 },
+                    position: {
+                        x: -16,
+                        y: 0
+                    },
                     data: {
                         subMenuType: null,
                         content: [
                             {
                                 role: "system",
-                                content: "You are PuppyAgent, an AI that helps answer people's questions."
+                                content: "You are an AI that helps answer people's questions."
                             },
                             {
                                 role: "user",
-                                content: "Answer the question: {{Text1}}"
+                                content: "Answer the question: {{Query}}"
                             }
                         ],
-                        model: "anthropic/claude-3.5-haiku",
+                        model: "openai/gpt-4o-mini",
                         base_url: "",
                         structured_output: false,
-                        max_tokens: 4096
+                        max_tokens: 4096,
+                        resultNode: "response_default",
+                        modelAndProvider: {
+                            id: "openai/gpt-4o-mini",
+                            name: "GPT-4o Mini",
+                            provider: "OpenAI",
+                            isLocal: false
+                        }
                     },
-                    measured: { width: 80, height: 48 },
+                    measured: {
+                        width: 80,
+                        height: 48
+                    },
+                    selected: false,
+                    dragging: false,
+                    style: {
+                        zIndex: 1122
+                    }
+                },
+                {
+                    id: "query_default",
+                    position: {
+                        x: -352,
+                        y: -64
+                    },
+                    data: {
+                        content: "Intruduce yourself within 10 words",
+                        label: "Query",
+                        isLoading: false,
+                        locked: false,
+                        isInput: true,
+                        isOutput: false,
+                        editable: false,
+                        isWaitingForFlow: false
+                    },
+                    type: "text",
+                    measured: {
+                        width: 240,
+                        height: 176
+                    },
+                    width: 240,
+                    height: 176,
+                    style: {
+                        zIndex: 1093
+                    },
+                    selected: false
+                },
+                {
+                    id: "response_default",
+                    position: {
+                        x: 160,
+                        y: -64
+                    },
+                    data: {
+                        content: "I'm an AI designed to assist with your questions.",
+                        label: "Response",
+                        isLoading: false,
+                        locked: false,
+                        isInput: false,
+                        isOutput: true,
+                        editable: false,
+                        isWaitingForFlow: false
+                    },
+                    width: 240,
+                    height: 176,
+                    measured: {
+                        width: 240,
+                        height: 176
+                    },
+                    type: "text",
+                    style: {
+                        zIndex: 1125
+                    },
                     selected: false,
                     dragging: false
                 }
             ],
-            edges: [],
-            viewport: { x: 0, y: 0, zoom: 1 },
-            version: "1.0.0"
+            edges: [
+                {
+                    source: "query_default",
+                    sourceHandle: "query_default-b",
+                    target: "llmnew-default",
+                    targetHandle: "llmnew-default-d",
+                    id: "connection-1754293236547",
+                    type: "floating",
+                    data: {
+                        connectionType: "STC"
+                    }
+                },
+                {
+                    id: "connection-1754293296391",
+                    source: "llmnew-default",
+                    target: "response_default",
+                    type: "floating",
+                    data: {
+                        connectionType: "CTT"
+                    },
+                    markerEnd: {
+                        type: MarkerType.ArrowClosed,
+                        width: 8,
+                        height: 20,
+                        color: "#CDCDCD",
+                        strokeWidth: 0.1
+                    }
+                }
+            ],
+            viewport: { x: 915, y: 801, zoom: 1 },
+            version: "0.0.1"
         };
     };
-
     // 切换到指定工作区并获取其内容
     const switchToWorkspace = async (
-        workspaceId: string, 
+        workspaceId: string,
         existingWorkspace?: { content: WorkspaceJSON | null; pullFromDatabase: boolean }
     ): Promise<WorkspaceSwitchResult> => {
         console.log('🔄 Switching to workspace:', workspaceId);
-        
+
         // 如果已经从数据库拉取过，直接使用缓存的数据
         if (existingWorkspace && existingWorkspace.pullFromDatabase && existingWorkspace.content) {
             console.log('🚀 Using cached workspace content:', workspaceId);
-            
+
             return {
                 success: true,
                 workspaceId,
@@ -645,13 +747,13 @@ export const useWorkspaceManagement = () => {
                 fromCache: true  // 添加标识表示来自缓存
             };
         }
-        
+
         // 如果没有缓存或者没有从数据库拉取过，才从数据库获取
         console.log('📥 Fetching workspace content from database:', workspaceId);
-        
+
         try {
             const content = await fetchWorkspaceContent(workspaceId);
-            
+
             if (content) {
                 console.log('✅ Successfully switched to workspace:', {
                     workspaceId,
@@ -661,7 +763,7 @@ export const useWorkspaceManagement = () => {
                     viewport: content.viewport,
                     version: content.version
                 });
-                
+
                 return {
                     success: true,
                     workspaceId,
@@ -670,17 +772,17 @@ export const useWorkspaceManagement = () => {
                 };
             } else {
                 console.log('⚠️ No content found for workspace, using default template:', workspaceId);
-                
+
                 // 如果没有内容，返回默认模板
                 const defaultTemplate = getDefaultWorkspaceTemplate();
-                
+
                 console.log('📝 Using default template for workspace:', {
                     workspaceId,
                     content: defaultTemplate,
                     blocksCount: defaultTemplate.blocks?.length || 0,
                     edgesCount: defaultTemplate.edges?.length || 0
                 });
-                
+
                 return {
                     success: true,
                     workspaceId,
@@ -694,7 +796,7 @@ export const useWorkspaceManagement = () => {
                 error: error instanceof Error ? error.message : 'Unknown error',
                 fullError: error
             });
-            
+
             return {
                 success: false,
                 workspaceId,
@@ -707,9 +809,9 @@ export const useWorkspaceManagement = () => {
     // 批量获取多个工作区的内容（用于预加载）
     const preloadWorkspaceContents = async (workspaceIds: string[]): Promise<Record<string, WorkspaceJSON | null>> => {
         console.log('🔄 Preloading workspace contents for:', workspaceIds);
-        
+
         const results: Record<string, WorkspaceJSON | null> = {};
-        
+
         // 并行获取所有工作区内容
         const promises = workspaceIds.map(async (id) => {
             try {
@@ -721,13 +823,13 @@ export const useWorkspaceManagement = () => {
                 return { id, content: null };
             }
         });
-        
+
         const resolvedResults = await Promise.all(promises);
-        
+
         resolvedResults.forEach(({ id, content }) => {
             results[id] = content;
         });
-        
+
         console.log('📦 Preload results:', Object.keys(results).length, 'workspaces processed');
         return results;
     };
@@ -747,8 +849,8 @@ export const useWorkspaceManagement = () => {
 
     // 创建工作区并初始化默认内容
     const createWorkspaceWithContent = async (
-        workspaceId: string, 
-        workspaceName: string, 
+        workspaceId: string,
+        workspaceName: string,
         initialContent?: WorkspaceJSON,
         userId?: string
     ): Promise<{
@@ -760,7 +862,7 @@ export const useWorkspaceManagement = () => {
         try {
             // 1. 创建工作区
             const workspace = await createWorkspace(workspaceId, workspaceName, userId);
-            
+
             if (!workspace) {
                 return {
                     workspace: null,
@@ -773,10 +875,10 @@ export const useWorkspaceManagement = () => {
             // 2. 初始化内容
             const content = initialContent || getDefaultWorkspaceTemplate();
             const timestamp = new Date().toISOString();
-            
+
             // 3. 保存初始内容
             const saveSuccess = await saveWorkspaceContent(workspaceId, content, timestamp);
-            
+
             if (!saveSuccess) {
                 console.warn('⚠️ Workspace created but failed to save initial content');
             }
@@ -808,21 +910,21 @@ export const useWorkspaceManagement = () => {
         fetchUserId,
         fetchUserName,
         initializeUserData,
-        
+
         // 工作区列表管理
         fetchWorkspacesList,
         createWorkspace,
         createWorkspaceWithContent,
         deleteWorkspace,
         renameWorkspace,
-        
+
         // 工作区内容管理
         fetchWorkspaceContent,
         saveWorkspaceContent,
         switchToWorkspace,
         preloadWorkspaceContents,
         hasWorkspaceContent,
-        
+
         // JSON 处理工具
         normalizeWorkspaceJson,
         isJsonEqual,
