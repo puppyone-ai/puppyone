@@ -1,4 +1,4 @@
-'use client'
+'use client';
 import { useCallback } from 'react';
 import { OnNodeDrag, useReactFlow, type Node } from '@xyflow/react';
 
@@ -60,58 +60,61 @@ export function useGroupNodeCalculation() {
   }, []);
 
   // 重新计算组内的节点 - 只在组激活时调用
-  const recalculateGroupNodes = useCallback((groupId: string) => {
-    const currentGroupNode = getNode(groupId);
-    if (!currentGroupNode) return;
+  const recalculateGroupNodes = useCallback(
+    (groupId: string) => {
+      const currentGroupNode = getNode(groupId);
+      if (!currentGroupNode) return;
 
-    const allNodes = getNodes();
-    let hasChanges = false;
-    
-    const updatedNodes = allNodes.map(node => {
-      // 跳过组节点本身
-      if (node.type === 'group' || node.id === groupId) {
+      const allNodes = getNodes();
+      let hasChanges = false;
+
+      const updatedNodes = allNodes.map(node => {
+        // 跳过组节点本身
+        if (node.type === 'group' || node.id === groupId) {
+          return node;
+        }
+
+        // 只处理允许的节点类型
+        if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
+          return node;
+        }
+
+        const shouldBeInGroup = isNodeInsideGroup(node, currentGroupNode);
+        const groupIds = (node.data as any)?.groupIds || [];
+        const currentlyInGroup = groupIds.includes(groupId);
+
+        if (shouldBeInGroup && !currentlyInGroup) {
+          // 节点应该在组内但目前不在 - 添加到 groupIds 数组
+          hasChanges = true;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              groupIds: [...groupIds, groupId],
+            },
+          };
+        } else if (!shouldBeInGroup && currentlyInGroup) {
+          // 节点不应该在组内但目前在 - 从 groupIds 数组中移除
+          hasChanges = true;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              groupIds: groupIds.filter((gid: string) => gid !== groupId),
+            },
+          };
+        }
+
         return node;
+      });
+
+      if (hasChanges) {
+        setNodes(updatedNodes);
+        console.log(`🔄 Recalculated nodes for group ${groupId}`);
       }
-
-      // 只处理允许的节点类型
-      if (!ALLOWED_NODE_TYPES.includes(node.type || '')) {
-        return node;
-      }
-
-      const shouldBeInGroup = isNodeInsideGroup(node, currentGroupNode);
-      const groupIds = (node.data as any)?.groupIds || [];
-      const currentlyInGroup = groupIds.includes(groupId);
-
-      if (shouldBeInGroup && !currentlyInGroup) {
-        // 节点应该在组内但目前不在 - 添加到 groupIds 数组
-        hasChanges = true;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            groupIds: [...groupIds, groupId]
-          }
-        };
-      } else if (!shouldBeInGroup && currentlyInGroup) {
-        // 节点不应该在组内但目前在 - 从 groupIds 数组中移除
-        hasChanges = true;
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            groupIds: groupIds.filter((gid: string) => gid !== groupId)
-          }
-        };
-      }
-
-      return node;
-    });
-
-    if (hasChanges) {
-      setNodes(updatedNodes);
-      console.log(`🔄 Recalculated nodes for group ${groupId}`);
-    }
-  }, [getNode, getNodes, setNodes, isNodeInsideGroup]);
+    },
+    [getNode, getNodes, setNodes, isNodeInsideGroup]
+  );
 
   return {
     recalculateGroupNodes,
@@ -125,7 +128,7 @@ export function useDetachNodes() {
   const detachNodes = useCallback(
     (ids: string[]) => {
       setNodes(
-        getNodes().map((n) => {
+        getNodes().map(n => {
           if (ids.includes(n.id)) {
             const groupIds = (n.data as any)?.groupIds;
             if (Array.isArray(groupIds) && groupIds.length > 0) {
@@ -133,8 +136,8 @@ export function useDetachNodes() {
                 ...n,
                 data: {
                   ...n.data,
-                  groupIds: [] // 清空所有组关联
-                }
+                  groupIds: [], // 清空所有组关联
+                },
               };
             }
           }
@@ -149,7 +152,7 @@ export function useDetachNodes() {
   const detachNodesFromGroup = useCallback(
     (nodeIds: string[], groupId: string) => {
       setNodes(
-        getNodes().map((n) => {
+        getNodes().map(n => {
           if (nodeIds.includes(n.id)) {
             const groupIds = (n.data as any)?.groupIds || [];
             if (Array.isArray(groupIds) && groupIds.includes(groupId)) {
@@ -157,8 +160,8 @@ export function useDetachNodes() {
                 ...n,
                 data: {
                   ...n.data,
-                  groupIds: groupIds.filter((gid: string) => gid !== groupId)
-                }
+                  groupIds: groupIds.filter((gid: string) => gid !== groupId),
+                },
               };
             }
           }
@@ -170,4 +173,4 @@ export function useDetachNodes() {
   );
 
   return { detachNodes, detachNodesFromGroup };
-} 
+}
