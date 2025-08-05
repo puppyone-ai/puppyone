@@ -58,7 +58,14 @@ next-env.d.ts
 
 # pycharm & vscode
 .idea/
-.vscode/
+.vscode/*.local.*
+.vscode/settings.local.json
+.vscode/launch.local.json
+.vscode/sftp.json
+.vscode/ftp-sync.json
+.vscode/deployment.json
+.vscode/temp.*
+.vscode/.ropeproject/
 
 
 # environment
@@ -74,7 +81,6 @@ PuppyEngine/json_received.json
 json_received.json
 
 # vs code
-.vscode/
 .cursor/
 
 # Local Storage
