@@ -30,6 +30,7 @@ function useGetSourceTarget() {
       'ifelse',
       'generate',
       'load',
+      'deepresearch',
     ],
     servernode: ['server'],
     groupnode: ['group'],

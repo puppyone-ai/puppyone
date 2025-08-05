@@ -25,6 +25,7 @@ const EDGE_NODE_TYPES = [
   'searchPerplexity',
   'llmnew',
   'ifelse',
+  'deepresearch',
 ] as const;
 
 const BLOCK_NODE_TYPES = [

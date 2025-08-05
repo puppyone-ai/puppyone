@@ -18,8 +18,12 @@ import {
   IfElseEdgeJsonType,
   GenerateEdgeJsonType,
   LoadEdgeJsonType,
+  DeepResearchEdgeJsonType,
   perplexityModelNames,
 } from './hookhistory/useEdgeNodeBackEndJsonBuilder';
+
+// 导入 DeepResearchNodeData 类型
+import { DeepResearchNodeData } from '../DeepResearch';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -180,6 +184,14 @@ export function buildEdgeNodeJson(
       break;
     case 'load':
       edgeJson = buildLoadNodeJson(
+        nodeId,
+        sourceNodeIdWithLabelGroup,
+        targetNodeIdWithLabelGroup,
+        context
+      );
+      break;
+    case 'deepresearch':
+      edgeJson = buildDeepResearchNodeJson(
         nodeId,
         sourceNodeIdWithLabelGroup,
         targetNodeIdWithLabelGroup,
@@ -1171,4 +1183,131 @@ function buildLoadNodeJson(
       ),
     },
   };
+}
+
+// 创建标准化的 DeepResearch 节点数据
+function createStandardizedDeepResearchNodeData(
+  nodeId: string,
+  context: EdgeNodeBuilderContext
+): DeepResearchNodeData {
+  const currentNode = context.getNode(nodeId);
+  const existingData = currentNode?.data as Partial<DeepResearchNodeData>;
+
+  // 创建默认配置
+  const defaultData: DeepResearchNodeData = {
+    nodeLabels: existingData?.nodeLabels || [],
+    subMenuType: existingData?.subMenuType || null,
+    content: existingData?.content || null,
+    looped: existingData?.looped || false,
+    query_id: existingData?.query_id || undefined,
+    modelAndProvider: existingData?.modelAndProvider || {
+      id: 'openai/gpt-4o-mini',
+      name: 'GPT-4o-mini',
+      provider: 'openai',
+      isLocal: false,
+    },
+    extra_configs: {
+      max_rounds: existingData?.extra_configs?.max_rounds ?? 3,
+      llm_model: existingData?.extra_configs?.llm_model || 'openai/gpt-4o-mini',
+      vector_config: {
+        enabled: existingData?.extra_configs?.vector_config?.enabled ?? false,
+        data_source:
+          existingData?.extra_configs?.vector_config?.data_source || [],
+        top_k: existingData?.extra_configs?.vector_config?.top_k ?? 5,
+        threshold: existingData?.extra_configs?.vector_config?.threshold ?? 0.5,
+      },
+      web_config: {
+        top_k: existingData?.extra_configs?.web_config?.top_k ?? 5,
+        disable_content_filtering:
+          existingData?.extra_configs?.web_config?.disable_content_filtering ??
+          true,
+        disable_quality_filtering:
+          existingData?.extra_configs?.web_config?.disable_quality_filtering ??
+          true,
+      },
+      perplexity_config: {
+        model: existingData?.extra_configs?.perplexity_config?.model || 'sonar',
+        sub_search_type:
+          existingData?.extra_configs?.perplexity_config?.sub_search_type ||
+          'perplexity',
+      },
+    },
+  };
+
+  return defaultData;
+}
+
+function buildDeepResearchNodeJson(
+  nodeId: string,
+  sourceNodes: { id: string; label: string }[],
+  targetNodes: { id: string; label: string }[],
+  context: EdgeNodeBuilderContext
+): DeepResearchEdgeJsonType {
+  // 使用标准化的节点数据
+  const nodeData = createStandardizedDeepResearchNodeData(nodeId, context);
+  console.log(`📊 [buildDeepResearchNodeJson] 标准化节点数据:`, nodeData);
+
+  // 获取查询内容
+  if (sourceNodes.length === 0) {
+    throw new Error(
+      'DeepResearch node requires at least one source node for query content'
+    );
+  }
+
+  const query = `{{${sourceNodes[0]?.label || sourceNodes[0]?.id}}}`;
+
+  // 获取配置参数 - 现在可以安全地访问，因为数据已经标准化
+  const extraConfigs = nodeData.extra_configs;
+  const maxRounds = extraConfigs.max_rounds;
+
+  // 获取模型信息 - 处理可能为 undefined 的情况
+  const modelAndProvider = nodeData.modelAndProvider;
+  if (!modelAndProvider) {
+    throw new Error(
+      'DeepResearch node requires modelAndProvider configuration'
+    );
+  }
+  const modelId = modelAndProvider.id;
+  const isLocal = modelAndProvider.isLocal;
+
+  let modelObject: { [key: string]: { inference_method?: string } } = {};
+
+  if (isLocal) {
+    // 本地模型：添加 inference_method
+    modelObject[modelId] = { inference_method: 'ollama' };
+  } else {
+    // 非本地模型：保持内部 JSON 为空
+    modelObject[modelId] = {};
+  }
+
+  // 获取配置 - 现在可以安全地访问，因为数据已经标准化
+  const vectorConfig = extraConfigs.vector_config;
+  const webConfig = extraConfigs.web_config;
+  const perplexityConfig = extraConfigs.perplexity_config;
+
+  // 构建输入输出映射
+  const inputs = Object.fromEntries(
+    sourceNodes.map(node => [node.id, node.label])
+  );
+  const outputs = Object.fromEntries(
+    targetNodes.map(node => [node.id, node.label])
+  );
+
+  const result = {
+    type: 'deep_research' as const,
+    data: {
+      query: query,
+      extra_configs: {
+        max_rounds: maxRounds,
+        llm_model: modelObject,
+        vector_config: vectorConfig,
+        web_config: webConfig,
+        perplexity_config: perplexityConfig,
+      },
+      inputs: inputs,
+      outputs: outputs,
+    },
+  };
+
+  return result;
 }

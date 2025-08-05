@@ -57,6 +57,7 @@ import IfElse from './edgesNode/edgeNodesNew/ifelse';
 import LLM from './edgesNode/edgeNodesNew/LLM';
 import Generate from './edgesNode/edgeNodesNew/Generate';
 import Load from './edgesNode/edgeNodesNew/Load';
+import DeepResearch from './edgesNode/edgeNodesNew/DeepResearch';
 import GroupNode from './groupNode/GroupNode';
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
@@ -82,6 +83,7 @@ const nodeTypes = {
   ifelse: IfElse,
   generate: Generate,
   load: Load,
+  deepresearch: DeepResearch,
   group: GroupNode,
 };
 
@@ -261,11 +263,11 @@ function Workflow() {
   // 监听工作区内容变化，同步到 ReactFlow
   useEffect(() => {
     if (currentWorkspaceContent && selectedFlowId) {
-      console.log('🔄 Syncing workspace content to ReactFlow:', {
-        workspaceId: selectedFlowId,
-        blocksCount: currentWorkspaceContent.blocks?.length || 0,
-        edgesCount: currentWorkspaceContent.edges?.length || 0,
-      });
+      // console.log('🔄 Syncing workspace content to ReactFlow:', {
+      //   workspaceId: selectedFlowId,
+      //   blocksCount: currentWorkspaceContent.blocks?.length || 0,
+      //   edgesCount: currentWorkspaceContent.edges?.length || 0,
+      // });
 
       // 更新节点和边
       setUnsortedNodes(currentWorkspaceContent.blocks || []);
@@ -308,11 +310,11 @@ function Workflow() {
       return; // 没有变化，不需要保存
     }
 
-    console.log('💾 Saving ReactFlow state to workspace:', {
-      workspaceId: selectedFlowId,
-      blocksCount: nodes.length,
-      edgesCount: edges.length,
-    });
+    // console.log('💾 Saving ReactFlow state to workspace:', {
+    //   workspaceId: selectedFlowId,
+    //   blocksCount: nodes.length,
+    //   edgesCount: edges.length,
+    // });
 
     updateWorkspaceContent(selectedFlowId, currentState);
     lastSavedContent.current = currentStateString;
