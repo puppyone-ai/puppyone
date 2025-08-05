@@ -299,6 +299,34 @@ export type LoadEdgeJsonType = {
   };
 };
 
+export type DeepResearchEdgeJsonType = {
+  type: 'deep_research';
+  data: {
+    query: string;
+    extra_configs: {
+      max_rounds: number;
+      llm_model: { [key: string]: { inference_method?: string } };
+      vector_config: {
+        enabled: boolean;
+        data_source: string[];
+        top_k: number;
+        threshold: number;
+      };
+      web_config: {
+        top_k: number;
+        disable_content_filtering: boolean;
+        disable_quality_filtering: boolean;
+      };
+      perplexity_config: {
+        model: string;
+        sub_search_type: string;
+      };
+    };
+    inputs: Record<string, string>;
+    outputs: Record<string, string>;
+  };
+};
+
 // 将 LoadEdgeJsonType 添加到 BaseEdgeJsonType 联合类型中
 export type BaseEdgeJsonType =
   | CopyEdgeJsonType
@@ -315,7 +343,8 @@ export type BaseEdgeJsonType =
   | RetrievingEdgeJsonType
   | IfElseEdgeJsonType
   | GenerateEdgeJsonType
-  | LoadEdgeJsonType;
+  | LoadEdgeJsonType
+  | DeepResearchEdgeJsonType;
 
 // 构造的数据类型
 export type BaseConstructedJsonData = {
