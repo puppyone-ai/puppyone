@@ -591,14 +591,14 @@ class ConfigParserFactory:
 
     _parsers = {
         "load": LoadConfigParser,
-        "save": SaveConfigParser,
+        # "save": SaveConfigParser,
         "llm": LLMConfigParser,
         "generator": GeneratorConfigParser,
         "chunk": ChunkConfigParser,
         "search": SearchConfigParser,
-        "rerank": RerankConfigParser,
-        "rewrite": QueryRewriteConfigParser,
-        "code": CodeConfigParser,
+        # "rerank": RerankConfigParser,
+        # "rewrite": QueryRewriteConfigParser,
+        # "code": CodeConfigParser,
         "ifelse": ConditionConfigParser,
         "modify": ModifyConfigParser,
         "deep_research": DeepResearchConfigParser
