@@ -427,13 +427,11 @@ class WorkFlow():
                 if self.step_mode:
                     input(f"\nPress Enter to execute batch #{batch_count}... ")
 
-                processed_block_ids = self._process_batch_results(parallel_batch, usage_callback)
-                processed_blocks = {
-                    block_id: self.blocks.get(block_id, {}) 
-                    for block_id in processed_block_ids
-                }
-
-                yield processed_blocks
+                # Process the batch and yield its results directly
+                for processed_blocks in self._process_batch_results(parallel_batch, usage_callback):
+                    yield processed_blocks
+                
+                # Find the next batch of edges to process
                 parallel_batch = self._find_parallel_batches()
             
             log_info(f"Workflow processing completed for task {self.task_id}")
@@ -720,7 +718,16 @@ class WorkFlow():
             # Stage 3: Handle external storage for output blocks if storage client available
             # This will apply smart storage strategy based on size/type
             if self.storage_client:
-                outputs = self._handle_external_outputs(outputs)
+                try:
+                    outputs = anyio.from_thread.run(self._handle_external_outputs, outputs)
+                except RuntimeError as e:
+                    log_error(f"Failed to run async external storage handler: {e}. Defaulting to internal storage.")
+                    # Keep original outputs if async call fails
+                    pass
+            
+            # Yield results before state updates
+            if outputs:
+                yield outputs
 
             # Stage 4: Update states atomically
             with self.state_lock:
@@ -795,7 +802,7 @@ class WorkFlow():
             log_error(f"Batch execution failed: {str(e)}\n{traceback.format_exc()}")
             raise PuppyException(5203, "Edge Batch Execution Failed", str(e))
     
-    def _handle_external_outputs(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_external_outputs(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle external storage for output blocks
         
@@ -853,9 +860,8 @@ class WorkFlow():
                     elif block_data.get("type") in ["structured", "binary"]:
                         block_type = block_data.get("type")
                     
-                    # Use anyio to call async storage upload from sync context
-                    resource_key = anyio.from_thread.run(
-                        self._upload_to_storage,
+                    # Directly await the async storage upload
+                    resource_key = await self._upload_to_storage(
                         block_id,
                         content,
                         block_type
