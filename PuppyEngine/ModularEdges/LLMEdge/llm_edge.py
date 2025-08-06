@@ -143,7 +143,14 @@ class LLMFactory(EdgeFactoryBase):
                 chat = LocalLLMChat(config)
                 return chat.chat(messages)
             elif inference_method == "ollama":
-                ollama = OllamaLocalInference(model)
+                # Ensure model configs have inference_method for ollama
+                model_register = {}
+                for model_name, model_config in model.items():
+                    model_register[model_name] = {
+                        'inference_method': 'ollama',
+                        **model_config
+                    }
+                ollama = OllamaLocalInference(model_register)
                 return ollama.generate_chat_completion(
                     model_name=model_name,
                     messages=messages,
