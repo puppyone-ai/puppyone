@@ -270,16 +270,3 @@ class EnvManager:
 
 # 创建全局单例实例
 env_manager = EnvManager()
-                if (current_time - task_state.end_time).total_seconds() > hours * 3600:
-                    tasks_to_remove.append(task_id)
-        
-        for task_id in tasks_to_remove:
-            del self._tasks[task_id]
-            logger.info(f"Cleaned up old task: {task_id}")
-        
-        if tasks_to_remove:
-            logger.info(f"Cleaned up {len(tasks_to_remove)} old tasks")
-
-
-# 创建全局单例实例
-env_manager = EnvManager()
