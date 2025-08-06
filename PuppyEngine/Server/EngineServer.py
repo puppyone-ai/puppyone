@@ -213,7 +213,7 @@ app.add_middleware(
     max_age=600  # Cache preflight for 10 minutes
 )
 # Import required modules for route handlers
-from Server.routes import health_router, data_router
+from Server.routes import health_router, data_router, task_router  # Now includes v2 routes
 from Utils.logger import log_info, log_error
 from Utils.puppy_exception import PuppyException
 from Utils.config import ConfigValidationError
@@ -223,7 +223,8 @@ log_info("CORS middleware configured successfully")
 # Register routers
 app.include_router(health_router)
 app.include_router(data_router)
-log_info("Routes registered successfully")
+app.include_router(task_router)  # Register v2 task routes
+log_info("Routes registered successfully (including v2 task API)")
 
 # Note: All initialization logic has been moved to the lifespan context manager above
 
