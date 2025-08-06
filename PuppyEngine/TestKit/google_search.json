@@ -1,0 +1,40 @@
+{
+    "blocks": {
+        "VfZVZs": {
+            "label": "VfZVZs",
+            "type": "text",
+            "data": {
+                "content": "美国十大自然景观"
+            },
+            "looped": false,
+            "collection_configs": []
+        },
+        "Z-1rfq": {
+            "label": "Z-1rfq",
+            "type": "text",
+            "data": {
+                "content": ""
+            }
+        }
+    },
+    "edges": {
+        "searchGoogle-1754083832448": {
+            "type": "search",
+            "data": {
+                "search_type": "web",
+                "sub_search_type": "google",
+                "top_k": 5,
+                "inputs": {
+                    "VfZVZs": "VfZVZs"
+                },
+                "query_id": {
+                    "VfZVZs": "VfZVZs"
+                },
+                "extra_configs": {},
+                "outputs": {
+                    "Z-1rfq": "Z-1rfq"
+                }
+            }
+        }
+    }
+}
