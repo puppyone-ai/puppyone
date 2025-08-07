@@ -14,7 +14,7 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
 from utils.config import config
-from utils.logger import log_info, log_error
+from utils.logger import log_info, log_error, log_debug
 from storage.base import StorageAdapter
 from storage.exceptions import ConditionFailedError, FileNotFoundError as StorageFileNotFoundError
 
@@ -178,6 +178,277 @@ class LocalStorageAdapter(StorageAdapter):
                     '.zip': 'application/zip'
         }
         return content_type_map.get(ext, 'application/octet-stream')
+
+    # === Multipart Upload Implementation ===
+    
+    def init_multipart_upload(self, key: str, content_type: Optional[str] = None) -> Dict[str, Any]:
+        """
+        初始化本地分块上传
+        
+        对于本地存储，我们创建一个临时目录来存储分块，
+        并生成一个唯一的upload_id
+        """
+        try:
+            upload_id = str(uuid.uuid4())
+            
+            # 创建临时目录存储分块
+            temp_dir = os.path.join(self.base_path, ".multipart_uploads", upload_id)
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # 保存上传元数据
+            metadata = {
+                "key": key,
+                "content_type": content_type or "application/octet-stream",
+                "created_at": time.time(),
+                "parts": {}
+            }
+            
+            metadata_file = os.path.join(temp_dir, "metadata.json")
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f)
+            
+            # 计算过期时间（24小时后）
+            expires_at = int(time.time()) + (24 * 60 * 60)
+            
+            result = {
+                "upload_id": upload_id,
+                "key": key,
+                "expires_at": expires_at,
+                "max_parts": 10000,  # 与S3保持一致
+                "min_part_size": 5 * 1024 * 1024  # 5MB（除最后一块外）
+            }
+            
+            log_info(f"本地分块上传初始化成功: key={key}, upload_id={upload_id}")
+            return result
+            
+        except Exception as e:
+            log_error(f"本地分块上传初始化失败: {str(e)}")
+            raise
+    
+    def get_multipart_upload_url(self, key: str, upload_id: str, part_number: int, expires_in: int = 300) -> Dict[str, Any]:
+        """
+        获取本地分块上传的URL
+        
+        对于本地存储，返回指向我们自己服务器的上传端点
+        """
+        try:
+            # 验证upload_id是否存在
+            temp_dir = os.path.join(self.base_path, ".multipart_uploads", upload_id)
+            if not os.path.exists(temp_dir):
+                raise Exception(f"Upload ID {upload_id} not found")
+            
+            # 生成本地上传URL
+            upload_url = f"{LOCAL_SERVER_URL}/upload/chunk/{upload_id}/{part_number}"
+            
+            expires_at = int(time.time()) + expires_in
+            
+            result = {
+                "upload_url": upload_url,
+                "part_number": part_number,
+                "expires_at": expires_at
+            }
+            
+            log_debug(f"本地分块上传URL生成成功: upload_id={upload_id}, part_number={part_number}")
+            return result
+            
+        except Exception as e:
+            log_error(f"本地分块上传URL生成失败: {str(e)}")
+            raise
+    
+    def save_multipart_chunk(self, upload_id: str, part_number: int, chunk_data: bytes) -> Dict[str, Any]:
+        """
+        保存分块数据到本地临时存储
+        
+        这个方法由 /upload/chunk/{upload_id}/{part_number} 端点调用
+        """
+        try:
+            temp_dir = os.path.join(self.base_path, ".multipart_uploads", upload_id)
+            if not os.path.exists(temp_dir):
+                raise Exception(f"Upload ID {upload_id} not found")
+            
+            # 保存分块文件
+            part_file = os.path.join(temp_dir, f"part_{part_number:05d}")
+            with open(part_file, 'wb') as f:
+                f.write(chunk_data)
+            
+            # 计算ETag（MD5哈希）
+            etag = hashlib.md5(chunk_data).hexdigest()
+            
+            # 更新元数据
+            metadata_file = os.path.join(temp_dir, "metadata.json")
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            
+            metadata["parts"][str(part_number)] = {
+                "etag": etag,
+                "size": len(chunk_data),
+                "file": part_file
+            }
+            
+            with open(metadata_file, 'w') as f:
+                json.dump(metadata, f)
+            
+            result = {
+                "part_number": part_number,
+                "etag": etag,
+                "size": len(chunk_data)
+            }
+            
+            log_debug(f"本地分块保存成功: upload_id={upload_id}, part_number={part_number}, size={len(chunk_data)}")
+            return result
+            
+        except Exception as e:
+            log_error(f"本地分块保存失败: {str(e)}")
+            raise
+    
+    def complete_multipart_upload(self, key: str, upload_id: str, parts: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        完成本地分块上传
+        
+        将所有分块合并为最终文件
+        """
+        try:
+            temp_dir = os.path.join(self.base_path, ".multipart_uploads", upload_id)
+            if not os.path.exists(temp_dir):
+                raise Exception(f"Upload ID {upload_id} not found")
+            
+            # 读取元数据
+            metadata_file = os.path.join(temp_dir, "metadata.json")
+            with open(metadata_file, 'r') as f:
+                metadata = json.load(f)
+            
+            # 验证所有分块都存在
+            for part in parts:
+                part_number = str(part['PartNumber'])
+                if part_number not in metadata["parts"]:
+                    raise Exception(f"Part {part_number} not found")
+                if metadata["parts"][part_number]["etag"] != part['ETag']:
+                    raise Exception(f"ETag mismatch for part {part_number}")
+            
+            # 确保目标目录存在
+            final_file_path = self._get_file_path(key)
+            self._ensure_directory_exists(final_file_path)
+            
+            # 合并分块
+            total_size = 0
+            with open(final_file_path, 'wb') as final_file:
+                # 按part_number顺序合并
+                for part in sorted(parts, key=lambda x: x['PartNumber']):
+                    part_number = str(part['PartNumber'])
+                    part_info = metadata["parts"][part_number]
+                    part_file = part_info["file"]
+                    
+                    with open(part_file, 'rb') as pf:
+                        chunk_data = pf.read()
+                        final_file.write(chunk_data)
+                        total_size += len(chunk_data)
+            
+            # 计算最终文件的ETag
+            final_etag = self._calculate_etag(final_file_path)
+            
+            # 保存元数据
+            content_type = metadata.get("content_type", "application/octet-stream")
+            metadata_path = final_file_path + '.metadata'
+            file_metadata = {
+                'content_type': content_type,
+                'etag': final_etag,
+                'last_modified': datetime.now().isoformat()
+            }
+            with open(metadata_path, 'w') as f:
+                json.dump(file_metadata, f)
+            
+            # 清理临时文件
+            try:
+                shutil.rmtree(temp_dir)
+            except Exception as e:
+                log_error(f"清理临时目录失败: {str(e)}")
+            
+            result = {
+                "success": True,
+                "key": key,
+                "size": total_size,
+                "etag": final_etag
+            }
+            
+            log_info(f"本地分块上传完成: key={key}, size={total_size}")
+            return result
+            
+        except Exception as e:
+            log_error(f"本地分块上传完成失败: {str(e)}")
+            raise
+    
+    def abort_multipart_upload(self, key: str, upload_id: str) -> Dict[str, Any]:
+        """
+        中止本地分块上传
+        
+        删除所有临时文件
+        """
+        try:
+            temp_dir = os.path.join(self.base_path, ".multipart_uploads", upload_id)
+            
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+                log_info(f"本地分块上传中止成功: key={key}, upload_id={upload_id}")
+            else:
+                log_info(f"本地分块上传已不存在，视为中止成功: key={key}, upload_id={upload_id}")
+            
+            result = {
+                "success": True,
+                "upload_id": upload_id
+            }
+            
+            return result
+            
+        except Exception as e:
+            log_error(f"本地分块上传中止失败: {str(e)}")
+            raise
+    
+    def list_multipart_uploads(self, prefix: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        列出进行中的本地分块上传
+        """
+        try:
+            uploads = []
+            multipart_dir = os.path.join(self.base_path, ".multipart_uploads")
+            
+            if not os.path.exists(multipart_dir):
+                return uploads
+            
+            for upload_id in os.listdir(multipart_dir):
+                upload_dir = os.path.join(multipart_dir, upload_id)
+                if not os.path.isdir(upload_dir):
+                    continue
+                
+                metadata_file = os.path.join(upload_dir, "metadata.json")
+                if not os.path.exists(metadata_file):
+                    continue
+                
+                try:
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    key = metadata.get("key", "")
+                    
+                    # 如果指定了前缀，过滤不匹配的
+                    if prefix and not key.startswith(prefix):
+                        continue
+                    
+                    uploads.append({
+                        "key": key,
+                        "upload_id": upload_id,
+                        "initiated": int(metadata.get("created_at", 0))
+                    })
+                    
+                except Exception as e:
+                    log_error(f"读取上传元数据失败: {upload_id}, {str(e)}")
+                    continue
+            
+            log_debug(f"本地分块上传列表查询成功: 找到{len(uploads)}个进行中的上传")
+            return uploads
+            
+        except Exception as e:
+            log_error(f"本地分块上传列表查询失败: {str(e)}")
+            raise
 
     # === Direct Chunk Storage Implementation (Simplified) ===
     
