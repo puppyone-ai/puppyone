@@ -157,37 +157,71 @@ const ListComponent = ({
         e.preventDefault();
         e.stopPropagation();
         
-        // Check if this is a valid drop target
-        if (draggedItem === null) return;
+        // Check if this is a valid drop target - accept both internal and external drags
+        if (draggedItem === null && draggedIndex === null) return;
         
         e.dataTransfer.dropEffect = 'move';
         setDragOverIndex(index);
     };
 
-    const handleDragLeave = () => {
-        setDragOverIndex(null);
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only clear if we're actually leaving the component
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverIndex(null);
+        }
     };
 
     const handleDrop = (e: React.DragEvent, dropIndex: number) => {
         e.preventDefault();
+        e.stopPropagation();
         
-        if (draggedIndex === null || draggedIndex === dropIndex) {
+        // Handle internal reordering (dragging within same list)
+        if (draggedIndex !== null && draggedItem === null) {
+            if (draggedIndex === dropIndex) {
+                return; // Dropping on same position
+            }
+
+            const newData = [...data];
+            const item = newData[draggedIndex];
+            
+            // Remove from old position
+            newData.splice(draggedIndex, 1);
+            
+            // Insert at new position
+            const insertIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
+            newData.splice(insertIndex, 0, item);
+            
+            onUpdate(newData);
+            setDraggedIndex(null);
+            setDragOverIndex(null);
             return;
         }
-
-        const newData = [...data];
-        const draggedItem = newData[draggedIndex];
         
-        // 移除被拖拽的项
-        newData.splice(draggedIndex, 1);
-        
-        // 插入到新位置
-        const insertIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
-        newData.splice(insertIndex, 0, draggedItem);
-        
-        onUpdate(newData);
-        setDraggedIndex(null);
-        setDragOverIndex(null);
+        // Handle external drops (from global drag context)
+        if (draggedItem !== null) {
+            console.log('List - External drop:', { 
+                draggedItem, 
+                dropIndex, 
+                draggedPath, 
+                draggedKey, 
+                draggedParentType,
+                hasSourceOnDelete: !!sourceOnDelete
+            });
+            
+            // Call source delete callback to remove from original location
+            if (sourceOnDelete) {
+                sourceOnDelete();
+                console.log('Called source delete callback for external drop to list');
+            }
+            
+            // Insert the dragged item at the specified position
+            const newData = [...data];
+            newData.splice(dropIndex, 0, draggedItem);
+            
+            onUpdate(newData);
+            clearDraggedItem();
+            setDragOverIndex(null);
+        }
     };
 
     const handleMenuClick = (e: React.MouseEvent) => {
@@ -314,6 +348,32 @@ const ListComponent = ({
         return preview;
     };
 
+    // Handle dropping on empty list
+    const handleEmptyDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (draggedItem === null || data.length > 0) return;
+        
+        console.log('List - Empty drop:', { 
+            draggedItem, 
+            draggedPath, 
+            draggedKey, 
+            draggedParentType,
+            hasSourceOnDelete: !!sourceOnDelete
+        });
+        
+        // Always call source delete for empty drop - we're moving the item here
+        if (sourceOnDelete) {
+            sourceOnDelete();
+            console.log('Called source delete callback for empty drop to list');
+        }
+        
+        // Add the dragged item to the empty list
+        onUpdate([draggedItem]);
+        clearDraggedItem();
+    };
+
     return (
         <div className="bg-[#252525] shadow-sm group/list relative">
             <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#ff9b4d] rounded-full">
@@ -321,8 +381,19 @@ const ListComponent = ({
                 <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/list:opacity-100 transition-opacity duration-200 z-50">
                     <button
                         onClick={handleMenuClick}
-                        className="w-4 h-6 bg-[#252525] border border-[#ff9b4d]/50 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200"
-                        title="List options"
+                        className="w-4 h-6 bg-[#252525] border border-[#ff9b4d]/50 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 cursor-move"
+                        title={isNested ? "List options - drag to move entire list" : "List options"}
+                        draggable={!readonly && isNested}
+                        onDragStart={(e) => {
+                            if (!readonly && isNested && onDelete) {
+                                e.stopPropagation();
+                                // Drag the entire list component with delete callback
+                                setDraggedItem(data, path, data.length, 'list', onDelete);
+                                e.dataTransfer.effectAllowed = 'move';
+                                preventParentDrag();
+                            }
+                        }}
+                        onDragEnd={handleDragEnd}
                     >
                         <div className="w-0.5 h-0.5 bg-[#ff9b4d] rounded-full"></div>
                         <div className="w-0.5 h-0.5 bg-[#ff9b4d] rounded-full"></div>
@@ -368,7 +439,25 @@ const ListComponent = ({
                     )}
                 </div>
             </div>
-            <div className="space-y-0">
+            <div 
+                className={`space-y-0 transition-all duration-200 ${
+                    data.length === 0 && draggedItem !== null 
+                        ? 'bg-blue-400/10 border-2 border-dashed border-blue-400/50 rounded-md p-2' 
+                        : ''
+                }`}
+                onDragOver={(e) => {
+                    if (data.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                    }
+                }}
+                onDragEnter={(e) => {
+                    if (data.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
+                    }
+                }}
+                onDrop={handleEmptyDrop}
+            >
                 {data.length === 0 ? (
                     // Empty state - 简洁版本
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
@@ -415,11 +504,12 @@ const ListComponent = ({
                             
                             return (
                                 <React.Fragment key={index}>
-                                    {/* Drop Indicator Line - 在当前元素上方显示插入指示线 */}
-                                    {dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
+                                    {/* Drop Indicator Line - Enhanced visual feedback */}
+                                    {dragOverIndex === index && (draggedIndex !== null || draggedItem !== null) && draggedIndex !== index && (
                                         <div className="relative">
-                                            <div className="absolute inset-x-0 -top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                                <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
+                                            <div className="absolute inset-x-0 -top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
                                             </div>
                                         </div>
                                     )}
@@ -427,10 +517,12 @@ const ListComponent = ({
                                     <div 
                                         className={`group relative transition-all duration-200 ${
                                             isDraggedOrSelected
-                                                ? 'bg-blue-500/30' 
-                                                : isIndexHovered
-                                                    ? 'bg-[#CDCDCD]/10'
-                                                    : 'hover:bg-[#6D7177]/10'
+                                                ? 'bg-blue-500/30 opacity-50' 
+                                                : dragOverIndex === index && (draggedIndex !== null || draggedItem !== null)
+                                                    ? 'bg-blue-400/20 ring-2 ring-blue-400/50'
+                                                    : isIndexHovered
+                                                        ? 'bg-[#CDCDCD]/10'
+                                                        : 'hover:bg-[#6D7177]/10'
                                         }`}
                                         onDragOver={(e) => {
                                             const rect = e.currentTarget.getBoundingClientRect();
@@ -524,11 +616,12 @@ const ListComponent = ({
                                         </div>
                                     </div>
                                     
-                                    {/* 最后一个元素后的插入指示线 */}
-                                    {index === data.length - 1 && dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
+                                    {/* Drop indicator after last element - Enhanced */}
+                                    {index === data.length - 1 && dragOverIndex === index && (draggedIndex !== null || draggedItem !== null) && draggedIndex !== index && (
                                         <div className="relative">
-                                            <div className="absolute inset-x-0 top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                                <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
+                                            <div className="absolute inset-x-0 top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
                                             </div>
                                         </div>
                                     )}
