@@ -7,7 +7,7 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
-import ComponentRenderer, { HoverProvider } from './ComponentRenderer';
+import ComponentRenderer, { HoverProvider, DragProvider } from './ComponentRenderer';
 
 type JSONViewerProps = {
     preventParentDrag: () => void,
@@ -225,20 +225,22 @@ const JSONViewer = ({
     }
 
     return (
-        <HoverProvider>
-            <OverflowProvider>
-                <div 
-                    ref={containerRef}
-                    className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px] pl-[8px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
-                    style={{ width: actualWidth, height: actualHeight }}
-                    data-rich-json-form="true"
-                >
-                    <div className="border-t border-b border-[#6D7177]/70">
-                    {renderMainContent()}
+        <DragProvider>
+            <HoverProvider>
+                <OverflowProvider>
+                    <div 
+                        ref={containerRef}
+                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px] pl-[8px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+                        style={{ width: actualWidth, height: actualHeight }}
+                        data-rich-json-form="true"
+                    >
+                        <div className="border-t border-b border-[#6D7177]/70">
+                        {renderMainContent()}
+                        </div>
                     </div>
-                </div>
-            </OverflowProvider>
-        </HoverProvider>
+                </OverflowProvider>
+            </HoverProvider>
+        </DragProvider>
     );
 };
 
