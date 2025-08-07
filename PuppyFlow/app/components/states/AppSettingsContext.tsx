@@ -1,36 +1,42 @@
 /**
  * AppSettingsContext - Global Application Settings Context
- * 
+ *
  * This context manages the following application-wide settings and states:
- * 
+ *
  * 1. Model Management:
  *    - Cloud models (OpenAI, DeepSeek, Anthropic, etc.)
  *    - Local models (via Ollama integration)
  *    - Model availability toggling
  *    - Model type classification (LLM vs Embedding)
  *    - Dynamic model loading and refresh capabilities
- * 
+ *
  * 2. Deployment Configuration:
  *    - Local vs Cloud deployment detection
  *    - Environment-based model filtering
  *    - Ollama connection status monitoring
- * 
+ *
  * 3. Warning System:
  *    - Global warning message management
  *    - Warning toast notifications
  *    - Warning message expansion/collapse states
  *    - Automatic warning cleanup
- * 
+ *
  * 4. State Synchronization:
  *    - Real-time model availability updates
  *    - Cross-component state sharing
  *    - Persistent warning notifications
- * 
+ *
  * Usage: Wrap your app with AppSettingsProvider and use useAppSettings hook
  * to access the context values throughout your application.
  */
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react';
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';
 import { SYSTEM_URLS } from '@/config/urls';
@@ -79,17 +85,17 @@ type AppSettingsContextType = {
   addLocalModel: (model: Omit<Model, 'isLocal'>) => void;
   removeLocalModel: (id: string) => void;
   refreshLocalModels: () => Promise<void>;
-  
+
   // 用户订阅状态相关
   userSubscriptionStatus: UserSubscriptionStatus | null;
   isLoadingSubscriptionStatus: boolean;
   fetchUserSubscriptionStatus: () => Promise<void>;
-  
+
   // 认证相关
   getAuthHeaders: () => HeadersInit;
   getUserToken: (forceLocal?: boolean) => string | undefined;
   getCustomAuthHeaders: (headerName?: string) => Record<string, string>;
-  
+
   // 警告消息相关
   warns: WarnMessage[];
   addWarn: (text: string) => void;
@@ -99,34 +105,122 @@ type AppSettingsContextType = {
 };
 
 // 创建上下文
-const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);
+const AppSettingsContext = createContext<AppSettingsContextType | undefined>(
+  undefined
+);
 
 // 预定义的云端模型
 const CLOUD_MODELS: Model[] = [
-  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
-  { id: 'openai/gpt-4o-2024-11-20', name: 'GPT-4o (2024-11-20)', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
-  { id: 'openai/gpt-4.5-preview', name: 'GPT-4.5 Preview', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
-  { id: 'openai/o1', name: 'o1', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
-  { id: 'openai/o3-mini', name: 'o3 Mini', provider: 'OpenAI', isLocal: false, active: true, type: 'llm' },
-  { id: 'deepseek/deepseek-chat-v3-0324:free', name: 'DeepSeek Chat v3', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
-  { id: 'deepseek/deepseek-r1-zero:free', name: 'DeepSeek R1 Zero', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
-  { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1', provider: 'DeepSeek', isLocal: false, active: true, type: 'llm' },
-  { id: 'anthropic/claude-3.5-haiku', name: 'Claude 3.5 Haiku', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
-  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
-  { id: 'anthropic/claude-3.7-sonnet', name: 'Claude 3.7 Sonnet', provider: 'Anthropic', isLocal: false, active: true, type: 'llm' },
+  {
+    id: 'openai/gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    provider: 'OpenAI',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'openai/gpt-4o-2024-11-20',
+    name: 'GPT-4o (2024-11-20)',
+    provider: 'OpenAI',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'openai/gpt-4.5-preview',
+    name: 'GPT-4.5 Preview',
+    provider: 'OpenAI',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'openai/o1',
+    name: 'o1',
+    provider: 'OpenAI',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'openai/o3-mini',
+    name: 'o3 Mini',
+    provider: 'OpenAI',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'deepseek/deepseek-chat-v3-0324:free',
+    name: 'DeepSeek Chat v3',
+    provider: 'DeepSeek',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'deepseek/deepseek-r1-zero:free',
+    name: 'DeepSeek R1 Zero',
+    provider: 'DeepSeek',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'deepseek/deepseek-r1',
+    name: 'DeepSeek R1',
+    provider: 'DeepSeek',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'anthropic/claude-3.5-haiku',
+    name: 'Claude 3.5 Haiku',
+    provider: 'Anthropic',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'anthropic/claude-3.5-sonnet',
+    name: 'Claude 3.5 Sonnet',
+    provider: 'Anthropic',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
+  {
+    id: 'anthropic/claude-3.7-sonnet',
+    name: 'Claude 3.7 Sonnet',
+    provider: 'Anthropic',
+    isLocal: false,
+    active: true,
+    type: 'llm',
+  },
   // 添加一些云端 embedding 模型示例
-  { id: 'text-embedding-ada-002', name: 'Text Embedding Ada 002', provider: 'OpenAI', isLocal: false, active: true, type: 'embedding' },
+  {
+    id: 'text-embedding-ada-002',
+    name: 'Text Embedding Ada 002',
+    provider: 'OpenAI',
+    isLocal: false,
+    active: true,
+    type: 'embedding',
+  },
 ];
 
 // 后备本地模型（当 Ollama 不可用时使用）
-const FALLBACK_LOCAL_MODELS: Model[] = [
-];
+const FALLBACK_LOCAL_MODELS: Model[] = [];
 
 // Provider 组件
-export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   // 检查部署类型
-  const isLocalDeployment = (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
-  
+  const isLocalDeployment =
+    (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
+
   // 使用 Ollama hook
   const {
     models: ollamaModels,
@@ -141,17 +235,19 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
   });
 
   // 用户订阅状态管理
-  const [userSubscriptionStatus, setUserSubscriptionStatus] = useState<UserSubscriptionStatus | null>(null);
-  const [isLoadingSubscriptionStatus, setIsLoadingSubscriptionStatus] = useState<boolean>(false);
-  
+  const [userSubscriptionStatus, setUserSubscriptionStatus] =
+    useState<UserSubscriptionStatus | null>(null);
+  const [isLoadingSubscriptionStatus, setIsLoadingSubscriptionStatus] =
+    useState<boolean>(false);
+
   // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
   const [localModels, setLocalModels] = useState<Model[]>([]);
   const [availableModels, setAvailableModels] = useState<Model[]>([]);
-  
+
   // 警告消息状态管理
   const [warns, setWarns] = useState<WarnMessage[]>([]);
-  
+
   // 当 Ollama 模型更新时，更新本地模型列表
   useEffect(() => {
     if (isLocalDeployment) {
@@ -164,23 +260,26 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
     }
   }, [ollamaModels, ollamaError, isLoadingLocalModels, isLocalDeployment]);
-  
+
   // 刷新本地模型的函数
   const refreshLocalModels = async () => {
     if (!isLocalDeployment) return;
     await refreshOllamaModels();
   };
-  
+
   // 添加警告消息
   const addWarn = (text: string) => {
-    setWarns(prev => [...prev, { time: Math.floor(Date.now() / 1000), text, expanded: false }]);
+    setWarns(prev => [
+      ...prev,
+      { time: Math.floor(Date.now() / 1000), text, expanded: false },
+    ]);
   };
-  
+
   // 移除警告消息
   const removeWarn = (index: number) => {
     setWarns(prev => prev.filter((_, i) => i !== index));
   };
-  
+
   // 清除所有警告消息
   const clearWarns = () => {
     setWarns([]);
@@ -188,13 +287,13 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
 
   // 切换警告消息展开/折叠状态
   const toggleWarnExpand = (index: number) => {
-    setWarns(prev => 
-      prev.map((warn, i) => 
+    setWarns(prev =>
+      prev.map((warn, i) =>
         i === index ? { ...warn, expanded: !warn.expanded } : warn
       )
     );
   };
-  
+
   // 根据部署类型更新可用模型
   useEffect(() => {
     if (isLocalDeployment) {
@@ -205,34 +304,34 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
       setAvailableModels([...cloudModels]);
     }
   }, [isLocalDeployment, cloudModels, localModels]);
-  
+
   // 切换模型可用性
   const toggleModelAvailability = (id: string) => {
     // 检查模型是在本地模型列表还是云端模型列表中
     const isLocalModel = localModels.some(model => model.id === id);
     const isCloudModel = cloudModels.some(model => model.id === id);
-    
+
     if (isLocalModel) {
-      setLocalModels(models => 
-        models.map(model => 
+      setLocalModels(models =>
+        models.map(model =>
           model.id === id ? { ...model, active: !model.active } : model
         )
       );
     } else if (isCloudModel) {
-      setCloudModels(models => 
-        models.map(model => 
+      setCloudModels(models =>
+        models.map(model =>
           model.id === id ? { ...model, active: !model.active } : model
         )
       );
     }
   };
-  
+
   // 添加本地模型
   const addLocalModel = (model: Omit<Model, 'isLocal'>) => {
     const newModel = { ...model, isLocal: true, active: true };
     setLocalModels(prev => [...prev, newModel]);
   };
-  
+
   // 移除本地模型
   const removeLocalModel = (id: string) => {
     setLocalModels(localModels.filter(model => model.id !== id));
@@ -244,9 +343,9 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     if (isLocalDeployment) {
       // 本地开发环境的逻辑（根据需要调整）
       const token = Cookies.get('access_token');
-      return token ? { 'Authorization': `Bearer ${token}` } : {};
+      return token ? { Authorization: `Bearer ${token}` } : {};
     }
-    
+
     // 生产环境始终要求认证
     const token = Cookies.get('access_token');
     if (!token) {
@@ -254,29 +353,31 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
       addWarn('认证令牌缺失，请重新登录');
       return {};
     }
-    
-    return { 'Authorization': `Bearer ${token}` };
+
+    return { Authorization: `Bearer ${token}` };
   };
 
   // 获取用户token的通用方法
   const getUserToken = (forceLocal?: boolean): string | undefined => {
     const useLocal = forceLocal !== undefined ? forceLocal : isLocalDeployment;
-    
+
     if (useLocal) {
       return 'local-token';
     }
-    
+
     const token = Cookies.get('access_token');
     if (!token && !useLocal) {
       console.warn('No access token found in production environment');
       addWarn('认证令牌缺失，请重新登录');
     }
-    
+
     return token;
   };
 
   // 获取带有自定义header名称的认证headers
-  const getCustomAuthHeaders = (headerName: string = 'Authorization'): Record<string, string> => {
+  const getCustomAuthHeaders = (
+    headerName: string = 'Authorization'
+  ): Record<string, string> => {
     const token = getUserToken();
     return token ? { [headerName]: `Bearer ${token}` } : {};
   };
@@ -290,17 +391,23 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
         subscription_plan: 'premium',
         subscription_status: 'active',
         subscription_period_start: new Date().toISOString(),
-        subscription_period_end: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 一年后
-        effective_end_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        subscription_period_end: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(), // 一年后
+        effective_end_date: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(),
         days_left: 99999, // 本地部署设置为99999天
-        expired_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        expired_date: new Date(
+          Date.now() + 365 * 24 * 60 * 60 * 1000
+        ).toISOString(),
       });
       return;
     }
 
     // 云端部署模式
     setIsLoadingSubscriptionStatus(true);
-    
+
     try {
       const userAccessToken = getUserToken();
       if (!userAccessToken) {
@@ -308,23 +415,28 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
       }
 
       const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-      const response = await fetch(`${UserSystem_Backend_Base_Url}/user_subscription_status`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+      const response = await fetch(
+        `${UserSystem_Backend_Base_Url}/user_subscription_status`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
         }
-      });
+      );
 
       if (response.status !== 200) {
         const error_data: { error: string } = await response.json();
-        throw new Error(`HTTP error! status: ${response.status}, error message: ${error_data.error}`);
+        throw new Error(
+          `HTTP error! status: ${response.status}, error message: ${error_data.error}`
+        );
       }
 
       const subscriptionData: any = await response.json();
       console.log('用户订阅状态:', subscriptionData);
-      
+
       // 字段名映射：将 API 返回的字段名转换为前端期望的字段名
       setUserSubscriptionStatus({
         is_premium: subscriptionData.is_premium ?? false,
@@ -339,7 +451,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
       });
     } catch (error) {
       console.error('Error fetching user subscription status:', error);
-      
+
       // 云端部署失败时，设置默认的免费状态
       setUserSubscriptionStatus({
         is_premium: false,
@@ -389,7 +501,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({ childre
     >
       {children}
       {/* 使用抽离出来的警告组件 */}
-      <WarningToast 
+      <WarningToast
         warns={warns}
         clearWarns={clearWarns}
         removeWarn={removeWarn}
@@ -406,4 +518,4 @@ export const useAppSettings = () => {
     throw new Error('useAppSettings must be used within AppSettingsProvider');
   }
   return context;
-}; 
+};

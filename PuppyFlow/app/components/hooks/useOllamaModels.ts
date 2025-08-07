@@ -50,18 +50,25 @@ function formatModelName(modelId: string): string {
 // 判断模型类型的函数
 function detectModelType(modelName: string): 'llm' | 'embedding' {
   const lowerName = modelName.toLowerCase();
-  
+
   // 常见的 embedding 模型关键词
   const embeddingKeywords = [
-    'embed', 'embedding', 'bge', 'e5', 'sentence', 'text-embedding',
-    'nomic-embed', 'mxbai-embed', 'snowflake-arctic-embed'
+    'embed',
+    'embedding',
+    'bge',
+    'e5',
+    'sentence',
+    'text-embedding',
+    'nomic-embed',
+    'mxbai-embed',
+    'snowflake-arctic-embed',
   ];
-  
+
   // 检查模型名称是否包含 embedding 相关关键词
-  const isEmbedding = embeddingKeywords.some(keyword => 
+  const isEmbedding = embeddingKeywords.some(keyword =>
     lowerName.includes(keyword)
   );
-  
+
   return isEmbedding ? 'embedding' : 'llm';
 }
 
@@ -77,9 +84,12 @@ function transformOllamaModel(ollamaModel: OllamaModel): Model {
   };
 }
 
-export function useOllamaModels(options: UseOllamaModelsOptions = {}): UseOllamaModelsReturn {
+export function useOllamaModels(
+  options: UseOllamaModelsOptions = {}
+): UseOllamaModelsReturn {
   const {
-    endpoint = process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT || "http://localhost:11434",
+    endpoint = process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT ||
+      'http://localhost:11434',
     autoFetch = true,
     retryAttempts = 3,
     retryDelay = 1000,
@@ -127,10 +137,10 @@ export function useOllamaModels(options: UseOllamaModelsOptions = {}): UseOllama
         }
 
         const data: OllamaResponse = await response.json();
-        
+
         // 打印 Ollama 原生 SDK 返回的完整数据
         console.log('🐕 Ollama Raw Response:', JSON.stringify(data, null, 2));
-        
+
         const ollamaModels = data.models || [];
         const transformedModels = ollamaModels.map(transformOllamaModel);
 
@@ -139,10 +149,12 @@ export function useOllamaModels(options: UseOllamaModelsOptions = {}): UseOllama
         setIsConnected(true);
         setError(null);
         return;
-
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : '未知错误';
-        console.warn(`Ollama 连接尝试 ${attempt}/${retryAttempts} 失败:`, errorMessage);
+        console.warn(
+          `Ollama 连接尝试 ${attempt}/${retryAttempts} 失败:`,
+          errorMessage
+        );
 
         if (attempt === retryAttempts) {
           setError(`经过 ${retryAttempts} 次尝试后仍然失败: ${errorMessage}`);
@@ -194,4 +206,4 @@ export function useOllamaModels(options: UseOllamaModelsOptions = {}): UseOllama
 
 // 导出一些有用的工具函数
 export { formatModelName, transformOllamaModel };
-export type { OllamaModel, OllamaResponse, UseOllamaModelsOptions }; 
+export type { OllamaModel, OllamaResponse, UseOllamaModelsOptions };

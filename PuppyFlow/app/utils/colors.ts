@@ -4,7 +4,7 @@ export const UI_COLORS = {
   EDGENODE_BORDER_GREY: '#8B8B8B',
   LINE: '#8B8B8B', // 与边框颜色保持一致
   LINE_ACTIVE: '#FFA73D',
-  
+
   // 其他常用颜色
   MAIN_BLUE: '#4599DF',
   MAIN_ORANGE: '#FFA73D',
@@ -15,4 +15,4 @@ export const UI_COLORS = {
 } as const;
 
 // 导出类型以便 TypeScript 类型检查
-export type UIColorKey = keyof typeof UI_COLORS; 
+export type UIColorKey = keyof typeof UI_COLORS;
