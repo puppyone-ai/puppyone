@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover, useDrag } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
 
 type ListComponentProps = {
     data: any[];
@@ -222,7 +222,19 @@ const ListComponent = ({
     };
 
     return (
-        <div className="bg-[#252525] shadow-sm relative">
+        <div className="bg-[#252525] shadow-sm relative group">
+            {/* Unified Drag Handle */}
+            <DragHandle
+                data={data}
+                path={path}
+                parentKey={data.length}
+                componentType="list"
+                readonly={readonly}
+                onDelete={onDelete}
+                preventParentDrag={preventParentDrag}
+                allowParentDrag={allowParentDrag}
+                color="#ff9b4d"
+            />
             <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#ff9b4d] rounded-full"></div>
             <div 
                 className={`space-y-0 transition-all duration-200 ${

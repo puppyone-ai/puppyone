@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover, useDrag } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
 
 type DictComponentProps = {
     data: Record<string, any>;
@@ -321,7 +321,19 @@ const DictComponent = ({
     };
 
     return (
-        <div className="bg-[#252525] shadow-sm relative">
+        <div className="bg-[#252525] shadow-sm relative group">
+            {/* Unified Drag Handle */}
+            <DragHandle
+                data={data}
+                path={path}
+                parentKey={parentKey}
+                componentType="dict"
+                readonly={readonly}
+                onDelete={onDelete}
+                preventParentDrag={preventParentDrag}
+                allowParentDrag={allowParentDrag}
+                color="#9b7edb"
+            />
             <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#9b7edb] rounded-full"></div>
             <div 
                 className={`space-y-0 transition-all duration-200 ${
