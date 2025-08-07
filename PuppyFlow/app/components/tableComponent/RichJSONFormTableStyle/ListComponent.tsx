@@ -89,14 +89,6 @@ const ListComponent = ({
         
         if (draggedItem === null) return;
         
-        console.log('List - Dropping component:', { 
-            draggedItem, 
-            dropIndex, 
-            draggedPath, 
-            draggedKey, 
-            draggedParentType,
-            hasSourceOnDelete: !!sourceOnDelete
-        });
         
         // Check if dragging within same list by comparing parent paths
         // Extract parent path from draggedPath
@@ -110,12 +102,6 @@ const ListComponent = ({
         
         const draggedParentPath = getParentPath(draggedPath || '');
         const isSameList = draggedParentPath === path;
-        console.log('List - isSameList check:', { 
-            isSameList, 
-            draggedPath, 
-            draggedParentPath,
-            currentPath: path
-        });
         
         if (isSameList && typeof draggedKey === 'number') {
             // Internal reordering
@@ -138,7 +124,6 @@ const ListComponent = ({
         // Handle external drops (from global drag context) - only if NOT same list
         if (!isSameList && sourceOnDelete) {
             sourceOnDelete();
-            console.log('Called source delete callback for external drop to list');
         }
         
         // Insert the dragged item at the specified position
@@ -213,18 +198,10 @@ const ListComponent = ({
         
         if (draggedItem === null || data.length > 0) return;
         
-        console.log('List - Empty drop:', { 
-            draggedItem, 
-            draggedPath, 
-            draggedKey, 
-            draggedParentType,
-            hasSourceOnDelete: !!sourceOnDelete
-        });
         
         // Always call source delete for empty drop - we're moving the item here
         if (sourceOnDelete) {
             sourceOnDelete();
-            console.log('Called source delete callback for empty drop to list');
         }
         
         // Add the dragged item to the empty list
@@ -365,6 +342,7 @@ const ListComponent = ({
                                                     data={item}
                                                     path={indexPath}
                                                     readonly={readonly}
+                                                    parentKey={index}
                                                     onUpdate={(newValue) => updateItem(index, newValue)}
                                                     onDelete={() => deleteItem(index)}
                                                     preventParentDrag={preventParentDrag}
