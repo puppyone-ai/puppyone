@@ -393,12 +393,12 @@ const DictComponent = ({
     };
 
     return (
-        <div className="bg-[#252525] shadow-sm group/dict relative">
+        <div className="bg-[#252525] shadow-sm group/dict-container relative">
             <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#9b7edb] rounded-full">
                 <div 
-                    className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#9b7edb] rounded-full transition-all duration-200 group-hover/dict:w-[4px] group-hover/dict:left-[-1px]"
+                    className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#9b7edb] rounded-full transition-all duration-200 group-hover/dict-container:w-[4px] group-hover/dict-container:left-[-1px]"
                 ></div>
-                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/dict:opacity-100 transition-opacity duration-200 z-50">
+                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/dict-container:opacity-100 transition-opacity duration-200 z-50">
                     <button
                         onClick={handleMenuClick}
                         className="w-4 h-6 bg-[#252525] border border-[#9b7edb]/50 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 cursor-move"
@@ -623,7 +623,7 @@ const DictComponent = ({
                                     onClick={addEmptyKey}
                                     className="group w-6 h-4 flex items-center justify-center rounded-[3px] 
                                              bg-[#252525] hover:bg-[#2a2a2a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict:opacity-100"
+                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict-container:opacity-100"
                                     title="Add new key"
                                 >
                                     <svg 
