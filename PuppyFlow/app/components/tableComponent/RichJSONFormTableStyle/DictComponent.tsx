@@ -188,11 +188,22 @@ const DictComponent = ({
         let newData = { ...data };
         const currentKeys = Object.keys(newData);
         
-        // Check if dragging within same dict
-        const isSameDict = draggedPath === path || (draggedPath && path && draggedPath.startsWith(path + '.'));
+        // Check if dragging within same dict by comparing parent paths
+        // Extract parent path from draggedPath
+        const getParentPath = (childPath: string): string => {
+            if (!childPath) return '';
+            const lastDot = childPath.lastIndexOf('.');
+            const lastBracket = childPath.lastIndexOf('[');
+            const lastSeparator = Math.max(lastDot, lastBracket);
+            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
+        };
+        
+        const draggedParentPath = getParentPath(draggedPath || '');
+        const isSameDict = draggedParentPath === path;
         console.log('Dict - isSameDict check:', { 
             isSameDict, 
             draggedPath, 
+            draggedParentPath,
             currentPath: path
         });
         

@@ -98,11 +98,22 @@ const ListComponent = ({
             hasSourceOnDelete: !!sourceOnDelete
         });
         
-        // Handle internal reordering (dragging within same list)
-        const isSameList = draggedPath === path || (draggedPath && path && draggedPath.startsWith(path + '['));
+        // Check if dragging within same list by comparing parent paths
+        // Extract parent path from draggedPath
+        const getParentPath = (childPath: string): string => {
+            if (!childPath) return '';
+            const lastDot = childPath.lastIndexOf('.');
+            const lastBracket = childPath.lastIndexOf('[');
+            const lastSeparator = Math.max(lastDot, lastBracket);
+            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
+        };
+        
+        const draggedParentPath = getParentPath(draggedPath || '');
+        const isSameList = draggedParentPath === path;
         console.log('List - isSameList check:', { 
             isSameList, 
             draggedPath, 
+            draggedParentPath,
             currentPath: path
         });
         
@@ -124,8 +135,8 @@ const ListComponent = ({
             return;
         }
         
-        // Handle external drops (from global drag context)
-        if (sourceOnDelete) {
+        // Handle external drops (from global drag context) - only if NOT same list
+        if (!isSameList && sourceOnDelete) {
             sourceOnDelete();
             console.log('Called source delete callback for external drop to list');
         }
@@ -355,6 +366,7 @@ const ListComponent = ({
                                                     path={indexPath}
                                                     readonly={readonly}
                                                     onUpdate={(newValue) => updateItem(index, newValue)}
+                                                    onDelete={() => deleteItem(index)}
                                                     preventParentDrag={preventParentDrag}
                                                     allowParentDrag={allowParentDrag}
                                                 />
