@@ -113,9 +113,15 @@ class EnvManager:
                 await task_state.result_queue.put(event)
                 
                 # 更新进度（如果是块结果）
-                if isinstance(event, dict) and 'data' in event:
-                    task_state.processed_blocks += len(event.get('data', {}))
-                    logger.debug(f"Task {task_id}: Processed batch with {len(event.get('data', {}))} blocks")
+                if isinstance(event, dict):
+                    if 'data' in event:
+                        # 旧格式：data 字段包含块数据
+                        task_state.processed_blocks += len(event.get('data', {}))
+                        logger.debug(f"Task {task_id}: Processed batch with {len(event.get('data', {}))} blocks")
+                    elif event.get('event_type') == 'BLOCK_UPDATED':
+                        # 新格式：每个 BLOCK_UPDATED 事件代表一个块更新
+                        task_state.processed_blocks += 1
+                        logger.debug(f"Task {task_id}: Processed block {event.get('block_id')}")
             
             # 标记任务完成
             task_state.status = "COMPLETED"
@@ -244,6 +250,67 @@ class EnvManager:
                 if task_state.total_blocks > 0 else 0
             )
         }
+    
+    async def get_raw_events_stream(self, task_id: str, user_info: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        获取任务的原始事件流 (v2 API)
+        
+        与get_results_stream不同，这个方法返回所有原始事件，
+        不进行任何v1兼容性转换或过滤。
+        
+        Args:
+            task_id: 任务ID
+            user_info: 包含user_id的用户信息字典
+            
+        Yields:
+            原始事件字典
+            
+        Raises:
+            ValueError: 如果任务不存在或用户无权访问
+        """
+        if task_id not in self._tasks:
+            raise ValueError(f"Task {task_id} not found")
+        
+        task_state = self._tasks[task_id]
+        
+        # 验证用户权限
+        if task_state.user_info.get('user_id') != user_info.get('user_id'):
+            raise ValueError(f"Access denied for task {task_id}")
+        
+        # 标记任务正在被v2 API消费
+        if hasattr(task_state, 'api_version'):
+            if task_state.api_version == 'v1':
+                raise ValueError(f"Task {task_id} is already being consumed by v1 API")
+        else:
+            task_state.api_version = 'v2'
+        
+        logger.info(f"Starting raw event stream for task {task_id} (v2 API)")
+        
+        # 从结果队列中获取所有原始事件
+        while True:
+            try:
+                # 使用较短的超时时间以便更快响应
+                result = await asyncio.wait_for(
+                    task_state.result_queue.get(), 
+                    timeout=1.0
+                )
+                
+                # 直接yield原始事件，不进行任何转换
+                yield result
+                
+                # 检查是否是终止事件
+                event_type = result.get("event_type") if isinstance(result, dict) else None
+                if event_type in ["TASK_COMPLETED", "TASK_FAILED", "__end__", "__error__"]:
+                    logger.info(f"Raw event stream ended for task {task_id}, final event: {event_type}")
+                    break
+                    
+            except asyncio.TimeoutError:
+                # 检查任务是否已经结束
+                if task_state.status in ["COMPLETED", "FAILED"] and task_state.result_queue.empty():
+                    logger.info(f"No more events for task {task_id}, status: {task_state.status}")
+                    break
+                # 否则继续等待
+                continue
     
     def cleanup_old_tasks(self, hours: int = 24):
         """

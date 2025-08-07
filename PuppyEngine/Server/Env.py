@@ -74,9 +74,9 @@ class Env:
             Dict: Events during execution (block results, stream events, etc.)
         """
         try:
-            # Yield WORKFLOW_STARTED event
+            # Yield TASK_STARTED event (v2 naming)
             yield {
-                "event_type": "WORKFLOW_STARTED",
+                "event_type": "TASK_STARTED",
                 "env_id": self.id,
                 "timestamp": self.start_time.isoformat(),
                 "total_blocks": len(self.blocks),
@@ -119,20 +119,24 @@ class Env:
                     "timestamp": datetime.utcnow().isoformat()
                 }
             
-            # Yield WORKFLOW_COMPLETED event
+            # Yield TASK_COMPLETED event (v2 naming)
+            progress = self.planner.get_progress()
             yield {
-                "event_type": "WORKFLOW_COMPLETED",
+                "event_type": "TASK_COMPLETED",
                 "env_id": self.id,
                 "timestamp": datetime.utcnow().isoformat(),
-                "duration": (datetime.utcnow() - self.start_time).total_seconds()
+                "duration": (datetime.utcnow() - self.start_time).total_seconds(),
+                "total_blocks_processed": progress["blocks"]["processed"],
+                "total_edges_completed": progress["edges"]["completed"]
             }
             
         except Exception as e:
             log_error(f"Env {self.id} execution failed: {str(e)}")
             yield {
-                "event_type": "WORKFLOW_ERROR",
+                "event_type": "TASK_FAILED",
                 "env_id": self.id,
-                "error": str(e),
+                "error_message": str(e),
+                "error_type": type(e).__name__,
                 "traceback": traceback.format_exc(),
                 "timestamp": datetime.utcnow().isoformat()
             }
@@ -180,6 +184,15 @@ class Env:
         # Mark edges as processing
         self.planner.mark_edges_processing(edge_ids)
         
+        # Yield EDGE_STARTED events for each edge
+        for edge_id in edge_ids:
+            yield {
+                "event_type": "EDGE_STARTED",
+                "edge_id": edge_id,
+                "edge_type": self.edges[edge_id].get("type"),
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
         # Prepare edge execution tasks
         edge_tasks = []
         for edge_id in edge_ids:
@@ -204,6 +217,14 @@ class Env:
                 edge_results = await task
                 results.update(edge_results)
                 
+                # Yield EDGE_COMPLETED event
+                yield {
+                    "event_type": "EDGE_COMPLETED",
+                    "edge_id": edge_id,
+                    "output_blocks": list(edge_results.keys()),
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                
                 # Track edge usage if callback provided
                 if self.edge_usage_callback:
                     await self._track_edge_usage(edge_id)
@@ -213,7 +234,8 @@ class Env:
                 yield {
                     "event_type": "EDGE_ERROR",
                     "edge_id": edge_id,
-                    "error": str(e),
+                    "error_message": str(e),
+                    "error_type": type(e).__name__,
                     "timestamp": datetime.utcnow().isoformat()
                 }
                 raise
@@ -222,6 +244,14 @@ class Env:
         for block_id, content in results.items():
             block = self.blocks[block_id]
             block.set_content(content)
+            
+            # Yield BLOCK_UPDATED event
+            yield {
+                "event_type": "BLOCK_UPDATED",
+                "block_id": block_id,
+                "content": content,
+                "timestamp": datetime.utcnow().isoformat()
+            }
             
             # Persist block (may yield stream events)
             async for event in block.persist(self.storage_client, self.user_info['user_id']):
