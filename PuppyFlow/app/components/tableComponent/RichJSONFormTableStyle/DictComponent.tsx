@@ -80,7 +80,10 @@ const DictComponent = ({
             delete newData[key];
             onUpdate(newData);
         };
-        setDraggedItem(data[key], getKeyPath(key), key, 'dict', deleteCallback);
+        // Create a key-value pair object for dragging
+        const keyValuePair = { [key]: data[key] };
+        const parentType = path.includes('[') ? 'list' : 'dict';
+        setDraggedItem(data[key], getKeyPath(key), key, parentType, deleteCallback);
         e.dataTransfer.effectAllowed = 'move';
         
         // Visual feedback
@@ -402,10 +405,10 @@ const DictComponent = ({
                         title={isNested ? "Object options - drag to move entire dictionary" : "Object options"}
                         draggable={!readonly && isNested}
                         onDragStart={(e) => {
-                            if (!readonly && isNested && parentKey !== undefined) {
+                            if (!readonly && isNested && onDelete) {
                                 e.stopPropagation();
                                 // Drag the entire dict component with delete callback
-                                setDraggedItem(data, path, parentKey, 'dict', onDelete);
+                                setDraggedItem(data, path, parentKey ?? null, 'dict', onDelete);
                                 e.dataTransfer.effectAllowed = 'move';
                                 preventParentDrag();
                             }
@@ -550,12 +553,20 @@ const DictComponent = ({
                                         onDrop={(e) => handleDrop(e, key, dragOverPosition || 'after')}
                                     >
                                         <div className="flex items-stretch">
-                                            {/* Key section */}
+                                            {/* Key section - draggable to move key-value pair */}
                                             <div className="flex-shrink-0 flex justify-center pl-[16px]">
                                                 <div 
-                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    className={`w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center ${!readonly ? 'cursor-move' : ''}`}
                                                     onMouseEnter={() => handleKeyHover(key, true)}
                                                     onMouseLeave={() => handleKeyHover(key, false)}
+                                                    draggable={!readonly}
+                                                    onDragStart={(e) => {
+                                                        if (!readonly) {
+                                                            handleValueDragStart(e, key);
+                                                        }
+                                                    }}
+                                                    onDragEnd={handleDragEnd}
+                                                    title="Drag to move this key-value pair"
                                                 >
                                                     <span 
                                                         className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic transition-colors duration-200
@@ -570,31 +581,6 @@ const DictComponent = ({
                                                 </div>
                                             </div>
                                             
-                                            {/* Drag handle for value */}
-                                            {!readonly && (
-                                                <div className="flex items-center px-1">
-                                                    <button
-                                                        className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#3a3a3a] transition-colors cursor-move opacity-40 hover:opacity-100"
-                                                        draggable
-                                                        onDragStart={(e) => handleValueDragStart(e, key)}
-                                                        onDragEnd={handleDragEnd}
-                                                        title="Drag to move this value"
-                                                    >
-                                                        <svg 
-                                                            className="w-3 h-3" 
-                                                            viewBox="0 0 16 16" 
-                                                            fill="currentColor"
-                                                        >
-                                                            <circle cx="4" cy="4" r="1.5" fill="#9b7edb" />
-                                                            <circle cx="12" cy="4" r="1.5" fill="#9b7edb" />
-                                                            <circle cx="4" cy="8" r="1.5" fill="#9b7edb" />
-                                                            <circle cx="12" cy="8" r="1.5" fill="#9b7edb" />
-                                                            <circle cx="4" cy="12" r="1.5" fill="#9b7edb" />
-                                                            <circle cx="12" cy="12" r="1.5" fill="#9b7edb" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            )}
                                             
                                             {/* Content */}
                                             <div className="flex-1 min-w-0">

@@ -154,31 +154,6 @@ const TextComponent = ({
     return (
         <div className="w-full relative group/text">
             <div className="flex items-stretch">
-                {/* Drag handle for text - 只在有 parentKey 时显示（表示在容器内） */}
-                {!readonly && parentKey !== undefined && (
-                    <div className="flex items-center px-1">
-                        <button
-                            className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#3a3a3a] transition-colors cursor-move opacity-40 hover:opacity-100"
-                            draggable
-                            onDragStart={handleTextDragStart}
-                            onDragEnd={handleDragEnd}
-                            title="Drag to move this text"
-                        >
-                            <svg 
-                                className="w-3 h-3" 
-                                viewBox="0 0 16 16" 
-                                fill="currentColor"
-                            >
-                                <circle cx="4" cy="4" r="1.5" fill="#CDCDCD" />
-                                <circle cx="12" cy="4" r="1.5" fill="#CDCDCD" />
-                                <circle cx="4" cy="8" r="1.5" fill="#CDCDCD" />
-                                <circle cx="12" cy="8" r="1.5" fill="#CDCDCD" />
-                                <circle cx="4" cy="12" r="1.5" fill="#CDCDCD" />
-                                <circle cx="12" cy="12" r="1.5" fill="#CDCDCD" />
-                            </svg>
-                        </button>
-                    </div>
-                )}
                 
                 {/* Text content with left border and menu */}
                 <div className="flex-1 relative">
@@ -187,8 +162,22 @@ const TextComponent = ({
                         <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/text:opacity-100 transition-opacity duration-200 z-50">
                             <button
                                 onClick={handleMenuClick}
-                                className="w-4 h-6 bg-[#252525] border border-[#CDCDCD]/30 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200"
-                                title="Text options"
+                                className={`w-4 h-6 bg-[#252525] border border-[#CDCDCD]/30 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 ${
+                                    !readonly && parentKey !== undefined ? 'cursor-move' : ''
+                                }`}
+                                title={parentKey !== undefined ? "Text options - drag to move text" : "Text options"}
+                                draggable={!readonly && parentKey !== undefined}
+                                onDragStart={(e) => {
+                                    if (!readonly && parentKey !== undefined) {
+                                        e.stopPropagation();
+                                        handleTextDragStart(e);
+                                    }
+                                }}
+                                onDragEnd={() => {
+                                    if (!readonly && parentKey !== undefined) {
+                                        handleDragEnd();
+                                    }
+                                }}
                             >
                                 <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
                                 <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>

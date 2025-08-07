@@ -534,33 +534,35 @@ const ListComponent = ({
                                         onDrop={(e) => handleDrop(e, index)}
                                     >
                                         <div className="flex items-stretch">
-                                            {/* Index Badge */}
+                                            {/* Index Badge - draggable to move item */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
                                                     className={`w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center
-                                                        ${!readonly ? 'cursor-pointer active:cursor-grabbing' : ''}`}
+                                                        ${!readonly ? 'cursor-move active:cursor-grabbing' : ''}`}
                                                     draggable={!readonly}
                                                     onMouseDown={() => {
                                                         if (!readonly) {
                                                             handleMouseDown(index);
-                                                            setHoveredPath(indexPath); // 拖拽时也设置hover路径
+                                                            setHoveredPath(indexPath);
                                                         }
                                                     }}
                                                     onMouseUp={() => !readonly && handleMouseUp()}
                                                     onDragStart={(e) => {
                                                         if (!readonly) {
-                                                            handleDragStart(e, index);
-                                                            setHoveredPath(indexPath); // 拖拽开始时设置hover路径
+                                                            // Use cross-container drag for external moves
+                                                            handleItemDragStart(e, index);
+                                                            setHoveredPath(indexPath);
                                                         }
                                                     }}
                                                     onDragEnd={() => {
                                                         if (!readonly) {
                                                             handleDragEnd();
-                                                            setHoveredPath(null); // 拖拽结束时清除hover路径
+                                                            setHoveredPath(null);
                                                         }
                                                     }}
                                                     onMouseEnter={() => handleIndexHover(index, true)}
                                                     onMouseLeave={() => handleIndexHover(index, false)}
+                                                    title="Drag to move this item"
                                                 >
                                                     <span 
                                                         className={`text-[10px] leading-[28px] font-plus-jakarta-sans italic transition-colors duration-200
@@ -576,31 +578,6 @@ const ListComponent = ({
                                                 </div>
                                             </div>
                                             
-                                            {/* Drag handle for item */}
-                                            {!readonly && (
-                                                <div className="flex items-center px-1">
-                                                    <button
-                                                        className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#3a3a3a] transition-colors cursor-move opacity-40 hover:opacity-100"
-                                                        draggable
-                                                        onDragStart={(e) => handleItemDragStart(e, index)}
-                                                        onDragEnd={handleDragEnd}
-                                                        title="Drag to move this item"
-                                                    >
-                                                        <svg 
-                                                            className="w-3 h-3" 
-                                                            viewBox="0 0 16 16" 
-                                                            fill="currentColor"
-                                                        >
-                                                            <circle cx="4" cy="4" r="1.5" fill="#ff9b4d" />
-                                                            <circle cx="12" cy="4" r="1.5" fill="#ff9b4d" />
-                                                            <circle cx="4" cy="8" r="1.5" fill="#ff9b4d" />
-                                                            <circle cx="12" cy="8" r="1.5" fill="#ff9b4d" />
-                                                            <circle cx="4" cy="12" r="1.5" fill="#ff9b4d" />
-                                                            <circle cx="12" cy="12" r="1.5" fill="#ff9b4d" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            )}
                                             
                                             {/* Content */}
                                             <div className="flex-1 min-w-0">
