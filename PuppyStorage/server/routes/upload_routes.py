@@ -684,6 +684,7 @@ async def upload_chunk_direct(
     file_name: str,
     request: Request,
     content_type: str = "application/octet-stream",
+    version_id: Optional[str] = None,  # 可选的版本ID，如果提供则使用，否则生成新的
     current_user: User = Depends(verify_init_auth)  # 使用相同的认证函数
 ):
     """
@@ -697,8 +698,9 @@ async def upload_chunk_direct(
     request_id = generate_request_id()
     
     try:
-        # 1. 生成版本ID
-        version_id = generate_version_id()
+        # 1. 使用提供的版本ID或生成新的
+        if version_id is None:
+            version_id = generate_version_id()
         
         # 2. 清理文件名，确保安全
         safe_file_name = sanitize_file_name(file_name)
@@ -732,10 +734,21 @@ async def upload_chunk_direct(
                 file_data=chunk_data,
                 content_type=content_type
             )
+            
+            # 获取实际的 ETag
+            if success:
+                try:
+                    _, _, actual_etag = storage_adapter.get_file_with_metadata(key)
+                except:
+                    # 如果获取失败，使用生成的 ETag
+                    actual_etag = uuid.uuid4().hex
+            else:
+                actual_etag = uuid.uuid4().hex
+                
             result = {
                 "success": success,
                 "key": key,
-                "etag": uuid.uuid4().hex,  # 生成一个简单的ETag
+                "etag": actual_etag,
                 "size": len(chunk_data),
                 "uploaded_at": int(time.time())
             }
