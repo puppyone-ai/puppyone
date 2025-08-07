@@ -43,8 +43,17 @@ const DictComponent = ({
         });
         const newData = { ...data };
         delete newData[keyToDelete];
+        console.log('🔄 DICT DELETE - Calling onUpdate with:', newData);
         onUpdate(newData);
         console.log('✅ DICT DELETE - Completed, remaining keys:', Object.keys(newData));
+        
+        // 验证状态是否正确更新
+        setTimeout(() => {
+            console.log('🔍 DICT DELETE - Verification after timeout:', {
+                currentDataKeys: Object.keys(data),
+                keyStillExists: keyToDelete in data
+            });
+        }, 100);
     };
 
     // 生成随机key的函数

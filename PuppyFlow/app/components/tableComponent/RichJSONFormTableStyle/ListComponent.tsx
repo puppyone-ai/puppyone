@@ -148,19 +148,33 @@ const ListComponent = ({
             console.log('🔥 LIST DROP - Calling sourceOnDelete for external drop');
             sourceOnDelete();
             console.log('✅ LIST DROP - sourceOnDelete completed');
-        } else if (!isSameList) {
-            console.log('❌ LIST DROP - No sourceOnDelete callback for external drop');
+            
+            // 延迟添加操作，确保删除状态更新先完成
+            setTimeout(() => {
+                console.log('⏱️ LIST DROP - Delayed insert after delete');
+                // Insert the dragged item at the specified position
+                const newData = [...data];
+                newData.splice(dropIndex, 0, draggedItem);
+                
+                onUpdate(newData);
+                clearDraggedItem();
+                setDragOverIndex(null);
+            }, 50);
         } else {
-            console.log('ℹ️ LIST DROP - Same list reordering, sourceOnDelete not needed');
+            if (!isSameList) {
+                console.log('❌ LIST DROP - No sourceOnDelete callback for external drop');
+            } else {
+                console.log('ℹ️ LIST DROP - Same list reordering, sourceOnDelete not needed');
+            }
+            
+            // 同列表内重排或没有删除回调的情况，直接执行
+            const newData = [...data];
+            newData.splice(dropIndex, 0, draggedItem);
+            
+            onUpdate(newData);
+            clearDraggedItem();
+            setDragOverIndex(null);
         }
-        
-        // Insert the dragged item at the specified position
-        const newData = [...data];
-        newData.splice(dropIndex, 0, draggedItem);
-        
-        onUpdate(newData);
-        clearDraggedItem();
-        setDragOverIndex(null);
     };
 
 
