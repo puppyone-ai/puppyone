@@ -240,6 +240,16 @@ const TextComponent = ({
                         } ${readonly ? 'opacity-60' : ''}`}
                         onMouseEnter={() => handleTextHover(true)}
                         onMouseLeave={() => handleTextHover(false)}
+                        onDragOver={(e) => {
+                            // Text components don't accept drops - show not-allowed cursor
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'none';
+                        }}
+                        onDrop={(e) => {
+                            // Prevent any drops on text elements
+                            e.preventDefault();
+                            e.stopPropagation();
+                        }}
                     >
                         <TextEditor
                             preventParentDrag={preventParentDrag}

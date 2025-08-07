@@ -456,11 +456,20 @@ const DictComponent = ({
                 </div>
             </div>
             <div 
-                className="space-y-0"
+                className={`space-y-0 transition-all duration-200 ${
+                    keys.length === 0 && draggedItem !== null 
+                        ? 'bg-purple-400/10 border-2 border-dashed border-purple-400/50 rounded-md p-2' 
+                        : ''
+                }`}
                 onDragOver={(e) => {
-                    if (keys.length === 0) {
+                    if (keys.length === 0 && draggedItem !== null) {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'move';
+                    }
+                }}
+                onDragEnter={(e) => {
+                    if (keys.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
                     }
                 }}
                 onDrop={handleEmptyDrop}
@@ -511,11 +520,12 @@ const DictComponent = ({
                             
                             return (
                                 <React.Fragment key={key}>
-                                    {/* Drop Indicator - Before */}
+                                    {/* Drop Indicator - Before - Enhanced */}
                                     {showDropIndicator && dragOverPosition === 'before' && (
                                         <div className="relative">
-                                            <div className="absolute inset-x-0 -top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                                <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
+                                            <div className="absolute inset-x-0 -top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
                                             </div>
                                         </div>
                                     )}
@@ -524,9 +534,11 @@ const DictComponent = ({
                                         className={`group relative transition-all duration-200 ${
                                             isDragging
                                                 ? 'opacity-50' 
-                                                : isKeyHovered 
-                                                    ? 'bg-[#CDCDCD]/10' 
-                                                    : 'hover:bg-[#6D7177]/10'
+                                                : showDropIndicator && dragOverKey === key
+                                                    ? 'bg-blue-400/20 ring-2 ring-blue-400/50'
+                                                    : isKeyHovered 
+                                                        ? 'bg-[#CDCDCD]/10' 
+                                                        : 'hover:bg-[#6D7177]/10'
                                         }`}
                                         onDragOver={(e) => {
                                             const rect = e.currentTarget.getBoundingClientRect();
@@ -558,7 +570,7 @@ const DictComponent = ({
                                                 </div>
                                             </div>
                                             
-                                            {/* NEW: Drag handle for value */}
+                                            {/* Drag handle for value */}
                                             {!readonly && (
                                                 <div className="flex items-center px-1">
                                                     <button
@@ -600,11 +612,12 @@ const DictComponent = ({
                                         </div>
                                     </div>
                                     
-                                    {/* Drop Indicator - After */}
+                                    {/* Drop Indicator - After - Enhanced */}
                                     {showDropIndicator && dragOverPosition === 'after' && (
                                         <div className="relative">
-                                            <div className="absolute inset-x-0 top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                                <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
+                                            <div className="absolute inset-x-0 top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
                                             </div>
                                         </div>
                                     )}
