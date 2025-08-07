@@ -92,10 +92,8 @@ export const HoverProvider = ({ children }: { children: React.ReactNode }) => {
 
     const isPathHovered = (path: string): boolean => {
         if (!hoveredPath) return false;
-        // 完全匹配
-        if (hoveredPath === path) return true;
-        // 父子关系匹配
-        return isChildPath(path, hoveredPath) || isParentPath(path, hoveredPath);
+        // 只有完全匹配才显示hover状态
+        return hoveredPath === path;
     };
 
     return (
