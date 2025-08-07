@@ -174,16 +174,6 @@ const DictComponent = ({
         
         if (draggedItem === null) return;
         
-        console.log('Dict - Dropping component:', { 
-            draggedItem, 
-            dropKey, 
-            position, 
-            draggedKey, 
-            draggedPath, 
-            currentPath: path,
-            draggedParentType,
-            hasSourceOnDelete: !!sourceOnDelete
-        });
         
         let newData = { ...data };
         const currentKeys = Object.keys(newData);
@@ -200,21 +190,13 @@ const DictComponent = ({
         
         const draggedParentPath = getParentPath(draggedPath || '');
         const isSameDict = draggedParentPath === path;
-        console.log('Dict - isSameDict check:', { 
-            isSameDict, 
-            draggedPath, 
-            draggedParentPath,
-            currentPath: path
-        });
         
         // If dragging from same dict, handle reordering
         if (isSameDict && draggedKey && typeof draggedKey === 'string' && currentKeys.includes(draggedKey)) {
             delete newData[draggedKey];
-            console.log('Removed original key for reordering:', draggedKey);
         } else if (sourceOnDelete) {
             // If dragging from different component, call the delete callback
             sourceOnDelete();
-            console.log('Called source delete callback for external drop');
         }
         
         // Generate new key for the dropped item
@@ -263,7 +245,6 @@ const DictComponent = ({
         // Always call source delete for empty drop - we're moving the item here
         if (sourceOnDelete) {
             sourceOnDelete();
-            console.log('Called source delete callback for empty drop');
         }
         
         let newKey: string;
