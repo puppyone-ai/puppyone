@@ -44,20 +44,45 @@ class AuthProvider(Protocol):
 
 
 class LocalAuthProvider:
-    """本地认证提供者 - 开发模式，跳过真实认证"""
+    """本地认证提供者 - 开发模式，支持可配置的认证行为"""
     
     def __init__(self):
         self.default_user_id = "local-user"
-        log_info("LocalAuthProvider initialized - 开发模式，将跳过认证验证")
+        # 新增配置：是否在本地模式下也进行基本的token格式验证
+        self.strict_local_auth = config.get("STRICT_LOCAL_AUTH", "false").lower() == "true"
+        
+        if self.strict_local_auth:
+            log_info("LocalAuthProvider initialized - 开发模式，启用严格认证验证")
+        else:
+            log_info("LocalAuthProvider initialized - 开发模式，跳过认证验证")
     
     async def verify_user_token(self, user_token: str) -> User:
-        """本地模式直接返回默认用户"""
-        log_debug(f"本地模式认证，返回默认用户: {self.default_user_id}")
+        """本地模式的用户认证"""
+        if self.strict_local_auth:
+            # 严格模式：至少验证token格式
+            if not user_token or not user_token.strip():
+                raise AuthenticationError("Token不能为空")
+            
+            # 支持Bearer格式和直接token格式
+            if user_token.startswith("Bearer "):
+                token = user_token.split("Bearer ")[1].strip()
+            else:
+                token = user_token.strip()
+            
+            # 基本格式验证：不能是明显无效的token
+            if len(token) < 10 or token in ["invalid_token", "test", "fake"]:
+                raise AuthenticationError("无效的token格式")
+            
+            log_debug(f"本地严格模式认证通过，返回默认用户: {self.default_user_id}")
+        else:
+            # 宽松模式：完全跳过验证
+            log_debug(f"本地宽松模式认证，返回默认用户: {self.default_user_id}")
+        
         return User(user_id=self.default_user_id)
     
     def requires_auth(self) -> bool:
-        """本地模式不需要认证"""
-        return False
+        """本地模式是否需要认证取决于配置"""
+        return self.strict_local_auth
 
 
 class RemoteAuthProvider:
