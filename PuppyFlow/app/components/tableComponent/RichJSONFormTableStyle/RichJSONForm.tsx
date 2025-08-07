@@ -7,6 +7,7 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
+import ComponentRenderer, { HoverProvider } from './ComponentRenderer';
 
 type JSONViewerProps = {
     preventParentDrag: () => void,
@@ -133,9 +134,8 @@ const JSONViewer = ({
                 return (
                     <TextComponent
                         data={parsedData as string}
-                        path="root"
+                        path=""
                         readonly={readonly}
-                        isRoot={true}
                         onEdit={handleTextEdit}
                         preventParentDrag={preventParentDrag}
                         allowParentDrag={allowParentDrag}
@@ -145,6 +145,7 @@ const JSONViewer = ({
                 return (
                     <DictComponent
                         data={parsedData as Record<string, any>}
+                        path=""
                         readonly={readonly}
                         isNested={false}
                         onUpdate={updateData}
@@ -156,6 +157,7 @@ const JSONViewer = ({
                 return (
                     <ListComponent
                         data={parsedData as any[]}
+                        path=""
                         readonly={readonly}
                         isNested={false}
                         onUpdate={updateData}
@@ -223,18 +225,20 @@ const JSONViewer = ({
     }
 
     return (
-        <OverflowProvider>
-            <div 
-                ref={containerRef}
-                className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px]  ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
-                style={{ width: actualWidth, height: actualHeight }}
-                data-rich-json-form="true"
-            >
-                <div className="border-t border-b border-[#6D7177]/70">
-                {renderMainContent()}
+        <HoverProvider>
+            <OverflowProvider>
+                <div 
+                    ref={containerRef}
+                    className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px] pl-[8px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+                    style={{ width: actualWidth, height: actualHeight }}
+                    data-rich-json-form="true"
+                >
+                    <div className="border-t border-b border-[#6D7177]/70">
+                    {renderMainContent()}
+                    </div>
                 </div>
-            </div>
-        </OverflowProvider>
+            </OverflowProvider>
+        </HoverProvider>
     );
 };
 
