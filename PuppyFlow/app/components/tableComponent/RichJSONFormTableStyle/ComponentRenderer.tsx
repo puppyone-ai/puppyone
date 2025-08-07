@@ -26,6 +26,13 @@ export const DragProvider = ({ children }: { children: React.ReactNode }) => {
     const [sourceOnDelete, setSourceOnDelete] = useState<(() => void) | null>(null);
 
     const setDraggedItem = (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => {
+        console.log('🚀 DRAG START - Setting dragged item:', {
+            item: typeof item === 'object' ? `${Array.isArray(item) ? 'Array' : 'Object'}(${JSON.stringify(item).substring(0, 50)}...)` : item,
+            path,
+            key,
+            parentType,
+            hasOnDelete: !!onDelete
+        });
         setDraggedItemState(item);
         setDraggedPath(path);
         setDraggedKey(key);
