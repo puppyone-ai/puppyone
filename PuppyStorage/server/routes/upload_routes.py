@@ -8,6 +8,7 @@ import sys
 import time
 import uuid
 import json
+import re
 from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -31,24 +32,41 @@ storage_adapter = get_storage()
 # === Request and Response Models ===
 
 class MultipartInitRequest(BaseModel):
-    key: str = Field(..., description="文件的完整路径标识符", min_length=1)
-    content_type: Optional[str] = Field(None, description="可选的内容类型")
+    block_id: str = Field(..., description="业务数据块ID", min_length=1)
+    file_name: str = Field(..., description="原始文件名，用于展示和后续处理", min_length=1)
+    content_type: str = Field("application/octet-stream", description="文件的MIME类型")
+    file_size: Optional[int] = Field(None, description="可选，文件总大小（字节），用于校验", ge=0)
     
-    @validator('key')
-    def validate_key_format(cls, v):
-        """验证key格式：user_id/block_id/version_id/chunk_name"""
+    @validator('block_id')
+    def validate_block_id(cls, v):
+        """验证block_id格式，确保不包含路径分隔符等特殊字符"""
         if not v or not isinstance(v, str):
-            raise ValueError('Key must be a non-empty string')
-        parts = v.split('/')
-        if len(parts) < 4:
-            raise ValueError('Key must follow format: user_id/block_id/version_id/chunk_name')
-        if any(not part.strip() for part in parts):
-            raise ValueError('Key parts cannot be empty')
+            raise ValueError('block_id must be a non-empty string')
+        # 禁止的字符：路径分隔符、控制字符等
+        if re.search(r'[/\\<>:|?*\x00-\x1f]', v):
+            raise ValueError('block_id contains invalid characters')
+        # 限制长度
+        if len(v) > 255:
+            raise ValueError('block_id is too long (max 255 characters)')
+        return v
+    
+    @validator('file_name')
+    def validate_file_name(cls, v):
+        """验证文件名，确保基本的安全性"""
+        if not v or not isinstance(v, str):
+            raise ValueError('file_name must be a non-empty string')
+        # 禁止路径遍历
+        if '..' in v or v.startswith('/') or v.startswith('\\'):
+            raise ValueError('file_name contains invalid path traversal patterns')
+        # 限制长度
+        if len(v) > 255:
+            raise ValueError('file_name is too long (max 255 characters)')
         return v
 
 class MultipartInitResponse(BaseModel):
     upload_id: str = Field(..., description="上传会话ID")
     key: str = Field(..., description="文件路径标识符")
+    version_id: str = Field(..., description="生成的版本ID")
     expires_at: int = Field(..., description="会话过期时间戳")
     max_parts: int = Field(..., description="最大分块数量")
     min_part_size: int = Field(..., description="最小分块大小（字节）")
@@ -118,12 +136,14 @@ class ManifestUpdateResponse(BaseModel):
     message: str = Field(default="清单更新成功")
 
 class DirectChunkUploadRequest(BaseModel):
-    key: str = Field(..., description="文件存储键")
+    block_id: str = Field(..., description="业务数据块ID")
+    file_name: str = Field(..., description="原始文件名")
     content_type: str = Field(default="application/octet-stream", description="内容类型")
 
 class DirectChunkUploadResponse(BaseModel):
     success: bool = Field(..., description="上传是否成功")
     key: str = Field(..., description="文件存储键")
+    version_id: str = Field(..., description="生成的版本ID")
     etag: str = Field(..., description="文件ETag")
     size: int = Field(..., description="文件大小（字节）")
     uploaded_at: int = Field(..., description="上传时间戳")
@@ -134,25 +154,81 @@ def generate_request_id() -> str:
     """生成用于追踪的请求ID"""
     return f"req_{uuid.uuid4().hex[:12]}"
 
+def generate_version_id() -> str:
+    """生成可排序的版本ID
+    格式: YYYYMMDD-HHMMSSFFFFF-XXXXXXXX
+    其中XXXXXXXX是8位随机字符，确保在同一微秒内的唯一性
+    """
+    timestamp = datetime.utcnow().strftime('%Y%m%d-%H%M%S%f')
+    random_suffix = uuid.uuid4().hex[:8]
+    return f"{timestamp}-{random_suffix}"
+
+def sanitize_file_name(file_name: str) -> str:
+    """清理文件名，确保存储安全
+    - 移除或替换危险字符
+    - 保留文件扩展名
+    - 确保结果是有效的文件名
+    """
+    # 提取文件名和扩展名
+    base_name, ext = os.path.splitext(file_name)
+    
+    # 替换危险字符为下划线
+    # 保留字母、数字、点、破折号、下划线
+    safe_base = re.sub(r'[^a-zA-Z0-9._-]', '_', base_name)
+    
+    # 移除连续的下划线
+    safe_base = re.sub(r'_+', '_', safe_base)
+    
+    # 确保不以点开头（避免隐藏文件）
+    if safe_base.startswith('.'):
+        safe_base = '_' + safe_base[1:]
+    
+    # 如果清理后为空，使用默认名称
+    if not safe_base:
+        safe_base = 'file'
+    
+    # 重新组合文件名和扩展名
+    # 扩展名也需要清理
+    if ext:
+        safe_ext = re.sub(r'[^a-zA-Z0-9]', '', ext)
+        if safe_ext:
+            return f"{safe_base}.{safe_ext}"
+    
+    return safe_base
+
 def validate_key_format(key: str) -> bool:
     """验证key格式是否正确"""
-    # 验证格式：user_id/content_id/content_name
+    # 验证格式：user_id/block_id/version_id/file_name
     parts = key.split('/')
-    return len(parts) >= 3 and all(part.strip() for part in parts)
+    return len(parts) >= 4 and all(part.strip() for part in parts)
 
 # === API Endpoints ===
 
 async def verify_init_auth(
-    request_data: MultipartInitRequest,
     authorization: str = Header(None, alias="Authorization"),
     auth_provider = Depends(get_auth_provider)
 ) -> User:
-    """验证初始化上传的认证和权限"""
-    return await verify_user_and_resource_access(
-        resource_key=request_data.key,
-        authorization=authorization,
-        auth_provider=auth_provider
-    )
+    """验证初始化上传的用户认证
+    
+    在init阶段，我们只验证用户身份的合法性。
+    资源的所有权将通过在后端使用其user_id构建key来确立。
+    """
+    try:
+        if not authorization:
+            raise HTTPException(status_code=401, detail="Authorization header is missing")
+        
+        # 从token中解析用户信息
+        user = await auth_provider.verify_user_token(authorization)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+            
+        return user
+    except HTTPException:
+        raise
+    except Exception as e:
+        log_error(f"Token verification failed during init: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
 
 @upload_router.post("/init", response_model=MultipartInitResponse)
@@ -163,34 +239,45 @@ async def init_multipart_upload(
     """
     初始化分块上传
     
-    为指定的key创建一个新的分块上传会话。
-    返回upload_id和上传参数，客户端后续使用upload_id获取分块上传URL。
+    为指定的block_id创建一个新的分块上传会话。
+    服务器端会生成唯一的version_id和安全的存储路径。
+    返回upload_id和生成的key，客户端后续使用这些信息进行分块上传。
     
     需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
     
     try:
-        log_info(f"[{request_id}] 初始化分块上传: user={current_user.user_id}, key={request_data.key}, content_type={request_data.content_type}")
+        # 1. 生成版本ID
+        version_id = generate_version_id()
         
-        # 验证key格式（认证和权限已由依赖验证完成）
-        if not validate_key_format(request_data.key):
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid key format. Expected: user_id/content_id/content_name"
-            )
+        # 2. 清理文件名，确保安全
+        safe_file_name = sanitize_file_name(request_data.file_name)
         
-        # 调用存储适配器初始化分块上传
+        # 3. 在服务器端组装完整的key
+        # 格式: user_id/block_id/version_id/file_name
+        key = f"{current_user.user_id}/{request_data.block_id}/{version_id}/{safe_file_name}"
+        
+        log_info(f"[{request_id}] 初始化分块上传: user={current_user.user_id}, block_id={request_data.block_id}, "
+                f"version_id={version_id}, file_name={request_data.file_name} -> {safe_file_name}, "
+                f"generated_key={key}")
+        
+        # 4. 调用存储适配器初始化分块上传
         result = storage_adapter.init_multipart_upload(
-            key=request_data.key,
+            key=key,
             content_type=request_data.content_type
         )
+        
+        # 5. 如果提供了文件大小，可以记录用于后续校验
+        if request_data.file_size is not None:
+            log_debug(f"[{request_id}] 预期文件大小: {request_data.file_size} bytes")
         
         log_info(f"[{request_id}] 分块上传初始化成功: upload_id={result['upload_id']}")
         
         return MultipartInitResponse(
             upload_id=result["upload_id"],
-            key=result["key"],
+            key=key,
+            version_id=version_id,
             expires_at=result["expires_at"],
             max_parts=result["max_parts"],
             min_part_size=result["min_part_size"],
@@ -593,59 +680,76 @@ async def update_manifest(
 
 @upload_router.post("/chunk/direct", response_model=DirectChunkUploadResponse)
 async def upload_chunk_direct(
+    block_id: str,
+    file_name: str,
     request: Request,
-    metadata: DirectChunkUploadRequest,
-    authorization: str = Header(None, alias="Authorization"),
-    auth_provider = Depends(get_auth_provider)
+    content_type: str = "application/octet-stream",
+    current_user: User = Depends(verify_init_auth)  # 使用相同的认证函数
 ):
     """
     直接上传chunk到最终存储位置
-    这是简化后的上传API，不涉及multipart协调
+    
+    这是简化后的上传API，适用于小文件的快速上传。
+    服务器端会生成唯一的version_id和安全的存储路径。
+    
+    需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
-    log_info(f"[{request_id}] 开始直接chunk上传: key={metadata.key}")
     
     try:
-        # 验证key格式
-        if not validate_key_format(metadata.key):
-            raise HTTPException(
-                status_code=400, 
-                detail="Invalid key format. Expected: user_id/content_id/content_name"
-            )
+        # 1. 生成版本ID
+        version_id = generate_version_id()
         
-        # 提取用户ID进行认证
-        user_id = metadata.key.split('/')[0]
+        # 2. 清理文件名，确保安全
+        safe_file_name = sanitize_file_name(file_name)
         
-        # 用户认证和访问权限验证
-        user = await verify_user_and_resource_access(
-            authorization, user_id, metadata.key, 
-            required_action="write",
-            auth_provider=auth_provider
-        )
+        # 3. 在服务器端组装完整的key
+        key = f"{current_user.user_id}/{block_id}/{version_id}/{safe_file_name}"
         
-        # 读取请求体的chunk数据
+        log_info(f"[{request_id}] 开始直接chunk上传: user={current_user.user_id}, block_id={block_id}, "
+                f"version_id={version_id}, file_name={file_name} -> {safe_file_name}, "
+                f"generated_key={key}")
+        
+        # 4. 读取请求体的chunk数据
         chunk_data = await request.body()
         if not chunk_data:
             raise HTTPException(status_code=400, detail="No chunk data provided")
         
         log_info(f"[{request_id}] 开始保存chunk: size={len(chunk_data)}")
         
-        # 直接保存chunk
-        result = storage_adapter.save_chunk_direct(
-            key=metadata.key,
-            chunk_data=chunk_data,
-            content_type=metadata.content_type
-        )
+        # 5. 检查存储适配器是否支持直接保存
+        if hasattr(storage_adapter, 'save_chunk_direct'):
+            # 使用专门的直接保存方法
+            result = storage_adapter.save_chunk_direct(
+                key=key,
+                chunk_data=chunk_data,
+                content_type=content_type
+            )
+        else:
+            # 回退到普通的文件保存方法
+            success = storage_adapter.save_file(
+                key=key,
+                file_data=chunk_data,
+                content_type=content_type
+            )
+            result = {
+                "success": success,
+                "key": key,
+                "etag": uuid.uuid4().hex,  # 生成一个简单的ETag
+                "size": len(chunk_data),
+                "uploaded_at": int(time.time())
+            }
         
         response = DirectChunkUploadResponse(
             success=result["success"],
-            key=result["key"],
+            key=key,
+            version_id=version_id,
             etag=result["etag"],
             size=result["size"],
             uploaded_at=result["uploaded_at"]
         )
         
-        log_info(f"[{request_id}] 直接chunk上传成功: key={metadata.key}, size={len(chunk_data)}")
+        log_info(f"[{request_id}] 直接chunk上传成功: key={key}, size={len(chunk_data)}")
         return response
         
     except HTTPException:
