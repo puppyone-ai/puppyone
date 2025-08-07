@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react';
-import { useHover } from './ComponentRenderer';
+import { useHover, useDrag } from './ComponentRenderer';
 import TextEditor from '../TextEditor';
 
 type TextComponentProps = {
@@ -8,7 +8,8 @@ type TextComponentProps = {
     path: string;
     readonly?: boolean;
     onEdit: (path: string, newValue: string) => void;
-    onDelete?: () => void; // 新增：删除整个文本字段的回调
+    onDelete?: () => void;
+    parentKey?: string | number;  // 添加 parentKey
     preventParentDrag: () => void;
     allowParentDrag: () => void;
 }
@@ -19,11 +20,13 @@ const TextComponent = ({
     readonly = false, 
     onEdit, 
     onDelete,
+    parentKey,  // 添加 parentKey
     preventParentDrag, 
     allowParentDrag 
 }: TextComponentProps) => {
     const [showMenu, setShowMenu] = useState(false);
     const { setHoveredPath, isPathHovered } = useHover();
+    const { setDraggedItem, clearDraggedItem } = useDrag();  // 添加 useDrag
     const isTextHovered = isPathHovered(path);
 
     const handleEditChange = (newValue: string) => {
@@ -38,6 +41,68 @@ const TextComponent = ({
         } else {
             setHoveredPath(null);
         }
+    };
+
+    // 新增：处理文本的拖动开始
+    const handleTextDragStart = (e: React.DragEvent) => {
+        e.stopPropagation();
+        // Set the dragged item in global context with delete callback
+        const parentType = path.includes('[') ? 'list' : 'dict';
+        setDraggedItem(data, path, parentKey || null, parentType, onDelete);
+        e.dataTransfer.effectAllowed = 'move';
+        
+        // Visual feedback
+        const dragPreview = createTextDragPreview(data);
+        document.body.appendChild(dragPreview);
+        e.dataTransfer.setDragImage(dragPreview, 10, 10);
+        
+        setTimeout(() => {
+            if (document.body.contains(dragPreview)) {
+                document.body.removeChild(dragPreview);
+            }
+        }, 0);
+        
+        preventParentDrag();
+        setHoveredPath(path);
+    };
+
+    // 新增：创建文本的拖动预览
+    const createTextDragPreview = (text: string) => {
+        const preview = document.createElement('div');
+        preview.style.cssText = `
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 12px;
+            color: #CDCDCD;
+            max-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+        
+        const textSpan = document.createElement('span');
+        textSpan.style.cssText = `
+            color: #CDCDCD;
+            opacity: 0.8;
+        `;
+        
+        const textPreview = text.length > 30 ? `"${text.substring(0, 30)}..."` : `"${text}"`;
+        textSpan.textContent = textPreview;
+        preview.appendChild(textSpan);
+        
+        return preview;
+    };
+
+    const handleDragEnd = () => {
+        clearDraggedItem();
+        allowParentDrag();
+        setHoveredPath(null);
     };
 
     const handleMenuClick = (e: React.MouseEvent) => {
@@ -88,74 +153,105 @@ const TextComponent = ({
 
     return (
         <div className="w-full relative group/text">
-            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#CDCDCD]/40 rounded-full">
-                <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#CDCDCD]/40 rounded-full transition-all duration-200 group-hover/text:w-[4px] group-hover/text:left-[-1px]"></div>
-                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/text:opacity-100 transition-opacity duration-200 z-50">
-                    <button
-                        onClick={handleMenuClick}
-                        className="w-4 h-6 bg-[#252525] border border-[#CDCDCD]/30 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200"
-                        title="Text options"
-                    >
-                        <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
-                        <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
-                        <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
-                    </button>
-                    
-                    {/* Menu for text */}
-                    {showMenu && (
-                        <div 
-                            className="absolute left-6 top-0 w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col shadow-2xl"
-                            style={{ zIndex: 9999999 }}
-                            onMouseLeave={handleMenuMouseLeave}
+            <div className="flex items-stretch">
+                {/* Drag handle for text - 只在有 parentKey 时显示（表示在容器内） */}
+                {!readonly && parentKey !== undefined && (
+                    <div className="flex items-center px-1">
+                        <button
+                            className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#3a3a3a] transition-colors cursor-move opacity-40 hover:opacity-100"
+                            draggable
+                            onDragStart={handleTextDragStart}
+                            onDragEnd={handleDragEnd}
+                            title="Drag to move this text"
                         >
-                            <button
-                                onClick={handleCopyText}
-                                className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+                            <svg 
+                                className="w-3 h-3" 
+                                viewBox="0 0 16 16" 
+                                fill="currentColor"
                             >
-                                <div className="flex justify-center items-center">
-                                    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <path d="M8 6H16C16.5523 6 17 6.44772 17 7V15C17 15.5523 16.5523 16 16 16H8C7.44772 16 7 15.5523 7 15V7C7 6.44772 7.44772 6 8 6Z" stroke="#BEBEBE" strokeWidth="1.5" fill="none"/>
-                                        <path d="M10 4H18C18.5523 4 19 4.44772 19 5V13" stroke="#BEBEBE" strokeWidth="1.5" fill="none"/>
-                                    </svg>
-                                </div>
-                                Copy
+                                <circle cx="4" cy="4" r="1.5" fill="#CDCDCD" />
+                                <circle cx="12" cy="4" r="1.5" fill="#CDCDCD" />
+                                <circle cx="4" cy="8" r="1.5" fill="#CDCDCD" />
+                                <circle cx="12" cy="8" r="1.5" fill="#CDCDCD" />
+                                <circle cx="4" cy="12" r="1.5" fill="#CDCDCD" />
+                                <circle cx="12" cy="12" r="1.5" fill="#CDCDCD" />
+                            </svg>
+                        </button>
+                    </div>
+                )}
+                
+                {/* Text content with left border and menu */}
+                <div className="flex-1 relative">
+                    <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#CDCDCD]/40 rounded-full">
+                        <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#CDCDCD]/40 rounded-full transition-all duration-200 group-hover/text:w-[4px] group-hover/text:left-[-1px]"></div>
+                        <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/text:opacity-100 transition-opacity duration-200 z-50">
+                            <button
+                                onClick={handleMenuClick}
+                                className="w-4 h-6 bg-[#252525] border border-[#CDCDCD]/30 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200"
+                                title="Text options"
+                            >
+                                <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
+                                <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
+                                <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
                             </button>
                             
-                            <button
-                                onClick={handleClearText}
-                                className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#F44336] hover:text-[#FF6B64] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
-                            >
-                                <div className="flex justify-center items-center">
-                                    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                        <rect x="7" y="9" width="12" height="10" rx="1" stroke="#F44336" strokeWidth="1.5"/>
-                                        <path d="M10 6H16" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
-                                        <path d="M8 9H18" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
-                                        <path d="M11 12V16" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
-                                        <path d="M15 12V16" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
-                                    </svg>
+                            {/* Menu for text */}
+                            {showMenu && (
+                                <div 
+                                    className="absolute left-6 top-0 w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col shadow-2xl"
+                                    style={{ zIndex: 9999999 }}
+                                    onMouseLeave={handleMenuMouseLeave}
+                                >
+                                    <button
+                                        onClick={handleCopyText}
+                                        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+                                    >
+                                        <div className="flex justify-center items-center">
+                                            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <path d="M8 6H16C16.5523 6 17 6.44772 17 7V15C17 15.5523 16.5523 16 16 16H8C7.44772 16 7 15.5523 7 15V7C7 6.44772 7.44772 6 8 6Z" stroke="#BEBEBE" strokeWidth="1.5" fill="none"/>
+                                                <path d="M10 4H18C18.5523 4 19 4.44772 19 5V13" stroke="#BEBEBE" strokeWidth="1.5" fill="none"/>
+                                            </svg>
+                                        </div>
+                                        Copy
+                                    </button>
+                                    
+                                    <button
+                                        onClick={handleClearText}
+                                        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#F44336] hover:text-[#FF6B64] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+                                    >
+                                        <div className="flex justify-center items-center">
+                                            <svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                                <rect x="7" y="9" width="12" height="10" rx="1" stroke="#F44336" strokeWidth="1.5"/>
+                                                <path d="M10 6H16" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
+                                                <path d="M8 9H18" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
+                                                <path d="M11 12V16" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
+                                                <path d="M15 12V16" stroke="#F44336" strokeWidth="1.5" strokeLinecap="round"/>
+                                            </svg>
+                                        </div>
+                                        Clear
+                                    </button>
                                 </div>
-                                Clear
-                            </button>
+                            )}
                         </div>
-                    )}
+                    </div>
+                    <div 
+                        className={`w-full px-[16px] py-[8px] bg-transparent overflow-hidden transition-colors duration-200 ${
+                            isTextHovered ? 'bg-[#CDCDCD]/10' : 'hover:bg-[#6D7177]/10'
+                        } ${readonly ? 'opacity-60' : ''}`}
+                        onMouseEnter={() => handleTextHover(true)}
+                        onMouseLeave={() => handleTextHover(false)}
+                    >
+                        <TextEditor
+                            preventParentDrag={preventParentDrag}
+                            allowParentDrag={allowParentDrag}
+                            value={data}
+                            onChange={readonly ? () => {} : handleEditChange}
+                            placeholder="Enter text content..."
+                            widthStyle={0}
+                            autoHeight={true}
+                        />
+                    </div>
                 </div>
-            </div>
-            <div 
-                className={`w-full px-[16px] py-[8px] bg-transparent overflow-hidden transition-colors duration-200 ${
-                    isTextHovered ? 'bg-[#CDCDCD]/10' : 'hover:bg-[#6D7177]/10'
-                } ${readonly ? 'opacity-60' : ''}`}
-                onMouseEnter={() => handleTextHover(true)}
-                onMouseLeave={() => handleTextHover(false)}
-            >
-                <TextEditor
-                    preventParentDrag={preventParentDrag}
-                    allowParentDrag={allowParentDrag}
-                    value={data}
-                    onChange={readonly ? () => {} : handleEditChange}
-                    placeholder="Enter text content..."
-                    widthStyle={0}
-                    autoHeight={true}
-                />
             </div>
         </div>
     );

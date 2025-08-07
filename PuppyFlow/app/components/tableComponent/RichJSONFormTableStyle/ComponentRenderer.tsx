@@ -5,6 +5,65 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import EmptyComponent from './EmptyComponent';
 
+// Drag Context for cross-component dragging
+type DragContextType = {
+    draggedItem: any;
+    draggedPath: string;
+    draggedKey: string | number | null;
+    draggedParentType: 'dict' | 'list' | null;
+    sourceOnDelete: (() => void) | null;
+    setDraggedItem: (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => void;
+    clearDraggedItem: () => void;
+};
+
+const DragContext = createContext<DragContextType | null>(null);
+
+export const DragProvider = ({ children }: { children: React.ReactNode }) => {
+    const [draggedItem, setDraggedItemState] = useState<any>(null);
+    const [draggedPath, setDraggedPath] = useState<string>('');
+    const [draggedKey, setDraggedKey] = useState<string | number | null>(null);
+    const [draggedParentType, setDraggedParentType] = useState<'dict' | 'list' | null>(null);
+    const [sourceOnDelete, setSourceOnDelete] = useState<(() => void) | null>(null);
+
+    const setDraggedItem = (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => {
+        setDraggedItemState(item);
+        setDraggedPath(path);
+        setDraggedKey(key);
+        setDraggedParentType(parentType);
+        setSourceOnDelete(onDelete ? () => onDelete : null);
+    };
+
+    const clearDraggedItem = () => {
+        setDraggedItemState(null);
+        setDraggedPath('');
+        setDraggedKey(null);
+        setDraggedParentType(null);
+        setSourceOnDelete(null);
+    };
+
+    return (
+        <DragContext.Provider value={{
+            draggedItem,
+            draggedPath,
+            draggedKey,
+            draggedParentType,
+            sourceOnDelete,
+            setDraggedItem,
+            clearDraggedItem
+        }}>
+            {children}
+        </DragContext.Provider>
+    );
+};
+
+export const useDrag = () => {
+    const context = useContext(DragContext);
+    if (!context) {
+        throw new Error('useDrag must be used within DragProvider');
+    }
+    return context;
+};
+
 // Hover Context
 type HoverContextType = {
     hoveredPath: string | null;
@@ -72,6 +131,8 @@ type ComponentRendererProps = {
     onUpdate: (newValue: any) => void;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
+    parentKey?: string | number; // Key in parent structure
+    onDelete?: () => void; // Delete callback from parent
 }
 
 const ComponentRenderer = ({ 
@@ -80,7 +141,9 @@ const ComponentRenderer = ({
     readonly = false, 
     onUpdate, 
     preventParentDrag, 
-    allowParentDrag 
+    allowParentDrag,
+    parentKey,
+    onDelete 
 }: ComponentRendererProps) => {
     const getComponentType = (value: any) => {
         // 检查是否是空元素标记
@@ -122,20 +185,11 @@ const ComponentRenderer = ({
         onUpdate(newValue);
     };
 
-    // 在ComponentRenderer中，为每个子组件传递onDelete回调
-    const createDeleteHandler = (currentPath: string) => {
-        return () => {
-            // 根据路径删除对应的元素
-            const pathParts = currentPath.split(/[\.\[\]]+/).filter(Boolean);
-            
-            // 这里需要调用父组件的更新函数来删除元素
-            // 具体实现取决于数据结构的管理方式
-            console.log(`Delete requested for path: ${currentPath}`);
-            
-            // 示例：如果是数组元素，从数组中删除
-            // 如果是对象属性，从对象中删除该键
-            // 这需要根据实际的数据管理逻辑来实现
-        };
+    // Delete handler - now uses the onDelete prop from parent
+    const handleDelete = () => {
+        if (onDelete) {
+            onDelete();
+        }
     };
 
     switch (componentType) {
@@ -155,7 +209,8 @@ const ComponentRenderer = ({
                     path={path}
                     readonly={readonly}
                     onEdit={handleEdit}
-                    onDelete={createDeleteHandler(path)}
+                    onDelete={handleDelete}
+                    parentKey={parentKey}
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
                 />
@@ -168,7 +223,8 @@ const ComponentRenderer = ({
                     readonly={readonly}
                     isNested={true}
                     onUpdate={onUpdate}
-                    onDelete={createDeleteHandler(path)}
+                    onDelete={handleDelete}
+                    parentKey={parentKey}
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
                 />
@@ -181,7 +237,8 @@ const ComponentRenderer = ({
                     readonly={readonly}
                     isNested={true}
                     onUpdate={onUpdate}
-                    onDelete={createDeleteHandler(path)}
+                    onDelete={handleDelete}
+                    parentKey={parentKey}
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
                 />

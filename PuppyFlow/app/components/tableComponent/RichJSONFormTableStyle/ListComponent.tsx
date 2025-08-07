@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useDrag } from './ComponentRenderer';
 
 type ListComponentProps = {
     data: any[];
@@ -8,7 +8,8 @@ type ListComponentProps = {
     readonly?: boolean;
     isNested?: boolean;
     onUpdate: (newData: any[]) => void;
-    onDelete?: () => void; // 新增：删除整个列表的回调
+    onDelete?: () => void;
+    parentKey?: string | number;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
 }
@@ -29,6 +30,7 @@ const ListComponent = ({
     const [showMenu, setShowMenu] = useState(false);
     
     const { hoveredPath, setHoveredPath, isPathHovered } = useHover();
+    const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const deleteItem = (index: number) => {
         const newData = data.filter((_, i) => i !== index);
@@ -151,8 +153,13 @@ const ListComponent = ({
         allowParentDrag();
     };
 
-    const handleDragOver = (e: React.DragEvent, index: number) => {
+    const handleDragOver = (e: React.DragEvent, index: number, position: 'before' | 'after') => {
         e.preventDefault();
+        e.stopPropagation();
+        
+        // Check if this is a valid drop target
+        if (draggedItem === null) return;
+        
         e.dataTransfer.dropEffect = 'move';
         setDragOverIndex(index);
     };
@@ -235,6 +242,76 @@ const ListComponent = ({
         } else {
             setHoveredPath(null);
         }
+    };
+
+    // 新增：处理单个项目的拖动开始
+    const handleItemDragStart = (e: React.DragEvent, index: number) => {
+        e.stopPropagation();
+        // Set the dragged item in global context with delete callback
+        const deleteCallback = () => {
+            const newData = data.filter((_, i) => i !== index);
+            onUpdate(newData);
+        };
+        setDraggedItem(data[index], getIndexPath(index), index, 'list', deleteCallback);
+        e.dataTransfer.effectAllowed = 'move';
+        
+        // Visual feedback
+        const dragPreview = createItemDragPreview(data[index]);
+        document.body.appendChild(dragPreview);
+        e.dataTransfer.setDragImage(dragPreview, 10, 10);
+        
+        setTimeout(() => {
+            if (document.body.contains(dragPreview)) {
+                document.body.removeChild(dragPreview);
+            }
+        }, 0);
+        
+        preventParentDrag();
+        setHoveredPath(getIndexPath(index));
+    };
+
+    // 新增：创建项目的拖动预览
+    const createItemDragPreview = (value: any) => {
+        const preview = document.createElement('div');
+        preview.style.cssText = `
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 12px;
+            color: #CDCDCD;
+            max-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+        
+        const valueSpan = document.createElement('span');
+        valueSpan.style.cssText = `
+            color: #CDCDCD;
+            opacity: 0.8;
+        `;
+        
+        let valuePreview = '';
+        if (typeof value === 'string') {
+            valuePreview = value.length > 30 ? `"${value.substring(0, 30)}..."` : `"${value}"`;
+        } else if (Array.isArray(value)) {
+            valuePreview = `[${value.length} items]`;
+        } else if (typeof value === 'object' && value !== null) {
+            const keys = Object.keys(value);
+            valuePreview = `{${keys.length} keys}`;
+        } else {
+            valuePreview = String(value);
+        }
+        
+        valueSpan.textContent = valuePreview;
+        preview.appendChild(valueSpan);
+        
+        return preview;
     };
 
     return (
@@ -355,7 +432,12 @@ const ListComponent = ({
                                                     ? 'bg-[#CDCDCD]/10'
                                                     : 'hover:bg-[#6D7177]/10'
                                         }`}
-                                        onDragOver={(e) => handleDragOver(e, index)}
+                                        onDragOver={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const midpoint = rect.top + rect.height / 2;
+                                            const position = e.clientY < midpoint ? 'before' : 'after';
+                                            handleDragOver(e, index, position);
+                                        }}
                                         onDragLeave={handleDragLeave}
                                         onDrop={(e) => handleDrop(e, index)}
                                     >
@@ -401,6 +483,32 @@ const ListComponent = ({
                                                     </span>
                                                 </div>
                                             </div>
+                                            
+                                            {/* Drag handle for item */}
+                                            {!readonly && (
+                                                <div className="flex items-center px-1">
+                                                    <button
+                                                        className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#3a3a3a] transition-colors cursor-move opacity-40 hover:opacity-100"
+                                                        draggable
+                                                        onDragStart={(e) => handleItemDragStart(e, index)}
+                                                        onDragEnd={handleDragEnd}
+                                                        title="Drag to move this item"
+                                                    >
+                                                        <svg 
+                                                            className="w-3 h-3" 
+                                                            viewBox="0 0 16 16" 
+                                                            fill="currentColor"
+                                                        >
+                                                            <circle cx="4" cy="4" r="1.5" fill="#ff9b4d" />
+                                                            <circle cx="12" cy="4" r="1.5" fill="#ff9b4d" />
+                                                            <circle cx="4" cy="8" r="1.5" fill="#ff9b4d" />
+                                                            <circle cx="12" cy="8" r="1.5" fill="#ff9b4d" />
+                                                            <circle cx="4" cy="12" r="1.5" fill="#ff9b4d" />
+                                                            <circle cx="12" cy="12" r="1.5" fill="#ff9b4d" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            )}
                                             
                                             {/* Content */}
                                             <div className="flex-1 min-w-0">
