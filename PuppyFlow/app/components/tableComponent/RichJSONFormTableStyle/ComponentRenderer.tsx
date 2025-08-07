@@ -133,6 +133,147 @@ type ComponentRendererProps = {
     onDelete?: () => void; // Delete callback from parent
 }
 
+// Draggable Wrapper Component - handles drag functionality for all components
+type DraggableWrapperProps = {
+    children: React.ReactNode;
+    data: any;
+    path: string;
+    parentKey?: string | number;
+    readonly?: boolean;
+    onDelete?: () => void;
+    componentType: 'text' | 'dict' | 'list' | 'empty';
+    preventParentDrag: () => void;
+    allowParentDrag: () => void;
+};
+
+const DraggableWrapper = ({
+    children,
+    data,
+    path,
+    parentKey,
+    readonly,
+    onDelete,
+    componentType,
+    preventParentDrag,
+    allowParentDrag
+}: DraggableWrapperProps) => {
+    const [showMenu, setShowMenu] = React.useState(false);
+    const { setDraggedItem } = useDrag();
+    const { setHoveredPath } = useHover();
+
+    // Don't show drag handle for empty components or in readonly mode
+    const showDragHandle = !readonly && componentType !== 'empty' && onDelete;
+
+    const handleDragStart = (e: React.DragEvent) => {
+        e.stopPropagation();
+        
+        // Determine parent type from path
+        const parentType = path.includes('[') ? 'list' : 'dict';
+        
+        // Set dragged item with delete callback
+        setDraggedItem(data, path, parentKey || null, parentType, onDelete || (() => {}));
+        e.dataTransfer.effectAllowed = 'move';
+        
+        // Visual feedback
+        const dragPreview = createComponentDragPreview(data, componentType);
+        document.body.appendChild(dragPreview);
+        e.dataTransfer.setDragImage(dragPreview, 10, 10);
+        
+        setTimeout(() => {
+            if (document.body.contains(dragPreview)) {
+                document.body.removeChild(dragPreview);
+            }
+        }, 0);
+        
+        preventParentDrag();
+        setHoveredPath(path);
+    };
+
+    const handleDragEnd = () => {
+        allowParentDrag();
+        setHoveredPath(null);
+    };
+
+    const createComponentDragPreview = (value: any, type: string) => {
+        const preview = document.createElement('div');
+        preview.style.cssText = `
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 12px;
+            color: #CDCDCD;
+            max-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+        
+        const typeSpan = document.createElement('span');
+        typeSpan.style.cssText = `
+            color: ${type === 'text' ? '#4CAF50' : type === 'dict' ? '#9b7edb' : '#ff9b4d'};
+            font-weight: bold;
+            margin-right: 8px;
+        `;
+        typeSpan.textContent = type.toUpperCase();
+        
+        const valueSpan = document.createElement('span');
+        valueSpan.style.cssText = `
+            color: #CDCDCD;
+            opacity: 0.8;
+        `;
+        
+        let valuePreview = '';
+        if (type === 'text') {
+            valuePreview = value.length > 30 ? `"${value.substring(0, 30)}..."` : `"${value}"`;
+        } else if (type === 'list') {
+            valuePreview = `[${value.length} items]`;
+        } else if (type === 'dict') {
+            const keys = Object.keys(value);
+            valuePreview = `{${keys.length} keys}`;
+        }
+        
+        valueSpan.textContent = valuePreview;
+        
+        preview.appendChild(typeSpan);
+        preview.appendChild(valueSpan);
+        
+        return preview;
+    };
+
+    return (
+        <div className="relative group/component">
+            {/* Drag Handle - appears on hover */}
+            {showDragHandle && (
+                <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#6D7177] rounded-full opacity-0 group-hover/component:opacity-100 transition-opacity duration-200">
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+                        <button
+                            draggable={true}
+                            onDragStart={handleDragStart}
+                            onDragEnd={handleDragEnd}
+                            className="w-4 h-6 bg-[#252525] border border-[#6D7177]/50 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 cursor-move"
+                            title="Drag to move this component"
+                        >
+                            <div className="w-0.5 h-0.5 bg-[#6D7177] rounded-full"></div>
+                            <div className="w-0.5 h-0.5 bg-[#6D7177] rounded-full"></div>
+                            <div className="w-0.5 h-0.5 bg-[#6D7177] rounded-full"></div>
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            {/* Component Content */}
+            <div className="relative">
+                {children}
+            </div>
+        </div>
+    );
+};
+
 const ComponentRenderer = ({ 
     data, 
     path, 
@@ -190,60 +331,77 @@ const ComponentRenderer = ({
         }
     };
 
-    switch (componentType) {
-        case 'empty':
-            return (
-                <EmptyComponent
-                    onTypeSelect={handleTypeSelect}
-                    preventParentDrag={preventParentDrag}
-                    allowParentDrag={allowParentDrag}
-                    readonly={readonly}
-                />
-            );
-        case 'text':
-            return (
-                <TextComponent
-                    data={data}
-                    path={path}
-                    readonly={readonly}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    parentKey={parentKey}
-                    preventParentDrag={preventParentDrag}
-                    allowParentDrag={allowParentDrag}
-                />
-            );
-        case 'dict':
-            return (
-                <DictComponent
-                    data={data}
-                    path={path}
-                    readonly={readonly}
-                    isNested={true}
-                    onUpdate={onUpdate}
-                    onDelete={handleDelete}
-                    parentKey={parentKey}
-                    preventParentDrag={preventParentDrag}
-                    allowParentDrag={allowParentDrag}
-                />
-            );
-        case 'list':
-            return (
-                <ListComponent
-                    data={data}
-                    path={path}
-                    readonly={readonly}
-                    isNested={true}
-                    onUpdate={onUpdate}
-                    onDelete={handleDelete}
-                    parentKey={parentKey}
-                    preventParentDrag={preventParentDrag}
-                    allowParentDrag={allowParentDrag}
-                />
-            );
-        default:
-            return null;
-    }
+    const renderComponent = () => {
+        switch (componentType) {
+            case 'empty':
+                return (
+                    <EmptyComponent
+                        onTypeSelect={handleTypeSelect}
+                        preventParentDrag={preventParentDrag}
+                        allowParentDrag={allowParentDrag}
+                        readonly={readonly}
+                    />
+                );
+            case 'text':
+                return (
+                    <TextComponent
+                        data={data}
+                        path={path}
+                        readonly={readonly}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        parentKey={parentKey}
+                        preventParentDrag={preventParentDrag}
+                        allowParentDrag={allowParentDrag}
+                    />
+                );
+            case 'dict':
+                return (
+                    <DictComponent
+                        data={data}
+                        path={path}
+                        readonly={readonly}
+                        isNested={true}
+                        onUpdate={onUpdate}
+                        onDelete={handleDelete}
+                        parentKey={parentKey}
+                        preventParentDrag={preventParentDrag}
+                        allowParentDrag={allowParentDrag}
+                    />
+                );
+            case 'list':
+                return (
+                    <ListComponent
+                        data={data}
+                        path={path}
+                        readonly={readonly}
+                        isNested={true}
+                        onUpdate={onUpdate}
+                        onDelete={handleDelete}
+                        parentKey={parentKey}
+                        preventParentDrag={preventParentDrag}
+                        allowParentDrag={allowParentDrag}
+                    />
+                );
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <DraggableWrapper
+            data={data}
+            path={path}
+            parentKey={parentKey}
+            readonly={readonly}
+            onDelete={onDelete}
+            componentType={componentType}
+            preventParentDrag={preventParentDrag}
+            allowParentDrag={allowParentDrag}
+        >
+            {renderComponent()}
+        </DraggableWrapper>
+    );
 };
 
 // 创建空元素的函数

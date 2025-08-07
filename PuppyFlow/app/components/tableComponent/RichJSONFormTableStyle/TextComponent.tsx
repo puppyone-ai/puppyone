@@ -26,7 +26,6 @@ const TextComponent = ({
 }: TextComponentProps) => {
     const [showMenu, setShowMenu] = useState(false);
     const { setHoveredPath, isPathHovered } = useHover();
-    const { setDraggedItem, clearDraggedItem } = useDrag();  // 添加 useDrag
     const isTextHovered = isPathHovered(path);
 
     const handleEditChange = (newValue: string) => {
@@ -43,67 +42,7 @@ const TextComponent = ({
         }
     };
 
-    // 新增：处理文本的拖动开始
-    const handleTextDragStart = (e: React.DragEvent) => {
-        e.stopPropagation();
-        // Set the dragged item in global context with delete callback
-        const parentType = path.includes('[') ? 'list' : 'dict';
-        setDraggedItem(data, path, parentKey || null, parentType, onDelete);
-        e.dataTransfer.effectAllowed = 'move';
-        
-        // Visual feedback
-        const dragPreview = createTextDragPreview(data);
-        document.body.appendChild(dragPreview);
-        e.dataTransfer.setDragImage(dragPreview, 10, 10);
-        
-        setTimeout(() => {
-            if (document.body.contains(dragPreview)) {
-                document.body.removeChild(dragPreview);
-            }
-        }, 0);
-        
-        preventParentDrag();
-        setHoveredPath(path);
-    };
 
-    // 新增：创建文本的拖动预览
-    const createTextDragPreview = (text: string) => {
-        const preview = document.createElement('div');
-        preview.style.cssText = `
-            position: absolute;
-            top: -1000px;
-            left: -1000px;
-            background: #1a1a1a;
-            border: 1px solid #444;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 12px;
-            color: #CDCDCD;
-            max-width: 200px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
-            pointer-events: none;
-        `;
-        
-        const textSpan = document.createElement('span');
-        textSpan.style.cssText = `
-            color: #CDCDCD;
-            opacity: 0.8;
-        `;
-        
-        const textPreview = text.length > 30 ? `"${text.substring(0, 30)}..."` : `"${text}"`;
-        textSpan.textContent = textPreview;
-        preview.appendChild(textSpan);
-        
-        return preview;
-    };
-
-    const handleDragEnd = () => {
-        clearDraggedItem();
-        allowParentDrag();
-        setHoveredPath(null);
-    };
 
     const handleMenuClick = (e: React.MouseEvent) => {
         e.preventDefault();
@@ -162,22 +101,8 @@ const TextComponent = ({
                         <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/text:opacity-100 transition-opacity duration-200 z-50">
                             <button
                                 onClick={handleMenuClick}
-                                className={`w-4 h-6 bg-[#252525] border border-[#CDCDCD]/30 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 ${
-                                    !readonly && parentKey !== undefined ? 'cursor-move' : ''
-                                }`}
-                                title={parentKey !== undefined ? "Text options - drag to move text" : "Text options"}
-                                draggable={!readonly && parentKey !== undefined}
-                                onDragStart={(e) => {
-                                    if (!readonly && parentKey !== undefined) {
-                                        e.stopPropagation();
-                                        handleTextDragStart(e);
-                                    }
-                                }}
-                                onDragEnd={() => {
-                                    if (!readonly && parentKey !== undefined) {
-                                        handleDragEnd();
-                                    }
-                                }}
+                                className="w-4 h-6 bg-[#252525] border border-[#CDCDCD]/30 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200"
+                                title="Text options"
                             >
                                 <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>
                                 <div className="w-0.5 h-0.5 bg-[#CDCDCD]/60 rounded-full"></div>

@@ -12,7 +12,7 @@ import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
 import { useWorkspaces } from "../../states/UserWorkspacesContext"
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
-import RichJSONForm from '../../tableComponent/RichJSONFormTreeStyle/RichJSONForm'
+import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm'
 import JSONForm from '../../tableComponent/JSONForm'
 
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu'
