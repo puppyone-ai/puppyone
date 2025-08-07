@@ -12,7 +12,7 @@ import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement'
 import { useWorkspaces } from "../../states/UserWorkspacesContext"
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor'
-import RichJSONForm from '../../tableComponent/RichJSONForm/RichJSONForm'
+import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm'
 import JSONForm from '../../tableComponent/JSONForm'
 
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu'
@@ -570,11 +570,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
             {/* NodeToolBar */}
             <NodeSettingsController nodeid={id} />
 
-            {/* 使用新的 NodeViewToggleButton 组件 */}
-            {/* <NodeViewToggleButton
-              useRichEditor={useRichEditor}
-              onToggle={() => setUseRichEditor(!useRichEditor)}
-            /> */}
+            {/* 移除 NodeViewToggleButton - 已移动到左下角 */}
 
             {/* 使用 NodeIndexingButton 组件，传递所需的索引操作函数 */}
             <NodeIndexingButton
@@ -591,7 +587,7 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
 
         {/* JSON Editor - 根据状态切换不同的编辑器 */}
         {isLoading ? <SkeletonLoadingIcon /> :
-          <div className={`flex-1 min-h-0 overflow-hidden`}
+          <div className={`flex-1 min-h-0 overflow-hidden nodrag`}  // 直接添加 nodrag 类
             style={{
               background: "transparent",
               boxShadow: "none",
@@ -599,29 +595,49 @@ function JsonBlockNode({ isConnectable, id, type, data: { content, label, isLoad
           >
             {useRichEditor ? (
               <RichJSONForm
-                preventParentDrag={onFocus}
-                allowParentDrag={onBlur}
+                preventParentDrag={() => {}} // 空函数，不需要动态控制
+                allowParentDrag={() => {}}   // 空函数，不需要动态控制
                 placeholder='Create your JSON structure...'
                 value={content || ""}
                 onChange={updateNodeContent}
-                widthStyle={0}  // 0 表示使用 100%
-                heightStyle={0} // 0 表示使用 100%
+                widthStyle={0}
+                heightStyle={0}
                 readonly={locked}
               />
             ) : (
               <JSONForm
-                preventParentDrag={onFocus}
-                allowParentDrag={onBlur}
+                preventParentDrag={() => {}} // 空函数，不需要动态控制
+                allowParentDrag={() => {}}   // 空函数，不需要动态控制
                 placeholder='{"key": "value"}'
                 value={content || ""}
                 onChange={updateNodeContent}
-                widthStyle={0}  // 0 表示使用 100%
-                heightStyle={0} // 0 表示使用 100%
+                widthStyle={0}
+                heightStyle={0}
                 readonly={locked}
               />
             )}
           </div>
         }
+
+        {/* View Toggle Button - 左下角位置，默认隐藏 */}
+        <div
+          style={{
+            position: "absolute",
+            visibility: `${activatedNode?.id === id ? "visible" : "hidden"}`,
+            left: "8px",
+            bottom: "8px",
+            display: "flex",
+            justifyContent: 'center',
+            alignItems: 'center',
+            backgroundColor: 'transparent',
+            zIndex: "200000",
+          }}
+        >
+          <NodeViewToggleButton
+            useRichEditor={useRichEditor}
+            onToggle={() => setUseRichEditor(!useRichEditor)}
+          />
+        </div>
 
         <NodeResizeControl
           minWidth={240}
