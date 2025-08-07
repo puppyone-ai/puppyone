@@ -32,8 +32,15 @@ const ListComponent = ({
     const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const deleteItem = (index: number) => {
+        console.log('🗑️ LIST DELETE - Deleting item at index:', {
+            index,
+            item: data[index],
+            currentDataLength: data.length,
+            listPath: path
+        });
         const newData = data.filter((_, i) => i !== index);
         onUpdate(newData);
+        console.log('✅ LIST DELETE - Completed, new length:', newData.length);
     };
 
     const addEmptyItem = () => {
@@ -90,6 +97,15 @@ const ListComponent = ({
         if (draggedItem === null) return;
         
         
+        console.log('📍 LIST DROP - Drop attempt:', {
+            dropIndex,
+            draggedPath,
+            draggedKey,
+            currentPath: path,
+            draggedParentType,
+            hasSourceOnDelete: !!sourceOnDelete
+        });
+
         // Check if dragging within same list by comparing parent paths
         // Extract parent path from draggedPath
         const getParentPath = (childPath: string): string => {
@@ -102,6 +118,12 @@ const ListComponent = ({
         
         const draggedParentPath = getParentPath(draggedPath || '');
         const isSameList = draggedParentPath === path;
+        
+        console.log('🧮 LIST DROP - Path analysis:', {
+            draggedParentPath,
+            isSameList,
+            willCallSourceOnDelete: !isSameList && !!sourceOnDelete
+        });
         
         if (isSameList && typeof draggedKey === 'number') {
             // Internal reordering
@@ -123,7 +145,13 @@ const ListComponent = ({
         
         // Handle external drops (from global drag context) - only if NOT same list
         if (!isSameList && sourceOnDelete) {
+            console.log('🔥 LIST DROP - Calling sourceOnDelete for external drop');
             sourceOnDelete();
+            console.log('✅ LIST DROP - sourceOnDelete completed');
+        } else if (!isSameList) {
+            console.log('❌ LIST DROP - No sourceOnDelete callback for external drop');
+        } else {
+            console.log('ℹ️ LIST DROP - Same list reordering, sourceOnDelete not needed');
         }
         
         // Insert the dragged item at the specified position

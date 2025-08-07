@@ -36,9 +36,15 @@ const DictComponent = ({
     const keys = Object.keys(data);
 
     const deleteKey = (keyToDelete: string) => {
+        console.log('🗑️ DICT DELETE - Deleting key:', {
+            key: keyToDelete,
+            value: data[keyToDelete],
+            dictPath: path
+        });
         const newData = { ...data };
         delete newData[keyToDelete];
         onUpdate(newData);
+        console.log('✅ DICT DELETE - Completed, remaining keys:', Object.keys(newData));
     };
 
     // 生成随机key的函数
