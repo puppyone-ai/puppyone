@@ -156,7 +156,7 @@ const TextComponent = ({
             <div className="flex items-stretch">
                 
                 {/* Text content with left border and menu */}
-                <div className="flex-1 relative">
+                <div className="flex-1 min-w-0 relative">
                     <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#CDCDCD]/40 rounded-full">
                         <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-[#CDCDCD]/40 rounded-full transition-all duration-200 group-hover/text:w-[4px] group-hover/text:left-[-1px]"></div>
                         <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-0 group-hover/text:opacity-100 transition-opacity duration-200 z-50">
