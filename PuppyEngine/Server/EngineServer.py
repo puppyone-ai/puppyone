@@ -149,7 +149,6 @@ async def lifespan(app: FastAPI):
     log_info("--- Engine Server starting up ---")
     
     # 1. Dynamic imports to avoid duplicate initialization
-    from Server.JsonValidation import JsonValidator
     from Server.auth_module import auth_module, AuthenticationError, User
     from Server.usage_module import usage_module, UsageError
     
