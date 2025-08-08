@@ -13,7 +13,7 @@ type DragContextType = {
     draggedParentType: 'dict' | 'list' | null;
     sourceOnDelete: (() => void) | null;
     setDraggedItem: (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => void;
-    clearDraggedItem: () => void;
+    clearDraggedItem: (shouldDelete?: boolean) => void;
 };
 
 const DragContext = createContext<DragContextType | null>(null);
@@ -26,13 +26,6 @@ export const DragProvider = ({ children }: { children: React.ReactNode }) => {
     const [sourceOnDelete, setSourceOnDelete] = useState<(() => void) | null>(null);
 
     const setDraggedItem = (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => {
-        console.log('🚀 DRAG START - Setting dragged item:', {
-            item: typeof item === 'object' ? `${Array.isArray(item) ? 'Array' : 'Object'}(${JSON.stringify(item).substring(0, 50)}...)` : item,
-            path,
-            key,
-            parentType,
-            hasOnDelete: !!onDelete
-        });
         setDraggedItemState(item);
         setDraggedPath(path);
         setDraggedKey(key);
@@ -40,7 +33,8 @@ export const DragProvider = ({ children }: { children: React.ReactNode }) => {
         setSourceOnDelete(onDelete ? () => onDelete : null);
     };
 
-    const clearDraggedItem = () => {
+    const clearDraggedItem = (shouldDelete: boolean = false) => {
+        // 不在这里执行删除，避免状态冲突
         setDraggedItemState(null);
         setDraggedPath('');
         setDraggedKey(null);

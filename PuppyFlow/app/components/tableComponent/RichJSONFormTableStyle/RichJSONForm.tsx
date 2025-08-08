@@ -57,6 +57,7 @@ const JSONViewer = ({
     const [parsedData, setParsedData] = useState<JSONData | null>(null);
     const [isValidJSON, setIsValidJSON] = useState(false);
     const [showTypeSelector, setShowTypeSelector] = useState(false);
+    const [movedPaths, setMovedPaths] = useState<Set<string>>(new Set());  // 记录已移动的路径
     const containerRef = useRef<HTMLDivElement>(null);
     const { isOnGeneratingNewNode } = useNodesPerFlowContext();
 
@@ -107,6 +108,133 @@ const JSONViewer = ({
         setShowTypeSelector(false);
     };
 
+    // 执行移动操作：从源路径移动到目标路径
+    const performMove = (sourcePath: string, targetPath: string, targetIndex?: number) => {
+        if (!parsedData) return;
+        
+        // 获取源元素的值
+        const getValueAtPath = (data: any, path: string): any => {
+            if (!path) return data;
+            
+            const pathParts = path.match(/(\[(\d+)\])|([^.\[\]]+)/g) || [];
+            let current = data;
+            
+            for (const part of pathParts) {
+                if (part.startsWith('[') && part.endsWith(']')) {
+                    const index = parseInt(part.slice(1, -1));
+                    current = current?.[index];
+                } else {
+                    current = current?.[part];
+                }
+            }
+            
+            return current;
+        };
+        
+        const sourceValue = getValueAtPath(parsedData, sourcePath);
+        if (sourceValue === undefined) return;
+        
+        // 先删除源位置的数据
+        let newData = deleteAtPath(parsedData, sourcePath);
+        
+        // 再在目标位置插入数据
+        if (targetIndex !== undefined) {
+            newData = insertAtPath(newData, targetPath, sourceValue, targetIndex);
+        }
+        
+        // 更新整个数据
+        updateData(newData);
+    };
+    
+    // 删除指定路径的数据
+    const deleteAtPath = (data: any, path: string): any => {
+        if (!path) return data;
+        
+        // 解析路径
+        const pathParts = path.match(/(\[(\d+)\])|([^.\[\]]+)/g) || [];
+        
+        if (pathParts.length === 0) return data;
+        
+        // 递归删除
+        const deleteRecursive = (current: any, parts: string[], index: number): any => {
+            if (!current) return current;
+            
+            const part = parts[index];
+            const isLast = index === parts.length - 1;
+            
+            // 处理数组索引
+            if (part.startsWith('[') && part.endsWith(']')) {
+                const arrayIndex = parseInt(part.slice(1, -1));
+                const newArray = [...current];
+                
+                if (isLast) {
+                    // 删除数组元素
+                    newArray.splice(arrayIndex, 1);
+                } else {
+                    newArray[arrayIndex] = deleteRecursive(newArray[arrayIndex], parts, index + 1);
+                }
+                
+                return newArray;
+            }
+            
+            // 处理对象属性
+            const newObj = { ...current };
+            
+            if (isLast) {
+                // 删除对象属性
+                delete newObj[part];
+            } else {
+                newObj[part] = deleteRecursive(newObj[part], parts, index + 1);
+            }
+            
+            return newObj;
+        };
+        
+        return deleteRecursive(data, pathParts, 0);
+    };
+    
+    // 在指定路径插入数据
+    const insertAtPath = (data: any, path: string, value: any, index?: number): any => {
+        if (!path) return data;
+        
+        // 解析路径
+        const pathParts = path.match(/(\[(\d+)\])|([^.\[\]]+)/g) || [];
+        
+        if (pathParts.length === 0) return data;
+        
+        // 递归插入
+        const insertRecursive = (current: any, parts: string[], partIndex: number): any => {
+            const part = parts[partIndex];
+            const isLast = partIndex === parts.length - 1;
+            
+            // 处理数组索引
+            if (part.startsWith('[') && part.endsWith(']')) {
+                const arrayIndex = parseInt(part.slice(1, -1));
+                const newArray = [...(current || [])];
+                
+                if (isLast && index !== undefined) {
+                    // 在数组中插入
+                    newArray.splice(index, 0, value);
+                } else if (!isLast) {
+                    newArray[arrayIndex] = insertRecursive(newArray[arrayIndex], parts, partIndex + 1);
+                }
+                
+                return newArray;
+            }
+            
+            // 处理对象属性
+            const newObj = { ...(current || {}) };
+            
+            if (!isLast) {
+                newObj[part] = insertRecursive(newObj[part], parts, partIndex + 1);
+            }
+            
+            return newObj;
+        };
+        
+        return insertRecursive(data, pathParts, 0);
+    };
+    
     // 更新数据
     const updateData = (newData: any) => {
         if (onChange) {

@@ -32,15 +32,8 @@ const ListComponent = ({
     const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const deleteItem = (index: number) => {
-        console.log('🗑️ LIST DELETE - Deleting item at index:', {
-            index,
-            item: data[index],
-            currentDataLength: data.length,
-            listPath: path
-        });
         const newData = data.filter((_, i) => i !== index);
         onUpdate(newData);
-        console.log('✅ LIST DELETE - Completed, new length:', newData.length);
     };
 
     const addEmptyItem = () => {
@@ -97,15 +90,6 @@ const ListComponent = ({
         if (draggedItem === null) return;
         
         
-        console.log('📍 LIST DROP - Drop attempt:', {
-            dropIndex,
-            draggedPath,
-            draggedKey,
-            currentPath: path,
-            draggedParentType,
-            hasSourceOnDelete: !!sourceOnDelete
-        });
-
         // Check if dragging within same list by comparing parent paths
         // Extract parent path from draggedPath
         const getParentPath = (childPath: string): string => {
@@ -119,14 +103,8 @@ const ListComponent = ({
         const draggedParentPath = getParentPath(draggedPath || '');
         const isSameList = draggedParentPath === path;
         
-        console.log('🧮 LIST DROP - Path analysis:', {
-            draggedParentPath,
-            isSameList,
-            willCallSourceOnDelete: !isSameList && !!sourceOnDelete
-        });
-        
         if (isSameList && typeof draggedKey === 'number') {
-            // Internal reordering
+            // Internal reordering - 不需要删除源元素
             const newData = [...data];
             const item = newData[draggedKey];
             
@@ -138,43 +116,30 @@ const ListComponent = ({
             newData.splice(insertIndex, 0, item);
             
             onUpdate(newData);
-            clearDraggedItem();
+            
+            // 清除拖拽状态但不调用删除
+            clearDraggedItem(false);  // false表示不删除源元素
             setDragOverIndex(null);
             return;
         }
         
-        // Handle external drops (from global drag context) - only if NOT same list
+        // 跨容器移动 - 先添加，后删除
+        const newData = [...data];
+        newData.splice(dropIndex, 0, draggedItem);
+        
+        onUpdate(newData);
+        
+        // 在下一个渲染帧删除源元素，确保添加操作先完成
         if (!isSameList && sourceOnDelete) {
-            console.log('🔥 LIST DROP - Calling sourceOnDelete for external drop');
-            sourceOnDelete();
-            console.log('✅ LIST DROP - sourceOnDelete completed');
-            
-            // 延迟添加操作，确保删除状态更新先完成
-            setTimeout(() => {
-                console.log('⏱️ LIST DROP - Delayed insert after delete');
-                // Insert the dragged item at the specified position
-                const newData = [...data];
-                newData.splice(dropIndex, 0, draggedItem);
-                
-                onUpdate(newData);
-                clearDraggedItem();
-                setDragOverIndex(null);
-            }, 50);
-        } else {
-            if (!isSameList) {
-                console.log('❌ LIST DROP - No sourceOnDelete callback for external drop');
-            } else {
-                console.log('ℹ️ LIST DROP - Same list reordering, sourceOnDelete not needed');
-            }
-            
-            // 同列表内重排或没有删除回调的情况，直接执行
-            const newData = [...data];
-            newData.splice(dropIndex, 0, draggedItem);
-            
-            onUpdate(newData);
-            clearDraggedItem();
-            setDragOverIndex(null);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    sourceOnDelete();
+                });
+            });
         }
+        
+        clearDraggedItem();
+        setDragOverIndex(null);
     };
 
 
