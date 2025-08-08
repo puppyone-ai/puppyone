@@ -14,7 +14,8 @@ Goals:
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Literal
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field
+from pydantic import model_validator, field_validator
 
 
 ALLOWED_EDGE_TYPES = (
@@ -42,7 +43,7 @@ class BlockModel(BaseModel):
     storage_class: Literal["internal", "external"] = "internal"
     data: BlockDataModel = Field(default_factory=BlockDataModel)
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
     def _ensure_data_dict(cls, values: Dict[str, Any]) -> Dict[str, Any]:
         # Ensure 'data' exists and is a dict
         data = values.get("data")
@@ -102,23 +103,24 @@ class SearchCollectionConfigs(BaseModel):
     user_id: Optional[str] = Field(default="public")
     vdb_type: Optional[str] = None  # dynamic default handled by storage service
 
-    @root_validator
-    def _one_of_collection_or_triplet(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        cname = values.get("collection_name")
-        set_name = values.get("set_name")
-        model = values.get("model")
-        user_id = values.get("user_id")
+    @model_validator(mode="after")
+    def _one_of_collection_or_triplet(self) -> "SearchCollectionConfigs":
+        cname = self.collection_name
+        set_name = self.set_name
+        model = self.model
+        user_id = self.user_id
         if not cname and not (set_name and model and user_id):
             raise ValueError(
                 "Search collection_configs must include either collection_name, or all of set_name+model+user_id"
             )
-        return values
+        return self
 
 
 class SearchDataSourceItem(BaseModel):
     index_item: Dict[str, Any]
 
-    @validator("index_item")
+    @field_validator("index_item")
+    @classmethod
     def _validate_index_item(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         # Require index_item.collection_configs
         cc = v.get("collection_configs")
@@ -138,7 +140,8 @@ class SearchEdgeData(EdgeCommonData):
     threshold: Optional[float] = None
     metric: Optional[str] = Field(default="cosine")
 
-    @validator("query_id")
+    @field_validator("query_id")
+    @classmethod
     def _validate_query_id(cls, v: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(v, dict) or len(v) == 0:
             raise ValueError("query_id must be a non-empty mapping of block_id -> {}")
@@ -149,14 +152,23 @@ class SearchEdgeData(EdgeCommonData):
 
 
 class EdgeModel(BaseModel):
-    type: Literal[ALLOWED_EDGE_TYPES]  # enforce allowed edges only
+    type: Literal[
+        "load",
+        "llm",
+        "chunk",
+        "search",
+        "modify",
+        "ifelse",
+        "generator",
+        "deep_research",
+    ]  # enforce allowed edges only
     data: Dict[str, Any]
 
     # Expand into specialized validations per edge type
-    @root_validator
-    def _validate_by_type(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        etype: str = values.get("type")
-        data: Dict[str, Any] = values.get("data") or {}
+    @model_validator(mode="after")
+    def _validate_by_type(self) -> "EdgeModel":
+        etype: str = self.type
+        data: Dict[str, Any] = self.data or {}
 
         # Always coerce inputs/outputs presence
         data.setdefault("inputs", {})
@@ -181,8 +193,8 @@ class EdgeModel(BaseModel):
             SearchEdgeData(**data)
 
         # write back potentially normalized data
-        values["data"] = data
-        return values
+        self.data = data
+        return self
 
 
 class WorkflowModel(BaseModel):
@@ -190,10 +202,10 @@ class WorkflowModel(BaseModel):
     blocks: Dict[str, BlockModel]
     edges: Dict[str, EdgeModel]
 
-    @root_validator
-    def _validate_refs_and_labels(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        blocks: Dict[str, BlockModel] = values.get("blocks", {})
-        edges: Dict[str, EdgeModel] = values.get("edges", {})
+    @model_validator(mode="after")
+    def _validate_refs_and_labels(self) -> "WorkflowModel":
+        blocks: Dict[str, BlockModel] = self.blocks or {}
+        edges: Dict[str, EdgeModel] = self.edges or {}
 
         # Populate id and default label from key
         for bid, b in blocks.items():
@@ -210,17 +222,16 @@ class WorkflowModel(BaseModel):
             inputs = data.get("inputs", {}) or {}
             outputs = data.get("outputs", {}) or {}
 
-            for ref_id, label in {**inputs, **outputs}.items():
+            merged = dict(inputs)
+            merged.update(outputs)
+            for ref_id, label in merged.items():
                 if ref_id not in block_ids:
                     raise ValueError(f"Edge {eid} references missing block_id: {ref_id}")
-                if label is not None:
-                    # Ensure optional label matches block label when provided
-                    if blocks[ref_id].label != label:
-                        # do not raise hard error; normalize silently by ignoring the provided label
-                        # Keeping validation strict but non-fatal here would require mutation; skip raise
-                        pass
+                if label is not None and blocks[ref_id].label != label:
+                    # ignore mismatch silently; engine uses block_id + block.label from blocks
+                    pass
 
-        return values
+        return self
 
 
 def normalize_workflow_payload(raw_workflow: Dict[str, Any]) -> Dict[str, Any]:
