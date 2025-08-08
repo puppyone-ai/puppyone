@@ -302,18 +302,18 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       manageNodeasOutput,
     ]);
 
-    useEffect(() => {
-      console.log('sourceNodes长度', sourceNodes.length);
-      console.log('targetNodes长度', targetNodes.length);
-    }, [
-      sourceNodes.length,
-      targetNodes.length,
-      isInput,
-      isOutput,
-      id,
-      manageNodeasInput,
-      manageNodeasOutput,
-    ]);
+    // useEffect(() => {
+    //   console.log('sourceNodes长度', sourceNodes.length);
+    //   console.log('targetNodes长度', targetNodes.length);
+    // }, [
+    //   sourceNodes.length,
+    //   targetNodes.length,
+    //   isInput,
+    //   isOutput,
+    //   id,
+    //   manageNodeasInput,
+    //   manageNodeasOutput,
+    // ]);
 
     // 管理外部点击事件
     useEffect(() => {
