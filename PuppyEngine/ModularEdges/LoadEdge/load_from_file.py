@@ -1207,6 +1207,63 @@ class FileToTextParser:
         # Need to use VLM in the future
         return f"Video Description with LLM (Frame Skip: {skip_num})"
 
+    @global_exception_handler(1318, "Error Parsing Unknown/Binary File Type")
+    def _parse_application(
+        self,
+        file_path: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generic file handler for unknown or binary file types.
+
+        Args:
+            file_path (str): Path or URL to the file.
+            **kwargs:
+              - max_text_size (int): bytes to read when attempting text parsing, default 4096
+              - include_binary (bool): whether to include binary hex preview, default False
+
+        Returns:
+            Dict[str, Any]: Basic info and text or binary preview when possible.
+        """
+        max_text_size = int(kwargs.get("max_text_size", 4096))
+        include_binary = bool(kwargs.get("include_binary", False))
+
+        result: Dict[str, Any] = {
+            "file_name": os.path.basename(file_path) if isinstance(file_path, str) else "stream",
+            "is_text": False
+        }
+
+        # Obtain size and first bytes
+        if self._is_file_url(file_path):
+            try:
+                head = requests.head(file_path, timeout=10)
+                result["file_size"] = int(head.headers.get('Content-Length', 0))
+            except Exception:
+                result["file_size"] = None
+            content = self._remote_file_to_byte_io(file_path).read(max_text_size)
+        else:
+            try:
+                result["file_size"] = os.path.getsize(file_path)
+            except Exception:
+                result["file_size"] = None
+            with open(file_path, 'rb') as f:
+                content = f.read(max_text_size)
+
+        # Try decode as UTF-8 text
+        try:
+            text = content.decode('utf-8')
+            result["is_text"] = True
+            preview = text[:1000]
+            if len(text) > 1000:
+                preview += "..."
+            result["text_preview"] = preview
+        except UnicodeDecodeError:
+            if include_binary:
+                hex_preview = content[:100].hex()
+                result["binary_preview"] = hex_preview if len(hex_preview) <= 100 else f"{hex_preview[:50]}...{hex_preview[-50:]}"
+
+        return result
+
     # @global_exception_handler(1318, "Error Parsing Unknown File Type")
     # def _parse_application(
     #     self,

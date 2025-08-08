@@ -6,6 +6,8 @@ It manages blocks, edges, and orchestrates the execution with concurrent prefetc
 """
 
 import asyncio
+import os
+import shutil
 import uuid
 from typing import Dict, Set, List, Any, AsyncGenerator, Optional, Tuple
 from datetime import datetime
@@ -141,6 +143,20 @@ class Env:
                 "timestamp": datetime.utcnow().isoformat()
             }
             raise
+        finally:
+            # Best-effort cleanup of any local temp directories created during prefetch
+            try:
+                for block in self.blocks.values():
+                    external_meta = block.data.get('external_metadata') or {}
+                    local_dir = external_meta.get('local_dir')
+                    if local_dir and os.path.isdir(local_dir):
+                        try:
+                            shutil.rmtree(local_dir, ignore_errors=True)
+                            log_debug(f"Cleaned up local dir for block {block.id}: {local_dir}")
+                        except Exception as ce:
+                            log_warning(f"Failed to cleanup local dir {local_dir}: {ce}")
+            except Exception as ce:
+                log_warning(f"Env {self.id} cleanup encountered an error: {ce}")
     
     async def _start_prefetching(self):
         """Start concurrent prefetching for all external blocks"""
