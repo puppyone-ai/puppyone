@@ -16,6 +16,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from Server.Env import Env
+from DataClass.schemas import normalize_workflow_payload, WorkflowModel
 from clients.storage_client import StorageClient
 
 logger = logging.getLogger(__name__)
@@ -71,9 +72,19 @@ class EnvManager:
         task_state = TaskState(user_info)
         self._tasks[task_id] = task_state
         
+        # 预处理与校验工作流（结构化校验 + 规范化）
+        try:
+            normalized_workflow = normalize_workflow_payload(workflow_data)
+            # Instantiate to trigger pydantic validation (already done inside normalize, but ensures typed model)
+            WorkflowModel(**normalized_workflow)
+        except Exception as e:
+            # 若校验失败，直接记录并抛出
+            logger.error(f"Workflow validation failed: {e}")
+            raise
+
         # 创建后台任务执行工作流
         background_task = asyncio.create_task(
-            self._execute_workflow(task_id, workflow_data, task_state, edge_usage_callback)
+            self._execute_workflow(task_id, normalized_workflow, task_state, edge_usage_callback)
         )
         self._background_tasks[task_id] = background_task
         
