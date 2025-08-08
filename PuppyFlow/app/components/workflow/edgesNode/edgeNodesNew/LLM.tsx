@@ -244,9 +244,11 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
       setIsLoading(true);
       try {
         const context = createExecutionContext();
+        // 根据 structured_output 设置动态设置 targetNodeType
+        const targetNodeType = isStructured_output ? 'structured' : 'text';
         await runSingleEdgeNode({
           parentId: id,
-          targetNodeType: 'text',
+          targetNodeType,
           context,
           // 可以选择不提供 constructJsonData，使用默认实现
         });
@@ -255,7 +257,7 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
       } finally {
         setIsLoading(false);
       }
-    }, [id, isLoading, createExecutionContext]);
+    }, [id, isLoading, createExecutionContext, isStructured_output]);
 
     // 处理 PromptEditor 的变更 - 使用 useCallback 缓存
     const handleMessagesChange = useCallback(

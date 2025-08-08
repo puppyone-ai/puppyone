@@ -59,7 +59,12 @@ function buildTextNodeJson(
     label,
     type: 'text',
     data: {
-      content: nodeData.content || '',
+      content:
+        nodeData.content !== undefined &&
+        nodeData.content !== null &&
+        nodeData.content !== ''
+          ? nodeData.content
+          : null, // 使用 null 而不是空字符串，确保后端不会将其标记为已处理
     },
     looped: !!nodeData.looped,
     collection_configs: [],
@@ -107,7 +112,12 @@ function buildStructuredNodeJson(
     label,
     type: 'structured',
     data: {
-      content: parsedContent,
+      content:
+        parsedContent !== undefined &&
+        parsedContent !== null &&
+        parsedContent !== ''
+          ? parsedContent
+          : null, // 使用 null 而不是空字符串，确保后端不会将其标记为已处理
     },
     looped: !!nodeData.looped,
     collection_configs: collectionConfigs,
