@@ -36,24 +36,9 @@ const DictComponent = ({
     const keys = Object.keys(data);
 
     const deleteKey = (keyToDelete: string) => {
-        console.log('🗑️ DICT DELETE - Deleting key:', {
-            key: keyToDelete,
-            value: data[keyToDelete],
-            dictPath: path
-        });
         const newData = { ...data };
         delete newData[keyToDelete];
-        console.log('🔄 DICT DELETE - Calling onUpdate with:', newData);
         onUpdate(newData);
-        console.log('✅ DICT DELETE - Completed, remaining keys:', Object.keys(newData));
-        
-        // 验证状态是否正确更新
-        setTimeout(() => {
-            console.log('🔍 DICT DELETE - Verification after timeout:', {
-                currentDataKeys: Object.keys(data),
-                keyStillExists: keyToDelete in data
-            });
-        }, 100);
     };
 
     // 生成随机key的函数
@@ -209,9 +194,30 @@ const DictComponent = ({
         // If dragging from same dict, handle reordering
         if (isSameDict && draggedKey && typeof draggedKey === 'string' && currentKeys.includes(draggedKey)) {
             delete newData[draggedKey];
-        } else if (sourceOnDelete) {
-            // If dragging from different component, call the delete callback
-            sourceOnDelete();
+            
+            // 同字典内重排，不需要删除源元素
+            const shouldDelete = false;
+            
+            // 重新构建对象
+            const orderedData: Record<string, any> = {};
+            const keysToReorder = Object.keys(newData);
+            const dropIndex = keysToReorder.indexOf(dropKey);
+            
+            keysToReorder.forEach((key, index) => {
+                if (dragOverPosition === 'before' && index === dropIndex) {
+                    orderedData[draggedKey] = draggedItem;
+                }
+                orderedData[key] = newData[key];
+                if (dragOverPosition === 'after' && index === dropIndex) {
+                    orderedData[draggedKey] = draggedItem;
+                }
+            });
+            
+            onUpdate(orderedData);
+            clearDraggedItem(shouldDelete);
+            setDragOverKey(null);
+            setDragOverPosition(null);
+            return;
         }
         
         // Generate new key for the dropped item
@@ -244,6 +250,16 @@ const DictComponent = ({
         }
         
         onUpdate(orderedData);
+        
+        // 在下一个渲染帧删除源元素，确保添加操作先完成
+        if (!isSameDict && sourceOnDelete) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    sourceOnDelete();
+                });
+            });
+        }
+        
         clearDraggedItem();
         setDragOverKey(null);
         setDragOverPosition(null);
