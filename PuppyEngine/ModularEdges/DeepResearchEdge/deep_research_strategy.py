@@ -212,8 +212,12 @@ Return only the rewritten query, nothing else."""
         ]
         
         try:
-            # Convert model string to dict format expected by remote_llm_chat
-            model_config = {self.llm_model: {}}
+            # Handle model object format (same as LLM component)
+            if isinstance(self.llm_model, dict):
+                model_config = self.llm_model
+            else:
+                # Fallback for string format
+                model_config = {self.llm_model: {}}
             
             response = remote_llm_chat(
                 messages=messages,
@@ -306,8 +310,12 @@ Please respond with either:
         logger.debug(f"🤖 [DeepResearch] Messages: {messages}")
         
         try:
-            # Convert model string to dict format expected by remote_llm_chat
-            model_config = {self.llm_model: {}}
+            # Handle model object format (same as LLM component)
+            if isinstance(self.llm_model, dict):
+                model_config = self.llm_model
+            else:
+                # Fallback for string format
+                model_config = {self.llm_model: {}}
             
             response = remote_llm_chat(
                 messages=messages,
