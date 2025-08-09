@@ -425,57 +425,60 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
               {isLoading ? 'Running...' : 'Test Run'}
             </button>
 
-            {/* Deploy Button */}
-            <button
-              className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[32px] rounded-[8px] bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D] group`}
-              onMouseEnter={() => setDeployHovered(true)}
-              onMouseLeave={() => setDeployHovered(false)}
-              onClick={() => setShowDeployMenu(!showDeployMenu)}
-            >
-              <svg
-                width='18'
-                height='15'
-                viewBox='0 0 18 15'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-                className='transition-[stroke]'
+            {/* Deploy Button with Menu */}
+            <div className="relative">
+              <button
+                className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[32px] rounded-[8px] bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D] group`}
+                onMouseEnter={() => setDeployHovered(true)}
+                onMouseLeave={() => setDeployHovered(false)}
+                onClick={() => setShowDeployMenu(!showDeployMenu)}
               >
-                <path
-                  className='transition-[fill]'
-                  d='M14.5 11L17.5 15H14.5V11Z'
-                  fill={deployHovered === true ? '#000' : '#CDCDCD'}
-                />
-                <path
-                  className='transition-[fill]'
-                  d='M3.5 11V15H0.5L3.5 11Z'
-                  fill={deployHovered === true ? '#000' : '#CDCDCD'}
-                />
-                <path
-                  className='transition-[fill]'
-                  fillRule='evenodd'
-                  clipRule='evenodd'
-                  d='M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z'
-                  fill={deployHovered === true ? '#000' : '#CDCDCD'}
-                />
-              </svg>
-              <div
-                className={`text-[14px] font-normal leading-normal transition-colors ${deployHovered === true ? 'text-[#000]' : 'text-[#CDCDCD]'}`}
-              >
-                Deploy
-              </div>
-            </button>
+                <svg
+                  width='18'
+                  height='15'
+                  viewBox='0 0 18 15'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                  className='transition-[stroke]'
+                >
+                  <path
+                    className='transition-[fill]'
+                    d='M14.5 11L17.5 15H14.5V11Z'
+                    fill={deployHovered === true ? '#000' : '#CDCDCD'}
+                  />
+                  <path
+                    className='transition-[fill]'
+                    d='M3.5 11V15H0.5L3.5 11Z'
+                    fill={deployHovered === true ? '#000' : '#CDCDCD'}
+                  />
+                  <path
+                    className='transition-[fill]'
+                    fillRule='evenodd'
+                    clipRule='evenodd'
+                    d='M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z'
+                    fill={deployHovered === true ? '#000' : '#CDCDCD'}
+                  />
+                </svg>
+                <div
+                  className={`text-[14px] font-normal leading-normal transition-colors ${deployHovered === true ? 'text-[#000]' : 'text-[#CDCDCD]'}`}
+                >
+                  Deploy
+                </div>
+              </button>
+
+              {/* Deploy Menu - positioned directly below the deploy button */}
+              {showDeployMenu && (
+                <div className='absolute top-full left-0 mt-1 z-50 nodrag'>
+                  <GroupDeployToolbar
+                    groupNodeId={id}
+                    onClose={() => setShowDeployMenu(false)}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </NodeToolbar>
 
-        {/* Deploy Menu - positioned relative to the top toolbar */}
-        {showDeployMenu && (
-          <div className='absolute -top-2 left-1/2 transform -translate-x-1/2 translate-y-full z-40 nodrag'>
-            <GroupDeployToolbar
-              groupNodeId={id}
-              onClose={() => setShowDeployMenu(false)}
-            />
-          </div>
-        )}
 
         {/* 子节点指示 - 在空白时显示提示 */}
         {childNodes.length === 0 && (
