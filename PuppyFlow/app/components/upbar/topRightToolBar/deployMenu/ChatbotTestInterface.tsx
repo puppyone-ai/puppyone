@@ -20,7 +20,7 @@ const ChatbotTestInterface = ({
   onClose,
   input,
   output,
-  history
+  history,
 }: ChatbotTestInterfaceProps) => {
   const [userApiKey, setUserApiKey] = useState<string>(apiKey || '');
   const [conversationHistory, setConversationHistory] = useState<string>('');
@@ -61,13 +61,13 @@ const ChatbotTestInterface = ({
 
       const requestData: any = {
         input: {
-          [input]: message
-        }
+          [input]: message,
+        },
       };
 
       if (history) {
         requestData.history = {
-          [history]: conversationHistory
+          [history]: conversationHistory,
         };
       }
 
@@ -77,14 +77,14 @@ const ChatbotTestInterface = ({
 
       const response = await axios.post(finalApiEndpoint, requestData, {
         headers: {
-          "Authorization": userApiKey ? `Bearer ${userApiKey}` : '',
-          "Content-Type": "application/json"
-        }
+          Authorization: userApiKey ? `Bearer ${userApiKey}` : '',
+          'Content-Type': 'application/json',
+        },
       });
 
       console.log('Received response:', response.data);
 
-      let botResponse = "No response from the bot";
+      let botResponse = 'No response from the bot';
 
       if (response.data?.output) {
         if (output && response.data.output[output]) {
@@ -101,15 +101,17 @@ const ChatbotTestInterface = ({
       if (history) {
         const newHistoryEntry = `User: ${message}\nAssistant: ${botResponse}\n`;
         setConversationHistory(prev => prev + newHistoryEntry);
-        console.log('Updated conversation history:', conversationHistory + newHistoryEntry);
+        console.log(
+          'Updated conversation history:',
+          conversationHistory + newHistoryEntry
+        );
       }
 
       return botResponse;
-
     } catch (error: any) {
-      console.error("Error calling chatbot API:", error);
+      console.error('Error calling chatbot API:', error);
 
-      let errorContent = "Failed to connect to the API";
+      let errorContent = 'Failed to connect to the API';
 
       if (error.response?.data) {
         if (typeof error.response.data === 'string') {
@@ -134,43 +136,57 @@ const ChatbotTestInterface = ({
   // 状态信息区域组件
   const StatusSection = () => (
     <>
-      <div className="mt-4 flex items-center justify-between text-[11px] text-[#505050]">
-        <div className="flex items-center">
-          <span>Chatbot ID: <span className="text-[#606060]">{chatbotId}</span></span>
+      <div className='mt-4 flex items-center justify-between text-[11px] text-[#505050]'>
+        <div className='flex items-center'>
+          <span>
+            Chatbot ID: <span className='text-[#606060]'>{chatbotId}</span>
+          </span>
         </div>
-        <div className="flex items-center">
-          <span>Endpoint: <span className="text-[#606060]">
-            /chat/{chatbotId}
-          </span></span>
-        </div>
-      </div>
-
-      <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
-        <div className="flex items-center">
-          <span>Chatbot Key: <span className={userApiKey ? "text-[#606060]" : "text-[#FF6B6B]"}>
-            {userApiKey || 'Not configured'}
-          </span></span>
+        <div className='flex items-center'>
+          <span>
+            Endpoint: <span className='text-[#606060]'>/chat/{chatbotId}</span>
+          </span>
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
-        <div className="flex items-center">
-          <span>Input Node: <span className={input ? "text-[#2DFF7C]" : "text-[#FF6B6B]"}>
-            {input || 'Not configured'}
-          </span></span>
-        </div>
-        <div className="flex items-center">
-          <span>Output Node: <span className={output ? "text-[#2DFF7C]" : "text-[#FF6B6B]"}>
-            {output || 'Not configured'}
-          </span></span>
+      <div className='mt-2 flex items-center justify-between text-[11px] text-[#505050]'>
+        <div className='flex items-center'>
+          <span>
+            Chatbot Key:{' '}
+            <span className={userApiKey ? 'text-[#606060]' : 'text-[#FF6B6B]'}>
+              {userApiKey || 'Not configured'}
+            </span>
+          </span>
         </div>
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-[11px] text-[#505050]">
-        <div className="flex items-center">
-          <span>History Node: <span className={history ? "text-[#2DFF7C]" : "text-[#606060]"}>
-            {history || 'Not configured (optional)'}
-          </span></span>
+      <div className='mt-2 flex items-center justify-between text-[11px] text-[#505050]'>
+        <div className='flex items-center'>
+          <span>
+            Input Node:{' '}
+            <span className={input ? 'text-[#2DFF7C]' : 'text-[#FF6B6B]'}>
+              {input || 'Not configured'}
+            </span>
+          </span>
+        </div>
+        <div className='flex items-center'>
+          <span>
+            Output Node:{' '}
+            <span className={output ? 'text-[#2DFF7C]' : 'text-[#FF6B6B]'}>
+              {output || 'Not configured'}
+            </span>
+          </span>
+        </div>
+      </div>
+
+      <div className='mt-2 flex items-center justify-between text-[11px] text-[#505050]'>
+        <div className='flex items-center'>
+          <span>
+            History Node:{' '}
+            <span className={history ? 'text-[#2DFF7C]' : 'text-[#606060]'}>
+              {history || 'Not configured (optional)'}
+            </span>
+          </span>
         </div>
       </div>
     </>
@@ -178,15 +194,15 @@ const ChatbotTestInterface = ({
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center z-[9999]"
+      className='fixed inset-0 flex items-center justify-center z-[9999]'
       onKeyDown={stopPropagation}
       onKeyUp={stopPropagation}
       onKeyPress={stopPropagation}
       onClick={stopPropagation}
     >
       <div
-        className="absolute inset-0 bg-black bg-opacity-80 backdrop-blur-sm"
-        onClick={(e) => {
+        className='absolute inset-0 bg-black bg-opacity-80 backdrop-blur-sm'
+        onClick={e => {
           stopPropagation(e);
           onClose && onClose();
         }}
@@ -194,42 +210,40 @@ const ChatbotTestInterface = ({
 
       <div
         ref={modalRef}
-        className="relative bg-transparent rounded-xl shadow-2xl max-w-2xl w-full mx-6 z-[10000]  overflow-hidden"
+        className='relative bg-transparent rounded-xl shadow-2xl max-w-2xl w-full mx-6 z-[10000]  overflow-hidden'
         onClick={stopPropagation}
         onKeyDown={stopPropagation}
         onKeyUp={stopPropagation}
         onKeyPress={stopPropagation}
       >
-
-
         <div
-          className="bg-transparent from-[#1E1E1E] to-[#252525] rounded-lg p-6 shadow-xl"
+          className='bg-transparent from-[#1E1E1E] to-[#252525] rounded-lg p-6 shadow-xl'
           onClick={stopPropagation}
         >
-
-
           {/* 使用你的 ChatInterface 组件 */}
-          <div className="mb-4">
+          <div className='mb-4'>
             <ChatInterface
               onSendMessage={handleSendMessage}
-              title="PuppyChat Test"
-              placeholder={input ? "Type your message here..." : "Configure input node first..."}
-              welcomeMessage="Welcome to your chatbot test interface! Start chatting to test your deployed bot."
-              width="100%"
-              height="600px"
+              title='PuppyChat Test'
+              placeholder={
+                input
+                  ? 'Type your message here...'
+                  : 'Configure input node first...'
+              }
+              welcomeMessage='Welcome to your chatbot test interface! Start chatting to test your deployed bot.'
+              width='100%'
+              height='600px'
               showAvatar={true}
               disabled={!input}
-              recommendedQuestions={[
-              ]}
+              recommendedQuestions={[]}
             />
           </div>
-          
+
           {/* 配置信息区域 */}
-          <div className="bg-[#1A1A1A] rounded-lg border border-[#333] p-4">
+          <div className='bg-[#1A1A1A] rounded-lg border border-[#333] p-4'>
             <StatusSection />
           </div>
         </div>
-
       </div>
     </div>
   );
@@ -242,29 +256,29 @@ export default ChatbotTestInterface;
     align-items: center;
     height: 24px;
   }
-  
+
   .typing-indicator span {
     height: 8px;
     width: 8px;
     margin: 0 2px;
-    background-color: #2DFF7C;
+    background-color: #2dff7c;
     display: block;
     border-radius: 50%;
     opacity: 0.5;
   }
-  
+
   .typing-indicator span:nth-child(1) {
     animation: pulse 0.8s infinite;
   }
-  
+
   .typing-indicator span:nth-child(2) {
     animation: pulse 0.8s infinite 0.2s;
   }
-  
+
   .typing-indicator span:nth-child(3) {
     animation: pulse 0.8s infinite 0.4s;
   }
-  
+
   @keyframes pulse {
     0% {
       opacity: 0.5;
@@ -281,7 +295,8 @@ export default ChatbotTestInterface;
   }
 
   @keyframes blink {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 0.2;
     }
     50% {
@@ -306,19 +321,19 @@ export default ChatbotTestInterface;
     height: 10px;
     display: block;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-track {
     background: #1a1a1a;
     border-radius: 4px;
     display: block;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #444;
     border-radius: 4px;
     display: block;
   }
-  
+
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #555;
     cursor: pointer;
@@ -331,4 +346,4 @@ export default ChatbotTestInterface;
     scrollbar-color: #444 #1a1a1a; /* Firefox */
     overflow-y: scroll !important; /* 强制始终显示滚动条 */
   }
-`}</style> 
+`}</style>;

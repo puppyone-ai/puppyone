@@ -52,7 +52,7 @@ export type ServerInitializationResult = {
   apis: EnhancedApiService[];
   chatbots: EnhancedChatbotService[];
   totalCount: number;
-}
+};
 
 export const useServerInitialization = () => {
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
@@ -62,50 +62,56 @@ export const useServerInitialization = () => {
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
 
-  const initializeAllServices = useCallback(async (): Promise<ServerInitializationResult | null> => {
-    if (isLoading) {
-      console.log('⏳ Initialization already in progress, skipping...');
-      return null;
-    }
-
-    console.log('🚀 Starting server initialization...');
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      if (!workspaces.length) {
-        console.log('⚠️ No workspaces available, returning empty result');
-        const result: ServerInitializationResult = {
-          apis: [],
-          chatbots: [],
-          totalCount: 0
-        };
-        setIsInitialized(true);
-        return result;
+  const initializeAllServices =
+    useCallback(async (): Promise<ServerInitializationResult | null> => {
+      if (isLoading) {
+        console.log('⏳ Initialization already in progress, skipping...');
+        return null;
       }
 
-      // 使用统一的增强服务获取方法
-      const { apis, chatbots, totalCount } = await serverOperations.fetchAllEnhancedServices(workspaces);
+      console.log('🚀 Starting server initialization...');
+      setIsLoading(true);
+      setError(null);
 
-      const result: ServerInitializationResult = {
-        apis,
-        chatbots,
-        totalCount
-      };
+      try {
+        if (!workspaces.length) {
+          console.log('⚠️ No workspaces available, returning empty result');
+          const result: ServerInitializationResult = {
+            apis: [],
+            chatbots: [],
+            totalCount: 0,
+          };
+          setIsInitialized(true);
+          return result;
+        }
 
-      console.log(`✅ Initialized ${apis.length} APIs and ${chatbots.length} chatbots`);
-      setIsInitialized(true);
-      return result;
+        // 使用统一的增强服务获取方法
+        const { apis, chatbots, totalCount } =
+          await serverOperations.fetchAllEnhancedServices(workspaces);
 
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown server initialization error';
-      console.error('Error in server initialization:', error);
-      setError(errorMessage);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isLoading, serverOperations, workspaces]);
+        const result: ServerInitializationResult = {
+          apis,
+          chatbots,
+          totalCount,
+        };
+
+        console.log(
+          `✅ Initialized ${apis.length} APIs and ${chatbots.length} chatbots`
+        );
+        setIsInitialized(true);
+        return result;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : 'Unknown server initialization error';
+        console.error('Error in server initialization:', error);
+        setError(errorMessage);
+        return null;
+      } finally {
+        setIsLoading(false);
+      }
+    }, [isLoading, serverOperations, workspaces]);
 
   // Reset initialization state
   const resetInitialization = useCallback(() => {
@@ -118,12 +124,12 @@ export const useServerInitialization = () => {
     isInitialized,
     isLoading,
     error,
-    
+
     // Methods
     initializeAllServices,
     resetInitialization,
-    
+
     // Expose server operations for other operations
     serverOperations,
   };
-}; 
+};

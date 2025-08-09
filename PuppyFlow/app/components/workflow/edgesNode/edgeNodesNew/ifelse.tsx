@@ -1,1009 +1,1340 @@
-import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react'
-import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext'
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge'
-import InputOutputDisplay from './components/InputOutputDisplay'
-import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown'
-import { nanoid } from 'nanoid'
-import { UI_COLORS } from '@/app/utils/colors'
-import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget'
-import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
-import { useAppSettings } from '@/app/components/states/AppSettingsContext'
-import { runSingleEdgeNode, RunSingleEdgeNodeContext } from './hook/runSingleEdgeNodeExecutor'
+import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react';
+import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge';
+import InputOutputDisplay from './components/InputOutputDisplay';
+import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown';
+import { nanoid } from 'nanoid';
+import { UI_COLORS } from '@/app/utils/colors';
+import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
+import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils';
+import { useAppSettings } from '@/app/components/states/AppSettingsContext';
+import {
+  runSingleEdgeNode,
+  RunSingleEdgeNodeContext,
+} from './hook/runSingleEdgeNodeExecutor';
 
 export type ChooseConfigNodeData = {
-    looped?: boolean | undefined,
-    content: string | null,
-    switch?: string | undefined,
-    ON?: string[] | undefined,
-    OFF?: string[] | undefined,
-}
+  looped?: boolean | undefined;
+  content: string | null;
+  switch?: string | undefined;
+  ON?: string[] | undefined;
+  OFF?: string[] | undefined;
+};
 
-type ChooseConfigNodeProps = NodeProps<Node<ChooseConfigNodeData>>
+type ChooseConfigNodeProps = NodeProps<Node<ChooseConfigNodeData>>;
 
 // Define the types for case data structures
 export interface Condition {
-    id: string;
-    label: string;
-    condition: string;
-    type?: string;
-    cond_v: string;
-    cond_input?: string;
-    operation: string;
+  id: string;
+  label: string;
+  condition: string;
+  type?: string;
+  cond_v: string;
+  cond_input?: string;
+  operation: string;
 }
 
 export interface Action {
-    from_id: string;
-    from_label: string;
-    outputs: string[];
+  from_id: string;
+  from_label: string;
+  outputs: string[];
 }
 
 export interface CaseItem {
-    conditions: Condition[];
-    actions: Action[];
+  conditions: Condition[];
+  actions: Action[];
 }
 
 export interface TransformedCondition {
-    block: string;
-    condition: string;
-    parameters: { [key: string]: string | number };
-    operation: string;
+  block: string;
+  condition: string;
+  parameters: { [key: string]: string | number };
+  operation: string;
 }
 
 export interface TransformedCase {
-    conditions: TransformedCondition[];
-    then: {
-        from: string;
-        to: string;
-    };
+  conditions: TransformedCondition[];
+  then: {
+    from: string;
+    to: string;
+  };
 }
 
 export interface TransformedCases {
-    [key: string]: TransformedCase;
+  [key: string]: TransformedCase;
 }
 
 export type ChooseEdgeJsonType = {
-    type: "choose" | "ifelse",
-    data: {
-        switch?: { [key: string]: string },
-        content?: { [key: string]: string },
-        inputs: { [key: string]: string },
-        outputs: { [key: string]: string },
-        ON?: { [key: string]: string },
-        OFF?: { [key: string]: string },
-        cases?: any
-    }
-}
+  type: 'choose' | 'ifelse';
+  data: {
+    switch?: { [key: string]: string };
+    content?: { [key: string]: string };
+    inputs: { [key: string]: string };
+    outputs: { [key: string]: string };
+    ON?: { [key: string]: string };
+    OFF?: { [key: string]: string };
+    cases?: any;
+  };
+};
 
 export type ConstructedChooseJsonData = {
-    blocks: { [key: string]: any },
-    edges: { [key: string]: ChooseEdgeJsonType }
-}
+  blocks: { [key: string]: any };
+  edges: { [key: string]: ChooseEdgeJsonType };
+};
 
 function IfElse({ isConnectable, id, data }: ChooseConfigNodeProps) {
-    const { isOnConnect, activatedEdge, isOnGeneratingNewNode, clearEdgeActivation, activateEdge, clearAll } = useNodesPerFlowContext()
-    const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false)
-    const { getNode, setNodes, setEdges } = useReactFlow()
-    const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget()
-    const [isMenuOpen, setIsMenuOpen] = useState(false)
-    const [isLoading, setIsLoading] = useState(false)
-    const menuRef = useRef<HTMLUListElement>(null)
-    const [isHovered, setIsHovered] = useState(false)
-    const [isRunButtonHovered, setIsRunButtonHovered] = useState(false)
+  const {
+    isOnConnect,
+    activatedEdge,
+    isOnGeneratingNewNode,
+    clearEdgeActivation,
+    activateEdge,
+    clearAll,
+  } = useNodesPerFlowContext();
+  const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false);
+  const { getNode, setNodes, setEdges } = useReactFlow();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
+    useGetSourceTarget();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const menuRef = useRef<HTMLUListElement>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
 
-    // 获取所有需要的依赖
-    const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils()
-    const { getAuthHeaders } = useAppSettings()
+  // 获取所有需要的依赖
+  const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
+  const { getAuthHeaders } = useAppSettings();
 
-    // State management
-    const [cases, setCases] = useState<CaseItem[]>(() => {
-        const nodeData = getNode(id)?.data;
-        return (nodeData?.cases as CaseItem[]) || [];
-    });
-    const [switchValue, setSwitchValue] = useState<string>(() => {
-        const nodeData = getNode(id)?.data;
-        return (nodeData?.switch as string) || "";
-    });
-    const [contentValue, setContentValue] = useState<string>(() => {
-        const nodeData = getNode(id)?.data;
-        return (nodeData?.content as string) || "";
-    });
-    const [onValue, setOnValue] = useState<string[]>(() => {
-        const nodeData = getNode(id)?.data;
-        return (nodeData?.ON as string[]) || [];
-    });
-    const [offValue, setOffValue] = useState<string[]>(() => {
-        const nodeData = getNode(id)?.data;
-        return (nodeData?.OFF as string[]) || [];
-    });
+  // State management
+  const [cases, setCases] = useState<CaseItem[]>(() => {
+    const nodeData = getNode(id)?.data;
+    return (nodeData?.cases as CaseItem[]) || [];
+  });
+  const [switchValue, setSwitchValue] = useState<string>(() => {
+    const nodeData = getNode(id)?.data;
+    return (nodeData?.switch as string) || '';
+  });
+  const [contentValue, setContentValue] = useState<string>(() => {
+    const nodeData = getNode(id)?.data;
+    return (nodeData?.content as string) || '';
+  });
+  const [onValue, setOnValue] = useState<string[]>(() => {
+    const nodeData = getNode(id)?.data;
+    return (nodeData?.ON as string[]) || [];
+  });
+  const [offValue, setOffValue] = useState<string[]>(() => {
+    const nodeData = getNode(id)?.data;
+    return (nodeData?.OFF as string[]) || [];
+  });
 
-    // Source node labels with type info
-    const [sourceNodeLabels, setSourceNodeLabels] = useState<{ label: string, type: string }[]>([])
+  // Source node labels with type info
+  const [sourceNodeLabels, setSourceNodeLabels] = useState<
+    { label: string; type: string }[]
+  >([]);
 
-    // 创建执行上下文
-    const createExecutionContext = useCallback((): RunSingleEdgeNodeContext => ({
-        getNode,
-        setNodes,
-        setEdges,
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
-        clearAll,
-        streamResult,
-        reportError,
-        resetLoadingUI,
-        getAuthHeaders,
-    }), [getNode, setNodes, setEdges, getSourceNodeIdWithLabel, getTargetNodeIdWithLabel, clearAll, streamResult, reportError, resetLoadingUI, getAuthHeaders]);
+  // 创建执行上下文
+  const createExecutionContext = useCallback(
+    (): RunSingleEdgeNodeContext => ({
+      getNode,
+      setNodes,
+      setEdges,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      reportError,
+      resetLoadingUI,
+      getAuthHeaders,
+    }),
+    [
+      getNode,
+      setNodes,
+      setEdges,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      reportError,
+      resetLoadingUI,
+      getAuthHeaders,
+    ]
+  );
 
-    // 使用执行函数的 handleDataSubmit
-    const handleDataSubmit = useCallback(async () => {
-        if (isLoading) return;
-        
-        setIsLoading(true);
-        try {
-            const context = createExecutionContext();
-            await runSingleEdgeNode({
-                parentId: id,
-                targetNodeType: 'ifelse',
-                context,
-            });
-        } catch (error) {
-            console.error('执行失败:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    }, [id, isLoading, createExecutionContext]);
+  // 使用执行函数的 handleDataSubmit
+  const handleDataSubmit = useCallback(async () => {
+    if (isLoading) return;
 
-    // Initialize component
-    useEffect(() => {
-        if (!isOnGeneratingNewNode) {
-            clearAll()
-            activateEdge(id)
-            
-            // 检查并初始化内容
-            const nodeData = getNode(id)?.data;
-            
-            // 同步所有状态到节点数据
-            setNodes(prevNodes => prevNodes.map(node => {
-                if (node.id === id) {
-                    return { 
-                        ...node, 
-                        data: { 
-                            ...node.data,
-                            cases: cases,
-                            switch: switchValue,
-                            content: contentValue,
-                            ON: onValue,
-                            OFF: offValue
-                        } 
-                    };
-                }
-                return node;
-            }));
-        }
+    setIsLoading(true);
+    try {
+      const context = createExecutionContext();
+      await runSingleEdgeNode({
+        parentId: id,
+        targetNodeType: 'ifelse',
+        context,
+      });
+    } catch (error) {
+      console.error('执行失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id, isLoading, createExecutionContext]);
 
-        return () => {
-            if (activatedEdge === id) {
-                clearEdgeActivation()
-            }
-        }
-    }, [])
+  // Initialize component
+  useEffect(() => {
+    if (!isOnGeneratingNewNode) {
+      clearAll();
+      activateEdge(id);
 
-    // 监听所有状态变化
-    useEffect(() => {
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { 
-                    ...node, 
-                    data: { 
-                        ...node.data,
-                        cases: cases,
-                        switch: switchValue,
-                        content: contentValue,
-                        ON: onValue,
-                        OFF: offValue
-                    } 
-                };
-            }
-            return node;
-        }));
-    }, [cases, switchValue, contentValue, onValue, offValue]);
+      // 检查并初始化内容
+      const nodeData = getNode(id)?.data;
 
-    // Update sourceNodeLabels
-    useEffect(() => {
-        const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id)
-        // Collect labels and types
-        const labelsWithTypes = sourceNodeIdWithLabelGroup.map(node => {
-            const nodeInfo = getNode(node.id)
-            const nodeType = nodeInfo?.type || 'text' // Default to text if type not found
+      // 同步所有状态到节点数据
+      setNodes(prevNodes =>
+        prevNodes.map(node => {
+          if (node.id === id) {
             return {
-                label: node.label,
-                type: nodeType
-            }
+              ...node,
+              data: {
+                ...node.data,
+                cases: cases,
+                switch: switchValue,
+                content: contentValue,
+                ON: onValue,
+                OFF: offValue,
+              },
+            };
+          }
+          return node;
         })
-        setSourceNodeLabels(labelsWithTypes)
-    }, [id, getNode, getSourceNodeIdWithLabel])
+      );
+    }
 
-    // Initialize cases if not already set
-    useEffect(() => {
-        if (cases.length === 0 && sourceNodeLabels.length > 0) {
-            const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
-            setCases([{
-                conditions: [{
-                    id: firstSourceNode?.id || '',
-                    label: firstSourceNode?.label || '',
-                    condition: 'contains',
-                    cond_v: '',
-                    operation: 'AND'
-                }],
-                actions: [{
-                    from_id: id,
-                    from_label: 'output',
-                    outputs: []
-                }]
-            }]);
+    return () => {
+      if (activatedEdge === id) {
+        clearEdgeActivation();
+      }
+    };
+  }, []);
+
+  // 监听所有状态变化
+  useEffect(() => {
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === id) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              cases: cases,
+              switch: switchValue,
+              content: contentValue,
+              ON: onValue,
+              OFF: offValue,
+            },
+          };
         }
-    }, [sourceNodeLabels]);
+        return node;
+      })
+    );
+  }, [cases, switchValue, contentValue, onValue, offValue]);
 
-    // UI interaction functions
-    const onClickButton = () => {
-        setIsMenuOpen(!isMenuOpen)
+  // Update sourceNodeLabels
+  useEffect(() => {
+    const sourceNodeIdWithLabelGroup = getSourceNodeIdWithLabel(id);
+    // Collect labels and types
+    const labelsWithTypes = sourceNodeIdWithLabelGroup.map(node => {
+      const nodeInfo = getNode(node.id);
+      const nodeType = nodeInfo?.type || 'text'; // Default to text if type not found
+      return {
+        label: node.label,
+        type: nodeType,
+      };
+    });
+    setSourceNodeLabels(labelsWithTypes);
+  }, [id, getNode, getSourceNodeIdWithLabel]);
 
-        if (isOnGeneratingNewNode) return
-        if (activatedEdge === id) {
-            clearEdgeActivation()
-        } else {
-            clearAll()
-            activateEdge(id)
+  // Initialize cases if not already set
+  useEffect(() => {
+    if (cases.length === 0 && sourceNodeLabels.length > 0) {
+      const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
+      setCases([
+        {
+          conditions: [
+            {
+              id: firstSourceNode?.id || '',
+              label: firstSourceNode?.label || '',
+              condition: 'contains',
+              cond_v: '',
+              operation: 'AND',
+            },
+          ],
+          actions: [
+            {
+              from_id: id,
+              from_label: 'output',
+              outputs: [],
+            },
+          ],
+        },
+      ]);
+    }
+  }, [sourceNodeLabels]);
+
+  // UI interaction functions
+  const onClickButton = () => {
+    setIsMenuOpen(!isMenuOpen);
+
+    if (isOnGeneratingNewNode) return;
+    if (activatedEdge === id) {
+      clearEdgeActivation();
+    } else {
+      clearAll();
+      activateEdge(id);
+    }
+  };
+
+  const onFocus = () => {
+    const curRef = menuRef.current;
+    if (curRef && !curRef.classList.contains('nodrag')) {
+      curRef.classList.add('nodrag');
+    }
+  };
+
+  const onBlur = () => {
+    const curRef = menuRef.current;
+    if (curRef) {
+      curRef.classList.remove('nodrag');
+    }
+  };
+
+  // Data synchronization functions
+  const onSwitchValueChange = (newValue: string) => {
+    setSwitchValue(newValue);
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === id) {
+          return { ...node, data: { ...node.data, switch: newValue } };
         }
-    }
+        return node;
+      })
+    );
+  };
 
-    const onFocus = () => {
-        const curRef = menuRef.current
-        if (curRef && !curRef.classList.contains("nodrag")) {
-            curRef.classList.add("nodrag")
+  const onContentValueChange = (newValue: string) => {
+    setContentValue(newValue);
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === id) {
+          return { ...node, data: { ...node.data, content: newValue } };
         }
-    }
+        return node;
+      })
+    );
+  };
 
-    const onBlur = () => {
-        const curRef = menuRef.current
-        if (curRef) {
-            curRef.classList.remove("nodrag")
+  const onONValueChange = (newValues: string[]) => {
+    setOnValue(newValues);
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === id) {
+          return { ...node, data: { ...node.data, ON: newValues } };
         }
-    }
+        return node;
+      })
+    );
+  };
 
-    // Data synchronization functions
-    const onSwitchValueChange = (newValue: string) => {
-        setSwitchValue(newValue)
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { ...node, data: { ...node.data, switch: newValue } }
-            }
-            return node
-        }))
-    }
-
-    const onContentValueChange = (newValue: string) => {
-        setContentValue(newValue)
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { ...node, data: { ...node.data, content: newValue } }
-            }
-            return node
-        }))
-    }
-
-    const onONValueChange = (newValues: string[]) => {
-        setOnValue(newValues)
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { ...node, data: { ...node.data, ON: newValues } }
-            }
-            return node
-        }))
-    }
-
-    const onOFFValueChange = (newValues: string[]) => {
-        setOffValue(newValues)
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { ...node, data: { ...node.data, OFF: newValues } }
-            }
-            return node
-        }))
-    }
-
-    const onCasesChange = (newCases: CaseItem[]) => {
-        setCases(newCases)
-        // No need to sync this to ReactFlow node data as it's handled separately
-    }
-
-    // Case manipulation functions
-    const onCaseAdd = () => {
-        setCases(prevCases => {
-            const newCases = [
-                ...prevCases,
-                {
-                    conditions: [{
-                        id: nanoid(6),
-                        label: sourceNodeLabels[0]?.label || '',
-                        condition: 'contains',
-                        cond_v: '',
-                        operation: 'AND'
-                    }],
-                    actions: [{
-                        from_id: id,
-                        from_label: 'output',
-                        outputs: []
-                    }]
-                }
-            ];
-            onCasesChange(newCases);
-            return newCases;
-        });
-    }
-
-    const onCaseDelete = (caseIndex: number) => {
-        setCases(prevCases => {
-            const newCases = prevCases.filter((_, index) => index !== caseIndex);
-            onCasesChange(newCases);
-            return newCases;
-        });
-    }
-
-    const onConditionAdd = (caseIndex: number) => (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setCases(prevCases => {
-            const newCases = [...prevCases];
-            const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
-            newCases[caseIndex].conditions.push({
-                id: firstSourceNode?.id || '',
-                label: firstSourceNode?.label || '',
-                condition: 'contains',
-                cond_v: '',
-                operation: 'AND'
-            });
-            onCasesChange(newCases);
-            return newCases;
-        });
-    }
-
-    const onConditionDelete = (caseIndex: number, conditionIndex: number) => () => {
-        setCases(prevCases => {
-            const newCases = [...prevCases];
-            if (newCases[caseIndex].conditions.length > 1) {
-                newCases[caseIndex].conditions.splice(conditionIndex, 1);
-                onCasesChange(newCases);
-            }
-            return newCases;
-        });
-    }
-
-    const onAndOrSwitch = (caseIndex: number, conditionIndex: number) => () => {
-        setCases(prevCases => {
-            const newCases = [...prevCases];
-            const currentOperation = newCases[caseIndex].conditions[conditionIndex].operation;
-            newCases[caseIndex].conditions[conditionIndex].operation = currentOperation === 'AND' ? 'OR' : 'AND';
-            onCasesChange(newCases);
-            return newCases;
-        });
-    }
-
-    // Update condition values
-    const updateCondition = (caseIndex: number, conditionIndex: number, field: keyof Condition, value: string) => {
-        setCases(prevCases => {
-            const newCases = [...prevCases];
-            newCases[caseIndex].conditions[conditionIndex][field] = value as any;
-            onCasesChange(newCases);
-            return newCases;
-        });
-    }
-
-    // Helper functions for UI
-    const getConditionSelections = (type: string) => {
-        if (type === "text") {
-            return [
-                "contains", 
-                "doesn't contain", 
-                "is greater than [N] characters", 
-                "is less than [N] characters"
-            ];
-        } else if (type === "structured") {
-            return [
-                "is empty", 
-                "is not empty", 
-                "contains", 
-                "doesn't contain", 
-                "is greater than [N] characters", 
-                "is less than [N] characters", 
-                "is list", 
-                "is dict"
-            ];
-        } else if (type === "switch") {
-            return ["is True", "is False"];
+  const onOFFValueChange = (newValues: string[]) => {
+    setOffValue(newValues);
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === id) {
+          return { ...node, data: { ...node.data, OFF: newValues } };
         }
+        return node;
+      })
+    );
+  };
 
-        return [];
+  const onCasesChange = (newCases: CaseItem[]) => {
+    setCases(newCases);
+    // No need to sync this to ReactFlow node data as it's handled separately
+  };
+
+  // Case manipulation functions
+  const onCaseAdd = () => {
+    setCases(prevCases => {
+      const newCases = [
+        ...prevCases,
+        {
+          conditions: [
+            {
+              id: nanoid(6),
+              label: sourceNodeLabels[0]?.label || '',
+              condition: 'contains',
+              cond_v: '',
+              operation: 'AND',
+            },
+          ],
+          actions: [
+            {
+              from_id: id,
+              from_label: 'output',
+              outputs: [],
+            },
+          ],
+        },
+      ];
+      onCasesChange(newCases);
+      return newCases;
+    });
+  };
+
+  const onCaseDelete = (caseIndex: number) => {
+    setCases(prevCases => {
+      const newCases = prevCases.filter((_, index) => index !== caseIndex);
+      onCasesChange(newCases);
+      return newCases;
+    });
+  };
+
+  const onConditionAdd = (caseIndex: number) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCases(prevCases => {
+      const newCases = [...prevCases];
+      const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
+      newCases[caseIndex].conditions.push({
+        id: firstSourceNode?.id || '',
+        label: firstSourceNode?.label || '',
+        condition: 'contains',
+        cond_v: '',
+        operation: 'AND',
+      });
+      onCasesChange(newCases);
+      return newCases;
+    });
+  };
+
+  const onConditionDelete =
+    (caseIndex: number, conditionIndex: number) => () => {
+      setCases(prevCases => {
+        const newCases = [...prevCases];
+        if (newCases[caseIndex].conditions.length > 1) {
+          newCases[caseIndex].conditions.splice(conditionIndex, 1);
+          onCasesChange(newCases);
+        }
+        return newCases;
+      });
     };
 
-    // Replace the data submission function
-    const onDataSubmit = useCallback(() => {
-        // Instead of passing cases data directly to the hook, 
-        // update the node data which will be read by buildIfElseNodeJson
-        setNodes(prevNodes => prevNodes.map(node => {
-            if (node.id === id) {
-                return { 
-                    ...node, 
-                    data: { 
-                        ...node.data, 
-                        cases: cases,
-                        switch: switchValue,
-                        content: contentValue,
-                        ON: onValue,
-                        OFF: offValue
-                    } 
-                }
-            }
-            return node
-        }));
-        
-        // Call the new handleDataSubmit without parameters
-        handleDataSubmit();
-    }, [handleDataSubmit, cases, switchValue, contentValue, onValue, offValue, setNodes, id]);
+  const onAndOrSwitch = (caseIndex: number, conditionIndex: number) => () => {
+    setCases(prevCases => {
+      const newCases = [...prevCases];
+      const currentOperation =
+        newCases[caseIndex].conditions[conditionIndex].operation;
+      newCases[caseIndex].conditions[conditionIndex].operation =
+        currentOperation === 'AND' ? 'OR' : 'AND';
+      onCasesChange(newCases);
+      return newCases;
+    });
+  };
 
-    // Handle style for the component
-    const handleStyle = {
-        position: "absolute" as const,
-        width: "calc(100%)",
-        height: "calc(100%)",
-        top: "0",
-        left: "0",
-        borderRadius: "0",
-        transform: "translate(0px, 0px)",
-        background: "transparent",
-        border: "3px solid transparent",
-        zIndex: !isOnConnect ? "-1" : "1",
+  // Update condition values
+  const updateCondition = (
+    caseIndex: number,
+    conditionIndex: number,
+    field: keyof Condition,
+    value: string
+  ) => {
+    setCases(prevCases => {
+      const newCases = [...prevCases];
+      newCases[caseIndex].conditions[conditionIndex][field] = value as any;
+      onCasesChange(newCases);
+      return newCases;
+    });
+  };
+
+  // Helper functions for UI
+  const getConditionSelections = (type: string) => {
+    if (type === 'text') {
+      return [
+        'contains',
+        "doesn't contain",
+        'is greater than [N] characters',
+        'is less than [N] characters',
+      ];
+    } else if (type === 'structured') {
+      return [
+        'is empty',
+        'is not empty',
+        'contains',
+        "doesn't contain",
+        'is greater than [N] characters',
+        'is less than [N] characters',
+        'is list',
+        'is dict',
+      ];
+    } else if (type === 'switch') {
+      return ['is True', 'is False'];
     }
 
-    const onActionAdd = (caseIndex: number) => () => {
-        setCases(prevCases => {
-            const newCases = [...prevCases];
-            newCases[caseIndex].actions.push({
-                from_id: id,
-                from_label: 'output',
-                outputs: []
-            });
-            onCasesChange(newCases);
-            return newCases;
-        });
-    }
+    return [];
+  };
 
-    // 添加停止函数
-    const onStopExecution = useCallback(() => {
-        console.log("Stop execution");
-        setIsLoading(false);
-        // 暂时可以留空，或者调用相应的停止API
-    }, []);
+  // Replace the data submission function
+  const onDataSubmit = useCallback(() => {
+    // Instead of passing cases data directly to the hook,
+    // update the node data which will be read by buildIfElseNodeJson
+    setNodes(prevNodes =>
+      prevNodes.map(node => {
+        if (node.id === id) {
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              cases: cases,
+              switch: switchValue,
+              content: contentValue,
+              ON: onValue,
+              OFF: offValue,
+            },
+          };
+        }
+        return node;
+      })
+    );
 
-    return (
-        <div className='p-[3px] w-[80px] h-[48px] relative'>
-            {/* Invisible hover area between node and run button */}
-            <div
-                className="absolute -top-[40px] left-0 w-full h-[40px]"
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-            />
+    // Call the new handleDataSubmit without parameters
+    handleDataSubmit();
+  }, [
+    handleDataSubmit,
+    cases,
+    switchValue,
+    contentValue,
+    onValue,
+    offValue,
+    setNodes,
+    id,
+  ]);
 
-            {/* Run button positioned above the node - show when node or run button is hovered */}
-            <button
-                className={`absolute -top-[40px] left-1/2 transform -translate-x-1/2 w-[57px] h-[24px] rounded-[6px] border-[1px] text-[10px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[4px] transition-all duration-200 ${
-                    (isHovered || isRunButtonHovered) ? 'opacity-100' : 'opacity-0'
-                }`}
+  // Handle style for the component
+  const handleStyle = {
+    position: 'absolute' as const,
+    width: 'calc(100%)',
+    height: 'calc(100%)',
+    top: '0',
+    left: '0',
+    borderRadius: '0',
+    transform: 'translate(0px, 0px)',
+    background: 'transparent',
+    border: '3px solid transparent',
+    zIndex: !isOnConnect ? '-1' : '1',
+  };
+
+  const onActionAdd = (caseIndex: number) => () => {
+    setCases(prevCases => {
+      const newCases = [...prevCases];
+      newCases[caseIndex].actions.push({
+        from_id: id,
+        from_label: 'output',
+        outputs: [],
+      });
+      onCasesChange(newCases);
+      return newCases;
+    });
+  };
+
+  // 添加停止函数
+  const onStopExecution = useCallback(() => {
+    console.log('Stop execution');
+    setIsLoading(false);
+    // 暂时可以留空，或者调用相应的停止API
+  }, []);
+
+  return (
+    <div className='p-[3px] w-[80px] h-[48px] relative'>
+      {/* Invisible hover area between node and run button */}
+      <div
+        className='absolute -top-[40px] left-0 w-full h-[40px]'
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      />
+
+      {/* Run button positioned above the node - show when node or run button is hovered */}
+      <button
+        className={`absolute -top-[40px] left-1/2 transform -translate-x-1/2 w-[57px] h-[24px] rounded-[6px] border-[1px] text-[10px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[4px] transition-all duration-200 ${
+          isHovered || isRunButtonHovered ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          backgroundColor: isRunButtonHovered
+            ? isLoading
+              ? '#FFA73D'
+              : '#39BC66'
+            : '#181818',
+          borderColor: isRunButtonHovered
+            ? isLoading
+              ? '#FFA73D'
+              : '#39BC66'
+            : UI_COLORS.EDGENODE_BORDER_GREY,
+          color: isRunButtonHovered ? '#000' : UI_COLORS.EDGENODE_BORDER_GREY,
+        }}
+        onClick={isLoading ? onStopExecution : onDataSubmit}
+        disabled={false}
+        onMouseEnter={() => setIsRunButtonHovered(true)}
+        onMouseLeave={() => setIsRunButtonHovered(false)}
+      >
+        <span>
+          {isLoading ? (
+            <svg width='6' height='6' viewBox='0 0 6 6' fill='none'>
+              <rect width='6' height='6' fill='currentColor' />
+            </svg>
+          ) : (
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              width='6'
+              height='8'
+              viewBox='0 0 8 10'
+              fill='none'
+            >
+              <path d='M8 5L0 10V0L8 5Z' fill='currentColor' />
+            </svg>
+          )}
+        </span>
+        <span>{isLoading ? 'Stop' : 'Run'}</span>
+      </button>
+
+      <button
+        onClick={onClickButton}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors gap-[4px]`}
+        style={{
+          borderColor: isLoading
+            ? '#FFA73D'
+            : isHovered
+              ? UI_COLORS.LINE_ACTIVE
+              : UI_COLORS.EDGENODE_BORDER_GREY,
+          color: isLoading
+            ? '#FFA73D'
+            : isHovered
+              ? UI_COLORS.LINE_ACTIVE
+              : UI_COLORS.EDGENODE_BORDER_GREY,
+        }}
+      >
+        {/* IF/ELSE SVG icon */}
+        <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='10'
+          height='10'
+          viewBox='0 0 12 12'
+          fill='none'
+        >
+          <path d='M6 12V7' stroke='currentColor' strokeWidth='2' />
+          <path d='M10 2V7L2 7V2' stroke='currentColor' strokeWidth='1.5' />
+          <path
+            d='M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z'
+            fill='currentColor'
+            stroke='currentColor'
+          />
+          <path
+            d='M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z'
+            fill='currentColor'
+            stroke='currentColor'
+          />
+        </svg>
+        <div className='flex flex-col items-center justify-center leading-tight text-[9px]'>
+          <span>IF/ELSE</span>
+        </div>
+
+        <Handle
+          id={`${id}-a`}
+          className='edgeSrcHandle handle-with-icon handle-top'
+          type='source'
+          position={Position.Top}
+        />
+        <Handle
+          id={`${id}-b`}
+          className='edgeSrcHandle handle-with-icon handle-right'
+          type='source'
+          position={Position.Right}
+        />
+        <Handle
+          id={`${id}-c`}
+          className='edgeSrcHandle handle-with-icon handle-bottom'
+          type='source'
+          position={Position.Bottom}
+        />
+        <Handle
+          id={`${id}-d`}
+          className='edgeSrcHandle handle-with-icon handle-left'
+          type='source'
+          position={Position.Left}
+        />
+
+        <Handle
+          id={`${id}-a`}
+          type='target'
+          position={Position.Top}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-b`}
+          type='target'
+          position={Position.Right}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-c`}
+          type='target'
+          position={Position.Bottom}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-d`}
+          type='target'
+          position={Position.Left}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+      </button>
+
+      {/* Configuration Menu (integrated directly) */}
+      {isMenuOpen && (
+        <ul
+          ref={menuRef}
+          className='w-[535px] absolute top-[64px] text-white rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
+          style={{
+            borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
+          }}
+        >
+          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+            <div className='flex flex-row gap-[12px]'>
+              <div className='flex flex-row gap-[8px] justify-center items-center'>
+                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                  <svg
+                    xmlns='http://www.w3.org/2000/svg'
+                    width='12'
+                    height='12'
+                    viewBox='0 0 12 12'
+                    fill='none'
+                  >
+                    <path d='M6 12V7' stroke='#D9D9D9' strokeWidth='2' />
+                    <path
+                      d='M10 2V7L2 7V2'
+                      stroke='#D9D9D9'
+                      strokeWidth='1.5'
+                    />
+                    <path
+                      d='M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z'
+                      fill='#D9D9D9'
+                      stroke='#D9D9D9'
+                    />
+                    <path
+                      d='M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z'
+                      fill='#D9D9D9'
+                      stroke='#D9D9D9'
+                    />
+                  </svg>
+                </div>
+                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                  If/Else
+                </div>
+              </div>
+            </div>
+            <div className='flex flex-row gap-[8px] items-center justify-center'>
+              <button
+                className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
                 style={{
-                    backgroundColor: isRunButtonHovered ? (isLoading ? '#FFA73D' : '#39BC66') : '#181818',
-                    borderColor: isRunButtonHovered ? (isLoading ? '#FFA73D' : '#39BC66') : UI_COLORS.EDGENODE_BORDER_GREY,
-                    color: isRunButtonHovered ? '#000' : UI_COLORS.EDGENODE_BORDER_GREY
+                  backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
                 }}
                 onClick={isLoading ? onStopExecution : onDataSubmit}
                 disabled={false}
-                onMouseEnter={() => setIsRunButtonHovered(true)}
-                onMouseLeave={() => setIsRunButtonHovered(false)}
-            >
+              >
                 <span>
-                    {isLoading ? (
-                        <svg width="6" height="6" viewBox="0 0 6 6" fill="none">
-                            <rect width="6" height="6" fill="currentColor" />
-                        </svg>
-                    ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" width="6" height="8" viewBox="0 0 8 10" fill="none">
-                            <path d="M8 5L0 10V0L8 5Z" fill="currentColor" />
-                        </svg>
-                    )}
+                  {isLoading ? (
+                    <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
+                      <rect width='8' height='8' fill='currentColor' />
+                    </svg>
+                  ) : (
+                    <svg
+                      xmlns='http://www.w3.org/2000/svg'
+                      width='8'
+                      height='10'
+                      viewBox='0 0 8 10'
+                      fill='none'
+                    >
+                      <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                    </svg>
+                  )}
                 </span>
-                <span>
-                    {isLoading ? 'Stop' : 'Run'}
-                </span>
-            </button>
+                <span>{isLoading ? 'Stop' : 'Run'}</span>
+              </button>
+            </div>
+          </li>
 
-            <button
-                onClick={onClickButton}
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-                className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[700] edge-node transition-colors gap-[4px]`}
-                style={{
-                    borderColor: isLoading ? '#FFA73D' : (isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY),
-                    color: isLoading ? '#FFA73D' : (isHovered ? UI_COLORS.LINE_ACTIVE : UI_COLORS.EDGENODE_BORDER_GREY)
-                }}
-            >
-                {/* IF/ELSE SVG icon */}
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 12 12" fill="none">
-                    <path d="M6 12V7" stroke="currentColor" strokeWidth="2" />
-                    <path d="M10 2V7L2 7V2" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="currentColor" stroke="currentColor" />
-                    <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="currentColor" stroke="currentColor" />
-                </svg>
-                <div className="flex flex-col items-center justify-center leading-tight text-[9px]">
-                    <span>IF/ELSE</span>
-                </div>
+          {/* Input/Output display */}
+          <li>
+            <InputOutputDisplay
+              parentId={id}
+              getNode={getNode}
+              getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+              getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+              supportedInputTypes={['text', 'structured']}
+              supportedOutputTypes={['text', 'structured']}
+            />
+          </li>
 
-                <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
-                <Handle id={`${id}-b`} className='edgeSrcHandle handle-with-icon handle-right' type='source' position={Position.Right} />
-                <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
-                <Handle id={`${id}-d`} className='edgeSrcHandle handle-with-icon handle-left' type='source' position={Position.Left} />
-                
-                <Handle
-                    id={`${id}-a`}
-                    type="target"
-                    position={Position.Top}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-                <Handle
-                    id={`${id}-b`}
-                    type="target"
-                    position={Position.Right}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-                <Handle
-                    id={`${id}-c`}
-                    type="target"
-                    position={Position.Bottom}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-                <Handle
-                    id={`${id}-d`}
-                    type="target"
-                    position={Position.Left}
-                    style={handleStyle}
-                    isConnectable={isConnectable}
-                    onMouseEnter={() => setIsTargetHandleTouched(true)}
-                    onMouseLeave={() => setIsTargetHandleTouched(false)}
-                />
-            </button>
+          {cases.map((case_value, case_index) => (
+            <li key={case_index} className='flex flex-col gap-2'>
+              {/* Case Header - 使用类似 LLM 配置菜单的样式 */}
+              <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>
+                  Case {case_index + 1}
+                </label>
+                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                {/* Delete Case Button */}
+                {cases.length > 1 && (
+                  <button
+                    onClick={() => {
+                      onCaseDelete(case_index);
+                    }}
+                    className='ml-auto p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                  >
+                    <svg
+                      width='14'
+                      height='14'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
+                    >
+                      <path
+                        d='M18 6L6 18M6 6l12 12'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
 
-            {/* Configuration Menu (integrated directly) */}
-            {isMenuOpen && (
-                    <ul ref={menuRef} className="w-[535px] absolute top-[64px] text-white rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg"
-                    style={{
-                        borderColor: UI_COLORS.EDGENODE_BORDER_GREY
-                    }}>
-                    <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-                        <div className='flex flex-row gap-[12px]'>
-                            <div className='flex flex-row gap-[8px] justify-center items-center'>
-                                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                        <path d="M6 12V7" stroke="#D9D9D9" strokeWidth="2" />
-                                        <path d="M10 2V7L2 7V2" stroke="#D9D9D9" strokeWidth="1.5" />
-                                        <path d="M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z" fill="#D9D9D9" stroke="#D9D9D9" />
-                                        <path d="M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z" fill="#D9D9D9" stroke="#D9D9D9" />
-                                    </svg>
-                                </div>
-                                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                                    If/Else
-                                </div>
-                            </div>
-                        </div>
-                        <div className='flex flex-row gap-[8px] items-center justify-center'>
-                            <button 
-                                className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                                style={{
-                                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66'
-                                }}
-                                onClick={isLoading ? onStopExecution : onDataSubmit}
-                                disabled={false}
+              {/* Case Content Container */}
+              <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                {/* 保持现有的 IF/THEN 内容不变，稍后我们会继续优化这部分 */}
+                <div className='flex flex-col w-full gap-[8px] p-3'>
+                  <label className='text-[11px] font-regular text-[#6D7177] ml-1'>
+                    Condition
+                  </label>
+                  {case_value.conditions.map(
+                    (condition_value, conditions_index) => (
+                      <>
+                        <div className='inline-flex space-x-[12px] items-center justify-start w-full'>
+                          <ul
+                            key={conditions_index}
+                            className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'
+                          >
+                            <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
+                              {/* 第一个元素：节点选择 */}
+                              <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
+                                <PuppyDropdown
+                                  options={getSourceNodeIdWithLabel(id)}
+                                  onSelect={(node: {
+                                    id: string;
+                                    label: string;
+                                  }) => {
+                                    const cases_clone = [...cases];
+                                    cases_clone[case_index].conditions[
+                                      conditions_index
+                                    ] = {
+                                      ...cases_clone[case_index].conditions[
+                                        conditions_index
+                                      ],
+                                      id: node.id,
+                                      label: node.label,
+                                      type: getNode(node.id)?.type,
+                                    };
+                                    onCasesChange(cases_clone);
+                                  }}
+                                  selectedValue={condition_value.id}
+                                  optionBadge={false}
+                                  listWidth='200px'
+                                  buttonHeight='24px'
+                                  buttonBgColor='transparent'
+                                  containerClassnames='w-fit'
+                                  mapValueTodisplay={(
+                                    value:
+                                      | string
+                                      | { id: string; label: string }
+                                  ) => {
+                                    if (typeof value === 'string') {
+                                      const nodeType = getNode(value)?.type;
+                                      const label =
+                                        getNode(value)?.data?.label || value;
+                                      const displayText = `{{${label}}}`;
+
+                                      if (nodeType === 'text') {
+                                        return (
+                                          <span className='text-[#3B9BFF]'>
+                                            {displayText}
+                                          </span>
+                                        );
+                                      } else if (nodeType === 'structured') {
+                                        return (
+                                          <span className='text-[#9B7EDB]'>
+                                            {displayText}
+                                          </span>
+                                        );
+                                      }
+                                      return displayText;
+                                    }
+
+                                    const nodeType = getNode(value.id)?.type;
+                                    const displayText = `{{${value.label || value.id}}}`;
+
+                                    if (nodeType === 'text') {
+                                      return (
+                                        <span className='text-[#3B9BFF]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    } else if (nodeType === 'structured') {
+                                      return (
+                                        <span className='text-[#9B7EDB]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    }
+                                    return displayText;
+                                  }}
+                                  showDropdownIcon={false}
+                                />
+                              </div>
+
+                              {/* 第二个元素：条件选择 */}
+                              <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
+                                <PuppyDropdown
+                                  options={getConditionSelections(
+                                    getNode(
+                                      cases[case_index].conditions[
+                                        conditions_index
+                                      ].id
+                                    )?.type || 'text'
+                                  )}
+                                  onSelect={(value: string) => {
+                                    const cases_clone = [...cases];
+                                    cases_clone[case_index].conditions[
+                                      conditions_index
+                                    ] = {
+                                      ...cases_clone[case_index].conditions[
+                                        conditions_index
+                                      ],
+                                      cond_v: value,
+                                    };
+                                    onSwitchValueChange(value);
+                                    onCasesChange(cases_clone);
+                                  }}
+                                  selectedValue={
+                                    cases[case_index].conditions[
+                                      conditions_index
+                                    ].cond_v
+                                  }
+                                  optionBadge={false}
+                                  listWidth='200px'
+                                  buttonHeight='24px'
+                                  buttonBgColor='transparent'
+                                  containerClassnames='w-[150px]'
+                                  textColor='#CDCDCD'
+                                  fontSize='11px'
+                                  fontWeight='500'
+                                  showDropdownIcon={true}
+                                />
+                              </div>
+
+                              {/* 第三个元素：输入框 */}
+                              <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
+                                <input
+                                  value={
+                                    cases[case_index].conditions[
+                                      conditions_index
+                                    ].cond_input || ''
+                                  }
+                                  onChange={e => {
+                                    const cases_clone = [...cases];
+                                    cases_clone[case_index].conditions[
+                                      conditions_index
+                                    ] = {
+                                      ...cases_clone[case_index].conditions[
+                                        conditions_index
+                                      ],
+                                      cond_input: e.target.value,
+                                    };
+                                    onContentValueChange(e.target.value);
+                                    onCasesChange(cases_clone);
+                                  }}
+                                  placeholder={
+                                    [
+                                      'is True',
+                                      'is False',
+                                      'is not empty',
+                                      'is list',
+                                      'is dict',
+                                      'is empty',
+                                      'condition',
+                                    ].includes(
+                                      cases[case_index].conditions[
+                                        conditions_index
+                                      ].cond_v
+                                    )
+                                      ? 'No input needed'
+                                      : 'Enter value'
+                                  }
+                                  disabled={[
+                                    'is True',
+                                    'is False',
+                                    'is not empty',
+                                    'is list',
+                                    'is dict',
+                                    'is empty',
+                                    'condition',
+                                  ].includes(
+                                    cases[case_index].conditions[
+                                      conditions_index
+                                    ].cond_v
+                                  )}
+                                  className='h-[24px] w-full text-[#CDCDCD] bg-[#252525] caret-white px-2 text-[12px] outline-none disabled:opacity-50 placeholder-[#6D7177]/50'
+                                />
+                              </div>
+                            </li>
+                          </ul>
+                          {/* 删除按钮 - 移到外面并调整间距 */}
+                          <button
+                            onClick={() => {
+                              onConditionDelete(case_index, conditions_index)();
+                            }}
+                            className={`p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors ${case_value.conditions.length <= 1 ? 'invisible' : ''}`}
+                          >
+                            <svg
+                              width='14'
+                              height='14'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
                             >
-                                <span>
-                                    {isLoading ? (
-                                        <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                                            <rect width="8" height="8" fill="currentColor" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="8" height="10" viewBox="0 0 8 10" fill="none">
-                                            <path d="M8 5L0 10V0L8 5Z" fill="black" />
-                                        </svg>
-                                    )}
-                                </span>
-                                <span>
-                                    {isLoading ? 'Stop' : 'Run'}
-                                </span>
-                            </button>
-                        </div>
-                    </li>
-
-                    {/* Input/Output display */}
-                    <li>
-                        <InputOutputDisplay
-                            parentId={id}
-                            getNode={getNode}
-                            getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                            getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                            supportedInputTypes={['text', 'structured']}
-                            supportedOutputTypes={['text', 'structured']}
-                        />
-                    </li>
-
-                    {
-                        cases.map((case_value, case_index) => (
-                            <li key={case_index} className='flex flex-col gap-2'>
-                                {/* Case Header - 使用类似 LLM 配置菜单的样式 */}
-                                <div className='flex items-center gap-2'>
-                                    <label className='text-[13px] font-semibold text-[#6D7177]'>Case {case_index + 1}</label>
-                                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-                                    {/* Delete Case Button */}
-                                    {cases.length > 1 && (
-                                        <button
-                                            onClick={() => {
-                                                onCaseDelete(case_index);
-                                            }}
-                                            className='ml-auto p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
-                                        >
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Case Content Container */}
-                                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                                    {/* 保持现有的 IF/THEN 内容不变，稍后我们会继续优化这部分 */}
-                                    <div className='flex flex-col w-full gap-[8px] p-3'>
-                                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Condition</label>
-                                        {
-                                            case_value.conditions.map(
-                                                (condition_value, conditions_index) => (
-                                                    <>
-                                                        <div className='inline-flex space-x-[12px] items-center justify-start w-full'>
-                                                            <ul key={conditions_index} className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'>
-                                                                <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
-                                                                    {/* 第一个元素：节点选择 */}
-                                                                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
-                                                                        <PuppyDropdown
-                                                                            options={getSourceNodeIdWithLabel(id)}
-                                                                            onSelect={(node: { id: string, label: string }) => {
-                                                                                const cases_clone = [...cases];
-                                                                                cases_clone[case_index].conditions[conditions_index] = {
-                                                                                    ...cases_clone[case_index].conditions[conditions_index],
-                                                                                    id: node.id,
-                                                                                    label: node.label,
-                                                                                    type: getNode(node.id)?.type
-                                                                                };
-                                                                                onCasesChange(cases_clone);
-                                                                            }}
-                                                                            selectedValue={condition_value.id}
-                                                                            optionBadge={false}
-                                                                            listWidth="200px"
-                                                                            buttonHeight="24px"
-                                                                            buttonBgColor="transparent"
-                                                                            containerClassnames="w-fit"
-                                                                            mapValueTodisplay={(value: string | { id: string, label: string }) => {
-                                                                                if (typeof value === 'string') {
-                                                                                    const nodeType = getNode(value)?.type;
-                                                                                    const label = getNode(value)?.data?.label || value;
-                                                                                    const displayText = `{{${label}}}`;
-
-                                                                                    if (nodeType === 'text') {
-                                                                                        return <span className="text-[#3B9BFF]">{displayText}</span>;
-                                                                                    } else if (nodeType === 'structured') {
-                                                                                        return <span className="text-[#9B7EDB]">{displayText}</span>;
-                                                                                    }
-                                                                                    return displayText;
-                                                                                }
-
-                                                                                const nodeType = getNode(value.id)?.type;
-                                                                                const displayText = `{{${value.label || value.id}}}`;
-
-                                                                                if (nodeType === 'text') {
-                                                                                    return <span className="text-[#3B9BFF]">{displayText}</span>;
-                                                                                } else if (nodeType === 'structured') {
-                                                                                    return <span className="text-[#9B7EDB]">{displayText}</span>;
-                                                                                }
-                                                                                return displayText;
-                                                                            }}
-                                                                            showDropdownIcon={false}
-                                                                        />
-                                                                    </div>
-
-                                                                    {/* 第二个元素：条件选择 */}
-                                                                    <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
-                                                                        <PuppyDropdown
-                                                                            options={getConditionSelections(getNode(cases[case_index].conditions[conditions_index].id)?.type || 'text')}
-                                                                            onSelect={(value: string) => {
-                                                                                const cases_clone = [...cases];
-                                                                                cases_clone[case_index].conditions[conditions_index] = {
-                                                                                    ...cases_clone[case_index].conditions[conditions_index],
-                                                                                    cond_v: value
-                                                                                };
-                                                                                onSwitchValueChange(value);
-                                                                                onCasesChange(cases_clone);
-                                                                            }}
-                                                                            selectedValue={cases[case_index].conditions[conditions_index].cond_v}
-                                                                            optionBadge={false}
-                                                                            listWidth="200px"
-                                                                            buttonHeight="24px"
-                                                                            buttonBgColor="transparent"
-                                                                            containerClassnames="w-[150px]"
-                                                                            textColor="#CDCDCD"
-                                                                            fontSize="11px"
-                                                                            fontWeight="500"
-                                                                            showDropdownIcon={true}
-                                                                        />
-                                                                    </div>
-
-                                                                    {/* 第三个元素：输入框 */}
-                                                                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start flex-1 py-[8px] px-[10px]'>
-                                                                        <input
-                                                                            value={cases[case_index].conditions[conditions_index].cond_input || ""}
-                                                                            onChange={(e) => {
-                                                                                const cases_clone = [...cases];
-                                                                                cases_clone[case_index].conditions[conditions_index] = {
-                                                                                    ...cases_clone[case_index].conditions[conditions_index],
-                                                                                    cond_input: e.target.value
-                                                                                };
-                                                                                onContentValueChange(e.target.value);
-                                                                                onCasesChange(cases_clone);
-                                                                            }}
-                                                                            placeholder={["is True", "is False", "is not empty", "is list", "is dict", "is empty", "condition"].includes(cases[case_index].conditions[conditions_index].cond_v) ? "No input needed" : "Enter value"}
-                                                                            disabled={["is True", "is False", "is not empty", "is list", "is dict", "is empty", "condition"].includes(cases[case_index].conditions[conditions_index].cond_v)}
-                                                                            className="h-[24px] w-full text-[#CDCDCD] bg-[#252525] caret-white px-2 text-[12px] outline-none disabled:opacity-50 placeholder-[#6D7177]/50"
-                                                                        />
-                                                                    </div>
-                                                                </li>
-                                                            </ul>
-                                                            {/* 删除按钮 - 移到外面并调整间距 */}
-                                                            <button
-                                                                onClick={() => {
-                                                                    onConditionDelete(case_index, conditions_index)();
-                                                                }}
-                                                                className={`p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors ${case_value.conditions.length <= 1 ? 'invisible' : ''}`}
-                                                            >
-                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                    <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
-                                                                </svg>
-                                                            </button>
-                                                            {conditions_index !== case_value.conditions.length - 1 && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        onAndOrSwitch(case_index, conditions_index)();
-                                                                    }}
-                                                                    className='px-2 h-[20px] flex items-center justify-center rounded-[4px] 
+                              <path
+                                d='M18 6L6 18M6 6l12 12'
+                                strokeWidth='2'
+                                strokeLinecap='round'
+                              />
+                            </svg>
+                          </button>
+                          {conditions_index !==
+                            case_value.conditions.length - 1 && (
+                            <button
+                              onClick={() => {
+                                onAndOrSwitch(case_index, conditions_index)();
+                              }}
+                              className='px-2 h-[20px] flex items-center justify-center rounded-[4px] 
                                                                           bg-[#252525] border-[1px] border-[#6D7177]/30
                                                                           text-[#6D7177] text-[10px] font-medium
                                                                           hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
                                                                           transition-colors'
-                                                                >
-                                                                    {case_value.conditions[conditions_index].operation.toUpperCase()}
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </>
-                                                )
-                                            )
-                                        }
-                                        {/* Add new condition button at the bottom */}
-                                        <div className='flex justify-start mt-[8px]'>
-                                            <button
-                                                onClick={(e) => onConditionAdd(case_index)(e)}
-                                                className='w-[24px] h-[24px] flex items-center justify-center rounded-md
+                            >
+                              {case_value.conditions[
+                                conditions_index
+                              ].operation.toUpperCase()}
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    )
+                  )}
+                  {/* Add new condition button at the bottom */}
+                  <div className='flex justify-start mt-[8px]'>
+                    <button
+                      onClick={e => onConditionAdd(case_index)(e)}
+                      className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                                     bg-[#252525] border-[1px] border-[#6D7177]/30
                                                     text-[#6D7177] text-[10px] font-medium
                                                     hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
                                                     transition-colors'
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 14 14">
-                                                    <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
+                    >
+                      <svg width='10' height='10' viewBox='0 0 14 14'>
+                        <path
+                          d='M7 0v14M0 7h14'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
 
-                                    {/* the divider */}
-                                    <div className='flex items-center gap-2 px-3'>
-                                        <div className='h-[1px] flex-1 bg-[#6D7177]/30'></div>
-                                        <span className='text-[11px] font-regular text-[#6D7177]'>When conditions are met, execute the following actions</span>
-                                        <div className='h-[1px] flex-1 bg-[#6D7177]/30'></div>
-                                    </div>
+                {/* the divider */}
+                <div className='flex items-center gap-2 px-3'>
+                  <div className='h-[1px] flex-1 bg-[#6D7177]/30'></div>
+                  <span className='text-[11px] font-regular text-[#6D7177]'>
+                    When conditions are met, execute the following actions
+                  </span>
+                  <div className='h-[1px] flex-1 bg-[#6D7177]/30'></div>
+                </div>
 
-                                    {/* Action List*/}
-                                    <div className='flex flex-col border-[#6D7177] p-3 gap-[8px] w-full justify-start'>
-                                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>Action</label>
+                {/* Action List*/}
+                <div className='flex flex-col border-[#6D7177] p-3 gap-[8px] w-full justify-start'>
+                  <label className='text-[11px] font-regular text-[#6D7177] ml-1'>
+                    Action
+                  </label>
 
-                                        {case_value.actions.map((action_value, action_index) => (
-                                            <div key={action_index} className='inline-flex space-x-[12px] items-center justify-start w-full'>
-                                                <ul className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'>
-                                                    <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
-                                                        {/* 第一个元素：节点选择 */}
-                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
-                                                            <PuppyDropdown
-                                                                options={getSourceNodeIdWithLabel(id)}
-                                                                onSelect={(node: { id: string, label: string }) => {
-                                                                    const cases_clone = [...cases];
-                                                                    cases_clone[case_index].actions[action_index] = {
-                                                                        ...cases_clone[case_index].actions[action_index],
-                                                                        from_id: node.id,
-                                                                        from_label: node.label,
-                                                                    };
-                                                                    onCasesChange(cases_clone);
-                                                                }}
-                                                                selectedValue={action_value.from_id}
-                                                                optionBadge={false}
-                                                                listWidth="200px"
-                                                                buttonHeight="24px"
-                                                                buttonBgColor="transparent"
-                                                                containerClassnames="w-fit"
-                                                                mapValueTodisplay={(value: string | { id: string, label: string }) => {
-                                                                    if (typeof value === 'string') {
-                                                                        const nodeType = getNode(value)?.type;
-                                                                        const label = getNode(value)?.data?.label || value;
-                                                                        const displayText = `{{${label}}}`;
+                  {case_value.actions.map((action_value, action_index) => (
+                    <div
+                      key={action_index}
+                      className='inline-flex space-x-[12px] items-center justify-start w-full'
+                    >
+                      <ul className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'>
+                        <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
+                          {/* 第一个元素：节点选择 */}
+                          <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
+                            <PuppyDropdown
+                              options={getSourceNodeIdWithLabel(id)}
+                              onSelect={(node: {
+                                id: string;
+                                label: string;
+                              }) => {
+                                const cases_clone = [...cases];
+                                cases_clone[case_index].actions[action_index] =
+                                  {
+                                    ...cases_clone[case_index].actions[
+                                      action_index
+                                    ],
+                                    from_id: node.id,
+                                    from_label: node.label,
+                                  };
+                                onCasesChange(cases_clone);
+                              }}
+                              selectedValue={action_value.from_id}
+                              optionBadge={false}
+                              listWidth='200px'
+                              buttonHeight='24px'
+                              buttonBgColor='transparent'
+                              containerClassnames='w-fit'
+                              mapValueTodisplay={(
+                                value: string | { id: string; label: string }
+                              ) => {
+                                if (typeof value === 'string') {
+                                  const nodeType = getNode(value)?.type;
+                                  const label =
+                                    getNode(value)?.data?.label || value;
+                                  const displayText = `{{${label}}}`;
 
-                                                                        if (nodeType === 'text') {
-                                                                            return <span className="text-[#3B9BFF]">{displayText}</span>;
-                                                                        } else if (nodeType === 'structured') {
-                                                                            return <span className="text-[#9B7EDB]">{displayText}</span>;
-                                                                        }
-                                                                        return displayText;
-                                                                    }
+                                  if (nodeType === 'text') {
+                                    return (
+                                      <span className='text-[#3B9BFF]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  } else if (nodeType === 'structured') {
+                                    return (
+                                      <span className='text-[#9B7EDB]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  }
+                                  return displayText;
+                                }
 
-                                                                    const nodeType = getNode(value.id)?.type;
-                                                                    const displayText = `{{${value.label || value.id}}}`;
+                                const nodeType = getNode(value.id)?.type;
+                                const displayText = `{{${value.label || value.id}}}`;
 
-                                                                    if (nodeType === 'text') {
-                                                                        return <span className="text-[#3B9BFF]">{displayText}</span>;
-                                                                    } else if (nodeType === 'structured') {
-                                                                        return <span className="text-[#9B7EDB]">{displayText}</span>;
-                                                                    }
-                                                                    return displayText;
-                                                                }}
-                                                                showDropdownIcon={false}
-                                                            />
-                                                        </div>
-                                                        <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
-                                                            <span className='text-[#6D7177] text-[12px] font-medium'> copy to</span>
-                                                        </div>
-                                                        <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
-                                                            <PuppyDropdown
-                                                                options={getTargetNodeIdWithLabel(id).map(
-                                                                    (node) => {
-                                                                        return {
-                                                                            id: node.id,
-                                                                            label: node.label
-                                                                        }
-                                                                    }
-                                                                )}
-                                                                onSelect={(node: { id: string, label: string }) => {
-                                                                    const cases_clone = [...cases];
-                                                                    cases_clone[case_index].actions[action_index].outputs = [node.id || node.label];
+                                if (nodeType === 'text') {
+                                  return (
+                                    <span className='text-[#3B9BFF]'>
+                                      {displayText}
+                                    </span>
+                                  );
+                                } else if (nodeType === 'structured') {
+                                  return (
+                                    <span className='text-[#9B7EDB]'>
+                                      {displayText}
+                                    </span>
+                                  );
+                                }
+                                return displayText;
+                              }}
+                              showDropdownIcon={false}
+                            />
+                          </div>
+                          <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
+                            <span className='text-[#6D7177] text-[12px] font-medium'>
+                              {' '}
+                              copy to
+                            </span>
+                          </div>
+                          <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
+                            <PuppyDropdown
+                              options={getTargetNodeIdWithLabel(id).map(
+                                node => {
+                                  return {
+                                    id: node.id,
+                                    label: node.label,
+                                  };
+                                }
+                              )}
+                              onSelect={(node: {
+                                id: string;
+                                label: string;
+                              }) => {
+                                const cases_clone = [...cases];
+                                cases_clone[case_index].actions[
+                                  action_index
+                                ].outputs = [node.id || node.label];
 
-                                                                    onCasesChange(cases_clone);
-                                                                }}
-                                                                selectedValue={action_value.outputs[0]}
-                                                                optionBadge={false}
-                                                                listWidth="200px"
-                                                                buttonHeight="24px"
-                                                                buttonBgColor="transparent"
-                                                                containerClassnames="w-fit"
-                                                                mapValueTodisplay={(value: string | { id: string, label: string }) => {
-                                                                    if (typeof value === 'string') {
-                                                                        const nodeType = getNode(value)?.type;
-                                                                        const label = getNode(value)?.data?.label || value;
-                                                                        const displayText = `{{${label}}}`;
+                                onCasesChange(cases_clone);
+                              }}
+                              selectedValue={action_value.outputs[0]}
+                              optionBadge={false}
+                              listWidth='200px'
+                              buttonHeight='24px'
+                              buttonBgColor='transparent'
+                              containerClassnames='w-fit'
+                              mapValueTodisplay={(
+                                value: string | { id: string; label: string }
+                              ) => {
+                                if (typeof value === 'string') {
+                                  const nodeType = getNode(value)?.type;
+                                  const label =
+                                    getNode(value)?.data?.label || value;
+                                  const displayText = `{{${label}}}`;
 
-                                                                        if (nodeType === 'text') {
-                                                                            return <span className="text-[#3B9BFF]">{displayText}</span>;
-                                                                        } else if (nodeType === 'structured') {
-                                                                            return <span className="text-[#9B7EDB]">{displayText}</span>;
-                                                                        }
-                                                                        return displayText;
-                                                                    }
+                                  if (nodeType === 'text') {
+                                    return (
+                                      <span className='text-[#3B9BFF]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  } else if (nodeType === 'structured') {
+                                    return (
+                                      <span className='text-[#9B7EDB]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  }
+                                  return displayText;
+                                }
 
-                                                                    const nodeType = getNode(value.id)?.type;
-                                                                    const displayText = `{{${value.label || value.id}}}`;
+                                const nodeType = getNode(value.id)?.type;
+                                const displayText = `{{${value.label || value.id}}}`;
 
-                                                                    if (nodeType === 'text') {
-                                                                        return <span className="text-[#3B9BFF]">{displayText}</span>;
-                                                                    } else if (nodeType === 'structured') {
-                                                                        return <span className="text-[#9B7EDB]">{displayText}</span>;
-                                                                    }
-                                                                    return displayText;
-                                                                }}
-                                                                showDropdownIcon={false}
-                                                            />
+                                if (nodeType === 'text') {
+                                  return (
+                                    <span className='text-[#3B9BFF]'>
+                                      {displayText}
+                                    </span>
+                                  );
+                                } else if (nodeType === 'structured') {
+                                  return (
+                                    <span className='text-[#9B7EDB]'>
+                                      {displayText}
+                                    </span>
+                                  );
+                                }
+                                return displayText;
+                              }}
+                              showDropdownIcon={false}
+                            />
+                          </div>
+                        </li>
+                      </ul>
 
-                                                        </div>
-                                                    </li>
-                                                </ul>
+                      {/* 删除按钮 */}
+                      <button
+                        onClick={() => {
+                          const cases_clone = [...cases];
+                          if (cases_clone[case_index].actions.length > 1) {
+                            cases_clone[case_index].actions.splice(
+                              action_index,
+                              1
+                            );
+                            onCasesChange(cases_clone);
+                          }
+                        }}
+                        className={`p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors ${case_value.actions.length <= 1 ? 'invisible' : ''}`}
+                      >
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='currentColor'
+                        >
+                          <path
+                            d='M18 6L6 18M6 6l12 12'
+                            strokeWidth='2'
+                            strokeLinecap='round'
+                          />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
 
-                                                {/* 删除按钮 */}
-                                                <button
-                                                    onClick={() => {
-                                                        const cases_clone = [...cases];
-                                                        if (cases_clone[case_index].actions.length > 1) {
-                                                            cases_clone[case_index].actions.splice(action_index, 1);
-                                                            onCasesChange(cases_clone);
-                                                        }
-                                                    }}
-                                                    className={`p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors ${case_value.actions.length <= 1 ? 'invisible' : ''}`}
-                                                >
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                        <path d="M18 6L6 18M6 6l12 12" strokeWidth="2" strokeLinecap="round" />
-                                                    </svg>
-                                                </button>
-                                            </div>
-                                        ))}
-
-                                        {/* 底部添加按钮保持不变 */}
-                                        <div className='flex justify-start mt-[8px]'>
-                                            <button
-                                                onClick={() => {
-                                                    onActionAdd(case_index)();
-                                                }}
-                                                className='w-[24px] h-[24px] flex items-center justify-center rounded-md
+                  {/* 底部添加按钮保持不变 */}
+                  <div className='flex justify-start mt-[8px]'>
+                    <button
+                      onClick={() => {
+                        onActionAdd(case_index)();
+                      }}
+                      className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                                     bg-[#252525] border-[1px] border-[#6D7177]/30
                                                     text-[#6D7177] text-[10px] font-medium
                                                     hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
                                                     transition-colors'
-                                            >
-                                                <svg width="10" height="10" viewBox="0 0 14 14">
-                                                    <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </li>
-
-                        )
-                        )
-                    }
-                    {/* Add Case Button - 使用更现代的样式 */}
-                    <div className='flex items-center'>
-                        <button
-                            onClick={onCaseAdd}
-                            className='h-[26px] px-2 flex items-center gap-1 rounded-md
+                    >
+                      <svg width='10' height='10' viewBox='0 0 14 14'>
+                        <path
+                          d='M7 0v14M0 7h14'
+                          stroke='currentColor'
+                          strokeWidth='2'
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </li>
+          ))}
+          {/* Add Case Button - 使用更现代的样式 */}
+          <div className='flex items-center'>
+            <button
+              onClick={onCaseAdd}
+              className='h-[26px] px-2 flex items-center gap-1 rounded-md
                                 bg-[#252525] border-[1px] border-[#6D7177]/30
                                 text-[#6D7177] text-[10px] font-medium
                                 hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] 
                                 transition-colors'
-                        >
-                            <svg width="10" height="10" viewBox="0 0 14 14">
-                                <path d="M7 0v14M0 7h14" stroke="currentColor" strokeWidth="2" />
-                            </svg>
-                            Add Case
-                        </button>
-                    </div>
-
-                </ul>
-            )}
-        </div>
-    );
+            >
+              <svg width='10' height='10' viewBox='0 0 14 14'>
+                <path
+                  d='M7 0v14M0 7h14'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                />
+              </svg>
+              Add Case
+            </button>
+          </div>
+        </ul>
+      )}
+    </div>
+  );
 }
 
 export default IfElse;
