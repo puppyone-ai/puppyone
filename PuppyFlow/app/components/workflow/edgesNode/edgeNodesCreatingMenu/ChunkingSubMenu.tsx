@@ -1,30 +1,38 @@
-import React from 'react'
-import { Position } from '@xyflow/react'
-import ChunkingOthersSubMenu from './ChunkingOthersSubMenu'
-import { menuNameType } from './EdgeSelectorMenu'
+import React from 'react';
+import { Position } from '@xyflow/react';
+import ChunkingOthersSubMenu from './ChunkingOthersSubMenu';
+import { menuNameType } from './EdgeSelectorMenu';
 
 type ChunkingSubMenuProps = {
-    nodeType: string,
-    sourceNodeId: string,
-    showMenu: number,
-    selectedSubMenu: number,
-    manageTextNodeSubMenu: (menuName: menuNameType) => void,
-    createNewConnection: (edgeType: string, subMenuType?: string | null) => void,
-    parentMenuRef?: React.RefObject<HTMLDivElement>,
-}
+  nodeType: string;
+  sourceNodeId: string;
+  showMenu: number;
+  selectedSubMenu: number;
+  manageTextNodeSubMenu: (menuName: menuNameType) => void;
+  createNewConnection: (edgeType: string, subMenuType?: string | null) => void;
+  parentMenuRef?: React.RefObject<HTMLDivElement>;
+};
 
-function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, manageTextNodeSubMenu, createNewConnection}: ChunkingSubMenuProps) {
-    
-    return (
-        <ul id="edgeMenu" className={`w-[176px] bg-[#1c1d1f] rounded-[16px] border-solid border-[3px] border-[#42454A] absolute flex flex-col justify-evenly z-[20001] gap-[8px] p-[8px] items-center ${showMenu === 1 ? "" : "hidden"}`}
-            style={{ 
-                position: 'absolute',
-                top: '-12px',
-                left: '100%', // 直接放在父元素右侧
-                marginLeft: '7px' // 添加一些间距
-            }}
-        >
-            {/*
+function ChunkingSubMenu({
+  nodeType,
+  sourceNodeId,
+  showMenu,
+  selectedSubMenu,
+  manageTextNodeSubMenu,
+  createNewConnection,
+}: ChunkingSubMenuProps) {
+  return (
+    <ul
+      id='edgeMenu'
+      className={`w-[176px] bg-[#1c1d1f] rounded-[16px] border-solid border-[3px] border-[#42454A] absolute flex flex-col justify-evenly z-[20001] gap-[8px] p-[8px] items-center ${showMenu === 1 ? '' : 'hidden'}`}
+      style={{
+        position: 'absolute',
+        top: '-12px',
+        left: '100%', // 直接放在父元素右侧
+        marginLeft: '7px', // 添加一些间距
+      }}
+    >
+      {/*
             <li className='w-full'>
                 <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' 
                 onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
@@ -43,26 +51,37 @@ function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, man
             </li> 
             */}
 
-            
-            <li className='w-full'>
-                <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' 
-                onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
-                onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    createNewConnection("chunkingAuto", "chunk-Auto")
-                }}>
-                <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="15" fill="none" viewBox="0 0 16 15">
-                <path fill="#CDCDCD" d="M1.953.64v.61h-.68v4.292h.68v.612H.483V.641h1.47Zm4.585 3.472h-1.59l-.3.888h-.943L5.246.682h1.02L7.795 5h-.979l-.278-.888Zm-.252-.744L5.747 1.67l-.557 1.7h1.096Zm4.614-.032V.682h.917v2.654c0 .459-.07.816-.213 1.072-.266.469-.773.703-1.521.703-.748 0-1.256-.234-1.523-.703-.143-.256-.214-.613-.214-1.072V.682h.917v2.654c0 .297.035.514.105.65.11.243.348.364.715.364.365 0 .602-.121.712-.364.07-.136.105-.353.105-.65Zm3.812 2.206V1.238h-.68V.641h1.47v5.513h-1.47v-.612h.68ZM2.062 8.641v.609h-.68v4.292h.68v.612H.59V8.641h1.47Zm5.417.04v.765H6.187V13h-.909V9.446H3.98v-.764h3.5Zm2.334 4.44c-.617 0-1.088-.169-1.415-.505-.437-.412-.656-1.006-.656-1.781 0-.791.219-1.385.656-1.781.327-.336.798-.504 1.415-.504.618 0 1.09.168 1.415.504.436.396.654.99.654 1.781 0 .775-.218 1.37-.653 1.781-.327.336-.798.504-1.416.504Zm.853-1.161c.209-.264.313-.639.313-1.125 0-.484-.105-.858-.316-1.122-.209-.266-.492-.399-.85-.399-.357 0-.642.132-.855.396-.213.264-.32.639-.32 1.125s.107.861.32 1.125c.213.264.498.395.855.395.358 0 .642-.131.853-.395Zm3.938 1.582V9.238h-.68v-.597h1.47v5.513h-1.47v-.612h.68Z"/>
-                </svg>
-                </div>
-                <div className='text-[14px]  flex items-center justify-center h-full'>Auto</div>
-                </button>
-            </li> 
-            
+      <li className='w-full'>
+        <button
+          className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer'
+          onMouseEnter={() => manageTextNodeSubMenu('Chunkingsub1')}
+          onClick={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            createNewConnection('chunkingAuto', 'chunk-Auto');
+          }}
+        >
+          <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              width='16'
+              height='15'
+              fill='none'
+              viewBox='0 0 16 15'
+            >
+              <path
+                fill='#CDCDCD'
+                d='M1.953.64v.61h-.68v4.292h.68v.612H.483V.641h1.47Zm4.585 3.472h-1.59l-.3.888h-.943L5.246.682h1.02L7.795 5h-.979l-.278-.888Zm-.252-.744L5.747 1.67l-.557 1.7h1.096Zm4.614-.032V.682h.917v2.654c0 .459-.07.816-.213 1.072-.266.469-.773.703-1.521.703-.748 0-1.256-.234-1.523-.703-.143-.256-.214-.613-.214-1.072V.682h.917v2.654c0 .297.035.514.105.65.11.243.348.364.715.364.365 0 .602-.121.712-.364.07-.136.105-.353.105-.65Zm3.812 2.206V1.238h-.68V.641h1.47v5.513h-1.47v-.612h.68ZM2.062 8.641v.609h-.68v4.292h.68v.612H.59V8.641h1.47Zm5.417.04v.765H6.187V13h-.909V9.446H3.98v-.764h3.5Zm2.334 4.44c-.617 0-1.088-.169-1.415-.505-.437-.412-.656-1.006-.656-1.781 0-.791.219-1.385.656-1.781.327-.336.798-.504 1.415-.504.618 0 1.09.168 1.415.504.436.396.654.99.654 1.781 0 .775-.218 1.37-.653 1.781-.327.336-.798.504-1.416.504Zm.853-1.161c.209-.264.313-.639.313-1.125 0-.484-.105-.858-.316-1.122-.209-.266-.492-.399-.85-.399-.357 0-.642.132-.855.396-.213.264-.32.639-.32 1.125s.107.861.32 1.125c.213.264.498.395.855.395.358 0 .642-.131.853-.395Zm3.938 1.582V9.238h-.68v-.597h1.47v5.513h-1.47v-.612h.68Z'
+              />
+            </svg>
+          </div>
+          <div className='text-[14px]  flex items-center justify-center h-full'>
+            Auto
+          </div>
+        </button>
+      </li>
 
-            {/*
+      {/*
             <li className='w-full'>
                 <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' onClick={(event) => {
                 
@@ -83,29 +102,42 @@ function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, man
                 </button>
             </li> 
             */}
-            
-            <li className='w-full'>
-                <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' onClick={(event) => {
-                
-                    event.preventDefault()
-                    event.stopPropagation()
-                    createNewConnection("chunkingByLength", "chunk-Bylength")
-                }}>
-                <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="10" viewBox="0 0 16 10" fill="none">
-                <path d="M10 3L12 5L10 7" stroke="#CDCDCD"/>
-                <path d="M6 3L4 5L6 7" stroke="#CDCDCD"/>
-                <path d="M4 5H11.5" stroke="#CDCDCD"/>
-                <path d="M1 10L1 3.27826e-07" stroke="#CDCDCD" strokeWidth="1.5"/>
-                <path d="M15 10V3.27826e-07" stroke="#CDCDCD" strokeWidth="1.5"/>
-                </svg>
-                </div>
-                <div className='text-[14px]  flex items-center justify-center h-full'>By length</div>
-                </button>
-            </li> 
-            
 
-            {/*
+      <li className='w-full'>
+        <button
+          className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer'
+          onClick={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            createNewConnection('chunkingByLength', 'chunk-Bylength');
+          }}
+        >
+          <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              width='16'
+              height='10'
+              viewBox='0 0 16 10'
+              fill='none'
+            >
+              <path d='M10 3L12 5L10 7' stroke='#CDCDCD' />
+              <path d='M6 3L4 5L6 7' stroke='#CDCDCD' />
+              <path d='M4 5H11.5' stroke='#CDCDCD' />
+              <path
+                d='M1 10L1 3.27826e-07'
+                stroke='#CDCDCD'
+                strokeWidth='1.5'
+              />
+              <path d='M15 10V3.27826e-07' stroke='#CDCDCD' strokeWidth='1.5' />
+            </svg>
+          </div>
+          <div className='text-[14px]  flex items-center justify-center h-full'>
+            By length
+          </div>
+        </button>
+      </li>
+
+      {/*
             <li className='w-full'>
                 <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' 
                  onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
@@ -124,26 +156,37 @@ function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, man
             </li> 
             */}
 
-            
-            <li className='w-full'>
-                <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' 
-                 onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
-                onClick={(event) => {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    createNewConnection("chunkingByCharacter", "chunk-Bycharacter")
-                }}>
-                    <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="9" fill="none" viewBox="0 0 14 9">
-                    <path fill="#CDCDCD" d="m2.816 2.584-.474 4.031h-.873L.982 2.584V.393h1.834v2.191ZM2.77 7.307V9H1.023V7.307H2.77Zm8.789-1.495c-.047.149-.073.38-.077.692H9.9c.024-.66.086-1.115.188-1.365.102-.254.363-.545.785-.873l.428-.334a1.52 1.52 0 0 0 .34-.346 1.18 1.18 0 0 0 .234-.709c0-.297-.088-.566-.264-.809-.171-.246-.488-.369-.949-.369-.453 0-.775.15-.967.451-.187.301-.28.614-.28.938H7.72c.047-1.113.435-1.902 1.166-2.367.46-.297 1.027-.446 1.699-.446.883 0 1.615.211 2.197.633.586.422.88 1.047.88 1.875 0 .508-.128.936-.382 1.283-.148.211-.433.48-.855.809l-.416.322a1.257 1.257 0 0 0-.451.615ZM11.605 9H9.86V7.307h1.746V9Z"/>
-                    </svg>
-                    </div>
-                    <div className='text-[14px]  flex items-center justify-center h-full'>By character</div>
-                </button>
-            </li> 
-            
+      <li className='w-full'>
+        <button
+          className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer'
+          onMouseEnter={() => manageTextNodeSubMenu('Chunkingsub1')}
+          onClick={event => {
+            event.preventDefault();
+            event.stopPropagation();
+            createNewConnection('chunkingByCharacter', 'chunk-Bycharacter');
+          }}
+        >
+          <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+            <svg
+              xmlns='http://www.w3.org/2000/svg'
+              width='14'
+              height='9'
+              fill='none'
+              viewBox='0 0 14 9'
+            >
+              <path
+                fill='#CDCDCD'
+                d='m2.816 2.584-.474 4.031h-.873L.982 2.584V.393h1.834v2.191ZM2.77 7.307V9H1.023V7.307H2.77Zm8.789-1.495c-.047.149-.073.38-.077.692H9.9c.024-.66.086-1.115.188-1.365.102-.254.363-.545.785-.873l.428-.334a1.52 1.52 0 0 0 .34-.346 1.18 1.18 0 0 0 .234-.709c0-.297-.088-.566-.264-.809-.171-.246-.488-.369-.949-.369-.453 0-.775.15-.967.451-.187.301-.28.614-.28.938H7.72c.047-1.113.435-1.902 1.166-2.367.46-.297 1.027-.446 1.699-.446.883 0 1.615.211 2.197.633.586.422.88 1.047.88 1.875 0 .508-.128.936-.382 1.283-.148.211-.433.48-.855.809l-.416.322a1.257 1.257 0 0 0-.451.615ZM11.605 9H9.86V7.307h1.746V9Z'
+              />
+            </svg>
+          </div>
+          <div className='text-[14px]  flex items-center justify-center h-full'>
+            By character
+          </div>
+        </button>
+      </li>
 
-            {/*
+      {/*
             <li className='w-full'>
                 <button className='w-full h-[38px] bg-[#3E3E41] hover:bg-main-orange rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans text-[#CDCDCD] hover:text-[#1C1D1F] py-[4px] pl-[4px] cursor-pointer' 
                  onMouseEnter={() => manageTextNodeSubMenu("Chunkingsub1")}
@@ -199,8 +242,8 @@ function ChunkingSubMenu({nodeType, sourceNodeId, showMenu, selectedSubMenu, man
                 />
             </li> 
             */}
-        </ul>
-    )
+    </ul>
+  );
 }
 
-export default ChunkingSubMenu
+export default ChunkingSubMenu;

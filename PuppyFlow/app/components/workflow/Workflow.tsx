@@ -1,5 +1,11 @@
-'use client'
-import React, { useCallback, useEffect, useState, useRef, useMemo } from 'react'
+'use client';
+import React, {
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+} from 'react';
 import {
   ReactFlow,
   addEdge,
@@ -17,79 +23,80 @@ import {
   ConnectionMode,
   Controls,
   SelectionMode,
-  NodeChange
-} from '@xyflow/react'
-import TextBlockNode from './blockNode/TextBlockNode'
+  NodeChange,
+} from '@xyflow/react';
+import TextBlockNode from './blockNode/TextBlockNode';
 import '@xyflow/react/dist/style.css';
-import WebLinkNode from './blockNode/WebLinkNode'
-import Upbar from '../upbar/Upbar'
-import JsonBlockNode from './blockNode/JsonNodeNew'
-import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge'
+import WebLinkNode from './blockNode/WebLinkNode';
+import Upbar from '../upbar/Upbar';
+import JsonBlockNode from './blockNode/JsonNodeNew';
+import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge';
 
-import FileNode from './blockNode/FileNode'
+import FileNode from './blockNode/FileNode';
 
-import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy'
+import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy';
 // import EmbeddingConfig from './edges/configNodes/EmbeddingConfig'
-import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge'
-import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils'
-import { markerEnd } from './connectionLineStyles/ConfigToTargetEdge'
-import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine'
+import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge';
+import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils';
+import { markerEnd } from './connectionLineStyles/ConfigToTargetEdge';
+import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine';
 // import useManageNodeStateUtils from '../hooks/useManageNodeStateUtils'
-import { useNodesPerFlowContext } from '../states/NodesPerFlowContext'
-import FloatingEdge from './connectionLineStyles/FloatingEdge'
-import ChunkingByLength from './edgesNode/edgeNodesNew/ChunkingByLength'
-import ChunkingByCharacter from './edgesNode/edgeNodesNew/ChunkingByCharacter'
-import ChunkingAuto from './edgesNode/edgeNodesNew/ChunkingAuto'
-import Retrieving from './edgesNode/edgeNodesNew/Retrieving'
-import Convert2Text from './edgesNode/edgeNodesNew/Convert2Text'
-import Convert2Structured from './edgesNode/edgeNodesNew/Convert2Structured'
-import EditText from './edgesNode/edgeNodesNew/EditText'
-import EditStructured from './edgesNode/edgeNodesNew/EditStructured'
-import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle'
-import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity'
-import IfElse from './edgesNode/edgeNodesNew/ifelse'
-import LLM from './edgesNode/edgeNodesNew/LLM'
-import Generate from './edgesNode/edgeNodesNew/Generate'
-import Load from './edgesNode/edgeNodesNew/Load'
-import GroupNode from './groupNode/GroupNode'
-import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers'
-import { useWorkspaces } from '../states/UserWorkspacesContext'
-import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge'
+import { useNodesPerFlowContext } from '../states/NodesPerFlowContext';
+import FloatingEdge from './connectionLineStyles/FloatingEdge';
+import ChunkingByLength from './edgesNode/edgeNodesNew/ChunkingByLength';
+import ChunkingByCharacter from './edgesNode/edgeNodesNew/ChunkingByCharacter';
+import ChunkingAuto from './edgesNode/edgeNodesNew/ChunkingAuto';
+import Retrieving from './edgesNode/edgeNodesNew/Retrieving';
+import Convert2Text from './edgesNode/edgeNodesNew/Convert2Text';
+import Convert2Structured from './edgesNode/edgeNodesNew/Convert2Structured';
+import EditText from './edgesNode/edgeNodesNew/EditText';
+import EditStructured from './edgesNode/edgeNodesNew/EditStructured';
+import SearchGoogle from './edgesNode/edgeNodesNew/SearchGoogle';
+import SearchPerplexity from './edgesNode/edgeNodesNew/SearchPerplexity';
+import IfElse from './edgesNode/edgeNodesNew/ifelse';
+import LLM from './edgesNode/edgeNodesNew/LLM';
+import Generate from './edgesNode/edgeNodesNew/Generate';
+import Load from './edgesNode/edgeNodesNew/Load';
+import DeepResearch from './edgesNode/edgeNodesNew/DeepResearch';
+import GroupNode from './groupNode/GroupNode';
+import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers';
+import { useWorkspaces } from '../states/UserWorkspacesContext';
+import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
 
 const nodeTypes = {
-  'text': TextBlockNode,
-  'file': FileNode,
-  'weblink': WebLinkNode,
-  'structured': JsonBlockNode,
-  'copy': CopyEdgeNode,
-  'chunkingByLength': ChunkingByLength,
-  'chunkingByCharacter': ChunkingByCharacter,
-  'chunkingAuto': ChunkingAuto,
-  'retrieving': Retrieving,
-  'convert2text': Convert2Text,
-  'convert2structured': Convert2Structured,
-  'editText': EditText,
-  'editStructured': EditStructured,
-  'searchGoogle': SearchGoogle,
-  'searchPerplexity': SearchPerplexity,
-  'llmnew': LLM,
-  'ifelse': IfElse,
-  'generate': Generate,
-  'load': Load,
-  'group': GroupNode,
-}
+  text: TextBlockNode,
+  file: FileNode,
+  weblink: WebLinkNode,
+  structured: JsonBlockNode,
+  copy: CopyEdgeNode,
+  chunkingByLength: ChunkingByLength,
+  chunkingByCharacter: ChunkingByCharacter,
+  chunkingAuto: ChunkingAuto,
+  retrieving: Retrieving,
+  convert2text: Convert2Text,
+  convert2structured: Convert2Structured,
+  editText: EditText,
+  editStructured: EditStructured,
+  searchGoogle: SearchGoogle,
+  searchPerplexity: SearchPerplexity,
+  llmnew: LLM,
+  ifelse: IfElse,
+  generate: Generate,
+  load: Load,
+  deepresearch: DeepResearch,
+  group: GroupNode,
+};
 
 const edgeTypes = {
-  'STC': SourceToConfigEdge,
-  'CTT': ConfigToTargetEdge,
-  'floating': FloatingEdge,
-  'serverDashed': ServerDashedEdge,
-}
+  STC: SourceToConfigEdge,
+  CTT: ConfigToTargetEdge,
+  floating: FloatingEdge,
+  serverDashed: ServerDashedEdge,
+};
 
 const fitViewOptions = {
   maxZoom: 0.7,
-
-}
+};
 
 // This section defines custom hooks for controlling zoom and pan behavior
 // in the ReactFlow canvas. The zoom is only enabled when Ctrl key is pressed,
@@ -145,34 +152,60 @@ function useMiddleMousePan() {
 }
 
 function Workflow() {
-  const { 
-    showingItem, 
-    workspaces, 
-    getCurrentWorkspaceContent, 
-    updateWorkspaceContent 
+  const {
+    showingItem,
+    workspaces,
+    getCurrentWorkspaceContent,
+    updateWorkspaceContent,
   } = useWorkspaces();
-  
-  const selectedFlowId = showingItem?.type === 'workspace' ? showingItem.id : null;
-  
+
+  const selectedFlowId =
+    showingItem?.type === 'workspace' ? showingItem.id : null;
 
   // 直接在组件内定义空数组作为默认值
   const emptyNodes: Node[] = [];
   const emptyEdges: Edge[] = [];
-  
+
   // 获取当前工作区内容
   const currentWorkspaceContent = getCurrentWorkspaceContent();
-  
-  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] = useNodesState(emptyNodes);
+
+  const [unsortedNodes, setUnsortedNodes, onUnsortedNodesChange] =
+    useNodesState(emptyNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(emptyEdges);
-  const { screenToFlowPosition, getEdge, getNode, getViewport, getZoom, getEdges, setViewport } = useReactFlow()
-  const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } = useManageReactFlowUtils()
-  const { activatedNode, activatedEdge, preventInactivated, isOnConnect, isOnGeneratingNewNode, activateNode, activateEdge, inactivateNode, clearEdgeActivation, clearAll, preventActivateOtherNodesWhenConnectStart, allowActivateOtherNodesWhenConnectEnd, preventInactivateNode } = useNodesPerFlowContext()
+  const {
+    screenToFlowPosition,
+    getEdge,
+    getNode,
+    getViewport,
+    getZoom,
+    getEdges,
+    setViewport,
+  } = useReactFlow();
+  const { zoomOnScroll, lockZoom, freeZoom, judgeNodeIsEdgeNode } =
+    useManageReactFlowUtils();
+  const {
+    activatedNode,
+    activatedEdge,
+    preventInactivated,
+    isOnConnect,
+    isOnGeneratingNewNode,
+    activateNode,
+    activateEdge,
+    inactivateNode,
+    clearEdgeActivation,
+    clearAll,
+    preventActivateOtherNodesWhenConnectStart,
+    allowActivateOtherNodesWhenConnectEnd,
+    preventInactivateNode,
+  } = useNodesPerFlowContext();
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
 
   // 用于管理节点的 z-index 层级
-  const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>({});
+  const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>(
+    {}
+  );
   const [maxZIndex, setMaxZIndex] = useState(1000);
 
   // 删除原来的 bringToFront 函数，替换为基于 z-index 的实现
@@ -182,11 +215,11 @@ function Workflow() {
     if (node?.type === 'group') {
       return;
     }
-    
+
     const newZIndex = maxZIndex + 1;
     setNodeZIndexMap(prev => ({
       ...prev,
-      [nodeId]: newZIndex
+      [nodeId]: newZIndex,
     }));
     setMaxZIndex(newZIndex);
   };
@@ -197,10 +230,11 @@ function Workflow() {
       ...node,
       style: {
         ...node.style,
-        zIndex: node.type === 'group' 
-          ? -1 // group 节点始终在最底层，使用负值
-          : nodeZIndexMap[node.id] || 100 // 其他节点的默认 z-index 为 100
-      }
+        zIndex:
+          node.type === 'group'
+            ? -1 // group 节点始终在最底层，使用负值
+            : nodeZIndexMap[node.id] || 100, // 其他节点的默认 z-index 为 100
+      },
     }));
   }, [unsortedNodes, nodeZIndexMap]);
 
@@ -211,9 +245,12 @@ function Workflow() {
   const setNodes = setUnsortedNodes;
 
   // 修改 onNodesChange 处理器，移除排序逻辑
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    onUnsortedNodesChange(changes);
-  }, [onUnsortedNodesChange]);
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      onUnsortedNodesChange(changes);
+    },
+    [onUnsortedNodesChange]
+  );
 
   // 设置鼠标样式
   useEffect(() => {
@@ -226,16 +263,16 @@ function Workflow() {
   // 监听工作区内容变化，同步到 ReactFlow
   useEffect(() => {
     if (currentWorkspaceContent && selectedFlowId) {
-      console.log('🔄 Syncing workspace content to ReactFlow:', {
-        workspaceId: selectedFlowId,
-        blocksCount: currentWorkspaceContent.blocks?.length || 0,
-        edgesCount: currentWorkspaceContent.edges?.length || 0
-      });
-      
+      // console.log('🔄 Syncing workspace content to ReactFlow:', {
+      //   workspaceId: selectedFlowId,
+      //   blocksCount: currentWorkspaceContent.blocks?.length || 0,
+      //   edgesCount: currentWorkspaceContent.edges?.length || 0,
+      // });
+
       // 更新节点和边
       setUnsortedNodes(currentWorkspaceContent.blocks || []);
       setEdges(currentWorkspaceContent.edges || []);
-      
+
       // 更新视口（如果有的话）
       if (currentWorkspaceContent.viewport) {
         setTimeout(() => {
@@ -244,7 +281,10 @@ function Workflow() {
       }
     } else if (selectedFlowId && !currentWorkspaceContent) {
       // 如果选中了工作区但没有内容，清空画布
-      console.log('🧹 Clearing ReactFlow canvas for empty workspace:', selectedFlowId);
+      console.log(
+        '🧹 Clearing ReactFlow canvas for empty workspace:',
+        selectedFlowId
+      );
       setUnsortedNodes([]);
       setEdges([]);
     }
@@ -261,7 +301,7 @@ function Workflow() {
       blocks: nodes,
       edges: edges,
       viewport: getViewport(),
-      version: "1.0.0"
+      version: '1.0.0',
     };
 
     // 检查内容是否有变化
@@ -270,11 +310,11 @@ function Workflow() {
       return; // 没有变化，不需要保存
     }
 
-    console.log('💾 Saving ReactFlow state to workspace:', {
-      workspaceId: selectedFlowId,
-      blocksCount: nodes.length,
-      edgesCount: edges.length
-    });
+    // console.log('💾 Saving ReactFlow state to workspace:', {
+    //   workspaceId: selectedFlowId,
+    //   blocksCount: nodes.length,
+    //   edgesCount: edges.length,
+    // });
 
     updateWorkspaceContent(selectedFlowId, currentState);
     lastSavedContent.current = currentStateString;
@@ -311,74 +351,96 @@ function Workflow() {
     };
   }, []);
 
-  const onConnect = useCallback((connection: Connection) => {
-    if (isOnGeneratingNewNode) return
-    const targetIsEdgeNode = judgeNodeIsEdgeNode(connection.target)
-    const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source)
-    
-    if (targetIsEdgeNode && sourceIsEdgeNode ||
-      !targetIsEdgeNode && !sourceIsEdgeNode
-    ) return
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (isOnGeneratingNewNode) return;
+      const targetIsEdgeNode = judgeNodeIsEdgeNode(connection.target);
+      const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source);
 
-    // 檢查 source 節點是否是 server 類型
-    const sourceNode = getNode(connection.source)
-    const isServerNode = sourceNode?.type === 'server'
-    
-    const edge: Edge = {
-      ...connection,
-      id: `connection-${Date.now()}`,
-      // 如果是 server node 連接，使用 serverDashed，否則使用 floating
-      type: isServerNode ? 'serverDashed' : 'floating',
-      data: {
-        connectionType: !sourceIsEdgeNode && targetIsEdgeNode ? 'STC' : 'CTT'
-      },
-      markerEnd: !sourceIsEdgeNode && targetIsEdgeNode ? undefined : markerEnd
+      if (
+        (targetIsEdgeNode && sourceIsEdgeNode) ||
+        (!targetIsEdgeNode && !sourceIsEdgeNode)
+      )
+        return;
+
+      // 檢查 source 節點是否是 server 類型
+      const sourceNode = getNode(connection.source);
+      const isServerNode = sourceNode?.type === 'server';
+
+      const edge: Edge = {
+        ...connection,
+        id: `connection-${Date.now()}`,
+        // 如果是 server node 連接，使用 serverDashed，否則使用 floating
+        type: isServerNode ? 'serverDashed' : 'floating',
+        data: {
+          connectionType: !sourceIsEdgeNode && targetIsEdgeNode ? 'STC' : 'CTT',
+        },
+        markerEnd:
+          !sourceIsEdgeNode && targetIsEdgeNode ? undefined : markerEnd,
+      };
+
+      setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges));
+      allowActivateOtherNodesWhenConnectEnd();
+    },
+    [
+      setEdges,
+      getNode,
+      judgeNodeIsEdgeNode,
+      markerEnd,
+      allowActivateOtherNodesWhenConnectEnd,
+    ]
+  );
+
+  const onConnectStart = (
+    event: MouseEvent | TouchEvent,
+    {
+      nodeId,
+      handleId,
+      handleType,
+    }: {
+      nodeId: string | null;
+      handleId: string | null;
+      handleType: 'target' | 'source' | null;
     }
-
-    setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges))
-    allowActivateOtherNodesWhenConnectEnd()
-
-  }, [setEdges, getNode, judgeNodeIsEdgeNode, markerEnd, allowActivateOtherNodesWhenConnectEnd])
-
-  const onConnectStart = (event: MouseEvent | TouchEvent, { nodeId, handleId, handleType }: { nodeId: string | null, handleId: string | null, handleType: 'target' | 'source' | null }) => {
-    if (isOnGeneratingNewNode) return
-    event.preventDefault()
-    event.stopPropagation()
-    if (nodeId) preventInactivateNode()
-    preventActivateOtherNodesWhenConnectStart()
-  }
+  ) => {
+    if (isOnGeneratingNewNode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (nodeId) preventInactivateNode();
+    preventActivateOtherNodesWhenConnectStart();
+  };
 
   const onConnectEnd = (event: MouseEvent | TouchEvent) => {
-    if (isOnGeneratingNewNode) return
-    event.preventDefault()
-    event.stopPropagation()
-    allowActivateOtherNodesWhenConnectEnd()
-  }
+    if (isOnGeneratingNewNode) return;
+    event.preventDefault();
+    event.stopPropagation();
+    allowActivateOtherNodesWhenConnectEnd();
+  };
 
   const onNodeMouseLeave = (id: string) => {
-    if (preventInactivated || isOnGeneratingNewNode) return
-    inactivateNode(id)
-  }
+    if (preventInactivated || isOnGeneratingNewNode) return;
+    inactivateNode(id);
+  };
 
   const onNodeClick = (id: string) => {
-    if (isOnGeneratingNewNode) return
+    if (isOnGeneratingNewNode) return;
     if (!judgeNodeIsEdgeNode(id)) {
-      clearEdgeActivation()
+      clearEdgeActivation();
     }
-    activateNode(id)
-    preventInactivateNode()
-    
+    activateNode(id);
+    preventInactivateNode();
+
     // 如果点击的是组节点，触发重新计算
     const clickedNode = getNode(id);
     if (clickedNode?.type === 'group') {
       // 这里不需要额外处理，因为 GroupNode 组件内部已经处理了点击事件
     }
-  }
+  };
 
   const onPaneClick = () => {
-    if (isOnGeneratingNewNode) return
-    clearAll()
-  }
+    if (isOnGeneratingNewNode) return;
+    clearAll();
+  };
 
   useEffect(() => {
     const handleWheel = (e: any) => {
@@ -388,7 +450,7 @@ function Workflow() {
       setViewport({
         x: viewport.x,
         y: viewport.y - e.deltaY,
-        zoom: viewport.zoom
+        zoom: viewport.zoom,
       });
     };
 
@@ -400,7 +462,7 @@ function Workflow() {
         setViewport({
           x: viewport.x,
           y: viewport.y - e.touches[0].clientY,
-          zoom: viewport.zoom
+          zoom: viewport.zoom,
         });
       }
     };
@@ -408,7 +470,9 @@ function Workflow() {
     const flowContainer = document.getElementById('flowChart');
     if (flowContainer) {
       flowContainer.addEventListener('wheel', handleWheel, { passive: false });
-      flowContainer.addEventListener('touchmove', handleTouch, { passive: false });
+      flowContainer.addEventListener('touchmove', handleTouch, {
+        passive: false,
+      });
     }
 
     return () => {
@@ -419,7 +483,9 @@ function Workflow() {
     };
   }, [getViewport, setViewport]);
 
-  const [edgesIds, setEdgesIds] = useState<string[]>(getEdges().map((edge) => edge.id))
+  const [edgesIds, setEdgesIds] = useState<string[]>(
+    getEdges().map(edge => edge.id)
+  );
 
   function array1HasExtraElements(array1: any[], array2: any[]): boolean {
     // Convert arrays to sets
@@ -438,24 +504,32 @@ function Workflow() {
 
   useEffect(() => {
     // 检查边缘集合是否真的改变了
-    if (!array1HasExtraElements(getEdges().map((edge) => edge.id), edgesIds) && 
-        !array1HasExtraElements(edgesIds, getEdges().map((edge) => edge.id))) {
-      return
+    if (
+      !array1HasExtraElements(
+        getEdges().map(edge => edge.id),
+        edgesIds
+      ) &&
+      !array1HasExtraElements(
+        edgesIds,
+        getEdges().map(edge => edge.id)
+      )
+    ) {
+      return;
     }
 
-    setEdgesIds(getEdges().map((edge) => edge.id))
-  }, [getEdges()])
+    setEdgesIds(getEdges().map(edge => edge.id));
+  }, [getEdges()]);
 
   // 移除了与 parentId 相关的复杂排序逻辑，因为不再使用 ReactFlow 的 parentId 机制
-
 
   return (
     <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
       <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
-        <ReactFlow id="flowChart"
+        <ReactFlow
+          id='flowChart'
           style={{
-            width: "100%",
-            height: "100%",
+            width: '100%',
+            height: '100%',
           }}
           connectionLineComponent={CustomConnectionLine}
           nodes={nodes}
@@ -469,12 +543,12 @@ function Workflow() {
           nodesDraggable={!isOnGeneratingNewNode}
           nodesConnectable={!isOnGeneratingNewNode}
           elementsSelectable={!isOnGeneratingNewNode}
-          elevateNodesOnSelect={true}  // 启用 ReactFlow 的内置节点选中提升功能
+          elevateNodesOnSelect={true} // 启用 ReactFlow 的内置节点选中提升功能
           onNodeMouseEnter={(event, node) => {
-            elevateNode(node.id)  // 使用新的 elevateNode 函数
+            elevateNode(node.id); // 使用新的 elevateNode 函数
           }}
           onNodeMouseLeave={(event, node) => {
-            onNodeMouseLeave(node.id)
+            onNodeMouseLeave(node.id);
           }}
           onNodeClick={(event, node) => onNodeClick(node.id)}
           onConnectStart={onConnectStart}
@@ -483,8 +557,8 @@ function Workflow() {
           snapToGrid={true}
           snapGrid={[16, 16]}
           fitView
-          deleteKeyCode={['Backspace', 'Delete']}  // 同时支持Backspace和Delete键
-          minZoom={0.2}           // 最小缩放级别
+          deleteKeyCode={['Backspace', 'Delete']} // 同时支持Backspace和Delete键
+          minZoom={0.2} // 最小缩放级别
           maxZoom={1.5}
           zoomOnScroll={canZoom}
           zoomOnPinch={true}
@@ -493,19 +567,23 @@ function Workflow() {
           panOnScrollSpeed={1}
           selectionMode={SelectionMode.Full}
           selectionOnDrag={true}
-          className="nocursor"
+          className='nocursor'
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
         >
           <Upbar />
-          <Background color="#646464" variant={BackgroundVariant.Dots} gap={16} />
-          
-          <div className="absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]">
+          <Background
+            color='#646464'
+            variant={BackgroundVariant.Dots}
+            gap={16}
+          />
+
+          <div className='absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]'>
             <a
-              href="https://www.puppyagent.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-[#808080] transition-colors"
+              href='https://www.puppyagent.com/'
+              target='_blank'
+              rel='noopener noreferrer'
+              className='hover:text-[#808080] transition-colors'
             >
               PuppyAgent
             </a>
@@ -513,7 +591,7 @@ function Workflow() {
         </ReactFlow>
       </div>
     </div>
-  )
+  );
 }
 
-export default Workflow
+export default Workflow;
