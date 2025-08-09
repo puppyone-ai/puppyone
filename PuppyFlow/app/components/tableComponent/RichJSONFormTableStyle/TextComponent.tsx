@@ -8,6 +8,8 @@ type TextComponentProps = {
   readonly?: boolean;
   isRoot?: boolean;
   onEdit: (path: string, value: string) => void;
+  onDelete?: () => void;
+  parentKey?: string | number;
   preventParentDrag: () => void;
   allowParentDrag: () => void;
 };
@@ -19,6 +21,8 @@ const TextComponent = React.memo(
     readonly = false,
     isRoot = false,
     onEdit,
+    onDelete,
+    parentKey,
     preventParentDrag,
     allowParentDrag,
   }: TextComponentProps) => {
