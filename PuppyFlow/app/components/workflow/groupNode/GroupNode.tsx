@@ -141,6 +141,22 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   // 获取当前背景颜色
   const currentBackgroundColor = data.backgroundColor || 'transparent';
 
+  // 获取toolbar背景颜色 - 使用适中的颜色强度，保持视觉层次
+  const getToolbarBackgroundColor = () => {
+    if (currentBackgroundColor === 'transparent') {
+      return 'rgba(26, 26, 26, 0.6)'; // 默认半透明深灰
+    }
+    // 提取GroupNode的背景色并创建适中强度的版本
+    const rgbaMatch = currentBackgroundColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+    if (rgbaMatch) {
+      const [, r, g, b, a] = rgbaMatch;
+      // 使用原始透明度的60%，让颜色更明显但不过分
+      const newAlpha = parseFloat(a) * 0.6;
+      return `rgba(${r}, ${g}, ${b}, ${newAlpha})`;
+    }
+    return 'rgba(26, 26, 26, 0.6)'; // 默认回退
+  };
+
   // 更新节点背景颜色
   const updateBackgroundColor = useCallback(
     (color: string) => {
@@ -267,7 +283,12 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
 
         {/* ReactFlow NodeToolbar - simplified design */}
         <NodeToolbar isVisible={true}>
-          <div className='flex items-center gap-2 backdrop-blur-sm border border-[#333333]/80 rounded-lg p-2 shadow-lg'>
+          <div 
+            className='flex items-center gap-2 backdrop-blur-md border border-[#333333]/60 rounded-lg p-2 shadow-lg'
+            style={{ 
+              backgroundColor: getToolbarBackgroundColor(),
+              backdropFilter: 'blur(8px)'
+            }}>
             {/* Group Title */}
             <div className='flex items-center gap-2'>
               <span className='font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]'>
