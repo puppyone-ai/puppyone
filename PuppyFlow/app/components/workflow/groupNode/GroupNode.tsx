@@ -267,7 +267,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
 
         {/* ReactFlow NodeToolbar - simplified design */}
         <NodeToolbar isVisible={true}>
-          <div className='flex items-center gap-2 bg-[#1A1A1A]/90 backdrop-blur-sm border border-[#333333]/80 rounded-lg p-2 shadow-lg'>
+          <div className='flex items-center gap-2 backdrop-blur-sm border border-[#333333]/80 rounded-lg p-2 shadow-lg'>
             {/* Group Title */}
             <div className='flex items-center gap-2'>
               <span className='font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]'>

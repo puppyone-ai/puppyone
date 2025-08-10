@@ -26,7 +26,7 @@ import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 // 导入新组件
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
-import RichJSONForm from '../../tableComponent/RichJSONForm/RichJSONForm';
+import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
 import JSONForm from '../../tableComponent/JSONForm';
 
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu';
@@ -767,10 +767,10 @@ function JsonBlockNode({
             <NodeSettingsController nodeid={id} />
 
             {/* 使用新的 NodeViewToggleButton 组件 */}
-            {/* <NodeViewToggleButton
+            <NodeViewToggleButton
               useRichEditor={useRichEditor}
               onToggle={() => setUseRichEditor(!useRichEditor)}
-            /> */}
+            /> 
 
             {/* 使用 NodeIndexingButton 组件，传递所需的索引操作函数 */}
             <NodeIndexingButton
