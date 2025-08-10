@@ -215,11 +215,12 @@ function NodeMenu({
       // 為不同類型的節點設定特殊尺寸
       const getNodeSize = (nodeType: string) => {
         switch (nodeType) {
+          case 'group':
+            return { width: 400, height: 300 }; // GroupNode 使用更大的默认尺寸
           case 'text':
           case 'structured':
           case 'file':
           case 'weblink':
-          case 'group': // 恢复 group 类型
           case 'switch':
           default:
             return { width: 240, height: 176 }; // 其他所有 block node 的默認尺寸
@@ -227,6 +228,36 @@ function NodeMenu({
       };
 
       const nodeSize = getNodeSize(node.nodeType);
+
+      // 为 GroupNode 生成随机背景颜色
+      const getRandomGroupColor = () => {
+        const colors = [
+          'rgba(85, 83, 77, 0.2)',   // Gray
+          'rgba(108, 72, 60, 0.2)',  // Brown
+          'rgba(143, 63, 61, 0.2)',  // Red
+          'rgba(68, 106, 91, 0.2)',  // Green
+          'rgba(64, 101, 131, 0.2)', // Blue
+          'rgba(110, 95, 133, 0.2)', // Purple
+          'rgba(119, 89, 110, 0.2)', // Pink
+        ];
+        return colors[Math.floor(Math.random() * colors.length)];
+      };
+
+      // 构建节点数据
+      const nodeData: any = {
+        content: defaultNodeContent,
+        label: node.nodeid,
+        isLoading: false,
+        locked: false,
+        isInput: false,
+        isOutput: false,
+        editable: false,
+      };
+
+      // 如果是 GroupNode，添加随机背景色
+      if (node.nodeType === 'group') {
+        nodeData.backgroundColor = getRandomGroupColor();
+      }
 
       new Promise(resolve => {
         setNodes(prevNodes => {
@@ -236,15 +267,7 @@ function NodeMenu({
             {
               id: node.nodeid,
               position: mousePosition,
-              data: {
-                content: defaultNodeContent,
-                label: node.nodeid,
-                isLoading: false,
-                locked: false,
-                isInput: false,
-                isOutput: false,
-                editable: false,
-              },
+              data: nodeData,
               type: node.nodeType,
               measured: {
                 width: nodeSize.width,
