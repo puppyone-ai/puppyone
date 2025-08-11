@@ -131,7 +131,7 @@ function collectAllRelatedEdgeNodes(
   return result;
 }
 
-// 步骤2: 确定哪些edgenode要被提交到后端：input和output都至少有一个blocknode在group里面
+// 步骤2: 确定哪些edgenode要被提交到后端：使用新的更宽松的验证规则
 function filterValidEdgeNodes(
   edgeNodeIds: string[],
   groupBlockNodeIds: string[],
@@ -161,25 +161,52 @@ function filterValidEdgeNodes(
     );
     const outputNodeIds = outputNodes.map(node => node.id);
 
-    // 检查input中是否有至少一个在组内
-    const hasInputInGroup = inputNodeIds.some(nodeId =>
-      groupBlockNodeSet.has(nodeId)
-    );
+    // 检查input和output节点的组内情况
+    const inputInGroupCount = inputNodeIds.filter(id => groupBlockNodeSet.has(id)).length;
+    const outputInGroupCount = outputNodeIds.filter(id => groupBlockNodeSet.has(id)).length;
+    const totalInputCount = inputNodeIds.length;
+    const totalOutputCount = outputNodeIds.length;
 
-    // 检查output中是否有至少一个在组内
-    const hasOutputInGroup = outputNodeIds.some(nodeId =>
-      groupBlockNodeSet.has(nodeId)
-    );
+    // 新的验证规则：
+    // 1. 输入和输出都有组内节点 → 有效
+    // 2. 所有输入在组内且输出无组内节点 → 有效  
+    // 3. 输入无组内节点且所有输出在组内 → 有效
+    // 4. 输入输出都无组内节点 → 无效
+    
+    const hasInputInGroup = inputInGroupCount > 0;
+    const hasOutputInGroup = outputInGroupCount > 0;
+    const allInputsInGroup = inputInGroupCount === totalInputCount && totalInputCount > 0;
+    const allOutputsInGroup = outputInGroupCount === totalOutputCount && totalOutputCount > 0;
 
-    // 只有当input和output都至少有一个在组内时，才认为这个edge node是有效的
+    let isValid = false;
+    let validationReason = '';
+
     if (hasInputInGroup && hasOutputInGroup) {
+      // 规则1: 输入和输出都有组内节点
+      isValid = true;
+      validationReason = '输入和输出都有组内节点';
+    } else if (allInputsInGroup && !hasOutputInGroup) {
+      // 规则2: 所有输入在组内且输出无组内节点
+      isValid = true;
+      validationReason = '所有输入在组内且输出无组内节点';
+    } else if (!hasInputInGroup && allOutputsInGroup) {
+      // 规则3: 输入无组内节点且所有输出在组内
+      isValid = true;
+      validationReason = '输入无组内节点且所有输出在组内';
+    } else {
+      // 规则4: 其他情况无效
+      isValid = false;
+      validationReason = '不满足组内关联性要求';
+    }
+
+    if (isValid) {
       validEdgeNodes.push(edgeNodeId);
       console.log(
-        `✅ Edge node ${edgeNodeId} 有效: input有${inputNodeIds.filter(id => groupBlockNodeSet.has(id)).length}个在组内, output有${outputNodeIds.filter(id => groupBlockNodeSet.has(id)).length}个在组内`
+        `✅ Edge node ${edgeNodeId} 有效 (${validationReason}): input ${inputInGroupCount}/${totalInputCount} 在组内, output ${outputInGroupCount}/${totalOutputCount} 在组内`
       );
     } else {
       console.log(
-        `❌ Edge node ${edgeNodeId} 无效: input有${inputNodeIds.filter(id => groupBlockNodeSet.has(id)).length}个在组内, output有${outputNodeIds.filter(id => groupBlockNodeSet.has(id)).length}个在组内`
+        `❌ Edge node ${edgeNodeId} 无效 (${validationReason}): input ${inputInGroupCount}/${totalInputCount} 在组内, output ${outputInGroupCount}/${totalOutputCount} 在组内`
       );
     }
   });
@@ -439,21 +466,26 @@ async function sendGroupDataToTargets(
 
   console.log('🚀 开始的block nodes:', Array.from(startBlockNodes));
 
-  // 确定要设置为加载状态的节点：只包括组内的且作为edge output的block nodes
+  // 确定要设置为加载状态的节点：包括所有在最终JSON中且作为edge output的block nodes（包括组外节点）
   const outputNodeIds = new Set<string>();
-  groupBlockNodes.forEach(blockNode => {
-    // 只有当这个block node确实在最终的blocks中，且作为edge的output时，才作为输出节点
-    if (
-      jsonData.blocks[blockNode.id] &&
-      blockNodesAsEdgeOutput.has(blockNode.id)
-    ) {
-      outputNodeIds.add(blockNode.id);
+  Object.keys(jsonData.blocks).forEach(blockId => {
+    // 只要这个block node在最终的blocks中，且作为edge的output，就设为输出节点（无论组内组外）
+    if (blockNodesAsEdgeOutput.has(blockId)) {
+      outputNodeIds.add(blockId);
     }
   });
 
   console.log('⏳ 将被设置为加载状态的block nodes:', Array.from(outputNodeIds));
 
-  // 找到组内的开始节点
+  // 找到所有在最终JSON中的开始节点（包括组外节点）
+  const allStartNodes = new Set<string>();
+  Object.keys(jsonData.blocks).forEach(blockId => {
+    if (startBlockNodes.has(blockId)) {
+      allStartNodes.add(blockId);
+    }
+  });
+
+  // 找到组内的开始节点（用于设置isWaitingForFlow状态）
   const groupStartNodes = new Set<string>();
   groupBlockNodes.forEach(blockNode => {
     if (jsonData.blocks[blockNode.id] && startBlockNodes.has(blockNode.id)) {
@@ -474,12 +506,17 @@ async function sendGroupDataToTargets(
         console.log(`🎯 设置node ${node.id} 为等待flow状态`);
         return { ...node, data: { ...node.data, isWaitingForFlow: true } };
       } else if (outputNodeIds.has(node.id)) {
-        // 组内的输出节点设为isLoading
-        console.log(`⏳ 设置node ${node.id} 为加载状态`);
+        // 所有输出节点（包括组外节点）设为isLoading
+        const isGroupNode = groupBlockNodes.some(gb => gb.id === node.id);
+        console.log(`⏳ 设置node ${node.id} 为加载状态 (${isGroupNode ? '组内' : '组外'})`);
         return {
           ...node,
           data: { ...node.data, content: '', isLoading: true },
         };
+      } else if (allStartNodes.has(node.id) && !groupStartNodes.has(node.id)) {
+        // 组外的开始节点设为特殊的等待状态（可选，用于区分组外节点）
+        console.log(`🌐 设置组外开始节点 ${node.id} 为等待状态`);
+        return { ...node, data: { ...node.data, isWaitingForFlow: true } };
       }
       return node;
     })
@@ -523,11 +560,15 @@ async function sendGroupDataToTargets(
         .then(res => {
           console.log(`[GroupNode运行] 所有节点流式处理完成:`, res);
 
-          // 清空所有group里面的blocknode的isWaitingForFlow状态
+          // 清空所有相关节点的状态（包括组内和组外节点）
           const allGroupBlockNodeIds = groupBlockNodes.map(node => node.id);
+          const allRelatedNodeIds = Object.keys(jsonData.blocks);
+          
           context.setNodes(prevNodes =>
             prevNodes.map(node => {
-              if (allGroupBlockNodeIds.includes(node.id)) {
+              if (allRelatedNodeIds.includes(node.id)) {
+                const isGroupNode = allGroupBlockNodeIds.includes(node.id);
+                console.log(`🧹 清除节点 ${node.id} 的状态 (${isGroupNode ? '组内' : '组外'})`);
                 return {
                   ...node,
                   data: {
