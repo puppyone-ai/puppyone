@@ -141,6 +141,22 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   // 获取当前背景颜色
   const currentBackgroundColor = data.backgroundColor || 'transparent';
 
+  // 获取toolbar背景颜色 - 使用适中的颜色强度，保持视觉层次
+  const getToolbarBackgroundColor = () => {
+    if (currentBackgroundColor === 'transparent') {
+      return 'rgba(26, 26, 26, 0.6)'; // 默认半透明深灰
+    }
+    // 提取GroupNode的背景色并创建适中强度的版本
+    const rgbaMatch = currentBackgroundColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+    if (rgbaMatch) {
+      const [, r, g, b, a] = rgbaMatch;
+      // 使用原始透明度的60%，让颜色更明显但不过分
+      const newAlpha = parseFloat(a) * 0.6;
+      return `rgba(${r}, ${g}, ${b}, ${newAlpha})`;
+    }
+    return 'rgba(26, 26, 26, 0.6)'; // 默认回退
+  };
+
   // 更新节点背景颜色
   const updateBackgroundColor = useCallback(
     (color: string) => {
@@ -262,9 +278,19 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
       >
         {/* 内部 Toolbar - 一直显示 */}
         <>
-          {/* Group 标签 - 左上角 */}
-          <div className='absolute top-6 left-6 z-50 nodrag'>
-            <div className='flex items-center gap-2.5'>
+
+        </>
+
+        {/* ReactFlow NodeToolbar - simplified design */}
+        <NodeToolbar isVisible={true}>
+          <div 
+            className='flex items-center gap-2 backdrop-blur-md border border-[#333333]/60 rounded-lg p-2 shadow-lg'
+            style={{ 
+              backgroundColor: getToolbarBackgroundColor(),
+              backdropFilter: 'blur(8px)'
+            }}>
+            {/* Group Title */}
+            <div className='flex items-center gap-2'>
               <span className='font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]'>
                 {`Group ${data.label}`}
               </span>
@@ -276,201 +302,152 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                 </div>
               )}
             </div>
-          </div>
+            
+            {/* 分隔符 */}
+            <div className='w-px h-[32px] bg-[#555555]/80'></div>
 
-          {/* 按钮组 - 右上角 */}
-          <div className='absolute top-6 right-6 z-50 nodrag'>
-            <div className='flex gap-2.5 bg-[#1A1A1A]/90 backdrop-blur-sm border border-[#333333]/80 rounded-lg p-2 shadow-lg z-50'>
-              {/* 添加手动重新计算按钮（调试用） */}
-              <button
-                onClick={onManualRecalculate}
-                className='w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md'
-                title='Recalculate Nodes'
-              >
+            {/* Settings Menu */}
+            <Menu as="div" className="relative">
+              <Menu.Button className='group w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md'>
                 <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
+                  width='15'
+                  height='3'
+                  viewBox='0 0 15 3'
                   fill='none'
                   xmlns='http://www.w3.org/2000/svg'
                 >
-                  <path
-                    d='M1 4V10H7'
-                    stroke='#CDCDCD'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  />
-                  <path
-                    d='M23 20V14H17'
-                    stroke='#CDCDCD'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  />
-                  <path
-                    d='M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14L18.36 18.36A9 9 0 0 1 3.51 15'
-                    stroke='#CDCDCD'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  />
+                  <rect x='0' y='0' width='3' height='3' className='fill-[#6D7177] group-hover:fill-[#CDCDCD]'/>
+                  <rect x='6' y='0' width='3' height='3' className='fill-[#6D7177] group-hover:fill-[#CDCDCD]'/>
+                  <rect x='12' y='0' width='3' height='3' className='fill-[#6D7177] group-hover:fill-[#CDCDCD]'/>
                 </svg>
-              </button>
-
-              <button
-                onClick={onDetachAll}
-                className='w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md'
-                style={{ display: childNodes.length ? 'flex' : 'none' }}
-                title='Detach All'
+              </Menu.Button>
+              <Transition
+                as={Fragment}
+                enter="transition ease-out duration-100"
+                enterFrom="transform opacity-0 scale-95"
+                enterTo="transform opacity-100 scale-100"
+                leave="transition ease-in duration-75"
+                leaveFrom="transform opacity-100 scale-100"
+                leaveTo="transform opacity-0 scale-95"
               >
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <path
-                    d='M9 14L4 9L9 4'
-                    stroke='#CDCDCD'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  />
-                  <path
-                    d='M20 20V13C20 11.9391 19.5786 10.9217 18.8284 10.1716C18.0783 9.42143 17.0609 9 16 9H4'
-                    stroke='#CDCDCD'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                  />
-                </svg>
-              </button>
+                <Menu.Items className="absolute top-full left-0 mt-1 w-56 bg-[#1A1A1A]/95 backdrop-blur-md border border-[#333333] rounded-lg shadow-2xl z-50 p-1">
+                  {/* Recalculate */}
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={onManualRecalculate}
+                        className={`${active ? 'bg-[#3A3B3D]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                      >
+                        <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
+                          <path d='M1 4V10H7' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
+                          <path d='M23 20V14H17' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
+                          <path d='M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14L18.36 18.36A9 9 0 0 1 3.51 15' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
+                        </svg>
+                        Recalculate Nodes
+                      </button>
+                    )}
+                  </Menu.Item>
 
-              <button
-                onClick={onDelete}
-                className='w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#E53E3E] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#E53E3E] flex items-center justify-center transition-all duration-200 hover:shadow-md'
-                title='Delete'
-              >
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <path
-                    d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z'
-                    stroke='#CDCDCD'
-                    fill='none'
-                    strokeWidth='2'
-                  />
-                  <path
-                    d='M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z'
-                    stroke='#CDCDCD'
-                    fill='none'
-                    strokeWidth='2'
-                  />
-                </svg>
-              </button>
-
-              {/* 分隔符 */}
-              <div className='w-px h-[32px] bg-[#555555]/80'></div>
-
-              {/* 颜色选择器按钮 */}
-              <div className='relative'>
-                <button
-                  onClick={() => setShowColorPicker(!showColorPicker)}
-                  className='p-[8px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center gap-2 transition-all duration-200 hover:shadow-md'
-                  title={`Background: ${getCurrentColorName()}`}
-                >
-                  <div
-                    className='w-3.5 h-3.5 rounded border border-[#555555] shadow-sm'
-                    style={{
-                      backgroundColor:
-                        currentBackgroundColor === 'transparent'
-                          ? '#2A2B2D'
-                          : currentBackgroundColor,
-                    }}
-                  ></div>
-                  <svg
-                    width='10'
-                    height='10'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <path
-                      d='M6 9L12 15L18 9'
-                      stroke='#CDCDCD'
-                      strokeWidth='2'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                    />
-                  </svg>
-                </button>
-
-                {/* 颜色选择器面板 */}
-                {showColorPicker && (
-                  <div className='absolute top-full left-1/2 transform -translate-x-1/2 mt-1 bg-[#1A1A1A]/95 backdrop-blur-md border border-[#333333] rounded-lg p-2 shadow-2xl z-50 min-w-[100px]'>
-                    <div className='grid grid-cols-4 gap-1.5'>
-                      {BACKGROUND_COLORS.map(color => (
-                        <button
-                          key={color.name}
-                          onClick={() => updateBackgroundColor(color.value)}
-                          className={`w-4 h-4 rounded-md border-2 transition-all hover:scale-110 shadow-sm ${
-                            currentBackgroundColor === color.value
-                              ? 'border-[#60A5FA] ring-1 ring-[#60A5FA] ring-opacity-50 shadow-md'
-                              : 'border-0 hover:border-[#666666] hover:shadow-md'
-                          }`}
-                          style={{
-                            backgroundColor:
-                              color.value === 'transparent'
-                                ? '#2A2B2D'
-                                : color.preview,
-                          }}
-                          title={color.name}
-                        >
-                          {color.value === 'transparent' && (
-                            <div className='w-full h-full flex items-center justify-center'>
-                              <div className='w-2.5 h-0.5 bg-[#CDCDCD] rotate-45'></div>
-                            </div>
-                          )}
-                        </button>
-                      ))}
+                  {/* Background Color */}
+                  <Menu.Item>
+                    <div className="px-3 py-2">
+                      <div className="text-xs text-[#888888] mb-2">Background Color</div>
+                      <div className='grid grid-cols-4 gap-1.5'>
+                        {BACKGROUND_COLORS.map(color => (
+                          <button
+                            key={color.name}
+                            onClick={() => updateBackgroundColor(color.value)}
+                            className={`w-6 h-6 rounded-md border-2 transition-all hover:scale-110 shadow-sm ${
+                              currentBackgroundColor === color.value
+                                ? 'border-[#60A5FA] ring-1 ring-[#60A5FA] ring-opacity-50 shadow-md'
+                                : 'border-0 hover:border-[#666666] hover:shadow-md'
+                            }`}
+                            style={{
+                              backgroundColor:
+                                color.value === 'transparent'
+                                  ? '#2A2B2D'
+                                  : color.preview,
+                            }}
+                            title={color.name}
+                          >
+                            {color.value === 'transparent' && (
+                              <div className='w-full h-full flex items-center justify-center'>
+                                <div className='w-3 h-0.5 bg-[#CDCDCD] rotate-45'></div>
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  </Menu.Item>
 
-              <button
-                onClick={onRunGroup}
-                disabled={isLoading}
-                className={`px-3 py-1.5 h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#39BC66] text-[#CDCDCD] hover:text-black rounded-md border border-[#444444] hover:border-[#39BC66] flex items-center gap-2 transition-all duration-200 ${
-                  isLoading
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:shadow-md'
-                }`}
-              >
-                {isLoading ? (
-                  <div className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
-                ) : (
-                  <svg
-                    width='14'
-                    height='14'
-                    viewBox='0 0 24 24'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                    className='transition-colors duration-200'
-                  >
-                    <path d='M8 5V19L19 12L8 5Z' fill='currentColor' />
-                  </svg>
-                )}
-                {isLoading ? 'Running...' : 'Test Run'}
-              </button>
+                  <div className="w-full h-px bg-[#333333] my-1"></div>
 
-              {/* Deploy Button */}
+                  {/* Detach All */}
+                  {childNodes.length > 0 && (
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={onDetachAll}
+                          className={`${active ? 'bg-[#3A3B3D]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                        >
+                          <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
+                            <path d='M9 14L4 9L9 4' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
+                            <path d='M20 20V13C20 11.9391 19.5786 10.9217 18.8284 10.1716C18.0783 9.42143 17.0609 9 16 9H4' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
+                          </svg>
+                          Detach All Nodes
+                        </button>
+                      )}
+                    </Menu.Item>
+                  )}
+
+                  {/* Delete */}
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={onDelete}
+                        className={`${active ? 'bg-[#E53E3E] text-white' : 'text-[#E53E3E]'} w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2`}
+                      >
+                        <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
+                          <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z' stroke='currentColor' fill='none' strokeWidth='2'/>
+                          <path d='M19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z' stroke='currentColor' fill='none' strokeWidth='2'/>
+                        </svg>
+                        Delete Group
+                      </button>
+                    )}
+                  </Menu.Item>
+                </Menu.Items>
+              </Transition>
+            </Menu>
+
+            <button
+              onClick={onRunGroup}
+              disabled={isLoading}
+              className={`px-3 py-1.5 h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#39BC66] text-[#CDCDCD] hover:text-black rounded-md border border-[#444444] hover:border-[#39BC66] flex items-center gap-2 transition-all duration-200 ${
+                isLoading
+                  ? 'opacity-50 cursor-not-allowed'
+                  : 'hover:shadow-md'
+              }`}
+            >
+              {isLoading ? (
+                <div className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+              ) : (
+                <svg
+                  width='14'
+                  height='14'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                  className='transition-colors duration-200'
+                >
+                  <path d='M8 5V19L19 12L8 5Z' fill='currentColor' />
+                </svg>
+              )}
+              {isLoading ? 'Running...' : 'Test Run'}
+            </button>
+
+            {/* Deploy Button with Menu */}
+            <div className="relative">
               <button
                 className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[32px] rounded-[8px] bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D] group`}
                 onMouseEnter={() => setDeployHovered(true)}
@@ -509,19 +486,20 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                   Deploy
                 </div>
               </button>
+
+              {/* Deploy Menu - positioned directly below the deploy button */}
+              {showDeployMenu && (
+                <div className='absolute top-full left-0 mt-1 z-50 nodrag'>
+                  <GroupDeployToolbar
+                    groupNodeId={id}
+                    onClose={() => setShowDeployMenu(false)}
+                  />
+                </div>
+              )}
             </div>
           </div>
-        </>
+        </NodeToolbar>
 
-        {/* Deploy Menu - 简单的absolute定位元素 */}
-        {showDeployMenu && (
-          <div className='absolute top-20 right-6 z-40 nodrag'>
-            <GroupDeployToolbar
-              groupNodeId={id}
-              onClose={() => setShowDeployMenu(false)}
-            />
-          </div>
-        )}
 
         {/* 子节点指示 - 在空白时显示提示 */}
         {childNodes.length === 0 && (
