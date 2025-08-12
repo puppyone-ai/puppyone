@@ -706,27 +706,14 @@ function buildLLMNodeJson(
       }
     | undefined;
 
-  let modelObject: { [key: string]: { inference_method?: string } } = {};
+  let modelString = 'openai/gpt-4o-mini'; // 默认值
 
   if (
     modelAndProvider &&
     typeof modelAndProvider === 'object' &&
-    'id' in modelAndProvider &&
-    'isLocal' in modelAndProvider
+    'id' in modelAndProvider
   ) {
-    const modelId = modelAndProvider.id;
-    const isLocal = modelAndProvider.isLocal;
-
-    if (isLocal) {
-      // 本地模型：添加 inference_method
-      modelObject[modelId] = { inference_method: 'ollama' }; // 默认使用 ollama，也可以是 huggingface
-    } else {
-      // 非本地模型：保持内部 JSON 为空
-      modelObject[modelId] = {};
-    }
-  } else {
-    // 如果没有模型信息，使用默认值
-    modelObject['anthropic/claude-3.5-haiku'] = {};
+    modelString = modelAndProvider.id;
   }
 
   const llmBaseUrl =
@@ -744,7 +731,7 @@ function buildLLMNodeJson(
     data: {
       messages: filteredMessages,
       chat_histories: filteredMessages, // 添加 chat_histories 字段，内容与 messages 相同
-      model: modelObject,
+      model: modelString,
       base_url: llmBaseUrl,
       max_tokens: maxTokens,
       temperature: 0.7,
