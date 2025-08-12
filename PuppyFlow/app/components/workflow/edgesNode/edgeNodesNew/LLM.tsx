@@ -53,6 +53,10 @@ export interface LLMEdgeJsonType {
   type: 'llm';
   data: {
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[];
+    chat_histories: {
+      role: 'system' | 'user' | 'assistant';
+      content: string;
+    }[];
     model: string;
     base_url: string;
     max_tokens: number;
