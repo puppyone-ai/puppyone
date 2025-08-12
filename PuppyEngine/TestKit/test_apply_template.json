@@ -1,0 +1,85 @@
+{
+    "blocks": {
+        "src_block": {
+            "label": "Source",
+            "type": "structured",
+            "data": {
+                "content": {
+                    "user": {
+                        "name": "Hello {{nick}}",
+                        "age": 30,
+                        "tags": [
+                            "pro",
+                            "beta"
+                        ]
+                    },
+                    "prefs": {
+                        "theme": "dark"
+                    }
+                }
+            }
+        },
+        "tmpl_block": {
+            "label": "Template",
+            "type": "structured",
+            "data": {
+                "content": {
+                    "user": {
+                        "name": null,
+                        "age": null,
+                        "tags": [
+                            null,
+                            null,
+                            null
+                        ]
+                    },
+                    "prefs": {
+                        "theme": null,
+                        "lang": null
+                    }
+                }
+            }
+        },
+        "out_block": {
+            "label": "Result",
+            "type": "structured",
+            "data": {
+                "content": {}
+            }
+        }
+    },
+    "edges": {
+        "modify-apply-template": {
+            "type": "modify",
+            "data": {
+                "modify_type": "edit_structured",
+                "content": "{{Source}}",
+                "extra_configs": {
+                    "operations": [
+                        {
+                            "type": "variable_replace",
+                            "params": {
+                                "plugins": {
+                                    "nick": "Alice"
+                                }
+                            }
+                        },
+                        {
+                            "type": "apply_template",
+                            "params": {
+                                "value_template": "{{Template}}"
+                            }
+                        }
+                    ]
+                },
+                "inputs": {
+                    "src_block": "Source",
+                    "tmpl_block": "Template"
+                },
+                "outputs": {
+                    "out_block": "Result"
+                }
+            }
+        }
+    }
+}
