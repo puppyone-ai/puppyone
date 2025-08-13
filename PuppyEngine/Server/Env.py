@@ -240,22 +240,46 @@ class Env:
                 }
                 raise
         
-        # Update blocks with results and persist if needed
+        # Update blocks with results and persist before emitting BLOCK_UPDATED
+        v1_results = {}
         for block_id, content in results.items():
             block = self.blocks[block_id]
+            # Set content so persistence can read from it
             block.set_content(content)
-            
-            # Yield BLOCK_UPDATED event
-            yield {
-                "event_type": "BLOCK_UPDATED",
-                "block_id": block_id,
-                "content": content,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            # Persist block (may yield stream events)
+
+            # Persist block first (may yield STREAM_* events)
             async for event in block.persist(self.storage_client, self.user_info['user_id']):
                 yield event
+
+            # Decide payload based on storage class after persist
+            storage_class = getattr(block, 'storage_class', 'internal')
+            has_external = False
+            try:
+                has_external = bool(block.has_external_data())
+            except Exception:
+                has_external = False
+
+            block_event = {
+                "event_type": "BLOCK_UPDATED",
+                "block_id": block_id,
+                "storage_class": storage_class,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+
+            if storage_class == 'external' or has_external:
+                # External storage: do not include raw content
+                block_event["external_metadata"] = block.data.get("external_metadata")
+                v1_results[block_id] = {
+                    "storage_class": storage_class,
+                    "external_metadata": block.data.get("external_metadata")
+                }
+            else:
+                # Internal storage: safe to include content
+                block_event["content"] = content
+                v1_results[block_id] = content
+
+            # Emit BLOCK_UPDATED after persist completes
+            yield block_event
         
         # Mark edges as completed and blocks as processed
         self.planner.mark_edges_completed(edge_ids)
@@ -271,7 +295,7 @@ class Env:
         
         # Yield block results for backward compatibility
         yield {
-            "data": results,
+            "data": v1_results,
             "is_complete": False,
             "yield_count": len(results)
         }
