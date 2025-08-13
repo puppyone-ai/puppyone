@@ -124,7 +124,8 @@ class StorageClient:
         self, 
         user_id: str,
         block_id: str, 
-        chunk_generator: AsyncGenerator[Tuple[str, bytes], None]
+        chunk_generator: AsyncGenerator[Tuple[str, bytes], None],
+        version_id: Optional[str] = None
     ) -> str:
         """
         Stream upload a new version with multiple chunks
