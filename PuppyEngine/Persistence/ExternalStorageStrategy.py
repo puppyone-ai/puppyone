@@ -9,7 +9,8 @@ from typing import Any, Dict, AsyncGenerator, Tuple, TYPE_CHECKING
 import json
 import uuid
 from datetime import datetime
-from Utils.logger import log_info, log_error, log_debug
+from Utils.logger import log_info, log_error, log_debug, log_warning
+from Utils.file_type import decide_file_type
 from clients.streaming_json_handler import StreamingJSONHandler, StreamingJSONAggregator
 
 if TYPE_CHECKING:
@@ -50,17 +51,79 @@ class ExternalStorageStrategy:
         resource_key = external_metadata.get('resource_key')
         if not resource_key:
             raise ValueError(f"Block {block.id} has external_metadata but no resource_key")
-        
+
         log_info(f"Resolving external content for block {block.id} from {resource_key}")
-        
+
         try:
             # Get manifest
             manifest_key = f"{resource_key}/manifest.json"
             manifest = await storage_client.get_manifest(manifest_key)
-            
-            # Reconstruct content based on type
+
+            # Determine content handling strategy
             content_type = external_metadata.get('content_type', 'text')
-            
+
+            if content_type == 'files':
+                # Prefetch-only: download files to a local working directory and attach a file list
+                import os
+                import tempfile
+                from Utils.logger import log_debug
+
+                # Derive a stable local dir per block/version
+                version_id = manifest.get('version_id') or resource_key.strip('/').split('/')[-1]
+                # Use system temp dir with namespaced folder
+                base_tmp = tempfile.gettempdir()
+                local_dir = os.path.join(base_tmp, 'puppy', 'env_files', block.id, version_id)
+                os.makedirs(local_dir, exist_ok=True)
+
+                files = []
+                for chunk_info in manifest.get('chunks', []):
+                    name = chunk_info.get('name')
+                    if not name:
+                        continue
+                    chunk_key = f"{resource_key}/{name}"
+                    try:
+                        data = await storage_client.download_chunk(chunk_key)
+                        local_path = os.path.join(local_dir, name)
+                        # Ensure parent dirs exist for nested names
+                        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                        with open(local_path, 'wb') as f:
+                            f.write(data)
+                        files.append({
+                            'local_path': local_path,
+                            'file_name': chunk_info.get('file_name') or name,
+                            'mime_type': chunk_info.get('mime_type'),
+                            'file_type': decide_file_type(
+                                chunk_info.get('file_type'),
+                                chunk_info.get('mime_type'),
+                                name
+                            ),
+                            'size': chunk_info.get('size'),
+                            'etag': chunk_info.get('etag'),
+                        })
+                        log_debug(f"Downloaded chunk to {local_path}")
+                    except Exception as de:
+                        log_warning(f"Failed to download chunk {chunk_key}: {de}")
+                        files.append({
+                            'local_path': None,
+                            'file_name': chunk_info.get('file_name') or name,
+                            'mime_type': chunk_info.get('mime_type'),
+                            'file_type': decide_file_type(
+                                chunk_info.get('file_type'),
+                                chunk_info.get('mime_type'),
+                                name
+                            ),
+                            'size': chunk_info.get('size'),
+                            'etag': chunk_info.get('etag'),
+                            'error': str(de)
+                        })
+
+                # Attach local_dir for lifecycle management and set file list as content
+                block.data.setdefault('external_metadata', {})['local_dir'] = local_dir
+                block.set_content(files)
+                block.is_resolved = True
+                log_info(f"Prefetched {len(files)} files for block {block.id} into {local_dir}")
+                return
+
             if content_type == 'structured':
                 # Use StreamingJSONAggregator for structured data
                 aggregator = StreamingJSONAggregator()
@@ -68,9 +131,7 @@ class ExternalStorageStrategy:
                     chunk_key = f"{resource_key}/{chunk_info['name']}"
                     chunk_data = await storage_client.download_chunk(chunk_key)
                     aggregator.add_jsonl_chunk(chunk_data)
-                
                 block.set_content(aggregator.get_aggregated_data())
-                
             else:  # text or binary
                 # Simple concatenation
                 content_parts = []
@@ -78,15 +139,14 @@ class ExternalStorageStrategy:
                     chunk_key = f"{resource_key}/{chunk_info['name']}"
                     chunk_data = await storage_client.download_chunk(chunk_key)
                     content_parts.append(chunk_data)
-                
                 if content_type == 'text':
                     block.set_content(b''.join(content_parts).decode('utf-8'))
                 else:
                     block.set_content(b''.join(content_parts))
-            
+
             block.is_resolved = True
             log_info(f"Successfully resolved content for block {block.id}")
-            
+
         except Exception as e:
             log_error(f"Failed to resolve block {block.id}: {str(e)}")
             raise
@@ -121,13 +181,27 @@ class ExternalStorageStrategy:
             # Initialize stream to obtain version identifiers and resource key early
             version_base, version_id, manifest_key, current_etag = await storage_client.init_stream_version(block.id)
             
-            # Update block's external_metadata early so downstream can reference it immediately
+            # Execute upload
+            # Perform streaming upload (version_id generated server-side)
+            resource_key = await storage_client.stream_upload_version(
+                user_id=user_id,
+                block_id=block.id,
+                chunk_generator=chunk_generator()
+            )
+            
+            # Update block's external_metadata
+            # Parse version_id from returned resource_key (format: user_id/block_id/version_id)
+            try:
+                parsed_version_id = resource_key.strip('/').split('/')[-1]
+            except Exception:
+                parsed_version_id = version_id
+
             block.data['external_metadata'] = {
                 'resource_key': version_base,
                 'content_type': content_type,
                 'chunked': True,
                 'uploaded_at': datetime.utcnow().isoformat(),
-                'version_id': version_id
+                'version_id': parsed_version_id
             }
             
             # Yield STREAM_STARTED event including resource_key
