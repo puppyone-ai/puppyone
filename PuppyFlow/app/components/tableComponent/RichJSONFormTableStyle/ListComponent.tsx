@@ -1,27 +1,35 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
 
 type ListComponentProps = {
     data: any[];
+    path: string;
     readonly?: boolean;
     isNested?: boolean;
     onUpdate: (newData: any[]) => void;
+    onDelete?: () => void;
+    parentKey?: string | number;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
 }
 
 const ListComponent = ({ 
     data, 
+    path = '',
     readonly = false, 
     isNested = false, 
     onUpdate, 
+    onDelete,
     preventParentDrag, 
     allowParentDrag 
 }: ListComponentProps) => {
-    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
     const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    const [showMenu, setShowMenu] = useState(false);
+    
+    const { hoveredPath, setHoveredPath, isPathHovered } = useHover();
+    const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const deleteItem = (index: number) => {
         const newData = data.filter((_, i) => i !== index);
@@ -47,56 +55,201 @@ const ListComponent = ({
         setSelectedIndex(null);
     };
 
-    const handleDragStart = (e: React.DragEvent, index: number) => {
-        setDraggedIndex(index);
-        e.dataTransfer.effectAllowed = 'move';
-        // 防止父级拖拽
-        preventParentDrag();
-    };
 
     const handleDragEnd = () => {
-        setDraggedIndex(null);
         setDragOverIndex(null);
         setSelectedIndex(null);
         // 恢复父级拖拽
         allowParentDrag();
     };
 
-    const handleDragOver = (e: React.DragEvent, index: number) => {
+    // Handle drag over for component reordering within list
+    const handleDragOver = (e: React.DragEvent, index: number, position: 'before' | 'after') => {
         e.preventDefault();
+        e.stopPropagation();
+        
+        // Check if this is a valid drop target for component dragging
+        if (draggedItem === null) return;
+        
         e.dataTransfer.dropEffect = 'move';
         setDragOverIndex(index);
     };
 
-    const handleDragLeave = () => {
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only clear if we're actually leaving the component
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverIndex(null);
+        }
+    };
+
+    // Handle drop for component reordering within list
+    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (draggedItem === null) return;
+        
+        
+        // Check if dragging within same list by comparing parent paths
+        // Extract parent path from draggedPath
+        const getParentPath = (childPath: string): string => {
+            if (!childPath) return '';
+            const lastDot = childPath.lastIndexOf('.');
+            const lastBracket = childPath.lastIndexOf('[');
+            const lastSeparator = Math.max(lastDot, lastBracket);
+            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
+        };
+        
+        const draggedParentPath = getParentPath(draggedPath || '');
+        const isSameList = draggedParentPath === path;
+        
+        if (isSameList && typeof draggedKey === 'number') {
+            // Internal reordering - 不需要删除源元素
+            const newData = [...data];
+            const item = newData[draggedKey];
+            
+            // Remove from old position
+            newData.splice(draggedKey, 1);
+            
+            // Insert at new position
+            const insertIndex = draggedKey < dropIndex ? dropIndex - 1 : dropIndex;
+            newData.splice(insertIndex, 0, item);
+            
+            onUpdate(newData);
+            
+            // 清除拖拽状态但不调用删除
+            clearDraggedItem(false);  // false表示不删除源元素
+            setDragOverIndex(null);
+            return;
+        }
+        
+        // 跨容器移动 - 先添加，后删除
+        const newData = [...data];
+        newData.splice(dropIndex, 0, draggedItem);
+        
+        onUpdate(newData);
+        
+        // 在下一个渲染帧删除源元素，确保添加操作先完成
+        if (!isSameList && sourceOnDelete) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    sourceOnDelete();
+                });
+            });
+        }
+        
+        clearDraggedItem();
         setDragOverIndex(null);
     };
 
-    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-        e.preventDefault();
-        
-        if (draggedIndex === null || draggedIndex === dropIndex) {
-            return;
-        }
 
-        const newData = [...data];
-        const draggedItem = newData[draggedIndex];
+    const handleMenuClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowMenu(!showMenu);
+    };
+
+    const handleCopyList = () => {
+        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        setShowMenu(false);
+    };
+
+    const handleClearList = () => {
+        // Clear: set the entire list to null (but keep it in parent structure)
+        onUpdate(null as any);
+        setShowMenu(false);
+    };
+
+    const handleDeleteList = () => {
+        // Delete: 删除整个列表（包括其在父结构中的键/索引）
+        if (onDelete) {
+            onDelete();
+        } else {
+            console.log('Delete list requested but no onDelete callback provided');
+        }
+        setShowMenu(false);
+    };
+
+    // Close menu when clicking outside or mouse leaves
+    React.useEffect(() => {
+        const handleClickOutside = () => setShowMenu(false);
+        if (showMenu) {
+            document.addEventListener('click', handleClickOutside);
+            return () => document.removeEventListener('click', handleClickOutside);
+        }
+    }, [showMenu]);
+
+    const handleMenuMouseLeave = () => {
+        setShowMenu(false);
+    };
+
+    // 构建当前index的完整路径
+    const getIndexPath = (index: number) => {
+        return path ? `${path}[${index}]` : `[${index}]`;
+    };
+
+    // 处理hover事件
+    const handleIndexHover = (index: number, isEntering: boolean) => {
+        if (isEntering) {
+            setHoveredPath(getIndexPath(index));
+        } else {
+            setHoveredPath(null);
+        }
+    };
+
+
+    // Handle dropping on empty list
+    const handleEmptyDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
         
-        // 移除被拖拽的项
-        newData.splice(draggedIndex, 1);
+        if (draggedItem === null || data.length > 0) return;
         
-        // 插入到新位置
-        const insertIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
-        newData.splice(insertIndex, 0, draggedItem);
         
-        onUpdate(newData);
-        setDraggedIndex(null);
-        setDragOverIndex(null);
+        // Always call source delete for empty drop - we're moving the item here
+        if (sourceOnDelete) {
+            sourceOnDelete();
+        }
+        
+        // Add the dragged item to the empty list
+        onUpdate([draggedItem]);
+        clearDraggedItem();
     };
 
     return (
-        <div className="bg-[#252525] shadow-sm group/list relative">
-            <div className="space-y-0">
+        <div className="bg-[#252525] shadow-sm relative group">
+            {/* Unified Drag Handle */}
+            <DragHandle
+                data={data}
+                path={path}
+                parentKey={data.length}
+                componentType="list"
+                readonly={readonly}
+                onDelete={onDelete}
+                preventParentDrag={preventParentDrag}
+                allowParentDrag={allowParentDrag}
+                color="#ff9b4d"
+            />
+            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#ff9b4d] rounded-full"></div>
+            <div 
+                className={`space-y-0 transition-all duration-200 ${
+                    data.length === 0 && draggedItem !== null 
+                        ? 'bg-blue-400/10 border-2 border-dashed border-blue-400/50 rounded-md p-2' 
+                        : ''
+                }`}
+                onDragOver={(e) => {
+                    if (data.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                    }
+                }}
+                onDragEnter={(e) => {
+                    if (data.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
+                    }
+                }}
+                onDrop={handleEmptyDrop}
+            >
                 {data.length === 0 ? (
                     // Empty state - 简洁版本
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
@@ -136,102 +289,93 @@ const ListComponent = ({
                     </div>
                 ) : (
                     <>
-                        {data.map((item, index) => (
-                            <React.Fragment key={index}>
-                                {/* Drop Indicator Line - 在当前元素上方显示插入指示线 */}
-                                {dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
-                                    <div className="relative">
-                                        <div className="absolute inset-x-0 -top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                            <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                <div 
-                                    className={`group relative transition-all duration-200 ${
-                                        selectedIndex === index || draggedIndex === index
-                                            ? 'bg-blue-500/20' 
-                                            : 'hover:bg-[#6D7177]/20'
-                                    }`}
-                                    onDragOver={(e) => handleDragOver(e, index)}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={(e) => handleDrop(e, index)}
-                                >
-                                    <div className="flex items-stretch">
-                                        {/* Index Badge - 与 DictComponent 中的 key 样式保持一致 */}
-                                        <div className="flex-shrink-0 flex justify-center">
-                                            <div className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center">
-                                                <span className="text-[10px] text-[#ff9b4d] break-words leading-[28px] font-plus-jakarta-sans italic">
-                                                    {index}
-                                                </span>
+                        {data.map((item, index) => {
+                            const indexPath = getIndexPath(index);
+                            const isIndexHovered = isPathHovered(indexPath);
+                            const showDropIndicator = dragOverIndex === index && draggedItem !== null;
+                            
+                            return (
+                                <React.Fragment key={index}>
+                                    {/* Drop Indicator Line - Enhanced visual feedback */}
+                                    {showDropIndicator && (
+                                        <div className="relative">
+                                            <div className="absolute inset-x-0 -top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
                                             </div>
                                         </div>
-                                        
-                                        {/* Vertical Divider Line with Drag Handle */}
-                                        <div className="flex-shrink-0 flex items-center relative">
-                                            <div className="w-[1px] bg-[#6D7177]/70 h-full"></div>
-                                            
-                                            {/* Drag Handle - 在竖线上 */}
-                                            {!readonly && (
-                                                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
-                                                    <div 
-                                                        draggable
-                                                        onMouseDown={() => handleMouseDown(index)}
-                                                        onMouseUp={handleMouseUp}
-                                                        onDragStart={(e) => handleDragStart(e, index)}
-                                                        onDragEnd={handleDragEnd}
-                                                        className={`w-4 h-6 flex items-center justify-center rounded-[3px] 
-                                                                  border transition-all duration-200 ease-out cursor-pointer
-                                                                  ${selectedIndex === index || draggedIndex === index
-                                                                      ? 'bg-blue-500 border-blue-400 opacity-100' 
-                                                                      : 'bg-[#252525] hover:bg-[#2a2a2a] border-[#6D7177]/30 hover:border-[#6D7177]/50 opacity-0 group-hover:opacity-100'
-                                                                  }`}
+                                    )}
+                                    
+                                    <div 
+                                        className={`group relative transition-all duration-200 ${
+                                            showDropIndicator
+                                                ? 'bg-blue-400/20 ring-2 ring-blue-400/50'
+                                                : isIndexHovered
+                                                    ? 'bg-[#CDCDCD]/10'
+                                                    : 'hover:bg-[#6D7177]/10'
+                                        }`}
+                                        onDragOver={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const midpoint = rect.top + rect.height / 2;
+                                            const position = e.clientY < midpoint ? 'before' : 'after';
+                                            handleDragOver(e, index, position);
+                                        }}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, index)}
+                                    >
+                                        <div className="flex items-stretch">
+                                            {/* Index Badge - display only */}
+                                            <div className="flex-shrink-0 flex justify-center">
+                                                <div 
+                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    onMouseEnter={() => handleIndexHover(index, true)}
+                                                    onMouseLeave={() => handleIndexHover(index, false)}
+                                                >
+                                                    <span 
+                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans italic transition-colors duration-200
+                                                            ${isIndexHovered
+                                                                ? 'text-[#cc9968]'
+                                                                : 'text-[#ff9b4d] hover:text-[#ffb366]'
+                                                            }`}
                                                     >
-                                                        <div className="flex flex-col items-center gap-[2px]">
-                                                            <div className={`w-[2px] h-[2px] rounded-full ${
-                                                                selectedIndex === index || draggedIndex === index ? 'bg-white' : 'bg-[#CDCDCD]'
-                                                            }`}></div>
-                                                            <div className={`w-[2px] h-[2px] rounded-full ${
-                                                                selectedIndex === index || draggedIndex === index ? 'bg-white' : 'bg-[#CDCDCD]'
-                                                            }`}></div>
-                                                            <div className={`w-[2px] h-[2px] rounded-full ${
-                                                                selectedIndex === index || draggedIndex === index ? 'bg-white' : 'bg-[#CDCDCD]'
-                                                            }`}></div>
-                                                        </div>
-                                                    </div>
+                                                        {index}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                        
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <ComponentRenderer
-                                                data={item}
-                                                path={`[${index}]`}
-                                                readonly={readonly}
-                                                onUpdate={(newValue) => updateItem(index, newValue)}
-                                                preventParentDrag={preventParentDrag}
-                                                allowParentDrag={allowParentDrag}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* 最后一个元素后的插入指示线 */}
-                                {index === data.length - 1 && dragOverIndex === index && draggedIndex !== null && draggedIndex !== index && (
-                                    <div className="relative">
-                                        <div className="absolute inset-x-0 top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                            <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
+                                            </div>
+                                            
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0">
+                                                <ComponentRenderer
+                                                    data={item}
+                                                    path={indexPath}
+                                                    readonly={readonly}
+                                                    parentKey={index}
+                                                    onUpdate={(newValue) => updateItem(index, newValue)}
+                                                    onDelete={() => deleteItem(index)}
+                                                    preventParentDrag={preventParentDrag}
+                                                    allowParentDrag={allowParentDrag}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-                                
-                                {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
-                                {index < data.length - 1 && (
-                                    <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
-                                )}
-                            </React.Fragment>
-                        ))}
+                                    
+                                    {/* Drop indicator after last element - Enhanced */}
+                                    {index === data.length - 1 && showDropIndicator && (
+                                        <div className="relative">
+                                            <div className="absolute inset-x-0 top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
+                                    {index < data.length - 1 && (
+                                        <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
                         
                         {/* Add New Item - 只在非空时显示 */}
                         {!readonly && (

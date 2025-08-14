@@ -24,7 +24,8 @@ const EDGE_NODE_TYPES = [
   'searchGoogle',
   'searchPerplexity',
   'llmnew',
-  'ifelse'
+  'ifelse',
+  'deepresearch',
 ] as const;
 
 const BLOCK_NODE_TYPES = [
@@ -32,37 +33,42 @@ const BLOCK_NODE_TYPES = [
   'file',
   'weblink',
   'structured',
-  'none'
+  'none',
 ] as const;
 
 export default function useManageReactFlowUtils() {
   const [zoomOnScroll, setZoomOnScroll] = useState(true);
   const reactFlowInstance = useReactFlow();
-  const {getEdges, getNode} = reactFlowInstance
-
+  const { getEdges, getNode } = reactFlowInstance;
 
   const lockZoom = useCallback(() => {
-    setZoomOnScroll(false)
+    setZoomOnScroll(false);
   }, [reactFlowInstance]);
 
   const freeZoom = useCallback(() => {
-    setZoomOnScroll(true)
-    
+    setZoomOnScroll(true);
   }, [reactFlowInstance]);
 
-
   // for edgeButtonNodes
-  const getResultNodes = useCallback((nodeId: string) => {
-    return getEdges().filter(edge => edge.type === "floating" && edge.data?.connectionType === "CTT" && edge.source === nodeId).map(edge => edge.target)
-  }, [reactFlowInstance])
+  const getResultNodes = useCallback(
+    (nodeId: string) => {
+      return getEdges()
+        .filter(
+          edge =>
+            edge.type === 'floating' &&
+            edge.data?.connectionType === 'CTT' &&
+            edge.source === nodeId
+        )
+        .map(edge => edge.target);
+    },
+    [reactFlowInstance]
+  );
 
   // judge if the node is a node or ConfigNode
   const judgeNodeIsEdgeNode = useCallback((nodeId: string) => {
-    const nodeType = getNode(nodeId)?.type
-    return EDGE_NODE_TYPES.includes(nodeType as any)
-  }, [])
- 
-
+    const nodeType = getNode(nodeId)?.type;
+    return EDGE_NODE_TYPES.includes(nodeType as any);
+  }, []);
 
   return {
     zoomOnScroll,
@@ -72,8 +78,6 @@ export default function useManageReactFlowUtils() {
     judgeNodeIsEdgeNode,
     // 导出这些类型列表以供其他地方使用
     EDGE_NODE_TYPES,
-    BLOCK_NODE_TYPES
+    BLOCK_NODE_TYPES,
   };
 }
-
-

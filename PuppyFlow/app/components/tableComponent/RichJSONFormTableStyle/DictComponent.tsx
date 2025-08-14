@@ -1,27 +1,37 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
 
 type DictComponentProps = {
     data: Record<string, any>;
+    path: string;
     readonly?: boolean;
     isNested?: boolean;
     onUpdate: (newData: Record<string, any>) => void;
+    onDelete?: () => void;
+    parentKey?: string | number;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
 }
 
 const DictComponent = ({ 
     data, 
+    path = '',
     readonly = false, 
     isNested = false, 
     onUpdate, 
+    onDelete,
+    parentKey,
     preventParentDrag, 
     allowParentDrag 
 }: DictComponentProps) => {
-    const [draggedKey, setDraggedKey] = useState<string | null>(null);
     const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+    const [dragOverPosition, setDragOverPosition] = useState<'before' | 'after' | null>(null);
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
+    const [showMenu, setShowMenu] = useState(false);
+    
+    const { hoveredPath, setHoveredPath, isPathHovered } = useHover();
+    const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const keys = Object.keys(data);
 
@@ -34,11 +44,11 @@ const DictComponent = ({
     // 生成随机key的函数
     const generateRandomKey = () => {
         const existingKeys = Object.keys(data);
-        let newKey = `${Math.random().toString(36).substr(2, 6)}`;
+        let newKey = `key_${Math.random().toString(36).substr(2, 6)}`;
         
         // 确保key不重复
         while (existingKeys.includes(newKey)) {
-            newKey = `${Math.random().toString(36).substr(2, 6)}`;
+            newKey = `key_${Math.random().toString(36).substr(2, 6)}`;
         }
         
         return newKey;
@@ -61,74 +71,313 @@ const DictComponent = ({
         onUpdate(newData);
     };
 
-    const handleMouseDown = (key: string) => {
-        setSelectedKey(key);
-    };
 
-    const handleMouseUp = () => {
-        setSelectedKey(null);
-    };
-
-    const handleDragStart = (e: React.DragEvent, key: string) => {
-        setDraggedKey(key);
-        e.dataTransfer.effectAllowed = 'move';
-        // 防止父级拖拽
-        preventParentDrag();
+    // 创建拖拽预览元素
+    const createDragPreview = (key: string, value: any) => {
+        const preview = document.createElement('div');
+        preview.style.cssText = `
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            background: #1a1a1a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 12px;
+            color: #CDCDCD;
+            max-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            pointer-events: none;
+        `;
+        
+        // 创建key部分
+        const keySpan = document.createElement('span');
+        keySpan.style.cssText = `
+            color: #9b7edb;
+            font-style: italic;
+            margin-right: 8px;
+        `;
+        keySpan.textContent = key;
+        
+        // 创建分隔符
+        const separator = document.createElement('span');
+        separator.style.cssText = `
+            color: #6D7177;
+            margin-right: 8px;
+        `;
+        separator.textContent = ':';
+        
+        // 创建值预览部分
+        const valueSpan = document.createElement('span');
+        valueSpan.style.cssText = `
+            color: #CDCDCD;
+            opacity: 0.8;
+        `;
+        
+        // 根据值类型显示不同的预览
+        let valuePreview = '';
+        if (typeof value === 'string') {
+            valuePreview = value.length > 20 ? `"${value.substring(0, 20)}..."` : `"${value}"`;
+        } else if (Array.isArray(value)) {
+            valuePreview = `[${value.length} items]`;
+        } else if (typeof value === 'object' && value !== null) {
+            const keys = Object.keys(value);
+            valuePreview = `{${keys.length} keys}`;
+        } else {
+            valuePreview = String(value);
+        }
+        
+        valueSpan.textContent = valuePreview;
+        
+        preview.appendChild(keySpan);
+        preview.appendChild(separator);
+        preview.appendChild(valueSpan);
+        
+        return preview;
     };
 
     const handleDragEnd = () => {
-        setDraggedKey(null);
+        clearDraggedItem();
         setDragOverKey(null);
+        setDragOverPosition(null);
         setSelectedKey(null);
-        // 恢复父级拖拽
         allowParentDrag();
     };
 
-    const handleDragOver = (e: React.DragEvent, key: string) => {
+    // Handle drag over for component reordering within dict
+    const handleDragOver = (e: React.DragEvent, key: string, position: 'before' | 'after') => {
         e.preventDefault();
+        e.stopPropagation();
+        
+        // Check if this is a valid drop target for component dragging
+        if (draggedItem === null) return;
+        
         e.dataTransfer.dropEffect = 'move';
         setDragOverKey(key);
+        setDragOverPosition(position);
     };
 
-    const handleDragLeave = () => {
-        setDragOverKey(null);
+    const handleDragLeave = (e: React.DragEvent) => {
+        // Only clear if we're actually leaving the component
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            setDragOverKey(null);
+            setDragOverPosition(null);
+        }
     };
 
-    const handleDrop = (e: React.DragEvent, dropKey: string) => {
+    // Handle drop for component reordering within dict
+    const handleDrop = (e: React.DragEvent, dropKey: string, position: 'before' | 'after') => {
         e.preventDefault();
+        e.stopPropagation();
         
-        if (draggedKey === null || draggedKey === dropKey) {
+        if (draggedItem === null) return;
+        
+        
+        let newData = { ...data };
+        const currentKeys = Object.keys(newData);
+        
+        // Check if dragging within same dict by comparing parent paths
+        // Extract parent path from draggedPath
+        const getParentPath = (childPath: string): string => {
+            if (!childPath) return '';
+            const lastDot = childPath.lastIndexOf('.');
+            const lastBracket = childPath.lastIndexOf('[');
+            const lastSeparator = Math.max(lastDot, lastBracket);
+            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
+        };
+        
+        const draggedParentPath = getParentPath(draggedPath || '');
+        const isSameDict = draggedParentPath === path;
+        
+        // If dragging from same dict, handle reordering
+        if (isSameDict && draggedKey && typeof draggedKey === 'string' && currentKeys.includes(draggedKey)) {
+            delete newData[draggedKey];
+            
+            // 同字典内重排，不需要删除源元素
+            const shouldDelete = false;
+            
+            // 重新构建对象
+            const orderedData: Record<string, any> = {};
+            const keysToReorder = Object.keys(newData);
+            const dropIndex = keysToReorder.indexOf(dropKey);
+            
+            keysToReorder.forEach((key, index) => {
+                if (dragOverPosition === 'before' && index === dropIndex) {
+                    orderedData[draggedKey] = draggedItem;
+                }
+                orderedData[key] = newData[key];
+                if (dragOverPosition === 'after' && index === dropIndex) {
+                    orderedData[draggedKey] = draggedItem;
+                }
+            });
+            
+            onUpdate(orderedData);
+            clearDraggedItem(shouldDelete);
+            setDragOverKey(null);
+            setDragOverPosition(null);
             return;
         }
-
-        // 重新排序键值对
-        const keyArray = Object.keys(data);
-        const draggedIndex = keyArray.indexOf(draggedKey);
-        const dropIndex = keyArray.indexOf(dropKey);
         
-        // 移除被拖拽的键
-        keyArray.splice(draggedIndex, 1);
+        // Generate new key for the dropped item
+        let newKey: string;
+        if (draggedParentType === 'dict' && typeof draggedKey === 'string') {
+            // Keep the original key if possible
+            newKey = currentKeys.includes(draggedKey as string) ? generateRandomKey() : draggedKey as string;
+        } else {
+            newKey = generateRandomKey();
+        }
         
-        // 插入到新位置
-        const insertIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
-        keyArray.splice(insertIndex, 0, draggedKey);
+        // Rebuild object with proper ordering
+        const orderedData: Record<string, any> = {};
+        const keysToReorder = Object.keys(newData);
+        const dropIndex = keysToReorder.indexOf(dropKey);
         
-        // 重建对象，保持新的键顺序
-        const newData: Record<string, any> = {};
-        keyArray.forEach(key => {
-            newData[key] = data[key];
+        keysToReorder.forEach((key, index) => {
+            if (position === 'before' && index === dropIndex) {
+                orderedData[newKey] = draggedItem;
+            }
+            orderedData[key] = newData[key];
+            if (position === 'after' && index === dropIndex) {
+                orderedData[newKey] = draggedItem;
+            }
         });
         
-        onUpdate(newData);
-        setDraggedKey(null);
+        // If dropping at the end
+        if (!keysToReorder.includes(dropKey)) {
+            orderedData[newKey] = draggedItem;
+        }
+        
+        onUpdate(orderedData);
+        
+        // 在下一个渲染帧删除源元素，确保添加操作先完成
+        if (!isSameDict && sourceOnDelete) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    sourceOnDelete();
+                });
+            });
+        }
+        
+        clearDraggedItem();
         setDragOverKey(null);
+        setDragOverPosition(null);
+    };
+
+
+    // Handle dropping on empty dict
+    const handleEmptyDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (draggedItem === null || keys.length > 0) return;
+        
+        // Always call source delete for empty drop - we're moving the item here
+        if (sourceOnDelete) {
+            sourceOnDelete();
+        }
+        
+        let newKey: string;
+        if (draggedParentType === 'dict' && typeof draggedKey === 'string') {
+            newKey = draggedKey;
+        } else {
+            newKey = generateRandomKey();
+        }
+        
+        onUpdate({ [newKey]: draggedItem });
+        clearDraggedItem();
+    };
+
+    // 构建当前key的完整路径
+    const getKeyPath = (key: string) => {
+        return path ? `${path}.${key}` : key;
+    };
+
+    // 处理hover事件
+    const handleKeyHover = (key: string, isEntering: boolean) => {
+        if (isEntering) {
+            setHoveredPath(getKeyPath(key));
+        } else {
+            setHoveredPath(null);
+        }
+    };
+
+    const handleMenuClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowMenu(!showMenu);
+    };
+
+    const handleCopyObject = () => {
+        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        setShowMenu(false);
+    };
+
+    const handleClearObject = () => {
+        onUpdate(null as any);
+        setShowMenu(false);
+    };
+
+    const handleDeleteObject = () => {
+        if (onDelete) {
+            onDelete();
+        }
+        setShowMenu(false);
+    };
+
+    const handleClearAll = () => {
+        onUpdate({});
+        setShowMenu(false);
+    };
+
+    React.useEffect(() => {
+        const handleClickOutside = () => setShowMenu(false);
+        if (showMenu) {
+            document.addEventListener('click', handleClickOutside);
+            return () => document.removeEventListener('click', handleClickOutside);
+        }
+    }, [showMenu]);
+
+    const handleMenuMouseLeave = () => {
+        setShowMenu(false);
     };
 
     return (
-        <div className="bg-[#252525] shadow-sm group/dict relative">
-            <div className="space-y-0">
+        <div className="bg-[#252525] shadow-sm relative group">
+            {/* Unified Drag Handle */}
+            <DragHandle
+                data={data}
+                path={path}
+                parentKey={parentKey}
+                componentType="dict"
+                readonly={readonly}
+                onDelete={onDelete}
+                preventParentDrag={preventParentDrag}
+                allowParentDrag={allowParentDrag}
+                color="#9b7edb"
+            />
+            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#9b7edb] rounded-full"></div>
+            <div 
+                className={`space-y-0 transition-all duration-200 ${
+                    keys.length === 0 && draggedItem !== null 
+                        ? 'bg-purple-400/10 border-2 border-dashed border-purple-400/50 rounded-md p-2' 
+                        : ''
+                }`}
+                onDragOver={(e) => {
+                    if (keys.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                    }
+                }}
+                onDragEnter={(e) => {
+                    if (keys.length === 0 && draggedItem !== null) {
+                        e.preventDefault();
+                    }
+                }}
+                onDrop={handleEmptyDrop}
+            >
                 {keys.length === 0 ? (
-                    // Empty state - 简洁版本
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
                         {readonly ? (
                             <div className="flex items-center h-[24px]">
@@ -166,114 +415,104 @@ const DictComponent = ({
                     </div>
                 ) : (
                     <>
-                        {keys.map((key, index) => (
-                            <React.Fragment key={key}>
-                                {/* Drop Indicator Line - 在当前元素上方显示插入指示线 */}
-                                {dragOverKey === key && draggedKey !== null && draggedKey !== key && (
-                                    <div className="relative">
-                                        <div className="absolute inset-x-0 -top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                            <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                <div 
-                                    className={`group relative transition-all duration-200 ${
-                                        selectedKey === key || draggedKey === key
-                                            ? 'bg-blue-500/20' 
-                                            : 'hover:bg-[#6D7177]/20'
-                                    }`}
-                                    onDragOver={(e) => handleDragOver(e, key)}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={(e) => handleDrop(e, key)}
-                                >
-                                    <div className="flex items-stretch">
-                                        {/* Key Badge - 与字符串值样式保持一致 */}
-                                        <div className="flex-shrink-0 flex justify-center">
-                                            <div className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center">
-                                                <span 
-                                                    className="text-[10px] text-[#9b7edb] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic"
-                                                    title={key}
-                                                >
-                                                    {key}
-                                                </span>
+                        {keys.map((key, index) => {
+                            const keyPath = getKeyPath(key);
+                            const isKeyHovered = isPathHovered(keyPath);
+                            const showDropIndicator = dragOverKey === key && draggedItem !== null;
+                            
+                            return (
+                                <React.Fragment key={key}>
+                                    {/* Drop Indicator - Before - Enhanced */}
+                                    {showDropIndicator && dragOverPosition === 'before' && (
+                                        <div className="relative">
+                                            <div className="absolute inset-x-0 -top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
                                             </div>
                                         </div>
-                                        
-                                        {/* Vertical Divider Line with Drag Handle */}
-                                        <div className="flex-shrink-0 flex items-center relative">
-                                            <div className="w-[1px] bg-[#6D7177]/70 h-full"></div>
-                                            
-                                            {/* Drag Handle - 在竖线上 */}
-                                            {!readonly && (
-                                                <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-30">
-                                                    <div 
-                                                        draggable
-                                                        onMouseDown={() => handleMouseDown(key)}
-                                                        onMouseUp={handleMouseUp}
-                                                        onDragStart={(e) => handleDragStart(e, key)}
-                                                        onDragEnd={handleDragEnd}
-                                                        className={`w-4 h-6 flex items-center justify-center rounded-[3px] 
-                                                          border transition-all duration-200 ease-out cursor-pointer
-                                                          ${selectedKey === key || draggedKey === key
-                                                              ? 'bg-blue-500 border-blue-400 opacity-100' 
-                                                              : 'bg-[#252525] hover:bg-[#2a2a2a] border-[#6D7177]/30 hover:border-[#6D7177]/50 opacity-0 group-hover:opacity-100'
-                                                          }`}
+                                    )}
+                                    
+                                    <div 
+                                        className={`group relative transition-all duration-200 ${
+                                            showDropIndicator && dragOverKey === key
+                                                ? 'bg-blue-400/20 ring-2 ring-blue-400/50'
+                                                : isKeyHovered 
+                                                    ? 'bg-[#CDCDCD]/10' 
+                                                    : 'hover:bg-[#6D7177]/10'
+                                        }`}
+                                        onDragOver={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            const midpoint = rect.top + rect.height / 2;
+                                            const position = e.clientY < midpoint ? 'before' : 'after';
+                                            handleDragOver(e, key, position);
+                                        }}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={(e) => handleDrop(e, key, dragOverPosition || 'after')}
+                                    >
+                                        <div className="flex items-stretch">
+                                            {/* Key section - display only */}
+                                            <div className="flex-shrink-0 flex justify-center pl-[16px]">
+                                                <div 
+                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    onMouseEnter={() => handleKeyHover(key, true)}
+                                                    onMouseLeave={() => handleKeyHover(key, false)}
+                                                >
+                                                    <span 
+                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic transition-colors duration-200
+                                                            ${isKeyHovered
+                                                                ? 'text-[#a68bc7]'
+                                                                : 'text-[#9b7edb] hover:text-[#b194e8]'
+                                                            }`}
+                                                        title={key}
                                                     >
-                                                        <div className="flex flex-col items-center gap-[2px]">
-                                                            <div className={`w-[2px] h-[2px] rounded-full ${
-                                                                selectedKey === key || draggedKey === key ? 'bg-white' : 'bg-[#CDCDCD]'
-                                                            }`}></div>
-                                                            <div className={`w-[2px] h-[2px] rounded-full ${
-                                                                selectedKey === key || draggedKey === key ? 'bg-white' : 'bg-[#CDCDCD]'
-                                                            }`}></div>
-                                                            <div className={`w-[2px] h-[2px] rounded-full ${
-                                                                selectedKey === key || draggedKey === key ? 'bg-white' : 'bg-[#CDCDCD]'
-                                                            }`}></div>
-                                                        </div>
-                                                    </div>
+                                                        {key}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </div>
-                                        
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <ComponentRenderer
-                                                data={data[key]}
-                                                path={key}
-                                                readonly={readonly}
-                                                onUpdate={(newValue) => updateValue(key, newValue)}
-                                                preventParentDrag={preventParentDrag}
-                                                allowParentDrag={allowParentDrag}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* 最后一个元素后的插入指示线 */}
-                                {index === keys.length - 1 && dragOverKey === key && draggedKey !== null && draggedKey !== key && (
-                                    <div className="relative">
-                                        <div className="absolute inset-x-0 top-[2px] h-[2px] bg-blue-400 z-40 rounded-full shadow-lg">
-                                            <div className="absolute left-2 -top-1 w-2 h-2 bg-blue-400 rounded-full"></div>
+                                            </div>
+                                            
+                                            
+                                            {/* Content */}
+                                            <div className="flex-1 min-w-0">
+                                                <ComponentRenderer
+                                                    data={data[key]}
+                                                    path={keyPath}
+                                                    readonly={readonly}
+                                                    parentKey={key}
+                                                    onUpdate={(newValue) => updateValue(key, newValue)}
+                                                    onDelete={() => deleteKey(key)}
+                                                    preventParentDrag={preventParentDrag}
+                                                    allowParentDrag={allowParentDrag}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                )}
-                                
-                                {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
-                                {index < keys.length - 1 && (
-                                    <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
-                                )}
-                            </React.Fragment>
-                        ))}
+                                    
+                                    {/* Drop Indicator - After - Enhanced */}
+                                    {showDropIndicator && dragOverPosition === 'after' && (
+                                        <div className="relative">
+                                            <div className="absolute inset-x-0 top-[2px] h-[3px] bg-gradient-to-r from-blue-400 to-blue-500 z-40 rounded-full shadow-lg animate-pulse">
+                                                <div className="absolute left-2 -top-1.5 w-3 h-3 bg-blue-400 rounded-full shadow-md"></div>
+                                                <div className="absolute right-2 -top-1.5 w-3 h-3 bg-blue-500 rounded-full shadow-md opacity-60"></div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Horizontal Divider Line */}
+                                    {index < keys.length - 1 && (
+                                        <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
                         
-                        {/* Add New Key - 只在非空时显示 */}
+                        {/* Add New Key Button */}
                         {!readonly && (
                             <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
                                 <button
                                     onClick={addEmptyKey}
                                     className="group w-6 h-4 flex items-center justify-center rounded-[3px] 
                                              bg-[#252525] hover:bg-[#2a2a2a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict:opacity-100"
+                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict-container:opacity-100"
                                     title="Add new key"
                                 >
                                     <svg 

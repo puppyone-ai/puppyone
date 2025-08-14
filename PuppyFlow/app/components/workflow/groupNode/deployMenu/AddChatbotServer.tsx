@@ -1,6 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useReactFlow } from '@xyflow/react';
-import { useWorkspaceDeployedServices, useServers } from '@/app/components/states/UserServersContext';
+import {
+  useWorkspaceDeployedServices,
+  useServers,
+} from '@/app/components/states/UserServersContext';
 import { useServerOperations } from '@/app/components/hooks/useServerManagement';
 import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
 import { useAppSettings } from '@/app/components/states/AppSettingsContext';
@@ -9,7 +12,10 @@ import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edge
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils';
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext';
-import { buildGroupNodeJson, RunGroupNodeContext } from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
+import {
+  buildGroupNodeJson,
+  RunGroupNodeContext,
+} from '@/app/components/workflow/edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
 import { SYSTEM_URLS } from '@/config/urls';
 
 interface DeployAsChatbotProps {
@@ -21,45 +27,60 @@ interface DeployAsChatbotProps {
 function DeployAsChatbot({
   selectedFlowId,
   groupNodeId,
-  setActivePanel
+  setActivePanel,
 }: DeployAsChatbotProps) {
   const { getNodes, getEdges, getNode, setNodes } = useReactFlow();
 
   // 使用新的 context 和 hooks
-  const { chatbots: deployedChatbots, isLoading: servicesLoading } = useWorkspaceDeployedServices(selectedFlowId || '');
+  const { chatbots: deployedChatbots, isLoading: servicesLoading } =
+    useWorkspaceDeployedServices(selectedFlowId || '');
   const { addChatbotService, removeChatbotService } = useServers();
   const { configChatbotService } = useServerOperations();
   const { workspaces } = useWorkspaces();
   const { getAuthHeaders } = useAppSettings();
-  
+
   // 构建器 hooks
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
   // 添加必要的hooks
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
-  const { streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI } = useJsonConstructUtils();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
+    useGetSourceTarget();
+  const {
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+  } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
 
   // 本地状态管理
-  const [selectedInputs, setSelectedInputs] = useState<{ id: string, label: string }[]>([]);
-  const [selectedOutputs, setSelectedOutputs] = useState<{ id: string, label: string }[]>([]);
-  const [selectedChatHistory, setSelectedChatHistory] = useState<{ id: string, label: string }[]>([]);
+  const [selectedInputs, setSelectedInputs] = useState<
+    { id: string; label: string }[]
+  >([]);
+  const [selectedOutputs, setSelectedOutputs] = useState<
+    { id: string; label: string }[]
+  >([]);
+  const [selectedChatHistory, setSelectedChatHistory] = useState<
+    { id: string; label: string }[]
+  >([]);
   const [chatbotConfig, setChatbotConfig] = useState({
     multiTurn: false,
-    welcomeMessage: "Hello! How can I help you today?"
+    welcomeMessage: 'Hello! How can I help you today?',
   });
   const [activeTab, setActiveTab] = useState<'details' | 'bubble' | null>(null);
   const [showChatbotTest, setShowChatbotTest] = useState<boolean>(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-  
+
   // 部署状态
   const [isDeploying, setIsDeploying] = useState<boolean>(false);
   const [deployError, setDeployError] = useState<string | null>(null);
   const [deploySuccess, setDeploySuccess] = useState<boolean>(false); // 新增成功状态
 
   // 获取当前已部署的聊天机器人
-  const currentChatbot = deployedChatbots.find(chatbot => chatbot.workspace_id === selectedFlowId);
+  const currentChatbot = deployedChatbots.find(
+    chatbot => chatbot.workspace_id === selectedFlowId
+  );
   const isDeployed = currentChatbot !== null;
 
   // 统一管理 API Server URL
@@ -73,17 +94,17 @@ function DeployAsChatbot({
 
   // 获取当前 group 内的所有支持的 block 节点
   const getGroupBlockNodes = () => {
-    return getNodes()
-      .filter(node => {
-        // 检查节点是否属于当前 group
-        const groupIds = (node.data as any)?.groupIds;
-        const isInGroup = Array.isArray(groupIds) && groupIds.includes(groupNodeId);
-        
-        // 检查是否是允许的 block 类型
-        const isBlockType = ALLOWED_BLOCK_TYPES.includes(node.type || '');
-        
-        return isInGroup && isBlockType;
-      });
+    return getNodes().filter(node => {
+      // 检查节点是否属于当前 group
+      const groupIds = (node.data as any)?.groupIds;
+      const isInGroup =
+        Array.isArray(groupIds) && groupIds.includes(groupNodeId);
+
+      // 检查是否是允许的 block 类型
+      const isBlockType = ALLOWED_BLOCK_TYPES.includes(node.type || '');
+
+      return isInGroup && isBlockType;
+    });
   };
 
   // 修改初始化节点选择逻辑 - 默认不选中任何节点
@@ -131,21 +152,21 @@ function DeployAsChatbot({
     // 使用新的 buildGroupNodeJson 函数
     return buildGroupNodeJson({
       groupNodeId,
-      context
+      context,
     });
   };
 
   // 修改后的部署处理逻辑
   const handleDeploy = async () => {
     console.log('🚀 开始部署流程...');
-    
+
     if (!selectedFlowId) {
-      console.error("缺少必要的部署参数");
+      console.error('缺少必要的部署参数');
       return;
     }
 
     if (selectedInputs.length === 0 || selectedOutputs.length === 0) {
-      console.error("请选择输入和输出节点");
+      console.error('请选择输入和输出节点');
       return;
     }
 
@@ -159,23 +180,29 @@ function DeployAsChatbot({
       // 构建工作流 JSON
       const workflow_json = constructWorkflowJson();
       console.log('✅ 工作流 JSON 构建完成');
-      
+
       // 构建部署参数
       const configParams = {
         workflow_json,
         input: selectedInputs[0].id,
         output: selectedOutputs[0].id,
-        history: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+        history:
+          selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
         workspace_id: selectedFlowId,
         multi_turn_enabled: chatbotConfig.multiTurn,
         welcome_message: chatbotConfig.welcomeMessage,
-        integrations: {}
+        integrations: {},
       };
 
       console.log('🌐 开始调用部署API...', configParams);
       // 使用 hook 中的方法调用 API
-      const { chatbot_id, chatbot_key, endpoint } = await configChatbotService(configParams);
-      console.log('✅ API调用成功，返回结果:', { chatbot_id, chatbot_key, endpoint });
+      const { chatbot_id, chatbot_key, endpoint } =
+        await configChatbotService(configParams);
+      console.log('✅ API调用成功，返回结果:', {
+        chatbot_id,
+        chatbot_key,
+        endpoint,
+      });
 
       // 获取工作区名称
       const workspace = workspaces.find(w => w.workspace_id === selectedFlowId);
@@ -189,41 +216,47 @@ function DeployAsChatbot({
 
       console.log('💾 开始保存聊天机器人服务到context...');
       // 添加新的聊天机器人服务到 context
-      addChatbotService({
-        chatbot_id: chatbot_id,
-        chatbot_key: chatbot_key,
-        endpoint: endpoint || `${API_SERVER_URL}/api/${chatbot_id}`,
-        created_at: new Date().toISOString(),
-        workspace_id: selectedFlowId,
-        input: selectedInputs[0].id,
-        output: selectedOutputs[0].id,
-        history: selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
-        multi_turn_enabled: chatbotConfig.multiTurn,
-        welcome_message: chatbotConfig.welcomeMessage,
-        config: {
-          multiTurn: chatbotConfig.multiTurn,
-          welcomeMessage: chatbotConfig.welcomeMessage,
-          deployTo: 'chatbot'
-        }
-      }, workspaceName);
+      addChatbotService(
+        {
+          chatbot_id: chatbot_id,
+          chatbot_key: chatbot_key,
+          endpoint: endpoint || `${API_SERVER_URL}/api/${chatbot_id}`,
+          created_at: new Date().toISOString(),
+          workspace_id: selectedFlowId,
+          input: selectedInputs[0].id,
+          output: selectedOutputs[0].id,
+          history:
+            selectedChatHistory.length > 0 ? selectedChatHistory[0].id : null,
+          multi_turn_enabled: chatbotConfig.multiTurn,
+          welcome_message: chatbotConfig.welcomeMessage,
+          config: {
+            multiTurn: chatbotConfig.multiTurn,
+            welcomeMessage: chatbotConfig.welcomeMessage,
+            deployTo: 'chatbot',
+          },
+        },
+        workspaceName
+      );
 
       console.log('💾 服务保存完成');
-      console.log('Chatbot 部署成功，Chatbot Key 已存储到 context:', chatbot_key);
+      console.log(
+        'Chatbot 部署成功，Chatbot Key 已存储到 context:',
+        chatbot_key
+      );
 
       console.log('🎉 设置成功状态...');
       // 设置成功状态
       setDeploySuccess(true);
       console.log('✅ 成功状态已设置为true');
-      
+
       // 3秒后自动清除成功状态
       setTimeout(() => {
         console.log('⏰ 清除成功状态');
         setDeploySuccess(false);
       }, 3000);
-
     } catch (error) {
-      console.error("❌ 部署失败:", error);
-      setDeployError(error instanceof Error ? error.message : "部署失败");
+      console.error('❌ 部署失败:', error);
+      setDeployError(error instanceof Error ? error.message : '部署失败');
     } finally {
       console.log('🏁 部署流程结束，设置loading为false');
       setIsDeploying(false);
@@ -237,10 +270,12 @@ function DeployAsChatbot({
     if (isSelected) {
       setSelectedInputs([]);
     } else {
-      setSelectedInputs([{
-        id: node.id,
-        label: (node.data.label as string) || node.id
-      }]);
+      setSelectedInputs([
+        {
+          id: node.id,
+          label: (node.data.label as string) || node.id,
+        },
+      ]);
     }
   };
 
@@ -251,10 +286,12 @@ function DeployAsChatbot({
     if (isSelected) {
       setSelectedOutputs([]);
     } else {
-      setSelectedOutputs([{
-        id: node.id,
-        label: (node.data.label as string) || node.id
-      }]);
+      setSelectedOutputs([
+        {
+          id: node.id,
+          label: (node.data.label as string) || node.id,
+        },
+      ]);
     }
   };
 
@@ -262,7 +299,7 @@ function DeployAsChatbot({
   const toggleMultiTurn = () => {
     setChatbotConfig(prev => ({
       ...prev,
-      multiTurn: !prev.multiTurn
+      multiTurn: !prev.multiTurn,
     }));
   };
 
@@ -270,7 +307,7 @@ function DeployAsChatbot({
   const updateWelcomeMessage = (message: string) => {
     setChatbotConfig(prev => ({
       ...prev,
-      welcomeMessage: message
+      welcomeMessage: message,
     }));
   };
 
@@ -292,10 +329,12 @@ function DeployAsChatbot({
     if (isSelected) {
       setSelectedChatHistory([]);
     } else {
-      setSelectedChatHistory([{
-        id: node.id,
-        label: (node.data.label as string) || node.id
-      }]);
+      setSelectedChatHistory([
+        {
+          id: node.id,
+          label: (node.data.label as string) || node.id,
+        },
+      ]);
     }
   };
 
@@ -325,13 +364,32 @@ function DeployAsChatbot({
       name: 'Puppy Chat',
       description: 'Deploy to PuppyChat platform',
       icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" className="fill-current" />
-          <path d="M8.5 10C9.33 10 10 9.33 10 8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5C7 9.33 7.67 10 8.5 10Z" className="fill-current" />
-          <path d="M15.5 10C16.33 10 17 9.33 17 8.5C17 7.67 16.33 7 15.5 7C14.67 7 14 7.67 14 8.5C14 9.33 14.67 10 15.5 10Z" className="fill-current" />
-          <path d="M12 17.5C14.33 17.5 16.31 16.04 17 14H7C7.69 16.04 9.67 17.5 12 17.5Z" className="fill-current" />
+        <svg
+          width='16'
+          height='16'
+          viewBox='0 0 24 24'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+          className='mr-2'
+        >
+          <path
+            d='M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z'
+            className='fill-current'
+          />
+          <path
+            d='M8.5 10C9.33 10 10 9.33 10 8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5C7 9.33 7.67 10 8.5 10Z'
+            className='fill-current'
+          />
+          <path
+            d='M15.5 10C16.33 10 17 9.33 17 8.5C17 7.67 16.33 7 15.5 7C14.67 7 14 7.67 14 8.5C14 9.33 14.67 10 15.5 10Z'
+            className='fill-current'
+          />
+          <path
+            d='M12 17.5C14.33 17.5 16.31 16.04 17 14H7C7.69 16.04 9.67 17.5 12 17.5Z'
+            className='fill-current'
+          />
         </svg>
-      )
+      ),
     },
     // {
     //   id: 'discord',
@@ -359,110 +417,212 @@ function DeployAsChatbot({
       name: 'Web Bubble',
       description: 'Add a chat bubble to your website',
       icon: (
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-          <rect x="2" y="2" width="20" height="16" rx="2"
-            className="stroke-current"
-            strokeWidth="1.5"
-            fill="none"
+        <svg
+          width='16'
+          height='16'
+          viewBox='0 0 24 24'
+          fill='none'
+          xmlns='http://www.w3.org/2000/svg'
+          className='mr-2'
+        >
+          <rect
+            x='2'
+            y='2'
+            width='20'
+            height='16'
+            rx='2'
+            className='stroke-current'
+            strokeWidth='1.5'
+            fill='none'
           />
-          <path d="M2 6h20"
-            className="stroke-current"
-            strokeWidth="1.5"
-          />
-          <circle cx="4.5" cy="4" r="0.75" className="fill-current" />
-          <circle cx="7.5" cy="4" r="0.75" className="fill-current" />
-          <circle cx="10.5" cy="4" r="0.75" className="fill-current" />
-          <circle cx="19.5" cy="18" r="4.5"
-            className="fill-current"
-          />
+          <path d='M2 6h20' className='stroke-current' strokeWidth='1.5' />
+          <circle cx='4.5' cy='4' r='0.75' className='fill-current' />
+          <circle cx='7.5' cy='4' r='0.75' className='fill-current' />
+          <circle cx='10.5' cy='4' r='0.75' className='fill-current' />
+          <circle cx='19.5' cy='18' r='4.5' className='fill-current' />
         </svg>
-      )
-    }
+      ),
+    },
   ];
 
   return (
-    <div className="py-[16px] px-[16px] max-h-[80vh] overflow-y-auto">
-      <div className="flex items-center mb-4">
+    <div className='py-[16px] px-[16px] max-h-[80vh] overflow-y-auto'>
+      <div className='flex items-center mb-4'>
         <button
-          className="mr-2 p-1 rounded-full hover:bg-[#2A2A2A]"
+          className='mr-2 p-1 rounded-full hover:bg-[#2A2A2A]'
           onClick={() => setActivePanel(null)}
         >
-          <svg className="w-5 h-5" fill="#CDCDCD" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-            <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+          <svg
+            className='w-5 h-5'
+            fill='#CDCDCD'
+            viewBox='0 0 20 20'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              fillRule='evenodd'
+              d='M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z'
+              clipRule='evenodd'
+            />
           </svg>
         </button>
-        <h2 className="text-[#CDCDCD] text-[16px]">Deploy as Chatbot</h2>
+        <h2 className='text-[#CDCDCD] text-[16px]'>Deploy as Chatbot</h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]">
-        <div className="p-4 bg-[#1A1A1A]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
-            <div className="flex items-center justify-between">
+      <div className='grid grid-cols-2 gap-0 mb-8 rounded-lg overflow-hidden border border-[#404040]'>
+        <div className='p-4 bg-[#1A1A1A]'>
+          <h3 className='text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2'>
+            <div className='flex items-center justify-between'>
               <span>User Messages</span>
             </div>
-            <div className="flex items-center mt-2 gap-2">
-              <span className="text-[12px] text-[#808080]">from group blocks:</span>
-              <div className="flex items-center gap-1">
-                <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help" title="Text Block">
-                  <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#3B9BFF]">
-                    <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+            <div className='flex items-center mt-2 gap-2'>
+              <span className='text-[12px] text-[#808080]'>
+                from group blocks:
+              </span>
+              <div className='flex items-center gap-1'>
+                <div
+                  className='flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help'
+                  title='Text Block'
+                >
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 20 24'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                    className='text-[#3B9BFF]'
+                  >
+                    <path
+                      d='M3 8H17'
+                      className='stroke-current'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                    />
+                    <path
+                      d='M3 12H15'
+                      className='stroke-current'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                    />
+                    <path
+                      d='M3 16H13'
+                      className='stroke-current'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                    />
                   </svg>
                 </div>
-                <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 transition-colors cursor-help" title="Structured Block">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#9B7EDB]">
-                    <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
-                    <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
-                    <path d="M9 9H11V11H9V9Z" className="fill-current" />
-                    <path d="M9 13H11V15H9V13Z" className="fill-current" />
-                    <path d="M13 9H15V11H13V9Z" className="fill-current" />
-                    <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                <div
+                  className='flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 transition-colors cursor-help'
+                  title='Structured Block'
+                >
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                    className='text-[#9B7EDB]'
+                  >
+                    <path
+                      d='M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z'
+                      className='fill-current'
+                    />
+                    <path
+                      d='M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z'
+                      className='fill-current'
+                    />
+                    <path d='M9 9H11V11H9V9Z' className='fill-current' />
+                    <path d='M9 13H11V15H9V13Z' className='fill-current' />
+                    <path d='M13 9H15V11H13V9Z' className='fill-current' />
+                    <path d='M13 13H15V15H13V13Z' className='fill-current' />
                   </svg>
                 </div>
               </div>
             </div>
           </h3>
 
-          <div className="space-y-3 text-[14px] font-medium">
+          <div className='space-y-3 text-[14px] font-medium'>
             {getGroupBlockNodes()
-              .filter((item) => item.type === 'text')
+              .filter(item => item.type === 'text')
               .map(node => {
-                const isSelected = selectedInputs?.some(item => item.id === node.id);
+                const isSelected = selectedInputs?.some(
+                  item => item.id === node.id
+                );
                 const nodeType = node.type || 'text';
 
                 const colorClasses = {
                   text: {
                     active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]',
-                    default: 'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
-                  }
+                    default:
+                      'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5',
+                  },
                 };
 
                 const nodeIcons = {
                   text: (
-                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
-                      <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <svg
+                      width='12'
+                      height='12'
+                      viewBox='0 0 20 24'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                      className='group mr-2'
+                    >
+                      <path
+                        d='M3 8H17'
+                        className='stroke-current'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
+                      <path
+                        d='M3 12H15'
+                        className='stroke-current'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
+                      <path
+                        d='M3 16H13'
+                        className='stroke-current'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
                     </svg>
-                  )
+                  ),
                 };
 
                 return (
                   <div
                     key={node.id}
-                    className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
-                      }`}
+                    className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${
+                      isSelected
+                        ? colorClasses[nodeType as keyof typeof colorClasses]
+                            ?.active || colorClasses.text.active
+                        : colorClasses[nodeType as keyof typeof colorClasses]
+                            ?.default || colorClasses.text.default
+                    }`}
                     onClick={() => handleInputClick(node)}
                   >
-                    {nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text}
-                    <span className="flex-shrink-0 text-[12px]">{node.data.label as string || node.id}</span>
+                    {nodeIcons[nodeType as keyof typeof nodeIcons] ||
+                      nodeIcons.text}
+                    <span className='flex-shrink-0 text-[12px]'>
+                      {(node.data.label as string) || node.id}
+                    </span>
                     {isSelected && (
                       <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            d='M5 12L10 17L19 8'
+                            stroke='currentColor'
+                            strokeWidth='2'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          />
                         </svg>
                       </div>
                     )}
@@ -470,72 +630,143 @@ function DeployAsChatbot({
                 );
               })}
 
-            {getGroupBlockNodes().filter((item) => item.type === 'text').length === 0 && (
-              <div className="text-[12px] text-[#808080] py-2 text-center">
+            {getGroupBlockNodes().filter(item => item.type === 'text')
+              .length === 0 && (
+              <div className='text-[12px] text-[#808080] py-2 text-center'>
                 No text blocks in this group. Add text nodes to the group first.
               </div>
             )}
           </div>
         </div>
 
-        <div className="p-4 bg-[#1A1A1A] border-l border-[#404040]">
-          <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
-            <div className="flex items-center justify-between">
+        <div className='p-4 bg-[#1A1A1A] border-l border-[#404040]'>
+          <h3 className='text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2'>
+            <div className='flex items-center justify-between'>
               <span>Bot Responses</span>
             </div>
-            <div className="flex items-center mt-2 gap-2">
-              <span className="text-[12px] text-[#808080]">from group blocks:</span>
-              <div className="flex items-center gap-1">
-                <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help" title="Text Block">
-                  <svg width="14" height="14" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#3B9BFF]">
-                    <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                    <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+            <div className='flex items-center mt-2 gap-2'>
+              <span className='text-[12px] text-[#808080]'>
+                from group blocks:
+              </span>
+              <div className='flex items-center gap-1'>
+                <div
+                  className='flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#3B9BFF]/30 hover:border-[#3B9BFF]/50 transition-colors cursor-help'
+                  title='Text Block'
+                >
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 20 24'
+                    fill='none'
+                    xmlns='http://www.w3.org/2000/svg'
+                    className='text-[#3B9BFF]'
+                  >
+                    <path
+                      d='M3 8H17'
+                      className='stroke-current'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                    />
+                    <path
+                      d='M3 12H15'
+                      className='stroke-current'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                    />
+                    <path
+                      d='M3 16H13'
+                      className='stroke-current'
+                      strokeWidth='1.5'
+                      strokeLinecap='round'
+                    />
                   </svg>
                 </div>
               </div>
             </div>
           </h3>
 
-          <div className="space-y-3 text-[14px] font-medium">
+          <div className='space-y-3 text-[14px] font-medium'>
             {getGroupBlockNodes()
-              .filter((item) => item.type === 'text')
+              .filter(item => item.type === 'text')
               .map(node => {
-                const isSelected = selectedOutputs?.some(item => item.id === node.id);
+                const isSelected = selectedOutputs?.some(
+                  item => item.id === node.id
+                );
                 const nodeType = node.type || 'text';
 
                 const colorClasses = {
                   text: {
                     active: 'bg-[#3B9BFF]/20 border-[#3B9BFF] text-[#3B9BFF]',
-                    default: 'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5'
-                  }
+                    default:
+                      'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#3B9BFF]/80 hover:bg-[#3B9BFF]/5',
+                  },
                 };
 
                 const nodeIcons = {
                   text: (
-                    <svg width="12" height="12" viewBox="0 0 20 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
-                      <path d="M3 8H17" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M3 12H15" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
-                      <path d="M3 16H13" className="stroke-current" strokeWidth="1.5" strokeLinecap="round" />
+                    <svg
+                      width='12'
+                      height='12'
+                      viewBox='0 0 20 24'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                      className='group mr-2'
+                    >
+                      <path
+                        d='M3 8H17'
+                        className='stroke-current'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
+                      <path
+                        d='M3 12H15'
+                        className='stroke-current'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
+                      <path
+                        d='M3 16H13'
+                        className='stroke-current'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
                     </svg>
-                  )
+                  ),
                 };
 
                 return (
                   <div
                     key={node.id}
-                    className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                      ? colorClasses[nodeType as keyof typeof colorClasses]?.active || colorClasses.text.active
-                      : colorClasses[nodeType as keyof typeof colorClasses]?.default || colorClasses.text.default
-                      }`}
+                    className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${
+                      isSelected
+                        ? colorClasses[nodeType as keyof typeof colorClasses]
+                            ?.active || colorClasses.text.active
+                        : colorClasses[nodeType as keyof typeof colorClasses]
+                            ?.default || colorClasses.text.default
+                    }`}
                     onClick={() => handleOutputClick(node)}
                   >
-                    {nodeIcons[nodeType as keyof typeof nodeIcons] || nodeIcons.text}
-                    <span className="flex-shrink-0 text-[12px]">{node.data.label as string || node.id}</span>
+                    {nodeIcons[nodeType as keyof typeof nodeIcons] ||
+                      nodeIcons.text}
+                    <span className='flex-shrink-0 text-[12px]'>
+                      {(node.data.label as string) || node.id}
+                    </span>
                     {isSelected && (
                       <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            d='M5 12L10 17L19 8'
+                            stroke='currentColor'
+                            strokeWidth='2'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                          />
                         </svg>
                       </div>
                     )}
@@ -543,8 +774,9 @@ function DeployAsChatbot({
                 );
               })}
 
-            {getGroupBlockNodes().filter((item) => item.type === 'text').length === 0 && (
-              <div className="text-[12px] text-[#808080] py-2 text-center">
+            {getGroupBlockNodes().filter(item => item.type === 'text')
+              .length === 0 && (
+              <div className='text-[12px] text-[#808080] py-2 text-center'>
                 No text blocks in this group. Add text nodes to the group first.
               </div>
             )}
@@ -552,93 +784,173 @@ function DeployAsChatbot({
         </div>
       </div>
 
-      <div className="mb-6">
+      <div className='mb-6'>
         <button
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-          className="w-full flex items-center justify-between text-[#CDCDCD] text-[14px] mb-2 hover:text-white"
+          className='w-full flex items-center justify-between text-[#CDCDCD] text-[14px] mb-2 hover:text-white'
         >
-          <span className="flex items-center">
+          <span className='flex items-center'>
             <svg
               className={`w-4 h-4 mr-2 transition-transform ${isAdvancedOpen ? 'rotate-90' : ''}`}
-              fill="currentColor"
-              viewBox="0 0 20 20"
+              fill='currentColor'
+              viewBox='0 0 20 20'
             >
               <path
-                fillRule="evenodd"
-                d="M7.293 4.707a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L10.586 10 7.293 6.707a1 1 0 010-1.414z"
-                clipRule="evenodd"
+                fillRule='evenodd'
+                d='M7.293 4.707a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L10.586 10 7.293 6.707a1 1 0 010-1.414z'
+                clipRule='evenodd'
               />
             </svg>
             Chatbot Settings
           </span>
         </button>
 
-        <div className={`overflow-hidden transition-all duration-200 ${isAdvancedOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[#CDCDCD] text-[14px]">Enable Multi-turn Dialogue</label>
+        <div
+          className={`overflow-hidden transition-all duration-200 ${isAdvancedOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
+        >
+          <div className='space-y-4 pt-2'>
+            <div className='flex items-center justify-between'>
+              <label className='text-[#CDCDCD] text-[14px]'>
+                Enable Multi-turn Dialogue
+              </label>
               <button
-                className={`w-12 h-6 rounded-full transition-colors duration-200 ${chatbotConfig.multiTurn ? 'bg-[#3B9BFF]' : 'bg-[#404040]'
-                  }`}
+                className={`w-12 h-6 rounded-full transition-colors duration-200 ${
+                  chatbotConfig.multiTurn ? 'bg-[#3B9BFF]' : 'bg-[#404040]'
+                }`}
                 onClick={toggleMultiTurn}
               >
-                <div className={`w-5 h-5 rounded-full bg-white transform transition-transform duration-200 ${chatbotConfig.multiTurn ? 'translate-x-6' : 'translate-x-1'
-                  }`} />
+                <div
+                  className={`w-5 h-5 rounded-full bg-white transform transition-transform duration-200 ${
+                    chatbotConfig.multiTurn ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
               </button>
             </div>
 
             {chatbotConfig.multiTurn && (
-              <div className="grid grid-cols-2 gap-0 rounded-lg overflow-hidden border border-[#404040]">
-                <div className="p-4 bg-[#1A1A1A]">
-                  <h3 className="text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2">
-                    <div className="flex items-center justify-between">
+              <div className='grid grid-cols-2 gap-0 rounded-lg overflow-hidden border border-[#404040]'>
+                <div className='p-4 bg-[#1A1A1A]'>
+                  <h3 className='text-[#CDCDCD] text-[14px] mb-4 border-b border-[#333333] pb-2'>
+                    <div className='flex items-center justify-between'>
                       <span>Chat History</span>
                     </div>
-                    <div className="flex items-center mt-2 gap-2">
-                      <span className="text-[12px] text-[#808080]">from group blocks:</span>
-                      <div className="flex items-center gap-1">
-                        <div className="flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 transition-colors cursor-help" title="Structured Block">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-[#9B7EDB]">
-                            <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
-                            <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
-                            <path d="M9 9H11V11H9V9Z" className="fill-current" />
-                            <path d="M9 13H11V15H9V13Z" className="fill-current" />
-                            <path d="M13 9H15V11H13V9Z" className="fill-current" />
-                            <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                    <div className='flex items-center mt-2 gap-2'>
+                      <span className='text-[12px] text-[#808080]'>
+                        from group blocks:
+                      </span>
+                      <div className='flex items-center gap-1'>
+                        <div
+                          className='flex items-center bg-[#252525] px-[4px] py-[4px] rounded-md border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 transition-colors cursor-help'
+                          title='Structured Block'
+                        >
+                          <svg
+                            width='14'
+                            height='14'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                            className='text-[#9B7EDB]'
+                          >
+                            <path
+                              d='M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z'
+                              className='fill-current'
+                            />
+                            <path
+                              d='M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z'
+                              className='fill-current'
+                            />
+                            <path
+                              d='M9 9H11V11H9V9Z'
+                              className='fill-current'
+                            />
+                            <path
+                              d='M9 13H11V15H9V13Z'
+                              className='fill-current'
+                            />
+                            <path
+                              d='M13 9H15V11H13V9Z'
+                              className='fill-current'
+                            />
+                            <path
+                              d='M13 13H15V15H13V13Z'
+                              className='fill-current'
+                            />
                           </svg>
                         </div>
                       </div>
                     </div>
                   </h3>
 
-                  <div className="space-y-3 text-[14px] font-medium">
+                  <div className='space-y-3 text-[14px] font-medium'>
                     {getGroupBlockNodes()
-                      .filter((item) => item.type === 'structured')
+                      .filter(item => item.type === 'structured')
                       .map(node => {
-                        const isSelected = selectedChatHistory?.some(item => item.id === node.id);
+                        const isSelected = selectedChatHistory?.some(
+                          item => item.id === node.id
+                        );
 
                         return (
                           <div
                             key={node.id}
-                            className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${isSelected
-                              ? 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#9B7EDB]'
-                              : 'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#9B7EDB]/80 hover:bg-[#9B7EDB]/5'
-                              }`}
+                            className={`h-[26px] border-[1.5px] pl-[8px] pr-[8px] rounded-lg flex items-center transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[#9B7EDB]/20 border-[#9B7EDB] text-[#9B7EDB]'
+                                : 'bg-[#252525] border-[#404040] text-[#CDCDCD] hover:border-[#9B7EDB]/80 hover:bg-[#9B7EDB]/5'
+                            }`}
                             onClick={() => handleChatHistoryClick(node)}
                           >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="group mr-2">
-                              <path d="M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z" className="fill-current" />
-                              <path d="M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z" className="fill-current" />
-                              <path d="M9 9H11V11H9V9Z" className="fill-current" />
-                              <path d="M9 13H11V15H9V13Z" className="fill-current" />
-                              <path d="M13 9H15V11H13V9Z" className="fill-current" />
-                              <path d="M13 13H15V15H13V13Z" className="fill-current" />
+                            <svg
+                              width='12'
+                              height='12'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              xmlns='http://www.w3.org/2000/svg'
+                              className='group mr-2'
+                            >
+                              <path
+                                d='M8 6.5V5H4V7.5V16.5V19H8V17.5H5.5V6.5H8Z'
+                                className='fill-current'
+                              />
+                              <path
+                                d='M16 6.5V5H20V7.5V16.5V19H16V17.5H18.5V6.5H16Z'
+                                className='fill-current'
+                              />
+                              <path
+                                d='M9 9H11V11H9V9Z'
+                                className='fill-current'
+                              />
+                              <path
+                                d='M9 13H11V15H9V13Z'
+                                className='fill-current'
+                              />
+                              <path
+                                d='M13 9H15V11H13V9Z'
+                                className='fill-current'
+                              />
+                              <path
+                                d='M13 13H15V15H13V13Z'
+                                className='fill-current'
+                              />
                             </svg>
-                            <span className="flex-shrink-0 text-[12px]">{node.data.label as string || node.id}</span>
+                            <span className='flex-shrink-0 text-[12px]'>
+                              {(node.data.label as string) || node.id}
+                            </span>
                             {isSelected && (
                               <div className='flex ml-auto h-[20px] w-[20px] justify-center items-center'>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M5 12L10 17L19 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                <svg
+                                  width='14'
+                                  height='14'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  xmlns='http://www.w3.org/2000/svg'
+                                >
+                                  <path
+                                    d='M5 12L10 17L19 8'
+                                    stroke='currentColor'
+                                    strokeWidth='2'
+                                    strokeLinecap='round'
+                                    strokeLinejoin='round'
+                                  />
                                 </svg>
                               </div>
                             )}
@@ -646,8 +958,10 @@ function DeployAsChatbot({
                         );
                       })}
 
-                    {getGroupBlockNodes().filter((item) => item.type === 'structured').length === 0 && (
-                      <div className="text-[12px] text-[#808080] py-2 text-center">
+                    {getGroupBlockNodes().filter(
+                      item => item.type === 'structured'
+                    ).length === 0 && (
+                      <div className='text-[12px] text-[#808080] py-2 text-center'>
                         No structured blocks in this group for chat history.
                       </div>
                     )}
@@ -655,8 +969,8 @@ function DeployAsChatbot({
                 </div>
 
                 {/* 右侧空白区域，可以添加说明文字 */}
-                <div className="p-4 bg-[#1A1A1A] border-l border-[#404040] flex items-center justify-center">
-                  <div className="text-center text-[#808080]">
+                <div className='p-4 bg-[#1A1A1A] border-l border-[#404040] flex items-center justify-center'>
+                  <div className='text-center text-[#808080]'>
                     {/* 可以添加说明文字 */}
                   </div>
                 </div>
@@ -664,40 +978,48 @@ function DeployAsChatbot({
             )}
 
             <div>
-              <label className="block text-[#CDCDCD] text-[14px] mb-2">Welcome Message</label>
+              <label className='block text-[#CDCDCD] text-[14px] mb-2'>
+                Welcome Message
+              </label>
               <input
-                type="text"
+                type='text'
                 value={chatbotConfig.welcomeMessage}
-                onChange={(e) => updateWelcomeMessage(e.target.value)}
-                className="w-full bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] px-3 py-2 text-[14px] text-[#CDCDCD]"
+                onChange={e => updateWelcomeMessage(e.target.value)}
+                className='w-full bg-[#2A2A2A] border-[1px] border-[#404040] rounded-[8px] px-3 py-2 text-[14px] text-[#CDCDCD]'
               />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="pt-6 border-t border-[#404040]">
-        <div className="flex flex-col items-center text-center">
-          <div className="flex flex-col w-full items-center gap-4">
+      <div className='pt-6 border-t border-[#404040]'>
+        <div className='flex flex-col items-center text-center'>
+          <div className='flex flex-col w-full items-center gap-4'>
             {!isDeployed && (
               <>
-                {!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) ? (
-                  <span className="text-[#808080] text-[13px]">
+                {!(
+                  selectedInputs?.length > 0 && selectedOutputs?.length > 0
+                ) ? (
+                  <span className='text-[#808080] text-[13px]'>
                     Please select input and output nodes first
                   </span>
                 ) : (
-                  <span className="text-[#808080] text-[13px]">
+                  <span className='text-[#808080] text-[13px]'>
                     Congrats! Your chatbot is ready to be deployed.
-                    {chatbotConfig.multiTurn && selectedChatHistory?.length > 0 && (
-                      <span className="block text-[#9B7EDB] text-[12px] mt-1">
-                        ✓ Chat history will be stored in: {selectedChatHistory[0].label}
-                      </span>
-                    )}
-                    {chatbotConfig.multiTurn && selectedChatHistory?.length === 0 && (
-                      <span className="block text-[#808080] text-[11px] mt-1">
-                        💡 Consider selecting a chat history storage for better conversations
-                      </span>
-                    )}
+                    {chatbotConfig.multiTurn &&
+                      selectedChatHistory?.length > 0 && (
+                        <span className='block text-[#9B7EDB] text-[12px] mt-1'>
+                          ✓ Chat history will be stored in:{' '}
+                          {selectedChatHistory[0].label}
+                        </span>
+                      )}
+                    {chatbotConfig.multiTurn &&
+                      selectedChatHistory?.length === 0 && (
+                        <span className='block text-[#808080] text-[11px] mt-1'>
+                          💡 Consider selecting a chat history storage for
+                          better conversations
+                        </span>
+                      )}
                   </span>
                 )}
               </>
@@ -707,76 +1029,163 @@ function DeployAsChatbot({
               <button
                 className={`w-[210px] h-[48px] rounded-[8px] transition duration-200 
                   flex items-center justify-center gap-2
-                  ${deploySuccess 
-                    ? 'bg-[#22C55E] text-white hover:bg-[#16A34A]' // 成功状态：绿色
-                    : selectedInputs?.length > 0 && selectedOutputs?.length > 0
-                    ? 'bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105'
-                    : 'bg-[#2A2A2A] border-[1.5px] border-[#404040] text-[#808080] cursor-not-allowed opacity-50'
+                  ${
+                    deploySuccess
+                      ? 'bg-[#22C55E] text-white hover:bg-[#16A34A]' // 成功状态：绿色
+                      : selectedInputs?.length > 0 &&
+                          selectedOutputs?.length > 0
+                        ? 'bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105'
+                        : 'bg-[#2A2A2A] border-[1.5px] border-[#404040] text-[#808080] cursor-not-allowed opacity-50'
                   }`}
                 onClick={handleDeploy}
-                disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying || deploySuccess}
+                disabled={
+                  !(
+                    selectedInputs?.length > 0 && selectedOutputs?.length > 0
+                  ) ||
+                  isDeploying ||
+                  deploySuccess
+                }
               >
                 {deploySuccess ? (
                   // 成功状态图标
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  <svg
+                    className='w-5 h-5'
+                    fill='currentColor'
+                    viewBox='0 0 20 20'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <path
+                      fillRule='evenodd'
+                      d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
+                      clipRule='evenodd'
+                    />
                   </svg>
                 ) : isDeploying ? (
-                  <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  <svg
+                    className='animate-spin h-5 w-5 text-black'
+                    xmlns='http://www.w3.org/2000/svg'
+                    fill='none'
+                    viewBox='0 0 24 24'
+                  >
+                    <circle
+                      className='opacity-25'
+                      cx='12'
+                      cy='12'
+                      r='10'
+                      stroke='currentColor'
+                      strokeWidth='4'
+                    ></circle>
+                    <path
+                      className='opacity-75'
+                      fill='currentColor'
+                      d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                    ></path>
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z" />
-                    <path d="M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z" />
+                  <svg
+                    className='w-5 h-5'
+                    fill='currentColor'
+                    viewBox='0 0 20 20'
+                    xmlns='http://www.w3.org/2000/svg'
+                  >
+                    <path d='M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z' />
+                    <path d='M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z' />
                   </svg>
                 )}
-                {deploySuccess ? "Deploy Success" : isDeploying ? "Deploying..." : "Deploy as Chatbot"}
+                {deploySuccess
+                  ? 'Deploy Success'
+                  : isDeploying
+                    ? 'Deploying...'
+                    : 'Deploy as Chatbot'}
               </button>
             ) : (
               <>
-                <div className="w-full flex flex-col gap-3">
+                <div className='w-full flex flex-col gap-3'>
                   {/* 第一行：Redeploy 和 Delete 按钮 */}
-                  <div className="flex gap-3">
+                  <div className='flex gap-3'>
                     <button
                       className={`flex-1 h-[48px] rounded-[8px] transition duration-200 
                         flex items-center justify-center gap-2
-                        ${deploySuccess 
-                          ? 'bg-[#22C55E] text-white hover:bg-[#16A34A]' // 成功状态：绿色
-                          : 'bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105'
+                        ${
+                          deploySuccess
+                            ? 'bg-[#22C55E] text-white hover:bg-[#16A34A]' // 成功状态：绿色
+                            : 'bg-[#FFA73D] text-black hover:bg-[#FF9B20] hover:scale-105'
                         }`}
                       onClick={handleDeploy}
-                      disabled={!(selectedInputs?.length > 0 && selectedOutputs?.length > 0) || isDeploying || deploySuccess}
+                      disabled={
+                        !(
+                          selectedInputs?.length > 0 &&
+                          selectedOutputs?.length > 0
+                        ) ||
+                        isDeploying ||
+                        deploySuccess
+                      }
                     >
                       {deploySuccess ? (
                         // 成功状态图标
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        <svg
+                          className='w-5 h-5'
+                          fill='currentColor'
+                          viewBox='0 0 20 20'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            fillRule='evenodd'
+                            d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z'
+                            clipRule='evenodd'
+                          />
                         </svg>
                       ) : isDeploying ? (
-                        <svg className="animate-spin h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <svg
+                          className='animate-spin h-5 w-5 text-black'
+                          xmlns='http://www.w3.org/2000/svg'
+                          fill='none'
+                          viewBox='0 0 24 24'
+                        >
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
                         </svg>
                       ) : (
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                        <svg
+                          className='w-5 h-5'
+                          fill='currentColor'
+                          viewBox='0 0 20 20'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            d='M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z'
+                            clipRule='evenodd'
+                          />
                         </svg>
                       )}
-                      {deploySuccess ? "Deploy Success ✅" : isDeploying ? "Updating..." : "Deploy"}
+                      {deploySuccess
+                        ? 'Deploy Success ✅'
+                        : isDeploying
+                          ? 'Updating...'
+                          : 'Deploy'}
                     </button>
                   </div>
                 </div>
               </>
             )}
 
-            <div className="mt-4 w-full">
+            <div className='mt-4 w-full'>
               {/* 只在已部署时显示 tab 选项和内容 */}
               {isDeployed && currentChatbot && (
                 <>
                   {/* Tab 选择器 */}
-                  <div className="flex gap-4 justify-center mb-4">
+                  <div className='flex gap-4 justify-center mb-4'>
                     <div
                       className={`flex flex-col items-center cursor-pointer transition duration-200 hover:scale-105`}
                       style={{ width: '80px' }}
@@ -787,19 +1196,38 @@ function DeployAsChatbot({
                           flex items-center justify-center
                           hover:bg-[#252525] hover:shadow-md
                           bg-[#1A1A1A] border border-[#404040]
-                          ${activeTab === 'details'
-                            ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
-                            : 'text-[#CDCDCD] hover:border-[#505050]'
+                          ${
+                            activeTab === 'details'
+                              ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
+                              : 'text-[#CDCDCD] hover:border-[#505050]'
                           }`}
                       >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" className="fill-current" />
-                          <path d="M8.5 10C9.33 10 10 9.33 10 8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5C7 9.33 7.67 10 8.5 10Z" className="fill-current" />
-                          <path d="M15.5 10C16.33 10 17 9.33 17 8.5C17 7.67 16.33 7 15.5 7C14.67 7 14 7.67 14 8.5C14 9.33 14.67 10 15.5 10Z" className="fill-current" />
-                          <path d="M12 17.5C14.33 17.5 16.31 16.04 17 14H7C7.69 16.04 9.67 17.5 12 17.5Z" className="fill-current" />
+                        <svg
+                          width='24'
+                          height='24'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <path
+                            d='M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z'
+                            className='fill-current'
+                          />
+                          <path
+                            d='M8.5 10C9.33 10 10 9.33 10 8.5C10 7.67 9.33 7 8.5 7C7.67 7 7 7.67 7 8.5C7 9.33 7.67 10 8.5 10Z'
+                            className='fill-current'
+                          />
+                          <path
+                            d='M15.5 10C16.33 10 17 9.33 17 8.5C17 7.67 16.33 7 15.5 7C14.67 7 14 7.67 14 8.5C14 9.33 14.67 10 15.5 10Z'
+                            className='fill-current'
+                          />
+                          <path
+                            d='M12 17.5C14.33 17.5 16.31 16.04 17 14H7C7.69 16.04 9.67 17.5 12 17.5Z'
+                            className='fill-current'
+                          />
                         </svg>
                       </div>
-                      <span className="text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]">
+                      <span className='text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]'>
                         Chatbot Details
                       </span>
                     </div>
@@ -814,30 +1242,61 @@ function DeployAsChatbot({
                           flex items-center justify-center
                           hover:bg-[#252525] hover:shadow-md
                           bg-[#1A1A1A] border border-[#404040]
-                          ${activeTab === 'bubble'
-                            ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
-                            : 'text-[#CDCDCD] hover:border-[#505050]'
+                          ${
+                            activeTab === 'bubble'
+                              ? 'border-[#3B9BFF] text-[#3B9BFF] bg-[#3B9BFF]/10'
+                              : 'text-[#CDCDCD] hover:border-[#505050]'
                           }`}
                       >
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <rect x="2" y="2" width="20" height="16" rx="2"
-                            className="stroke-current"
-                            strokeWidth="1.5"
-                            fill="none"
+                        <svg
+                          width='24'
+                          height='24'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
+                          <rect
+                            x='2'
+                            y='2'
+                            width='20'
+                            height='16'
+                            rx='2'
+                            className='stroke-current'
+                            strokeWidth='1.5'
+                            fill='none'
                           />
-                          <path d="M2 6h20"
-                            className="stroke-current"
-                            strokeWidth="1.5"
+                          <path
+                            d='M2 6h20'
+                            className='stroke-current'
+                            strokeWidth='1.5'
                           />
-                          <circle cx="4.5" cy="4" r="0.75" className="fill-current" />
-                          <circle cx="7.5" cy="4" r="0.75" className="fill-current" />
-                          <circle cx="10.5" cy="4" r="0.75" className="fill-current" />
-                          <circle cx="19.5" cy="18" r="4.5"
-                            className="fill-current"
+                          <circle
+                            cx='4.5'
+                            cy='4'
+                            r='0.75'
+                            className='fill-current'
+                          />
+                          <circle
+                            cx='7.5'
+                            cy='4'
+                            r='0.75'
+                            className='fill-current'
+                          />
+                          <circle
+                            cx='10.5'
+                            cy='4'
+                            r='0.75'
+                            className='fill-current'
+                          />
+                          <circle
+                            cx='19.5'
+                            cy='18'
+                            r='4.5'
+                            className='fill-current'
                           />
                         </svg>
                       </div>
-                      <span className="text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]">
+                      <span className='text-[10px] leading-tight text-center mt-1 text-[#CDCDCD]'>
                         Website Bubble
                       </span>
                     </div>
@@ -845,26 +1304,40 @@ function DeployAsChatbot({
 
                   {/* Tab 内容区域 */}
                   {activeTab && (
-                    <div className="py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]">
-                      <div className="flex justify-between items-start">
-                        <span className="text-[14px] text-[#CDCDCD] font-medium">
-                          {activeTab === 'bubble' ? 'Website Bubble Integration' : 'Chatbot Details'}
+                    <div className='py-3 px-4 bg-[#1A1A1A] rounded-[8px] border border-[#404040]'>
+                      <div className='flex justify-between items-start'>
+                        <span className='text-[14px] text-[#CDCDCD] font-medium'>
+                          {activeTab === 'bubble'
+                            ? 'Website Bubble Integration'
+                            : 'Chatbot Details'}
                         </span>
                         <button
-                          className="text-[12px] text-[#3B9BFF] hover:underline flex items-center"
+                          className='text-[12px] text-[#3B9BFF] hover:underline flex items-center'
                           onClick={() => handleTabSwitch(null)}
                         >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M6 18L18 6M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <svg
+                            width='14'
+                            height='14'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              d='M6 18L18 6M6 6L18 18'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            />
                           </svg>
-                          <span className="ml-1">Close</span>
+                          <span className='ml-1'>Close</span>
                         </button>
                       </div>
 
                       {activeTab === 'bubble' ? (
-                        <div className="mt-3">
-                          <code className="block p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto max-h-[200px] overflow-y-auto">
-                            <pre className="text-left whitespace-pre">
+                        <div className='mt-3'>
+                          <code className='block p-2 mt-2 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto max-h-[200px] overflow-y-auto'>
+                            <pre className='text-left whitespace-pre'>
                               {`import { ChatBubbleDeployed } from 'puppychat';
 
 // Add this component to your React app
@@ -872,8 +1345,12 @@ function DeployAsChatbot({
   chatbotId="${currentChatbot?.chatbot_id || 'your_chatbot_id'}"
   baseUrl="${currentChatbot?.endpoint?.replace('/api/' + (currentChatbot?.chatbot_id || ''), '') || API_SERVER_URL}"
   chatbotKey="${currentChatbot?.chatbot_key || 'your_chatbot_key'}"
-  inputBlockId="${selectedInputs?.[0]?.id || 'input_block'}"${chatbotConfig.multiTurn && selectedChatHistory?.[0]?.id ? `
-  historyBlockId="${selectedChatHistory[0].id}"` : ''}
+  inputBlockId="${selectedInputs?.[0]?.id || 'input_block'}"${
+    chatbotConfig.multiTurn && selectedChatHistory?.[0]?.id
+      ? `
+  historyBlockId="${selectedChatHistory[0].id}"`
+      : ''
+  }
   chatProps={{
     title: "AI Assistant",
     placeholder: "Ask me anything...",
@@ -901,43 +1378,59 @@ function DeployAsChatbot({
                           </code>
                         </div>
                       ) : (
-                        <div className="mt-2 space-y-3">
+                        <div className='mt-2 space-y-3'>
                           <div>
-                            <label className="text-[12px] text-[#808080] ">Chatbot Endpoint:</label>
-                            <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
-                              {currentChatbot?.endpoint || `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
+                            <label className='text-[12px] text-[#808080] '>
+                              Chatbot Endpoint:
+                            </label>
+                            <code className='block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto'>
+                              {currentChatbot?.endpoint ||
+                                `${API_SERVER_URL}/api/${currentChatbot?.chatbot_id || ''}`}
                             </code>
                           </div>
 
                           <div>
-                            <label className="text-[12px] text-[#808080]">Chatbot ID:</label>
-                            <code className="block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto">
+                            <label className='text-[12px] text-[#808080]'>
+                              Chatbot ID:
+                            </label>
+                            <code className='block p-2 mt-1 bg-[#252525] rounded text-[12px] text-[#CDCDCD] overflow-x-auto'>
                               {currentChatbot?.chatbot_id || 'api_xxxxxxxxxxxx'}
                             </code>
                           </div>
 
                           <div>
-                            <label className="text-[12px] text-[#808080]">Chatbot Key:</label>
-                            <div className="flex items-start">
-                              <div className="px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto">
-                                {currentChatbot?.chatbot_key || 'sk_xxxxxxxxxxxx'}
+                            <label className='text-[12px] text-[#808080]'>
+                              Chatbot Key:
+                            </label>
+                            <div className='flex items-start'>
+                              <div className='px-3 py-2 flex-grow bg-[#252525] rounded-md text-[12px] text-[#CDCDCD] font-mono overflow-x-auto'>
+                                {currentChatbot?.chatbot_key ||
+                                  'sk_xxxxxxxxxxxx'}
                               </div>
                               <button
-                                className="ml-2 p-2 rounded-md hover:bg-[#2A2A2A]"
+                                className='ml-2 p-2 rounded-md hover:bg-[#2A2A2A]'
                                 onClick={() => {
-                                  navigator.clipboard.writeText(currentChatbot?.chatbot_key || '');
+                                  navigator.clipboard.writeText(
+                                    currentChatbot?.chatbot_key || ''
+                                  );
                                 }}
                               >
-                                <svg className="w-4 h-4 text-[#CDCDCD]" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                                  <path d="M8 2a1 1 0 000 2h2a1 1 0 100-2H8z" />
-                                  <path d="M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z" />
+                                <svg
+                                  className='w-4 h-4 text-[#CDCDCD]'
+                                  fill='currentColor'
+                                  viewBox='0 0 20 20'
+                                  xmlns='http://www.w3.org/2000/svg'
+                                >
+                                  <path d='M8 2a1 1 0 000 2h2a1 1 0 100-2H8z' />
+                                  <path d='M3 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v6h-4.586l1.293-1.293a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L10.414 13H15v3a2 2 0 01-2 2H5a2 2 0 01-2-2V5zM15 11h2a1 1 0 110 2h-2v-2z' />
                                 </svg>
                               </button>
                             </div>
                           </div>
 
-                          <p className="text-[12px] text-[#808080] mt-3">
-                            Reference the example above to make API calls to your endpoint
+                          <p className='text-[12px] text-[#808080] mt-3'>
+                            Reference the example above to make API calls to
+                            your endpoint
                           </p>
                         </div>
                       )}
@@ -952,25 +1445,46 @@ function DeployAsChatbot({
 
       {/* 在部署按钮区域显示成功和错误信息 */}
       {deploySuccess && (
-        <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-md">
-          <div className="flex items-center">
-            <svg className="w-4 h-4 text-green-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+        <div className='mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-md'>
+          <div className='flex items-center'>
+            <svg
+              className='w-4 h-4 text-green-400 mr-2'
+              fill='none'
+              stroke='currentColor'
+              viewBox='0 0 24 24'
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth='2'
+                d='M5 13l4 4L19 7'
+              ></path>
             </svg>
-            <span className="text-green-400 text-[13px]">
-              🎉 Chatbot deployed successfully! Your chatbot is now ready to use.
+            <span className='text-green-400 text-[13px]'>
+              🎉 Chatbot deployed successfully! Your chatbot is now ready to
+              use.
             </span>
           </div>
         </div>
       )}
 
       {deployError && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-md">
-          <div className="flex items-center">
-            <svg className="w-4 h-4 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+        <div className='mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-md'>
+          <div className='flex items-center'>
+            <svg
+              className='w-4 h-4 text-red-400 mr-2'
+              fill='none'
+              stroke='currentColor'
+              viewBox='0 0 24 24'
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth='2'
+                d='M6 18L18 6M6 6l12 12'
+              ></path>
             </svg>
-            <span className="text-red-400 text-[13px]">{deployError}</span>
+            <span className='text-red-400 text-[13px]'>{deployError}</span>
           </div>
         </div>
       )}
@@ -978,4 +1492,4 @@ function DeployAsChatbot({
   );
 }
 
-export default DeployAsChatbot; 
+export default DeployAsChatbot;
