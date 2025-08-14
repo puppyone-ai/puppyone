@@ -12,8 +12,11 @@ function requireEnv(name: string): string {
 function normalizeUrlBase(input: string): string {
   // Trim whitespace and stray quotes/semicolons, drop trailing slash
   let v = input.trim();
-  v = v.replace(/^['"`]+|['"`;]+$/g, '');
-  v = v.replace(/;+$/g, '');
+  // Remove leading/trailing common quotes and unicode quotes
+  v = v.replace(/^[\s'"`“”‘’]+|[\s'"`“”‘’]+$/gu, '');
+  // Remove trailing ASCII or full-width semicolons/commas and spaces
+  v = v.replace(/[;；,，\s]+$/gu, '');
+  // Remove single trailing slash (keep protocol slashes)
   v = v.replace(/\/$/, '');
   // Validate URL
   try {
