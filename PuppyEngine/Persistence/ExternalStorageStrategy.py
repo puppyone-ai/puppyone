@@ -112,43 +112,43 @@ class ExternalStorageStrategy:
             block.is_persisted = True
             return
         
-        # Generate version ID
-        version_id = str(uuid.uuid4())
-        
         # Determine content type
         content_type = self._determine_content_type(content)
         
         log_info(f"Starting external storage for block {block.id} (type: {content_type})")
         
-        # Yield STREAM_STARTED event
-        yield {
-            "event_type": "STREAM_STARTED",
-            "block_id": block.id,
-            "version_id": version_id,
-            "content_type": content_type,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
         try:
-            # Create chunk generator
-            chunk_generator = self._create_chunk_generator(block, content, content_type)
+            # Initialize stream to obtain version identifiers and resource key early
+            version_base, version_id, manifest_key, current_etag = await storage_client.init_stream_version(block.id)
             
-            # Execute upload
-            resource_key = await storage_client.stream_upload_version(
-                user_id=user_id,
-                block_id=block.id,
-                version_id=version_id,
-                chunk_generator=chunk_generator()
-            )
-            
-            # Update block's external_metadata
+            # Update block's external_metadata early so downstream can reference it immediately
             block.data['external_metadata'] = {
-                'resource_key': resource_key,
+                'resource_key': version_base,
                 'content_type': content_type,
                 'chunked': True,
                 'uploaded_at': datetime.utcnow().isoformat(),
                 'version_id': version_id
             }
+            
+            # Yield STREAM_STARTED event including resource_key
+            yield {
+                "event_type": "STREAM_STARTED",
+                "block_id": block.id,
+                "version_id": version_id,
+                "content_type": content_type,
+                "resource_key": version_base,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            # Create chunk generator and perform incremental upload
+            chunk_generator = self._create_chunk_generator(block, content, content_type)
+            await storage_client.upload_chunks_and_update_manifest(
+                block_id=block.id,
+                version_id=version_id,
+                chunk_generator=chunk_generator(),
+                manifest_key=manifest_key,
+                current_etag=current_etag
+            )
             
             # Optionally clear content from memory
             if block.storage_class == 'external':
@@ -156,22 +156,29 @@ class ExternalStorageStrategy:
             
             block.is_persisted = True
             
-            # Yield STREAM_ENDED event
+            # Yield STREAM_ENDED event (with resource_key)
             yield {
                 "event_type": "STREAM_ENDED",
                 "block_id": block.id,
-                "resource_key": resource_key,
+                "resource_key": version_base,
                 "timestamp": datetime.utcnow().isoformat()
             }
             
         except Exception as e:
             log_error(f"Failed to persist block {block.id}: {str(e)}")
-            yield {
+            # Include resource_key if already known
+            error_event = {
                 "event_type": "STREAM_ERROR",
                 "block_id": block.id,
                 "error": str(e),
                 "timestamp": datetime.utcnow().isoformat()
             }
+            try:
+                if 'external_metadata' in block.data and 'resource_key' in block.data['external_metadata']:
+                    error_event["resource_key"] = block.data['external_metadata']['resource_key']
+            except Exception:
+                pass
+            yield error_event
             raise
     
     def _create_chunk_generator(self, block: 'BaseBlock', content: Any, content_type: str):
