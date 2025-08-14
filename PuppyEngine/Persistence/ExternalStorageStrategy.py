@@ -151,8 +151,8 @@ class ExternalStorageStrategy:
             )
             
             # Optionally clear content from memory
-            if block.storage_class == 'external':
-                block.data['content'] = None
+            # if block.storage_class == 'external':
+            #     block.data['content'] = None
             
             block.is_persisted = True
             
