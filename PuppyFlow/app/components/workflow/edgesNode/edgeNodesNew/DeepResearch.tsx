@@ -167,10 +167,10 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
       setNodes(prevNodes =>
         prevNodes.map(node => {
           if (node.id === id) {
-            console.log(
-              '🔍 [updateNodeData] 更新前的 node.data:',
-              JSON.stringify(node.data, null, 2)
-            );
+            // console.log(
+            //   '🔍 [updateNodeData] 更新前的 node.data:',
+            //   JSON.stringify(node.data, null, 2)
+            // );
 
             const currentData = createDefaultNodeData(
               node.data as Partial<DeepResearchNodeData>
@@ -197,10 +197,10 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
               },
             };
 
-            console.log(
-              '🔍 [updateNodeData] 更新后的 newData:',
-              JSON.stringify(newData, null, 2)
-            );
+            // console.log(
+            //   '🔍 [updateNodeData] 更新后的 newData:',
+            //   JSON.stringify(newData, null, 2)
+            // );
 
             return { ...node, data: newData };
           }
@@ -222,6 +222,14 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
       updateNodeData(currentData);
     }
   }, [isOnGeneratingNewNode, getCurrentNodeData, updateNodeData]);
+
+  useEffect(() => {
+    console.log(
+      '🔍 DeepResearch isOnGeneratingNewNode:',
+      isOnGeneratingNewNode
+    );
+    console.log('🔍 hasMountedRef.current:', hasMountedRef.current);
+  }, [isOnGeneratingNewNode]);
 
   // 获取当前配置值
   const currentData = getCurrentNodeData();
@@ -331,77 +339,59 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     [updateNodeData, getCurrentNodeData]
   );
 
-  // 状态同步逻辑 - 模型选择
-  useEffect(() => {
-    if (
-      !isOnGeneratingNewNode &&
-      selectedModelAndProvider &&
-      hasMountedRef.current
-    ) {
-      requestAnimationFrame(() => {
-        onModelAndProviderChange(selectedModelAndProvider);
-      });
-    }
-  }, [
-    selectedModelAndProvider,
-    isOnGeneratingNewNode,
-    onModelAndProviderChange,
-  ]);
-
-  // 状态同步逻辑 - vectorEnabled checkbox
+  // 批量状态同步逻辑 - 统一处理所有状态更新
   useEffect(() => {
     if (!isOnGeneratingNewNode && hasMountedRef.current) {
-      requestAnimationFrame(() => {
+      console.log('🔄 开始批量状态同步');
+
+      const timer = setTimeout(() => {
         const currentData = getCurrentNodeData();
-        updateNodeData({
+
+        const updates = {
+          modelAndProvider: selectedModelAndProvider
+            ? {
+                id: selectedModelAndProvider.id,
+                name: selectedModelAndProvider.name,
+                provider: selectedModelAndProvider.provider || 'Unknown',
+                isLocal: selectedModelAndProvider.isLocal || false,
+              }
+            : currentData.modelAndProvider,
           extra_configs: {
-            ...currentData.extra_configs,
+            max_rounds: maxRounds,
+            llm_model:
+              selectedModelAndProvider?.id ||
+              currentData.extra_configs.llm_model,
             vector_config: {
-              ...currentData.extra_configs.vector_config,
               enabled: vectorEnabled,
               data_source: vectorEnabled ? ['default'] : [],
+              top_k: vectorTopK,
+              threshold: vectorThreshold,
             },
+            web_config: {
+              ...currentData.extra_configs.web_config,
+              top_k: webTopK,
+            },
+            perplexity_config: currentData.extra_configs.perplexity_config,
           },
-        });
-      });
-    }
-  }, [
-    vectorEnabled,
-    isOnGeneratingNewNode,
-    updateNodeData,
-    getCurrentNodeData,
-  ]);
+        };
 
-  // 配置参数变化时同步到节点数据
-  useEffect(() => {
-    if (hasMountedRef.current && !isOnGeneratingNewNode) {
-      const currentData = getCurrentNodeData();
-      updateNodeData({
-        extra_configs: {
-          max_rounds: maxRounds,
-          llm_model: currentData.extra_configs.llm_model,
-          vector_config: {
-            enabled: vectorEnabled,
-            data_source: vectorEnabled ? ['default'] : [],
-            top_k: vectorTopK,
-            threshold: vectorThreshold,
-          },
-          web_config: {
-            ...currentData.extra_configs.web_config,
-            top_k: webTopK,
-          },
-          perplexity_config: currentData.extra_configs.perplexity_config,
-        },
-      });
+        console.log('🔄 执行批量状态更新', updates);
+        updateNodeData(updates);
+      }, 150);
+
+      return () => {
+        console.log('🔄 清理状态同步定时器');
+        clearTimeout(timer);
+      };
     }
   }, [
+    isOnGeneratingNewNode,
+    selectedModelAndProvider,
     maxRounds,
+    vectorEnabled,
     vectorTopK,
     vectorThreshold,
     webTopK,
-    updateNodeData,
-    isOnGeneratingNewNode,
-    getCurrentNodeData,
   ]);
 
   // 创建执行上下文
