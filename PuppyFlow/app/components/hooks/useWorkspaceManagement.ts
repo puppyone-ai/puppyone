@@ -140,61 +140,20 @@ export const useWorkspaceManagement = () => {
     }
   };
 
-  // 获取工作区列表
+  // 获取工作区列表（统一走内部API）
   const fetchWorkspacesList = async (
     userId?: string,
     isLocal?: boolean
   ): Promise<WorkspaceBasicInfo[]> => {
     const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
     try {
-      if (useLocal) {
-        // 本地部署模式：从文件系统获取工作区列表
-        const response = await fetch('/api/workspace/list');
-        if (!response.ok) {
-          throw new Error('Failed to fetch workspace list');
-        }
-        const data = await response.json();
-        return data.workspaces || [];
-      } else {
-        // 云端部署模式
-        let finalUserId = userId;
-        if (!finalUserId) {
-          finalUserId = await fetchUserId();
-          if (!finalUserId) {
-            throw new Error('You do not have a valid user id');
-          }
-        }
-
-        const response = await fetch(
-          `/api/user-system/get_user_workspaces/${finalUserId}`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        // 修复：添加完整的状态码处理
-        if (response.status === 404) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 204) {
-          return [];
-        } else if (response.status === 200) {
-          const data: { workspaces: WorkspaceBasicInfo[] } =
-            await response.json();
-          console.log('User Info:', data);
-          return data.workspaces;
-        } else {
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${response.statusText}`
-          );
-        }
+      // 本地/云端统一：从内部API获取
+      const response = await fetch('/api/workspace/list');
+      if (!response.ok) {
+        throw new Error('Failed to fetch workspace list');
       }
+      const data = await response.json();
+      return data.workspaces || [];
     } catch (error) {
       console.error('Error fetching workspaces info:', error);
       return [];
@@ -275,65 +234,28 @@ export const useWorkspaceManagement = () => {
           workspace_name: workspaceName,
         };
       } else {
-        // 云端部署模式
-        let finalUserId = userId;
-        if (!finalUserId) {
-          finalUserId = await fetchUserId();
-          if (!finalUserId) {
-            throw new Error('You are not a valid user');
-          }
-        }
-
-        console.log(
-          'createWorkspace!!!',
-          JSON.stringify({
+        // 云端部署模式：统一走内部创建接口（服务端解析用户）
+        const response = await fetch(`/api/workspace/create`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
             workspace_id: workspaceId,
             workspace_name: workspaceName,
-          })
-        );
+          }),
+        });
 
-        const response = await fetch(
-          `/api/user-system/create_workspace/${finalUserId}`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              workspace_id: workspaceId,
-              workspace_name: workspaceName,
-            }),
-          }
-        );
-
-        // 修复：添加完整的状态码处理
-        if (response.status === 404) {
-          const error_data: { error: string } = await response.json();
+        if (!response.ok) {
+          const error_data: { error?: string } = await response.json().catch(() => ({} as any));
           throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 400) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 201 || response.status === 200) {
-          const data: {
-            msg: string;
-            workspace_id: string;
-            workspace_name: string;
-          } = await response.json();
-          console.log('new created workspace info:', data);
-          return {
-            workspace_id: data.workspace_id,
-            workspace_name: data.workspace_name,
-          };
-        } else {
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${response.statusText}`
+            `HTTP error! status: ${response.status}, error message: ${error_data?.error || response.statusText}`
           );
         }
+
+        const data: { workspace_id: string; workspace_name: string } = await response.json();
+        return { workspace_id: data.workspace_id, workspace_name: data.workspace_name };
       }
     } catch (error) {
       console.error('Error creating workspace:', error);
@@ -351,38 +273,11 @@ export const useWorkspaceManagement = () => {
         });
         return response.ok;
       } else {
-        // 云端部署模式
-        const response = await fetch(
-          `/api/user-system/delete_workspace/${workspaceId}`,
-          {
-            method: 'DELETE',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        // 修复：添加完整的状态码处理
-        if (response.status === 404) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 500) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 200) {
-          const success_data: { msg: string } = await response.json();
-          console.log(success_data.msg);
-          return true;
-        } else {
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${response.statusText}`
-          );
-        }
+        // 云端统一内部接口
+        const response = await fetch(`/api/workspace/${workspaceId}`, {
+          method: 'DELETE',
+        });
+        return response.ok;
       }
     } catch (error) {
       console.error('Error deleting workspace:', error);
@@ -414,51 +309,15 @@ export const useWorkspaceManagement = () => {
           };
         }
       } else {
-        // 云端部署模式
-        const response = await fetch(
-          `/api/user-system/update_workspace_name/${workspaceId}`,
-          {
-            method: 'PUT',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ new_name: newName }),
-          }
-        );
-
-        // 修复：添加完整的状态码处理
-        if (response.status === 404) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 400) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 500) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 200) {
-          const data: {
-            msg: string;
-            workspace_id: string;
-            workspace_name: string;
-          } = await response.json();
-          console.log('updated workspace name:', data);
-          return {
-            workspace_id: data.workspace_id,
-            workspace_name: data.workspace_name,
-          };
-        } else {
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${response.statusText}`
-          );
-        }
+        // 云端统一内部接口
+        const response = await fetch(`/api/workspace/${workspaceId}/rename`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ new_name: newName }),
+        });
+        if (!response.ok) return undefined;
+        const data = await response.json();
+        return { workspace_id: data.workspace_id, workspace_name: data.workspace_name };
       }
     } catch (error) {
       console.error('Error renaming workspace:', error);
@@ -482,45 +341,11 @@ export const useWorkspaceManagement = () => {
         const { data } = await response.json();
         return data || null;
       } else {
-        // 云端部署模式：从数据库获取
-        const response = await fetch(
-          `/api/user-system/get_latest_workspace_history/${workspaceId}`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          }
-        );
-
-        // 修复：添加完整的状态码处理
-        if (response.status === 204) {
-          return null;
-        } else if (response.status === 404) {
-          const error_data: { error: string } = await response.json();
-          console.error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-          return null;
-        } else if (response.status === 500) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 200) {
-          const data: { history: any } = await response.json();
-          console.log(
-            'latest workspace history for workspace:',
-            workspaceId,
-            data
-          );
-          return data.history || null;
-        } else {
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${response.statusText}`
-          );
-        }
+        // 云端统一内部接口
+        const response = await fetch(`/api/workspace?flowId=${workspaceId}`);
+        if (!response.ok) return null;
+        const { data } = await response.json();
+        return data || null;
       }
     } catch (error) {
       console.error(
@@ -557,50 +382,13 @@ export const useWorkspaceManagement = () => {
 
         return response.ok;
       } else {
-        // 修复：云端部署模式使用正确的保存逻辑
-        const response = await fetch(
-          `/api/user-system/add_workspace_history/${workspaceId}`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              history: content,
-              timestep: timestamp,
-            }),
-          }
-        );
-
-        // 修复：添加完整的状态码处理
-        if (response.status === 404) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 500) {
-          const error_data: { error: string } = await response.json();
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data.error}`
-          );
-        } else if (response.status === 201 || response.status === 200) {
-          const success_data: {
-            msg: string;
-            version_id: string;
-            version_timestamp: string;
-          } = await response.json();
-          console.log(
-            success_data.msg,
-            success_data.version_id,
-            success_data.version_timestamp
-          );
-          return true;
-        } else {
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${response.statusText}`
-          );
-        }
+        // 云端统一内部接口
+        const response = await fetch(`/api/workspace`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ flowId: workspaceId, json: content, timestamp }),
+        });
+        return response.ok;
       }
     } catch (error) {
       console.error('Error saving workspace content:', error);

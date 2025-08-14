@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const url = `${(USER_SYSTEM_BACKEND || '').replace(/\/$/, '')}/protected`;
+  const url = `${USER_SYSTEM_BACKEND}/protected`;
 
   const upstream = await fetch(url, {
     method: 'GET',
