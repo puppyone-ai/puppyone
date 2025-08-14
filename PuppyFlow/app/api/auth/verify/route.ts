@@ -3,7 +3,6 @@
 
 import { cookies } from 'next/headers';
 import { SERVER_ENV } from '@/lib/serverEnv';
-const USER_SYSTEM_BACKEND = SERVER_ENV.USER_SYSTEM_BACKEND;
 
 export async function GET(request: Request) {
   const hdrs = new Headers(request.headers);
@@ -36,7 +35,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const url = `${USER_SYSTEM_BACKEND}/protected`;
+  const url = `${SERVER_ENV.USER_SYSTEM_BACKEND}/protected`;
 
   const upstream = await fetch(url, {
     method: 'GET',
