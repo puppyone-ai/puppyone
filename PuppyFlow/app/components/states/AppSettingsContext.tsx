@@ -414,18 +414,14 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         throw new Error('No user access token found');
       }
 
-      const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-      const response = await fetch(
-        `${UserSystem_Backend_Base_Url}/user_subscription_status`,
-        {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders(),
-          },
-        }
-      );
+      const response = await fetch(`/api/user-system/user_subscription_status`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+      });
 
       if (response.status !== 200) {
         const error_data: { error: string } = await response.json();
