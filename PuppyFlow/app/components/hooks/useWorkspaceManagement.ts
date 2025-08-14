@@ -38,7 +38,6 @@ export type WorkspaceSwitchResult = {
 
 export const useWorkspaceManagement = () => {
   const { isLocalDeployment, getUserToken, getAuthHeaders } = useAppSettings();
-  const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
 
   // 获取用户 ID
   const fetchUserId = async (
@@ -57,7 +56,7 @@ export const useWorkspaceManagement = () => {
         }
 
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/get_user_id`,
+          `/api/user-system/get_user_id`,
           {
             method: 'GET',
             credentials: 'include',
@@ -107,7 +106,7 @@ export const useWorkspaceManagement = () => {
         }
 
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/get_user_name/${finalUserId}`,
+          `/api/user-system/get_user_name/${finalUserId}`,
           {
             method: 'GET',
             credentials: 'include',
@@ -167,7 +166,7 @@ export const useWorkspaceManagement = () => {
         }
 
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/get_user_workspaces/${finalUserId}`,
+          `/api/user-system/get_user_workspaces/${finalUserId}`,
           {
             method: 'GET',
             credentials: 'include',
@@ -228,7 +227,7 @@ export const useWorkspaceManagement = () => {
         }
 
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/initialize_user_data_v2`,
+          `/api/user-system/initialize_user_data_v2`,
           {
             method: 'GET',
             credentials: 'include',
@@ -294,7 +293,7 @@ export const useWorkspaceManagement = () => {
         );
 
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/create_workspace/${finalUserId}`,
+          `/api/user-system/create_workspace/${finalUserId}`,
           {
             method: 'POST',
             credentials: 'include',
@@ -354,7 +353,7 @@ export const useWorkspaceManagement = () => {
       } else {
         // 云端部署模式
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/delete_workspace/${workspaceId}`,
+          `/api/user-system/delete_workspace/${workspaceId}`,
           {
             method: 'DELETE',
             credentials: 'include',
@@ -417,7 +416,7 @@ export const useWorkspaceManagement = () => {
       } else {
         // 云端部署模式
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/update_workspace_name/${workspaceId}`,
+          `/api/user-system/update_workspace_name/${workspaceId}`,
           {
             method: 'PUT',
             credentials: 'include',
@@ -485,7 +484,7 @@ export const useWorkspaceManagement = () => {
       } else {
         // 云端部署模式：从数据库获取
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/get_latest_workspace_history/${workspaceId}`,
+          `/api/user-system/get_latest_workspace_history/${workspaceId}`,
           {
             method: 'GET',
             credentials: 'include',
@@ -560,7 +559,7 @@ export const useWorkspaceManagement = () => {
       } else {
         // 修复：云端部署模式使用正确的保存逻辑
         const response = await fetch(
-          `${UserSystem_Backend_Base_Url}/add_workspace_history/${workspaceId}`,
+          `/api/user-system/add_workspace_history/${workspaceId}`,
           {
             method: 'POST',
             credentials: 'include',
