@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { verifyToken } from '@/utils/auth';
 import { SYSTEM_URLS } from '@/config/urls';
+import { SERVER_ENV } from '@/lib/serverEnv';
 
 // 获取cookie域名的辅助函数
 function getCookieDomain(request: NextRequest): string | undefined {
@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest) {
       ? authTokenFromUrl.substring(0, 20) + '...'
       : null,
     userPageUrl,
-    backendUrl: SYSTEM_URLS.USER_SYSTEM.BACKEND,
+    backendUrl: SERVER_ENV.USER_SYSTEM_BACKEND,
     env: {
       NODE_ENV: process.env.NODE_ENV,
       USER_SYSTEM_FRONTEND_URL: process.env.USER_SYSTEM_FRONTEND_URL,
@@ -117,9 +117,8 @@ export async function middleware(request: NextRequest) {
   if (authTokenFromUrl) {
     try {
       // 验证token
-      const authServerUrl = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-      const verifyPath = '/protected';
-      const fullUrl = `${authServerUrl}${verifyPath}`;
+      const verifyPath = '/api/auth/verify';
+      const fullUrl = new URL(verifyPath, request.url).toString();
 
       const response = await fetch(fullUrl, {
         method: 'GET',
@@ -210,7 +209,7 @@ export async function middleware(request: NextRequest) {
       // 🔥 记录网络错误到服务器日志
       console.error('🚨 Network Error in Auth Token Verification:', {
         error_message: error instanceof Error ? error.message : 'unknown',
-        backend_url: SYSTEM_URLS.USER_SYSTEM.BACKEND,
+        backend_url: SERVER_ENV.USER_SYSTEM_BACKEND,
         original_url: request.url,
         timestamp: new Date().toISOString(),
       });
@@ -225,7 +224,7 @@ export async function middleware(request: NextRequest) {
         );
         debugUrl.searchParams.set(
           'backend_url',
-          SYSTEM_URLS.USER_SYSTEM.BACKEND
+          SERVER_ENV.USER_SYSTEM_BACKEND || ''
         );
         return NextResponse.redirect(debugUrl.toString());
       } else {
@@ -268,8 +267,8 @@ export async function middleware(request: NextRequest) {
     }
 
     try {
-      const authServerUrl = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-      const response = await fetch(`${authServerUrl}/protected`, {
+      const cookieVerifyUrl = new URL('/api/auth/verify', request.url).toString();
+      const response = await fetch(cookieVerifyUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -381,7 +380,7 @@ export async function middleware(request: NextRequest) {
       // 🔥 记录网络错误到服务器日志
       console.error('🚨 Network Error in Cookie Verification:', {
         error_message: error instanceof Error ? error.message : 'unknown',
-        backend_url: SYSTEM_URLS.USER_SYSTEM.BACKEND,
+        backend_url: SERVER_ENV.USER_SYSTEM_BACKEND,
         original_url: request.url,
         timestamp: new Date().toISOString(),
       });
@@ -396,7 +395,7 @@ export async function middleware(request: NextRequest) {
         );
         debugUrl.searchParams.set(
           'backend_url',
-          SYSTEM_URLS.USER_SYSTEM.BACKEND
+          SERVER_ENV.USER_SYSTEM_BACKEND || ''
         );
         return NextResponse.redirect(debugUrl.toString());
       } else {

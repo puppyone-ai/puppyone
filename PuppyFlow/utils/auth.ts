@@ -6,9 +6,7 @@ export async function verifyAndSetToken(
   token: string
 ): Promise<{ isValid: boolean; status: number }> {
   try {
-    const authServerUrl = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-    const verifyPath = '/protected';
-    const fullUrl = `${authServerUrl}${verifyPath}`;
+    const fullUrl = `/api/auth/verify`;
 
     const response = await fetch(fullUrl, {
       method: 'GET',
@@ -42,9 +40,7 @@ export async function verifyAndSetToken(
 // Token验证函数
 export async function verifyToken(request?: NextRequest) {
   try {
-    const authServerUrl = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-    const verifyPath = '/protected';
-    const fullUrl = `${authServerUrl}${verifyPath}`;
+    const fullUrl = `/api/auth/verify`;
 
     // 构建请求头，如果是在中间件中调用，则需要手动传递cookie
     const headers: HeadersInit = {
