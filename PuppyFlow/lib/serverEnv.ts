@@ -2,15 +2,34 @@
 // Do not import this file in client components
 
 function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value || value.trim() === '') {
+  const raw = process.env[name];
+  if (!raw || raw.trim() === '') {
     throw new Error(`Missing required server environment variable: ${name}`);
   }
-  return value;
+  return raw;
+}
+
+function normalizeUrlBase(input: string): string {
+  // Trim whitespace and stray quotes/semicolons, drop trailing slash
+  let v = input.trim();
+  v = v.replace(/^['"`]+|['"`;]+$/g, '');
+  v = v.replace(/;+$/g, '');
+  v = v.replace(/\/$/, '');
+  // Validate URL
+  try {
+    // Allow http/https only
+    const u = new URL(v);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new Error('Only http/https are supported');
+    }
+  } catch (e) {
+    throw new Error(`Invalid URL in server env: ${v}`);
+  }
+  return v;
 }
 
 export const SERVER_ENV = {
-  USER_SYSTEM_BACKEND: requireEnv('USER_SYSTEM_BACKEND'),
+  USER_SYSTEM_BACKEND: normalizeUrlBase(requireEnv('USER_SYSTEM_BACKEND')),
   // Optional service key for S2S auth; not all routes need it
   USER_SYSTEM_SERVICE_KEY: process.env.USER_SYSTEM_SERVICE_KEY || '',
 };
