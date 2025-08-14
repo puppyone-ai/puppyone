@@ -4,6 +4,8 @@ export interface BlockNodeJsonData {
   label: string;
   type: string;
   data: any;
+  // Optional storage class to support external pointer format
+  storage_class?: 'internal' | 'external';
   looped?: boolean;
   collection_configs?: {
     set_name: string;
@@ -54,6 +56,25 @@ function buildTextNodeJson(
   }
 
   const label = nodeData.label || node.id;
+
+  // 如果是 external 指针，按数据最小化规范构建
+  const isExternalPointer =
+    nodeData?.storage_class === 'external' &&
+    nodeData?.external_metadata &&
+    typeof nodeData.external_metadata?.resource_key === 'string';
+
+  if (isExternalPointer) {
+    return {
+      label,
+      type: 'text',
+      storage_class: 'external',
+      data: {
+        external_metadata: nodeData.external_metadata,
+      },
+      looped: !!nodeData.looped,
+      collection_configs: [],
+    };
+  }
 
   return {
     label,
@@ -106,6 +127,25 @@ function buildStructuredNodeJson(
     collectionConfigs = nodeData.indexingList
       .filter((item: any) => item.collection_configs)
       .map((item: any) => item.collection_configs);
+  }
+
+  // 如果是 external 指针，按数据最小化规范构建
+  const isExternalPointer =
+    nodeData?.storage_class === 'external' &&
+    nodeData?.external_metadata &&
+    typeof nodeData.external_metadata?.resource_key === 'string';
+
+  if (isExternalPointer) {
+    return {
+      label,
+      type: 'structured',
+      storage_class: 'external',
+      data: {
+        external_metadata: nodeData.external_metadata,
+      },
+      looped: !!nodeData.looped,
+      collection_configs: collectionConfigs,
+    };
   }
 
   return {
