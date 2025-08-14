@@ -31,11 +31,9 @@ const Usage: React.FC = () => {
 
     setIsLoadingUsage(true);
     try {
-      const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-
-      // 并行请求两个API
+      // 并行请求两个API（服务端代理）
       const [llmResponse, runsResponse] = await Promise.all([
-        fetch(`${UserSystem_Backend_Base_Url}/usage/check/llm_calls`, {
+        fetch(`/api/user-system/usage/check/llm_calls`, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -43,7 +41,7 @@ const Usage: React.FC = () => {
             ...getAuthHeaders(),
           },
         }),
-        fetch(`${UserSystem_Backend_Base_Url}/usage/check/runs`, {
+        fetch(`/api/user-system/usage/check/runs`, {
           method: 'GET',
           credentials: 'include',
           headers: {
