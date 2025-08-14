@@ -120,43 +120,19 @@ class StorageClient:
             log_error(f"Unexpected error during prefetch: {str(e)}")
             raise StorageException(f"Prefetch failed: {str(e)}")
     
-    async def stream_upload_version(
-        self, 
-        user_id: str,
-        block_id: str, 
-        chunk_generator: AsyncGenerator[Tuple[str, bytes], None],
-        version_id: Optional[str] = None
-    ) -> str:
+    async def init_stream_version(
+        self,
+        block_id: str
+    ) -> Tuple[str, str, str, str]:
         """
-        Stream upload a new version with multiple chunks
-        
-        This method implements the complete producer workflow:
-        1. Initialize upload via /init to get server-generated version_id
-        2. Upload chunks as they become available
-        3. Update manifest after each chunk (with optimistic locking)
-        4. Mark version as completed
-        
-        Args:
-            user_id: User identifier (not used directly, will be extracted from JWT)
-            block_id: Block identifier (persistent)
-            chunk_generator: Async generator yielding (chunk_name, chunk_data) tuples
-            
-        Returns:
-            str: The version base path (e.g., "user123/block456/v789")
-            
+        Initialize a new streaming version and return identifiers for subsequent uploads.
+
+        Returns a tuple of (version_base, version_id, manifest_key, etag).
+
         Raises:
-            StorageException: If upload fails
+            StorageException: If initialization fails
         """
-        # Initialize variables
-        version_base = None
-        manifest_key = None
-        current_etag = None
-        initial_manifest = {}
-        version_id = None
-        
         try:
-            # Step 1: Upload first chunk (manifest.json) to get server-generated version_id
-            # We'll create an initial manifest and upload it
             initial_manifest = {
                 "version": "1.0",
                 "block_id": block_id,
@@ -168,107 +144,72 @@ class StorageClient:
                     "chunk_count": 0
                 }
             }
-            
+
             manifest_data = json.dumps(initial_manifest, indent=2).encode('utf-8')
-            
-            # Upload manifest using direct upload to get version_id
+
             response = await self.client.post(
                 f"{self.base_url}/upload/chunk/direct?block_id={block_id}&file_name=manifest.json&content_type=application/json",
                 content=manifest_data,
                 headers=self.headers
             )
-            
+
             if response.status_code != 200:
                 raise StorageException(f"Failed to create initial manifest: {response.text}")
-            
+
             result = response.json()
             returned_key = result["key"]
             version_id = result["version_id"]
-            
-            # Extract version_base from the returned key
-            # Key format: user_id/block_id/version_id/manifest.json
+
             key_parts = returned_key.split('/')
             if len(key_parts) < 4:
                 raise StorageException(f"Invalid key format returned: {returned_key}")
-            
-            version_base = '/'.join(key_parts[:-1])  # Remove filename part
+
+            version_base = '/'.join(key_parts[:-1])
             manifest_key = returned_key
             current_etag = result["etag"]
-            
-            # Update initial_manifest with the version_id
-            initial_manifest["version_id"] = version_id
-            
-            log_info(f"Created initial manifest with version_id: {version_id}, version_base: {version_base}")
-            
-            # Wait longer for S3 eventual consistency
+
+            log_info(f"Initialized stream: version_id={version_id}, version_base={version_base}")
+
+            # Allow for eventual consistency of manifest
             await asyncio.sleep(3)
-            
-            # Step 2: Process chunks
-            total_size = 0
-            chunk_count = 0
-            
-            # Extract user_id, block_id from the key for manifest updates
+
+            return version_base, version_id, manifest_key, current_etag
+
+        except Exception as e:
+            log_error(f"Failed to initialize stream for block {block_id}: {e}")
+            raise
+
+    async def upload_chunks_and_update_manifest(
+        self,
+        block_id: str,
+        version_id: str,
+        chunk_generator: AsyncGenerator[Tuple[str, bytes], None],
+        manifest_key: Optional[str] = None,
+        current_etag: Optional[str] = None
+    ) -> None:
+        """
+        Upload chunks and update the manifest incrementally. Optionally accepts
+        manifest_key and current_etag to avoid refetching.
+        """
+        try:
+            # If manifest details not provided, derive them by fetching
+            if not manifest_key:
+                raise StorageException("manifest_key is required for incremental updates")
+
             key_parts = manifest_key.split('/')
             user_id = key_parts[0]
             block_id_from_key = key_parts[1]
-            
+
             async for chunk_name, chunk_data in chunk_generator:
-                # For manifest-based streaming, we use direct upload API
-                # This bypasses the multipart flow for individual chunks
                 chunk_etag = await self._upload_chunk(block_id, chunk_name, chunk_data, version_id)
-                
-                # Update manifest with new chunk using the incremental API
+
                 chunk_info = {
                     "name": chunk_name,
                     "size": len(chunk_data),
                     "etag": chunk_etag,
                     "uploaded_at": datetime.utcnow().isoformat()
                 }
-                
-                # Use the /upload/manifest endpoint for incremental updates
-                try:
-                    response = await self.client.put(
-                        f"{self.base_url}/upload/manifest",
-                        json={
-                            "user_id": user_id,
-                            "block_id": block_id_from_key,
-                            "version_id": version_id,
-                            "expected_etag": current_etag,
-                            "new_chunk": chunk_info,
-                            "status": "generating"
-                        },
-                        headers=self.headers
-                    )
-                    
-                    if response.status_code == 200:
-                        result = response.json()
-                        current_etag = result.get("etag")
-                        log_info(f"Uploaded chunk {chunk_name} and updated manifest incrementally")
-                    else:
-                        raise StorageException(f"Failed to update manifest: {response.text}")
-                        
-                except Exception as e:
-                    log_error(f"Failed to update manifest for chunk {chunk_name}: {e}")
-                    raise
-                
-                # Update local manifest state
-                initial_manifest["chunks"].append(chunk_info)
-                total_size += len(chunk_data)
-                chunk_count += 1
-                initial_manifest["metadata"]["total_size"] = total_size
-                initial_manifest["metadata"]["chunk_count"] = chunk_count
-            
-            # Step 3: Mark as completed
-            # Since we can't add a chunk when just updating status, 
-            # we'll add a special "completion marker" chunk
-            completion_chunk = {
-                "name": "_completed.marker",
-                "size": 0,
-                "etag": "completed",
-                "uploaded_at": datetime.utcnow().isoformat()
-            }
-            
-            try:
+
                 response = await self.client.put(
                     f"{self.base_url}/upload/manifest",
                     json={
@@ -276,34 +217,78 @@ class StorageClient:
                         "block_id": block_id_from_key,
                         "version_id": version_id,
                         "expected_etag": current_etag,
-                        "new_chunk": completion_chunk,
-                        "status": "completed"
+                        "new_chunk": chunk_info,
+                        "status": "generating"
                     },
                     headers=self.headers
                 )
-                
+
                 if response.status_code == 200:
-                    log_info("Manifest marked as completed")
+                    result = response.json()
+                    current_etag = result.get("etag")
+                    log_info(f"Uploaded chunk {chunk_name} and updated manifest incrementally")
                 else:
-                    log_error(f"Failed to mark manifest as completed: {response.text}")
-            except Exception as e:
-                log_error(f"Failed to complete manifest: {e}")
-                # Don't fail the whole upload if we can't mark it complete
-            
+                    raise StorageException(f"Failed to update manifest: {response.text}")
+
+            # Mark as completed by adding a completion marker
+            completion_chunk = {
+                "name": "_completed.marker",
+                "size": 0,
+                "etag": "completed",
+                "uploaded_at": datetime.utcnow().isoformat()
+            }
+
+            response = await self.client.put(
+                f"{self.base_url}/upload/manifest",
+                json={
+                    "user_id": user_id,
+                    "block_id": block_id_from_key,
+                    "version_id": version_id,
+                    "expected_etag": current_etag,
+                    "new_chunk": completion_chunk,
+                    "status": "completed"
+                },
+                headers=self.headers
+            )
+
+            if response.status_code == 200:
+                log_info("Manifest marked as completed")
+            else:
+                log_error(f"Failed to mark manifest as completed: {response.text}")
+
+        except Exception as e:
+            log_error(f"Chunk upload failed for block {block_id}: {e}")
+            raise
+
+    async def stream_upload_version(
+        self, 
+        user_id: str,
+        block_id: str, 
+        chunk_generator: AsyncGenerator[Tuple[str, bytes], None],
+        version_id: Optional[str] = None
+    ) -> str:
+        """
+        Backward-compatible combined streaming upload API.
+        Initializes the stream, uploads chunks, marks completed, and returns version_base.
+        """
+        version_base = None
+        manifest_key = None
+        current_etag = None
+        try:
+            version_base, init_version_id, manifest_key, current_etag = await self.init_stream_version(block_id)
+            # Prefer provided version_id only if explicitly set; otherwise use server's
+            effective_version_id = version_id or init_version_id
+            await self.upload_chunks_and_update_manifest(
+                block_id=block_id,
+                version_id=effective_version_id,
+                chunk_generator=chunk_generator,
+                manifest_key=manifest_key,
+                current_etag=current_etag
+            )
             log_info(f"Successfully completed streaming upload for version: {version_base}")
             return version_base
-            
         except Exception as e:
             log_error(f"Streaming upload failed for {version_base}: {str(e)}")
-            
-            # Try to mark as failed in manifest
-            try:
-                initial_manifest["status"] = "failed"
-                initial_manifest["error"] = str(e)
-                await self._update_manifest(manifest_key, initial_manifest, expected_etag=current_etag)
-            except:
-                pass  # Best effort
-            
             raise StorageException(f"Streaming upload failed: {str(e)}")
     
     async def _upload_chunk(self, block_id: str, file_name: str, chunk_data: bytes, version_id: str = None) -> str:
