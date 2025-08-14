@@ -15,12 +15,7 @@ function TestRunBotton() {
   const { getNodes, getNode, setNodes, getEdges } = useReactFlow();
 
   // 获取需要的hooks
-  const {
-    streamResult,
-    streamResultForMultipleNodes,
-    reportError,
-    resetLoadingUI,
-  } = useJsonConstructUtils();
+  const { reportError, resetLoadingUI } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
   const { getAuthHeaders } = useAppSettings();
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
@@ -53,8 +48,6 @@ function TestRunBotton() {
         getSourceNodeIdWithLabel,
         getTargetNodeIdWithLabel,
         clearAll,
-        streamResult,
-        streamResultForMultipleNodes,
         reportError,
         resetLoadingUI,
         getAuthHeaders,
