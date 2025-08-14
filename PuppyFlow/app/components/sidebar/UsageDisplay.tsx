@@ -39,10 +39,8 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
 
     setIsLoadingUsage(true);
     try {
-      const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
-
       const [llmResponse, runsResponse] = await Promise.all([
-        fetch(`${UserSystem_Backend_Base_Url}/usage/check/llm_calls`, {
+        fetch(`/api/user-system/usage/check/llm_calls`, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -50,7 +48,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             ...getAuthHeaders(),
           },
         }),
-        fetch(`${UserSystem_Backend_Base_Url}/usage/check/runs`, {
+        fetch(`/api/user-system/usage/check/runs`, {
           method: 'GET',
           credentials: 'include',
           headers: {
