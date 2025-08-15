@@ -7,6 +7,22 @@ import { SERVER_ENV } from '@/lib/serverEnv';
 export async function GET(request: Request) {
   const hdrs = new Headers(request.headers);
 
+  // Enforce internal-only access via service key
+  const providedServiceKey = hdrs.get('x-service-key') || '';
+  const expectedServiceKey = SERVER_ENV.SERVICE_KEY;
+  if (!expectedServiceKey && !SERVER_ENV.ALLOW_VERIFY_WITHOUT_SERVICE_KEY) {
+    return new Response(
+      JSON.stringify({ error: 'SERVICE_KEY_NOT_CONFIGURED' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
+  if (expectedServiceKey && providedServiceKey !== expectedServiceKey) {
+    return new Response(JSON.stringify({ error: 'FORBIDDEN' }), {
+      status: 403,
+      headers: { 'content-type': 'application/json' },
+    });
+  }
+
   // Try to get token from Authorization header first
   let authHeader = hdrs.get('authorization');
 
