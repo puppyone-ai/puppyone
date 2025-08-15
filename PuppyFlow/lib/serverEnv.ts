@@ -35,6 +35,9 @@ export const SERVER_ENV = {
   USER_SYSTEM_BACKEND: normalizeUrlBase(requireEnv('USER_SYSTEM_BACKEND')),
   // Optional service key for S2S auth; not all routes need it
   SERVICE_KEY: process.env.SERVICE_KEY || '',
+  // Allow bypassing service key for local/dev verification only
+  ALLOW_VERIFY_WITHOUT_SERVICE_KEY:
+    (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true',
 };
 
 

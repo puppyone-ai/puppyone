@@ -35,6 +35,10 @@ function getCookieDomain(request: NextRequest): string | undefined {
 
 // 定义一个中间件函数，用于处理请求
 export async function middleware(request: NextRequest) {
+  // Bypass middleware for the internal verification endpoint to avoid recursion
+  if (request.nextUrl.pathname === '/api/auth/verify') {
+    return NextResponse.next();
+  }
   const userPageUrl = SYSTEM_URLS.USER_SYSTEM.FRONTEND;
   const token = request.cookies.get('access_token')?.value;
 
@@ -125,6 +129,7 @@ export async function middleware(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authTokenFromUrl}`,
+          'X-Service-Key': process.env.SERVICE_KEY || '',
         },
       });
 
@@ -273,6 +278,7 @@ export async function middleware(request: NextRequest) {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
+          'X-Service-Key': process.env.SERVICE_KEY || '',
         },
       });
 
@@ -440,5 +446,5 @@ export async function middleware(request: NextRequest) {
 
 // 配置需要进行认证的路径
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth/verify).*)'],
 };
