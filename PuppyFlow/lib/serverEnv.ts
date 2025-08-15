@@ -34,7 +34,7 @@ function normalizeUrlBase(input: string): string {
 export const SERVER_ENV = {
   USER_SYSTEM_BACKEND: normalizeUrlBase(requireEnv('USER_SYSTEM_BACKEND')),
   // Optional service key for S2S auth; not all routes need it
-  USER_SYSTEM_SERVICE_KEY: process.env.USER_SYSTEM_SERVICE_KEY || '',
+  SERVICE_KEY: process.env.SERVICE_KEY || '',
 };
 
 

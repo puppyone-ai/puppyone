@@ -1,4 +1,4 @@
-// Verify user token by delegating to the private User System backend
+// Verify user token by delegating to the private User System backend (service-to-service)
 // Reads token from Authorization header or access_token cookie
 
 import { cookies } from 'next/headers';
@@ -19,7 +19,7 @@ export async function GET(request: Request) {
         authHeader = `Bearer ${token}`;
       }
     } catch {
-      // not in a node runtime that supports next/headers (edge), try request cookie header
+      // Edge 兜底：从请求头里解析 cookie
       const rawCookie = hdrs.get('cookie') || '';
       const match = rawCookie.match(/(?:^|;\s*)access_token=([^;]+)/);
       if (match) {
@@ -35,23 +35,39 @@ export async function GET(request: Request) {
     });
   }
 
-  const url = `${SERVER_ENV.USER_SYSTEM_BACKEND}/protected`;
+  const url = `${SERVER_ENV.USER_SYSTEM_BACKEND}/verify_token`;
 
-  const upstream = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'content-type': 'application/json',
-      authorization: authHeader,
-    },
-  });
+  const upstreamHeaders: Record<string, string> = {
+    'content-type': 'application/json',
+    authorization: authHeader,
+  };
+  if (SERVER_ENV.SERVICE_KEY) {
+    upstreamHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
+  }
 
-  const body = await upstream.text();
-  const contentType = upstream.headers.get('content-type') || 'application/json';
+  try {
+    const upstream = await fetch(url, {
+      method: 'GET',
+      headers: upstreamHeaders,
+    });
 
-  return new Response(body, {
-    status: upstream.status,
-    headers: { 'content-type': contentType },
-  });
+    const bodyText = await upstream.text();
+    const contentType = upstream.headers.get('content-type') || 'application/json';
+
+    return new Response(bodyText, {
+      status: upstream.status,
+      headers: { 'content-type': contentType },
+    });
+  } catch (err: any) {
+    // 统一给出结构化错误，避免中间件只看到“fetch failed”
+    return new Response(
+      JSON.stringify({
+        error: 'UPSTREAM_FETCH_FAILED',
+        message: err?.message || 'fetch failed',
+        backend_url: SERVER_ENV.USER_SYSTEM_BACKEND,
+      }),
+      { status: 502, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
-
 
