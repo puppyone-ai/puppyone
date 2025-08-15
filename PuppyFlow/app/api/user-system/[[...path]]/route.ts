@@ -34,8 +34,8 @@ function filterRequestHeaders(headers: Headers): HeadersInit {
     }
     newHeaders[key] = value;
   });
-  if (SERVER_ENV.USER_SYSTEM_SERVICE_KEY) {
-    newHeaders['X-Service-Key'] = SERVER_ENV.USER_SYSTEM_SERVICE_KEY;
+  if (SERVER_ENV.SERVICE_KEY) {
+    newHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   }
   return newHeaders;
 }

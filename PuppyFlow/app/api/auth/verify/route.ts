@@ -41,8 +41,8 @@ export async function GET(request: Request) {
     'content-type': 'application/json',
     authorization: authHeader,
   };
-  if (SERVER_ENV.USER_SYSTEM_SERVICE_KEY) {
-    upstreamHeaders['X-Service-Key'] = SERVER_ENV.USER_SYSTEM_SERVICE_KEY;
+  if (SERVER_ENV.SERVICE_KEY) {
+    upstreamHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   }
 
   try {
