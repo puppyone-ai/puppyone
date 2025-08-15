@@ -4,7 +4,7 @@ import { SERVER_ENV } from '@/lib/serverEnv';
 function authHeaders(authHeader?: string): HeadersInit {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (authHeader) headers['Authorization'] = authHeader;
-  if (SERVER_ENV.USER_SYSTEM_SERVICE_KEY) headers['X-Service-Key'] = SERVER_ENV.USER_SYSTEM_SERVICE_KEY;
+  if (SERVER_ENV.SERVICE_KEY) headers['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   return headers;
 }
 
