@@ -69,9 +69,19 @@ class ExecutionPlanner:
     def _mark_initial_blocks(self):
         """Mark blocks with initial content as processed"""
         for block_id, block in self.blocks.items():
-            if block.get_content() is not None:
+            # A block is considered initially processed only if:
+            # 1. It has internal content.
+            # 2. It does NOT have unresolved external data.
+            has_content = block.get_content() is not None
+            needs_resolving = block.has_external_data() and not block.is_resolved
+            
+            if has_content and not needs_resolving:
                 self.block_states[block_id] = "processed"
-                log_debug(f"Marked block {block_id} as initially processed")
+                log_debug(f"Marked block {block_id} as initially processed (has content, no pending resolve)")
+            elif needs_resolving:
+                log_debug(f"Block {block_id} needs resolving, marked as pending.")
+            else:
+                log_debug(f"Block {block_id} is pending (no initial content).")
     
     def get_all_prefetch_candidates(self) -> List[str]:
         """

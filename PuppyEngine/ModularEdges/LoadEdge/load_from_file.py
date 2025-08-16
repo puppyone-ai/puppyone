@@ -51,13 +51,21 @@ class FileToTextParser:
         self._whisper_model = None
         self._ocr_reader = None
 
-        # Check/download pandoc once during initialization
+    def _ensure_pandoc(self):
+        """
+        Checks for Pandoc and downloads it if not found.
+        This should only be called by methods that require Pandoc.
+        """
         try:
             pandoc_path = pypandoc.get_pandoc_path()
             if not (pandoc_path and os.path.exists(pandoc_path)):
+                log_info("Pandoc not found, downloading...")
                 pypandoc.download_pandoc()
+                log_info("Pandoc downloaded successfully.")
         except Exception:
+            log_info("Pandoc download possibly failed, attempting again.")
             pypandoc.download_pandoc()
+            log_info("Pandoc download re-attempted.")
 
     def _get_whisper_model(
         self,
@@ -115,7 +123,7 @@ class FileToTextParser:
                 file_path = config.get('file_path')
                 file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
 
-                if file_type in ('json', 'txt', 'markdown', 'csv', 'xlsx'):
+                if file_type in ('json', 'txt', 'text', 'markdown', 'csv', 'xlsx'):
                     simple_files.append((i, config))
                 else:
                     complex_files.append((i, config))
@@ -368,6 +376,10 @@ class FileToTextParser:
         Raises:
             PuppyException: If the file type is unsupported.
         """
+        # 优先处理最简单的文本类型，避免不必要的规范化流程
+        if file_type.lower() in ('txt', 'text'):
+            return self._parse_txt(file_path, **kwargs)
+
         # 如果未提供file_type或为空字符串，根据文件路径自动判断
         if not file_type:
             file_type = self._determine_file_type(file_path)
@@ -554,6 +566,8 @@ class FileToTextParser:
         Returns:
             Extracted text content
         """
+        # Ensure pandoc is available before parsing
+        self._ensure_pandoc()
 
         if self._is_file_url(file_path):
             response = requests.get(file_path)
