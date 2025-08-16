@@ -95,6 +95,8 @@ function FileNode({
     handleInputChange,
     handleFileDrop,
     handleDelete,
+    resourceKey,
+    versionId,
   } = useFileUpload({
     nodeId: id,
     initialFiles,
@@ -184,6 +186,30 @@ function FileNode({
       labelRef.current.setSelectionRange(length, length);
     }
   }, [editable, id]);
+
+  // 当生成 resourceKey 时，将 external 指针写入节点数据，便于后端识别
+  useEffect(() => {
+    if (resourceKey) {
+      setNodes(nodes =>
+        nodes.map(node =>
+          node.id === id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  storage_class: 'external',
+                  external_metadata: {
+                    resource_key: resourceKey,
+                    content_type: 'files',
+                    version_id: versionId,
+                  },
+                },
+              }
+            : node
+        )
+      );
+    }
+  }, [resourceKey, versionId, id, setNodes]);
 
   // 管理 label onchange， 注意：若是当前的workflow中已经存在同样的id，那么不回重新对于这个node进行initialized，那么此时label就是改变了也不会rendering 最新的值，所以我们必须要通过这个useEffect来确保label的值是最新的，同时需要update measureSpanRef 中需要被测量的内容
   useEffect(() => {

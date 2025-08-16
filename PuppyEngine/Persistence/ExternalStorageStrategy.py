@@ -181,30 +181,15 @@ class ExternalStorageStrategy:
             # Initialize stream to obtain version identifiers and resource key early
             version_base, version_id, manifest_key, current_etag = await storage_client.init_stream_version(block.id)
             
-            # Execute upload
-            # Perform streaming upload (version_id generated server-side)
-            resource_key = await storage_client.stream_upload_version(
-                user_id=user_id,
-                block_id=block.id,
-                chunk_generator=chunk_generator()
-            )
-            
-            # Update block's external_metadata
-            # Parse version_id from returned resource_key (format: user_id/block_id/version_id)
-            try:
-                parsed_version_id = resource_key.strip('/').split('/')[-1]
-            except Exception:
-                parsed_version_id = version_id
-
+            # Prepare metadata and emit start event before upload
             block.data['external_metadata'] = {
                 'resource_key': version_base,
                 'content_type': content_type,
                 'chunked': True,
                 'uploaded_at': datetime.utcnow().isoformat(),
-                'version_id': parsed_version_id
+                'version_id': version_id
             }
             
-            # Yield STREAM_STARTED event including resource_key
             yield {
                 "event_type": "STREAM_STARTED",
                 "block_id": block.id,

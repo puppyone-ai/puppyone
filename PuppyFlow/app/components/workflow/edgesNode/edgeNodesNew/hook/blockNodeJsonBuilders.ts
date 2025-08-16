@@ -40,6 +40,9 @@ export function buildBlockNodeJson(
     case 'structured':
       console.log('finish the construction of structured node', nodeData);
       return buildStructuredNodeJson(nodeId, nodeData, context);
+    case 'file':
+      console.log('finish the construction of file node', nodeData);
+      return buildFileNodeJson(nodeId, nodeData, context);
     default:
       throw new Error(`不支持的区块节点类型: ${nodeType}`);
   }
@@ -161,5 +164,53 @@ function buildStructuredNodeJson(
     },
     looped: !!nodeData.looped,
     collection_configs: collectionConfigs,
+  };
+}
+
+function buildFileNodeJson(
+  nodeId: string,
+  nodeData: any,
+  context: BlockNodeBuilderContext
+): BlockNodeJsonData {
+  const node = context.getNode(nodeId);
+  if (!node) {
+    throw new Error(`节点 ${nodeId} 不存在`);
+  }
+
+  const label = nodeData.label || node.id;
+
+  // File block 最小实现：external 指针，携带 resource_key
+  const externalMeta = nodeData?.external_metadata;
+  const resourceKey: string | undefined = externalMeta?.resource_key;
+  const contentType: string = externalMeta?.content_type || 'files';
+
+  if (
+    nodeData?.storage_class === 'external' &&
+    typeof resourceKey === 'string'
+  ) {
+    return {
+      label,
+      type: 'file',
+      storage_class: 'external',
+      data: {
+        external_metadata: {
+          resource_key: resourceKey,
+          content_type: contentType,
+        },
+      },
+      looped: !!nodeData.looped,
+      collection_configs: [],
+    };
+  }
+
+  // 回退：无 external 配置时，返回空内容（不建议）
+  return {
+    label,
+    type: 'file',
+    data: {
+      content: null,
+    },
+    looped: !!nodeData.looped,
+    collection_configs: [],
   };
 }

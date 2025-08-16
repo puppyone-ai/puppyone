@@ -176,6 +176,11 @@ class Env:
         try:
             log_debug(f"Prefetching block {block.id}")
             await block.resolve(self.storage_client)
+            # After resolving, the block might now be considered processed
+            # if it has content. Let's update the planner.
+            if block.get_content() is not None and block.is_resolved:
+                self.planner.mark_blocks_processed({block.id})
+                log_debug(f"Block {block.id} marked as processed after prefetching.")
             log_debug(f"Successfully prefetched block {block.id}")
         except Exception as e:
             log_error(f"Failed to prefetch block {block.id}: {str(e)}")

@@ -1,9 +1,8 @@
 'use client';
-import { useRef, useState, useEffect, useContext } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useWorkspaces } from '../../../states/UserWorkspacesContext';
 import { useWorkspaceManagement } from '../../../hooks/useWorkspaceManagement';
 import { useAppSettings } from '../../../states/AppSettingsContext';
-import { PuppyStorage_IP_address_for_uploadingFile } from '../../../hooks/useJsonConstructUtils';
 import { SYSTEM_URLS } from '@/config/urls';
 
 export interface FileUploadProps {
@@ -19,6 +18,8 @@ export type UploadedFile = {
   download_url?: string;
   content_type_header?: string;
   expires_at?: string;
+  size?: number;
+  etag?: string;
 };
 
 export function useFileUpload({
@@ -28,12 +29,15 @@ export function useFileUpload({
 }: FileUploadProps) {
   const { userId } = useWorkspaces();
   const { fetchUserId } = useWorkspaceManagement();
-  const { addWarn } = useAppSettings();
+  const { addWarn, getAuthHeaders } = useAppSettings();
 
   const [uploadedFiles, setUploadedFiles] =
     useState<UploadedFile[]>(initialFiles);
   const [isOnUploading, setIsOnUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [versionId, setVersionId] = useState<string | null>(null);
+  const [manifestEtag, setManifestEtag] = useState<string | null>(null);
+  const [resourceKey, setResourceKey] = useState<string | null>(null);
 
   // 每当文件列表更新时通知父组件
   useEffect(() => {
@@ -51,6 +55,16 @@ export function useFileUpload({
     return res;
   };
 
+  // 获取 Authorization headers，若缺失则在本地开发下提供兜底
+  const getAuthHeader = (): HeadersInit => {
+    const headers = getAuthHeaders() || {};
+    if (!('Authorization' in headers)) {
+      // PuppyStorage 的 /upload/chunk/direct 在本地也需要存在 Authorization 头
+      return { Authorization: 'Bearer local-dev' };
+    }
+    return headers;
+  };
+
   // 处理文件输入变化
   const handleInputChange = async (
     event: React.ChangeEvent<HTMLInputElement>
@@ -64,7 +78,7 @@ export function useFileUpload({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        await processFile(file);
+        await processFile(file, i === files.length - 1);
       }
     } catch (error) {
       console.error('Error during upload process', error);
@@ -101,7 +115,7 @@ export function useFileUpload({
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        await processFile(file);
+        await processFile(file, i === files.length - 1);
       }
     } catch (error) {
       console.error('Error in file processing:', error);
@@ -113,7 +127,7 @@ export function useFileUpload({
   };
 
   // 处理单个文件的上传
-  const processFile = async (file: File) => {
+  const processFile = async (file: File, isLastInBatch: boolean) => {
     try {
       console.log('Processing file:', file.name);
 
@@ -161,72 +175,132 @@ export function useFileUpload({
         fileExtension = 'markdown';
       }
 
-      console.log(`Requesting presigned URL for file type: ${fileExtension}`);
+      const userIdVal = await getUserId();
+      console.log('User ID:', userIdVal);
 
-      // 获取预签名URL - 使用正确格式的URL
-      const uploadEndpoint = `${PuppyStorage_IP_address_for_uploadingFile}/${fileExtension}`;
-      console.log('Upload endpoint:', uploadEndpoint);
+      // 1) 直接上传文件到 PuppyStorage（小文件直传）
+      const qs = new URLSearchParams({
+        block_id: nodeId,
+        file_name: fileName,
+        content_type: file.type || 'application/octet-stream',
+      });
+      if (versionId) qs.set('version_id', versionId);
+      const directUploadUrl = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?${qs.toString()}`;
 
-      const userId = await getUserId();
-      console.log('User ID:', userId);
-
-      const response = await fetch(uploadEndpoint, {
+      const uploadResp = await fetch(directUploadUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: userId,
-          content_name: fileName,
-        }),
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          ...getAuthHeader(),
+        },
+        body: file,
       });
 
-      if (!response.ok) {
-        const errorText = `Failed to get upload URL: ${response.status}`;
-        console.error(errorText);
+      if (!uploadResp.ok) {
+        const errorText = `Failed to upload file: ${fileName} (${uploadResp.status})`;
+        console.error(errorText, await uploadResp.text());
         addWarn(errorText);
         return;
       }
 
-      const data = await response.json();
-      console.log('Presigned URL response:', data);
+      const directData: {
+        success: boolean;
+        key: string;
+        version_id: string;
+        etag: string;
+        size: number;
+        uploaded_at: number;
+      } = await uploadResp.json();
 
-      const {
-        upload_url,
-        download_url,
-        content_id,
-        content_type_header,
-        expires_at,
-      } = data;
+      // 设置 versionId 与 resourceKey（仅首次或保持一致）
+      const newVersionId = directData.version_id;
+      if (!versionId) {
+        setVersionId(newVersionId);
+      }
+      const rk = `${userIdVal}/${nodeId}/${newVersionId}`;
+      setResourceKey(rk);
 
-      // 上传文件
-      console.log('Uploading file to:', upload_url);
-      const uploadResponse = await fetch(upload_url, {
-        method: 'PUT',
-        headers: { 'Content-Type': content_type_header },
-        body: file,
+      // 2) 增量更新 manifest（带乐观锁）
+      const isNewVersion = versionId === null || versionId !== newVersionId;
+      if (isNewVersion) {
+        // 新版本开始时，重置本地 etag，避免抛 409
+        setManifestEtag(null);
+      }
+
+      const baseManifestBody = {
+        user_id: userIdVal,
+        block_id: nodeId,
+        version_id: newVersionId,
+        expected_etag: isNewVersion ? null : manifestEtag,
+        new_chunk: {
+          name: fileName,
+          file_name: fileName,
+          mime_type: file.type || 'application/octet-stream',
+          size: directData.size,
+          etag: directData.etag,
+          // 可选: file_type 让后端解析时优先
+          file_type: fileExtension,
+        },
+        status: isLastInBatch ? 'completed' : 'generating',
+      } as const;
+
+      const tryUpdateManifest = async (
+        body: typeof baseManifestBody
+      ): Promise<Response> => {
+        return fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/manifest`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify(body),
+        });
+      };
+
+      let manifestResp = await tryUpdateManifest(baseManifestBody);
+
+      // 简单的冲突重试策略：若409且提示 current=None，降级 expected_etag 为 null 再试一次
+      if (manifestResp.status === 409) {
+        try {
+          const text = await manifestResp.text();
+          if (text.includes('Current: None')) {
+            const resp2 = await tryUpdateManifest({
+              ...baseManifestBody,
+              expected_etag: null,
+            });
+            manifestResp = resp2;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!manifestResp.ok) {
+        const errorText = `Failed to update manifest: ${manifestResp.status}`;
+        console.error(errorText, await manifestResp.text());
+        addWarn(errorText);
+        return;
+      }
+
+      const manifestData: { success: boolean; etag: string } =
+        await manifestResp.json();
+      setManifestEtag(manifestData.etag);
+
+      // 3) 更新本地状态
+      const newFile: UploadedFile = {
+        fileName,
+        task_id: directData.key, // 使用完整key作为唯一标识
+        fileType: fileExtension,
+        size: directData.size,
+        etag: directData.etag,
+      };
+
+      setUploadedFiles(prev => {
+        const filtered = prev.filter(item => item.task_id !== newFile.task_id);
+        return [...filtered, newFile];
       });
 
-      if (uploadResponse.ok) {
-        console.log('File uploaded successfully');
-
-        const newFile = {
-          fileName,
-          task_id: content_id,
-          fileType: fileExtension,
-          download_url,
-          content_type_header,
-          expires_at,
-        };
-
-        // 更新本地状态
-        setUploadedFiles(prev => {
-          const filtered = prev.filter(item => item.task_id !== content_id);
-          return [...filtered, newFile];
-        });
-      } else {
-        const errorText = `Failed to upload file: ${fileName}`;
-        console.error(errorText, await uploadResponse.text());
-        addWarn(errorText);
-      }
+      // 4) 已在最后一次文件更新中将 status 标记为 completed（避免重复添加 chunk）
     } catch (error) {
       console.error(`Error processing file ${file.name}:`, error);
       addWarn(`Error processing file: ${file.name}`);
@@ -237,14 +311,25 @@ export function useFileUpload({
   const handleDelete = async (file: UploadedFile, index: number) => {
     try {
       console.log('Deleting file:', file);
-      const userId = await getUserId();
-      const deleteKey = `${userId}/${file.task_id}/${file.fileName}`;
-      console.log('Delete key:', deleteKey);
+      const userIdVal = await getUserId();
+
+      // 如果 task_id 存的是完整key，则优先使用
+      const fullKey = file.task_id.includes('/')
+        ? file.task_id
+        : `${userIdVal}/${nodeId}/${versionId ?? ''}/${file.fileName}`;
 
       const response = await fetch(
-        `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/storage/delete/${deleteKey}`,
+        `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/files/delete`,
         {
           method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify({
+            user_id: userIdVal,
+            resource_key: fullKey,
+          }),
         }
       );
       if (response.ok) {
@@ -269,5 +354,7 @@ export function useFileUpload({
     handleInputChange,
     handleFileDrop,
     handleDelete,
+    resourceKey,
+    versionId,
   };
 }
