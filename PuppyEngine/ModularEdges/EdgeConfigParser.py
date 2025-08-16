@@ -601,7 +601,7 @@ class ConfigParserFactory:
         "code": CodeConfigParser,
         "ifelse": ConditionConfigParser,
         "modify": ModifyConfigParser,
-        "deep_research": DeepResearchConfigParser
+        "deep_researcher": DeepResearchConfigParser,
     }
 
     @classmethod
