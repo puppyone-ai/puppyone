@@ -35,34 +35,14 @@ function getCookieDomain(request: NextRequest): string | undefined {
 
 // 定义一个中间件函数，用于处理请求
 export async function middleware(request: NextRequest) {
-  // Bypass middleware for the internal verification endpoint to avoid recursion
-  if (request.nextUrl.pathname === '/api/auth/verify') {
+  // Bypass middleware for API and static assets to avoid recursion/self-interception
+  const pathname = request.nextUrl.pathname;
+  if (pathname.startsWith('/api/')) {
     return NextResponse.next();
   }
   const userPageUrl = SYSTEM_URLS.USER_SYSTEM.FRONTEND;
   const token = request.cookies.get('access_token')?.value;
-
-  // 检查URL参数中的access_token（OAuth回调处理）
   const url = new URL(request.url);
-  const authTokenFromUrl = url.searchParams.get('access_token');
-
-  // 🔥 调试信息收集
-  const debugInfo = {
-    url: request.url,
-    host: request.headers.get('host'),
-    hasAccessToken: !!authTokenFromUrl,
-    hasCookie: !!token,
-    accessTokenPrefix: authTokenFromUrl
-      ? authTokenFromUrl.substring(0, 20) + '...'
-      : null,
-    userPageUrl,
-    backendUrl: SERVER_ENV.USER_SYSTEM_BACKEND,
-    env: {
-      NODE_ENV: process.env.NODE_ENV,
-      USER_SYSTEM_FRONTEND_URL: process.env.USER_SYSTEM_FRONTEND_URL,
-      SKIP_MIDDLEWARE: process.env.SKIP_MIDDLEWARE,
-    },
-  };
 
   // 检查环境变量以决定是否跳过中间件
   if (process.env.SKIP_MIDDLEWARE === 'true') {
@@ -117,132 +97,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 优先处理URL中的access_token（OAuth回调场景）
-  if (authTokenFromUrl) {
-    try {
-      // 验证token
-      const verifyPath = '/api/auth/verify';
-      const fullUrl = new URL(verifyPath, request.url).toString();
+  // 简化：不再处理 URL 中的 access_token，统一依赖 HttpOnly Cookie
 
-      const response = await fetch(fullUrl, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authTokenFromUrl}`,
-          'X-Service-Key': process.env.SERVICE_KEY || '',
-        },
-      });
-
-      if (response.status === 200) {
-        // 移除URL参数，重定向到干净的URL
-        url.searchParams.delete('access_token');
-        const cleanUrl = url.toString();
-
-        const redirectResponse = NextResponse.redirect(cleanUrl);
-
-        // 设置cookie
-        const cookieDomain = getCookieDomain(request);
-        const cookieOptions = {
-          path: '/',
-          sameSite: 'lax' as const,
-          maxAge: 24 * 60 * 60, // 24小时
-          httpOnly: false, // 前端需要能读取
-          domain: cookieDomain,
-        };
-
-        redirectResponse.cookies.set(
-          'access_token',
-          authTokenFromUrl,
-          cookieOptions
-        );
-
-        // 🔥 只在调试模式下设置调试cookie
-        if (debugMode) {
-          redirectResponse.cookies.set('debug_auth_success', 'true', {
-            path: '/',
-            maxAge: 60,
-            httpOnly: false,
-          });
-        }
-
-        return redirectResponse;
-      } else {
-        // 🔥 记录token验证失败到服务器日志
-        console.error('🚨 Token Verification Failed:', {
-          status: response.status,
-          backend_url: fullUrl,
-          token_prefix: authTokenFromUrl.substring(0, 20),
-          original_url: request.url,
-          timestamp: new Date().toISOString(),
-        });
-
-        if (debugMode) {
-          // 🔧 调试模式：提供技术详细信息
-          const debugUrl = new URL(userPageUrl);
-          debugUrl.searchParams.set('debug_error', 'token_verification_failed');
-          debugUrl.searchParams.set('status', response.status.toString());
-          debugUrl.searchParams.set('backend_url', fullUrl);
-          debugUrl.searchParams.set(
-            'token_prefix',
-            authTokenFromUrl.substring(0, 20)
-          );
-
-          // 尝试获取响应内容
-          try {
-            const responseText = await response.text();
-            debugUrl.searchParams.set(
-              'response',
-              responseText.substring(0, 200)
-            );
-          } catch (e) {
-            debugUrl.searchParams.set('response', 'failed_to_read');
-          }
-
-          return NextResponse.redirect(debugUrl.toString());
-        } else {
-          // 🎯 生产模式：给用户友好的错误信息
-          const userFriendlyUrl = new URL(userPageUrl);
-          userFriendlyUrl.searchParams.set('error', 'authentication_failed');
-          userFriendlyUrl.searchParams.set(
-            'message',
-            'Authentication failed. Please sign in again.'
-          );
-          return NextResponse.redirect(userFriendlyUrl.toString());
-        }
-      }
-    } catch (error) {
-      // 🔥 记录网络错误到服务器日志
-      console.error('🚨 Network Error in Auth Token Verification:', {
-        error_message: error instanceof Error ? error.message : 'unknown',
-        backend_url: SERVER_ENV.USER_SYSTEM_BACKEND,
-        original_url: request.url,
-        timestamp: new Date().toISOString(),
-      });
-
-      if (debugMode) {
-        // 🔧 调试模式：提供技术详细信息
-        const debugUrl = new URL(userPageUrl);
-        debugUrl.searchParams.set('debug_error', 'network_error');
-        debugUrl.searchParams.set(
-          'error_message',
-          error instanceof Error ? error.message : 'unknown'
-        );
-        debugUrl.searchParams.set(
-          'backend_url',
-          SERVER_ENV.USER_SYSTEM_BACKEND || ''
-        );
-        return NextResponse.redirect(debugUrl.toString());
-      } else {
-        // 🎯 生产模式：给用户友好的错误信息
-        const userFriendlyUrl = new URL(userPageUrl);
-        userFriendlyUrl.searchParams.set('error', 'service_unavailable');
-        userFriendlyUrl.searchParams.set(
-          'message',
-          'Service temporarily unavailable. Please try again later.'
-        );
-        return NextResponse.redirect(userFriendlyUrl.toString());
-      }
-    }
+  // 无 Cookie：直接跳转 UserWeb 登录页，并带回跳参数
+  if (!token) {
+    const loginUrl = new URL(userPageUrl);
+    loginUrl.searchParams.set('return_to', request.url);
+    return NextResponse.redirect(loginUrl);
   }
 
   // 统一验证模式：使用Authorization header验证
@@ -417,31 +278,8 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 🔥 最终fallback：没有有效认证信息
-  console.info('ℹ️ No Valid Authentication Found:', {
-    has_access_token: !!authTokenFromUrl,
-    has_cookie: !!token,
-    original_url: request.url,
-    timestamp: new Date().toISOString(),
-  });
-
-  if (debugMode) {
-    // 🔧 调试模式：提供技术详细信息
-    const debugUrl = new URL(userPageUrl);
-    debugUrl.searchParams.set('debug_error', 'no_auth');
-    debugUrl.searchParams.set('has_access_token', String(!!authTokenFromUrl));
-    debugUrl.searchParams.set('has_cookie', String(!!token));
-    return NextResponse.redirect(debugUrl.toString());
-  } else {
-    // 🎯 生产模式：给用户友好的提示信息
-    const userFriendlyUrl = new URL(userPageUrl);
-    userFriendlyUrl.searchParams.set('info', 'login_required');
-    userFriendlyUrl.searchParams.set(
-      'message',
-      'Please sign in to access this application.'
-    );
-    return NextResponse.redirect(userFriendlyUrl.toString());
-  }
+  // 理论上不会走到这里
+  return NextResponse.next();
 }
 
 // 配置需要进行认证的路径
