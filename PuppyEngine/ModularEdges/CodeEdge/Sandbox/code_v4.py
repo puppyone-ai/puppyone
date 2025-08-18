@@ -57,8 +57,8 @@ class CoderFactory(EdgeFactoryBase):
         return code_string
 
     @global_exception_handler(3020, "Error Executing Code Edge")
+    @staticmethod
     def execute(
-        self,
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> str:
@@ -77,7 +77,9 @@ class CoderFactory(EdgeFactoryBase):
             # Preprocess the code string
             code_string = init_configs.get("code_string")
             variables = init_configs.get("variables", {})
-            code_string = self.preprocess_code(code_string, variables)
+            # Create an instance to use the preprocess_code method
+            factory_instance = CoderFactory()
+            code_string = factory_instance.preprocess_code(code_string, variables)
 
             # Set up restricted globals with PrintCollector
             restricted_globals = {
@@ -152,4 +154,6 @@ def add_two_numbers(arg_a, arg_b):
     results = CoderFactory.execute(init_configs={"code_string": sample_code, "variables": variables})
     print("\nExecution Results:")
     print("------------------")
+    print("results: ", results)
+
     print("results: ", results)

@@ -12,7 +12,7 @@ import type * as Monaco from 'monaco-editor/esm/vs/editor/editor.api';
 type TextEditorProps = {
   preventParentDrag: () => void;
   allowParentDrag: () => void;
-  value: string;
+  value: string | object | any;
   onChange: (value: string) => void;
   placeholder?: string;
   widthStyle?: number;
@@ -58,7 +58,30 @@ const TextEditor = ({
   // const applyTheme = useMonacoTheme(TEXT_EDITOR_THEME, textEditorThemeData)
 
   useEffect(() => {
-    setIsEmpty(!value || value.trim().length === 0);
+    try {
+      // 处理不同类型的值
+      if (value === null || value === undefined) {
+        setIsEmpty(true);
+        return;
+      }
+
+      if (typeof value === 'string') {
+        setIsEmpty(!value || value.trim().length === 0);
+      } else if (typeof value === 'object') {
+        // 对于对象，检查是否为空对象
+        setIsEmpty(Object.keys(value).length === 0);
+      } else {
+        // 对于其他类型，转换为字符串后检查
+        setIsEmpty(!value || String(value).trim().length === 0);
+      }
+    } catch (error) {
+      console.error('isEmpty 检查失败:', error);
+      console.log('出错时的 value:', value);
+      console.log('出错时的 typeof value:', typeof value);
+
+      // 降级处理
+      setIsEmpty(!value || String(value).trim().length === 0);
+    }
   }, [value]);
 
   // 添加主题定义
@@ -143,8 +166,24 @@ const TextEditor = ({
   };
 
   const InputFallback = (e: any): string => {
-    console.error('get error input', e);
-    return '';
+    // 处理不同类型的值
+    if (e === null || e === undefined) {
+      return '';
+    }
+
+    if (typeof e === 'object') {
+      try {
+        // 尝试使用 JSON.stringify 格式化对象
+        return JSON.stringify(e, null, 2);
+      } catch (error) {
+        console.error('JSON.stringify 失败:', error);
+        // 如果 JSON.stringify 失败，使用 toString 方法
+        return e.toString();
+      }
+    }
+
+    // 对于其他类型，直接转换为字符串
+    return String(e);
   };
 
   // 计算实际的宽高样式 - 类似 JSONForm 的处理
