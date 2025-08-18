@@ -233,6 +233,13 @@ export interface RunAllNodesContext {
   ) => { id: string; label: string }[];
   clearAll: () => void;
 
+  // 流式结果相关
+  streamResult: (nodeId: string, result: any) => void;
+  streamResultForMultipleNodes: (
+    taskId: string,
+    resultNodes: string[]
+  ) => Promise<unknown>;
+
   // 通信相关
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
