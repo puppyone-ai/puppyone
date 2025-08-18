@@ -61,6 +61,8 @@ import DeepResearch from './edgesNode/edgeNodesNew/DeepResearch';
 import GroupNode from './groupNode/GroupNode';
 import { useNodeDragHandlers } from '../hooks/useNodeDragHandlers';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
+import { useAppSettings } from '../states/AppSettingsContext';
+import { SYSTEM_URLS } from '@/config/urls';
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
 
 const nodeTypes = {
@@ -201,6 +203,8 @@ function Workflow() {
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
+  const { getAuthHeaders } = useAppSettings();
+  const didExternalPrefetchRef = useRef<string | null>(null);
 
   // 用于管理节点的 z-index 层级
   const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>(
@@ -289,6 +293,97 @@ function Workflow() {
       setEdges([]);
     }
   }, [currentWorkspaceContent, selectedFlowId]);
+
+  // 初次加载时，为 external 指针块从外部存储下载内容到 data.content
+  useEffect(() => {
+    if (!currentWorkspaceContent || !selectedFlowId) return;
+    if (didExternalPrefetchRef.current === selectedFlowId) return;
+
+    const externalBlocks = (currentWorkspaceContent.blocks || []).filter(
+      (n: any) =>
+        n?.data?.storage_class === 'external' ||
+        n?.storage_class === 'external' ||
+        n?.data?.external_metadata
+    ) as any[];
+
+    if (externalBlocks.length === 0) {
+      didExternalPrefetchRef.current = selectedFlowId;
+      return;
+    }
+
+    (async () => {
+      for (const n of externalBlocks) {
+        try {
+          const external =
+            n?.data?.external_metadata ||
+            n?.external_metadata ||
+            n?.data?.external;
+          const resourceKey = external?.resource_key;
+          const contentType = external?.content_type || 'text';
+          if (!resourceKey) continue;
+
+          const manifestResp = await fetch(
+            `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
+              `${resourceKey}/manifest.json`
+            )}`,
+            { headers: getAuthHeaders() as HeadersInit }
+          );
+          if (!manifestResp.ok) continue;
+          const { download_url: manifestUrl } = await manifestResp.json();
+          const manifestRes = await fetch(manifestUrl);
+          if (!manifestRes.ok) continue;
+          const manifest = await manifestRes.json();
+
+          const chunks: string[] = [];
+          for (const chunk of manifest.chunks || []) {
+            const name = typeof chunk === 'string' ? chunk : chunk.name;
+            if (!name) continue;
+            if (name === '_completed.marker') continue;
+            if (typeof chunk === 'object' && chunk.size === 0) continue;
+
+            const urlResp = await fetch(
+              `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
+                `${resourceKey}/${name}`
+              )}`,
+              { headers: getAuthHeaders() as HeadersInit }
+            );
+            if (!urlResp.ok) continue;
+            const { download_url } = await urlResp.json();
+            const chunkResp = await fetch(download_url);
+            if (!chunkResp.ok) continue;
+            const text = await chunkResp.text();
+            chunks.push(text);
+          }
+
+          const content = chunks.join('');
+          setUnsortedNodes(prev =>
+            prev.map(node =>
+              node.id === n.id
+                ? {
+                    ...node,
+                    data: {
+                      ...node.data,
+                      content: contentType === 'structured' ? content : content,
+                      isExternalStorage: true,
+                      external_metadata: external,
+                    },
+                  }
+                : node
+            )
+          );
+        } catch (e) {
+          // 忽略单块失败
+        }
+      }
+
+      didExternalPrefetchRef.current = selectedFlowId;
+    })();
+  }, [
+    currentWorkspaceContent,
+    selectedFlowId,
+    getAuthHeaders,
+    setUnsortedNodes,
+  ]);
 
   // 定期保存 ReactFlow 状态到工作区
   const lastSavedContent = useRef<string>('');

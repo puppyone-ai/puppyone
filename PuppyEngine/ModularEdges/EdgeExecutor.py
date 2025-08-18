@@ -57,16 +57,16 @@ class EdgeExecutor:
         self._completed_edges: Dict[str, Any] = {}
         self.edge_factories = {
             "llm": LLMFactory,
-            "code": CoderFactory,
-            "save": SaverFactory,
+            # "code": CoderFactory,
+            # "save": SaverFactory,
             "load": LoaderFactory,
             "chunk": ChunkerFactory,
             "search": SearcherFactory,
             "modify": ModifierFactory,
-            "rerank": RerankerFactory,
+            # "rerank": RerankerFactory,
             "ifelse": ConditionerFactory,
             "generator": GeneratorFactory,
-            "query_rewrite": QueryRewriterFactory,
+            # "query_rewrite": QueryRewriterFactory,
             "deep_research": DeepResearcherFactory
         }
 
