@@ -9,7 +9,7 @@ function buildTargetUrl(request: Request, path: string[] | undefined): string {
   const subPath = Array.isArray(path) ? path.join('/') : '';
   const url = new URL(request.url);
   const query = url.search; // includes leading ? when present
-  const base = SERVER_ENV.USER_SYSTEM_BACKEND.replace(/\/$/, '');
+  const base = SERVER_ENV.USER_SYSTEM_BACKEND; // already normalized
   const suffix = subPath ? `/${subPath}` : '';
   return `${base}${suffix}${query}`;
 }
@@ -34,8 +34,8 @@ function filterRequestHeaders(headers: Headers): HeadersInit {
     }
     newHeaders[key] = value;
   });
-  if (SERVER_ENV.USER_SYSTEM_SERVICE_KEY) {
-    newHeaders['X-Service-Key'] = SERVER_ENV.USER_SYSTEM_SERVICE_KEY;
+  if (SERVER_ENV.SERVICE_KEY) {
+    newHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   }
   return newHeaders;
 }
