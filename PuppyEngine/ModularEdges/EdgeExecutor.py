@@ -21,9 +21,11 @@ from ModularEdges.ModifyEdge import ModifierFactory
 from ModularEdges.RerankEdge import RerankerFactory
 from ModularEdges.ConditionEdge import ConditionerFactory
 from ModularEdges.QueryRewriteEdge import QueryRewriterFactory
-from ModularEdges.DeepResearcherEdge import DeepResearcherFactory
 from ModularEdges.EdgeConfigParser import ConfigParserFactory
 from Utils.puppy_exception import global_exception_handler, PuppyException
+from ModularEdges.DeepResearchEdge.deep_researcher import DeepResearcherFactory
+
+
 @dataclass
 class EdgeTask:
     """Represents a single edge execution task"""
@@ -66,7 +68,6 @@ class EdgeExecutor:
             "generator": GeneratorFactory,
             # "query_rewrite": QueryRewriterFactory,
             "deep_research": DeepResearcherFactory
-
         }
 
     @global_exception_handler(3000, "Unexpected Error in Edge Execution")
