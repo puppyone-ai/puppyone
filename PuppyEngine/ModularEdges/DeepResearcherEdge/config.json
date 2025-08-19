@@ -1,0 +1,71 @@
+{
+    "edge_name": "DeepResearcherEdge",
+    "llm_config": {
+        "model": "gpt-4o-2024-08-06",
+        "temperature": 0.1,
+        "max_tokens": 10000,
+        "max_iterations": 3
+    },
+    "vector_search_configs": {
+        "data_source": [
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "research_papers",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "pgvector",
+                        "user_id": "research_user",
+                        "set_name": "academic_papers",
+                        "description": "Academic research papers and scientific publications",
+                        "enabled": true
+                    }
+                }
+            },
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "news_articles",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "chroma",
+                        "user_id": "research_user",
+                        "set_name": "current_news",
+                        "description": "Recent news articles and current events",
+                        "enabled": true
+                    }
+                }
+            },
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "technical_docs",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "pinecone",
+                        "user_id": "research_user",
+                        "set_name": "technical_documentation",
+                        "description": "Technical documentation and manuals",
+                        "enabled": false
+                    }
+                }
+            }
+        ],
+        "top_k": 5,
+        "threshold": 0.7
+    },
+    "google_search_configs": {
+        "enabled": true,
+        "sub_search_type": "google",
+        "max_results": 5,
+        "filter_unreachable_pages": true,
+        "timeout": 30,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    },
+    "perplexity_search_configs": {
+        "enabled": true,
+        "sub_search_type": "perplexity",
+        "model": "perplexity/sonar",
+        "api_key_env": "PERPLEXITY_API_KEY",
+        "base_url_env": "PERPLEXITY_BASE_URL",
+        "max_tokens": 4000,
+        "temperature": 0.1
+    }
+}
