@@ -230,6 +230,17 @@ class StorageClient:
                 else:
                     raise StorageException(f"Failed to update manifest: {response.text}")
 
+            # [FIX] Upload the physical _completed.marker file before updating the manifest
+            # This ensures the marker file actually exists when the manifest claims it does.
+            # Use a single space as content to avoid "No chunk data provided" error from storage server.
+            await self._upload_chunk(
+                block_id=block_id_from_key,
+                file_name="_completed.marker",
+                chunk_data=b" ",
+                version_id=version_id
+            )
+            log_info("Uploaded physical _completed.marker file.")
+
             # Mark as completed by adding a completion marker
             completion_chunk = {
                 "name": "_completed.marker",
