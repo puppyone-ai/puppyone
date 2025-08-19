@@ -1,0 +1,53 @@
+{
+    "kind": "customsearch#result",
+    "title": "Austin to New York City Vacation Packages | Spirit Vacations",
+    "htmlTitle": "Austin to New York City Vacation Packages | Spirit Vacations",
+    "link": "https://vacations.spirit.com/en/vacations-from-austin-to-new-york-city",
+    "displayLink": "vacations.spirit.com",
+    "snippet": "... Current Weather In New York City. Wednesday moderate rain. 89°F 08/13/2025. Thursday light rain. 84°F 08/14/2025. Friday light rain. 83°F 08/15/2025.",
+    "htmlSnippet": "... <b>Current Weather In New York</b> City. Wednesday moderate rain. 89°F 08/13/2025. Thursday light rain. 84°F 08/14/2025. Friday light rain. 83°F 08/15/2025.",
+    "formattedUrl": "https://vacations.spirit.com/en/vacations-from-austin-to-new-york-city",
+    "htmlFormattedUrl": "https://vacations.spirit.com/en/vacations-from-austin-to-new-york-city",
+    "pagemap": {
+        "metatags": [
+            {
+                "og:image": "https://assets.airtrfx.com/media-em/nk/new-york.jpg",
+                "twitter:card": "summary_large_image",
+                "twitter:title": "Austin\xa0to\xa0New York City\xa0Vacation Packages | Spirit Vacations",
+                "viewport": "width=device-width, initial-scale=1, user-scalable=0",
+                "twitter:description": "Looking for ✈️ flight + hotel vacation packages? Relax! Book hassle-free & affordable\xa0Austin\xa0to\xa0New York City\xa0vacation packages on Spirit Vacations.",
+                "og:title": "Austin\xa0to\xa0New York City\xa0Vacation Packages | Spirit Vacations",
+                "og:description": "Looking for ✈️ flight + hotel vacation packages? Relax! Book hassle-free & affordable\xa0Austin\xa0to\xa0New York City\xa0vacation packages on Spirit Vacations.",
+                "twitter:image": "https://assets.airtrfx.com/media-em/nk/new-york.jpg"
+            }
+        ],
+        "cse_image": [
+            {
+                "src": "https://assets.airtrfx.com/media-em/nk/new-york.jpg"
+            }
+        ],
+        "listitem": [
+            {
+                "item": "Home",
+                "name": "Home",
+                "position": "1"
+            },
+            {
+                "item": "Packages",
+                "name": "Packages",
+                "position": "2"
+            },
+            {
+                "item": "To United States",
+                "name": "To United States",
+                "position": "3"
+            },
+            {
+                "item": "Austin - New York City",
+                "name": "Austin - New York City",
+                "position": "4"
+            }
+        ]
+    },
+    "content": "No fares were found for the selected criteria. Please try again with different City, Date Range and Budget. Clear filters"
+}
