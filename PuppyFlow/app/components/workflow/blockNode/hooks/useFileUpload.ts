@@ -227,13 +227,18 @@ export function useFileUpload({
         setManifestEtag(null);
       }
 
+      // 使用存储返回的 key 获取已被服务端清理过的文件名，保证 manifest 的 name 能被后端正确下载
+      const sanitizedName = directData.key.split('/').pop() || fileName;
+
       const baseManifestBody = {
         user_id: userIdVal,
         block_id: nodeId,
         version_id: newVersionId,
         expected_etag: isNewVersion ? null : manifestEtag,
         new_chunk: {
-          name: fileName,
+          // name 必须与对象存储中的实际对象名一致
+          name: sanitizedName,
+          // file_name 保留原始文件名用于展示
           file_name: fileName,
           mime_type: file.type || 'application/octet-stream',
           size: directData.size,
