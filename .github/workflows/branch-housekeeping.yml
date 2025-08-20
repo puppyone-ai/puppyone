@@ -38,7 +38,7 @@ jobs:
             | sort -u \
             | sed -n 's|^origin/||p' \
             | awk '($0!="HEAD" && $0!="main" && $0!="qubits" && $0!="convergency") {print}' \
-            | grep -E '^(temp|feature|fix)/' || true)
+            | grep -E '^(temp|feature|fix)/|^revert-' || true)
           printf "%s\n" $merged > merged.txt
           echo "count=$(wc -l < merged.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
           echo "Candidates (merged into main, protected filtered, name matched):"
@@ -95,8 +95,8 @@ jobs:
           echo "DRY_RUN=$DRY_RUN"
           while IFS= read -r br; do
             [[ -z "$br" ]] && continue
-            # Final safeguard: only allow temp/*, feature/*, fix/*
-            if [[ ! "$br" =~ ^(temp|feature|fix)/ ]]; then
+            # Final safeguard: only allow temp/*, feature/*, fix/*, or revert-
+            if [[ ! "$br" =~ ^(temp|feature|fix)/ && ! "$br" =~ ^revert- ]]; then
               echo "Skip (not in allowed prefixes): $br"
               continue
             fi
