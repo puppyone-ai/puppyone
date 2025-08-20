@@ -27,23 +27,66 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: List remote branches merged into main
+      - name: List remote branches merged into main (protected filtered + name patterns)
         id: list
         shell: bash
         run: |
           set -euo pipefail
           git fetch --prune origin
+          # Candidates: merged into main, exclude protected, and match temp/*, feature/*, fix/*
           merged=$(git branch -r --merged origin/main --format "%(refname:short)" \
             | sort -u \
             | sed -n 's|^origin/||p' \
-            | awk '{ if($0!="HEAD" && $0!="main" && $0!="qubits" && $0!="convergency") print }')
+            | awk '($0!="HEAD" && $0!="main" && $0!="qubits" && $0!="convergency") {print}' \
+            | grep -E '^(temp|feature|fix)/' || true)
           printf "%s\n" $merged > merged.txt
           echo "count=$(wc -l < merged.txt | tr -d " ")" >> $GITHUB_OUTPUT
-          echo "Will consider these branches (merged into main):"
+          echo "Candidates (merged into main, protected filtered, name matched):"
           cat merged.txt || true
 
-      - name: Delete merged remote branches (dry-run or apply)
-        if: steps.list.outputs.count != '0'
+      - name: Filter: last commit older than 14 days
+        id: age
+        shell: bash
+        run: |
+          set -euo pipefail
+          now=$(date +%s)
+          cutoff=$(( now - 14*24*3600 ))
+          : > aged.txt
+          while IFS= read -r br; do
+            [[ -z "$br" ]] && continue
+            ts=$(git log -1 --format=%ct "origin/$br" 2>/dev/null || echo 0)
+            if [[ "$ts" -lt "$cutoff" ]]; then
+              echo "$br" >> aged.txt
+            fi
+          done < merged.txt
+          echo "count=$(wc -l < aged.txt | tr -d " ")" >> $GITHUB_OUTPUT
+          echo "After age>14d filter:" && cat aged.txt || true
+
+      - name: Filter: exclude branches with open PRs
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          GH_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > to_delete.txt
+          while IFS= read -r br; do
+            [[ -z "$br" ]] && continue
+            # Count open PRs whose head matches owner:branch
+            cnt=$(gh pr list --state open --head "$br" --json number --jq 'length' || echo 0)
+            if [[ "$cnt" -eq 0 ]]; then
+              echo "$br" >> to_delete.txt
+            else
+              echo "Skip (open PR exists): $br"
+            fi
+          done < aged.txt
+          echo "count=$(wc -l < to_delete.txt | tr -d " ")" >> $GITHUB_OUTPUT
+          echo "Will delete (meets all conditions):" && cat to_delete.txt || true
+
+      - name: Delete eligible remote branches (dry-run or apply)
+        if: steps.pr.outputs.count != '0'
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
         shell: bash
@@ -58,11 +101,12 @@ jobs:
               echo "Deleting: $br"
               git push origin --delete "$br" || echo "Failed to delete $br"
             fi
-          done < merged.txt
+          done < to_delete.txt
 
       - name: Summary
         if: always()
         run: |
           echo "Protected branches: main qubits convergency"
-          echo "Branches considered (merged into main):"
-          cat merged.txt || true
+          echo "Candidates (merged into main, protected filtered, name matched):" && (cat merged.txt || true)
+          echo "After age>14d filter:" && (cat aged.txt || true)
+          echo "Final to delete:" && (cat to_delete.txt || true)
