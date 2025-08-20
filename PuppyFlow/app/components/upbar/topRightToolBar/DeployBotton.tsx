@@ -5,8 +5,14 @@ import React, { useState, Fragment, useEffect, useRef } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import { SYSTEM_URLS } from '@/config/urls';
-import { useServers } from '../../states/UserServersContext';
+import {
+  useServers,
+  useAllDeployedServices,
+} from '../../states/UserServersContext';
 import { useServerOperations } from '../../hooks/useServerManagement';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import Tippy from '@tippyjs/react';
+import 'tippy.js/dist/tippy.css';
 
 import DeployAsApi from './deployMenu/AddApiServer';
 import DeployAsChatbot from './deployMenu/AddChatbotServer';
@@ -19,6 +25,13 @@ function DeployBotton() {
   const selectedFlowId =
     showingItem?.type === 'workspace' ? showingItem.id : null;
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+
+  const { planLimits, isLocalDeployment } = useAppSettings();
+  const { apis: allApis, chatbots: allChatbots } = useAllDeployedServices();
+  const totalDeployedServices =
+    (allApis?.length || 0) + (allChatbots?.length || 0);
+  const isServiceLimitReached =
+    !isLocalDeployment && totalDeployedServices >= planLimits.deployedServices;
 
   // 仅保留顶层菜单所需的状态
   const [hovered, setHovered] = useState(false);
@@ -442,89 +455,110 @@ function DeployBotton() {
                 Create New Deployment
               </h2>
               <div className='space-y-2'>
-                {deploymentOptions.map(option => (
-                  <div
-                    key={option.id}
-                    className={`flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A] ${option.disabled ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : ''}`}
-                    onClick={() =>
-                      !option.disabled && setActivePanel(option.id)
-                    }
-                  >
-                    {/* 服务类型图标 */}
+                {deploymentOptions.map(option => {
+                  const isOptionDisabled =
+                    option.disabled || isServiceLimitReached;
+                  const button = (
                     <div
-                      className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
-                        option.id === 'api'
-                          ? 'border-[#606060]'
-                          : option.id === 'chatbot'
-                            ? 'border-[#606060]'
-                            : 'border-[#606060]'
+                      key={option.id}
+                      className={`flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group ${
+                        isOptionDisabled
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'cursor-pointer hover:bg-[#2A2A2A]'
                       }`}
+                      onClick={() =>
+                        !isOptionDisabled && setActivePanel(option.id)
+                      }
                     >
-                      {option.id === 'api' ? (
+                      {/* 服务类型图标 */}
+                      <div
+                        className={`w-6 h-6 rounded-md border flex items-center justify-center flex-shrink-0 ${
+                          option.id === 'api'
+                            ? 'border-[#606060]'
+                            : option.id === 'chatbot'
+                              ? 'border-[#606060]'
+                              : 'border-[#606060]'
+                        }`}
+                      >
+                        {option.id === 'api' ? (
+                          <svg
+                            className='w-3 h-3 text-[#606060]'
+                            fill='currentColor'
+                            viewBox='0 0 20 20'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path
+                              fillRule='evenodd'
+                              d='M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z'
+                              clipRule='evenodd'
+                            />
+                          </svg>
+                        ) : option.id === 'chatbot' ? (
+                          <svg
+                            className='w-3 h-3 text-[#606060]'
+                            fill='currentColor'
+                            viewBox='0 0 20 20'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path d='M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z' />
+                            <path d='M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z' />
+                          </svg>
+                        ) : (
+                          <svg
+                            className='w-3 h-3 text-[#606060]'
+                            fill='currentColor'
+                            viewBox='0 0 20 20'
+                            xmlns='http://www.w3.org/2000/svg'
+                          >
+                            <path d='M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z' />
+                            <path d='M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z' />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* 服务信息 */}
+                      <div className='flex-1 min-w-0'>
+                        <div className='text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white'>
+                          {option.label}
+                        </div>
+                        <div className='text-[9px] text-[#808080] truncate mt-[1px]'>
+                          {option.description}
+                        </div>
+                      </div>
+
+                      {/* 右侧加号图标 */}
+                      <div className='flex items-center justify-center w-[24px] h-[24px] text-[#606060] group-hover:text-[#CDCDCD] transition-colors duration-200 mr-[8px]'>
                         <svg
-                          className='w-3 h-3 text-[#606060]'
-                          fill='currentColor'
-                          viewBox='0 0 20 20'
+                          className='w-4 h-4'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
                           xmlns='http://www.w3.org/2000/svg'
                         >
                           <path
-                            fillRule='evenodd'
-                            d='M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 01-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z'
-                            clipRule='evenodd'
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2.5}
+                            d='M12 4v16m8-8H4'
                           />
                         </svg>
-                      ) : option.id === 'chatbot' ? (
-                        <svg
-                          className='w-3 h-3 text-[#606060]'
-                          fill='currentColor'
-                          viewBox='0 0 20 20'
-                          xmlns='http://www.w3.org/2000/svg'
-                        >
-                          <path d='M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z' />
-                          <path d='M15 7v2a4 4 0 01-4 4H9.828l-1.766 1.767c.28.149.599.233.938.233h2l3 3v-3h2a2 2 0 002-2V9a2 2 0 00-2-2h-1z' />
-                        </svg>
-                      ) : (
-                        <svg
-                          className='w-3 h-3 text-[#606060]'
-                          fill='currentColor'
-                          viewBox='0 0 20 20'
-                          xmlns='http://www.w3.org/2000/svg'
-                        >
-                          <path d='M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z' />
-                          <path d='M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z' />
-                        </svg>
-                      )}
-                    </div>
-
-                    {/* 服务信息 */}
-                    <div className='flex-1 min-w-0'>
-                      <div className='text-[#CDCDCD] text-[11px] font-medium truncate group-hover:text-white'>
-                        {option.label}
-                      </div>
-                      <div className='text-[9px] text-[#808080] truncate mt-[1px]'>
-                        {option.description}
                       </div>
                     </div>
+                  );
 
-                    {/* 右侧加号图标 */}
-                    <div className='flex items-center justify-center w-[24px] h-[24px] text-[#606060] group-hover:text-[#CDCDCD] transition-colors duration-200 mr-[8px]'>
-                      <svg
-                        className='w-4 h-4'
-                        fill='none'
-                        stroke='currentColor'
-                        viewBox='0 0 24 24'
-                        xmlns='http://www.w3.org/2000/svg'
+                  if (isServiceLimitReached && !option.disabled) {
+                    return (
+                      <Tippy
+                        key={option.id}
+                        content={`You have reached the limit of ${planLimits.deployedServices} deployed services for your current plan.`}
                       >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth={2.5}
-                          d='M12 4v16m8-8H4'
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                ))}
+                        <div>{button}</div>
+                      </Tippy>
+                    );
+                  }
+
+                  return button;
+                })}
               </div>
             </div>
           </div>
