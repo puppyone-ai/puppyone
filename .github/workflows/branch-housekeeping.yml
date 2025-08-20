@@ -27,7 +27,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: List remote branches merged into main (protected filtered + name patterns)
+      - name: "List remote branches merged into main (protected filtered + name patterns)"
         id: list
         shell: bash
         run: |
@@ -40,11 +40,11 @@ jobs:
             | awk '($0!="HEAD" && $0!="main" && $0!="qubits" && $0!="convergency") {print}' \
             | grep -E '^(temp|feature|fix)/' || true)
           printf "%s\n" $merged > merged.txt
-          echo "count=$(wc -l < merged.txt | tr -d " ")" >> $GITHUB_OUTPUT
+          echo "count=$(wc -l < merged.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
           echo "Candidates (merged into main, protected filtered, name matched):"
           cat merged.txt || true
 
-      - name: Filter: last commit older than 14 days
+      - name: "Filter: last commit older than 14 days"
         id: age
         shell: bash
         run: |
@@ -59,10 +59,10 @@ jobs:
               echo "$br" >> aged.txt
             fi
           done < merged.txt
-          echo "count=$(wc -l < aged.txt | tr -d " ")" >> $GITHUB_OUTPUT
+          echo "count=$(wc -l < aged.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
           echo "After age>14d filter:" && cat aged.txt || true
 
-      - name: Filter: exclude branches with open PRs
+      - name: "Filter: exclude branches with open PRs"
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
@@ -82,10 +82,10 @@ jobs:
               echo "Skip (open PR exists): $br"
             fi
           done < aged.txt
-          echo "count=$(wc -l < to_delete.txt | tr -d " ")" >> $GITHUB_OUTPUT
+          echo "count=$(wc -l < to_delete.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
           echo "Will delete (meets all conditions):" && cat to_delete.txt || true
 
-      - name: Delete eligible remote branches (dry-run or apply)
+      - name: "Delete eligible remote branches (dry-run or apply)"
         if: steps.pr.outputs.count != '0'
         env:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
