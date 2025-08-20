@@ -1,0 +1,68 @@
+name: Branch Housekeeping
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # Every Monday 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only (no deletions)'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: write
+
+jobs:
+  gc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git user
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: List remote branches merged into main
+        id: list
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --prune origin
+          merged=$(git branch -r --merged origin/main --format "%(refname:short)" \
+            | sort -u \
+            | sed -n 's|^origin/||p' \
+            | awk '{ if($0!="HEAD" && $0!="main" && $0!="qubits" && $0!="convergency") print }')
+          printf "%s\n" $merged > merged.txt
+          echo "count=$(wc -l < merged.txt | tr -d " ")" >> $GITHUB_OUTPUT
+          echo "Will consider these branches (merged into main):"
+          cat merged.txt || true
+
+      - name: Delete merged remote branches (dry-run or apply)
+        if: steps.list.outputs.count != '0'
+        env:
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DRY_RUN=$DRY_RUN"
+          while IFS= read -r br; do
+            [[ -z "$br" ]] && continue
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "[dry-run] would delete: $br"
+            else
+              echo "Deleting: $br"
+              git push origin --delete "$br" || echo "Failed to delete $br"
+            fi
+          done < merged.txt
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Protected branches: main qubits convergency"
+          echo "Branches considered (merged into main):"
+          cat merged.txt || true
