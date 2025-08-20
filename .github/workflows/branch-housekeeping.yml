@@ -95,6 +95,11 @@ jobs:
           echo "DRY_RUN=$DRY_RUN"
           while IFS= read -r br; do
             [[ -z "$br" ]] && continue
+            # Final safeguard: only allow temp/*, feature/*, fix/*
+            if [[ ! "$br" =~ ^(temp|feature|fix)/ ]]; then
+              echo "Skip (not in allowed prefixes): $br"
+              continue
+            fi
             if [[ "$DRY_RUN" == "true" ]]; then
               echo "[dry-run] would delete: $br"
             else
