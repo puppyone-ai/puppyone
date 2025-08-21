@@ -35,17 +35,19 @@ open_router_supported_models = [
     "openai/gpt-4-turbo",
     "deepseek/deepseek-chat-v3-0324:free",
     "deepseek/deepseek-r1-zero:free",
-    "deepseek/deepseek-r1"
+    "deepseek/deepseek-r1",
     "anthropic/claude-3.5-haiku",
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3.7-sonnet",
     "perplexity/sonar-reasoning-pro",
     "perplexity/sonar-pro",
-    "perplexity/sonar-deep-research"
+    "perplexity/sonar-deep-research",
     "perplexity/r1-1776",
     "perplexity/sonar-reasoning",
     "perplexity/sonar",
     "perplexity/llama-3.1-sonar-large-128k-online",
+    "perplexity/llama-3.1-sonar-small-128k-online",
+    "perplexity/llama-3.1-sonar-huge-128k-online",
     "perplexity/llama-3-sonar-large-32k-online",
     "perplexity/llama-3-sonar-small-32k-online",
 ]
