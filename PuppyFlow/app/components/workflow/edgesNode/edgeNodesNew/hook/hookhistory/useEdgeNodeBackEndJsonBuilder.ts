@@ -144,9 +144,9 @@ export type SearchGoogleEdgeJsonType = {
 
 // 添加 Perplexity 类型
 export type perplexityModelNames =
-  | 'llama-3.1-sonar-small-128k-online'
-  | 'llama-3.1-sonar-large-128k-online'
-  | 'llama-3.1-sonar-huge-128k-online';
+  | 'sonar'
+  | 'sonar-pro'
+  | 'sonar-reasoning-pro';
 
 export type SearchPerplexityEdgeJsonType = {
   type: 'search';
@@ -971,8 +971,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
     const perplexityNodeData = getNode(nodeId)?.data;
 
     // 添加正确的类型检查
-    let perplexityModel: perplexityModelNames =
-      'llama-3.1-sonar-small-128k-online'; // 默认值
+    let perplexityModel: perplexityModelNames = 'sonar-pro'; // 默认值
 
     // 检查extra_configs是否存在并有model属性
     if (
@@ -987,9 +986,9 @@ export function useEdgeNodeBackEndJsonBuilder() {
 
       // 验证是允许的模型名称之一
       if (
-        configModel === 'llama-3.1-sonar-small-128k-online' ||
-        configModel === 'llama-3.1-sonar-large-128k-online' ||
-        configModel === 'llama-3.1-sonar-huge-128k-online'
+        configModel === 'sonar' ||
+        configModel === 'sonar-pro' ||
+        configModel === 'sonar-reasoning-pro'
       ) {
         perplexityModel = configModel;
       }

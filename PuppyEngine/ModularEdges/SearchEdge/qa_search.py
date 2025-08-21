@@ -8,7 +8,7 @@ import sys
 from typing import List
 from duckduckgo_search import DDGS
 from ModularEdges.LLMEdge.llm_edge import remote_llm_chat
-from Utils.puppy_exception import global_exception_handler
+from Utils.puppy_exception import PuppyException, global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import SearchStrategy
 
 
@@ -45,6 +45,10 @@ class LLMQASearchStrategy(SearchStrategy):
         - sonar
         """
 
+        # Guard against empty queries to avoid Perplexity 400 errors
+        if not self.query or not str(self.query).strip():
+            raise PuppyException(3504, "Empty query for Perplexity search", "Provide non-empty query")
+
         messages = [
             {
                 "role": "system",
@@ -60,11 +64,14 @@ class LLMQASearchStrategy(SearchStrategy):
         raw_model = self.extra_configs.get("model", "perplexity/sonar")
         model = raw_model if isinstance(raw_model, str) else list(raw_model.keys())[0]
 
-        # Map UI-facing Perplexity online models to OpenRouter-supported IDs
+        # Map UI-facing Perplexity aliases to OpenRouter-supported IDs
         ui_to_openrouter = {
-            "llama-3.1-sonar-small-128k-online": "perplexity/llama-3-sonar-small-32k-online",
-            "llama-3.1-sonar-large-128k-online": "perplexity/llama-3-sonar-large-32k-online",
+            # Prefer stable IDs available on OpenRouter provider page
             "llama-3.1-sonar-huge-128k-online": "perplexity/sonar-pro",
+            # Allow simple aliases used by UI
+            "sonar": "perplexity/sonar",
+            "sonar-pro": "perplexity/sonar-pro",
+            "sonar-reasoning-pro": "perplexity/sonar-reasoning-pro",
         }
 
         if isinstance(model, str):
