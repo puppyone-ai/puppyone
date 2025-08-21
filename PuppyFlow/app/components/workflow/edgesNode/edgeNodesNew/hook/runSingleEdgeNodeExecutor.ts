@@ -573,13 +573,16 @@ async function sendDataToTargets(
                   data?.resource_key &&
                   data?.content_type
                 ) {
+                  // Normalize to supported types only: text | structured
+                  const normalizedContentType =
+                    data.content_type === 'structured' ? 'structured' : 'text';
                   // 为每个目标节点创建一个 poller
                   targetNodeIdWithLabelGroup.forEach(targetNode => {
                     const poller = new ManifestPoller(
                       context,
                       data.resource_key,
                       targetNode.id,
-                      data.content_type
+                      normalizedContentType
                     );
                     pollers.set(
                       `${data.resource_key}_${targetNode.id}`,
@@ -600,6 +603,11 @@ async function sendDataToTargets(
                                 isLoading: true,
                                 isWaitingForFlow: true,
                                 isExternalStorage: true,
+                                external_metadata: {
+                                  ...(node.data?.external_metadata || {}),
+                                  resource_key: data.resource_key,
+                                  content_type: normalizedContentType,
+                                },
                               },
                             }
                           : node
@@ -727,7 +735,11 @@ async function sendDataToTargets(
                       break;
                     }
 
-                    // 更新节点为external存储模式
+                    // 更新节点为external存储模式（normalize content_type to text/structured only）
+                    const normalizedContentType =
+                      externalMetadata.content_type === 'structured'
+                        ? 'structured'
+                        : 'text';
                     context.setNodes(prevNodes => {
                       const updatedNodes = prevNodes.map(node => {
                         if (node.id === data.block_id) {
@@ -736,7 +748,10 @@ async function sendDataToTargets(
                             data: {
                               ...node.data,
                               storage_class: 'external',
-                              external_metadata: externalMetadata,
+                              external_metadata: {
+                                ...externalMetadata,
+                                content_type: normalizedContentType,
+                              },
                               isLoading: false,
                               isWaitingForFlow: false,
                               isExternalStorage: true,
@@ -763,7 +778,7 @@ async function sendDataToTargets(
                           context,
                           externalMetadata.resource_key,
                           data.block_id,
-                          externalMetadata.content_type || 'text'
+                          normalizedContentType || 'text'
                         );
                         pollers.set(pollerKey, poller);
                         await poller.stop();
