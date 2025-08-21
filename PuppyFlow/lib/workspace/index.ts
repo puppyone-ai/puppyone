@@ -29,7 +29,6 @@ export function getWorkspaceStore(): IWorkspaceStore {
   // Cloud mode: validate envs and use user-system backend
   // Lazy import to avoid requiring server-only envs in non-cloud mode
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { UserSystemWorkspaceStore } = require('./userSystemStore');
 
     // Basic env validation ahead of time for clearer errors
