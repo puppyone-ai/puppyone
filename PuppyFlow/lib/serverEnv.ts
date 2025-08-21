@@ -31,8 +31,17 @@ function normalizeUrlBase(input: string): string {
   return v;
 }
 
+// We only hard-require USER_SYSTEM_BACKEND when in cloud mode.
+const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
+const hasBackend = !!process.env.USER_SYSTEM_BACKEND;
+
 export const SERVER_ENV = {
-  USER_SYSTEM_BACKEND: normalizeUrlBase(requireEnv('USER_SYSTEM_BACKEND')),
+  USER_SYSTEM_BACKEND:
+    mode === 'cloud'
+      ? normalizeUrlBase(requireEnv('USER_SYSTEM_BACKEND'))
+      : hasBackend
+      ? normalizeUrlBase(process.env.USER_SYSTEM_BACKEND as string)
+      : '',
   // Optional service key for S2S auth; not all routes need it
   SERVICE_KEY: process.env.SERVICE_KEY || '',
   // Allow bypassing service key for local/dev verification only
