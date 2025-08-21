@@ -28,19 +28,12 @@ export type SearchConfigNodeData = {
   query_id: { id: string; label: string } | undefined;
   vector_db: { id: string; label: string } | undefined;
   extra_configs: {
-    model:
-      | 'llama-3.1-sonar-small-128k-online'
-      | 'llama-3.1-sonar-large-128k-online'
-      | 'llama-3.1-sonar-huge-128k-online'
-      | undefined;
+    model: 'sonar' | 'sonar-pro' | 'sonar-reasoning-pro' | undefined;
     threshold: number | undefined;
   };
 };
 
-type PerplexityModelNames =
-  | 'llama-3.1-sonar-small-128k-online'
-  | 'llama-3.1-sonar-large-128k-online'
-  | 'llama-3.1-sonar-huge-128k-online';
+type PerplexityModelNames = 'sonar' | 'sonar-pro' | 'sonar-reasoning-pro';
 
 type SearchPerplexityNodeProps = NodeProps<Node<SearchConfigNodeData>>;
 
@@ -77,7 +70,7 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
     const [model, setModel] = useState<PerplexityModelNames>(
       () =>
         (getNode(id)?.data as SearchConfigNodeData)?.extra_configs?.model ??
-        'llama-3.1-sonar-small-128k-online'
+        'sonar-pro'
     );
 
     // 创建执行上下文 - 使用 useCallback 缓存
@@ -277,14 +270,7 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
     );
 
     // 缓存模型选项 - 使用 useMemo 缓存
-    const modelOptions = useMemo(
-      () => [
-        'llama-3.1-sonar-small-128k-online',
-        'llama-3.1-sonar-large-128k-online',
-        'llama-3.1-sonar-huge-128k-online',
-      ],
-      []
-    );
+    const modelOptions = useMemo(() => ['sonar', 'sonar-pro', 'sonar-reasoning-pro'], []);
 
     // 缓存菜单按钮样式 - 使用 useMemo 缓存
     const menuRunButtonStyle = useMemo(

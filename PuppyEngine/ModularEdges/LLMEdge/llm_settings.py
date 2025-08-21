@@ -39,15 +39,9 @@ open_router_supported_models = [
     "anthropic/claude-3.5-haiku",
     "anthropic/claude-3.5-sonnet",
     "anthropic/claude-3.7-sonnet",
-    "perplexity/sonar-reasoning-pro",
-    "perplexity/sonar-pro",
-    "perplexity/sonar-deep-research",
-    "perplexity/r1-1776",
-    "perplexity/sonar-reasoning",
     "perplexity/sonar",
-    # OpenRouter-valid Perplexity IDs (note the 32k suffix in OpenRouter)
-    "perplexity/llama-3-sonar-large-32k-online",
-    "perplexity/llama-3-sonar-small-32k-online",
+    "perplexity/sonar-pro",
+    "perplexity/sonar-reasoning-pro",
 ]
 
 local_supported_models = [
