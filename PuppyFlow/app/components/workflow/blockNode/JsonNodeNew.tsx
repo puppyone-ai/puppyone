@@ -90,6 +90,17 @@ export type JsonNodeData = {
   method?: methodNames | undefined;
   vdb_type?: vdb_typeNames | undefined;
   index_name?: string | undefined;
+  // Hints for external progressive rendering (optional)
+  isExternalStorage?: boolean;
+  external_metadata?: {
+    resource_key?: string;
+    content_type?: string;
+    totalChunks?: number;
+    loadedChunks?: number;
+    totalRecords?: number;
+    parsedRecords?: number;
+    parseErrors?: number;
+  };
 };
 
 type JsonBlockNodeProps = NodeProps<Node<JsonNodeData>>;
@@ -131,6 +142,47 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     } = useNodesPerFlowContext();
 
     const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
+
+    // Progressive overlay to gradually reveal content while loading
+    const ProgressiveOverlay: React.FC<{ id: string }> = ({ id }) => {
+      const node = getNode(id) as Node<JsonNodeData> | undefined;
+      const totalChunks = node?.data?.external_metadata?.totalChunks;
+      const loadedChunks = node?.data?.external_metadata?.loadedChunks;
+      const hasChunkInfo =
+        typeof totalChunks === 'number' && typeof loadedChunks === 'number' && totalChunks > 0;
+      const progress = hasChunkInfo
+        ? Math.min(1, Math.max(0, loadedChunks! / (totalChunks! || 1)))
+        : undefined;
+
+      return (
+        <div className='absolute inset-0 z-[5] pointer-events-none'>
+          <div
+            className='absolute inset-0 transition-opacity duration-150'
+            style={{
+              background:
+                'linear-gradient(180deg, rgba(24,24,24,0.85) 0%, rgba(24,24,24,0.65) 100%)',
+              opacity: progress !== undefined ? 0.6 * (1 - progress) + 0.2 : 0.6,
+            }}
+          />
+          {progress !== undefined && (
+            <div className='absolute bottom-0 left-0 right-0 p-2'>
+              <div className='h-[6px] w-full bg-[#2a2a2a] rounded-full overflow-hidden border border-[#3a3a3a]'>
+                <div
+                  className='h-full rounded-full transition-all duration-150'
+                  style={{
+                    width: `${Math.floor(progress * 100)}%`,
+                    backgroundColor: '#9B7EDB',
+                  }}
+                />
+              </div>
+              <div className='mt-1 text-[10px] text-[#9B7EDB]/80 text-right'>
+                {`${Math.floor(progress * 100)}%`}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    };
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -816,42 +868,39 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             </div>
           </div>
 
-          {/* JSON Editor - 根据状态切换不同的编辑器 */}
-          {isLoading ? (
-            <SkeletonLoadingIcon />
-          ) : (
-            <div
-              className={`flex-1 min-h-0 overflow-hidden`}
-              style={{
-                background: 'transparent',
-                boxShadow: 'none',
-              }}
-            >
-              {nodeState.useRichEditor ? (
-                <RichJSONForm
-                  preventParentDrag={onFocus}
-                  allowParentDrag={onBlur}
-                  placeholder='Create your JSON structure...'
-                  value={content || ''}
-                  onChange={updateNodeContent}
-                  widthStyle={0}
-                  heightStyle={0}
-                  readonly={locked}
-                />
-              ) : (
-                <JSONForm
-                  preventParentDrag={onFocus}
-                  allowParentDrag={onBlur}
-                  placeholder='{"key": "value"}'
-                  value={content || ''}
-                  onChange={updateNodeContent}
-                  widthStyle={0}
-                  heightStyle={0}
-                  readonly={locked}
-                />
-              )}
-            </div>
-          )}
+          {/* JSON Editor with progressive overlay while loading */}
+          <div
+            className={`relative flex-1 min-h-0 overflow-hidden`}
+            style={{
+              background: 'transparent',
+              boxShadow: 'none',
+            }}
+          >
+            {nodeState.useRichEditor ? (
+              <RichJSONForm
+                preventParentDrag={onFocus}
+                allowParentDrag={onBlur}
+                placeholder='Create your JSON structure...'
+                value={content || ''}
+                onChange={updateNodeContent}
+                widthStyle={0}
+                heightStyle={0}
+                readonly={locked}
+              />
+            ) : (
+              <JSONForm
+                preventParentDrag={onFocus}
+                allowParentDrag={onBlur}
+                placeholder='{"key": "value"}'
+                value={content || ''}
+                onChange={updateNodeContent}
+                widthStyle={0}
+                heightStyle={0}
+                readonly={locked}
+              />
+            )}
+            {isLoading && <ProgressiveOverlay id={id} />}
+          </div>
 
           <NodeResizeControl
             minWidth={240}
