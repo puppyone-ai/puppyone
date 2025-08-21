@@ -45,9 +45,7 @@ open_router_supported_models = [
     "perplexity/r1-1776",
     "perplexity/sonar-reasoning",
     "perplexity/sonar",
-    "perplexity/llama-3.1-sonar-large-128k-online",
-    "perplexity/llama-3.1-sonar-small-128k-online",
-    "perplexity/llama-3.1-sonar-huge-128k-online",
+    # OpenRouter-valid Perplexity IDs (note the 32k suffix in OpenRouter)
     "perplexity/llama-3-sonar-large-32k-online",
     "perplexity/llama-3-sonar-small-32k-online",
 ]

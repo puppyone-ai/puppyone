@@ -56,11 +56,24 @@ class LLMQASearchStrategy(SearchStrategy):
             },
         ]
 
-        # Normalize model name: accept shorthand like "sonar" and expand to "perplexity/sonar"
+        # Normalize model name: accept UI shorthand and map to valid OpenRouter IDs
         raw_model = self.extra_configs.get("model", "perplexity/sonar")
         model = raw_model if isinstance(raw_model, str) else list(raw_model.keys())[0]
-        if isinstance(model, str) and "/" not in model:
-            model = f"perplexity/{model}"
+
+        # Map UI-facing Perplexity online models to OpenRouter-supported IDs
+        ui_to_openrouter = {
+            "llama-3.1-sonar-small-128k-online": "perplexity/llama-3-sonar-small-32k-online",
+            "llama-3.1-sonar-large-128k-online": "perplexity/llama-3-sonar-large-32k-online",
+            "llama-3.1-sonar-huge-128k-online": "perplexity/sonar-pro",
+        }
+
+        if isinstance(model, str):
+            # First, translate UI aliases
+            if model in ui_to_openrouter:
+                model = ui_to_openrouter[model]
+            # Then, prefix plain names like "sonar"/"sonar-pro"
+            elif "/" not in model:
+                model = f"perplexity/{model}"
 
         return remote_llm_chat(
             messages=messages,
