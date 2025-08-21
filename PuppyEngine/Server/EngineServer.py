@@ -135,8 +135,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Get deployment type for documentation configuration
 DEPLOYMENT_TYPE = os.getenv("DEPLOYMENT_TYPE", "local").lower()
 
-# Import DataStore from separate module
-from Server.DataStore import DataStore
+# Import WorkFlowOrchestrator instead of DataStore
+from Server.EnvManager import env_manager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -149,8 +149,6 @@ async def lifespan(app: FastAPI):
     log_info("--- Engine Server starting up ---")
     
     # 1. Dynamic imports to avoid duplicate initialization
-    from Server.WorkFlow import WorkFlow
-    from Server.JsonValidation import JsonValidator
     from Server.auth_module import auth_module, AuthenticationError, User
     from Server.usage_module import usage_module, UsageError
     
@@ -158,11 +156,16 @@ async def lifespan(app: FastAPI):
         # 2. Configuration validation
         log_info("Configuration validation completed, starting server...")
         
-        # 3. Initialize data store
-        app.state.data_store = DataStore()
-        log_info("DataStore initialized with background cleanup thread")
+        # 3. Log that we're using EnvManager
+        log_info("Using EnvManager for task management")
         
-
+        # 4. Initialize shared httpx client for storage operations
+        import httpx
+        app.state.httpx_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(30.0, connect=10.0),
+            limits=httpx.Limits(max_keepalive_connections=25, max_connections=100)
+        )
+        log_info("HTTPx AsyncClient initialized for storage operations")
         
         log_info("--- Engine Server startup completed ---")
         
@@ -180,6 +183,11 @@ async def lifespan(app: FastAPI):
     
     # Application shutdown code
     log_info("--- Engine Server shutting down ---")
+    
+    # Clean up httpx client
+    if hasattr(app.state, 'httpx_client'):
+        await app.state.httpx_client.aclose()
+        log_info("HTTPx AsyncClient closed")
 
 # Initialize FastAPI App based on deployment type
 if DEPLOYMENT_TYPE == "remote":
@@ -204,8 +212,8 @@ app.add_middleware(
     max_age=600  # Cache preflight for 10 minutes
 )
 # Import required modules for route handlers
-from Server.routes import health_router, data_router
-from Utils.logger import log_info
+from Server.routes import health_router, data_router, task_router  # Now includes v2 routes
+from Utils.logger import log_info, log_error
 from Utils.puppy_exception import PuppyException
 from Utils.config import ConfigValidationError
 
@@ -214,7 +222,8 @@ log_info("CORS middleware configured successfully")
 # Register routers
 app.include_router(health_router)
 app.include_router(data_router)
-log_info("Routes registered successfully")
+app.include_router(task_router)  # Register v2 task routes
+log_info("Routes registered successfully (including v2 task API)")
 
 # Note: All initialization logic has been moved to the lifespan context manager above
 

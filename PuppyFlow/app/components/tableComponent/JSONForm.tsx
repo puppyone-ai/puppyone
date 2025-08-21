@@ -18,7 +18,7 @@ type JSONEditorProps = {
   placeholder?: string;
   widthStyle?: number;
   heightStyle?: number;
-  value?: string;
+  value?: string | object;
   readonly?: boolean;
   onChange?: (value: string) => void;
 };
@@ -56,7 +56,12 @@ const JSONForm = ({
   const { isOnGeneratingNewNode } = useNodesPerFlowContext();
 
   useEffect(() => {
-    setIsEmpty(!value || value.trim().length === 0);
+    // 安全地检查value是否为空
+    const isEmptyValue =
+      !value ||
+      (typeof value === 'string' && value.trim().length === 0) ||
+      (typeof value === 'object' && Object.keys(value).length === 0);
+    setIsEmpty(isEmptyValue);
   }, [value]);
 
   // 添加一个函数来定义和应用主题
@@ -69,7 +74,10 @@ const JSONForm = ({
   }, []);
 
   const handleChange: OnChange = (newValue: string | undefined) => {
-    const isValueEmpty = !newValue || newValue.trim().length === 0;
+    // 安全地检查newValue是否为空
+    const isValueEmpty =
+      !newValue ||
+      (typeof newValue === 'string' && newValue.trim().length === 0);
     setIsEmpty(isValueEmpty);
 
     // 调用父组件传入的 onChange 回调
@@ -105,7 +113,10 @@ const JSONForm = ({
     editorDisposablesRef.current = [focusDisposable, blurDisposable];
 
     // 初始化时检查是否为空
-    const isValueEmpty = !editor.getValue().trim();
+    const editorValue = editor.getValue();
+    const isValueEmpty =
+      !editorValue ||
+      (typeof editorValue === 'string' && editorValue.trim().length === 0);
     setIsEmpty(isValueEmpty);
 
     const editorElement = editor.getContainerDomNode();
@@ -157,7 +168,9 @@ const JSONForm = ({
         width={editorWidth}
         height={editorHeight}
         onChange={handleChange}
-        value={value}
+        value={
+          typeof value === 'object' ? JSON.stringify(value, null, 2) : value
+        }
         options={{
           fontFamily: "'JetBrains Mono', monospace",
           fontLigatures: true,
