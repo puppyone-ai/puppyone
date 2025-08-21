@@ -1,65 +1,68 @@
-firecrawl-py
-python-dotenv
-duckduckgo_search
+firecrawl-py==2.8.0
+python-dotenv==1.1.0
+duckduckgo_search==8.0.2
 
 # Server and Request
-axiom_py
-requests
-gunicorn
-waitress
-hypercorn
-beautifulsoup4
-lxml
-readability-lxml
-fastapi[standard]
+axiom_py==0.9.0
+requests==2.32.4
+httpx==0.27.0
+anyio==4.9.0
+gunicorn==23.0.0
+waitress==3.0.2
+hypercorn==0.17.3
+beautifulsoup4==4.13.4
+lxml==5.4.0
+readability-lxml==0.8.4.1
+fastapi[standard]==0.115.12
+pydantic==2.11.5
 
 # Edges
-numpy>=2.0.0,<2.1.0
-pandas
-pillow
+numpy==2.0.2
+pandas==2.3.0
+pillow==11.2.1
 torch==2.4.1
 torchvision==0.19.1
 # Scientific computing packages (Apple Silicon compatible)
-numba>=0.59.0,<0.61.0
-llvmlite>=0.42.0,<0.44.0
-cohere
-openai
-litellm
-instructor
-langdetect
-scikit-learn
-pyyaml # for transformers
-transformers
-sentence_transformers
+numba==0.60.0
+llvmlite==0.43.0
+cohere==5.15.0
+openai==1.85.0
+litellm==1.72.2
+instructor==1.8.3
+langdetect==1.0.9
+scikit-learn==1.7.0
+pyyaml==6.0.2 # for transformers
+transformers==4.52.4
+sentence_transformers==4.1.0
 
 # File
-fpdf
-pydub
-boto3
-pymupdf
-easyocr
-pypandoc
-openpyxl
-markdown2
-pymupdf4llm
-ffmpeg-python
-openai-whisper
+fpdf==1.7.2
+pydub==0.25.1
+boto3==1.38.32
+pymupdf==1.26.0
+easyocr==1.7.2
+pypandoc==1.15
+openpyxl==3.1.5
+markdown2==2.5.3
+pymupdf4llm==0.0.24
+ffmpeg-python==0.2.0
+openai-whisper==20240930
 
 # Database
-pymongo
-sqlalchemy
+pymongo==4.13.0
+sqlalchemy==2.0.41
 
 # Vector Database
-vecs
-pymilvus
-qdrant_client
-pinecone
+vecs==0.4.5
+pymilvus==2.4.9
+qdrant_client==1.14.2
+pinecone==7.0.2
 weaviate-client==4.9.6
-psycopg2-binary
+psycopg2-binary==2.9.10
 
 # gRPC related packages - fixed versions to avoid conflicts
 grpcio==1.73.1
 grpcio-tools==1.73.1
 
 #code
-RestrictedPython
+RestrictedPython==8.0
