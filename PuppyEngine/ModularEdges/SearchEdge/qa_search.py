@@ -56,11 +56,18 @@ class LLMQASearchStrategy(SearchStrategy):
             },
         ]
 
+        # Normalize model name: accept shorthand like "sonar" and expand to "perplexity/sonar"
+        raw_model = self.extra_configs.get("model", "perplexity/sonar")
+        model = raw_model if isinstance(raw_model, str) else list(raw_model.keys())[0]
+        if isinstance(model, str) and "/" not in model:
+            model = f"perplexity/{model}"
+
         return remote_llm_chat(
             messages=messages,
-            api_key=os.environ.get("PERPLEXITY_API_KEY"),
-            base_url=os.environ.get("PERPLEXITY_BASE_URL"),
-            model=self.extra_configs.get("model", "perplexity/sonar"),
+            # Use OpenRouter credentials for Perplexity via OpenRouter
+            api_key=None,
+            base_url=None,
+            model=model,
             hoster="openrouter"
         )
 
