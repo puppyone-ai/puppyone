@@ -15,7 +15,7 @@ def test_deep_researcher():
     
     # Test configuration
     init_configs = {
-        "query": "What are the latest developments in renewable energy technology?"
+        "query": "What are the latest developments in renewable energy technology? Use google as source"
     }
     
     extra_configs = {

@@ -11,6 +11,7 @@ from typing import List, Dict, Any, Optional
 from ModularEdges.EdgeFactoryBase import EdgeFactoryBase
 from ModularEdges.LLMEdge.llm_chat import ChatService
 from ModularEdges.SearchEdge.searcher import SearcherFactory
+from firecrawl import V1FirecrawlApp
 from Utils.puppy_exception import global_exception_handler, PuppyException
 
 # Configure logging
@@ -133,7 +134,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
             for i, result in enumerate(tool_results):
                 logger.info(f"📊 [DeepResearcher] Tool {i+1}: {result['tool']}")
                 logger.info(f"📊 [DeepResearcher] Arguments: {result['args']}")
-                logger.info(f"📊 [DeepResearcher] Result: {result['result'][:200]}...")  # Truncate for readability
+                logger.info(f"📊 [DeepResearcher] Result: {result['result']}")  # Truncate for readability
                 logger.info("-" * 40)
             
             logger.info(f"📊 [DeepResearcher] Generated context length: {len(context)} characters")
@@ -623,22 +624,39 @@ Instructions:
             return error_msg
 
     def _execute_google_search(self, query: str, extra_configs: Dict[str, Any]) -> str:
-        """Execute Google search."""
+        """Execute Google search (actually using FireCrawl)."""
         try:
-            google_configs = extra_configs.get("google_search_configs", {})
-            google_configs["sub_search_type"] = "google"
+            # Get FireCrawl API key from environment or configs
+            api_key = extra_configs.get("firecrawl_api_key") or os.environ.get("FIRECRAWL_API_KEY")
+            if not api_key:
+                return "FireCrawl API key not found. Please set FIRECRAWL_API_KEY environment variable or provide firecrawl_api_key in configs."
             
-            result = SearcherFactory.execute(
-                init_configs={"query": query, "search_type": "web"},
-                extra_configs=google_configs
+            # Initialize FireCrawl client
+            firecrawl_client = V1FirecrawlApp(api_key)
+            
+            # Get FireCrawl specific configs
+            firecrawl_configs = extra_configs.get("firecrawl_configs", {})
+            formats = firecrawl_configs.get("formats", ["markdown"])  # Output format
+            
+            # Use FireCrawl to search and crawl web content
+            # We'll use the query to construct a search URL or use it directly for crawling
+            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            
+            # Use FireCrawl's scrape_url method with correct API parameters
+            scrape_result = firecrawl_client.scrape_url(
+                search_url,
+                formats=formats,
+                only_main_content=True,
+                wait_for=120,
+                remove_base64_images=True
             )
             
-            if isinstance(result, list):
-                return "\n".join([str(item) for item in result])
+            if isinstance(scrape_result, list):
+                return "\n".join([str(item) for item in scrape_result])
             else:
-                return str(result)
+                return str(scrape_result)
         except Exception as e:
-            return f"Google search error: {str(e)}"
+            return f"Google search error (FireCrawl): {str(e)}"
 
     def _execute_perplexity_search(self, query: str, extra_configs: Dict[str, Any]) -> str:
         """Execute Perplexity search."""

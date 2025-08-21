@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import os
 import concurrent.futures
 from typing import List, Optional
-from firecrawl import FirecrawlApp
+from firecrawl import V1FirecrawlApp, V1ScrapeOptions
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
@@ -16,7 +16,7 @@ class WebScraper:
         api_key: Optional[str] = None
     ):
         api_key = api_key or os.environ.get("FIRECRAWL_API_KEY")
-        self.api_client = FirecrawlApp(api_key or os.environ.get("FIRECRAWL_API_KEY"))
+        self.api_client = V1FirecrawlApp(api_key or os.environ.get("FIRECRAWL_API_KEY"))
         if not api_key:
             raise PuppyException(1202, "Invalid or Missing FireCrawl API Key", f"FIRECRAWL_API_KEY: {api_key}")
 
@@ -65,15 +65,13 @@ class WebScraper:
 
         scrape_result = self.api_client.scrape_url(
             url,
-            params={
-                "formats": formats,
-                "onlyMainContent": is_only_main_content,
-                "includeTags": include_tags,
-                "excludeTags": exclude_tags,
-                "skipTlsVerification": skip_tls_verification,
-                "waitFor": wait_for,
-                "removeBase64Images": remove_base64_images
-            }
+            formats=formats,
+            only_main_content=is_only_main_content,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            skip_tls_verification=skip_tls_verification,
+            wait_for=wait_for,
+            remove_base64_images=remove_base64_images
         )
         return scrape_result
 
@@ -165,23 +163,21 @@ class WebScraper:
 
         crawl_result = self.api_client.crawl_url(
             url,
-            params={
-                "limit": limit,
-                "excludePaths": exclude_paths,
-                "includePaths": include_paths,
-                "maxDepth": max_pepth,
-                "ignoreSitemap": ignore_sitemap,
-                "allowBackwardLinks": allow_backward_links,
-                "allowExternalLinks": allow_external_links,
-                "scrapeOptions": {
-                    "formats": formats,
-                    "onlyMainContent": is_only_main_content,
-                    "includeTags": include_tags,
-                    "excludeTags": exclude_tags,
-                    "waitFor": 120,
-                    "removeBase64Images": True
-                }
-            }
+            limit=limit,
+            exclude_paths=exclude_paths,
+            include_paths=include_paths,
+            max_depth=max_pepth,
+            ignore_sitemap=ignore_sitemap,
+            allow_backward_links=allow_backward_links,
+            allow_external_links=allow_external_links,
+            scrape_options=V1ScrapeOptions(
+                formats=formats,
+                only_main_content=is_only_main_content,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                wait_for=120,
+                remove_base64_images=True
+            )
         )
         return crawl_result
 

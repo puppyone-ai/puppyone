@@ -1,4 +1,4 @@
-firecrawl-py==2.8.0
+firecrawl==3.1.0
 python-dotenv==1.1.0
 duckduckgo_search==8.0.2
 
