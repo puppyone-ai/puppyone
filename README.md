@@ -43,15 +43,15 @@ Common use cases:
 ## Quick Start
 
 Choose ONE (alternatives—pick just one):
-- **Official Hosted**: zero setup, managed upgrades/scaling, support.
-- **Local Host**: runs fully on your machine; data stays local; best for prototyping/dev.
+- **Cloud (Hosted by PuppyAgent)**: zero setup, managed upgrades/scaling, support.
+- **Self-Hosted (Local)**: runs fully on your machine; data stays local; best for prototyping/dev.
 
 
-### Official Hosted (no setup): 
+### Cloud (Hosted by PuppyAgent) — no setup
 
    Create an account at https://www.puppyagent.com and get started.
 
-### Local Host (for developers):
+### Self-Hosted (Local) — for developers
 
   Prereqs: Python 3.10+, Node.js 18+, npm
 
@@ -79,12 +79,6 @@ Choose ONE (alternatives—pick just one):
   ```
 
 Once all three are running, open http://localhost:4000 and create your first workflow.
-
-### Hosted vs Local
-
-- Hosted: zero setup, managed upgrades/scaling, team features, SLA/support.
-- Local: runs fully on your machine, data stays local, best for prototyping and development.
-- Licensing: free for personal and single-tenant internal use; multi-tenant/managed hosting requires a commercial license (see `LICENSE`).
 
 
 ## Core Concepts
