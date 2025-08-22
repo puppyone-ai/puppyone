@@ -354,7 +354,17 @@ def cmd_record(args: argparse.Namespace) -> int:
         if block_from_key != block_id:
             block_id = block_from_key
 
+        # Determine the upload file name by desired logical type
         from_path_name = os.path.basename(out_path)
+        if getattr(args, 'as_type', 'text') == 'structured':
+            if not from_path_name.lower().endswith('.jsonl'):
+                base, _ = os.path.splitext(from_path_name)
+                from_path_name = base + '.jsonl'
+        else:
+            # default text: prefer .log
+            if not (from_path_name.lower().endswith('.log') or from_path_name.lower().endswith('.txt')):
+                base, _ = os.path.splitext(from_path_name)
+                from_path_name = base + '.log'
         chunk_etag = _upload_chunk(storage_base, token, block_id, from_path_name, data, version_id)
         etag = _update_manifest(storage_base, token, user_id, block_id, version_id, etag, {
             'name': from_path_name,
@@ -401,6 +411,7 @@ def main() -> None:
     p_rec.add_argument("--token", help="API token (fallback env PUPPY_API_TOKEN)")
     p_rec.add_argument("--copy", action="store_true", help="Copy resource_key to clipboard on macOS")
     p_rec.add_argument("--no-ansi", action="store_true", help="Strip ANSI color codes when writing log")
+    p_rec.add_argument("--as", dest="as_type", choices=["text","structured"], default="text", help="Logical content type hint (affects uploaded filename extension)")
     p_rec.set_defaults(func=cmd_record)
 
     args = parser.parse_args()
