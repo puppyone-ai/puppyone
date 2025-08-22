@@ -49,6 +49,7 @@ interface Manifest {
     name: string;
     size: number;
     index: number;
+    state?: 'processing' | 'done';
   }>;
   content_type: string;
   total_size: number;
@@ -69,6 +70,7 @@ interface Manifest {
     name: string;
     size: number;
     index: number;
+    state?: 'processing' | 'done';
   }>;
   content_type: string;
   total_size: number;
@@ -196,8 +198,10 @@ class ManifestPoller {
 
       const manifest: Manifest = await manifestResponse.json();
       const newChunks = manifest.chunks
-        .filter(chunk => !this.knownChunks.has(chunk.name))
-        .sort((a, b) => a.index - b.index);
+        .filter(
+          chunk => !this.knownChunks.has(chunk.name) && chunk.state === 'done'
+        )
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
       if (newChunks.length === 0) return;
 
@@ -206,8 +210,6 @@ class ManifestPoller {
       );
 
       for (const chunkInfo of newChunks) {
-        // 跳过完成标记（不是真实内容文件）
-        if (chunkInfo.name === '_completed.marker') continue;
         this.knownChunks.add(chunkInfo.name);
         const chunkUrl = await this.getDownloadUrl(
           `${this.resource_key}/${chunkInfo.name}`
@@ -293,7 +295,10 @@ class ManifestPoller {
           `[ManifestPoller] JSONL parse error in ${chunkName} at record #${this.totalRecords}:`,
           err
         );
-        console.warn('[ManifestPoller] Offending line (truncated):', rawLine.slice(0, 500));
+        console.warn(
+          '[ManifestPoller] Offending line (truncated):',
+          rawLine.slice(0, 500)
+        );
       }
     }
 
@@ -314,7 +319,10 @@ class ManifestPoller {
     } catch (err) {
       this.parseErrors += 1;
       console.warn('[ManifestPoller] Final leftover JSONL parse error:', err);
-      console.warn('[ManifestPoller] Offending leftover (truncated):', leftover.slice(0, 500));
+      console.warn(
+        '[ManifestPoller] Offending leftover (truncated):',
+        leftover.slice(0, 500)
+      );
     } finally {
       this.leftoverPartialLine = '';
     }

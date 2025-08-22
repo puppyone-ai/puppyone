@@ -338,8 +338,10 @@ function Workflow() {
           for (const chunk of manifest.chunks || []) {
             const name = typeof chunk === 'string' ? chunk : chunk.name;
             if (!name) continue;
-            if (name === '_completed.marker') continue;
-            if (typeof chunk === 'object' && chunk.size === 0) continue;
+            if (typeof chunk === 'object') {
+              if (chunk.state && chunk.state !== 'done') continue;
+              if (chunk.size === 0) continue;
+            }
 
             const urlResp = await fetch(
               `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
