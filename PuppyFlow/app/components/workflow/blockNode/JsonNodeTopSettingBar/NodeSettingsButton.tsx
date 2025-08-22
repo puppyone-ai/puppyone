@@ -144,7 +144,7 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
                 className='flex flex-row items-center justify-start gap-[8px] w-full min-h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white text-left'
                 onClick={() => {
                   const current = getNode(nodeid);
-                  const existingKey = current?.data?.external_metadata?.resource_key || '';
+                  const existingKey = (current?.data as any)?.external_metadata?.resource_key || '';
                   const key = typeof window !== 'undefined'
                     ? window.prompt('Paste resource_key (user_id/block_id/version_id):', existingKey)
                     : null;
@@ -184,7 +184,8 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
               </button>
             </li>
             {(() => {
-              const hasExternal = !!getNode(nodeid)?.data?.external_metadata?.resource_key;
+              const current = getNode(nodeid);
+              const hasExternal = !!(current?.data as any)?.external_metadata?.resource_key;
               if (!hasExternal) return null;
               return (
                 <li>
