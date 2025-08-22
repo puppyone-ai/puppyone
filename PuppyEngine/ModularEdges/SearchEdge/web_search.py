@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 import os
 import sys
 import requests
-from typing import List
+from typing import List, Optional, Dict
 from duckduckgo_search import DDGS
 from bs4 import BeautifulSoup
 from readability import Document
@@ -19,13 +19,35 @@ class WebSearchStrategy(SearchStrategy):
     """Web Search using Google & DuckDuckGo."""
 
     @global_exception_handler(3503, "Error Processing Web Content")
-    def _fetch_and_parse(self, item: dict) -> dict | None:
+    def _fetch_and_parse(self, item: dict, thresholds: Optional[Dict] = None) -> dict | None:
         """Fetch URL content and parse it to extract the main content and title."""
         url = item.get("link")
         
         # Get configuration for filtering unreachable pages
         filter_unreachable = self.extra_configs.get("filter_unreachable_pages", True)
         default_error_message = "This webpage could not be accessed or loaded."
+        # Load thresholds with defaults; allow override per-call
+        thresholds = thresholds or {}
+        min_raw_text_length = thresholds.get(
+            "min_raw_text_length",
+            self.extra_configs.get("min_raw_text_length", 100)
+        )
+        min_summary_length = thresholds.get(
+            "min_summary_length",
+            self.extra_configs.get("min_summary_length", 50)
+        )
+        min_content_length = thresholds.get(
+            "min_content_length",
+            self.extra_configs.get("min_content_length", 50)
+        )
+        max_replacement_ratio = thresholds.get(
+            "max_replacement_ratio",
+            self.extra_configs.get("max_replacement_ratio", 0.10)
+        )
+        min_printable_ratio = thresholds.get(
+            "min_printable_ratio",
+            self.extra_configs.get("min_printable_ratio", 0.80)
+        )
         
         if not url:
             if filter_unreachable:
@@ -98,12 +120,12 @@ class WebSearchStrategy(SearchStrategy):
             # Basic content validation (can be disabled)
             disable_content_filtering = self.extra_configs.get("disable_content_filtering", False)
             if not disable_content_filtering:
-                if len(text_content.strip()) < 100:
+                if len(text_content.strip()) < min_raw_text_length:
                     return None
                 
             # Check for obvious encoding issues (too many replacement characters)
             replacement_ratio = text_content.count('�') / max(len(text_content), 1)
-            if replacement_ratio > 0.1:  # More than 10% replacement characters
+            if replacement_ratio > max_replacement_ratio:
                 if filter_unreachable:
                     return None
                 else:
@@ -118,7 +140,7 @@ class WebSearchStrategy(SearchStrategy):
             summary_html = doc.summary()
             
             if not disable_content_filtering:
-                if not summary_html or len(summary_html.strip()) < 50:
+                if not summary_html or len(summary_html.strip()) < min_summary_length:
                     return None
             
             # Parse HTML to get clean text with explicit parser
@@ -127,13 +149,13 @@ class WebSearchStrategy(SearchStrategy):
             
             # Final content validation and cleaning (can be disabled)
             if not disable_content_filtering:
-                if len(content.strip()) < 50:  # Minimum content length
+                if len(content.strip()) < min_content_length:
                     return None
                 
                 # Check for garbled content (high ratio of non-printable or weird chars)
                 printable_chars = sum(1 for c in content if c.isprintable() or c.isspace())
                 printable_ratio = printable_chars / max(len(content), 1)
-                if printable_ratio < 0.8:  # Less than 80% printable characters
+                if printable_ratio < min_printable_ratio:
                     return None
             
             item['title'] = title or item.get('title', 'No title')
@@ -183,69 +205,147 @@ class WebSearchStrategy(SearchStrategy):
         # Google API limits: num ∈ [1,10], max 100 total results
         max_per_request = 10
         max_total_results = 100
-        
-        # Calculate how many batches we need
+
+        auto_relax_filters = self.extra_configs.get("auto_relax_filters", True)
+        allow_metadata_fallback = self.extra_configs.get("allow_metadata_fallback", True)
         disable_quality_filtering = self.extra_configs.get("disable_quality_filtering", False)
-        if disable_quality_filtering:
-            target_raw_results = top_k  # Don't get extra results for filtering
-        else:
-            target_raw_results = min(top_k * 2, max_total_results)  # Get 2x target for filtering
-        batches_needed = (target_raw_results + max_per_request - 1) // max_per_request
-        
-        all_items = []
+
+        all_items: List[dict] = []
         current_start = 1
-        
-        for batch_num in range(batches_needed):
-            # Calculate results needed for this batch
-            remaining_needed = target_raw_results - len(all_items)
-            if remaining_needed <= 0:
-                break
-                
-            batch_size = min(max_per_request, remaining_needed)
-            
-            # Make API request for this batch
+        results: List[dict] = []
+
+        def fetch_batch(start: int, num: int) -> List[dict]:
             url = "https://www.googleapis.com/customsearch/v1"
+            # Region configuration
+            region: str = str(self.extra_configs.get("google_region", os.environ.get("GOOGLE_SEARCH_REGION", "us"))).lower()
+            # Map region to googlehost when helpful; fallback to google.com
+            region_to_host = {
+                "us": "google.com",
+                "uk": "google.co.uk",
+                "gb": "google.co.uk",
+                "de": "google.de",
+                "fr": "google.fr",
+                "it": "google.it",
+                "es": "google.es",
+                "nl": "google.nl",
+                "se": "google.se",
+                "no": "google.no",
+                "fi": "google.fi",
+                "dk": "google.dk",
+                "ie": "google.ie",
+                "ca": "google.ca",
+                "au": "google.com.au",
+                "nz": "google.co.nz",
+                "in": "google.co.in",
+                "sg": "google.com.sg",
+                "jp": "google.co.jp",
+                "kr": "google.co.kr",
+                "br": "google.com.br",
+                "mx": "google.com.mx",
+                "ar": "google.com.ar",
+                "za": "google.co.za",
+                "ae": "google.ae",
+                "sa": "google.com.sa",
+                "tr": "google.com.tr",
+                "ru": "google.ru",
+                "hk": "google.com.hk",
+                "tw": "google.com.tw",
+            }
+            google_host = region_to_host.get(region, "google.com")
             params = {
                 "q": self.query,
                 "key": os.environ.get("GCP_API_KEY"),
                 "cx": os.environ.get("CSE_ID"),
-                "num": batch_size,
-                "start": current_start
+                "num": num,
+                "start": start,
+                # Region signals
+                "gl": region,  # country code
+                "cr": f"country{region.upper()}",
+                "googlehost": google_host,
             }
-
             api_response = requests.get(url, params=params)
             api_response.raise_for_status()
-            
             response_json = api_response.json()
-            batch_items = response_json.get("items", [])
-            
+            return response_json.get("items", [])
+
+        # Phase 1: progressively fetch until we have enough valid results or hit API caps
+        while current_start <= max_total_results and len(results) < top_k:
+            remaining_possible = max_total_results - (current_start - 1)
+            if remaining_possible <= 0:
+                break
+            # For strict mode we can fetch less; otherwise fetch larger windows to compensate for filtering
+            desired = top_k if disable_quality_filtering else min(top_k * 2, remaining_possible, max_per_request)
+            batch_items = fetch_batch(current_start, desired)
             if not batch_items:
-                # No more results available
                 break
-                
             all_items.extend(batch_items)
-            current_start += batch_size
-            
-            # Stop if we have enough or hit API limits
-            if len(all_items) >= target_raw_results or current_start > max_total_results:
-                break
+            current_start += len(batch_items)
 
-        if not all_items:
-            return []
+            # Process this batch with current thresholds
+            with ThreadPoolExecutor(max_workers=min(len(batch_items), 10)) as executor:
+                futures = [executor.submit(self._fetch_and_parse, item) for item in batch_items]
+                for future in as_completed(futures):
+                    parsed = future.result()
+                    if parsed:
+                        results.append(parsed)
+                        if len(results) >= top_k:
+                            break
 
-        # Process all items with concurrent content fetching
-        results = []
-        with ThreadPoolExecutor(max_workers=min(len(all_items), 10)) as executor:
-            future_to_item = {executor.submit(self._fetch_and_parse, item): item for item in all_items}
-            for future in as_completed(future_to_item):
-                result = future.result()
-                if result:
-                    results.append(result)
-                    # Stop when we have enough high-quality results
-                    if len(results) >= top_k:
-                        break
-        
-        return results[:top_k]
+        if len(results) >= top_k:
+            return results[:top_k]
+
+        # Phase 2: relax filters if enabled and still not enough
+        if auto_relax_filters and all_items and len(results) < top_k:
+            # Define relaxation profiles from strict to lenient
+            relaxation_profiles = [
+                {  # Slightly lenient
+                    "min_raw_text_length": max(30, int(self.extra_configs.get("min_raw_text_length", 100) * 0.6)),
+                    "min_summary_length": max(20, int(self.extra_configs.get("min_summary_length", 50) * 0.6)),
+                    "min_content_length": max(20, int(self.extra_configs.get("min_content_length", 50) * 0.6)),
+                    "max_replacement_ratio": max(0.20, float(self.extra_configs.get("max_replacement_ratio", 0.10))),
+                    "min_printable_ratio": min(0.70, float(self.extra_configs.get("min_printable_ratio", 0.80))),
+                },
+                {  # More lenient
+                    "min_raw_text_length": 10,
+                    "min_summary_length": 10,
+                    "min_content_length": 10,
+                    "max_replacement_ratio": 0.30,
+                    "min_printable_ratio": 0.60,
+                },
+            ]
+
+            for thresholds in relaxation_profiles:
+                if len(results) >= top_k:
+                    break
+                with ThreadPoolExecutor(max_workers=min(len(all_items), 10)) as executor:
+                    futures = [
+                        executor.submit(self._fetch_and_parse, item, thresholds) for item in all_items
+                    ]
+                    for future in as_completed(futures):
+                        parsed = future.result()
+                        if parsed:
+                            # avoid duplicates by URL
+                            existing_urls = {r.get("link") for r in results}
+                            if parsed.get("link") not in existing_urls:
+                                results.append(parsed)
+                                if len(results) >= top_k:
+                                    break
+
+        if results:
+            return results[:top_k]
+
+        # Phase 3: metadata fallback to avoid empty outputs
+        if allow_metadata_fallback and all_items:
+            fallback_results: List[dict] = []
+            for item in all_items[:top_k]:
+                fallback_results.append({
+                    "title": item.get("title", "No title"),
+                    "link": item.get("link", ""),
+                    "content": item.get("snippet") or "",
+                })
+            return fallback_results
+
+        return []
 
     @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
     def duckduckgo_search(
