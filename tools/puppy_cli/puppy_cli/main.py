@@ -4,6 +4,13 @@ import os
 import sys
 import subprocess
 import shutil
+import pty
+import tty
+import termios
+import select
+import signal
+import fcntl
+import struct
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -244,19 +251,77 @@ def cmd_record(args: argparse.Namespace) -> int:
     file_name = args.file or f"session-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
     out_path = os.path.join(base_dir, file_name)
 
-    # Check availability of 'script'
-    if not shutil.which('script'):
-        print("'script' command not found. Please install util or use tmux capture.", file=sys.stderr)
-        return 127
+    def _winsize(fd: int):
+        try:
+            s = fcntl.ioctl(fd, termios.TIOCGWINSZ, b"\0" * 8)
+            rows, cols, xpix, ypix = struct.unpack("HHHH", s)
+            return rows or 24, cols or 80
+        except Exception:
+            return 24, 80
+
+    def _set_winsize(fd: int, rows: int, cols: int):
+        try:
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        except Exception:
+            pass
 
     print(f"Recording terminal session to {out_path}. Type 'exit' or Ctrl-D to stop...", file=sys.stderr)
-    # Start recording; this will run an interactive subshell and return when user exits
-    # -q quiet, -f flush after each write
-    rc = subprocess.call(['script', '-q', '-f', out_path])
-    if rc != 0:
-        print(f"Recording ended with exit code {rc}", file=sys.stderr)
+
+    # Spawn user's login shell under a PTY
+    shell = os.environ.get("SHELL", "/bin/bash")
+    # Open logfile (append to avoid losing content if re-run)
+    with open(out_path, 'ab', buffering=0) as logf:
+        # Save stdin state
+        stdin_fd = sys.stdin.fileno()
+        old_attrs = termios.tcgetattr(stdin_fd)
+        try:
+            pid, master_fd = pty.fork()
+            if pid == 0:
+                # Child: exec shell
+                os.execvp(shell, [shell])
+                os._exit(1)
+            # Parent: set raw mode for stdin
+            tty.setraw(stdin_fd)
+
+            # Propagate initial window size
+            rows, cols = _winsize(sys.stdout.fileno())
+            _set_winsize(master_fd, rows, cols)
+
+            def on_winch(signum, frame):
+                r, c = _winsize(sys.stdout.fileno())
+                _set_winsize(master_fd, r, c)
+            signal.signal(signal.SIGWINCH, on_winch)
+
+            rc = 0
+            while True:
+                r, _, _ = select.select([master_fd, stdin_fd], [], [])
+                if master_fd in r:
+                    try:
+                        data = os.read(master_fd, 4096)
+                    except OSError:
+                        data = b''
+                    if not data:
+                        break
+                    # tee to stdout and logfile
+                    os.write(sys.stdout.fileno(), data)
+                    logf.write(data)
+                if stdin_fd in r:
+                    try:
+                        data = os.read(stdin_fd, 4096)
+                    except OSError:
+                        data = b''
+                    if not data:
+                        break
+                    os.write(master_fd, data)
+        finally:
+            # Restore terminal
+            try:
+                termios.tcsetattr(stdin_fd, termios.TCSADRAIN, old_attrs)
+            except Exception:
+                pass
 
     print(f"Session saved: {out_path}")
+    rc = 0
 
     if args.auto_push:
         token = args.token or _require_env("PUPPY_API_TOKEN")
