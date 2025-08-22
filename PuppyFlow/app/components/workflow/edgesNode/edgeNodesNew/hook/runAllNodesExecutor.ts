@@ -209,7 +209,8 @@ class ManifestPoller {
                 data: {
                   ...node.data,
                   content: reconstructedContent,
-                  isLoading: false,
+                  // Keep loading true during progressive updates
+                  isLoading: true,
                   isExternalStorage: true,
                   external_metadata: {
                     resource_key: this.resource_key,
@@ -881,8 +882,9 @@ async function sendDataToTargets(
                                   ...externalMetadata,
                                   content_type: normalizedContentType,
                                 },
-                                isLoading: false,
-                                isWaitingForFlow: false,
+                                // Keep loading until all chunks finalized
+                                isLoading: true,
+                                isWaitingForFlow: true,
                                 isExternalStorage: true,
                                 content: '',
                               },

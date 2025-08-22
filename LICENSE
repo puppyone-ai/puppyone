@@ -1,0 +1,66 @@
+PuppyAgent Sustainable Use License (SUL)
+Version 1.0 (English)
+
+Summary (for convenience only; non-binding)
+In case of any inconsistency, the binding terms are those set out below under this License.
+
+Summary of permitted and prohibited uses:
+1) Personal use (individual): Allowed, free. No additional rights required.
+2) Internal business use (single-tenant, per organization): Allowed, free. No additional rights required.
+3) Self-hosted multi-tenant: Please obtain rights, acquire a commercial license: guantum@puppyagent.com.
+4) Managed/hosted service offered to third parties: Not allowed. To obtain rights, subscribe to the official hosted service at https://wwww.puppyagent.com or acquire a commercial license.
+5) Commercial redistribution (paid distribution): Not allowed. To obtain rights, acquire a commercial license: guantum@puppyagent.com.
+6) Use of PuppyAgent trademarks/logos: Not granted. To obtain rights, prior written permission is required.
+
+Acceptance
+By using, copying, accessing, or distributing the Software, you agree to all the terms and conditions of this License.
+
+Copyright License
+Subject to the limitations below, the Licensor grants you a non-exclusive, royalty-free, worldwide, non-sublicensable, non-transferable license to use, copy, distribute, and prepare derivative works of the Software.
+
+Permitted Use (Free of Charge)
+1. Personal Use: Any natural person may use the Software free of charge.
+2. Internal Business Use (Single-tenant): Any organization may deploy and use the Software internally free of charge, provided the deployment is single-tenant and not provided as a service to third parties.
+
+Limitations (Prohibited Without a Separate Commercial License)
+1. Managed/Hosted/Multi-tenant Service: You may not offer, host, provide, or make available the Software, or any substantial part thereof, as a managed, hosted, or multi-tenant service to third parties. Operating a deployment that serves multiple independent organizations, tenants, workspaces, or accounts from a single instance is prohibited.
+2. Commercial Redistribution: You may not distribute the Software or derivative works for a fee or other commercial consideration.
+3. Removal or Obfuscation of Notices: You may not remove, alter, or obscure any licensing, copyright, attribution, or trademark/brand notices of the Licensor within the Software or associated user interfaces.
+4. Trademarks: This License does not grant any rights to use the Licensor’s trademarks, service marks, or logos.
+
+Patents
+The Licensor grants you a license, under any patent claims the Licensor can license, to make, have made, use, sell, offer for sale, import, and have imported the Software, subject to the limitations herein. If you or your company asserts in writing that the Software infringes or contributes to infringement of any patent, your patent license for the Software granted under these terms terminates immediately.
+
+Notices and Redistribution
+You must ensure that anyone who receives any part of the Software from you also receives a copy of this License. If you modify the Software, you must include in any modified copies a prominent notice stating that you have modified the Software and the date of the modification.
+
+No Other Rights
+Except as expressly granted in this License, all rights are reserved. No implied licenses are granted.
+
+Termination
+If you use the Software in violation of these terms, your rights under this License automatically terminate. If the Licensor provides notice of violation and you cease all violations within 30 days of receipt, your License may be reinstated retroactively. However, repeated violations will cause automatic and permanent termination.
+
+No Warranty; Limitation of Liability
+As far as permitted by law, the Software is provided "AS IS", without warranties or conditions of any kind. The Licensor will not be liable to you for any damages arising out of these terms or the use of the Software, under any legal theory.
+
+Definitions
+- "Licensor" means the copyright holder or entity offering this License.
+- "Software" means the software made available under this License, including any part of it.
+- "You" means the individual or entity agreeing to these terms.
+- "Your company" means any organization you work for and its affiliates under common control.
+- "Tenant" means an isolated workspace with separated data and configuration for an organization or independent group.
+- "Multi-tenant" means serving more than one Tenant from a single deployment or instance.
+- "Managed/Hosted service" means providing access to the Software to third parties over a network as a service.
+
+Commercial License
+Rights to operate multi-tenant, hosted, or managed services, or to redistribute commercially, are available under a separate commercial license from the Licensor.
+
+Commercial Licensing and Hosted Service
+To operate the Software as a multi-tenant, hosted, or managed service, or to redistribute it commercially, you must obtain a separate commercial license from the Licensor.
+
+Options:
+- Self-hosted multi-tenant: Contact us to obtain a commercial license: guantum@puppyagent.com.
+- Official hosted service: Subscribe to our hosted offering at https://www.puppyagent.com. Use of the hosted service is governed by its own Terms of Service and does not grant rights to self-host multi-tenant deployments.
+
+Copyright (c) 2025 PuppyAgent authors.
+All rights reserved.
