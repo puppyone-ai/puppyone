@@ -95,7 +95,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           {shouldShowGetProButton && (
             <button
               onClick={handleGetProClick}
-              className='border border-[#303030] hover:border-[#FF6B35] text-[#8B8B8B] hover:text-[#FF6B35] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-1'
+              className='border border-[#303030] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-1'
             >
               <span>Upgrade</span>
               <span className='text-[10px]'>→</span>
@@ -186,6 +186,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
     );
   } else {
     // Collapsed view
+
     return (
       <div className='mb-[8px] w-full flex flex-col items-center gap-1'>
         {/* Plan status and Get Pro button */}
@@ -261,6 +262,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             {planLimits.runs}•{planLimits.llm_calls}
           </div>
         )}
+
       </div>
     );
   }
