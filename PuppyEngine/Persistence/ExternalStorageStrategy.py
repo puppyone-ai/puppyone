@@ -77,6 +77,9 @@ class ExternalStorageStrategy:
 
                 files = []
                 for chunk_info in manifest.get('chunks', []):
+                    # 仅消费 state==done 的分块
+                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
+                        continue
                     name = chunk_info.get('name')
                     if not name:
                         continue
@@ -128,6 +131,8 @@ class ExternalStorageStrategy:
                 # Use StreamingJSONAggregator for structured data
                 aggregator = StreamingJSONAggregator()
                 for chunk_info in manifest['chunks']:
+                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
+                        continue
                     chunk_key = f"{resource_key}/{chunk_info['name']}"
                     chunk_data = await storage_client.download_chunk(chunk_key)
                     aggregator.add_jsonl_chunk(chunk_data)
@@ -136,6 +141,8 @@ class ExternalStorageStrategy:
                 # Simple concatenation
                 content_parts = []
                 for chunk_info in manifest['chunks']:
+                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
+                        continue
                     chunk_key = f"{resource_key}/{chunk_info['name']}"
                     chunk_data = await storage_client.download_chunk(chunk_key)
                     content_parts.append(chunk_data)
