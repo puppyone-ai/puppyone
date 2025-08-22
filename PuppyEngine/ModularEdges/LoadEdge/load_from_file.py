@@ -51,13 +51,21 @@ class FileToTextParser:
         self._whisper_model = None
         self._ocr_reader = None
 
-        # Check/download pandoc once during initialization
+    def _ensure_pandoc(self):
+        """
+        Checks for Pandoc and downloads it if not found.
+        This should only be called by methods that require Pandoc.
+        """
         try:
             pandoc_path = pypandoc.get_pandoc_path()
             if not (pandoc_path and os.path.exists(pandoc_path)):
+                log_info("Pandoc not found, downloading...")
                 pypandoc.download_pandoc()
+                log_info("Pandoc downloaded successfully.")
         except Exception:
+            log_info("Pandoc download possibly failed, attempting again.")
             pypandoc.download_pandoc()
+            log_info("Pandoc download re-attempted.")
 
     def _get_whisper_model(
         self,
@@ -115,7 +123,7 @@ class FileToTextParser:
                 file_path = config.get('file_path')
                 file_type = config.get('file_type', '').lower() or self._determine_file_type(file_path)
 
-                if file_type in ('json', 'txt', 'markdown', 'csv', 'xlsx'):
+                if file_type in ('json', 'txt', 'text', 'markdown', 'csv', 'xlsx'):
                     simple_files.append((i, config))
                 else:
                     complex_files.append((i, config))
@@ -368,6 +376,10 @@ class FileToTextParser:
         Raises:
             PuppyException: If the file type is unsupported.
         """
+        # 优先处理最简单的文本类型，避免不必要的规范化流程
+        if file_type.lower() in ('txt', 'text'):
+            return self._parse_txt(file_path, **kwargs)
+
         # 如果未提供file_type或为空字符串，根据文件路径自动判断
         if not file_type:
             file_type = self._determine_file_type(file_path)
@@ -554,6 +566,8 @@ class FileToTextParser:
         Returns:
             Extracted text content
         """
+        # Ensure pandoc is available before parsing
+        self._ensure_pandoc()
 
         if self._is_file_url(file_path):
             response = requests.get(file_path)
@@ -1206,6 +1220,63 @@ class FileToTextParser:
     ) -> str:
         # Need to use VLM in the future
         return f"Video Description with LLM (Frame Skip: {skip_num})"
+
+    @global_exception_handler(1318, "Error Parsing Unknown/Binary File Type")
+    def _parse_application(
+        self,
+        file_path: str,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Generic file handler for unknown or binary file types.
+
+        Args:
+            file_path (str): Path or URL to the file.
+            **kwargs:
+              - max_text_size (int): bytes to read when attempting text parsing, default 4096
+              - include_binary (bool): whether to include binary hex preview, default False
+
+        Returns:
+            Dict[str, Any]: Basic info and text or binary preview when possible.
+        """
+        max_text_size = int(kwargs.get("max_text_size", 4096))
+        include_binary = bool(kwargs.get("include_binary", False))
+
+        result: Dict[str, Any] = {
+            "file_name": os.path.basename(file_path) if isinstance(file_path, str) else "stream",
+            "is_text": False
+        }
+
+        # Obtain size and first bytes
+        if self._is_file_url(file_path):
+            try:
+                head = requests.head(file_path, timeout=10)
+                result["file_size"] = int(head.headers.get('Content-Length', 0))
+            except Exception:
+                result["file_size"] = None
+            content = self._remote_file_to_byte_io(file_path).read(max_text_size)
+        else:
+            try:
+                result["file_size"] = os.path.getsize(file_path)
+            except Exception:
+                result["file_size"] = None
+            with open(file_path, 'rb') as f:
+                content = f.read(max_text_size)
+
+        # Try decode as UTF-8 text
+        try:
+            text = content.decode('utf-8')
+            result["is_text"] = True
+            preview = text[:1000]
+            if len(text) > 1000:
+                preview += "..."
+            result["text_preview"] = preview
+        except UnicodeDecodeError:
+            if include_binary:
+                hex_preview = content[:100].hex()
+                result["binary_preview"] = hex_preview if len(hex_preview) <= 100 else f"{hex_preview[:50]}...{hex_preview[-50:]}"
+
+        return result
 
     # @global_exception_handler(1318, "Error Parsing Unknown File Type")
     # def _parse_application(

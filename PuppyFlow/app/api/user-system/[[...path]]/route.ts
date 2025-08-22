@@ -6,6 +6,9 @@ import { SERVER_ENV } from '@/lib/serverEnv';
 type Params = { params: { path?: string[] } };
 
 function buildTargetUrl(request: Request, path: string[] | undefined): string {
+  if (!SERVER_ENV.USER_SYSTEM_BACKEND) {
+    throw new Error('USER_SYSTEM_BACKEND is not configured');
+  }
   const subPath = Array.isArray(path) ? path.join('/') : '';
   const url = new URL(request.url);
   const query = url.search; // includes leading ? when present
@@ -66,27 +69,69 @@ async function proxy(request: Request, params: Params['params']): Promise<Respon
 }
 
 export async function GET(request: Request, ctx: Params) {
-  return proxy(request, ctx.params);
+  try {
+    return await proxy(request, ctx.params);
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 export async function POST(request: Request, ctx: Params) {
-  return proxy(request, ctx.params);
+  try {
+    return await proxy(request, ctx.params);
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 export async function PUT(request: Request, ctx: Params) {
-  return proxy(request, ctx.params);
+  try {
+    return await proxy(request, ctx.params);
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 export async function PATCH(request: Request, ctx: Params) {
-  return proxy(request, ctx.params);
+  try {
+    return await proxy(request, ctx.params);
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 export async function DELETE(request: Request, ctx: Params) {
-  return proxy(request, ctx.params);
+  try {
+    return await proxy(request, ctx.params);
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 export async function OPTIONS(request: Request, ctx: Params) {
-  return proxy(request, ctx.params);
+  try {
+    return await proxy(request, ctx.params);
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 

@@ -625,8 +625,7 @@ function buildSearchPerplexityNodeJson(
   const perplexityNodeData = context.getNode(nodeId)?.data;
 
   // 添加正确的类型检查
-  let perplexityModel: perplexityModelNames =
-    'llama-3.1-sonar-small-128k-online'; // 默认值
+  let perplexityModel: perplexityModelNames = 'sonar-pro'; // 默认值
 
   // 检查extra_configs是否存在并有model属性
   if (
@@ -639,11 +638,11 @@ function buildSearchPerplexityNodeJson(
       .model;
 
     // 验证是允许的模型名称之一
-    if (
-      configModel === 'llama-3.1-sonar-small-128k-online' ||
-      configModel === 'llama-3.1-sonar-large-128k-online' ||
-      configModel === 'llama-3.1-sonar-huge-128k-online'
-    ) {
+  if (
+    configModel === 'sonar' ||
+    configModel === 'sonar-pro' ||
+    configModel === 'sonar-reasoning-pro'
+  ) {
       perplexityModel = configModel;
     }
   }
@@ -718,27 +717,14 @@ function buildLLMNodeJson(
       }
     | undefined;
 
-  let modelObject: { [key: string]: { inference_method?: string } } = {};
+  let modelString = 'openai/gpt-4o-mini'; // 默认值
 
   if (
     modelAndProvider &&
     typeof modelAndProvider === 'object' &&
-    'id' in modelAndProvider &&
-    'isLocal' in modelAndProvider
+    'id' in modelAndProvider
   ) {
-    const modelId = modelAndProvider.id;
-    const isLocal = modelAndProvider.isLocal;
-
-    if (isLocal) {
-      // 本地模型：添加 inference_method
-      modelObject[modelId] = { inference_method: 'ollama' }; // 默认使用 ollama，也可以是 huggingface
-    } else {
-      // 非本地模型：保持内部 JSON 为空
-      modelObject[modelId] = {};
-    }
-  } else {
-    // 如果没有模型信息，使用默认值
-    modelObject['anthropic/claude-3.5-haiku'] = {};
+    modelString = modelAndProvider.id;
   }
 
   const llmBaseUrl =
@@ -756,7 +742,7 @@ function buildLLMNodeJson(
     data: {
       messages: filteredMessages,
       chat_histories: filteredMessages, // 添加 chat_histories 字段，内容与 messages 相同
-      model: modelObject,
+      model: modelString,
       base_url: llmBaseUrl,
       max_tokens: maxTokens,
       temperature: 0.7,
@@ -1155,16 +1141,89 @@ function buildLoadNodeJson(
     throw new Error('Load 节点需要至少一个源节点');
   }
 
-  // 获取源节点内容，用于构建文件配置
-  const nodeContent = context.getNode(sourceNode.id)?.data?.content;
+  const sourceNodeFull = context.getNode(sourceNode.id);
+  const externalMetadata = sourceNodeFull?.data?.external_metadata;
+  const nodeContent = sourceNodeFull?.data?.content;
+
+  // 优先使用 external_metadata 和 nodeContent 中的详细文件列表
+  if (
+    externalMetadata &&
+    externalMetadata.resource_key &&
+    Array.isArray(nodeContent)
+  ) {
+    console.log(
+      'Building LoadNode JSON using external_metadata and detailed file list from node content:',
+      { externalMetadata, nodeContent }
+    );
+
+    const fileConfigs = nodeContent.reduce<
+      { file_path: string; file_type: string }[]
+    >((acc, file) => {
+      // task_id 存储了文件在 storage 中的唯一 key
+      if (file.task_id) {
+        acc.push({
+          file_path: file.task_id,
+          file_type: file.fileType,
+        });
+      } else {
+        console.warn(
+          `File ${file.fileName} is missing task_id (storage key). Skipping.`
+        );
+      }
+      return acc;
+    }, []);
+
+    return {
+      type: 'load',
+      data: {
+        block_type: 'file',
+        content: sourceNode.id,
+        extra_configs: {
+          file_configs: fileConfigs,
+        },
+        inputs: Object.fromEntries(
+          sourceNodes.map(node => [node.id, node.label])
+        ),
+        outputs: Object.fromEntries(
+          targetNodes.map(node => [node.id, node.label])
+        ),
+      },
+    };
+  }
+
+  // Fallback: 如果没有 external_metadata，尝试使用旧的 download_url 逻辑
+  console.log(
+    'Fallback: Building LoadNode JSON using node content with download_url:',
+    nodeContent
+  );
 
   // 构建文件配置
-  const fileConfigs = Array.isArray(nodeContent)
-    ? nodeContent.map(file => ({
-        file_path: file.download_url,
-        file_type: file.fileType,
-      }))
+  const fileConfigsFallback = Array.isArray(nodeContent)
+    ? nodeContent.reduce<{ file_path: string; file_type: string }[]>(
+        (acc, file) => {
+          if (file.download_url) {
+            acc.push({
+              file_path: file.download_url,
+              file_type: file.fileType,
+            });
+          } else {
+            console.warn(
+              `File ${file.fileName} is missing download_url. Skipping.`
+            );
+          }
+          return acc;
+        },
+        []
+      )
     : [];
+
+  if (fileConfigsFallback.length === 0 && Array.isArray(nodeContent)) {
+    console.error(
+      'LoadNode Error: No valid files with download_url found in source node content.',
+      nodeContent
+    );
+    // 即使没有有效的 URL，也发送一个空的 file_configs，让后端决定如何处理
+  }
 
   // 创建 Load 节点的 JSON
   return {
@@ -1173,7 +1232,7 @@ function buildLoadNodeJson(
       block_type: 'file',
       content: sourceNode.id,
       extra_configs: {
-        file_configs: fileConfigs,
+        file_configs: fileConfigsFallback,
       },
       inputs: Object.fromEntries(
         sourceNodes.map(node => [node.id, node.label])
