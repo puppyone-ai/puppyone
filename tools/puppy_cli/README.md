@@ -70,6 +70,17 @@ puppy push ws_abc123/block_chat \
 
 > 说明：命令中的第一个参数 `ws_abc123/block_*` 是工作区 ID 和块 ID 的组合。若只传入 `block_id`，也可生成 `resource_key`，但 UI 粘贴时需确保目标块一致。
 
+### 4) 录制终端并上传（shell 上下文捕获）
+- 打开录制的子 shell，结束后手动 push：
+```bash
+puppy record --dir ~/.puppy/sessions --file my.log
+cat ~/.puppy/sessions/my.log | puppy push block_shell --from-stdin --type text --copy --token "$PUPPY_API_TOKEN"
+```
+- 打开录制的子 shell，退出后自动 push：
+```bash
+puppy record --auto-push --target block_shell --copy --token "$PUPPY_API_TOKEN"
+```
+
 ## 在工作区中使用 resource_key
 1. 打开目标工作区，并选择要承载内容的区块（文本或结构化）。
 2. 点击区块右上角的齿轮按钮，打开设置菜单。
