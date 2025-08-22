@@ -319,6 +319,7 @@ function Workflow() {
         const manifest = await manifestRes.json();
 
         const chunks: string[] = [];
+        const chunkNames: string[] = [];
         for (const chunk of manifest.chunks || []) {
           const name = typeof chunk === 'string' ? chunk : chunk.name;
           if (!name) continue;
@@ -337,24 +338,38 @@ function Workflow() {
           if (!chunkResp.ok) continue;
           const text = await chunkResp.text();
           chunks.push(text);
+          chunkNames.push(name);
         }
 
         // Reconstruct content
         let content = chunks.join('');
-        if (contentType === 'structured') {
+        // Heuristic: treat as structured if external says so OR chunk name suggests jsonl
+        const looksJsonl = chunkNames.some(n => n.toLowerCase().endsWith('.jsonl'));
+        const wantStructured = contentType === 'structured' || looksJsonl;
+        if (wantStructured) {
           try {
             const arr: any[] = [];
-            content
+            const lines = content
               .split(/\r?\n/)
               .map(s => s.trim())
-              .filter(Boolean)
-              .forEach(line => {
-                try {
-                  arr.push(JSON.parse(line));
-                } catch {}
-              });
-            content = JSON.stringify(arr, null, 2);
-          } catch {}
+              .filter(Boolean);
+            for (const line of lines) {
+              try {
+                arr.push(JSON.parse(line));
+              } catch {
+                // If any line is not valid JSON, we'll fallback later
+              }
+            }
+            if (arr.length > 0) {
+              content = JSON.stringify(arr, null, 2);
+            } else {
+              // Fallback to raw text if not valid JSONL
+              content = chunks.join('');
+            }
+          } catch {
+            // Fallback to raw text on any unexpected error
+            content = chunks.join('');
+          }
         }
 
         setUnsortedNodes(prev =>
