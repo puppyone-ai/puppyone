@@ -87,11 +87,16 @@ def _normalize_messages_from_doc(doc: dict, fmt: str, full_history: bool) -> lis
 def _build_payload_structured(user_text: Optional[str], assistant_text: Optional[str], stdin_text: Optional[str], from_file: Optional[str], fmt: Optional[str], full_history: bool) -> bytes:
     records = []
     if from_file:
+        if fmt == 'jsonl':
+            with open(from_file, 'rb') as f:
+                return f.read()
         with open(from_file, "r", encoding="utf-8") as f:
             doc = json.load(f)
         records = _normalize_messages_from_doc(doc, fmt or "cursor", full_history)
     else:
         if stdin_text and fmt:
+            if fmt == 'jsonl':
+                return stdin_text.encode('utf-8')
             try:
                 doc = json.loads(stdin_text)
                 records = _normalize_messages_from_doc(doc, fmt, full_history)
@@ -192,13 +197,24 @@ def cmd_push(args: argparse.Namespace) -> int:
 
     stdin_text = _read_stdin_text() if args.from_stdin else None
 
-    if args.type == "structured":
+    # Heuristic: auto-detect when reading from file and no format specified
+    effective_type = args.type
+    effective_format = args.format
+    if args.from_file and not effective_format:
+        lower = args.from_file.lower()
+        if lower.endswith('.jsonl'):
+            effective_type = 'structured'
+            effective_format = 'jsonl'
+        elif lower.endswith('.log') or lower.endswith('.txt'):
+            effective_type = 'text'
+
+    if effective_type == "structured":
         content = _build_payload_structured(
             args.user,
             args.assistant,
             stdin_text,
             args.from_file,
-            args.format,
+            effective_format,
             args.full_history,
         )
         chunk_name = "data_0000.jsonl"
@@ -396,7 +412,7 @@ def main() -> None:
     p_push.add_argument("--assistant", help="Assistant message")
     p_push.add_argument("--from-stdin", action="store_true", help="Read content from stdin")
     p_push.add_argument("--from-file", help="Read chat JSON from file")
-    p_push.add_argument("--format", choices=["cursor", "claude"], help="Format of --from-file or --from-stdin JSON")
+    p_push.add_argument("--format", choices=["cursor", "claude", "jsonl"], help="Format of --from-file or --from-stdin (jsonl passes through raw JSONL)")
     p_push.add_argument("--full-history", dest="full_history", action="store_true", help="When using --format, upload all turns instead of last pair")
     p_push.add_argument("--token", help="API token (fallback env PUPPY_API_TOKEN)")
     p_push.add_argument("--copy", action="store_true", help="Copy resource_key to clipboard on macOS")
