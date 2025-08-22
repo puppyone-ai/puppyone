@@ -11,6 +11,7 @@ import select
 import signal
 import fcntl
 import struct
+import re
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -281,6 +282,8 @@ def cmd_record(args: argparse.Namespace) -> int:
         print("puppy record cannot access controlling TTY in this environment.", file=sys.stderr)
         return 2
 
+    ansi_re = re.compile(rb"\x1B\[[0-?]*[ -/]*[@-~]")
+
     with open(out_path, 'ab', buffering=0) as logf:
         # Save stdin state
         old_attrs = termios.tcgetattr(stdin_fd)
@@ -314,6 +317,8 @@ def cmd_record(args: argparse.Namespace) -> int:
                         break
                     # tee to stdout and logfile
                     os.write(sys.stdout.fileno(), data)
+                    if args.no_ansi:
+                        data = ansi_re.sub(b"", data)
                     logf.write(data)
                 if stdin_fd in r:
                     try:
@@ -349,9 +354,10 @@ def cmd_record(args: argparse.Namespace) -> int:
         if block_from_key != block_id:
             block_id = block_from_key
 
-        chunk_etag = _upload_chunk(storage_base, token, block_id, 'terminal.log', data, version_id)
+        from_path_name = os.path.basename(out_path)
+        chunk_etag = _upload_chunk(storage_base, token, block_id, from_path_name, data, version_id)
         etag = _update_manifest(storage_base, token, user_id, block_id, version_id, etag, {
-            'name': 'terminal.log',
+            'name': from_path_name,
             'size': len(data),
             'etag': chunk_etag,
             'uploaded_at': _iso_now(),
@@ -394,6 +400,7 @@ def main() -> None:
     p_rec.add_argument("--target", help="Target <workspace_id>/<block_id> or <block_id> for auto-push (default block_shell)")
     p_rec.add_argument("--token", help="API token (fallback env PUPPY_API_TOKEN)")
     p_rec.add_argument("--copy", action="store_true", help="Copy resource_key to clipboard on macOS")
+    p_rec.add_argument("--no-ansi", action="store_true", help="Strip ANSI color codes when writing log")
     p_rec.set_defaults(func=cmd_record)
 
     args = parser.parse_args()
