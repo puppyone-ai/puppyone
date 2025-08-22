@@ -89,3 +89,19 @@ docker run -p 8000:8000 puppyengine-backend
 ```
 
 - The server is then started in `http://localhost:8000`
+
+## Licensing
+
+The project is released under the PuppyAgent Sustainable Use License (SUL). Summary:
+
+| Use case | Allowed under SUL | How to obtain rights if not allowed |
+| --- | --- | --- |
+| Personal use (individual) | Yes, free | N/A |
+| Internal business use (single-tenant, per organization) | Yes, free | N/A |
+| Self-hosted multi-tenant | No | Commercial license: guantum@puppyagent.com |
+| Managed/hosted service offered to third parties | No | Subscribe to official hosted service: https://wwww.puppyagent.com or obtain a commercial license |
+| Commercial redistribution (paid distribution) | No | Commercial license: guantum@puppyagent.com |
+| Use of PuppyAgent trademarks/logos | Not granted | Requires prior written permission |
+
+- Full text: see `LICENSE`.
+- Commercial licensing and hosted service options are described at the end of `LICENSE`.
