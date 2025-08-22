@@ -11,6 +11,9 @@ from pydantic import BaseModel
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
 
+# The OpenAI client is instantiated with environment defaults, but
+# we will pass api_key/base_url dynamically into each request via kwargs
+# from the ChatService, so ensure the client picks up latest env.
 openai_client = OpenAI(
   base_url=os.environ.get("OPENROUTER_BASE_URL"),
   api_key=os.environ.get("OPENROUTER_API_KEY"),
@@ -91,16 +94,18 @@ class ChatService:
         """
 
         data = {k: v for k, v in self.__dict__.items() if v is not None and k != "printing"}
-        data.pop("is_openrouter", None)
-        data.pop("base_url", None)
-        data.pop("api_key", None)
+        is_openrouter = data.pop("is_openrouter", True)
+        base_url = data.pop("base_url", None)
+        api_key = data.pop("api_key", None)
         
         self.structured_output = data.pop("structured_output", None)
         if self.structured_output:
-            openai_client_json = instructor.from_openai(openai_client, mode=instructor.Mode.JSON)
-            response = openai_client_json.chat.completions.create(**data, response_model=Content) if self.is_openrouter else completion(**data)
+            client = OpenAI(base_url=base_url, api_key=api_key) if is_openrouter else None
+            openai_client_json = instructor.from_openai(client or openai_client, mode=instructor.Mode.JSON)
+            response = openai_client_json.chat.completions.create(**data, response_model=Content) if is_openrouter else completion(**data)
         else:
-            response = openai_client.chat.completions.create(**data) if self.is_openrouter else completion(**data)
+            client = OpenAI(base_url=base_url, api_key=api_key) if is_openrouter else None
+            response = (client or openai_client).chat.completions.create(**data) if is_openrouter else completion(**data)
 
         if self.stream:
             return self._handle_stream_response(response)
