@@ -62,6 +62,11 @@ class ManifestPoller {
   private content_type: string;
   private chunks: string[] = [];
   private isStopped = false;
+  // Structured content incremental parsing state
+  private parsedRecords: any[] = [];
+  private leftoverPartialLine: string = '';
+  private totalRecords: number = 0;
+  private parseErrors: number = 0;
 
   constructor(
     context: RunAllNodesContext,
@@ -122,6 +127,39 @@ class ManifestPoller {
     }
     // 最后再拉取一次，确保数据完整
     await this.fetchManifestAndChunks();
+    if (this.content_type === 'structured') {
+      this.finalizeStructuredParsing();
+      const finalContent = this.reconstructContent({
+        chunks: [],
+        content_type: this.content_type,
+        total_size: 0,
+      });
+      this.context.resetLoadingUI(this.block_id);
+      this.context.setNodes(prevNodes =>
+        prevNodes.map(node =>
+          node.id === this.block_id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  content: finalContent,
+                  isLoading: false,
+                  isExternalStorage: true,
+                  external_metadata: {
+                    ...(node.data?.external_metadata || {}),
+                    resource_key: this.resource_key,
+                    content_type: this.content_type,
+                    loadedChunks: this.chunks.length,
+                    totalRecords: this.totalRecords,
+                    parsedRecords: this.parsedRecords.length,
+                    parseErrors: this.parseErrors,
+                  },
+                },
+              }
+            : node
+        )
+      );
+    }
     this.context.resetLoadingUI(this.block_id);
   }
 
@@ -134,9 +172,9 @@ class ManifestPoller {
       if (!manifestResponse.ok) return;
 
       const manifest: Manifest = await manifestResponse.json();
-      const newChunks = manifest.chunks.filter(
-        chunk => !this.knownChunks.has(chunk.name)
-      );
+      const newChunks = manifest.chunks
+        .filter(chunk => !this.knownChunks.has(chunk.name))
+        .sort((a, b) => a.index - b.index);
 
       if (newChunks.length === 0) return;
 
@@ -155,6 +193,9 @@ class ManifestPoller {
         const chunkData = await chunkResponse.text();
 
         this.chunks.push(chunkData);
+        if (this.content_type === 'structured') {
+          this.parseStructuredChunk(chunkData, chunkInfo.name);
+        }
       }
 
       // 根据content_type处理数据
@@ -168,13 +209,17 @@ class ManifestPoller {
                 data: {
                   ...node.data,
                   content: reconstructedContent,
-                  isLoading: false,
+                  // Keep loading true during progressive updates
+                  isLoading: true,
                   isExternalStorage: true,
                   external_metadata: {
                     resource_key: this.resource_key,
                     content_type: this.content_type,
                     totalChunks: manifest.chunks.length,
                     loadedChunks: this.chunks.length,
+                    totalRecords: this.totalRecords,
+                    parsedRecords: this.parsedRecords.length,
+                    parseErrors: this.parseErrors,
                   },
                 },
               }
@@ -191,9 +236,63 @@ class ManifestPoller {
 
   private reconstructContent(manifest: Manifest): string {
     if (this.content_type === 'structured') {
-      return this.chunks.join('');
+      try {
+        return JSON.stringify(this.parsedRecords, null, 2);
+      } catch (e) {
+        console.warn('[ManifestPoller] Failed to stringify parsed records:', e);
+        return '[]';
+      }
     } else {
       return this.chunks.join('');
+    }
+  }
+
+  // Incrementally parse JSONL
+  private parseStructuredChunk(chunkText: string, chunkName: string) {
+    let dataToProcess = (this.leftoverPartialLine || '') + chunkText;
+    this.leftoverPartialLine = '';
+
+    const lines = dataToProcess.split(/\r?\n/);
+    const possibleLeftover = lines.pop() ?? '';
+
+    for (let i = 0; i < lines.length; i++) {
+      const rawLine = lines[i];
+      const line = rawLine.trim();
+      if (!line) continue;
+      this.totalRecords += 1;
+      try {
+        const parsed = JSON.parse(line);
+        this.parsedRecords.push(parsed);
+      } catch (err) {
+        this.parseErrors += 1;
+        console.warn(
+          `[ManifestPoller] JSONL parse error in ${chunkName} at record #${this.totalRecords}:`,
+          err
+        );
+        console.warn('[ManifestPoller] Offending line (truncated):', rawLine.slice(0, 500));
+      }
+    }
+
+    this.leftoverPartialLine = possibleLeftover;
+  }
+
+  // Flush leftover at end
+  private finalizeStructuredParsing() {
+    const leftover = this.leftoverPartialLine.trim();
+    if (!leftover) {
+      this.leftoverPartialLine = '';
+      return;
+    }
+    this.totalRecords += 1;
+    try {
+      const parsed = JSON.parse(leftover);
+      this.parsedRecords.push(parsed);
+    } catch (err) {
+      this.parseErrors += 1;
+      console.warn('[ManifestPoller] Final leftover JSONL parse error:', err);
+      console.warn('[ManifestPoller] Offending leftover (truncated):', leftover.slice(0, 500));
+    } finally {
+      this.leftoverPartialLine = '';
     }
   }
 
@@ -613,6 +712,8 @@ async function sendDataToTargets(
                   if (data?.block_id) {
                     // 若提供了resource_key（有的实现会包含），则启动poller
                     if (data.resource_key) {
+                      const normalizedContentType =
+                        data.content_type === 'structured' ? 'structured' : 'text';
                       console.log(
                         `📥 [runAllNodes] 流式传输开始: ${data.resource_key} -> ${data.block_id}`
                       );
@@ -623,7 +724,7 @@ async function sendDataToTargets(
                           context,
                           data.resource_key,
                           data.block_id,
-                          data.content_type || 'text'
+                          normalizedContentType
                         );
                         pollers.set(pollerKey, poller);
                         poller.start();
@@ -764,7 +865,11 @@ async function sendDataToTargets(
                         break;
                       }
 
-                      // 更新节点为external存储模式
+                      // 更新节点为external存储模式（normalize content_type to text/structured only）
+                      const normalizedContentType =
+                        externalMetadata.content_type === 'structured'
+                          ? 'structured'
+                          : 'text';
                       context.setNodes(prevNodes => {
                         const updatedNodes = prevNodes.map(node => {
                           if (node.id === data.block_id) {
@@ -773,9 +878,13 @@ async function sendDataToTargets(
                               data: {
                                 ...node.data,
                                 storage_class: 'external',
-                                external_metadata: externalMetadata,
-                                isLoading: false,
-                                isWaitingForFlow: false,
+                                external_metadata: {
+                                  ...externalMetadata,
+                                  content_type: normalizedContentType,
+                                },
+                                // Keep loading until all chunks finalized
+                                isLoading: true,
+                                isWaitingForFlow: true,
                                 isExternalStorage: true,
                                 content: '',
                               },
@@ -793,7 +902,7 @@ async function sendDataToTargets(
                           context,
                           externalMetadata.resource_key,
                           data.block_id,
-                          externalMetadata.content_type || 'text'
+                          normalizedContentType || 'text'
                         );
                         pollers.set(pollerKey, poller);
                         await poller.stop();
