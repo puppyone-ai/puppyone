@@ -8,11 +8,11 @@
 
 <p align="center">
   <a href="https://www.puppyagent.com" target="_blank">
-    <img src="https://img.shields.io/badge/Web-puppyagent.com-111111?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
+    <img src="https://img.shields.io/badge/Web-puppyagent.com-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
   </a>
   &nbsp;
   <a href="https://doc.puppyagent.com" target="_blank">
-    <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-0b7285?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
+    <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
   </a>
   &nbsp;
   <a href="https://discord.gg/eRjwqZpjBT" target="_blank">
@@ -20,7 +20,7 @@
   </a>
   &nbsp;
   <a href="mailto:guantum@puppyagent.com">
-    <img src="https://img.shields.io/badge/Support-guantum@puppyagent.com-d9480f?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
+    <img src="https://img.shields.io/badge/Support-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
   </a>
 </p>
 
