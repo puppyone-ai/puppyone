@@ -264,7 +264,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         )}
 
       </div>
-    ) : null;
+    );
   }
 };
 
