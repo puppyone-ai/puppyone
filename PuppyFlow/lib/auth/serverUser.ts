@@ -1,9 +1,18 @@
 import { cookies } from 'next/headers';
 
 export async function getCurrentUserId(request: Request): Promise<string> {
-  // local mode shortcut
-  if ((process.env.DEPLOYMENT_MODE || '').toLowerCase() === 'local') {
+  // Non-cloud deployments do not require user verification
+  // Treat any mode other than explicit 'cloud' as local/dev
+  if ((process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud') {
     return 'local-user';
+  }
+
+  const allowWithoutServiceKey =
+    (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true';
+  if (!process.env.SERVICE_KEY && !allowWithoutServiceKey) {
+    throw new Error(
+      'Cloud mode requires SERVICE_KEY (or set ALLOW_VERIFY_WITHOUT_SERVICE_KEY=true for dev)'
+    );
   }
 
   let authHeader = request.headers.get('authorization');
@@ -20,7 +29,7 @@ export async function getCurrentUserId(request: Request): Promise<string> {
 
   if (!authHeader) throw new Error('No auth token');
 
-  // Call internal verify endpoint
+  // Cloud mode: Call internal verify endpoint
   const url = new URL('/api/auth/verify', request.url).toString();
   const res = await fetch(url, {
     method: 'GET',

@@ -42,6 +42,29 @@ import { useOllamaModels } from '../hooks/useOllamaModels';
 import { SYSTEM_URLS } from '@/config/urls';
 import Cookies from 'js-cookie';
 
+// 定义用量数据类型
+export type UsageData = {
+  llm_calls: {
+    used: number;
+    total: number;
+    remaining: number;
+  };
+  runs: {
+    used: number;
+    total: number;
+    remaining: number;
+  };
+};
+
+// 定义套餐限制类型
+export type PlanLimits = {
+  workspaces: number;
+  deployedServices: number;
+  llm_calls: number;
+  runs: number;
+  fileStorage: string;
+};
+
 // 定义用户订阅状态类型
 export type UserSubscriptionStatus = {
   is_premium: boolean;
@@ -102,6 +125,12 @@ type AppSettingsContextType = {
   removeWarn: (index: number) => void;
   clearWarns: () => void;
   toggleWarnExpand: (index: number) => void;
+
+  // 用量和套餐限制相关
+  usageData: UsageData | null;
+  planLimits: PlanLimits;
+  isLoadingUsage: boolean;
+  fetchUsageData: () => Promise<void>;
 };
 
 // 创建上下文
@@ -240,6 +269,17 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   const [isLoadingSubscriptionStatus, setIsLoadingSubscriptionStatus] =
     useState<boolean>(false);
 
+  // 用量和套餐限制状态管理
+  const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+  const [planLimits, setPlanLimits] = useState<PlanLimits>({
+    workspaces: 1,
+    deployedServices: 1,
+    llm_calls: 50,
+    runs: 100,
+    fileStorage: '5M',
+  });
+
   // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
   const [localModels, setLocalModels] = useState<Model[]>([]);
@@ -260,6 +300,35 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
       }
     }
   }, [ollamaModels, ollamaError, isLoadingLocalModels, isLocalDeployment]);
+
+  // 根据订阅状态计算套餐限制
+  useEffect(() => {
+    if (isLocalDeployment) {
+      setPlanLimits({
+        workspaces: 999,
+        deployedServices: 999,
+        llm_calls: 99999,
+        runs: 99999,
+        fileStorage: '500M',
+      });
+    } else if (userSubscriptionStatus?.is_premium) {
+      setPlanLimits({
+        workspaces: 20,
+        deployedServices: 10,
+        llm_calls: 200,
+        runs: 1000,
+        fileStorage: '50M',
+      });
+    } else {
+      setPlanLimits({
+        workspaces: 1,
+        deployedServices: 1,
+        llm_calls: 50,
+        runs: 100,
+        fileStorage: '5M',
+      });
+    }
+  }, [userSubscriptionStatus, isLocalDeployment]);
 
   // 刷新本地模型的函数
   const refreshLocalModels = async () => {
@@ -382,6 +451,57 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     return token ? { [headerName]: `Bearer ${token}` } : {};
   };
 
+  // 获取用户用量数据
+  const fetchUsageData = async () => {
+    if (isLocalDeployment || !userSubscriptionStatus) return;
+
+    setIsLoadingUsage(true);
+    try {
+      const [llmResponse, runsResponse] = await Promise.all([
+        fetch(`/api/user-system/usage/check/llm_calls`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+        }),
+        fetch(`/api/user-system/usage/check/runs`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+        }),
+      ]);
+
+      if (llmResponse.ok && runsResponse.ok) {
+        const llmData = await llmResponse.json();
+        const runsData = await runsResponse.json();
+
+        setUsageData({
+          llm_calls: {
+            used: llmData.current_usage || 0,
+            total: llmData.base_limit + (llmData.extra_balance || 0),
+            remaining: llmData.available || 0,
+          },
+          runs: {
+            used: runsData.current_usage || 0,
+            total: runsData.base_limit + (runsData.extra_balance || 0),
+            remaining: runsData.available || 0,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching usage data:', error);
+      // 可选：在这里设置默认或错误状态的用量数据
+      setUsageData(null);
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  };
+
   // 获取用户订阅状态
   const fetchUserSubscriptionStatus = async (): Promise<void> => {
     if (isLocalDeployment) {
@@ -414,14 +534,17 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         throw new Error('No user access token found');
       }
 
-      const response = await fetch(`/api/user-system/user_subscription_status`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-      });
+      const response = await fetch(
+        `/api/user-system/user_subscription_status`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeaders(),
+          },
+        }
+      );
 
       if (response.status !== 200) {
         const error_data: { error: string } = await response.json();
@@ -469,6 +592,13 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     fetchUserSubscriptionStatus();
   }, [isLocalDeployment]);
 
+  // 自动获取用量数据
+  useEffect(() => {
+    if (userSubscriptionStatus) {
+      fetchUsageData();
+    }
+  }, [userSubscriptionStatus]);
+
   return (
     <AppSettingsContext.Provider
       value={{
@@ -493,6 +623,10 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         removeWarn,
         clearWarns,
         toggleWarnExpand,
+        usageData,
+        planLimits,
+        isLoadingUsage,
+        fetchUsageData,
       }}
     >
       {children}

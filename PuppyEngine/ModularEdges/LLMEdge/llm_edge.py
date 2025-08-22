@@ -66,7 +66,14 @@ def remote_llm_chat(
         messages = chat_histories + messages
     kwargs["messages"] = messages
 
-    model = list(kwargs.get("model", {}).keys())[0]
+    # 处理字符串格式的模型名称
+    model_param = kwargs.get("model", "")
+    if isinstance(model_param, str):
+        model = model_param
+    else:
+        # 兼容旧的字典格式
+        model = list(model_param.keys())[0] if model_param else ""
+    
     hoster = kwargs.pop("hoster", "openrouter")
     if hoster == "openrouter":
         kwargs["api_key"], kwargs["base_url"], kwargs["model"] = get_open_router_llm_settings(
@@ -118,10 +125,19 @@ class LLMFactory(EdgeFactoryBase):
         init_configs: Dict[str, Any] = None,
         extra_configs: Dict[str, Any] = None
     ) -> str:
-        model = init_configs.get("model", {})
-        model_name = list(model.keys())[0]
-        model_info = model.get(model_name, {})
-        inference_method = model_info.get("inference_method", "ollama")
+        model = init_configs.get("model", "")
+        
+        # 处理字符串格式的模型名称
+        if isinstance(model, str):
+            model_name = model
+            # 对于字符串格式，默认使用 ollama 作为推理方法
+            inference_method = "ollama"
+            model_info = {}
+        else:
+            # 兼容旧的字典格式
+            model_name = list(model.keys())[0] if model else ""
+            model_info = model.get(model_name, {}) if model else {}
+            inference_method = model_info.get("inference_method", "ollama")
         is_local_deployment = model_name not in open_router_supported_models
         logging.info(f"DEPLOYMENT_TYPE={os.environ.get('DEPLOYMENT_TYPE')}")
         logging.info(f"is_local_deployment={is_local_deployment}")
@@ -143,7 +159,22 @@ class LLMFactory(EdgeFactoryBase):
                 chat = LocalLLMChat(config)
                 return chat.chat(messages)
             elif inference_method == "ollama":
-                ollama = OllamaLocalInference(model)
+                # 对于字符串格式的模型名称，创建简单的模型注册
+                if isinstance(model, str):
+                    model_register = {
+                        model_name: {
+                            'inference_method': 'ollama'
+                        }
+                    }
+                else:
+                    # 兼容旧的字典格式
+                    model_register = {}
+                    for model_name, model_config in model.items():
+                        model_register[model_name] = {
+                            'inference_method': 'ollama',
+                            **model_config
+                        }
+                ollama = OllamaLocalInference(model_register)
                 return ollama.generate_chat_completion(
                     model_name=model_name,
                     messages=messages,
