@@ -360,8 +360,8 @@ def cmd_record(args: argparse.Namespace) -> int:
         # Read log content (truncate if huge?)
         with open(out_path, 'rb') as f:
             data = f.read()
-        # Default block id unified with push convention
-        block_id = args.target if args.target else 'block_chat'
+        # Default block id for terminal sessions
+        block_id = args.target if args.target else 'block_shell'
         manifest_key, version_id, etag = _init_manifest(storage_base, token, block_id)
         parts = manifest_key.split('/')
         if len(parts) < 3:
