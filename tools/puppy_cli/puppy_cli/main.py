@@ -270,9 +270,19 @@ def cmd_record(args: argparse.Namespace) -> int:
     # Spawn user's login shell under a PTY
     shell = os.environ.get("SHELL", "/bin/bash")
     # Open logfile (append to avoid losing content if re-run)
+    # Must be run from an interactive TTY
+    try:
+        stdin_fd = sys.stdin.fileno()
+        stdout_fd = sys.stdout.fileno()
+        if not os.isatty(stdin_fd) or not os.isatty(stdout_fd):
+            print("puppy record must be run from an interactive terminal (TTY). Try running in iTerm/Terminal, or use 'tmux capture-pane' fallback.", file=sys.stderr)
+            return 2
+    except Exception:
+        print("puppy record cannot access controlling TTY in this environment.", file=sys.stderr)
+        return 2
+
     with open(out_path, 'ab', buffering=0) as logf:
         # Save stdin state
-        stdin_fd = sys.stdin.fileno()
         old_attrs = termios.tcgetattr(stdin_fd)
         try:
             pid, master_fd = pty.fork()
