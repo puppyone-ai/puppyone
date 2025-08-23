@@ -1,7 +1,7 @@
 'use client';
 import React, { useCallback, useMemo } from 'react';
 import TextEditor from '../TextEditor';
-import { DragHandle } from './ComponentRenderer';
+import { DragHandle, useSelection } from './ComponentRenderer';
 
 type TextComponentProps = {
   data: string;
@@ -36,8 +36,14 @@ const TextComponent = React.memo(
       [readonly, onEdit, path]
     );
 
+    const { isPathSelected, setSelectedPath } = useSelection();
+    const isSelected = isPathSelected(path);
+
     return (
-      <div className="bg-[#252525] shadow-sm relative group">
+      <div className={`bg-[#252525] shadow-sm relative group p-[2px]`}
+           style={{ outline: 'none', boxShadow: isSelected ? 'inset 0 0 0 2px #388EC9' : 'none' }}
+           onClick={(e) => { e.stopPropagation(); setSelectedPath(path); }}
+      >
         <DragHandle
           data={data}
           path={path}

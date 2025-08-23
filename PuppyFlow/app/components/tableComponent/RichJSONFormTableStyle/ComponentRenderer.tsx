@@ -118,6 +118,38 @@ export const useHover = () => {
     return context;
 };
 
+// Selection Context
+type SelectionContextType = {
+    selectedPath: string | null;
+    setSelectedPath: (path: string | null) => void;
+    isPathSelected: (path: string) => boolean;
+};
+
+const SelectionContext = createContext<SelectionContextType | null>(null);
+
+export const SelectionProvider = ({ children }: { children: React.ReactNode }) => {
+    const [selectedPath, setSelectedPath] = useState<string | null>(null);
+
+    const isPathSelected = (path: string): boolean => {
+        if (!selectedPath) return false;
+        return selectedPath === path;
+    };
+
+    return (
+        <SelectionContext.Provider value={{ selectedPath, setSelectedPath, isPathSelected }}>
+            {children}
+        </SelectionContext.Provider>
+    );
+};
+
+export const useSelection = () => {
+    const context = useContext(SelectionContext);
+    if (!context) {
+        throw new Error('useSelection must be used within SelectionProvider');
+    }
+    return context;
+};
+
 type ComponentType = 'text' | 'dict' | 'list';
 
 // 定义一个特殊的空元素标识符
