@@ -7,7 +7,24 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
-import ComponentRenderer, { HoverProvider, DragProvider, SelectionProvider } from './ComponentRenderer';
+import ComponentRenderer, { HoverProvider, DragProvider, SelectionProvider, useSelection } from './ComponentRenderer';
+
+// Helper: clear selection when clicking outside the editor container
+const ClearSelectionOnOutsideClick = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
+    const { setSelectedPath } = useSelection();
+    useEffect(() => {
+        const handleDocumentMouseDown = (e: MouseEvent) => {
+            const container = containerRef.current;
+            if (!container) return;
+            if (!container.contains(e.target as Node)) {
+                setSelectedPath(null);
+            }
+        };
+        document.addEventListener('mousedown', handleDocumentMouseDown);
+        return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+    }, [setSelectedPath, containerRef]);
+    return null;
+};
 
 type JSONViewerProps = {
     preventParentDrag: () => void,
@@ -359,6 +376,7 @@ const JSONViewer = ({
             <HoverProvider>
                 <SelectionProvider>
                 <OverflowProvider>
+                    <ClearSelectionOnOutsideClick containerRef={containerRef} />
                     <div 
                         ref={containerRef}
                         className={`relative bg-transparent overflow-auto scrollbar-hide pt-[4px] pl-0 ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
