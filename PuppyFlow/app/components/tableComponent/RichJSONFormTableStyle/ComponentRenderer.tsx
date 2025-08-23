@@ -5,65 +5,7 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import EmptyComponent from './EmptyComponent';
 
-// Drag Context for cross-component dragging
-type DragContextType = {
-    draggedItem: any;
-    draggedPath: string;
-    draggedKey: string | number | null;
-    draggedParentType: 'dict' | 'list' | null;
-    sourceOnDelete: (() => void) | null;
-    setDraggedItem: (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => void;
-    clearDraggedItem: (shouldDelete?: boolean) => void;
-};
-
-const DragContext = createContext<DragContextType | null>(null);
-
-export const DragProvider = ({ children }: { children: React.ReactNode }) => {
-    const [draggedItem, setDraggedItemState] = useState<any>(null);
-    const [draggedPath, setDraggedPath] = useState<string>('');
-    const [draggedKey, setDraggedKey] = useState<string | number | null>(null);
-    const [draggedParentType, setDraggedParentType] = useState<'dict' | 'list' | null>(null);
-    const [sourceOnDelete, setSourceOnDelete] = useState<(() => void) | null>(null);
-
-    const setDraggedItem = (item: any, path: string, key: string | number | null, parentType: 'dict' | 'list' | null, onDelete?: () => void) => {
-        setDraggedItemState(item);
-        setDraggedPath(path);
-        setDraggedKey(key);
-        setDraggedParentType(parentType);
-        setSourceOnDelete(onDelete ? () => onDelete : null);
-    };
-
-    const clearDraggedItem = (shouldDelete: boolean = false) => {
-        // 不在这里执行删除，避免状态冲突
-        setDraggedItemState(null);
-        setDraggedPath('');
-        setDraggedKey(null);
-        setDraggedParentType(null);
-        setSourceOnDelete(null);
-    };
-
-    return (
-        <DragContext.Provider value={{
-            draggedItem,
-            draggedPath,
-            draggedKey,
-            draggedParentType,
-            sourceOnDelete,
-            setDraggedItem,
-            clearDraggedItem
-        }}>
-            {children}
-        </DragContext.Provider>
-    );
-};
-
-export const useDrag = () => {
-    const context = useContext(DragContext);
-    if (!context) {
-        throw new Error('useDrag must be used within DragProvider');
-    }
-    return context;
-};
+// Drag capability removed
 
 // Hover Context
 type HoverContextType = {
@@ -202,17 +144,23 @@ const ComponentRenderer = ({
     const handleTypeSelect = (type: ComponentType) => {
         let newValue: any;
         switch (type) {
-            case 'text':
+            case 'text': {
                 newValue = "";
                 break;
-            case 'dict':
-                newValue = {};
+            }
+            case 'dict': {
+                // 预制两个空位的字典
+                newValue = { key1: null, key2: null };
                 break;
-            case 'list':
-                newValue = [];
+            }
+            case 'list': {
+                // 预制两个空位的列表
+                newValue = [null, null];
                 break;
-            default:
+            }
+            default: {
                 newValue = null;
+            }
         }
         onUpdate(newValue);
     };
@@ -245,6 +193,7 @@ const ComponentRenderer = ({
                     parentKey={parentKey}
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
+                    onReplace={onUpdate}
                 />
             );
         case 'dict':
@@ -259,6 +208,7 @@ const ComponentRenderer = ({
                     parentKey={parentKey}
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
+                    onReplace={onUpdate}
                 />
             );
         case 'list':
@@ -273,157 +223,12 @@ const ComponentRenderer = ({
                     parentKey={parentKey}
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
+                    onReplace={onUpdate}
                 />
             );
         default:
             return null;
     }
-};
-
-// Unified Drag Handle Component
-type DragHandleProps = {
-    data: any;
-    path: string;
-    parentKey?: string | number;
-    componentType: 'text' | 'dict' | 'list';
-    readonly?: boolean;
-    onDelete?: () => void;
-    preventParentDrag: () => void;
-    allowParentDrag: () => void;
-    color: string; // Handle color based on component type
-    forceVisible?: boolean; // Force show handle (hover/selected from owner)
-};
-
-export const DragHandle = ({
-    data,
-    path,
-    parentKey,
-    componentType,
-    readonly,
-    onDelete,
-    preventParentDrag,
-    allowParentDrag,
-    color,
-    forceVisible = false
-}: DragHandleProps) => {
-    const { setDraggedItem, clearDraggedItem } = useDrag();
-    const { isPathSelected } = useSelection();
-    const isSelected = isPathSelected(path);
-
-    // Use a slightly more vivid accent when selected
-    const selectedAccentColor = componentType === 'text'
-        ? '#49A1DA'
-        : componentType === 'list'
-            ? '#D5A262'
-            : '#D96BA0';
-    const accentColor = isSelected ? selectedAccentColor : color;
-
-    // Don't show handle if readonly or no delete callback
-    if (readonly || !onDelete) {
-        return null;
-    }
-
-    const handleDragStart = (e: React.DragEvent) => {
-        e.stopPropagation();
-        
-        // Determine parent type from path
-        const parentType = path.includes('[') ? 'list' : 'dict';
-        
-        // Set dragged item with delete callback
-        setDraggedItem(data, path, parentKey || null, parentType, onDelete);
-        e.dataTransfer.effectAllowed = 'move';
-        
-        // Visual feedback
-        const dragPreview = createComponentDragPreview(data, componentType);
-        document.body.appendChild(dragPreview);
-        e.dataTransfer.setDragImage(dragPreview, 10, 10);
-        
-        setTimeout(() => {
-            if (document.body.contains(dragPreview)) {
-                document.body.removeChild(dragPreview);
-            }
-        }, 0);
-
-        preventParentDrag();
-    };
-
-    const handleDragEnd = () => {
-        clearDraggedItem();
-        allowParentDrag();
-    };
-
-    const createComponentDragPreview = (value: any, type: string) => {
-        const preview = document.createElement('div');
-        preview.style.cssText = `
-            position: absolute;
-            top: -1000px;
-            left: -1000px;
-            background: #1a1a1a;
-            border: 1px solid #444;
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 12px;
-            color: #CDCDCD;
-            max-width: 200px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-            z-index: 1000;
-            pointer-events: none;
-        `;
-        
-        const typeSpan = document.createElement('span');
-        typeSpan.style.cssText = `
-            color: ${type === 'text' ? '#4CAF50' : type === 'dict' ? '#9b7edb' : '#ff9b4d'};
-            font-weight: bold;
-            margin-right: 8px;
-        `;
-        typeSpan.textContent = type.toUpperCase();
-        
-        const valueSpan = document.createElement('span');
-        valueSpan.style.cssText = `
-            color: #CDCDCD;
-            opacity: 0.8;
-        `;
-        
-        let valuePreview = '';
-        if (type === 'text') {
-            valuePreview = value.length > 30 ? `"${value.substring(0, 30)}..."` : `"${value}"`;
-        } else if (type === 'list') {
-            valuePreview = `[${value.length} items]`;
-        } else if (type === 'dict') {
-            const keys = Object.keys(value);
-            valuePreview = `{${keys.length} keys}`;
-        }
-        
-        valueSpan.textContent = valuePreview;
-        
-        preview.appendChild(typeSpan);
-        preview.appendChild(valueSpan);
-        
-        return preview;
-    };
-
-    return (
-        <div 
-            className={`absolute left-0 top-1 bottom-1 w-px rounded-full transition-opacity duration-200 z-50 ${isSelected || forceVisible ? 'opacity-100' : 'opacity-0'}`}
-            style={{ backgroundColor: accentColor }}
-        >
-            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <button
-                    draggable={true}
-                    onDragStart={handleDragStart}
-                    onDragEnd={handleDragEnd}
-                    className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 cursor-move"
-                    style={{ borderColor: `${accentColor}50` }}
-                    title={`Drag to move this ${componentType}`}
-                >
-                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
-                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
-                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
-                </button>
-            </div>
-        </div>
-    );
 };
 
 // 创建空元素的函数

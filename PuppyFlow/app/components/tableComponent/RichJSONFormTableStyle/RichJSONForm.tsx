@@ -7,7 +7,7 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
-import ComponentRenderer, { HoverProvider, DragProvider, SelectionProvider, useSelection } from './ComponentRenderer';
+import ComponentRenderer, { HoverProvider, SelectionProvider, useSelection } from './ComponentRenderer';
 
 // Helper: clear selection when clicking outside the editor container
 const ClearSelectionOnOutsideClick = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
@@ -114,10 +114,10 @@ const JSONViewer = ({
                 newData = "";
                 break;
             case 'dict':
-                newData = {};
+                newData = { key1: null, key2: null }; // 预制两个空位
                 break;
             case 'list':
-                newData = [];
+                newData = [null, null]; // 预制两个空位
                 break;
         }
         
@@ -372,10 +372,9 @@ const JSONViewer = ({
     }
 
     return (
-        <DragProvider>
-            <HoverProvider>
-                <SelectionProvider>
-                <OverflowProvider>
+        <HoverProvider>
+            <SelectionProvider>
+            <OverflowProvider>
                     <ClearSelectionOnOutsideClick containerRef={containerRef} />
                     <div 
                         ref={containerRef}
@@ -387,10 +386,9 @@ const JSONViewer = ({
                         {renderMainContent()}
                         </div>
                     </div>
-                </OverflowProvider>
-                </SelectionProvider>
-            </HoverProvider>
-        </DragProvider>
+            </OverflowProvider>
+            </SelectionProvider>
+        </HoverProvider>
     );
 };
 
