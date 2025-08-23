@@ -105,7 +105,7 @@ const EmptyComponent = ({
     return (
       <div className='bg-[#252525] shadow-sm relative group'>
         <div className="absolute left-0 top-1 bottom-1 w-px bg-[#3A3D45] rounded-full z-20 pointer-events-none"></div>
-        <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+        <div className='w-full px-[16px] py-[6px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
           <button
             onClick={() => setIsOpen(!isOpen)}
             className='flex items-center justify-between w-full h-[24px] bg-[#2A2D35] hover:bg-[#3A3D45] border border-[#4B5563] rounded-lg px-3 py-1 transition-colors'
@@ -166,7 +166,7 @@ const EmptyComponent = ({
 
   // 默认的类型选择状态（空元素初始不显示，hover时显示创建提示）
   return (
-    <div className='bg-[#252525] shadow-sm relative group'>
+    <div className='bg-[#1C1D1F]/50 shadow-sm relative group/empty'>
       <div className="absolute left-0 top-1 bottom-1 w-px bg-[#3A3D45] rounded-full z-20 pointer-events-none"></div>
       <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
         {readonly ? (
@@ -174,7 +174,7 @@ const EmptyComponent = ({
             {/* 保持空白，不显示创建提示 */}
           </div>
         ) : (
-          <div className='flex items-center h-[24px] space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150'>
+          <div className='flex items-center h-[24px] space-x-2 opacity-0 group-hover/empty:opacity-100 transition-opacity duration-150'>
             <span className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
               create a type
             </span>
@@ -182,7 +182,7 @@ const EmptyComponent = ({
               <button
                 key={typeInfo.type}
                 onClick={() => handleTypeSelect(typeInfo.type)}
-                className='flex items-center justify-center w-6 h-5 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md text-[#CDCDCD] hover:text-white transition-all duration-200'
+                className='flex items-center justify-center w-6 h-5 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md text-[#CDCDCD] hover:text-white transition-all duration-200 opacity-0 group-hover/empty:opacity-100'
                 onMouseDown={preventParentDrag}
                 onMouseUp={allowParentDrag}
                 title={`Create ${typeInfo.label}`}

@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle, useSelection } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
+import ListActionMenu from './ListActionMenu';
 
 type ListComponentProps = {
     data: any[];
@@ -12,6 +13,7 @@ type ListComponentProps = {
     parentKey?: string | number;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
+    onReplace?: (newValue: any) => void;
 }
 
 const ListComponent = ({ 
@@ -22,14 +24,14 @@ const ListComponent = ({
     onUpdate, 
     onDelete,
     preventParentDrag, 
-    allowParentDrag 
+    allowParentDrag,
+    onReplace,
 }: ListComponentProps) => {
-    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null); // unused after removing DnD
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(null); // unused after removing DnD
     const [showMenu, setShowMenu] = useState(false);
     
     const { hoveredPath, setHoveredPath, isPathHovered } = useHover();
-    const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const deleteItem = (index: number) => {
         const newData = data.filter((_, i) => i !== index);
@@ -56,91 +58,7 @@ const ListComponent = ({
     };
 
 
-    const handleDragEnd = () => {
-        setDragOverIndex(null);
-        setSelectedIndex(null);
-        // 恢复父级拖拽
-        allowParentDrag();
-    };
-
-    // Handle drag over for component reordering within list
-    const handleDragOver = (e: React.DragEvent, index: number, position: 'before' | 'after') => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if this is a valid drop target for component dragging
-        if (draggedItem === null) return;
-        
-        e.dataTransfer.dropEffect = 'move';
-        setDragOverIndex(index);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        // Only clear if we're actually leaving the component
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setDragOverIndex(null);
-        }
-    };
-
-    // Handle drop for component reordering within list
-    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (draggedItem === null) return;
-        
-        
-        // Check if dragging within same list by comparing parent paths
-        // Extract parent path from draggedPath
-        const getParentPath = (childPath: string): string => {
-            if (!childPath) return '';
-            const lastDot = childPath.lastIndexOf('.');
-            const lastBracket = childPath.lastIndexOf('[');
-            const lastSeparator = Math.max(lastDot, lastBracket);
-            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
-        };
-        
-        const draggedParentPath = getParentPath(draggedPath || '');
-        const isSameList = draggedParentPath === path;
-        
-        if (isSameList && typeof draggedKey === 'number') {
-            // Internal reordering - 不需要删除源元素
-            const newData = [...data];
-            const item = newData[draggedKey];
-            
-            // Remove from old position
-            newData.splice(draggedKey, 1);
-            
-            // Insert at new position
-            const insertIndex = draggedKey < dropIndex ? dropIndex - 1 : dropIndex;
-            newData.splice(insertIndex, 0, item);
-            
-            onUpdate(newData);
-            
-            // 清除拖拽状态但不调用删除
-            clearDraggedItem(false);  // false表示不删除源元素
-            setDragOverIndex(null);
-            return;
-        }
-        
-        // 跨容器移动 - 先添加，后删除
-        const newData = [...data];
-        newData.splice(dropIndex, 0, draggedItem);
-        
-        onUpdate(newData);
-        
-        // 在下一个渲染帧删除源元素，确保添加操作先完成
-        if (!isSameList && sourceOnDelete) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    sourceOnDelete();
-                });
-            });
-        }
-        
-        clearDraggedItem();
-        setDragOverIndex(null);
-    };
+    // Drag-and-drop disabled: remove handlers
 
 
     const handleMenuClick = (e: React.MouseEvent) => {
@@ -198,70 +116,52 @@ const ListComponent = ({
     };
 
 
-    // Handle dropping on empty list
-    const handleEmptyDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (draggedItem === null || data.length > 0) return;
-        
-        
-        // Always call source delete for empty drop - we're moving the item here
-        if (sourceOnDelete) {
-            sourceOnDelete();
-        }
-        
-        // Add the dragged item to the empty list
-        onUpdate([draggedItem]);
-        clearDraggedItem();
-    };
+    // Drag-and-drop disabled
 
     const { isPathSelected, setSelectedPath } = useSelection();
-    const [isStripeHovered, setIsStripeHovered] = React.useState(false);
+    const [isHovered, setIsHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
+    const accentColor = isSelected ? '#D5A262' : '#C18E4C';
+    const [menuOpen, setMenuOpen] = React.useState(false);
 
     return (
         <div 
-            className={`bg-[#252525] shadow-sm relative group p-[2px]`}
+            className={`bg-[#252525] shadow-sm relative group group/list p-[2px]`}
             style={{ outline: 'none', boxShadow: isSelected ? 'inset 0 0 0 2px #C18E4C' : 'none' }}
             onClick={(e) => { e.stopPropagation(); setSelectedPath(path); }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Unified Drag Handle */}
-            <DragHandle
-                data={data}
-                path={path}
-                parentKey={data.length}
-                componentType="list"
-                readonly={readonly}
-                onDelete={onDelete}
-                preventParentDrag={preventParentDrag}
-                allowParentDrag={allowParentDrag}
-                color="#C18E4C"
-                forceVisible={isSelected || isStripeHovered}
-            />
             <div 
                 className="absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20"
-                onMouseEnter={() => setIsStripeHovered(true)}
-                onMouseLeave={() => setIsStripeHovered(false)}
-            ></div>
+            >
+                {(isSelected || isHovered) && (
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                        <div
+                            className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                            style={{ borderColor: `${accentColor}50` }}
+                            aria-hidden
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+                        >
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {menuOpen && !readonly && (
+                <ListActionMenu
+                    className="absolute left-2 top-2 z-50"
+                    value={data}
+                    onClear={() => { onUpdate([]); setMenuOpen(false); }}
+                    onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
+                    onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
+                />
+            )}
             <div 
-                className={`space-y-0 transition-all duration-200 ${
-                    data.length === 0 && draggedItem !== null 
-                        ? 'bg-blue-400/10 border-2 border-dashed border-blue-400/50 rounded-md p-2' 
-                        : ''
-                }`}
-                onDragOver={(e) => {
-                    if (data.length === 0 && draggedItem !== null) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                    }
-                }}
-                onDragEnter={(e) => {
-                    if (data.length === 0 && draggedItem !== null) {
-                        e.preventDefault();
-                    }
-                }}
-                onDrop={handleEmptyDrop}
+                className={`space-y-0 transition-all duration-200`}
+                
             >
                 {data.length === 0 ? (
                     // Empty state - 简洁版本
@@ -305,7 +205,7 @@ const ListComponent = ({
                         {data.map((item, index) => {
                             const indexPath = getIndexPath(index);
                             const isIndexHovered = isPathHovered(indexPath);
-                            const showDropIndicator = dragOverIndex === index && draggedItem !== null;
+                            const showDropIndicator = false; // DnD disabled
                             
                             return (
                                 <React.Fragment key={index}>
@@ -329,14 +229,7 @@ const ListComponent = ({
                                         }`}
                                         onMouseEnter={() => setHoveredPath(indexPath)}
                                         onMouseLeave={() => setHoveredPath(null)}
-                                        onDragOver={(e) => {
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const midpoint = rect.top + rect.height / 2;
-                                            const position = e.clientY < midpoint ? 'before' : 'after';
-                                            handleDragOver(e, index, position);
-                                        }}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDrop(e, index)}
+                                        
                                     >
                                         <div className="flex items-stretch">
                                             {/* Index Badge - display only */}
@@ -398,13 +291,13 @@ const ListComponent = ({
                             <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
                                 <button
                                     onClick={addEmptyItem}
-                                    className="group w-6 h-4 flex items-center justify-center rounded-[3px] 
-                                             bg-[#252525] hover:bg-[#2a2a2a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 
+                                    className="group w-6 h-6 flex items-center justify-center rounded-full 
+                                             bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
                                              transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/list:opacity-100"
                                     title="Add new item"
                                 >
                                     <svg 
-                                        className="w-3 h-2.5 text-[#CDCDCD] transition-transform duration-200 group-hover:scale-110" 
+                                        className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
                                         viewBox="0 0 16 16" 
                                         fill="none" 
                                         stroke="currentColor" 
