@@ -291,6 +291,7 @@ type DragHandleProps = {
     preventParentDrag: () => void;
     allowParentDrag: () => void;
     color: string; // Handle color based on component type
+    forceVisible?: boolean; // Force show handle (hover/selected from owner)
 };
 
 export const DragHandle = ({
@@ -302,10 +303,20 @@ export const DragHandle = ({
     onDelete,
     preventParentDrag,
     allowParentDrag,
-    color
+    color,
+    forceVisible = false
 }: DragHandleProps) => {
     const { setDraggedItem, clearDraggedItem } = useDrag();
-    const { setHoveredPath } = useHover();
+    const { isPathSelected } = useSelection();
+    const isSelected = isPathSelected(path);
+
+    // Use a slightly more vivid accent when selected
+    const selectedAccentColor = componentType === 'text'
+        ? '#49A1DA'
+        : componentType === 'list'
+            ? '#D5A262'
+            : '#D96BA0';
+    const accentColor = isSelected ? selectedAccentColor : color;
 
     // Don't show handle if readonly or no delete callback
     if (readonly || !onDelete) {
@@ -332,15 +343,13 @@ export const DragHandle = ({
                 document.body.removeChild(dragPreview);
             }
         }, 0);
-        
+
         preventParentDrag();
-        setHoveredPath(path);
     };
 
     const handleDragEnd = () => {
         clearDraggedItem();
         allowParentDrag();
-        setHoveredPath(null);
     };
 
     const createComponentDragPreview = (value: any, type: string) => {
@@ -396,8 +405,8 @@ export const DragHandle = ({
 
     return (
         <div 
-            className="absolute left-0 top-1 bottom-1 w-px rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50"
-            style={{ backgroundColor: color }}
+            className={`absolute left-0 top-1 bottom-1 w-px rounded-full transition-opacity duration-200 z-50 ${isSelected || forceVisible ? 'opacity-100' : 'opacity-0'}`}
+            style={{ backgroundColor: accentColor }}
         >
             <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">
                 <button
@@ -405,12 +414,12 @@ export const DragHandle = ({
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                     className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg hover:bg-[#2a2a2a] transition-colors duration-200 cursor-move"
-                    style={{ borderColor: `${color}50` }}
+                    style={{ borderColor: `${accentColor}50` }}
                     title={`Drag to move this ${componentType}`}
                 >
-                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: color }}></div>
-                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: color }}></div>
-                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: color }}></div>
+                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                    <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
                 </button>
             </div>
         </div>

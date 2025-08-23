@@ -79,6 +79,8 @@ const JSONViewer = ({
         }
     }, [value]);
 
+    
+
     // 判断组件类型
     const getComponentType = (data: JSONData | null): ComponentType => {
         if (typeof data === 'string') return 'text';
@@ -359,7 +361,7 @@ const JSONViewer = ({
                 <OverflowProvider>
                     <div 
                         ref={containerRef}
-                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px] pl-[8px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[4px] pl-0 ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
                         style={{ width: actualWidth, height: actualHeight }}
                         data-rich-json-form="true"
                     >
