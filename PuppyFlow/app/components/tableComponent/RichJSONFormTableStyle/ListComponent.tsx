@@ -217,6 +217,7 @@ const ListComponent = ({
     };
 
     const { isPathSelected, setSelectedPath } = useSelection();
+    const [isStripeHovered, setIsStripeHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
 
     return (
@@ -236,8 +237,13 @@ const ListComponent = ({
                 preventParentDrag={preventParentDrag}
                 allowParentDrag={allowParentDrag}
                 color="#C18E4C"
+                forceVisible={isSelected || isStripeHovered}
             />
-            <div className="absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20 pointer-events-none"></div>
+            <div 
+                className="absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20"
+                onMouseEnter={() => setIsStripeHovered(true)}
+                onMouseLeave={() => setIsStripeHovered(false)}
+            ></div>
             <div 
                 className={`space-y-0 transition-all duration-200 ${
                     data.length === 0 && draggedItem !== null 
@@ -321,6 +327,8 @@ const ListComponent = ({
                                                     ? 'bg-[#CDCDCD]/10'
                                                     : 'hover:bg-[#6D7177]/10'
                                         }`}
+                                        onMouseEnter={() => setHoveredPath(indexPath)}
+                                        onMouseLeave={() => setHoveredPath(null)}
                                         onDragOver={(e) => {
                                             const rect = e.currentTarget.getBoundingClientRect();
                                             const midpoint = rect.top + rect.height / 2;

@@ -344,6 +344,7 @@ const DictComponent = ({
     };
 
     const { isPathSelected, setSelectedPath } = useSelection();
+    const [isStripeHovered, setIsStripeHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
 
     return (
@@ -363,8 +364,13 @@ const DictComponent = ({
                 preventParentDrag={preventParentDrag}
                 allowParentDrag={allowParentDrag}
                 color="#C74F8A"
+                forceVisible={isSelected || isStripeHovered}
             />
-            <div className="absolute left-0 top-1 bottom-1 w-px bg-[#A23F70] rounded-full z-20 pointer-events-none"></div>
+            <div 
+                className="absolute left-0 top-1 bottom-1 w-px bg-[#A23F70] rounded-full z-20"
+                onMouseEnter={() => setIsStripeHovered(true)}
+                onMouseLeave={() => setIsStripeHovered(false)}
+            ></div>
             <div 
                 className={`space-y-0 transition-all duration-200 ${
                     keys.length === 0 && draggedItem !== null 

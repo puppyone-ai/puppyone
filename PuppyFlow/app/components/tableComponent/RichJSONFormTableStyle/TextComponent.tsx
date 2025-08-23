@@ -1,5 +1,5 @@
 'use client';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import TextEditor from '../TextEditor';
 import { DragHandle, useSelection } from './ComponentRenderer';
 
@@ -37,6 +37,7 @@ const TextComponent = React.memo(
     );
 
     const { isPathSelected, setSelectedPath } = useSelection();
+    const [isStripeHovered, setIsStripeHovered] = useState(false);
     const isSelected = isPathSelected(path);
 
     return (
@@ -54,8 +55,13 @@ const TextComponent = React.memo(
           preventParentDrag={preventParentDrag}
           allowParentDrag={allowParentDrag}
           color="#388EC9"
+          forceVisible={isSelected || isStripeHovered}
         />
-        <div className="absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20 pointer-events-none"></div>
+        <div 
+          className="absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20"
+          onMouseEnter={() => setIsStripeHovered(true)}
+          onMouseLeave={() => setIsStripeHovered(false)}
+        ></div>
         <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
           <TextEditor
             preventParentDrag={preventParentDrag}
