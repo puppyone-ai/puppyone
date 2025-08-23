@@ -33,12 +33,12 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --prune origin
-          # Candidates: merged into main, exclude protected, and match temp/*, feature/*, fix/*
+          # Candidates: merged into main, exclude protected, and match temp/*, feature/*, fix/*, feat/* or revert-
           merged=$(git branch -r --merged origin/main --format "%(refname:short)" \
             | sort -u \
             | sed -n 's|^origin/||p' \
             | awk '($0!="HEAD" && $0!="main" && $0!="qubits" && $0!="convergency") {print}' \
-            | grep -E '^(temp|feature|fix)/|^revert-' || true)
+            | grep -E '^(temp|feature|fix|feat)/|^revert-' || true)
           printf "%s\n" $merged > merged.txt
           echo "count=$(wc -l < merged.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
           echo "Candidates (merged into main, protected filtered, name matched):"
@@ -74,8 +74,8 @@ jobs:
           : > to_delete.txt
           while IFS= read -r br; do
             [[ -z "$br" ]] && continue
-            # Count open PRs whose head matches owner:branch
-            cnt=$(gh pr list --state open --head "$br" --json number --jq 'length' || echo 0)
+            # Count open PRs whose head matches owner:branch (handles branches from forks and from this repo)
+            cnt=$(gh pr list --state open --head "${GH_OWNER}:$br" --json number --jq 'length' || echo 0)
             if [[ "$cnt" -eq 0 ]]; then
               echo "$br" >> to_delete.txt
             else
@@ -95,8 +95,8 @@ jobs:
           echo "DRY_RUN=$DRY_RUN"
           while IFS= read -r br; do
             [[ -z "$br" ]] && continue
-            # Final safeguard: only allow temp/*, feature/*, fix/*, or revert-
-            if [[ ! "$br" =~ ^(temp|feature|fix)/ && ! "$br" =~ ^revert- ]]; then
+            # Final safeguard: only allow temp/*, feature/*, fix/*, feat/*, or revert-
+            if [[ ! "$br" =~ ^(temp|feature|fix|feat)/ && ! "$br" =~ ^revert- ]]; then
               echo "Skip (not in allowed prefixes): $br"
               continue
             fi
