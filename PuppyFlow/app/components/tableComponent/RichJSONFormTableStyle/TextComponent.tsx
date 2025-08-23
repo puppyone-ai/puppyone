@@ -1,6 +1,7 @@
 'use client';
 import React, { useCallback, useMemo } from 'react';
 import TextEditor from '../TextEditor';
+import { DragHandle } from './ComponentRenderer';
 
 type TextComponentProps = {
   data: string;
@@ -36,7 +37,19 @@ const TextComponent = React.memo(
     );
 
     return (
-      <div className='w-full'>
+      <div className="bg-[#252525] shadow-sm relative group">
+        <DragHandle
+          data={data}
+          path={path}
+          parentKey={parentKey}
+          componentType="text"
+          readonly={readonly}
+          onDelete={onDelete}
+          preventParentDrag={preventParentDrag}
+          allowParentDrag={allowParentDrag}
+          color="#388EC9"
+        />
+        <div className="absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20 pointer-events-none"></div>
         <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
           <TextEditor
             preventParentDrag={preventParentDrag}

@@ -364,7 +364,7 @@ export const DragHandle = ({
 
     return (
         <div 
-            className="absolute left-0 top-1 bottom-1 w-[2px] rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50"
+            className="absolute left-0 top-1 bottom-1 w-px rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-50"
             style={{ backgroundColor: color }}
         >
             <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2">

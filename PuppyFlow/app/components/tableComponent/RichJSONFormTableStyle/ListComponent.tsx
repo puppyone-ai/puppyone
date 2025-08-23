@@ -228,9 +228,9 @@ const ListComponent = ({
                 onDelete={onDelete}
                 preventParentDrag={preventParentDrag}
                 allowParentDrag={allowParentDrag}
-                color="#ff9b4d"
+                color="#C18E4C"
             />
-            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#ff9b4d] rounded-full"></div>
+            <div className="absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20 pointer-events-none"></div>
             <div 
                 className={`space-y-0 transition-all duration-200 ${
                     data.length === 0 && draggedItem !== null 
@@ -327,15 +327,16 @@ const ListComponent = ({
                                             {/* Index Badge - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-hidden transition-colors duration-200 flex justify-center"
                                                     onMouseEnter={() => handleIndexHover(index, true)}
                                                     onMouseLeave={() => handleIndexHover(index, false)}
                                                 >
+                                                    <div className="absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none"></div>
                                                     <span 
                                                         className={`text-[10px] leading-[28px] font-plus-jakarta-sans italic transition-colors duration-200
                                                             ${isIndexHovered
-                                                                ? 'text-[#cc9968]'
-                                                                : 'text-[#ff9b4d] hover:text-[#ffb366]'
+                                                                ? 'text-[#A8773A]'
+                                                                : 'text-[#C18E4C] hover:text-[#D5A262]'
                                                             }`}
                                                     >
                                                         {index}

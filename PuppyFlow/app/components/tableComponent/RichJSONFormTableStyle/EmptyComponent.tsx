@@ -103,7 +103,8 @@ const EmptyComponent = ({
   // 如果显示为已选择状态（类似 TypeSelector 的 showAsCreated）
   if (showAsSelected && selectedTypeInfo) {
     return (
-      <div className='w-full'>
+      <div className='bg-[#252525] shadow-sm relative group'>
+        <div className="absolute left-0 top-1 bottom-1 w-px bg-[#3A3D45] rounded-full z-20 pointer-events-none"></div>
         <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
           <button
             onClick={() => setIsOpen(!isOpen)}
@@ -163,18 +164,17 @@ const EmptyComponent = ({
     );
   }
 
-  // 默认的类型选择状态
+  // 默认的类型选择状态（空元素初始不显示，hover时显示创建提示）
   return (
-    <div className='w-full'>
+    <div className='bg-[#252525] shadow-sm relative group'>
+      <div className="absolute left-0 top-1 bottom-1 w-px bg-[#3A3D45] rounded-full z-20 pointer-events-none"></div>
       <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
         {readonly ? (
           <div className='flex items-center h-[24px]'>
-            <div className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
-              type or text / list / dict
-            </div>
+            {/* 保持空白，不显示创建提示 */}
           </div>
         ) : (
-          <div className='flex items-center h-[24px] space-x-2'>
+          <div className='flex items-center h-[24px] space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-150'>
             <span className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
               create a type
             </span>

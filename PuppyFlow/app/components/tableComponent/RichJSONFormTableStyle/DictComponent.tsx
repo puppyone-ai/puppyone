@@ -355,9 +355,9 @@ const DictComponent = ({
                 onDelete={onDelete}
                 preventParentDrag={preventParentDrag}
                 allowParentDrag={allowParentDrag}
-                color="#9b7edb"
+                color="#C74F8A"
             />
-            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#9b7edb] rounded-full"></div>
+            <div className="absolute left-0 top-1 bottom-1 w-px bg-[#A23F70] rounded-full z-20 pointer-events-none"></div>
             <div 
                 className={`space-y-0 transition-all duration-200 ${
                     keys.length === 0 && draggedItem !== null 
@@ -451,17 +451,17 @@ const DictComponent = ({
                                     >
                                         <div className="flex items-stretch">
                                             {/* Key section - display only */}
-                                            <div className="flex-shrink-0 flex justify-center pl-[16px]">
+                                            <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-hidden transition-colors duration-200 flex justify-center"
                                                     onMouseEnter={() => handleKeyHover(key, true)}
                                                     onMouseLeave={() => handleKeyHover(key, false)}
                                                 >
                                                     <span 
                                                         className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic transition-colors duration-200
                                                             ${isKeyHovered
-                                                                ? 'text-[#a68bc7]'
-                                                                : 'text-[#9b7edb] hover:text-[#b194e8]'
+                                                                ? 'text-[#B1457A]'
+                                                                : 'text-[#C74F8A] hover:text-[#D96BA0]'
                                                             }`}
                                                         title={key}
                                                     >
