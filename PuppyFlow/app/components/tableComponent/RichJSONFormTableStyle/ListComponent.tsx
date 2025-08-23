@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
 import ListActionMenu from './ListActionMenu';
+import { useOverflowContext } from './OverflowContext';
 
 type ListComponentProps = {
     data: any[];
@@ -123,6 +124,71 @@ const ListComponent = ({
     const isSelected = isPathSelected(path);
     const accentColor = isSelected ? '#D5A262' : '#C18E4C';
     const [menuOpen, setMenuOpen] = React.useState(false);
+    const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
+    const handleRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        const menuId = `list-menu-${path}`;
+        if (!menuOpen || !handleRef.current) return;
+
+        let rafId: number | null = null;
+
+        const updatePosition = () => {
+            if (!handleRef.current) return;
+            const rect = handleRef.current.getBoundingClientRect();
+            const gap = 8;
+            const top = rect.top + rect.height / 2;
+            const left = rect.left - gap;
+
+            registerOverflowElement(
+                menuId,
+                (
+                    <div style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}>
+                        <ListActionMenu
+                            value={data}
+                            onClear={() => { onUpdate([]); setMenuOpen(false); }}
+                            onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
+                            onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
+                        />
+                    </div>
+                ),
+                handleRef.current
+            );
+        };
+
+        const loop = () => {
+            updatePosition();
+            rafId = requestAnimationFrame(loop);
+        };
+        loop();
+
+        const onDocClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (handleRef.current && handleRef.current.contains(target)) return;
+            if (target.closest('.rjft-action-menu')) return;
+            setMenuOpen(false);
+        };
+        const onScroll = () => updatePosition();
+        const onResize = () => updatePosition();
+        document.addEventListener('mousedown', onDocClick, true);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            unregisterOverflowElement(menuId);
+            document.removeEventListener('mousedown', onDocClick, true);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [menuOpen, data, onUpdate, onReplace, path, registerOverflowElement, unregisterOverflowElement]);
+
+    // Ensure only one menu is open globally
+    React.useEffect(() => {
+        const onCloseAll = () => setMenuOpen(false);
+        window.addEventListener('rjft:close-all-menus', onCloseAll as EventListener);
+        return () => window.removeEventListener('rjft:close-all-menus', onCloseAll as EventListener);
+    }, []);
 
     return (
         <div 
@@ -135,13 +201,18 @@ const ListComponent = ({
             <div 
                 className="absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20"
             >
-                {(isSelected || isHovered) && (
+                {(isSelected || isHovered || menuOpen) && (
                     <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                         <div
                             className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
                             style={{ borderColor: `${accentColor}50` }}
                             aria-hidden
-                            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                                setMenuOpen(true); 
+                            }}
+                            ref={handleRef}
                         >
                             <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
                             <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
@@ -150,55 +221,19 @@ const ListComponent = ({
                     </div>
                 )}
             </div>
-            {menuOpen && !readonly && (
-                <ListActionMenu
-                    className="absolute left-2 top-2 z-50"
-                    value={data}
-                    onClear={() => { onUpdate([]); setMenuOpen(false); }}
-                    onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
-                    onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
-                />
-            )}
+            {/* menu rendered via portal */}
             <div 
                 className={`space-y-0 transition-all duration-200`}
                 
             >
                 {data.length === 0 ? (
-                    // Empty state - 简洁版本
+                    // Empty state - 不显示“click + to add”，仅提示为空
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
-                        {readonly ? (
-                            <div className="flex items-center h-[24px]">
-                                <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty list
-                                </div>
+                        <div className="flex items-center h-[24px]">
+                            <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
+                                empty list
                             </div>
-                        ) : (
-                            <div className="flex items-center h-[24px] space-x-2">
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty list, click
-                                </span>
-                                <button
-                                    onClick={addEmptyItem}
-                                    className="flex items-center justify-center w-6 h-5 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md text-[#CDCDCD] hover:text-white transition-all duration-200"
-                                    title="Add first item"
-                                >
-                                    <svg 
-                                        className="w-3 h-3" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    to add
-                                </span>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -286,31 +321,32 @@ const ListComponent = ({
                             );
                         })}
                         
-                        {/* Add New Item - 只在非空时显示 */}
-                        {!readonly && (
-                            <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
-                                <button
-                                    onClick={addEmptyItem}
-                                    className="group w-6 h-6 flex items-center justify-center rounded-full 
-                                             bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/list:opacity-100"
-                                    title="Add new item"
-                                >
-                                    <svg 
-                                        className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                            </div>
-                        )}
+                        {/* Items rendered above */}
                     </>
+                )}
+                {/* Add New Item - 无论空与否都显示底部加号（只读除外） */}
+                {!readonly && (
+                    <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
+                        <button
+                            onClick={addEmptyItem}
+                            className="group w-6 h-6 flex items-center justify-center rounded-full 
+                                     bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
+                                     transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/list:opacity-100"
+                            title="Add new item"
+                        >
+                            <svg 
+                                className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
+                                viewBox="0 0 16 16" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <path d="M8 3v10M3 8h10" />
+                            </svg>
+                        </button>
+                    </div>
                 )}
             </div>
         </div>
