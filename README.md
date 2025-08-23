@@ -47,12 +47,10 @@ PuppyAgent is a context‑centric workspace where agents connect contexts to aut
 
 Common use cases:
 
-Use cases: *Deep Research on Local Knowledge | Key Data Ingestion | Agentive Archive | RAG Chatbot | Content Generation*
-
-- Document Q&A and knowledge assistants (RAG)
-- Content extraction, parsing, and transformation pipelines
-- Data enrichment, categorization, and routing
-
+- Deep Research and document Q&A (Agentic RAG)
+- Content extractio
+- Agentive Archive
+- Content Generation
 
 ## Quick Start
 
@@ -69,7 +67,7 @@ Choose ONE (alternatives—pick just one):
 
   Prereqs: Python 3.10+, Node.js 18+, npm
 
-  1) Start storage (http://127.0.0.1:8002)
+  1) Start storage
   ```bash
   cd PuppyStorage
   python3 -m venv .venv && source .venv/bin/activate
@@ -77,7 +75,7 @@ Choose ONE (alternatives—pick just one):
   python server/storage_server.py
   ```
 
-  2) Start engine (http://127.0.0.1:8001)
+  2) Start engine
   ```bash
   cd ../PuppyEngine
   python3 -m venv .venv && source .venv/bin/activate
@@ -85,7 +83,7 @@ Choose ONE (alternatives—pick just one):
   python Server/EngineServer.py
   ```
 
-  3) Start frontend (http://localhost:4000)
+  3) Start frontend
   ```bash
   cd ../PuppyFlow
   npm install
