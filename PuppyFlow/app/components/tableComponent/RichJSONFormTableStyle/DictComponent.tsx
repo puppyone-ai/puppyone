@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle, useSelection } from './ComponentRenderer';
 
 type DictComponentProps = {
     data: Record<string, any>;
@@ -343,8 +343,15 @@ const DictComponent = ({
         setShowMenu(false);
     };
 
+    const { isPathSelected, setSelectedPath } = useSelection();
+    const isSelected = isPathSelected(path);
+
     return (
-        <div className="bg-[#252525] shadow-sm relative group">
+        <div 
+            className={`bg-[#252525] shadow-sm relative group p-[2px]`}
+            style={{ outline: 'none', boxShadow: isSelected ? 'inset 0 0 0 2px #C74F8A' : 'none' }}
+            onClick={(e) => { e.stopPropagation(); setSelectedPath(path); }}
+        >
             {/* Unified Drag Handle */}
             <DragHandle
                 data={data}

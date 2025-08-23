@@ -7,7 +7,7 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
-import ComponentRenderer, { HoverProvider, DragProvider } from './ComponentRenderer';
+import ComponentRenderer, { HoverProvider, DragProvider, SelectionProvider } from './ComponentRenderer';
 
 type JSONViewerProps = {
     preventParentDrag: () => void,
@@ -355,6 +355,7 @@ const JSONViewer = ({
     return (
         <DragProvider>
             <HoverProvider>
+                <SelectionProvider>
                 <OverflowProvider>
                     <div 
                         ref={containerRef}
@@ -367,6 +368,7 @@ const JSONViewer = ({
                         </div>
                     </div>
                 </OverflowProvider>
+                </SelectionProvider>
             </HoverProvider>
         </DragProvider>
     );
