@@ -7,7 +7,24 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
-import ComponentRenderer, { HoverProvider, DragProvider } from './ComponentRenderer';
+import ComponentRenderer, { HoverProvider, SelectionProvider, useSelection } from './ComponentRenderer';
+
+// Helper: clear selection when clicking outside the editor container
+const ClearSelectionOnOutsideClick = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
+    const { setSelectedPath } = useSelection();
+    useEffect(() => {
+        const handleDocumentMouseDown = (e: MouseEvent) => {
+            const container = containerRef.current;
+            if (!container) return;
+            if (!container.contains(e.target as Node)) {
+                setSelectedPath(null);
+            }
+        };
+        document.addEventListener('mousedown', handleDocumentMouseDown);
+        return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+    }, [setSelectedPath, containerRef]);
+    return null;
+};
 
 type JSONViewerProps = {
     preventParentDrag: () => void,
@@ -79,6 +96,8 @@ const JSONViewer = ({
         }
     }, [value]);
 
+    
+
     // 判断组件类型
     const getComponentType = (data: JSONData | null): ComponentType => {
         if (typeof data === 'string') return 'text';
@@ -95,10 +114,10 @@ const JSONViewer = ({
                 newData = "";
                 break;
             case 'dict':
-                newData = {};
+                newData = { key1: null, key2: null }; // 预制两个空位
                 break;
             case 'list':
-                newData = [];
+                newData = [null, null]; // 预制两个空位
                 break;
         }
         
@@ -353,12 +372,13 @@ const JSONViewer = ({
     }
 
     return (
-        <DragProvider>
-            <HoverProvider>
-                <OverflowProvider>
+        <HoverProvider>
+            <SelectionProvider>
+            <OverflowProvider>
+                    <ClearSelectionOnOutsideClick containerRef={containerRef} />
                     <div 
                         ref={containerRef}
-                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px] pl-[8px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[4px] pl-0 ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
                         style={{ width: actualWidth, height: actualHeight }}
                         data-rich-json-form="true"
                     >
@@ -366,9 +386,9 @@ const JSONViewer = ({
                         {renderMainContent()}
                         </div>
                     </div>
-                </OverflowProvider>
-            </HoverProvider>
-        </DragProvider>
+            </OverflowProvider>
+            </SelectionProvider>
+        </HoverProvider>
     );
 };
 

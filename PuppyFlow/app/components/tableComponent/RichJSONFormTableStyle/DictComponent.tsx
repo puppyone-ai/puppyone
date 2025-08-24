@@ -1,6 +1,8 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
+import DictActionMenu from './DictActionMenu';
+import { useOverflowContext } from './OverflowContext';
 
 type DictComponentProps = {
     data: Record<string, any>;
@@ -12,6 +14,7 @@ type DictComponentProps = {
     parentKey?: string | number;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
+    onReplace?: (newValue: any) => void;
 }
 
 const DictComponent = ({ 
@@ -23,15 +26,15 @@ const DictComponent = ({
     onDelete,
     parentKey,
     preventParentDrag, 
-    allowParentDrag 
+    allowParentDrag,
+    onReplace,
 }: DictComponentProps) => {
-    const [dragOverKey, setDragOverKey] = useState<string | null>(null);
-    const [dragOverPosition, setDragOverPosition] = useState<'before' | 'after' | null>(null);
+    const [dragOverKey, setDragOverKey] = useState<string | null>(null); // unused after removing DnD
+    const [dragOverPosition, setDragOverPosition] = useState<'before' | 'after' | null>(null); // unused after removing DnD
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const [showMenu, setShowMenu] = useState(false);
     
     const { hoveredPath, setHoveredPath, isPathHovered } = useHover();
-    const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const keys = Object.keys(data);
 
@@ -138,156 +141,10 @@ const DictComponent = ({
         return preview;
     };
 
-    const handleDragEnd = () => {
-        clearDraggedItem();
-        setDragOverKey(null);
-        setDragOverPosition(null);
-        setSelectedKey(null);
-        allowParentDrag();
-    };
-
-    // Handle drag over for component reordering within dict
-    const handleDragOver = (e: React.DragEvent, key: string, position: 'before' | 'after') => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if this is a valid drop target for component dragging
-        if (draggedItem === null) return;
-        
-        e.dataTransfer.dropEffect = 'move';
-        setDragOverKey(key);
-        setDragOverPosition(position);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        // Only clear if we're actually leaving the component
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setDragOverKey(null);
-            setDragOverPosition(null);
-        }
-    };
-
-    // Handle drop for component reordering within dict
-    const handleDrop = (e: React.DragEvent, dropKey: string, position: 'before' | 'after') => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (draggedItem === null) return;
-        
-        
-        let newData = { ...data };
-        const currentKeys = Object.keys(newData);
-        
-        // Check if dragging within same dict by comparing parent paths
-        // Extract parent path from draggedPath
-        const getParentPath = (childPath: string): string => {
-            if (!childPath) return '';
-            const lastDot = childPath.lastIndexOf('.');
-            const lastBracket = childPath.lastIndexOf('[');
-            const lastSeparator = Math.max(lastDot, lastBracket);
-            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
-        };
-        
-        const draggedParentPath = getParentPath(draggedPath || '');
-        const isSameDict = draggedParentPath === path;
-        
-        // If dragging from same dict, handle reordering
-        if (isSameDict && draggedKey && typeof draggedKey === 'string' && currentKeys.includes(draggedKey)) {
-            delete newData[draggedKey];
-            
-            // 同字典内重排，不需要删除源元素
-            const shouldDelete = false;
-            
-            // 重新构建对象
-            const orderedData: Record<string, any> = {};
-            const keysToReorder = Object.keys(newData);
-            const dropIndex = keysToReorder.indexOf(dropKey);
-            
-            keysToReorder.forEach((key, index) => {
-                if (dragOverPosition === 'before' && index === dropIndex) {
-                    orderedData[draggedKey] = draggedItem;
-                }
-                orderedData[key] = newData[key];
-                if (dragOverPosition === 'after' && index === dropIndex) {
-                    orderedData[draggedKey] = draggedItem;
-                }
-            });
-            
-            onUpdate(orderedData);
-            clearDraggedItem(shouldDelete);
-            setDragOverKey(null);
-            setDragOverPosition(null);
-            return;
-        }
-        
-        // Generate new key for the dropped item
-        let newKey: string;
-        if (draggedParentType === 'dict' && typeof draggedKey === 'string') {
-            // Keep the original key if possible
-            newKey = currentKeys.includes(draggedKey as string) ? generateRandomKey() : draggedKey as string;
-        } else {
-            newKey = generateRandomKey();
-        }
-        
-        // Rebuild object with proper ordering
-        const orderedData: Record<string, any> = {};
-        const keysToReorder = Object.keys(newData);
-        const dropIndex = keysToReorder.indexOf(dropKey);
-        
-        keysToReorder.forEach((key, index) => {
-            if (position === 'before' && index === dropIndex) {
-                orderedData[newKey] = draggedItem;
-            }
-            orderedData[key] = newData[key];
-            if (position === 'after' && index === dropIndex) {
-                orderedData[newKey] = draggedItem;
-            }
-        });
-        
-        // If dropping at the end
-        if (!keysToReorder.includes(dropKey)) {
-            orderedData[newKey] = draggedItem;
-        }
-        
-        onUpdate(orderedData);
-        
-        // 在下一个渲染帧删除源元素，确保添加操作先完成
-        if (!isSameDict && sourceOnDelete) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    sourceOnDelete();
-                });
-            });
-        }
-        
-        clearDraggedItem();
-        setDragOverKey(null);
-        setDragOverPosition(null);
-    };
+    // Drag-and-drop disabled: remove handlers
 
 
-    // Handle dropping on empty dict
-    const handleEmptyDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (draggedItem === null || keys.length > 0) return;
-        
-        // Always call source delete for empty drop - we're moving the item here
-        if (sourceOnDelete) {
-            sourceOnDelete();
-        }
-        
-        let newKey: string;
-        if (draggedParentType === 'dict' && typeof draggedKey === 'string') {
-            newKey = draggedKey;
-        } else {
-            newKey = generateRandomKey();
-        }
-        
-        onUpdate({ [newKey]: draggedItem });
-        clearDraggedItem();
-    };
+    // Drag-and-drop disabled
 
     // 构建当前key的完整路径
     const getKeyPath = (key: string) => {
@@ -343,39 +200,112 @@ const DictComponent = ({
         setShowMenu(false);
     };
 
+    const { isPathSelected, setSelectedPath } = useSelection();
+    const [isHovered, setIsHovered] = React.useState(false);
+    const isSelected = isPathSelected(path);
+    const accentColor = isSelected ? '#B1457A' : '#C74F8A';
+    const [menuOpen, setMenuOpen] = React.useState(false);
+    const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
+    const handleRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        const menuId = `dict-menu-${path}`;
+        if (!menuOpen || !handleRef.current) return;
+
+        let rafId: number | null = null;
+
+        const updatePosition = () => {
+            if (!handleRef.current) return;
+            const rect = handleRef.current.getBoundingClientRect();
+            const gap = 8;
+            const top = rect.top + rect.height / 2;
+            const left = rect.left - gap;
+
+            registerOverflowElement(
+                menuId,
+                (
+                    <div style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}>
+                        <DictActionMenu
+                            value={data}
+                            onClear={() => { onUpdate({}); setMenuOpen(false); }}
+                            onTransferToList={() => { onReplace && onReplace([null, null]); setMenuOpen(false); }}
+                            onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
+                        />
+                    </div>
+                ),
+                handleRef.current
+            );
+        };
+
+        const loop = () => {
+            updatePosition();
+            rafId = requestAnimationFrame(loop);
+        };
+        loop();
+
+        const onDocClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (handleRef.current && handleRef.current.contains(target)) return;
+            if (target.closest('.rjft-action-menu')) return;
+            setMenuOpen(false);
+        };
+        const onScroll = () => updatePosition();
+        const onResize = () => updatePosition();
+        document.addEventListener('mousedown', onDocClick, true);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            unregisterOverflowElement(menuId);
+            document.removeEventListener('mousedown', onDocClick, true);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [menuOpen, data, onUpdate, onReplace, path, registerOverflowElement, unregisterOverflowElement]);
+
+    // Ensure only one menu is open globally
+    React.useEffect(() => {
+        const onCloseAll = () => setMenuOpen(false);
+        window.addEventListener('rjft:close-all-menus', onCloseAll as EventListener);
+        return () => window.removeEventListener('rjft:close-all-menus', onCloseAll as EventListener);
+    }, []);
+
     return (
-        <div className="bg-[#252525] shadow-sm relative group">
-            {/* Unified Drag Handle */}
-            <DragHandle
-                data={data}
-                path={path}
-                parentKey={parentKey}
-                componentType="dict"
-                readonly={readonly}
-                onDelete={onDelete}
-                preventParentDrag={preventParentDrag}
-                allowParentDrag={allowParentDrag}
-                color="#9b7edb"
-            />
-            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#9b7edb] rounded-full"></div>
+        <div 
+            className={`bg-[#252525] shadow-sm relative group group/dict p-[2px]`}
+            style={{ outline: 'none', boxShadow: isSelected ? 'inset 0 0 0 2px #C74F8A' : 'none' }}
+            onClick={(e) => { e.stopPropagation(); setSelectedPath(path); }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             <div 
-                className={`space-y-0 transition-all duration-200 ${
-                    keys.length === 0 && draggedItem !== null 
-                        ? 'bg-purple-400/10 border-2 border-dashed border-purple-400/50 rounded-md p-2' 
-                        : ''
-                }`}
-                onDragOver={(e) => {
-                    if (keys.length === 0 && draggedItem !== null) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                    }
-                }}
-                onDragEnter={(e) => {
-                    if (keys.length === 0 && draggedItem !== null) {
-                        e.preventDefault();
-                    }
-                }}
-                onDrop={handleEmptyDrop}
+                className="absolute left-0 top-1 bottom-1 w-px bg-[#A23F70] rounded-full z-20"
+            >
+                {(isSelected || isHovered || menuOpen) && (
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                        <div
+                            className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                            style={{ borderColor: `${accentColor}50` }}
+                            aria-hidden
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                                setMenuOpen(true); 
+                            }}
+                            ref={handleRef}
+                        >
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {/* menu rendered via portal */}
+            <div 
+                className={`space-y-0 transition-all duration-200`}
+                
             >
                 {keys.length === 0 ? (
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
@@ -418,7 +348,7 @@ const DictComponent = ({
                         {keys.map((key, index) => {
                             const keyPath = getKeyPath(key);
                             const isKeyHovered = isPathHovered(keyPath);
-                            const showDropIndicator = dragOverKey === key && draggedItem !== null;
+                            const showDropIndicator = false; // DnD disabled
                             
                             return (
                                 <React.Fragment key={key}>
@@ -440,28 +370,21 @@ const DictComponent = ({
                                                     ? 'bg-[#CDCDCD]/10' 
                                                     : 'hover:bg-[#6D7177]/10'
                                         }`}
-                                        onDragOver={(e) => {
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const midpoint = rect.top + rect.height / 2;
-                                            const position = e.clientY < midpoint ? 'before' : 'after';
-                                            handleDragOver(e, key, position);
-                                        }}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDrop(e, key, dragOverPosition || 'after')}
+                                        
                                     >
                                         <div className="flex items-stretch">
                                             {/* Key section - display only */}
-                                            <div className="flex-shrink-0 flex justify-center pl-[16px]">
+                                            <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-hidden transition-colors duration-200 flex justify-center"
                                                     onMouseEnter={() => handleKeyHover(key, true)}
                                                     onMouseLeave={() => handleKeyHover(key, false)}
                                                 >
                                                     <span 
                                                         className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic transition-colors duration-200
                                                             ${isKeyHovered
-                                                                ? 'text-[#a68bc7]'
-                                                                : 'text-[#9b7edb] hover:text-[#b194e8]'
+                                                                ? 'text-[#B1457A]'
+                                                                : 'text-[#C74F8A] hover:text-[#D96BA0]'
                                                             }`}
                                                         title={key}
                                                     >
@@ -510,13 +433,13 @@ const DictComponent = ({
                             <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
                                 <button
                                     onClick={addEmptyKey}
-                                    className="group w-6 h-4 flex items-center justify-center rounded-[3px] 
-                                             bg-[#252525] hover:bg-[#2a2a2a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict-container:opacity-100"
+                                    className="group w-6 h-6 flex items-center justify-center rounded-full 
+                                             bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
+                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict:opacity-100"
                                     title="Add new key"
                                 >
                                     <svg 
-                                        className="w-3 h-2.5 text-[#CDCDCD] transition-transform duration-200 group-hover:scale-110" 
+                                        className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
                                         viewBox="0 0 16 16" 
                                         fill="none" 
                                         stroke="currentColor" 

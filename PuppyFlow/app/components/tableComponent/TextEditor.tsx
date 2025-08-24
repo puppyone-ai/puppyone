@@ -35,6 +35,10 @@ const textEditorThemeData: Monaco.editor.IStandaloneThemeData = {
     'editor.inactiveSelectionBackground': '#3A3D41',
     'editorIndentGuide.background': 'rgba(109, 113, 119, 0.3)',
     'editorIndentGuide.activeBackground': 'rgba(109, 113, 119, 0.6)',
+    // 禁用单词与符号高亮的背景色
+    'editor.wordHighlightBackground': '#00000000',
+    'editor.wordHighlightStrongBackground': '#00000000',
+    'editor.selectionHighlightBackground': '#00000000',
   },
 };
 
@@ -253,6 +257,9 @@ const TextEditor = ({
           folding: false,
           renderLineHighlight: 'none',
           hideCursorInOverviewRuler: true,
+          // 关闭光标所在词/符号的灰色背景高亮
+          occurrencesHighlight: 'off',
+          selectionHighlight: false,
         }}
         onMount={handleEditorDidMount}
       />

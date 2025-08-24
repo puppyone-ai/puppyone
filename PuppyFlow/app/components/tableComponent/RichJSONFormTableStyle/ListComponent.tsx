@@ -1,6 +1,8 @@
 'use client'
 import React, { useState } from 'react';
-import ComponentRenderer, { createEmptyElement, useHover, useDrag, DragHandle } from './ComponentRenderer';
+import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
+import ListActionMenu from './ListActionMenu';
+import { useOverflowContext } from './OverflowContext';
 
 type ListComponentProps = {
     data: any[];
@@ -12,6 +14,7 @@ type ListComponentProps = {
     parentKey?: string | number;
     preventParentDrag: () => void;
     allowParentDrag: () => void;
+    onReplace?: (newValue: any) => void;
 }
 
 const ListComponent = ({ 
@@ -22,14 +25,14 @@ const ListComponent = ({
     onUpdate, 
     onDelete,
     preventParentDrag, 
-    allowParentDrag 
+    allowParentDrag,
+    onReplace,
 }: ListComponentProps) => {
-    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-    const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null); // unused after removing DnD
+    const [selectedIndex, setSelectedIndex] = useState<number | null>(null); // unused after removing DnD
     const [showMenu, setShowMenu] = useState(false);
     
     const { hoveredPath, setHoveredPath, isPathHovered } = useHover();
-    const { draggedItem, draggedPath, draggedKey, draggedParentType, sourceOnDelete, setDraggedItem, clearDraggedItem } = useDrag();
 
     const deleteItem = (index: number) => {
         const newData = data.filter((_, i) => i !== index);
@@ -56,91 +59,7 @@ const ListComponent = ({
     };
 
 
-    const handleDragEnd = () => {
-        setDragOverIndex(null);
-        setSelectedIndex(null);
-        // 恢复父级拖拽
-        allowParentDrag();
-    };
-
-    // Handle drag over for component reordering within list
-    const handleDragOver = (e: React.DragEvent, index: number, position: 'before' | 'after') => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Check if this is a valid drop target for component dragging
-        if (draggedItem === null) return;
-        
-        e.dataTransfer.dropEffect = 'move';
-        setDragOverIndex(index);
-    };
-
-    const handleDragLeave = (e: React.DragEvent) => {
-        // Only clear if we're actually leaving the component
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-            setDragOverIndex(null);
-        }
-    };
-
-    // Handle drop for component reordering within list
-    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (draggedItem === null) return;
-        
-        
-        // Check if dragging within same list by comparing parent paths
-        // Extract parent path from draggedPath
-        const getParentPath = (childPath: string): string => {
-            if (!childPath) return '';
-            const lastDot = childPath.lastIndexOf('.');
-            const lastBracket = childPath.lastIndexOf('[');
-            const lastSeparator = Math.max(lastDot, lastBracket);
-            return lastSeparator === -1 ? '' : childPath.substring(0, lastSeparator);
-        };
-        
-        const draggedParentPath = getParentPath(draggedPath || '');
-        const isSameList = draggedParentPath === path;
-        
-        if (isSameList && typeof draggedKey === 'number') {
-            // Internal reordering - 不需要删除源元素
-            const newData = [...data];
-            const item = newData[draggedKey];
-            
-            // Remove from old position
-            newData.splice(draggedKey, 1);
-            
-            // Insert at new position
-            const insertIndex = draggedKey < dropIndex ? dropIndex - 1 : dropIndex;
-            newData.splice(insertIndex, 0, item);
-            
-            onUpdate(newData);
-            
-            // 清除拖拽状态但不调用删除
-            clearDraggedItem(false);  // false表示不删除源元素
-            setDragOverIndex(null);
-            return;
-        }
-        
-        // 跨容器移动 - 先添加，后删除
-        const newData = [...data];
-        newData.splice(dropIndex, 0, draggedItem);
-        
-        onUpdate(newData);
-        
-        // 在下一个渲染帧删除源元素，确保添加操作先完成
-        if (!isSameList && sourceOnDelete) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    sourceOnDelete();
-                });
-            });
-        }
-        
-        clearDraggedItem();
-        setDragOverIndex(null);
-    };
+    // Drag-and-drop disabled: remove handlers
 
 
     const handleMenuClick = (e: React.MouseEvent) => {
@@ -198,101 +117,130 @@ const ListComponent = ({
     };
 
 
-    // Handle dropping on empty list
-    const handleEmptyDrop = (e: React.DragEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        if (draggedItem === null || data.length > 0) return;
-        
-        
-        // Always call source delete for empty drop - we're moving the item here
-        if (sourceOnDelete) {
-            sourceOnDelete();
-        }
-        
-        // Add the dragged item to the empty list
-        onUpdate([draggedItem]);
-        clearDraggedItem();
-    };
+    // Drag-and-drop disabled
+
+    const { isPathSelected, setSelectedPath } = useSelection();
+    const [isHovered, setIsHovered] = React.useState(false);
+    const isSelected = isPathSelected(path);
+    const accentColor = isSelected ? '#D5A262' : '#C18E4C';
+    const [menuOpen, setMenuOpen] = React.useState(false);
+    const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
+    const handleRef = React.useRef<HTMLDivElement | null>(null);
+
+    React.useEffect(() => {
+        const menuId = `list-menu-${path}`;
+        if (!menuOpen || !handleRef.current) return;
+
+        let rafId: number | null = null;
+
+        const updatePosition = () => {
+            if (!handleRef.current) return;
+            const rect = handleRef.current.getBoundingClientRect();
+            const gap = 8;
+            const top = rect.top + rect.height / 2;
+            const left = rect.left - gap;
+
+            registerOverflowElement(
+                menuId,
+                (
+                    <div style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}>
+                        <ListActionMenu
+                            value={data}
+                            onClear={() => { onUpdate([]); setMenuOpen(false); }}
+                            onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
+                            onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
+                        />
+                    </div>
+                ),
+                handleRef.current
+            );
+        };
+
+        const loop = () => {
+            updatePosition();
+            rafId = requestAnimationFrame(loop);
+        };
+        loop();
+
+        const onDocClick = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (handleRef.current && handleRef.current.contains(target)) return;
+            if (target.closest('.rjft-action-menu')) return;
+            setMenuOpen(false);
+        };
+        const onScroll = () => updatePosition();
+        const onResize = () => updatePosition();
+        document.addEventListener('mousedown', onDocClick, true);
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            unregisterOverflowElement(menuId);
+            document.removeEventListener('mousedown', onDocClick, true);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [menuOpen, data, onUpdate, onReplace, path, registerOverflowElement, unregisterOverflowElement]);
+
+    // Ensure only one menu is open globally
+    React.useEffect(() => {
+        const onCloseAll = () => setMenuOpen(false);
+        window.addEventListener('rjft:close-all-menus', onCloseAll as EventListener);
+        return () => window.removeEventListener('rjft:close-all-menus', onCloseAll as EventListener);
+    }, []);
 
     return (
-        <div className="bg-[#252525] shadow-sm relative group">
-            {/* Unified Drag Handle */}
-            <DragHandle
-                data={data}
-                path={path}
-                parentKey={data.length}
-                componentType="list"
-                readonly={readonly}
-                onDelete={onDelete}
-                preventParentDrag={preventParentDrag}
-                allowParentDrag={allowParentDrag}
-                color="#ff9b4d"
-            />
-            <div className="absolute left-0 top-1 bottom-1 w-[2px] bg-[#ff9b4d] rounded-full"></div>
+        <div 
+            className={`bg-[#252525] shadow-sm relative group group/list p-[2px]`}
+            style={{ outline: 'none', boxShadow: isSelected ? 'inset 0 0 0 2px #C18E4C' : 'none' }}
+            onClick={(e) => { e.stopPropagation(); setSelectedPath(path); }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             <div 
-                className={`space-y-0 transition-all duration-200 ${
-                    data.length === 0 && draggedItem !== null 
-                        ? 'bg-blue-400/10 border-2 border-dashed border-blue-400/50 rounded-md p-2' 
-                        : ''
-                }`}
-                onDragOver={(e) => {
-                    if (data.length === 0 && draggedItem !== null) {
-                        e.preventDefault();
-                        e.dataTransfer.dropEffect = 'move';
-                    }
-                }}
-                onDragEnter={(e) => {
-                    if (data.length === 0 && draggedItem !== null) {
-                        e.preventDefault();
-                    }
-                }}
-                onDrop={handleEmptyDrop}
+                className="absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20"
+            >
+                {(isSelected || isHovered || menuOpen) && (
+                    <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+                        <div
+                            className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                            style={{ borderColor: `${accentColor}50` }}
+                            aria-hidden
+                            onClick={(e) => { 
+                                e.stopPropagation(); 
+                                window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                                setMenuOpen(true); 
+                            }}
+                            ref={handleRef}
+                        >
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                            <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+            {/* menu rendered via portal */}
+            <div 
+                className={`space-y-0 transition-all duration-200`}
+                
             >
                 {data.length === 0 ? (
-                    // Empty state - 简洁版本
+                    // Empty state - 不显示“click + to add”，仅提示为空
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
-                        {readonly ? (
-                            <div className="flex items-center h-[24px]">
-                                <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty list
-                                </div>
+                        <div className="flex items-center h-[24px]">
+                            <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
+                                empty list
                             </div>
-                        ) : (
-                            <div className="flex items-center h-[24px] space-x-2">
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty list, click
-                                </span>
-                                <button
-                                    onClick={addEmptyItem}
-                                    className="flex items-center justify-center w-6 h-5 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md text-[#CDCDCD] hover:text-white transition-all duration-200"
-                                    title="Add first item"
-                                >
-                                    <svg 
-                                        className="w-3 h-3" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    to add
-                                </span>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <>
                         {data.map((item, index) => {
                             const indexPath = getIndexPath(index);
                             const isIndexHovered = isPathHovered(indexPath);
-                            const showDropIndicator = dragOverIndex === index && draggedItem !== null;
+                            const showDropIndicator = false; // DnD disabled
                             
                             return (
                                 <React.Fragment key={index}>
@@ -314,28 +262,24 @@ const ListComponent = ({
                                                     ? 'bg-[#CDCDCD]/10'
                                                     : 'hover:bg-[#6D7177]/10'
                                         }`}
-                                        onDragOver={(e) => {
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const midpoint = rect.top + rect.height / 2;
-                                            const position = e.clientY < midpoint ? 'before' : 'after';
-                                            handleDragOver(e, index, position);
-                                        }}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDrop(e, index)}
+                                        onMouseEnter={() => setHoveredPath(indexPath)}
+                                        onMouseLeave={() => setHoveredPath(null)}
+                                        
                                     >
                                         <div className="flex items-stretch">
                                             {/* Index Badge - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-                                                    className="w-[64px] pt-[4px] bg-transparent rounded-md overflow-hidden transition-colors duration-200 flex justify-center"
+                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-hidden transition-colors duration-200 flex justify-center"
                                                     onMouseEnter={() => handleIndexHover(index, true)}
                                                     onMouseLeave={() => handleIndexHover(index, false)}
                                                 >
+                                                    <div className="absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none"></div>
                                                     <span 
                                                         className={`text-[10px] leading-[28px] font-plus-jakarta-sans italic transition-colors duration-200
                                                             ${isIndexHovered
-                                                                ? 'text-[#cc9968]'
-                                                                : 'text-[#ff9b4d] hover:text-[#ffb366]'
+                                                                ? 'text-[#A8773A]'
+                                                                : 'text-[#C18E4C] hover:text-[#D5A262]'
                                                             }`}
                                                     >
                                                         {index}
@@ -377,31 +321,32 @@ const ListComponent = ({
                             );
                         })}
                         
-                        {/* Add New Item - 只在非空时显示 */}
-                        {!readonly && (
-                            <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
-                                <button
-                                    onClick={addEmptyItem}
-                                    className="group w-6 h-4 flex items-center justify-center rounded-[3px] 
-                                             bg-[#252525] hover:bg-[#2a2a2a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/list:opacity-100"
-                                    title="Add new item"
-                                >
-                                    <svg 
-                                        className="w-3 h-2.5 text-[#CDCDCD] transition-transform duration-200 group-hover:scale-110" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                            </div>
-                        )}
+                        {/* Items rendered above */}
                     </>
+                )}
+                {/* Add New Item - 无论空与否都显示底部加号（只读除外） */}
+                {!readonly && (
+                    <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
+                        <button
+                            onClick={addEmptyItem}
+                            className="group w-6 h-6 flex items-center justify-center rounded-full 
+                                     bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
+                                     transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/list:opacity-100"
+                            title="Add new item"
+                        >
+                            <svg 
+                                className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
+                                viewBox="0 0 16 16" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <path d="M8 3v10M3 8h10" />
+                            </svg>
+                        </button>
+                    </div>
                 )}
             </div>
         </div>
