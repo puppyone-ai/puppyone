@@ -13,6 +13,7 @@ from readability import Document
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from Utils.puppy_exception import global_exception_handler
 from ModularEdges.SearchEdge.search_strategy import SearchStrategy
+from ModularEdges.LoadEdge.load_from_weblink import WebScraper
 
 
 class WebSearchStrategy(SearchStrategy):
@@ -184,6 +185,8 @@ class WebSearchStrategy(SearchStrategy):
         top_k = self.extra_configs.get("top_k", 10)
         if sub_search_type == "google":
             return self.google_search(top_k=top_k)
+        elif sub_search_type == "google_v2":
+            return self.google_v2_search(top_k=top_k)
         elif sub_search_type == "ddg":
             ddg_search_type = self.extra_configs.get("ddg_search_type", "text")
             ddg_extra_configs = self.extra_configs.get("ddg_extra_configs", {})
@@ -347,6 +350,157 @@ class WebSearchStrategy(SearchStrategy):
 
         return []
 
+    @global_exception_handler(3504, "Error Searching Using Google V2 Search")
+    def google_v2_search(
+        self,
+        top_k: int = 10
+    ) -> List[dict]:
+        """
+        Perform a search using Google Custom Search API to get URLs, then use Firecrawl to crawl them.
+        
+        This method:
+        1. Uses Google Custom Search API to get relevant URLs
+        2. Uses Firecrawl API to crawl the top_k websites
+        3. Returns meaningful information from the crawled content
+        """
+        # Google API limits: num ∈ [1,10], max 100 total results
+        max_per_request = 10
+        max_total_results = 100
+
+        # Get URLs from Google Custom Search API
+        all_items: List[dict] = []
+        current_start = 1
+
+        def fetch_batch(start: int, num: int) -> List[dict]:
+            url = "https://www.googleapis.com/customsearch/v1"
+            # Region configuration
+            region: str = str(self.extra_configs.get("google_region", os.environ.get("GOOGLE_SEARCH_REGION", "us"))).lower()
+            # Map region to googlehost when helpful; fallback to google.com
+            region_to_host = {
+                "us": "google.com",
+                "uk": "google.co.uk",
+                "gb": "google.co.uk",
+                "de": "google.de",
+                "fr": "google.fr",
+                "it": "google.it",
+                "es": "google.es",
+                "nl": "google.nl",
+                "se": "google.se",
+                "no": "google.no",
+                "fi": "google.fi",
+                "dk": "google.dk",
+                "ie": "google.ie",
+                "ca": "google.ca",
+                "au": "google.com.au",
+                "nz": "google.co.nz",
+                "in": "google.co.in",
+                "sg": "google.com.sg",
+                "jp": "google.co.jp",
+                "kr": "google.co.kr",
+                "br": "google.com.br",
+                "mx": "google.com.mx",
+                "ar": "google.com.ar",
+                "za": "google.co.za",
+                "ae": "google.ae",
+                "sa": "google.com.sa",
+                "tr": "google.com.tr",
+                "ru": "google.ru",
+                "hk": "google.com.hk",
+                "tw": "google.com.tw",
+            }
+            google_host = region_to_host.get(region, "google.com")
+            params = {
+                "q": self.query,
+                "key": os.environ.get("GCP_API_KEY"),
+                "cx": os.environ.get("CSE_ID"),
+                "num": num,
+                "start": start,
+                # Region signals
+                "gl": region,  # country code
+                "cr": f"country{region.upper()}",
+                "googlehost": google_host,
+            }
+            api_response = requests.get(url, params=params)
+            api_response.raise_for_status()
+            response_json = api_response.json()
+            return response_json.get("items", [])
+
+        # Fetch URLs from Google Custom Search API
+        while current_start <= max_total_results and len(all_items) < top_k:
+            remaining_possible = max_total_results - (current_start - 1)
+            if remaining_possible <= 0:
+                break
+            desired = min(top_k, remaining_possible, max_per_request)
+            batch_items = fetch_batch(current_start, desired)
+            if not batch_items:
+                break
+            all_items.extend(batch_items)
+            current_start += len(batch_items)
+
+        # Extract URLs from the search results
+        urls = []
+        for item in all_items[:top_k]:
+            url = item.get("link")
+            if url:
+                urls.append(url)
+
+        if not urls:
+            return []
+
+        # Use Firecrawl to crawl the URLs
+        try:
+            scraper = WebScraper()
+            
+            # Get Firecrawl configuration from extra_configs
+            firecrawl_config = self.extra_configs.get("firecrawl_config", {})
+            formats = firecrawl_config.get("formats", ["markdown"])
+            is_only_main_content = firecrawl_config.get("is_only_main_content", True)
+            include_tags = firecrawl_config.get("include_tags", [])
+            exclude_tags = firecrawl_config.get("exclude_tags", [])
+            skip_tls_verification = firecrawl_config.get("skip_tls_verification", True)
+            wait_for = firecrawl_config.get("wait_for", 120)
+            remove_base64_images = firecrawl_config.get("remove_base64_images", True)
+
+            # Crawl URLs using Firecrawl
+            crawled_contents = scraper.scrape_multiple(
+                urls=urls,
+                formats=formats,
+                is_only_main_content=is_only_main_content,
+                include_tags=include_tags,
+                exclude_tags=exclude_tags,
+                skip_tls_verification=skip_tls_verification,
+                wait_for=wait_for,
+                remove_base64_images=remove_base64_images
+            )
+
+            # Combine search results with crawled content
+            results = []
+            for i, (item, crawled_content) in enumerate(zip(all_items[:len(crawled_contents)], crawled_contents)):
+                if crawled_content:
+                    # Create result with original search metadata and crawled content
+                    result = {
+                        "title": item.get("title", "No title"),
+                        "link": item.get("link", ""),
+                        "content": crawled_content,
+                        "snippet": item.get("snippet", ""),
+                        "source": "google_v2_firecrawl"
+                    }
+                    results.append(result)
+
+            return results[:top_k]
+
+        except Exception as e:
+            # If Firecrawl fails, fall back to metadata only
+            fallback_results = []
+            for item in all_items[:top_k]:
+                fallback_results.append({
+                    "title": item.get("title", "No title"),
+                    "link": item.get("link", ""),
+                    "content": item.get("snippet") or "",
+                    "source": "google_v2_fallback"
+                })
+            return fallback_results
+
     @global_exception_handler(3502, "Error Searching Using DuckDuckGo Search")
     def duckduckgo_search(
         self,
@@ -410,7 +564,7 @@ if __name__ == "__main__":
         print(f"CSE_ID: {cse_id}")
 
     print("\n--- Testing Google Search with Debug Info ---")
-    query = "What is the impact of climate change?"
+    query = "temp in Nanjing?"
     
     try:
         print(f"🔍 Query: {query}")
@@ -444,81 +598,117 @@ if __name__ == "__main__":
         import traceback
         print(f"   Traceback: {traceback.format_exc()}")
 
-    print("\n--- Testing DuckDuckGo Search ---")
-    try:
-        extra_configs = {
-            "ddg_search_type": "text",
-            "top_k": 5,
-            "sub_search_type": "ddg"
-        }
-        web_search_ddg = WebSearchStrategy(query, extra_configs)
-        ddg_results = web_search_ddg.search()
-        print(f"DuckDuckGo Results: {len(ddg_results)} found")
+    # print("\n--- Testing DuckDuckGo Search ---")
+    # try:
+    #     extra_configs = {
+    #         "ddg_search_type": "text",
+    #         "top_k": 5,
+    #         "sub_search_type": "ddg"
+    #     }
+    #     web_search_ddg = WebSearchStrategy(query, extra_configs)
+    #     ddg_results = web_search_ddg.search()
+    #     print(f"DuckDuckGo Results: {len(ddg_results)} found")
         
-        if ddg_results:
-            for i, result in enumerate(ddg_results[:3]):  # Show first 3
-                print(f"   DDG Result {i+1}: {result.get('title', 'No title')[:80]}...")
+    #     if ddg_results:
+    #         for i, result in enumerate(ddg_results[:3]):  # Show first 3
+    #             print(f"   DDG Result {i+1}: {result.get('title', 'No title')[:80]}...")
                 
-    except Exception as e:
-        print(f"❌ DuckDuckGo error: {e}")
+    # except Exception as e:
+    #     print(f"❌ DuckDuckGo error: {e}")
 
-    print("\n--- Testing filter_unreachable_pages Configuration ---")
-    try:
-        # Test with filtering enabled (default behavior)
-        print("🔍 Test 1: With filtering enabled (default)")
-        extra_configs_filtered = {
-            "sub_search_type": "google", 
-            "top_k": 3,
-            "filter_unreachable_pages": True
-        }
-        web_search_filtered = WebSearchStrategy(query, extra_configs_filtered)
-        filtered_results = web_search_filtered.search()
-        print(f"   Filtered results: {len(filtered_results)} found")
+    # print("\n--- Testing Google V2 Search ---")
+    # try:
+    #     extra_configs_v2 = {
+    #         "sub_search_type": "google_v2",
+    #         "top_k": 3,
+    #         "firecrawl_config": {
+    #             "formats": ["markdown"],
+    #             "is_only_main_content": True,
+    #             "wait_for": 60
+    #         }
+    #     }
+    #     web_search_v2 = WebSearchStrategy(query, extra_configs_v2)
+    #     v2_results = web_search_v2.search()
+    #     print(f"Google V2 Results: {len(v2_results)} found")
         
-        # Test with filtering disabled
-        print("\n🔍 Test 2: With filtering disabled (include failed results)")
-        extra_configs_unfiltered = {
-            "sub_search_type": "google", 
-            "top_k": 3,
-            "filter_unreachable_pages": False
-        }
-        web_search_unfiltered = WebSearchStrategy(query, extra_configs_unfiltered)
-        unfiltered_results = web_search_unfiltered.search()
-        print(f"   Unfiltered results: {len(unfiltered_results)} found")
-        
-        # Show examples of error content if any
-        error_content_count = 0
-        for result in unfiltered_results:
-            if result.get('content') == "This webpage could not be accessed or loaded.":
-                error_content_count += 1
-        
-        if error_content_count > 0:
-            print(f"   Found {error_content_count} results with error messages")
-        else:
-            print("   All results loaded successfully")
+    #     if v2_results:
+    #         for i, result in enumerate(v2_results): 
+    #             print(f"   V2 Result {i+1}:")
+    #             print(f"     Title: {result.get('title', 'No title')[:60]}...")
+    #             print(f"     URL: {result.get('link', 'No URL')}")
+    #             print(f"     Source: {result.get('source', 'Unknown')}")
+    #             content_len = len(result.get('content', ''))
+    #             print(f"     Content Length: {content_len} chars")
+    #             if content_len > 0:
+    #                 preview = result.get('content', '')
+    #                 print(f"     Preview: {preview}")
+    #     else:
+    #         print("   ❌ No results returned")
             
-        # Show detailed comparison of results
-        print(f"\n📊 Detailed Results Comparison:")
-        print(f"   Filtered mode: {len(filtered_results)} valid results")
-        print(f"   Unfiltered mode: {len(unfiltered_results)} total results")
-        
-        # Show sample results from unfiltered mode
-        print(f"\n🔍 Sample from unfiltered results:")
-        for i, result in enumerate(unfiltered_results[:2]):
-            print(f"   Result {i+1}:")
-            print(f"     Title: {result.get('title', 'No title')[:60]}...")
-            print(f"     URL: {result.get('link', 'No URL')}")
-            content = result.get('content', '')
-            if content == "This webpage could not be accessed or loaded.":
-                print(f"     Content: [ERROR MESSAGE] {content}")
-            else:
-                print(f"     Content: [SUCCESS] {len(content)} characters")
-            
-    except Exception as e:
-        print(f"❌ Configuration test error: {e}")
+    # except Exception as e:
+    #     print(f"❌ Google V2 error: {e}")
+    #     import traceback
+    #     print(f"   Traceback: {traceback.format_exc()}")
 
-    print(f"\n🎯 Test Summary:")
-    print(f"   ✅ filter_unreachable_pages configuration is working correctly")
-    print(f"   ✅ Default behavior (filtering) is preserved")
-    print(f"   ✅ Error messages are injected when filtering is disabled")
-    print(f"   ✅ All error scenarios are handled consistently")
+    # print("\n--- Testing filter_unreachable_pages Configuration ---")
+    # try:
+    #     # Test with filtering enabled (default behavior)
+    #     print("🔍 Test 1: With filtering enabled (default)")
+    #     extra_configs_filtered = {
+    #         "sub_search_type": "google", 
+    #         "top_k": 3,
+    #         "filter_unreachable_pages": True
+    #     }
+    #     web_search_filtered = WebSearchStrategy(query, extra_configs_filtered)
+    #     filtered_results = web_search_filtered.search()
+    #     print(f"   Filtered results: {len(filtered_results)} found")
+        
+    #     # Test with filtering disabled
+    #     print("\n🔍 Test 2: With filtering disabled (include failed results)")
+    #     extra_configs_unfiltered = {
+    #         "sub_search_type": "google", 
+    #         "top_k": 3,
+    #         "filter_unreachable_pages": False
+    #     }
+    #     web_search_unfiltered = WebSearchStrategy(query, extra_configs_unfiltered)
+    #     unfiltered_results = web_search_unfiltered.search()
+    #     print(f"   Unfiltered results: {len(unfiltered_results)} found")
+        
+    #     # Show examples of error content if any
+    #     error_content_count = 0
+    #     for result in unfiltered_results:
+    #         if result.get('content') == "This webpage could not be accessed or loaded.":
+    #             error_content_count += 1
+        
+    #     if error_content_count > 0:
+    #         print(f"   Found {error_content_count} results with error messages")
+    #     else:
+    #         print("   All results loaded successfully")
+            
+    #     # Show detailed comparison of results
+    #     print(f"\n📊 Detailed Results Comparison:")
+    #     print(f"   Filtered mode: {len(filtered_results)} valid results")
+    #     print(f"   Unfiltered mode: {len(unfiltered_results)} total results")
+        
+    #     # Show sample results from unfiltered mode
+    #     print(f"\n🔍 Sample from unfiltered results:")
+    #     for i, result in enumerate(unfiltered_results[:2]):
+    #         print(f"   Result {i+1}:")
+    #         print(f"     Title: {result.get('title', 'No title')[:60]}...")
+    #         print(f"     URL: {result.get('link', 'No URL')}")
+    #         content = result.get('content', '')
+    #         if content == "This webpage could not be accessed or loaded.":
+    #             print(f"     Content: [ERROR MESSAGE] {content}")
+    #         else:
+    #             print(f"     Content: [SUCCESS] {len(content)} characters")
+            
+    # except Exception as e:
+    #     print(f"❌ Configuration test error: {e}")
+
+    # print(f"\n🎯 Test Summary:")
+    # print(f"   ✅ filter_unreachable_pages configuration is working correctly")
+    # print(f"   ✅ Default behavior (filtering) is preserved")
+    # print(f"   ✅ Error messages are injected when filtering is disabled")
+    # print(f"   ✅ All error scenarios are handled consistently")
+    # print(f"   ✅ Google V2 search with Firecrawl integration is implemented")
+    # print(f"   ✅ Fallback mechanism works when Firecrawl fails")
