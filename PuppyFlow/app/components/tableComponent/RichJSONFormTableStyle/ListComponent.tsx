@@ -330,7 +330,7 @@ const ListComponent = ({
                 )}
                 {/* Add New Item - 无论空与否都显示底部加号（只读除外） */}
                 {!readonly && (
-                    <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
+                    <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
                         <button
                             onClick={addEmptyItem}
                             className="group w-6 h-6 flex items-center justify-center rounded-full 
