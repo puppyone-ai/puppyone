@@ -122,7 +122,7 @@ const ListComponent = ({
     const { isPathSelected, setSelectedPath } = useSelection();
     const [isHovered, setIsHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
-    const accentColor = isSelected ? '#D5A262' : '#C18E4C';
+    const accentColor = isSelected ? '#E4B66E' : '#D7A85A';
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -204,11 +204,12 @@ const ListComponent = ({
                 {(isSelected || isHovered || menuOpen) && (
                     <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                         <div
-                            className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
-                            style={{ borderColor: `${accentColor}50` }}
+                            className="w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                            style={{ borderColor: accentColor }}
                             aria-hidden
                             onClick={(e) => { 
                                 e.stopPropagation(); 
+                                setSelectedPath(path);
                                 if (menuOpen) {
                                     setMenuOpen(false);
                                 } else {
