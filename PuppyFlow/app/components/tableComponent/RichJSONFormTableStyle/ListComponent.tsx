@@ -349,7 +349,7 @@ const ListComponent = ({
                                     
                                     {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
                                     {index < data.length - 1 && (
-                                        <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
+                                        <div className="w-full h-[1px] bg-[#3A3D41] my-[4px]"></div>
                                     )}
                                 </React.Fragment>
                             );
