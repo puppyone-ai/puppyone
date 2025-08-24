@@ -281,7 +281,7 @@ const ListComponent = ({
                                                 >
                                                     <div className="absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none"></div>
                                                     <span 
-                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans italic transition-colors duration-200
+                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans not-italic inline-block mt-[2px] transition-colors duration-200
                                                             ${isIndexHovered
                                                                 ? 'text-[#A8773A]'
                                                                 : 'text-[#C18E4C] hover:text-[#D5A262]'
