@@ -218,13 +218,13 @@ const DictComponent = ({
             if (!handleRef.current) return;
             const rect = handleRef.current.getBoundingClientRect();
             const gap = 8;
-            const top = rect.top + rect.height / 2;
+            const top = rect.top;
             const left = rect.left - gap;
 
             registerOverflowElement(
                 menuId,
                 (
-                    <div style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}>
+                    <div style={{ position: 'fixed', top, left, transform: 'translateX(-100%)' }}>
                         <DictActionMenu
                             value={data}
                             onClear={() => { onUpdate({}); setMenuOpen(false); }}
@@ -290,8 +290,12 @@ const DictComponent = ({
                             aria-hidden
                             onClick={(e) => { 
                                 e.stopPropagation(); 
-                                window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                                setMenuOpen(true); 
+                                if (menuOpen) {
+                                    setMenuOpen(false);
+                                } else {
+                                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                                    setMenuOpen(true);
+                                }
                             }}
                             ref={handleRef}
                         >

@@ -132,8 +132,12 @@ const TextComponent = React.memo(
                 aria-hidden
                 onClick={(e) => {
                   e.stopPropagation();
-                  window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                  setMenuOpen(true);
+                  if (menuOpen) {
+                    setMenuOpen(false);
+                  } else {
+                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                    setMenuOpen(true);
+                  }
                 }}
                 ref={handleRef}
               >
