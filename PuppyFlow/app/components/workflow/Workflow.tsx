@@ -204,7 +204,9 @@ function Workflow() {
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
   const { getAuthHeaders } = useAppSettings();
+  // Track which external resource_keys have been fetched to avoid duplicate work
   const didExternalPrefetchRef = useRef<string | null>(null);
+  const fetchedResourceKeysRef = useRef<Set<string>>(new Set());
 
   // 用于管理节点的 z-index 层级
   const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>(
@@ -294,6 +296,106 @@ function Workflow() {
     }
   }, [currentWorkspaceContent, selectedFlowId]);
 
+  // Helper: fetch external content for a node
+  const fetchExternalForNode = useCallback(
+    async (
+      nodeId: string,
+      resourceKey: string,
+      contentType: string,
+      external: any
+    ) => {
+      try {
+        // Fetch manifest
+        const manifestResp = await fetch(
+          `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
+            `${resourceKey}/manifest.json`
+          )}`,
+          { headers: getAuthHeaders() as HeadersInit }
+        );
+        if (!manifestResp.ok) return;
+        const { download_url: manifestUrl } = await manifestResp.json();
+        const manifestRes = await fetch(manifestUrl);
+        if (!manifestRes.ok) return;
+        const manifest = await manifestRes.json();
+
+        const chunks: string[] = [];
+        const chunkNames: string[] = [];
+        for (const chunk of manifest.chunks || []) {
+          const name = typeof chunk === 'string' ? chunk : chunk.name;
+          if (!name) continue;
+          if (name === '_completed.marker') continue;
+          if (typeof chunk === 'object' && chunk.size === 0) continue;
+
+          const urlResp = await fetch(
+            `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
+              `${resourceKey}/${name}`
+            )}`,
+            { headers: getAuthHeaders() as HeadersInit }
+          );
+          if (!urlResp.ok) continue;
+          const { download_url } = await urlResp.json();
+          const chunkResp = await fetch(download_url);
+          if (!chunkResp.ok) continue;
+          const text = await chunkResp.text();
+          chunks.push(text);
+          chunkNames.push(name);
+        }
+
+        // Reconstruct content
+        let content = chunks.join('');
+        // Heuristic: treat as structured if external says so OR chunk name suggests jsonl
+        const looksJsonl = chunkNames.some(n => n.toLowerCase().endsWith('.jsonl'));
+        const wantStructured = contentType === 'structured' || looksJsonl;
+        if (wantStructured) {
+          try {
+            const arr: any[] = [];
+            const lines = content
+              .split(/\r?\n/)
+              .map(s => s.trim())
+              .filter(Boolean);
+            for (const line of lines) {
+              try {
+                arr.push(JSON.parse(line));
+              } catch {
+                // If any line is not valid JSON, we'll fallback later
+              }
+            }
+            if (arr.length > 0) {
+              content = JSON.stringify(arr, null, 2);
+            } else {
+              // Fallback to raw text if not valid JSONL
+              content = chunks.join('');
+            }
+          } catch {
+            // Fallback to raw text on any unexpected error
+            content = chunks.join('');
+          }
+        }
+
+        setUnsortedNodes(prev =>
+          prev.map(node =>
+            node.id === nodeId
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    content,
+                    isExternalStorage: true,
+                    external_metadata: external,
+                  },
+                }
+              : node
+          )
+        );
+
+        fetchedResourceKeysRef.current.add(resourceKey);
+      } catch (e) {
+        // ignore single-node failure
+      }
+    },
+    [SYSTEM_URLS.PUPPY_STORAGE.BASE, getAuthHeaders, setUnsortedNodes]
+  );
+
   // 初次加载时，为 external 指针块从外部存储下载内容到 data.content
   useEffect(() => {
     if (!currentWorkspaceContent || !selectedFlowId) return;
@@ -313,67 +415,13 @@ function Workflow() {
 
     (async () => {
       for (const n of externalBlocks) {
-        try {
-          const external =
-            n?.data?.external_metadata ||
-            n?.external_metadata ||
-            n?.data?.external;
-          const resourceKey = external?.resource_key;
-          const contentType = external?.content_type || 'text';
-          if (!resourceKey) continue;
-
-          const manifestResp = await fetch(
-            `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
-              `${resourceKey}/manifest.json`
-            )}`,
-            { headers: getAuthHeaders() as HeadersInit }
-          );
-          if (!manifestResp.ok) continue;
-          const { download_url: manifestUrl } = await manifestResp.json();
-          const manifestRes = await fetch(manifestUrl);
-          if (!manifestRes.ok) continue;
-          const manifest = await manifestRes.json();
-
-          const chunks: string[] = [];
-          for (const chunk of manifest.chunks || []) {
-            const name = typeof chunk === 'string' ? chunk : chunk.name;
-            if (!name) continue;
-            if (name === '_completed.marker') continue;
-            if (typeof chunk === 'object' && chunk.size === 0) continue;
-
-            const urlResp = await fetch(
-              `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
-                `${resourceKey}/${name}`
-              )}`,
-              { headers: getAuthHeaders() as HeadersInit }
-            );
-            if (!urlResp.ok) continue;
-            const { download_url } = await urlResp.json();
-            const chunkResp = await fetch(download_url);
-            if (!chunkResp.ok) continue;
-            const text = await chunkResp.text();
-            chunks.push(text);
-          }
-
-          const content = chunks.join('');
-          setUnsortedNodes(prev =>
-            prev.map(node =>
-              node.id === n.id
-                ? {
-                    ...node,
-                    data: {
-                      ...node.data,
-                      content: contentType === 'structured' ? content : content,
-                      isExternalStorage: true,
-                      external_metadata: external,
-                    },
-                  }
-                : node
-            )
-          );
-        } catch (e) {
-          // 忽略单块失败
-        }
+        const external =
+          n?.data?.external_metadata || n?.external_metadata || n?.data?.external;
+        const resourceKey = external?.resource_key;
+        const contentType = external?.content_type || 'text';
+        if (!resourceKey) continue;
+        if (fetchedResourceKeysRef.current.has(resourceKey)) continue;
+        await fetchExternalForNode(n.id, resourceKey, contentType, external);
       }
 
       didExternalPrefetchRef.current = selectedFlowId;
@@ -381,9 +429,28 @@ function Workflow() {
   }, [
     currentWorkspaceContent,
     selectedFlowId,
-    getAuthHeaders,
-    setUnsortedNodes,
+    fetchExternalForNode,
   ]);
+
+  // 动态监听：当用户在 UI 中粘贴了新的 resource_key 时，立即拉取并渲染
+  useEffect(() => {
+    const nodesToFetch: Array<{ id: string; rk: string; ct: string; external: any }>
+      = [];
+    for (const n of nodes) {
+      const external = (n as any)?.data?.external_metadata;
+      const rk = external?.resource_key as string | undefined;
+      const ct = external?.content_type || 'text';
+      if (!rk) continue;
+      if (fetchedResourceKeysRef.current.has(rk)) continue;
+      nodesToFetch.push({ id: n.id, rk, ct, external });
+    }
+    if (nodesToFetch.length === 0) return;
+    (async () => {
+      for (const item of nodesToFetch) {
+        await fetchExternalForNode(item.id, item.rk, item.ct, item.external);
+      }
+    })();
+  }, [nodes, fetchExternalForNode]);
 
   // 定期保存 ReactFlow 状态到工作区
   const lastSavedContent = useRef<string>('');

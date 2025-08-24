@@ -111,7 +111,7 @@ function TextNodeSettingMenu({
       leaveFrom='transform opacity-100 translate-y-0'
       leaveTo='transform opacity-0 translate-y-[-10px]'
     >
-      <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
+      <ul className='flex flex-col absolute top-[8px] p-[8px] w-[220px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
         {/* <li>
                 <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                 onClick={()=> manageNodeasInput(nodeid)}>
@@ -174,6 +174,96 @@ function TextNodeSettingMenu({
             </div>
           </button>
         </li>
+        <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+
+        {/* External storage: set resource_key */}
+        <li>
+          <button
+            className='flex flex-row items-center justify-start gap-[8px] w-full min-h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white text-left'
+            onClick={() => {
+              const current = getNode(nodeid);
+              const existingKey = (current?.data as any)?.external_metadata?.resource_key || '';
+              const key = typeof window !== 'undefined'
+                ? window.prompt('Paste resource_key (user_id/block_id/version_id):', existingKey)
+                : null;
+              if (!key) return;
+              const trimmed = key.trim();
+              if (!trimmed) return;
+              setNodes(prev =>
+                prev.map(n =>
+                  n.id === nodeid
+                    ? {
+                        ...n,
+                        data: {
+                          ...n.data,
+                          storage_class: 'external',
+                          isExternalStorage: true,
+                          external_metadata: {
+                            ...(n.data?.external_metadata || {}),
+                            resource_key: trimmed,
+                            content_type: 'text',
+                          },
+                          // optional: clear inline content to emphasize pointer mode
+                          // content: '',
+                        },
+                      }
+                    : n
+                )
+              );
+              clearMenu();
+            }}
+          >
+            <div className='flex items-center justify-center'>
+              <svg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                <path d='M12 5v14M5 12h14' stroke='currentColor' strokeWidth='2' strokeLinecap='round' />
+              </svg>
+            </div>
+            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-normal'>
+              Use external storage (paste resource_key)
+            </div>
+          </button>
+        </li>
+        {/* Clear external pointer */}
+        {(() => {
+          const current = getNode(nodeid);
+          const hasExternal = !!(current?.data as any)?.external_metadata?.resource_key;
+          if (!hasExternal) return null;
+          return (
+            <li>
+              <button
+                className='flex flex-row items-center justify-start gap-[8px] w-full min-h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white text-left'
+                onClick={() => {
+                  setNodes(prev =>
+                    prev.map(n =>
+                      n.id === nodeid
+                        ? {
+                            ...n,
+                            data: {
+                              ...n.data,
+                              storage_class: undefined,
+                              isExternalStorage: false,
+                              external_metadata: undefined,
+                            },
+                          }
+                        : n
+                    )
+                  );
+                  clearMenu();
+                }}
+              >
+                <div className='flex items-center justify-center'>
+                  <svg width='20' height='20' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                    <path d='M6 18L18 6M6 6l12 12' stroke='currentColor' strokeWidth='2' strokeLinecap='round' />
+                  </svg>
+                </div>
+                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-normal'>
+                  Clear external pointer
+                </div>
+              </button>
+            </li>
+          );
+        })()}
+
         <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
 
         <li>
