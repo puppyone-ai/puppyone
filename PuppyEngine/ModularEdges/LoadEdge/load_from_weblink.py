@@ -32,7 +32,7 @@ class WebScraper:
             url (str): The URL to map
         """
 
-        return self.api_client.map_url(url)
+        return self.api_client.map(url)
 
     @global_exception_handler(1204, "Error in Scraping URL")
     def url_scrape(
@@ -63,19 +63,23 @@ class WebScraper:
             str: The scraped content in the specified formats
         """
 
-        scrape_result = self.api_client.scrape_url(
+        scrape_result = self.api_client.scrape(
             url,
-            params={
-                "formats": formats,
-                "onlyMainContent": is_only_main_content,
-                "includeTags": include_tags,
-                "excludeTags": exclude_tags,
-                "skipTlsVerification": skip_tls_verification,
-                "waitFor": wait_for,
-                "removeBase64Images": remove_base64_images
-            }
+            formats=formats,
+            only_main_content=is_only_main_content,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            skip_tls_verification=skip_tls_verification,
+            wait_for=wait_for,
+            remove_base64_images=remove_base64_images
         )
-        return scrape_result
+        # Return the markdown content from the Document object
+        if "markdown" in formats:
+            return scrape_result.markdown or ""
+        elif "html" in formats:
+            return scrape_result.html or ""
+        else:
+            return scrape_result.markdown or scrape_result.html or ""
 
     @global_exception_handler(1205, "Error in Scraping Multiple URLs")
     def scrape_multiple(
@@ -163,26 +167,30 @@ class WebScraper:
             str: The crawled content in the specified formats
         """
 
-        crawl_result = self.api_client.crawl_url(
-            url,
-            params={
-                "limit": limit,
-                "excludePaths": exclude_paths,
-                "includePaths": include_paths,
-                "maxDepth": max_pepth,
-                "ignoreSitemap": ignore_sitemap,
-                "allowBackwardLinks": allow_backward_links,
-                "allowExternalLinks": allow_external_links,
-                "scrapeOptions": {
-                    "formats": formats,
-                    "onlyMainContent": is_only_main_content,
-                    "includeTags": include_tags,
-                    "excludeTags": exclude_tags,
-                    "waitFor": 120,
-                    "removeBase64Images": True
-                }
-            }
+        from firecrawl.v2.types import ScrapeOptions
+        
+        # Create scrape options
+        scrape_options = ScrapeOptions(
+            formats=formats,
+            only_main_content=is_only_main_content,
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            wait_for=120,
+            remove_base64_images=True
         )
+        
+        crawl_result = self.api_client.crawl(
+            url,
+            limit=limit,
+            exclude_paths=exclude_paths,
+            include_paths=include_paths,
+            max_discovery_depth=max_pepth,
+            ignore_sitemap=ignore_sitemap,
+            allow_external_links=allow_external_links,
+            scrape_options=scrape_options
+        )
+        
+        # Return the crawl result - this will be a CrawlJob object
         return crawl_result
 
 
