@@ -378,7 +378,9 @@ const JSONViewer = ({
                     <ClearSelectionOnOutsideClick containerRef={containerRef} />
                     <div 
                         ref={containerRef}
+
                         className={`relative bg-transparent overflow-auto scrollbar-hide pt-[4px] pl-[8px] pr-[4px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+
                         style={{ width: actualWidth, height: actualHeight }}
                         data-rich-json-form="true"
                     >

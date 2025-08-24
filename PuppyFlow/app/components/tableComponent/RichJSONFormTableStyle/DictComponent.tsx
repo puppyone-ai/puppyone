@@ -243,7 +243,9 @@ const DictComponent = ({
     const { isPathSelected, setSelectedPath } = useSelection();
     const [isHovered, setIsHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
+
     const accentColor = isSelected ? '#D65E98' : '#D474A8';
+
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -258,13 +260,17 @@ const DictComponent = ({
             if (!handleRef.current) return;
             const rect = handleRef.current.getBoundingClientRect();
             const gap = 8;
+
             const top = rect.top;
+
             const left = rect.left - gap;
 
             registerOverflowElement(
                 menuId,
                 (
+
                     <div style={{ position: 'fixed', top, left, transform: 'translateX(-100%)' }}>
+
                         <DictActionMenu
                             value={data}
                             onClear={() => { onUpdate({}); setMenuOpen(false); }}
@@ -325,6 +331,7 @@ const DictComponent = ({
                 {(isSelected || isHovered || menuOpen) && (
                     <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                         <div
+
                             className="w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
                             style={{ borderColor: accentColor }}
                             aria-hidden
@@ -337,6 +344,7 @@ const DictComponent = ({
                                     window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
                                     setMenuOpen(true);
                                 }
+
                             }}
                             ref={handleRef}
                         >
@@ -421,7 +429,9 @@ const DictComponent = ({
                                             {/* Key section - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
+
                                                     className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center"
+
                                                     onMouseEnter={() => handleKeyHover(key, true)}
                                                     onMouseLeave={() => handleKeyHover(key, false)}
                                                 >

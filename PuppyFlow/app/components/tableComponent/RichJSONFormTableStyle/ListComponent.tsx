@@ -122,6 +122,7 @@ const ListComponent = ({
     const { isPathSelected, setSelectedPath } = useSelection();
     const [isHovered, setIsHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
+
     const accentColor = isSelected ? '#E4B66E' : '#D7A85A';
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
@@ -137,6 +138,7 @@ const ListComponent = ({
         return () => document.removeEventListener('mousedown', onDoc, true);
     }, []);
 
+
     React.useEffect(() => {
         const menuId = `list-menu-${path}`;
         if (!menuOpen || !handleRef.current) return;
@@ -147,13 +149,17 @@ const ListComponent = ({
             if (!handleRef.current) return;
             const rect = handleRef.current.getBoundingClientRect();
             const gap = 8;
+
             const top = rect.top;
+
             const left = rect.left - gap;
 
             registerOverflowElement(
                 menuId,
                 (
+
                     <div style={{ position: 'fixed', top, left, transform: 'translateX(-100%)' }}>
+
                         <ListActionMenu
                             value={data}
                             onClear={() => { onUpdate([]); setMenuOpen(false); }}
@@ -214,6 +220,7 @@ const ListComponent = ({
                 {(isSelected || isHovered || menuOpen) && (
                     <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                         <div
+
                             className="w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
                             style={{ borderColor: accentColor }}
                             aria-hidden
@@ -226,6 +233,7 @@ const ListComponent = ({
                                     window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
                                     setMenuOpen(true);
                                 }
+
                             }}
                             ref={handleRef}
                         >
@@ -285,7 +293,9 @@ const ListComponent = ({
                                             {/* Index Badge - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
+
                                                     className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center"
+
                                                     onMouseEnter={() => handleIndexHover(index, true)}
                                                     onMouseLeave={() => handleIndexHover(index, false)}
                                                 >
@@ -360,7 +370,9 @@ const ListComponent = ({
                 )}
                 {/* Add New Item - 无论空与否都显示底部加号（只读除外） */}
                 {!readonly && (
+
                     <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
+
                         <button
                             onClick={addEmptyItem}
                             className="group w-6 h-6 flex items-center justify-center rounded-full 
