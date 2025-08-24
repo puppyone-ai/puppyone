@@ -382,7 +382,7 @@ const JSONViewer = ({
                         style={{ width: actualWidth, height: actualHeight }}
                         data-rich-json-form="true"
                     >
-                        <div className="border-t border-b border-[#6D7177]/70">
+                        <div className="border-t border-b border-[#3A3D41]">
                         {renderMainContent()}
                         </div>
                     </div>
