@@ -388,7 +388,7 @@ const DictComponent = ({
                                                     onMouseLeave={() => handleKeyHover(key, false)}
                                                 >
                                                     <span 
-                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic transition-colors duration-200
+                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full not-italic inline-block mt-[2px] transition-colors duration-200
                                                             ${isKeyHovered
                                                                 ? 'text-[#B1457A]'
                                                                 : 'text-[#C74F8A] hover:text-[#D96BA0]'
