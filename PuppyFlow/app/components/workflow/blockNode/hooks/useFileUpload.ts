@@ -185,7 +185,7 @@ export function useFileUpload({
         content_type: file.type || 'application/octet-stream',
       });
       if (versionId) qs.set('version_id', versionId);
-      const directUploadUrl = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?${qs.toString()}`;
+      const directUploadUrl = `/api/storage/upload/chunk/direct?${qs.toString()}`;
 
       const uploadResp = await fetch(directUploadUrl, {
         method: 'POST',
@@ -252,7 +252,7 @@ export function useFileUpload({
       const tryUpdateManifest = async (
         body: typeof baseManifestBody
       ): Promise<Response> => {
-        return fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/manifest`, {
+        return fetch(`/api/storage/upload/manifest`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -324,7 +324,7 @@ export function useFileUpload({
         : `${userIdVal}/${nodeId}/${versionId ?? ''}/${file.fileName}`;
 
       const response = await fetch(
-        `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/files/delete`,
+        `/api/storage/files/delete`,
         {
           method: 'DELETE',
           headers: {

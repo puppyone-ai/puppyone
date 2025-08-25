@@ -85,9 +85,6 @@ export const useServerOperations = () => {
       params: FetchUserDeploymentsParams = {}
     ): Promise<UserDeploymentsResponse> => {
       try {
-        const useLocal =
-          params.isLocal !== undefined ? params.isLocal : isLocalDeployment;
-
         const queryParams = new URLSearchParams();
         if (params.deploymentType) {
           queryParams.append('deployment_type', params.deploymentType);
@@ -98,25 +95,12 @@ export const useServerOperations = () => {
             params.includeDetails.toString()
           );
         }
-        if (params.includeKeys !== undefined) {
-          queryParams.append('include_keys', params.includeKeys.toString());
-        }
 
-        const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-        const userToken = getUserToken(useLocal);
-
-        if (!userToken && !useLocal) {
-          throw new Error('No user access token found');
-        }
-
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...getCustomAuthHeaders('x-user-token'),
-        };
+        // Call internal API route which sanitizes keys server-side
+        const url = `/api/api-server/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
 
         const res = await fetch(url, {
           method: 'GET',
-          headers,
           credentials: 'include',
         });
 
@@ -135,7 +119,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, isLocalDeployment, getUserToken, getCustomAuthHeaders]
+    []
   );
 
   // 获取所有增强服务 - 统一的数据转换逻辑
@@ -296,13 +280,8 @@ export const useServerOperations = () => {
   const deleteApiService = useCallback(
     async (apiId: string): Promise<void> => {
       try {
-        const userToken = getUserToken();
-        const res = await fetch(`${apiServerUrl}/delete_api/${apiId}`, {
+        const res = await fetch(`/api/api-server/apis/${apiId}`, {
           method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
-          },
         });
 
         if (!res.ok) {
@@ -322,13 +301,8 @@ export const useServerOperations = () => {
   const deleteChatbotService = useCallback(
     async (chatbotId: string): Promise<void> => {
       try {
-        const userToken = getUserToken();
-        const res = await fetch(`${apiServerUrl}/delete_chatbot/${chatbotId}`, {
+        const res = await fetch(`/api/api-server/chatbots/${chatbotId}`, {
           method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
-          },
         });
 
         if (!res.ok) {
@@ -351,12 +325,10 @@ export const useServerOperations = () => {
       apiData: Partial<ApiService>
     ): Promise<ApiService> => {
       try {
-        const userToken = getUserToken();
-        const res = await fetch(`${apiServerUrl}/create_api`, {
+        const res = await fetch(`/api/api-server/apis`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -386,12 +358,10 @@ export const useServerOperations = () => {
       chatbotData: Partial<ChatbotService>
     ): Promise<ChatbotService> => {
       try {
-        const userToken = getUserToken();
-        const res = await fetch(`${apiServerUrl}/create_chatbot`, {
+        const res = await fetch(`/api/api-server/chatbots`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
           body: JSON.stringify({
             workspace_id: workspaceId,
@@ -424,23 +394,9 @@ export const useServerOperations = () => {
       endpoint?: string;
     }> => {
       try {
-        // Get user token according to API documentation
-        const userToken = getUserToken();
-
-        // Check if user token is required (for non-local deployments)
-        if (!userToken && !isLocalDeployment) {
-          throw new Error('No user access token found');
-        }
-
-        // Build headers according to API documentation
-        const headers: Record<string, string> = {
-          'Content-Type': 'application/json',
-          ...getCustomAuthHeaders('x-user-token'),
-        };
-
-        const res = await fetch(`${apiServerUrl}/config_chatbot`, {
+        const res = await fetch(`/api/api-server/chatbots/config`, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(params),
         });
 
@@ -466,12 +422,10 @@ export const useServerOperations = () => {
       updates: Partial<ApiService>
     ): Promise<ApiService> => {
       try {
-        const userToken = getUserToken();
-        const res = await fetch(`${apiServerUrl}/update_api/${apiId}`, {
+        const res = await fetch(`/api/api-server/apis/${apiId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
           body: JSON.stringify(updates),
         });
@@ -498,12 +452,10 @@ export const useServerOperations = () => {
       updates: Partial<ChatbotService>
     ): Promise<ChatbotService> => {
       try {
-        const userToken = getUserToken();
-        const res = await fetch(`${apiServerUrl}/update_chatbot/${chatbotId}`, {
+        const res = await fetch(`/api/api-server/chatbots/${chatbotId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
           body: JSON.stringify(updates),
         });

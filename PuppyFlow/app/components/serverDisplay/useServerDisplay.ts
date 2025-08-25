@@ -148,7 +148,6 @@ export const useLayoutGeneration = () => {
 // API执行 Hook
 export const useApiExecution = (service: any) => {
   const { state, updateState } = useApiServiceState(service?.api_id || '');
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   const executeWorkflow = useCallback(async () => {
     if (!service?.api_id) return;
@@ -167,10 +166,10 @@ export const useApiExecution = (service: any) => {
         }
       });
 
-      const endpoint = `${API_SERVER_URL}/api/${service.api_id}`;
-      const response = await axios.post(endpoint, requestData, {
+      // Call internal API proxy that injects secret server-side
+      const endpoint = `/api/api-server/execute/api/${service.api_id}`;
+      const response = await axios.post(endpoint, { input: requestData }, {
         headers: {
-          Authorization: `Bearer ${service.api_key}`,
           'Content-Type': 'application/json',
         },
         timeout: 30000,
@@ -210,7 +209,6 @@ export const useChatbotCommunication = (service: any) => {
   const { chatHistory, updateChatHistory } = useChatHistory(
     service?.chatbot_id || ''
   );
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
   const handleSendMessage = useCallback(
     async (message: string): Promise<string> => {
@@ -248,7 +246,8 @@ export const useChatbotCommunication = (service: any) => {
         }
 
         // 构造端点 URL
-        const endpoint = `${API_SERVER_URL}/chat/${service.chatbot_id}`;
+        // Call internal API proxy that injects secret server-side
+        const endpoint = `/api/api-server/execute/chat/${service.chatbot_id}`;
         console.log(`🔍 发送消息到端点: ${endpoint}`);
         console.log('🔍 请求体:', requestBody);
 
@@ -264,7 +263,7 @@ export const useChatbotCommunication = (service: any) => {
         // 发送 API 请求
         const response = await fetch(endpoint, {
           method: 'POST',
-          headers,
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(requestBody),
         });
 

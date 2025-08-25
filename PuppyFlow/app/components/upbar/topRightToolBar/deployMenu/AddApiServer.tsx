@@ -141,7 +141,7 @@ function DeployAsApi({ selectedFlowId, setActivePanel }: DeployAsApiProps) {
         'x-user-token': `Bearer ${userToken || ''}`, // Use Bearer token authentication
       };
 
-      const res = await fetch(`${API_SERVER_URL}/config_api`, {
+      const res = await fetch(`/api/api-server/config_api`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),

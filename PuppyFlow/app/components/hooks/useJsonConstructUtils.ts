@@ -16,7 +16,7 @@ import { useAppSettings } from '../states/AppSettingsContext';
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
 
 export const backend_IP_address_for_sendingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/send_data`;
-export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/get_data`;
+export const backend_IP_address_for_receivingData = `/api/engine/get_data`;
 export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/generate_urls`;
 export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`;
 

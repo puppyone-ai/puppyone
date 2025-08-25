@@ -138,16 +138,13 @@ export default function useIndexingUtils() {
           }
 
           // 发送请求到后端
-          const response = await fetch(
-            `${PuppyStorage_IP_address_for_embedding}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(payloadData),
-            }
-          );
+          const response = await fetch(`/api/storage/vector/embed`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payloadData),
+          });
 
           if (!response.ok) {
             setVectorIndexingStatus('notStarted');
@@ -231,16 +228,13 @@ export default function useIndexingUtils() {
           };
 
           // 发送删除请求到向量存储服务
-          const response = await fetch(
-            `${PuppyStorage_IP_address_for_embedding.replace('/embed', '/delete')}`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(deleteParams),
-            }
-          );
+          const response = await fetch(`/api/storage/vector/delete`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(deleteParams),
+          });
 
           if (!response.ok) {
             deleteSuccess = false;

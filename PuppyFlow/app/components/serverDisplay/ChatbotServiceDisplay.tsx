@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { SYSTEM_URLS } from '@/config/urls';
 import { ChatInterface } from 'puppychat';
 import {
   useChatHistory,
@@ -15,8 +14,6 @@ interface ChatbotServiceDisplayProps {
 // Custom ChatInterfaceDeployed component using external chat history
 const CustomChatInterfaceDeployed: React.FC<{
   chatbotId: string;
-  baseUrl: string;
-  chatbotKey: string;
   inputBlockId: string;
   historyBlockId: string;
   chatHistory: any;
@@ -25,8 +22,6 @@ const CustomChatInterfaceDeployed: React.FC<{
   [key: string]: any;
 }> = ({
   chatbotId,
-  baseUrl,
-  chatbotKey,
   inputBlockId,
   historyBlockId,
   chatHistory,
@@ -40,7 +35,6 @@ const CustomChatInterfaceDeployed: React.FC<{
       // Prepare request headers
       const headers = {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${chatbotKey}`,
       };
 
       // Prepare request body
@@ -63,8 +57,8 @@ const CustomChatInterfaceDeployed: React.FC<{
         };
       }
 
-      // Construct endpoint URL
-      const endpoint = `${baseUrl}/chat/${chatbotId}`;
+      // Construct endpoint URL for internal API proxy
+      const endpoint = `/api/api-server/execute/chat/${chatbotId}`;
       console.log(`🔍 Sending message to endpoint: ${endpoint}`);
       console.log('🔍 Request body:', requestBody);
 
@@ -149,7 +143,6 @@ const CustomChatInterfaceDeployed: React.FC<{
 const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({
   service,
 }) => {
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
   const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(false);
 
   // Use hooks
@@ -321,8 +314,6 @@ const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({
                 <div className='w-full h-full [&>*]:!shadow-none'>
                   <CustomChatInterfaceDeployed
                     chatbotId={service.chatbot_id}
-                    baseUrl={API_SERVER_URL}
-                    chatbotKey={service.chatbot_key || ''}
                     inputBlockId={service.input || 'input_block'}
                     historyBlockId={service.history || 'history_block'}
                     chatHistory={chatHistory}

@@ -56,8 +56,8 @@ const ChatbotTestInterface = ({
     }
 
     try {
-      const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
-      const finalApiEndpoint = `${API_SERVER_URL}/chat/${chatbotId}`;
+      // Use internal API proxy to avoid exposing secrets in browser
+      const finalApiEndpoint = `/api/api-server/execute/chat/${chatbotId}`;
 
       const requestData: any = {
         input: {
@@ -77,7 +77,6 @@ const ChatbotTestInterface = ({
 
       const response = await axios.post(finalApiEndpoint, requestData, {
         headers: {
-          Authorization: userApiKey ? `Bearer ${userApiKey}` : '',
           'Content-Type': 'application/json',
         },
       });

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Responsive, WidthProvider, Layout } from 'react-grid-layout';
-import { SYSTEM_URLS } from '@/config/urls';
 import 'react-grid-layout/css/styles.css';
 import 'react-grid-layout/css/styles.css';
 import JSONForm from '@/app/components/tableComponent/JSONForm';
@@ -22,8 +21,8 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({
   service,
   generateLayout,
 }) => {
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
-  const endpoint = `${API_SERVER_URL}/api/${service.api_id}`;
+  // Display-only endpoint text; real execution goes through internal API proxy
+  const endpoint = `/api/${service.api_id}`;
 
   // 使用hooks
   const { state, updateState } = useApiServiceState(service.api_id);
