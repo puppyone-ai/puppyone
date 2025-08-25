@@ -74,6 +74,46 @@ const DictComponent = ({
         onUpdate(newData);
     };
 
+    // Inline key actions state
+    const [actionKey, setActionKey] = useState<string | null>(null);
+    const [renamingKey, setRenamingKey] = useState<string | null>(null);
+    const [renameInput, setRenameInput] = useState<string>('');
+
+    const beginRenameKey = (key: string) => {
+        setRenamingKey(key);
+        setRenameInput(key);
+    };
+
+    const ensureUniqueKey = (base: string, excludeKey?: string) => {
+        let candidate = base;
+        let n = 1;
+        const existing = new Set(Object.keys(data).filter(k => k !== excludeKey));
+        while (existing.has(candidate)) candidate = `${base}_${n++}`;
+        return candidate;
+    };
+
+    const submitRenameKey = (oldKey: string) => {
+        const raw = renameInput.trim();
+        setRenamingKey(null);
+        setActionKey(null);
+        if (!raw || raw === oldKey) return;
+        if (/[\.\[\]]/.test(raw)) return;
+        const newKey = ensureUniqueKey(raw, oldKey);
+        if (newKey === oldKey) return;
+        const { [oldKey]: movedValue, ...rest } = data;
+        onUpdate({ ...rest, [newKey]: movedValue });
+    };
+
+    React.useEffect(() => {
+        const onDoc = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.rjft-key-inline-actions')) return;
+            setActionKey(null);
+        };
+        document.addEventListener('mousedown', onDoc, true);
+        return () => document.removeEventListener('mousedown', onDoc, true);
+    }, []);
+
 
     // 创建拖拽预览元素
     const createDragPreview = (key: string, value: any) => {
@@ -203,7 +243,9 @@ const DictComponent = ({
     const { isPathSelected, setSelectedPath } = useSelection();
     const [isHovered, setIsHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
-    const accentColor = isSelected ? '#B1457A' : '#C74F8A';
+
+    const accentColor = isSelected ? '#D65E98' : '#D474A8';
+
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -218,13 +260,17 @@ const DictComponent = ({
             if (!handleRef.current) return;
             const rect = handleRef.current.getBoundingClientRect();
             const gap = 8;
-            const top = rect.top + rect.height / 2;
+
+            const top = rect.top;
+
             const left = rect.left - gap;
 
             registerOverflowElement(
                 menuId,
                 (
-                    <div style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}>
+
+                    <div style={{ position: 'fixed', top, left, transform: 'translateX(-100%)' }}>
+
                         <DictActionMenu
                             value={data}
                             onClear={() => { onUpdate({}); setMenuOpen(false); }}
@@ -285,13 +331,20 @@ const DictComponent = ({
                 {(isSelected || isHovered || menuOpen) && (
                     <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                         <div
-                            className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
-                            style={{ borderColor: `${accentColor}50` }}
+
+                            className="w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                            style={{ borderColor: accentColor }}
                             aria-hidden
                             onClick={(e) => { 
                                 e.stopPropagation(); 
-                                window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                                setMenuOpen(true); 
+                                setSelectedPath(path);
+                                if (menuOpen) {
+                                    setMenuOpen(false);
+                                } else {
+                                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                                    setMenuOpen(true);
+                                }
+
                             }}
                             ref={handleRef}
                         >
@@ -376,20 +429,77 @@ const DictComponent = ({
                                             {/* Key section - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-hidden transition-colors duration-200 flex justify-center"
+
+                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center"
+
                                                     onMouseEnter={() => handleKeyHover(key, true)}
                                                     onMouseLeave={() => handleKeyHover(key, false)}
                                                 >
                                                     <span 
-                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full italic transition-colors duration-200
+                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full not-italic inline-block mt-[2px] transition-colors duration-200
                                                             ${isKeyHovered
                                                                 ? 'text-[#B1457A]'
                                                                 : 'text-[#C74F8A] hover:text-[#D96BA0]'
                                                             }`}
                                                         title={key}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setSelectedPath(path);
+                                                            setActionKey(prev => prev === key ? null : key); 
+                                                            setRenamingKey(null); 
+                                                        }}
                                                     >
                                                         {key}
                                                     </span>
+                                                    {actionKey === key && !readonly && (
+                                                        <div className="rjft-key-inline-actions absolute right-full top-1/2 -translate-y-1/2 mr-[4px] flex gap-[6px] z-30">
+                                                            <button
+                                                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
+                                                                title="Rename key"
+                                                                onClick={(e) => { e.stopPropagation(); beginRenameKey(key); }}
+                                                            >
+                                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#E5E7EB" strokeWidth="1.6">
+                                                                    <path d="M4 13.5V16h2.5L15 7.5 12.5 5 4 13.5z"/>
+                                                                    <path d="M11 6l3 3"/>
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
+                                                                title="Delete key"
+                                                                onClick={(e) => { e.stopPropagation(); deleteKey(key); setActionKey(null); }}
+                                                            >
+                                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#F44336" strokeWidth="1.6">
+                                                                    <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                    {renamingKey === key && (
+                                                        <div className="rjft-key-inline-actions absolute right-full top-1/2 -translate-y-1/2 mr-[4px] flex items-center gap-[6px] z-30 bg-[#252525] p-[4px] rounded-[6px] border border-[#404040]">
+                                                            <input
+                                                                value={renameInput}
+                                                                onChange={(e) => setRenameInput(e.target.value)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') { e.preventDefault(); submitRenameKey(key); }
+                                                                    if (e.key === 'Escape') { e.preventDefault(); setRenamingKey(null); }
+                                                                }}
+                                                                className="h-[22px] w-[96px] text-[12px] bg-[#1E1E1E] text-[#E5E7EB] rounded-[4px] px-[6px] outline-none border border-[#3A3D45]"
+                                                            />
+                                                            <button
+                                                                className="h-[22px] px-[8px] text-[11px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 text-[#E5E7EB]"
+                                                                onClick={(e) => { e.stopPropagation(); submitRenameKey(key); }}
+                                                            >
+                                                                save
+                                                            </button>
+                                                            <button
+                                                                className="h-[22px] px-[8px] text-[11px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 text-[#E5E7EB]"
+                                                                onClick={(e) => { e.stopPropagation(); setRenamingKey(null); }}
+                                                            >
+                                                                cancel
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             
@@ -422,7 +532,7 @@ const DictComponent = ({
                                     
                                     {/* Horizontal Divider Line */}
                                     {index < keys.length - 1 && (
-                                        <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
+                                        <div className="w-full h-[1px] bg-[#3A3D41] my-[4px]"></div>
                                     )}
                                 </React.Fragment>
                             );
@@ -430,7 +540,7 @@ const DictComponent = ({
                         
                         {/* Add New Key Button */}
                         {!readonly && (
-                            <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
+                            <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
                                 <button
                                     onClick={addEmptyKey}
                                     className="group w-6 h-6 flex items-center justify-center rounded-full 

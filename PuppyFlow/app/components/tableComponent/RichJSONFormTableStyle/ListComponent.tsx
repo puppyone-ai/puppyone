@@ -122,10 +122,22 @@ const ListComponent = ({
     const { isPathSelected, setSelectedPath } = useSelection();
     const [isHovered, setIsHovered] = React.useState(false);
     const isSelected = isPathSelected(path);
-    const accentColor = isSelected ? '#D5A262' : '#C18E4C';
+
+    const accentColor = isSelected ? '#E4B66E' : '#D7A85A';
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
+    // Close inline index actions on outside click
+    React.useEffect(() => {
+        const onDoc = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.closest('.rjft-index-inline-actions')) return;
+            setSelectedIndex(null);
+        };
+        document.addEventListener('mousedown', onDoc, true);
+        return () => document.removeEventListener('mousedown', onDoc, true);
+    }, []);
+
 
     React.useEffect(() => {
         const menuId = `list-menu-${path}`;
@@ -137,13 +149,17 @@ const ListComponent = ({
             if (!handleRef.current) return;
             const rect = handleRef.current.getBoundingClientRect();
             const gap = 8;
-            const top = rect.top + rect.height / 2;
+
+            const top = rect.top;
+
             const left = rect.left - gap;
 
             registerOverflowElement(
                 menuId,
                 (
-                    <div style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}>
+
+                    <div style={{ position: 'fixed', top, left, transform: 'translateX(-100%)' }}>
+
                         <ListActionMenu
                             value={data}
                             onClear={() => { onUpdate([]); setMenuOpen(false); }}
@@ -204,13 +220,20 @@ const ListComponent = ({
                 {(isSelected || isHovered || menuOpen) && (
                     <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
                         <div
-                            className="w-4 h-6 bg-[#252525] border rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
-                            style={{ borderColor: `${accentColor}50` }}
+
+                            className="w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                            style={{ borderColor: accentColor }}
                             aria-hidden
                             onClick={(e) => { 
                                 e.stopPropagation(); 
-                                window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                                setMenuOpen(true); 
+                                setSelectedPath(path);
+                                if (menuOpen) {
+                                    setMenuOpen(false);
+                                } else {
+                                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                                    setMenuOpen(true);
+                                }
+
                             }}
                             ref={handleRef}
                         >
@@ -270,20 +293,41 @@ const ListComponent = ({
                                             {/* Index Badge - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-hidden transition-colors duration-200 flex justify-center"
+
+                                                    className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center"
+
                                                     onMouseEnter={() => handleIndexHover(index, true)}
                                                     onMouseLeave={() => handleIndexHover(index, false)}
                                                 >
                                                     <div className="absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none"></div>
                                                     <span 
-                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans italic transition-colors duration-200
+                                                        className={`text-[10px] leading-[28px] font-plus-jakarta-sans not-italic inline-block mt-[2px] transition-colors duration-200
                                                             ${isIndexHovered
                                                                 ? 'text-[#A8773A]'
                                                                 : 'text-[#C18E4C] hover:text-[#D5A262]'
                                                             }`}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            if (!isSelected) return; 
+                                                            setSelectedPath(path); 
+                                                            setSelectedIndex(prev => prev === index ? null : index); 
+                                                        }}
                                                     >
                                                         {index}
                                                     </span>
+                                                    {selectedIndex === index && !readonly && (
+                                                        <div className="rjft-index-inline-actions absolute right-full top-1/2 -translate-y-1/2 mr-[4px] flex gap-[6px] z-30">
+                                                            <button
+                                                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
+                                                                title="Delete item"
+                                                                onClick={(e) => { e.stopPropagation(); deleteItem(index); setSelectedIndex(null); }}
+                                                            >
+                                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#F44336" strokeWidth="1.6">
+                                                                    <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             
@@ -315,7 +359,7 @@ const ListComponent = ({
                                     
                                     {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
                                     {index < data.length - 1 && (
-                                        <div className="w-full h-[1px] bg-[#6D7177]/70 my-[4px]"></div>
+                                        <div className="w-full h-[1px] bg-[#3A3D41] my-[4px]"></div>
                                     )}
                                 </React.Fragment>
                             );
@@ -326,7 +370,9 @@ const ListComponent = ({
                 )}
                 {/* Add New Item - 无论空与否都显示底部加号（只读除外） */}
                 {!readonly && (
-                    <div className="absolute -bottom-2 left-[32px] z-30 transform -translate-x-1/2">
+
+                    <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
+
                         <button
                             onClick={addEmptyItem}
                             className="group w-6 h-6 flex items-center justify-center rounded-full 
