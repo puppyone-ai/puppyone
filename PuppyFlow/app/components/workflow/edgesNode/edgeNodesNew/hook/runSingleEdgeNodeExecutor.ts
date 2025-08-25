@@ -17,6 +17,7 @@ import {
   EdgeNodeBuilderContext,
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
+import { syncBlockContent } from '../../../../../components/workflow/utils/externalStorage';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -369,6 +370,81 @@ export interface RunSingleEdgeNodeContext {
   resetLoadingUI: (nodeId: string) => void;
   // 修正getAuthHeaders的返回类型为HeadersInit以匹配实际函数
   getAuthHeaders: () => HeadersInit;
+}
+
+// Pre-run sync for involved block nodes (sources and targets) without requiring global getNodes
+async function preRunSyncInvolvedNodes(
+  parentId: string,
+  context: RunSingleEdgeNodeContext
+): Promise<void> {
+  try {
+    const sources =
+      context.getSourceNodeIdWithLabel(parentId, 'blocknode') || [];
+    const targets =
+      context.getTargetNodeIdWithLabel(parentId, 'blocknode') || [];
+    const ids = Array.from(
+      new Set<string>([...sources.map(s => s.id), ...targets.map(t => t.id)])
+    );
+
+    for (const id of ids) {
+      const node = context.getNode(id);
+      if (!node) continue;
+      const type = node.type || '';
+      if (type !== 'text' && type !== 'structured') continue;
+      const data = node.data || {};
+      const isDirty = !!data.dirty;
+      const needsInit = !(
+        data.storage_class === 'external' &&
+        data.external_metadata?.resource_key
+      );
+      if (!isDirty && !needsInit) continue;
+
+      const contentStr =
+        type === 'structured'
+          ? typeof data.content === 'string'
+            ? data.content
+            : JSON.stringify(data.content ?? [])
+          : String(data.content ?? '');
+      const contentType = type === 'structured' ? 'structured' : 'text';
+
+      // set saving
+      context.setNodes(prev =>
+        prev.map(n =>
+          n.id === id
+            ? { ...n, data: { ...n.data, savingStatus: 'saving' } }
+            : n
+        )
+      );
+
+      try {
+        await syncBlockContent({
+          node,
+          content: contentStr,
+          getUserId: async () => 'auto',
+          getAuthHeaders: context.getAuthHeaders,
+          setNodes: context.setNodes,
+          contentType,
+        });
+      } catch (e) {
+        context.setNodes(prev =>
+          prev.map(n =>
+            n.id === id
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    savingStatus: 'error',
+                    saveError: (e as Error)?.message || String(e),
+                  },
+                }
+              : n
+          )
+        );
+      }
+    }
+  } catch {
+    console.error('preRunSyncInvolvedNodes error');
+  }
 }
 
 // 创建新的目标节点
@@ -1042,6 +1118,9 @@ export async function runSingleEdgeNode({
 
   try {
     context.clearAll();
+
+    // 运行前同步当前边涉及的 block 节点（只依赖 source/target 列表与 getNode）
+    await preRunSyncInvolvedNodes(parentId, context);
 
     const targetNodeIdWithLabelGroup =
       context.getTargetNodeIdWithLabel(parentId);
