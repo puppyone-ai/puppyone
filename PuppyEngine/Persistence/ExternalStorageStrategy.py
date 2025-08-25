@@ -136,7 +136,7 @@ class ExternalStorageStrategy:
                     chunk_key = f"{resource_key}/{chunk_info['name']}"
                     chunk_data = await storage_client.download_chunk(chunk_key)
                     aggregator.add_jsonl_chunk(chunk_data)
-                block.set_content(aggregator.get_aggregated_data())
+                block.set_content(aggregator.get_all_objects())
             else:  # text or binary
                 # Simple concatenation
                 content_parts = []
