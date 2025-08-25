@@ -43,34 +43,42 @@ const DictActionMenu: React.FC<DictActionMenuProps> = ({
 }) => {
   return (
     <div
+
       className={`rjft-action-menu absolute right-full top-0 mr-2 z-[2000000] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col w-[128px] ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       <button
         className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={() => { navigator.clipboard.writeText(JSON.stringify(value, null, 2)); window.dispatchEvent(new CustomEvent('rjft:close-all-menus')); }}
       >
         <IconCopy />
         <span>Copy</span>
       </button>
       <button
+
         className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={onClear}
       >
         <IconTrash />
         <span>Clear</span>
       </button>
       <div className="h-px bg-[#3A3D45] my-1"></div>
+
       <div className="px-[4px] pb-[2px] text-[10px] tracking-[0.5px] uppercase text-[#9CA3AF]">Transfer</div>
       <button
         className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={onTransferToList}
       >
         <IconList />
         <span>To list</span>
       </button>
       <button
+
         className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={onTransferToText}
       >
         <IconText />
