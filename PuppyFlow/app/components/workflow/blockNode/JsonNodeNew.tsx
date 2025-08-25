@@ -20,6 +20,8 @@ import TreeJSONForm from '../../tableComponent/TreeJSONForm';
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon';
 import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import { syncBlockContent } from '../../workflow/utils/externalStorage';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
@@ -131,6 +133,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     } = useNodesPerFlowContext();
 
     const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
+    const { getAuthHeaders } = useAppSettings();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -271,7 +274,12 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             node.id === id
               ? {
                   ...node,
-                  data: { ...node.data, content: newValue },
+                  data: {
+                    ...node.data,
+                    content: newValue,
+                    dirty: true,
+                    savingStatus: 'editing',
+                  },
                 }
               : node
           )
@@ -279,6 +287,56 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       },
       [id, setNodes]
     );
+
+    // 防抖保存 external storage（2s），structured
+    useEffect(() => {
+      const node = getNode(id);
+      if (!node) return;
+      const data = node.data || {};
+      const currentContent = data.content;
+      const isDirty = !!data.dirty;
+      if (!isDirty || data.isLoading) return;
+
+      const timer = setTimeout(async () => {
+        try {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? { ...n, data: { ...n.data, savingStatus: 'saving' } }
+                : n
+            )
+          );
+          await syncBlockContent({
+            node,
+            content:
+              typeof currentContent === 'string'
+                ? currentContent
+                : JSON.stringify(currentContent ?? []),
+            getUserId: fetchUserId as any,
+            getAuthHeaders,
+            setNodes: setNodes as any,
+            contentType: 'structured',
+          });
+        } catch (e) {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      savingStatus: 'error',
+                      saveError: (e as Error)?.message || String(e),
+                    },
+                  }
+                : n
+            )
+          );
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }, [id, getNode, setNodes, fetchUserId, getAuthHeaders]);
 
     const calculateMaxLabelContainerWidth = useCallback(() => {
       return contentRef.current

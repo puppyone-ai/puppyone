@@ -264,11 +264,13 @@ const TextEditor = ({
           folding: false,
           renderLineHighlight: 'none',
           hideCursorInOverviewRuler: true,
+
           // 2) 关闭相同词语的灰色高亮
           occurrencesHighlight: 'off',
           selectionHighlight: false,
           // 3) 关闭缩进行
           guides: { indentation: false, highlightActiveIndentation: false },
+
         }}
         onMount={handleEditorDidMount}
       />

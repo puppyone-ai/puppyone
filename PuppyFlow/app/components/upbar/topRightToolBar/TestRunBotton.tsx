@@ -8,6 +8,8 @@ import useJsonConstructUtils from '@/app/components/hooks/useJsonConstructUtils'
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext';
 import { useAppSettings } from '@/app/components/states/AppSettingsContext';
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
+import { useWorkspaceManagement } from '@/app/components/hooks/useWorkspaceManagement';
+import { forceSyncDirtyNodes } from '@/app/components/workflow/utils/externalStorage';
 
 function TestRunBotton() {
   const [hovered, setHovered] = useState(false);
@@ -15,9 +17,15 @@ function TestRunBotton() {
   const { getNodes, getNode, setNodes, getEdges } = useReactFlow();
 
   // 获取需要的hooks
-  const { reportError, resetLoadingUI, streamResult, streamResultForMultipleNodes } = useJsonConstructUtils();
+  const {
+    reportError,
+    resetLoadingUI,
+    streamResult,
+    streamResultForMultipleNodes,
+  } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
   const { getAuthHeaders } = useAppSettings();
+  const { fetchUserId } = useWorkspaceManagement();
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
 
@@ -38,6 +46,16 @@ function TestRunBotton() {
     try {
       // 设置为处理中
       setIsComplete(false);
+
+      // 运行前强制同步所有 dirty 节点（文本/结构化）
+      await forceSyncDirtyNodes({
+        // 适配 NodeLike 签名
+        getNodes: () => getNodes() as unknown as any[],
+        setNodes: (updater: (nodes: any[]) => any[]) =>
+          setNodes((prev: any) => updater(prev as any)),
+        getAuthHeaders,
+        getUserId: fetchUserId as any,
+      });
 
       // 创建执行上下文
       const context: RunAllNodesContext = {
