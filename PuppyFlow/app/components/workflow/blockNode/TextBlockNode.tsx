@@ -22,6 +22,12 @@ import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon';
 import dynamic from 'next/dynamic';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import useGetSourceTarget from '../../hooks/useGetSourceTarget';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
+import {
+  forceSyncDirtyNodes,
+  syncBlockContent,
+} from '../../workflow/utils/externalStorage';
 
 // 定义节点数据类型
 export type TextBlockNodeData = {
@@ -62,7 +68,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       isOutput,
     },
   }) => {
-    const { getNode, setNodes } = useReactFlow();
+    const { getNode, setNodes, getNodes } = useReactFlow();
     const {
       activatedNode,
       isOnConnect,
@@ -78,6 +84,8 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     } = useNodesPerFlowContext();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
+    const { getAuthHeaders } = useAppSettings();
+    const { fetchUserId } = useWorkspaceManagement();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -217,13 +225,70 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
         setNodes(prevNodes =>
           prevNodes.map(node =>
             node.id === id
-              ? { ...node, data: { ...node.data, content: newValue } }
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    content: newValue,
+                    dirty: true,
+                    savingStatus: 'editing',
+                  },
+                }
               : node
           )
         );
       },
       [id, setNodes]
     );
+
+    // 防抖保存 external storage（2s）
+    useEffect(() => {
+      const node = getNode(id);
+      if (!node) return;
+      const data = node.data || {};
+      const currentContent = String(data.content ?? '');
+      const isDirty = !!data.dirty;
+
+      // 不在加载时且有变更才尝试防抖保存
+      if (!isDirty || data.isLoading) return;
+
+      const timer = setTimeout(async () => {
+        try {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? { ...n, data: { ...n.data, savingStatus: 'saving' } }
+                : n
+            )
+          );
+          await syncBlockContent({
+            node,
+            content: currentContent,
+            getUserId: fetchUserId as any,
+            getAuthHeaders,
+            setNodes: setNodes as any,
+            contentType: 'text',
+          });
+        } catch (e) {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      savingStatus: 'error',
+                      saveError: (e as Error)?.message || String(e),
+                    },
+                  }
+                : n
+            )
+          );
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }, [id, getNode, setNodes, fetchUserId, getAuthHeaders]);
 
     const calculateMaxLabelContainerWidth = useCallback(() => {
       return contentRef.current
