@@ -64,12 +64,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
         max_iterations = extra_configs.get("max_iterations", self.max_iterations)
         
         # Log the start of execution
-        logger.info("🚀 [DeepResearcher] Starting deep research execution")
-        logger.info(f"🔍 [DeepResearcher] Query: {query}")
-        logger.info(f"🤖 [DeepResearcher] Model: {model}")
-        logger.info(f"⚙️ [DeepResearcher] Temperature: {temperature}")
-        logger.info(f"📝 [DeepResearcher] Max tokens: {max_tokens}")
-        logger.info(f"🔄 [DeepResearcher] Max iterations: {max_iterations}")
+        logger.info(f"🚀 [DeepResearcher] Starting research: '{query}' (model: {model}, iterations: {max_iterations})")
         
         # Initialize conversation history
         conversation_history = []
@@ -83,7 +78,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
         iteration = 0
         while iteration < max_iterations:
             iteration += 1
-            logger.info(f"🔄 [DeepResearcher] Starting iteration {iteration}/{max_iterations}")
+            logger.info(f"🔄 [DeepResearcher] Iteration {iteration}/{max_iterations}")
             
             # Get LLM response
             llm_response = self._get_llm_response(
@@ -101,8 +96,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
             # Execute tool calls
             tool_results = []
             for i, (tool_name, tool_args) in enumerate(tool_calls):
-                logger.info(f"🔧 [DeepResearcher] Executing tool {i+1}/{len(tool_calls)}: {tool_name}")
-                logger.info(f"🔧 [DeepResearcher] Tool arguments: {tool_args}")
+                logger.info(f"🔧 [DeepResearcher] Executing {tool_name}: {tool_args}")
                 
                 try:
                     result = self._execute_tool(tool_name, tool_args, query, extra_configs)
@@ -111,7 +105,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
                         "args": tool_args,
                         "result": result
                     })
-                    logger.info(f"✅ [DeepResearcher] Tool {tool_name} executed successfully")
+                    logger.info(f"✅ [DeepResearcher] {tool_name} completed")
                 except Exception as e:
                     error_msg = f"Error executing {tool_name}: {str(e)}"
                     tool_results.append({
@@ -119,7 +113,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
                         "args": tool_args,
                         "result": error_msg
                     })
-                    logger.error(f"❌ [DeepResearcher] Tool {tool_name} failed: {str(e)}")
+                    logger.error(f"❌ [DeepResearcher] {tool_name} failed: {str(e)}")
             
             # Add tool results to history
             self.tool_results_history.extend(tool_results)
@@ -127,24 +121,8 @@ class DeepResearcherEdge(EdgeFactoryBase):
             # Create context from tool results
             context = self._create_context_from_results(tool_results)
             
-            # Log the tool execution results and context
-            logger.info(f"📊 [DeepResearcher] Tool execution results for iteration {iteration}:")
-            logger.info("=" * 80)
-            for i, result in enumerate(tool_results):
-                logger.info(f"📊 [DeepResearcher] Tool {i+1}: {result['tool']}")
-                logger.info(f"📊 [DeepResearcher] Arguments: {result['args']}")
-                logger.info(f"📊 [DeepResearcher] Result: {result['result'][:200]}...")  # Truncate for readability
-                logger.info("-" * 40)
-            
-            logger.info(f"📊 [DeepResearcher] Generated context length: {len(context)} characters")
-            logger.info("=" * 80)
-            
             # Create the follow-up prompt with tool results
             follow_up_prompt = f"Tool execution results:\n{context}\n\nPlease continue with your research or provide the final answer."
-            
-            # Log the follow-up prompt being added
-            logger.info(f"📤 [DeepResearcher] Adding follow-up prompt with tool results to conversation")
-            logger.info(f"📤 [DeepResearcher] Follow-up prompt length: {len(follow_up_prompt)} characters")
             
             # Add assistant response and context to conversation
             conversation_history.append({"role": "assistant", "content": llm_response})
@@ -153,11 +131,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
                 "content": follow_up_prompt
             })
             
-            # Log the updated conversation history
-            logger.info(f"📋 [DeepResearcher] Updated conversation history - Total messages: {len(conversation_history)}")
-            logger.info(f"📋 [DeepResearcher] Last message (follow-up prompt) preview: {follow_up_prompt[:100]}...")
-            
-            # Log tool execution results and follow-up prompt to interaction log
+                    # Log tool execution results to interaction log
             self._log_tool_execution_to_interaction_log(iteration, tool_results, context, follow_up_prompt)
         
         # If we've reached max iterations, get final response
@@ -243,11 +217,6 @@ Instructions:
 - Cite sources when possible
 """
         
-        # Log the available tools
-        logger.info(f"🔧 [DeepResearcher] Available tools: {[tool.split(' - ')[0] for tool in tool_descriptions]}")
-        if enabled_vector_dbs:
-            logger.info(f"🔧 [DeepResearcher] Enabled vector databases: {enabled_vector_dbs}")
-        
         return system_prompt
 
     def _get_llm_response(
@@ -263,13 +232,6 @@ Instructions:
         
         # Log the prompt being sent
         logger.info(f"📤 [DeepResearcher] Sending prompt to LLM (Iteration: {iteration})")
-        logger.info(f"📤 [DeepResearcher] Timestamp: {timestamp}")
-        logger.info(f"📤 [DeepResearcher] Model: {model}")
-        logger.info(f"📤 [DeepResearcher] Temperature: {temperature}")
-        logger.info(f"📤 [DeepResearcher] Max tokens: {max_tokens}")
-        
-        # Format and log the messages
-        self._log_messages("PROMPT", messages, iteration, timestamp)
         
         # Store interaction data
         interaction_data = {
@@ -295,12 +257,7 @@ Instructions:
         
         # Log the response received
         response_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        logger.info(f"📥 [DeepResearcher] Received response from LLM (Iteration: {iteration})")
-        logger.info(f"📥 [DeepResearcher] Response timestamp: {response_timestamp}")
-        logger.info(f"📥 [DeepResearcher] Response length: {len(response)} characters")
-        
-        # Format and log the response
-        self._log_response("RESPONSE", response, iteration, response_timestamp)
+        logger.info(f"📥 [DeepResearcher] Received response ({len(response)} chars)")
         
         # Store response data
         response_data = {
@@ -315,84 +272,10 @@ Instructions:
         
         return response
 
-    def _log_messages(self, prefix: str, messages: List[Dict[str, str]], iteration: Any, timestamp: str):
-        """Log messages in a formatted way."""
-        logger.info(f"📋 [{prefix}] Messages for iteration {iteration} at {timestamp}:")
-        logger.info("=" * 80)
-        
-        for i, message in enumerate(messages):
-            role = message.get("role", "unknown")
-            content = message.get("content", "")
-            
-            logger.info(f"📋 [{prefix}] Message {i+1} - Role: {role.upper()}")
-            logger.info(f"📋 [{prefix}] Content:")
-            logger.info("-" * 40)
-            
-            # Split content into lines and log each line
-            lines = content.split('\n')
-            for line in lines:
-                if line.strip():  # Only log non-empty lines
-                    logger.info(f"📋 [{prefix}] {line}")
-            
-            logger.info("-" * 40)
-        
-        logger.info("=" * 80)
 
-    def _log_response(self, prefix: str, response: str, iteration: Any, timestamp: str):
-        """Log response in a formatted way."""
-        logger.info(f"📋 [{prefix}] Response for iteration {iteration} at {timestamp}:")
-        logger.info("=" * 80)
-        
-        # Split response into lines and log each line
-        lines = response.split('\n')
-        for line in lines:
-            if line.strip():  # Only log non-empty lines
-                logger.info(f"📋 [{prefix}] {line}")
-        
-        logger.info("=" * 80)
 
     def _log_complete_interaction_history(self):
         """Log the complete interaction history in a structured format."""
-        logger.info("📊 [DeepResearcher] Complete LLM Interaction History:")
-        logger.info("=" * 100)
-        
-        for i, interaction in enumerate(self.llm_interaction_log):
-            interaction_type = interaction.get("type", "unknown")
-            timestamp = interaction.get("timestamp", "unknown")
-            iteration = interaction.get("iteration", "unknown")
-            
-            logger.info(f"📊 [DeepResearcher] Interaction {i+1}:")
-            logger.info(f"📊 [DeepResearcher]   Type: {interaction_type.upper()}")
-            logger.info(f"📊 [DeepResearcher]   Timestamp: {timestamp}")
-            logger.info(f"📊 [DeepResearcher]   Iteration: {iteration}")
-            
-            if interaction_type == "prompt":
-                model = interaction.get("model", "unknown")
-                temperature = interaction.get("temperature", "unknown")
-                max_tokens = interaction.get("max_tokens", "unknown")
-                logger.info(f"📊 [DeepResearcher]   Model: {model}")
-                logger.info(f"📊 [DeepResearcher]   Temperature: {temperature}")
-                logger.info(f"📊 [DeepResearcher]   Max Tokens: {max_tokens}")
-                logger.info(f"📊 [DeepResearcher]   Message Count: {len(interaction.get('messages', []))}")
-            elif interaction_type == "response":
-                response_length = interaction.get("response_length", "unknown")
-                logger.info(f"📊 [DeepResearcher]   Response Length: {response_length} characters")
-            elif interaction_type == "tool_execution":
-                tool_results = interaction.get("tool_results", [])
-                context_length = len(interaction.get("context", ""))
-                follow_up_length = len(interaction.get("follow_up_prompt", ""))
-                logger.info(f"📊 [DeepResearcher]   Tools Executed: {len(tool_results)}")
-                logger.info(f"📊 [DeepResearcher]   Context Length: {context_length} characters")
-                logger.info(f"📊 [DeepResearcher]   Follow-up Prompt Length: {follow_up_length} characters")
-                for j, tool_result in enumerate(tool_results):
-                    tool_name = tool_result.get("tool", "unknown")
-                    result_length = len(tool_result.get("result", ""))
-                    logger.info(f"📊 [DeepResearcher]     Tool {j+1}: {tool_name} (Result: {result_length} chars)")
-            
-            logger.info("-" * 50)
-        
-        logger.info("=" * 100)
-        
         # Save interaction log to file
         self._save_interaction_log_to_file()
 
@@ -491,6 +374,13 @@ Instructions:
         for match in matches:
             tool_name = match[0].upper()
             tool_args = match[1].strip()
+            
+            # Remove surrounding quotes if they exist
+            if tool_args.startswith('"') and tool_args.endswith('"'):
+                tool_args = tool_args[1:-1]
+            elif tool_args.startswith("'") and tool_args.endswith("'"):
+                tool_args = tool_args[1:-1]
+            
             tool_calls.append((tool_name, tool_args))
         
         return tool_calls
@@ -533,8 +423,6 @@ Instructions:
             if not enabled_sources:
                 return "No vector databases are currently enabled."
             
-            logger.info(f"🔍 [DeepResearcher] Searching across {len(enabled_sources)} enabled vector databases")
-            
             # Get common search settings for all databases
             top_k = vector_configs.get("top_k", 5)
             threshold = vector_configs.get("threshold", 0.7)
@@ -543,7 +431,6 @@ Instructions:
             all_results = []
             for i, source in enumerate(enabled_sources):
                 collection_name = source.get("index_item", {}).get("collection_configs", {}).get("collection_name", f"database_{i}")
-                logger.info(f"🔍 [DeepResearcher] Searching database {i+1}/{len(enabled_sources)}: {collection_name}")
                 
                 try:
                     # Create config for this specific database using common settings
@@ -577,9 +464,7 @@ Instructions:
                             "results": result
                         })
                         
-                        logger.info(f"✅ [DeepResearcher] Database {collection_name} returned {len(result) if isinstance(result, list) else 1} results")
-                    else:
-                        logger.info(f"⚠️ [DeepResearcher] Database {collection_name} returned no results")
+
                         
                 except Exception as e:
                     logger.error(f"❌ [DeepResearcher] Error searching database {collection_name}: {str(e)}")
@@ -613,8 +498,6 @@ Instructions:
                 combined_results.append("")  # Empty line for separation
             
             final_result = "\n".join(combined_results)
-            logger.info(f"✅ [DeepResearcher] Combined results from {len(all_results)} databases, total length: {len(final_result)} characters")
-            
             return final_result
             
         except Exception as e:
@@ -623,21 +506,57 @@ Instructions:
             return error_msg
 
     def _execute_google_search(self, query: str, extra_configs: Dict[str, Any]) -> str:
-        """Execute Google search."""
+        """Execute Google search using WebSearchStrategy."""
         try:
-            google_configs = extra_configs.get("google_search_configs", {})
-            google_configs["sub_search_type"] = "google"
+            from ModularEdges.SearchEdge.web_search import WebSearchStrategy
             
-            result = SearcherFactory.execute(
-                init_configs={"query": query, "search_type": "web"},
+            # Get Google search configurations from extra_configs
+            google_search_configs = extra_configs.get("google_search_configs", {})
+            
+            # Use configurable search type, default to google_v2 if not specified
+            sub_search_type = google_search_configs.get("sub_search_type", "google_v2")
+            
+            # Use configurable top_k, default to 3 if not specified
+            top_k = google_search_configs.get("top_k", 3)
+            
+            google_configs = {
+                "sub_search_type": sub_search_type,
+                "top_k": top_k,
+                "firecrawl_config": {
+                    "formats": ["markdown"],
+                    "is_only_main_content": True,
+                    "wait_for": 60
+                }
+            }
+            
+            # Merge any additional Google configs from extra_configs
+            if "firecrawl_config" in google_search_configs:
+                google_configs["firecrawl_config"].update(google_search_configs["firecrawl_config"])
+
+            logger.info(f"🔍 [DeepResearcher] Google search (top_k: {top_k})")
+            
+            # Create WebSearchStrategy instance directly
+            web_searcher = WebSearchStrategy(
+                query=query,
                 extra_configs=google_configs
             )
             
+            # Execute the search
+            result = web_searcher.search()
+            
             if isinstance(result, list):
-                return "\n".join([str(item) for item in result])
+                # Format the results nicely
+                formatted_results = []
+                for i, item in enumerate(result, 1):
+                    title = item.get("title", "No title")
+                    link = item.get("link", "No link")
+                    content = item.get("content", "No content")
+                    formatted_results.append(f"{i}. {title}\n   URL: {link}\n   Content: {content}\n")
+                return "\n".join(formatted_results)
             else:
                 return str(result)
         except Exception as e:
+            logger.error(f"❌ [DeepResearcher] Google search error: {str(e)}")
             return f"Google search error: {str(e)}"
 
     def _execute_perplexity_search(self, query: str, extra_configs: Dict[str, Any]) -> str:
@@ -675,7 +594,7 @@ Instructions:
         return "\n".join(context_parts)
 
     def _log_tool_execution_to_interaction_log(self, iteration: int, tool_results: List[Dict[str, Any]], context: str, follow_up_prompt: str):
-        """Log tool execution results and follow-up prompt to the interaction log."""
+        """Log tool execution results to the interaction log."""
         tool_execution_data = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "iteration": str(iteration),
@@ -685,7 +604,6 @@ Instructions:
             "follow_up_prompt": follow_up_prompt
         }
         self.llm_interaction_log.append(tool_execution_data)
-        logger.info(f"💾 [DeepResearcher] Tool execution results and follow-up prompt logged to interaction log.")
 
 
 if __name__ == "__main__":
@@ -751,8 +669,13 @@ if __name__ == "__main__":
         },
         "google_search_configs": {
             "enabled": True,
-            "max_results": 5,
-            "filter_unreachable_pages": True
+            "top_k": 5,  # Configurable number of results
+            "filter_unreachable_pages": True,
+            "firecrawl_config": {
+                "formats": ["markdown"],
+                "is_only_main_content": True,
+                "wait_for": 60
+            }
         },
         "perplexity_search_configs": {
             "enabled": True,

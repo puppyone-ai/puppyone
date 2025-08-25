@@ -78,7 +78,7 @@ def test_query():
     load_dotenv()
     
     init_configs = {
-        "query": "What is the current weather in New York?"
+        "query": "What is the current temperature in Mohe, China? today is 2025-08-25. Use the tools you have"
     }
     
     extra_configs = {
@@ -89,12 +89,11 @@ def test_query():
         
         # Only web search tools
         "google_search_configs": {
-            "max_results": 3,
-            "filter_unreachable_pages": True
+            "max_results": 3
         },
         
         "perplexity_search_configs": {
-            "model": "gpt-4o-mini"
+            "model": "gpt-4o"
         }
     }
     
@@ -118,9 +117,9 @@ if __name__ == "__main__":
     print("Testing DeepResearcherEdge...")
     # print("=" * 60)
     
-    test_deep_researcher()
+    # test_deep_researcher()
     
     # print("\n" + "=" * 60)
     
     # # Test 2: Simple query
-    # test_query() 
+    test_query() 
