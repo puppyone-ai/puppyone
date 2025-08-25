@@ -207,7 +207,9 @@ class StorageClient:
                     "name": chunk_name,
                     "size": len(chunk_data),
                     "etag": chunk_etag,
-                    "uploaded_at": datetime.utcnow().isoformat()
+                    "uploaded_at": datetime.utcnow().isoformat(),
+                    # chunk 级别状态：上传完成即可标记为 done（生产者已保证完整性）
+                    "state": "done"
                 }
 
                 response = await self.client.put(
@@ -230,42 +232,8 @@ class StorageClient:
                 else:
                     raise StorageException(f"Failed to update manifest: {response.text}")
 
-            # [FIX] Upload the physical _completed.marker file before updating the manifest
-            # This ensures the marker file actually exists when the manifest claims it does.
-            # Use a single space as content to avoid "No chunk data provided" error from storage server.
-            await self._upload_chunk(
-                block_id=block_id_from_key,
-                file_name="_completed.marker",
-                chunk_data=b" ",
-                version_id=version_id
-            )
-            log_info("Uploaded physical _completed.marker file.")
-
-            # Mark as completed by adding a completion marker
-            completion_chunk = {
-                "name": "_completed.marker",
-                "size": 0,
-                "etag": "completed",
-                "uploaded_at": datetime.utcnow().isoformat()
-            }
-
-            response = await self.client.put(
-                f"{self.base_url}/upload/manifest",
-                json={
-                    "user_id": user_id,
-                    "block_id": block_id_from_key,
-                    "version_id": version_id,
-                    "expected_etag": current_etag,
-                    "new_chunk": completion_chunk,
-                    "status": "completed"
-                },
-                headers=self.headers
-            )
-
-            if response.status_code == 200:
-                log_info("Manifest marked as completed")
-            else:
-                log_error(f"Failed to mark manifest as completed: {response.text}")
+            # 移除 _completed.marker 机制：不再写入或依赖标记文件
+            # 可选：若需要记录整体完成状态，可在业务侧另行记录，不在清单中追加伪chunk
 
         except Exception as e:
             log_error(f"Chunk upload failed for block {block_id}: {e}")
