@@ -29,7 +29,7 @@ export function useFileUpload({
 }: FileUploadProps) {
   const { userId } = useWorkspaces();
   const { fetchUserId } = useWorkspaceManagement();
-  const { addWarn, getAuthHeaders } = useAppSettings();
+  const { addWarn, isLocalDeployment } = useAppSettings();
 
   const [uploadedFiles, setUploadedFiles] =
     useState<UploadedFile[]>(initialFiles);
@@ -55,15 +55,8 @@ export function useFileUpload({
     return res;
   };
 
-  // 获取 Authorization headers，若缺失则在本地开发下提供兜底
-  const getAuthHeader = (): HeadersInit => {
-    const headers = getAuthHeaders() || {};
-    if (!('Authorization' in headers)) {
-      // PuppyStorage 的 /upload/chunk/direct 在本地也需要存在 Authorization 头
-      return { Authorization: 'Bearer local-dev' };
-    }
-    return headers;
-  };
+  // 🔒 安全修复：移除客户端认证处理，所有请求通过服务端代理认证
+  // getAuthHeader 已弃用，认证完全由服务端代理处理
 
   // 处理文件输入变化
   const handleInputChange = async (
@@ -185,13 +178,14 @@ export function useFileUpload({
         content_type: file.type || 'application/octet-stream',
       });
       if (versionId) qs.set('version_id', versionId);
-      const directUploadUrl = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?${qs.toString()}`;
+      // Route via same-origin API proxy
+      const directUploadUrl = `/api/storage/upload/chunk/direct?${qs.toString()}`;
 
       const uploadResp = await fetch(directUploadUrl, {
         method: 'POST',
+        credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
         headers: {
           'Content-Type': file.type || 'application/octet-stream',
-          ...getAuthHeader(),
         },
         body: file,
       });
@@ -252,11 +246,11 @@ export function useFileUpload({
       const tryUpdateManifest = async (
         body: typeof baseManifestBody
       ): Promise<Response> => {
-        return fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/manifest`, {
+        return fetch(`/api/storage/upload/manifest`, {
           method: 'PUT',
+          credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeader(),
           },
           body: JSON.stringify(body),
         });
@@ -323,20 +317,17 @@ export function useFileUpload({
         ? file.task_id
         : `${userIdVal}/${nodeId}/${versionId ?? ''}/${file.fileName}`;
 
-      const response = await fetch(
-        `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/files/delete`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({
-            user_id: userIdVal,
-            resource_key: fullKey,
-          }),
-        }
-      );
+      const response = await fetch(`/api/storage/files/delete`, {
+        method: 'DELETE',
+        credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userIdVal,
+          resource_key: fullKey,
+        }),
+      });
       if (response.ok) {
         console.log('File deleted successfully');
         // 更新本地状态
