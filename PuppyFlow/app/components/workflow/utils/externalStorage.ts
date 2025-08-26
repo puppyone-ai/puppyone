@@ -6,11 +6,10 @@ High-level external storage sync utilities for Blocks.
 - No new version creation after first initialization
 */
 
-import { SYSTEM_URLS } from '@/config/urls';
+// Route all storage operations via secure proxy endpoints under /api/storage
 
 export type ContentType = 'text' | 'structured';
 
-type HeadersGetter = () => HeadersInit;
 type UserIdGetter = () => Promise<string>;
 
 export type NodeLike = {
@@ -23,14 +22,7 @@ export type NodesGetter = () => NodeLike[];
 export type NodeGetter = (id: string) => NodeLike | undefined;
 export type NodesSetter = (updater: (nodes: NodeLike[]) => NodeLike[]) => void;
 
-// Ensure Authorization header exists in local dev too
-function withAuthFallback(getAuthHeaders: HeadersGetter): HeadersInit {
-  const base = getAuthHeaders() || {};
-  const hasAuth = Object.keys(base).some(
-    k => k.toLowerCase() === 'authorization'
-  );
-  return hasAuth ? base : { ...base, Authorization: 'Bearer local-dev' };
-}
+// Client never adds auth headers; server-side proxy authenticates requests
 
 // Parse version_id from resource_key: user_id/block_id/version_id
 function parseVersionId(resourceKey: string): string | null {
@@ -153,8 +145,7 @@ async function uploadChunkList(
     mime: string;
     bytes: Uint8Array;
     index: number;
-  }>,
-  getAuthHeaders: HeadersGetter
+  }>
 ): Promise<
   Array<{
     name: string;
@@ -182,8 +173,7 @@ async function uploadChunkList(
       c.name,
       c.mime,
       c.bytes,
-      versionId,
-      getAuthHeaders
+      versionId
     );
     results.push({
       name: c.name,
@@ -201,7 +191,6 @@ async function uploadChunkList(
 
 async function createInitialManifest(
   blockId: string,
-  getAuthHeaders: HeadersGetter,
   manifestBody?: any
 ): Promise<{ versionId: string; manifestKey: string; resourceKey: string }> {
   const body = JSON.stringify(
@@ -215,12 +204,15 @@ async function createInitialManifest(
   );
 
   const resp = await fetch(
-    `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?block_id=${encodeURIComponent(
+    `/api/storage/upload/chunk/direct?block_id=${encodeURIComponent(
       blockId
     )}&file_name=manifest.json&content_type=application/json`,
     {
       method: 'POST',
-      headers: withAuthFallback(getAuthHeaders),
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body,
     }
   );
@@ -243,18 +235,17 @@ async function uploadChunkDirect(
   fileName: string,
   contentType: string,
   bytes: Uint8Array | string,
-  versionId: string,
-  getAuthHeaders: HeadersGetter
+  versionId: string
 ): Promise<{ etag: string; size: number }> {
-  const url = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?block_id=${encodeURIComponent(
+  const url = `/api/storage/upload/chunk/direct?block_id=${encodeURIComponent(
     blockId
   )}&file_name=${encodeURIComponent(fileName)}&content_type=${encodeURIComponent(
     contentType
   )}&version_id=${encodeURIComponent(versionId)}`;
   const resp = await fetch(url, {
     method: 'POST',
+    credentials: 'include',
     headers: {
-      ...withAuthFallback(getAuthHeaders),
       'Content-Type': contentType,
     },
     body: typeof bytes === 'string' ? bytes : bytes,
@@ -269,18 +260,20 @@ async function uploadChunkDirect(
 async function overwriteManifest(
   blockId: string,
   versionId: string,
-  manifest: any,
-  getAuthHeaders: HeadersGetter
+  manifest: any
 ): Promise<void> {
   const body = JSON.stringify(manifest);
-  const url = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?block_id=${encodeURIComponent(
+  const url = `/api/storage/upload/chunk/direct?block_id=${encodeURIComponent(
     blockId
   )}&file_name=manifest.json&content_type=application/json&version_id=${encodeURIComponent(
     versionId
   )}`;
   const resp = await fetch(url, {
     method: 'POST',
-    headers: withAuthFallback(getAuthHeaders),
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
     body,
   });
   if (!resp.ok) {
@@ -293,7 +286,6 @@ async function overwriteManifest(
 export async function ensureExternalPointer(
   node: NodeLike,
   getUserId: UserIdGetter,
-  getAuthHeaders: HeadersGetter,
   setNodes: NodesSetter,
   contentType: ContentType
 ): Promise<{ resourceKey: string; versionId: string }> {
@@ -308,8 +300,7 @@ export async function ensureExternalPointer(
 
   // Create initial version by uploading an empty manifest
   const { versionId: newVid, resourceKey } = await createInitialManifest(
-    node.id,
-    getAuthHeaders
+    node.id
   );
 
   versionId = newVid;
@@ -343,14 +334,12 @@ export async function syncBlockContent({
   node,
   content,
   getUserId,
-  getAuthHeaders,
   setNodes,
   contentType,
 }: {
   node: NodeLike;
   content: string;
   getUserId: UserIdGetter;
-  getAuthHeaders: HeadersGetter;
   setNodes: NodesSetter;
   contentType: ContentType;
 }): Promise<void> {
@@ -358,7 +347,6 @@ export async function syncBlockContent({
   const { resourceKey, versionId } = await ensureExternalPointer(
     node,
     getUserId,
-    getAuthHeaders,
     setNodes,
     contentType
   );
@@ -377,7 +365,7 @@ export async function syncBlockContent({
       chunks: [],
     } as const;
 
-    await overwriteManifest(node.id, versionId, manifestEmpty, getAuthHeaders);
+    await overwriteManifest(node.id, versionId, manifestEmpty);
 
     setNodes(prev =>
       prev.map(n =>
@@ -406,12 +394,7 @@ export async function syncBlockContent({
 
   // Build chunk descriptors and upload sequentially
   const descriptors = buildChunkDescriptors(content, contentType);
-  const uploaded = await uploadChunkList(
-    node.id,
-    versionId,
-    descriptors,
-    getAuthHeaders
-  );
+  const uploaded = await uploadChunkList(node.id, versionId, descriptors);
 
   // Build manifest and overwrite (full list of chunks)
   const manifest = {
@@ -423,7 +406,7 @@ export async function syncBlockContent({
     chunks: uploaded,
   } as const;
 
-  await overwriteManifest(node.id, versionId, manifest, getAuthHeaders);
+  await overwriteManifest(node.id, versionId, manifest);
 
   // Clear dirty/saving status on success
   setNodes(prev =>
@@ -453,12 +436,10 @@ export async function syncBlockContent({
 export async function forceSyncDirtyNodes({
   getNodes,
   setNodes,
-  getAuthHeaders,
   getUserId,
 }: {
   getNodes: NodesGetter;
   setNodes: NodesSetter;
-  getAuthHeaders: HeadersGetter;
   getUserId: UserIdGetter;
 }): Promise<void> {
   const nodes = getNodes();
@@ -488,7 +469,6 @@ export async function forceSyncDirtyNodes({
         node: n,
         content,
         getUserId,
-        getAuthHeaders,
         setNodes,
         contentType,
       });

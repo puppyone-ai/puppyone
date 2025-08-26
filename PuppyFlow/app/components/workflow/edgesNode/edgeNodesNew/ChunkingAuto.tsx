@@ -53,7 +53,7 @@ function ChunkingAuto({
 
   // 获取所有需要的依赖
   const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
 
   // 创建执行上下文
   const createExecutionContext = useCallback(
@@ -67,19 +67,17 @@ function ChunkingAuto({
       streamResult,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
     }),
     [
       getNode,
       setNodes,
       setEdges,
-      getSourceNodeIdWithLabel,
-      getTargetNodeIdWithLabel,
-      clearAll,
-      streamResult,
-      reportError,
-      resetLoadingUI,
-      getAuthHeaders,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
     ]
   );
 

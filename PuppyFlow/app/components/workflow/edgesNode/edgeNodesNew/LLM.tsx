@@ -93,7 +93,7 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
 
     // 使用 AppSettingsContext
     const { availableModels, isLocalDeployment } = useAppSettings();
@@ -225,7 +225,6 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       }),
       [
         getNode,
@@ -237,7 +236,6 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       ]
     );
 

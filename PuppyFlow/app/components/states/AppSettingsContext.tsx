@@ -40,7 +40,7 @@ import React, {
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';
 import { SYSTEM_URLS } from '@/config/urls';
-import Cookies from 'js-cookie';
+// import Cookies from 'js-cookie';
 
 // 定义用量数据类型
 export type UsageData = {
@@ -114,10 +114,7 @@ type AppSettingsContextType = {
   isLoadingSubscriptionStatus: boolean;
   fetchUserSubscriptionStatus: () => Promise<void>;
 
-  // 认证相关
-  getAuthHeaders: () => HeadersInit;
-  getUserToken: (forceLocal?: boolean) => string | undefined;
-  getCustomAuthHeaders: (headerName?: string) => Record<string, string>;
+  // 认证相关（全部由服务端处理，无需客户端headers）
 
   // 警告消息相关
   warns: WarnMessage[];
@@ -406,38 +403,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     setLocalModels(localModels.filter(model => model.id !== id));
   };
 
-  // 🔒 安全修复：认证headers现在通过服务端代理处理
-  // 这个函数保留用于向后兼容，但不再处理敏感认证信息
-  const getAuthHeaders = (): HeadersInit => {
-    // 客户端不再直接处理认证token
-    // 所有API调用应使用 credentials: 'include' 通过代理处理
-    console.warn('getAuthHeaders() is deprecated - use credentials: "include" instead');
-    return {};
-  };
-
-  // 🔒 安全修复：移除客户端token访问
-  // 这个函数保留用于向后兼容，但不再返回敏感token
-  const getUserToken = (forceLocal?: boolean): string | undefined => {
-    const useLocal = forceLocal !== undefined ? forceLocal : isLocalDeployment;
-
-    if (useLocal) {
-      return 'local-token';
-    }
-
-    // 客户端不再直接访问access_token
-    // 所有认证通过HttpOnly cookie和服务端代理处理
-    console.warn('getUserToken() is deprecated - authentication handled server-side');
-    return undefined;
-  };
-
-  // 🔒 安全修复：移除自定义认证headers
-  // 这个函数保留用于向后兼容，但不再处理敏感认证
-  const getCustomAuthHeaders = (
-    headerName: string = 'Authorization'
-  ): Record<string, string> => {
-    console.warn('getCustomAuthHeaders() is deprecated - authentication handled server-side');
-    return {};
-  };
+  // 客户端不再提供任何 auth headers 函数，统一用 credentials: 'include'
 
   // 获取用户用量数据
   const fetchUsageData = async () => {
@@ -515,22 +481,13 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoadingSubscriptionStatus(true);
 
     try {
-      const userAccessToken = getUserToken();
-      if (!userAccessToken) {
-        throw new Error('No user access token found');
-      }
-
-      const response = await fetch(
-        `/api/user-system/user_subscription_status`,
-        {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders(),
-          },
-        }
-      );
+      const response = await fetch(`/api/user-system/user_subscription_status`, {
+        method: 'GET',
+        credentials: 'include', // Auth via HttpOnly cookie
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (response.status !== 200) {
         const error_data: { error: string } = await response.json();
@@ -601,9 +558,6 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         userSubscriptionStatus,
         isLoadingSubscriptionStatus,
         fetchUserSubscriptionStatus,
-        getAuthHeaders,
-        getUserToken,
-        getCustomAuthHeaders,
         warns,
         addWarn,
         removeWarn,

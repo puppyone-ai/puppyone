@@ -346,7 +346,7 @@ export interface RunAllNodesContext {
   // 通信相关
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  // 🔒 安全修复：getAuthHeaders已弃用，认证通过服务端代理处理
+  // 🔒 认证通过服务端代理处理
   isLocalDeployment: boolean;
 }
 

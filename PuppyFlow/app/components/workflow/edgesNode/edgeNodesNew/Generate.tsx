@@ -116,7 +116,7 @@ const Generate: React.FC<GenerateNodeProps> = memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
 
     // 使用 AppSettingsContext
     const { availableModels, isLocalDeployment } = useAppSettings();
@@ -177,13 +177,12 @@ const Generate: React.FC<GenerateNodeProps> = memo(
         getNode,
         setNodes,
         setEdges,
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
-        clearAll,
-        streamResult,
-        reportError,
-        resetLoadingUI,
-        getAuthHeaders,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      reportError,
+      resetLoadingUI,
       }),
       [
         getNode,
@@ -195,7 +194,6 @@ const Generate: React.FC<GenerateNodeProps> = memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       ]
     );
 

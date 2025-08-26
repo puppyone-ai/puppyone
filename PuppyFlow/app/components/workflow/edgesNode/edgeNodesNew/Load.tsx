@@ -57,7 +57,7 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
 
   // 获取所有需要的依赖
   const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
 
   // 创建执行上下文
   const createExecutionContext = useCallback(
@@ -71,7 +71,6 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
       streamResult,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
     }),
     [
       getNode,
@@ -83,7 +82,6 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
       streamResult,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
     ]
   );
 

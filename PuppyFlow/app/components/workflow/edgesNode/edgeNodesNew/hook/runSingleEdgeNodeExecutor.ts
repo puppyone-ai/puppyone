@@ -365,7 +365,7 @@ export interface RunSingleEdgeNodeContext {
   streamResult: (taskId: string, nodeId: string) => Promise<any>;
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  // 🔒 安全修复：getAuthHeaders已弃用，认证通过服务端代理处理
+  // 🔒 认证通过服务端代理处理
   isLocalDeployment: boolean;
 }
 
@@ -418,7 +418,6 @@ async function preRunSyncInvolvedNodes(
           node,
           content: contentStr,
           getUserId: async () => 'auto',
-          getAuthHeaders: () => ({}), // 🔒 安全修复：认证通过服务端代理处理
           setNodes: context.setNodes,
           contentType,
         });
