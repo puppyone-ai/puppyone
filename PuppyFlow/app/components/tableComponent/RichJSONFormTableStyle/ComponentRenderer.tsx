@@ -73,7 +73,7 @@ export const SelectionProvider = ({ children }: { children: React.ReactNode }) =
     const [selectedPath, setSelectedPath] = useState<string | null>(null);
 
     const isPathSelected = (path: string): boolean => {
-        if (!selectedPath) return false;
+        // Treat empty string "" as a valid root path; only null means no selection
         return selectedPath === path;
     };
 
@@ -180,6 +180,8 @@ const ComponentRenderer = ({
                     preventParentDrag={preventParentDrag}
                     allowParentDrag={allowParentDrag}
                     readonly={readonly}
+                    path={path}
+                    onReplace={onUpdate}
                 />
             );
         case 'text':

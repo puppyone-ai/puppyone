@@ -370,7 +370,7 @@ const DictComponent = ({
 
                         <DictActionMenu
                             value={data}
-                            onClear={() => { onUpdate({}); setMenuOpen(false); }}
+                            onClear={() => { onUpdate(null as any); setMenuOpen(false); }}
                             onTransferToList={() => { onReplace && onReplace([null, null]); setMenuOpen(false); }}
                             onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
                             onPaste={async () => {
