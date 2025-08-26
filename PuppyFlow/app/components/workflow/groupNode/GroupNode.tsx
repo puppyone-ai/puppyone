@@ -11,7 +11,7 @@ import {
   NodeProps,
   Handle,
   Position,
-  Node,
+  Node as ReactFlowNode,
   NodeResizeControl,
   NodeToolbar,
   useReactFlow,
@@ -43,7 +43,7 @@ export type GroupNodeData = {
   [key: string]: unknown;
 };
 
-type GroupNodeProps = NodeProps<Node<GroupNodeData>>;
+type GroupNodeProps = NodeProps<ReactFlowNode<GroupNodeData>>;
 
 // 定义允许进入组的节点类型（只允许 block nodes）
 const ALLOWED_NODE_TYPES = ['text', 'file', 'weblink', 'structured'];
@@ -63,6 +63,7 @@ const BACKGROUND_COLORS = [
 function GroupNode({ data, id, selected }: GroupNodeProps) {
   const componentRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  const deployMenuRef = useRef<HTMLDivElement | null>(null);
   const { getNodes, deleteElements, setNodes, getNode } = useReactFlow();
   const { detachNodes, detachNodesFromGroup } = useDetachNodes();
   const { recalculateGroupNodes } = useGroupNodeCalculation();
@@ -77,7 +78,6 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
     showingItem?.type === 'workspace' ? showingItem.id : null;
 
   // Deployment state
-  const [deployHovered, setDeployHovered] = useState(false);
   const [showDeployMenu, setShowDeployMenu] = useState(false);
 
   // 获取所有需要的依赖
@@ -258,6 +258,35 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
     return currentColor?.name || 'Custom';
   };
 
+  // Close deploy menu on outside click or ESC
+  useEffect(() => {
+    if (!showDeployMenu) return;
+
+    const handlePointer = (event: MouseEvent | TouchEvent) => {
+      const container = deployMenuRef.current;
+      const target = event.target as EventTarget | null;
+      if (!container || !target) return;
+      if (target instanceof Node && !container.contains(target)) {
+        setShowDeployMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowDeployMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('touchstart', handlePointer);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('touchstart', handlePointer);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showDeployMenu]);
+
   return (
     <div
       className='relative w-full h-full min-w-[240px] min-h-[176px] cursor-default'
@@ -323,20 +352,20 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
               </Menu.Button>
               <Transition
                 as={Fragment}
-                enter="transition ease-out duration-100"
-                enterFrom="transform opacity-0 scale-95"
-                enterTo="transform opacity-100 scale-100"
-                leave="transition ease-in duration-75"
-                leaveFrom="transform opacity-100 scale-100"
-                leaveTo="transform opacity-0 scale-95"
+                enter="transition ease-out duration-150"
+                enterFrom="opacity-0 -translate-y-1"
+                enterTo="opacity-100 translate-y-0"
+                leave="transition ease-in duration-100"
+                leaveFrom="opacity-100 translate-y-0"
+                leaveTo="opacity-0 -translate-y-1"
               >
-                <Menu.Items className="absolute top-full left-0 mt-1 w-56 bg-[#1A1A1A]/95 backdrop-blur-md border border-[#333333] rounded-lg shadow-2xl z-50 p-1">
+                <Menu.Items className="absolute top-full left-0 mt-1 w-56 bg-[#1E1E1E] border border-[#404040] rounded-xl shadow-xl z-50 p-1">
                   {/* Recalculate */}
                   <Menu.Item>
                     {({ active }) => (
                       <button
                         onClick={onManualRecalculate}
-                        className={`${active ? 'bg-[#3A3B3D]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                        className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
                       >
                         <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
                           <path d='M1 4V10H7' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
@@ -381,7 +410,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                     </div>
                   </Menu.Item>
 
-                  <div className="w-full h-px bg-[#333333] my-1"></div>
+                  <div className="w-full h-px bg-[#404040] my-1"></div>
 
                   {/* Detach All */}
                   {childNodes.length > 0 && (
@@ -389,7 +418,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                       {({ active }) => (
                         <button
                           onClick={onDetachAll}
-                          className={`${active ? 'bg-[#3A3B3D]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                          className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
                         >
                           <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
                             <path d='M9 14L4 9L9 4' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
@@ -420,6 +449,64 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
               </Transition>
             </Menu>
 
+            {/* Right-aligned actions */}
+            <div className='ml-auto flex items-center gap-2'>
+            {/* Deploy Button with Menu (icon only) */}
+            <div className="relative" ref={deployMenuRef}>
+              <button
+                className={`group flex items-center justify-center w-[32px] h-[32px] rounded-md bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D]`}
+                onClick={() => setShowDeployMenu(!showDeployMenu)}
+                aria-label='Deploy'
+                title='Deploy'
+              >
+                <svg
+                  width='14'
+                  height='12'
+                  viewBox='0 0 18 15'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                >
+                  <path
+                    className='fill-[#6D7177] group-hover:fill-black transition-colors'
+                    d='M14.5 11L17.5 15H14.5V11Z'
+                  />
+                  <path
+                    className='fill-[#6D7177] group-hover:fill-black transition-colors'
+                    d='M3.5 11V15H0.5L3.5 11Z'
+                  />
+                  <path
+                    className='fill-[#6D7177] group-hover:fill-black transition-colors'
+                    fillRule='evenodd'
+                    clipRule='evenodd'
+                    d='M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z'
+                  />
+                </svg>
+              </button>
+
+              {/* Deploy Menu - positioned directly below the deploy button */}
+              <Transition
+                show={showDeployMenu}
+                as={Fragment}
+                enter="transition ease-out duration-150"
+                enterFrom="opacity-0 -translate-y-1"
+                enterTo="opacity-100 translate-y-0"
+                leave="transition ease-in duration-100"
+                leaveFrom="opacity-100 translate-y-0"
+                leaveTo="opacity-0 -translate-y-1"
+              >
+                <div className='absolute top-full left-0 mt-1 z-50 nodrag'>
+                  <GroupDeployToolbar
+                    groupNodeId={id}
+                    onClose={() => setShowDeployMenu(false)}
+                  />
+                </div>
+              </Transition>
+            </div>
+
+            {/* Separator between Deploy and Run */}
+            <div className='w-px h-[32px] bg-[#555555]/80'></div>
+
+            {/* Run Button */}
             <button
               onClick={onRunGroup}
               disabled={isLoading}
@@ -443,59 +530,8 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                   <path d='M8 5V19L19 12L8 5Z' fill='currentColor' />
                 </svg>
               )}
-              {isLoading ? 'Running...' : 'Test Run'}
+              {isLoading ? 'Running...' : 'Run All'}
             </button>
-
-            {/* Deploy Button with Menu */}
-            <div className="relative">
-              <button
-                className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[32px] rounded-[8px] bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D] group`}
-                onMouseEnter={() => setDeployHovered(true)}
-                onMouseLeave={() => setDeployHovered(false)}
-                onClick={() => setShowDeployMenu(!showDeployMenu)}
-              >
-                <svg
-                  width='18'
-                  height='15'
-                  viewBox='0 0 18 15'
-                  fill='none'
-                  xmlns='http://www.w3.org/2000/svg'
-                  className='transition-[stroke]'
-                >
-                  <path
-                    className='transition-[fill]'
-                    d='M14.5 11L17.5 15H14.5V11Z'
-                    fill={deployHovered === true ? '#000' : '#CDCDCD'}
-                  />
-                  <path
-                    className='transition-[fill]'
-                    d='M3.5 11V15H0.5L3.5 11Z'
-                    fill={deployHovered === true ? '#000' : '#CDCDCD'}
-                  />
-                  <path
-                    className='transition-[fill]'
-                    fillRule='evenodd'
-                    clipRule='evenodd'
-                    d='M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z'
-                    fill={deployHovered === true ? '#000' : '#CDCDCD'}
-                  />
-                </svg>
-                <div
-                  className={`text-[14px] font-normal leading-normal transition-colors ${deployHovered === true ? 'text-[#000]' : 'text-[#CDCDCD]'}`}
-                >
-                  Deploy
-                </div>
-              </button>
-
-              {/* Deploy Menu - positioned directly below the deploy button */}
-              {showDeployMenu && (
-                <div className='absolute top-full left-0 mt-1 z-50 nodrag'>
-                  <GroupDeployToolbar
-                    groupNodeId={id}
-                    onClose={() => setShowDeployMenu(false)}
-                  />
-                </div>
-              )}
             </div>
           </div>
         </NodeToolbar>

@@ -8,6 +8,7 @@ import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
 import ComponentRenderer, { HoverProvider, SelectionProvider, useSelection } from './ComponentRenderer';
+import ClipboardManager from './ClipboardManager';
 
 // Helper: clear selection when clicking outside the editor container
 const ClearSelectionOnOutsideClick = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
@@ -376,6 +377,12 @@ const JSONViewer = ({
             <SelectionProvider>
             <OverflowProvider>
                     <ClearSelectionOnOutsideClick containerRef={containerRef} />
+                    <ClipboardManager
+                        containerRef={containerRef as React.RefObject<HTMLElement>}
+                        getRootData={() => parsedData}
+                        setRootData={(newData) => updateData(newData)}
+                        readonly={readonly}
+                    />
                     <div 
                         ref={containerRef}
 

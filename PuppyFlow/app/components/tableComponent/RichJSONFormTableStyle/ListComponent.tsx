@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
 import ListActionMenu from './ListActionMenu';
+import { getClipboard } from './ClipboardStore';
 import { useOverflowContext } from './OverflowContext';
 
 type ListComponentProps = {
@@ -127,6 +128,8 @@ const ListComponent = ({
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
+    // Anchor map for per-index inline actions (delete) rendered via portal
+    const indexAnchorMapRef = React.useRef<Map<number, HTMLElement>>(new Map());
     // Close inline index actions on outside click
     React.useEffect(() => {
         const onDoc = (e: MouseEvent) => {
@@ -165,6 +168,25 @@ const ListComponent = ({
                             onClear={() => { onUpdate([]); setMenuOpen(false); }}
                             onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
                             onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
+                            onPaste={async () => {
+                                let payload: any = getClipboard();
+                                if (!payload) {
+                                    try {
+                                        const text = await navigator.clipboard.readText();
+                                        payload = text?.startsWith('__RJF__') ? JSON.parse(text.slice('__RJF__'.length)) : JSON.parse(text);
+                                    } catch {}
+                                }
+                                if (payload !== undefined) {
+                                    if (Array.isArray(payload)) {
+                                        onUpdate(payload);
+                                    } else if (payload && typeof payload === 'object') {
+                                        onReplace && onReplace(payload);
+                                    } else if (typeof payload === 'string') {
+                                        onReplace && onReplace(payload);
+                                    }
+                                }
+                                setMenuOpen(false);
+                            }}
                         />
                     </div>
                 ),
@@ -205,6 +227,63 @@ const ListComponent = ({
         window.addEventListener('rjft:close-all-menus', onCloseAll as EventListener);
         return () => window.removeEventListener('rjft:close-all-menus', onCloseAll as EventListener);
     }, []);
+
+    // Render per-index inline actions via portal (positioned above index)
+    React.useEffect(() => {
+        const currentIndex = selectedIndex;
+        if (currentIndex === null || readonly) return;
+        const anchor = indexAnchorMapRef.current.get(currentIndex);
+        if (!anchor) return;
+
+        const menuId = `list-index-actions-${path}-${currentIndex}`;
+        let rafId: number | null = null;
+
+        const updatePosition = () => {
+            const rect = anchor.getBoundingClientRect();
+            const gap = 6;
+            const top = rect.top - gap;
+            const left = rect.left + rect.width / 2;
+
+            const element = (
+                <div
+                    className="rjft-index-inline-actions"
+                    style={{ position: 'fixed', top, left, transform: 'translate(-50%, -100%)' }}
+                >
+                    <div className="flex items-center gap-[6px] bg-[#252525] p-[4px] rounded-[6px] border border-[#404040] shadow-lg">
+                        <button
+                            className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
+                            title="Delete item"
+                            onClick={(e) => { e.stopPropagation(); deleteItem(currentIndex); setSelectedIndex(null); }}
+                        >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#F44336" strokeWidth="1.6">
+                                <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            );
+
+            registerOverflowElement(menuId, element, anchor);
+        };
+
+        const loop = () => {
+            updatePosition();
+            rafId = requestAnimationFrame(loop);
+        };
+        loop();
+
+        const onScroll = () => updatePosition();
+        const onResize = () => updatePosition();
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            unregisterOverflowElement(menuId);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [selectedIndex, readonly, path, registerOverflowElement, unregisterOverflowElement]);
 
     return (
         <div 
@@ -293,11 +372,21 @@ const ListComponent = ({
                                             {/* Index Badge - display only */}
                                             <div className="flex-shrink-0 flex justify-center">
                                                 <div 
-
                                                     className="relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center"
-
                                                     onMouseEnter={() => handleIndexHover(index, true)}
                                                     onMouseLeave={() => handleIndexHover(index, false)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedPath(path);
+                                                        setSelectedIndex(prev => prev === index ? null : index);
+                                                    }}
+                                                    ref={(el) => {
+                                                        if (el) {
+                                                            indexAnchorMapRef.current.set(index, el);
+                                                        } else {
+                                                            indexAnchorMapRef.current.delete(index);
+                                                        }
+                                                    }}
                                                 >
                                                     <div className="absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none"></div>
                                                     <span 
@@ -306,28 +395,10 @@ const ListComponent = ({
                                                                 ? 'text-[#A8773A]'
                                                                 : 'text-[#C18E4C] hover:text-[#D5A262]'
                                                             }`}
-                                                        onClick={(e) => { 
-                                                            e.stopPropagation(); 
-                                                            if (!isSelected) return; 
-                                                            setSelectedPath(path); 
-                                                            setSelectedIndex(prev => prev === index ? null : index); 
-                                                        }}
                                                     >
                                                         {index}
                                                     </span>
-                                                    {selectedIndex === index && !readonly && (
-                                                        <div className="rjft-index-inline-actions absolute right-full top-1/2 -translate-y-1/2 mr-[4px] flex gap-[6px] z-30">
-                                                            <button
-                                                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
-                                                                title="Delete item"
-                                                                onClick={(e) => { e.stopPropagation(); deleteItem(index); setSelectedIndex(null); }}
-                                                            >
-                                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#F44336" strokeWidth="1.6">
-                                                                    <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                    {/* Inline actions are rendered via portal now */}
                                                 </div>
                                             </div>
                                             
@@ -368,16 +439,15 @@ const ListComponent = ({
                         {/* Items rendered above */}
                     </>
                 )}
-                {/* Add New Item - 无论空与否都显示底部加号（只读除外） */}
+                {/* Add New Item - 仅在 hover/选中/菜单打开时显示（只读除外） */}
                 {!readonly && (
-
                     <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
-
                         <button
                             onClick={addEmptyItem}
-                            className="group w-6 h-6 flex items-center justify-center rounded-full 
+                            className={`group w-6 h-6 flex items-center justify-center rounded-full 
                                      bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
-                                     transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/list:opacity-100"
+                                     transition-all duration-200 ease-out shadow-lg 
+                                     ${isHovered || isSelected || menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                             title="Add new item"
                         >
                             <svg 
