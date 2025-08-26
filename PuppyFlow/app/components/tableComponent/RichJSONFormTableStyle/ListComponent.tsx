@@ -165,7 +165,7 @@ const ListComponent = ({
 
                         <ListActionMenu
                             value={data}
-                            onClear={() => { onUpdate([]); setMenuOpen(false); }}
+                            onClear={() => { onUpdate(null as any); setMenuOpen(false); }}
                             onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
                             onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
                             onPaste={async () => {

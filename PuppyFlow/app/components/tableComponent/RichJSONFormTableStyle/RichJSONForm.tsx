@@ -82,8 +82,12 @@ const JSONViewer = ({
     // 解析JSON数据
     useEffect(() => {
         if (!value || value.trim() === '') {
+            // Default empty input to null
             setParsedData(null);
-            setIsValidJSON(false);
+            setIsValidJSON(true);
+            if (onChange && value?.trim() !== 'null') {
+                onChange('null');
+            }
             return;
         }
 
@@ -95,7 +99,7 @@ const JSONViewer = ({
             setParsedData(null);
             setIsValidJSON(false);
         }
-    }, [value]);
+    }, [value, onChange]);
 
     
 
@@ -272,7 +276,17 @@ const JSONViewer = ({
     // 渲染主要内容
     const renderMainContent = () => {
         if (parsedData === null) {
-            return null;
+            // Render through ComponentRenderer so null shows EmptyComponent with handle
+            return (
+                <ComponentRenderer
+                    data={null}
+                    path=""
+                    readonly={readonly}
+                    onUpdate={updateData}
+                    preventParentDrag={preventParentDrag}
+                    allowParentDrag={allowParentDrag}
+                />
+            );
         }
 
         const componentType = getComponentType(parsedData);
@@ -322,35 +336,9 @@ const JSONViewer = ({
     const actualWidth = widthStyle === 0 ? "100%" : widthStyle;
     const actualHeight = heightStyle === 0 ? "100%" : heightStyle;
 
-    // 如果没有数据，显示类型选择器
+    // 如果没有数据，默认设为 null（上面的 effect 会触发写回）
     if (!value || value.trim() === '') {
-        return (
-            <div 
-                className={`relative rounded-xl bg-transparent p-8 ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
-                style={{ width: actualWidth, height: actualHeight }}
-            >
-                {showTypeSelector ? (
-                    <TypeSelector
-                        onTypeSelect={createNewComponent}
-                        onCancel={() => setShowTypeSelector(false)}
-                    />
-                ) : (
-                    <div className="text-center">
-                        <div className="text-[#6B7280] text-sm font-medium mb-4">
-                            {placeholder}
-                        </div>
-                        {!readonly && (
-                            <button
-                                onClick={() => setShowTypeSelector(true)}
-                                className="px-6 py-3 bg-[#4F8EF7] text-white rounded-lg hover:bg-[#3B82F6] transition-colors font-medium"
-                            >
-                                Create New Component
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-        );
+        return null;
     }
 
     if (!isValidJSON) {
