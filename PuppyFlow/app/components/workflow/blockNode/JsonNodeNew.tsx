@@ -144,7 +144,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       isEditing: false,
       vectorIndexingStatus: 'notStarted' as VectorIndexingStatus,
       showSettingMenu: false,
-      useRichEditor: false,
+      useRichEditor: true,
       userInput: 'input view' as string | undefined,
     });
 
@@ -857,12 +857,6 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             {/* top-right toolbar */}
             <div className='min-w-[60px] min-h-[24px] z-[100000] flex items-center justify-end gap-[8px]'>
               <NodeSettingsController nodeid={id} />
-
-              <NodeViewToggleButton
-                useRichEditor={nodeState.useRichEditor}
-                onToggle={toggleRichEditor}
-              />
-
               <NodeIndexingButton
                 nodeid={id}
                 indexingList={indexingList}
@@ -911,6 +905,20 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             </div>
           )}
 
+          {/* Bottom-left view toggle button - show on hover only */}
+          <div
+            className='absolute left-2 bottom-2 z-[100001] transition-opacity duration-200'
+            style={{
+              opacity: nodeState.isHovered ? 1 : 0,
+              pointerEvents: nodeState.isHovered ? 'auto' : 'none',
+            }}
+          >
+            <NodeViewToggleButton
+              useRichEditor={nodeState.useRichEditor}
+              onToggle={toggleRichEditor}
+            />
+          </div>
+
           <NodeResizeControl
             minWidth={240}
             minHeight={176}
@@ -921,14 +929,15 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
               cursor: 'se-resize',
               background: 'transparent',
               border: 'none',
+              opacity: nodeState.isHovered ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: nodeState.isHovered ? 'auto' : 'none',
             }}
           >
             <div
               style={{
                 position: 'absolute',
-                visibility: `${
-                  activatedNode?.id === id ? 'visible' : 'hidden'
-                }`,
+                visibility: `${nodeState.isHovered ? 'visible' : 'hidden'}`,
                 right: '0px',
                 bottom: '0px',
                 display: 'flex',

@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
 import DictActionMenu from './DictActionMenu';
+import { getClipboard } from './ClipboardStore';
 import { useOverflowContext } from './OverflowContext';
 
 type DictComponentProps = {
@@ -265,13 +266,13 @@ const DictComponent = ({
         const updatePosition = () => {
             const rect = anchor.getBoundingClientRect();
             const gap = 6;
-            const top = rect.top + rect.height / 2;
-            const left = rect.left - gap;
+            const top = rect.top - gap;
+            const left = rect.left + rect.width / 2;
 
             const element = (
                 <div
                     className="rjft-key-inline-actions"
-                    style={{ position: 'fixed', top, left, transform: 'translate(-100%, -50%)' }}
+                    style={{ position: 'fixed', top, left, transform: 'translate(-50%, -100%)' }}
                 >
                     {renamingKey === currentKey ? (
                         <div className="flex items-center gap-[6px] bg-[#252525] p-[4px] rounded-[6px] border border-[#404040] shadow-lg">
@@ -372,6 +373,25 @@ const DictComponent = ({
                             onClear={() => { onUpdate({}); setMenuOpen(false); }}
                             onTransferToList={() => { onReplace && onReplace([null, null]); setMenuOpen(false); }}
                             onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
+                            onPaste={async () => {
+                                let payload: any = getClipboard();
+                                if (!payload) {
+                                    try {
+                                        const text = await navigator.clipboard.readText();
+                                        payload = text?.startsWith('__RJF__') ? JSON.parse(text.slice('__RJF__'.length)) : JSON.parse(text);
+                                    } catch {}
+                                }
+                                if (payload !== undefined) {
+                                    if (Array.isArray(payload)) {
+                                        onReplace && onReplace(payload);
+                                    } else if (payload && typeof payload === 'object') {
+                                        onUpdate(payload);
+                                    } else if (typeof payload === 'string') {
+                                        onReplace && onReplace(payload);
+                                    }
+                                }
+                                setMenuOpen(false);
+                            }}
                         />
                     </div>
                 ),
@@ -458,39 +478,11 @@ const DictComponent = ({
             >
                 {keys.length === 0 ? (
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
-                        {readonly ? (
-                            <div className="flex items-center h-[24px]">
-                                <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty object
-                                </div>
+                        <div className="flex items-center h-[24px]">
+                            <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
+                                empty object
                             </div>
-                        ) : (
-                            <div className="flex items-center h-[24px] space-x-2">
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty object, click
-                                </span>
-                                <button
-                                    onClick={addEmptyKey}
-                                    className="flex items-center justify-center w-6 h-5 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md text-[#CDCDCD] hover:text-white transition-all duration-200"
-                                    title="Add first key"
-                                >
-                                    <svg 
-                                        className="w-3 h-3" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    to add
-                                </span>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -592,33 +584,34 @@ const DictComponent = ({
                             );
                         })}
                         
-                        {/* Add New Key Button */}
-                        {!readonly && (
-                            <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
-                                <button
-                                    onClick={addEmptyKey}
-                                    className="group w-6 h-6 flex items-center justify-center rounded-full 
-                                             bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict:opacity-100"
-                                    title="Add new key"
-                                >
-                                    <svg 
-                                        className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                            </div>
-                        )}
                     </>
                 )}
             </div>
+            {/* Add New Key Button at bottom - visible on hover/selected/menuOpen or when empty */}
+            {!readonly && (
+                <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
+                    <button
+                        onClick={addEmptyKey}
+                        className={`group w-6 h-6 flex items-center justify-center rounded-full 
+                                 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
+                                 transition-all duration-200 ease-out shadow-lg 
+                                 ${(isHovered || isSelected || menuOpen) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                        title="Add new key"
+                    >
+                        <svg 
+                            className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
+                            viewBox="0 0 16 16" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M8 3v10M3 8h10" />
+                        </svg>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
