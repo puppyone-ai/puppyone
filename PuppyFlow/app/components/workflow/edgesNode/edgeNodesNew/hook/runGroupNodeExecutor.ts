@@ -47,7 +47,8 @@ export interface RunGroupNodeContext {
   ) => Promise<any>;
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  getAuthHeaders: () => HeadersInit;
+  // 🔒 安全修复：getAuthHeaders已弃用，认证通过服务端代理处理
+  isLocalDeployment: boolean;
 }
 
 // 步骤1: 获取组内所有的 BlockNode
@@ -525,11 +526,11 @@ async function sendGroupDataToTargets(
   try {
     console.log(`🌐 [sendGroupDataToTargets] 开始发送HTTP请求`);
 
-    const response = await fetch(`${backend_IP_address_for_sendingData}`, {
+    const response = await fetch(`/api/engine/task`, {
       method: 'POST',
+      credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
       headers: {
         'Content-Type': 'application/json',
-        ...context.getAuthHeaders(),
       },
       body: JSON.stringify(jsonData),
     });
