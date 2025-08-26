@@ -43,34 +43,42 @@ const DictActionMenu: React.FC<DictActionMenuProps> = ({
 }) => {
   return (
     <div
-      className={`rjft-action-menu absolute right-full top-0 mr-2 z-50 bg-[#252525] border border-[#3A3D45] rounded-md shadow-[0_6px_20px_rgba(0,0,0,0.4)] py-1 w-40 ${className}`}
+
+      className={`rjft-action-menu absolute right-full top-0 mr-2 z-[2000000] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col w-[128px] ${className}`}
       onClick={(e) => e.stopPropagation()}
     >
       <button
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[#E5E7EB] hover:bg-[#2e2e2e] rounded"
+        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={() => { navigator.clipboard.writeText(JSON.stringify(value, null, 2)); window.dispatchEvent(new CustomEvent('rjft:close-all-menus')); }}
       >
         <IconCopy />
         <span>Copy</span>
       </button>
       <button
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[#E5E7EB] hover:bg-[#2e2e2e] rounded"
+
+        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={onClear}
       >
         <IconTrash />
         <span>Clear</span>
       </button>
       <div className="h-px bg-[#3A3D45] my-1"></div>
-      <div className="px-2 pb-1 text-[10px] tracking-wide uppercase text-[#9CA3AF]">Transfer</div>
+
+      <div className="px-[4px] pb-[2px] text-[10px] tracking-[0.5px] uppercase text-[#9CA3AF]">Transfer</div>
       <button
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[#E5E7EB] hover:bg-[#2e2e2e] rounded"
+        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={onTransferToList}
       >
         <IconList />
         <span>To list</span>
       </button>
       <button
-        className="w-full flex items-center gap-2 px-2 py-1.5 text-xs text-[#E5E7EB] hover:bg-[#2e2e2e] rounded"
+
+        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+
         onClick={onTransferToText}
       >
         <IconText />

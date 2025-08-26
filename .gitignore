@@ -93,3 +93,16 @@ json_received.json
 # million
 .million/
 
+*.patch
+*.diff
+*.patch.gz
+*.diff.gz
+*.patch.bz2
+*.diff.bz2
+*.patch.xz
+*.diff.xz
+
+# Tree and VSCode directories
+.tree/
+.vscode/
+

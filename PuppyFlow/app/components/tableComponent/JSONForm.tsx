@@ -191,7 +191,7 @@ const JSONForm = ({
           },
           fontSize: 14,
           fontWeight: 'light',
-          lineHeight: 24,
+          lineHeight: 28,
           wordWrap: 'on',
           scrollBeyondLastLine: false,
           automaticLayout: true,
