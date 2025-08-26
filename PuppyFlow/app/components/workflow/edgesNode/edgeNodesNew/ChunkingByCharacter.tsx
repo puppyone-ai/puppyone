@@ -118,6 +118,7 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,

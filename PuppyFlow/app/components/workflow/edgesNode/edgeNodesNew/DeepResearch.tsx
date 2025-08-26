@@ -79,7 +79,7 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
 
   // 获取所有需要的依赖
   const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
-  const { availableModels, isLocalDeployment } = useAppSettings();
+  const { availableModels } = useAppSettings();
 
   // 获取可用的激活模型列表 - 只显示 LLM 类型的模型
   const activeModels = useMemo(() => {
@@ -405,6 +405,7 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
     }),
     [
       getNode,

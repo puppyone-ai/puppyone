@@ -29,7 +29,7 @@ export function useFileUpload({
 }: FileUploadProps) {
   const { userId } = useWorkspaces();
   const { fetchUserId } = useWorkspaceManagement();
-  const { addWarn, isLocalDeployment } = useAppSettings();
+  const { addWarn } = useAppSettings();
 
   const [uploadedFiles, setUploadedFiles] =
     useState<UploadedFile[]>(initialFiles);

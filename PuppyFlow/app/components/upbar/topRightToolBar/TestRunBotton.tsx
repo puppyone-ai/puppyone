@@ -24,7 +24,7 @@ function TestRunBotton() {
     streamResultForMultipleNodes,
   } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
-  const { isLocalDeployment } = useAppSettings();
+  const { } = useAppSettings();
   const { fetchUserId } = useWorkspaceManagement();
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
@@ -70,7 +70,6 @@ function TestRunBotton() {
         streamResultForMultipleNodes,
         reportError,
         resetLoadingUI,
-        isLocalDeployment,
       };
 
       // 执行全局运行

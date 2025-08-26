@@ -119,7 +119,7 @@ const Generate: React.FC<GenerateNodeProps> = memo(
     const { } = useAppSettings();
 
     // 使用 AppSettingsContext
-    const { availableModels, isLocalDeployment } = useAppSettings();
+    const { availableModels } = useAppSettings();
 
     // 使用 useRef 跟踪是否已挂载，防止首次渲染时执行状态更新
     const hasMountedRef = useRef(false);
@@ -183,6 +183,7 @@ const Generate: React.FC<GenerateNodeProps> = memo(
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,

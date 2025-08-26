@@ -160,6 +160,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
+        isLocalDeployment: false,
       }),
       [
         getNode,

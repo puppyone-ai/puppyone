@@ -101,7 +101,6 @@ type AppSettingsContextType = {
   cloudModels: Model[];
   localModels: Model[];
   availableModels: Model[];
-  isLocalDeployment: boolean;
   isLoadingLocalModels: boolean;
   ollamaConnected: boolean;
   toggleModelAvailability: (id: string) => void;
@@ -244,8 +243,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   // 检查部署类型
-  const isLocalDeployment =
-    (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
+  const isLocalDeployment = false;
 
   // 使用 Ollama hook
   const {
@@ -287,28 +285,17 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 当 Ollama 模型更新时，更新本地模型列表
   useEffect(() => {
-    if (isLocalDeployment) {
-      if (ollamaModels.length > 0) {
-        setLocalModels(ollamaModels);
-      } else if (ollamaError && !isLoadingLocalModels) {
-        // 如果 Ollama 连接失败，使用后备模型
-        setLocalModels(FALLBACK_LOCAL_MODELS);
-        addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
-      }
+    if (ollamaModels.length > 0) {
+      setLocalModels(ollamaModels);
+    } else if (ollamaError && !isLoadingLocalModels) {
+      setLocalModels(FALLBACK_LOCAL_MODELS);
+      addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
     }
-  }, [ollamaModels, ollamaError, isLoadingLocalModels, isLocalDeployment]);
+  }, [ollamaModels, ollamaError, isLoadingLocalModels]);
 
   // 根据订阅状态计算套餐限制
   useEffect(() => {
-    if (isLocalDeployment) {
-      setPlanLimits({
-        workspaces: 999,
-        deployedServices: 999,
-        llm_calls: 99999,
-        runs: 99999,
-        fileStorage: '500M',
-      });
-    } else if (userSubscriptionStatus?.is_premium) {
+    if (userSubscriptionStatus?.is_premium) {
       setPlanLimits({
         workspaces: 20,
         deployedServices: 10,
@@ -325,11 +312,10 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         fileStorage: '5M',
       });
     }
-  }, [userSubscriptionStatus, isLocalDeployment]);
+  }, [userSubscriptionStatus]);
 
   // 刷新本地模型的函数
   const refreshLocalModels = async () => {
-    if (!isLocalDeployment) return;
     await refreshOllamaModels();
   };
 
@@ -362,14 +348,8 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 根据部署类型更新可用模型
   useEffect(() => {
-    if (isLocalDeployment) {
-      // 在本地部署时，同时包含本地模型和云端模型
-      setAvailableModels([...localModels, ...cloudModels]);
-    } else {
-      // 在云端部署时，只包含云端模型
-      setAvailableModels([...cloudModels]);
-    }
-  }, [isLocalDeployment, cloudModels, localModels]);
+    setAvailableModels([...localModels, ...cloudModels]);
+  }, [cloudModels, localModels]);
 
   // 切换模型可用性
   const toggleModelAvailability = (id: string) => {
@@ -407,7 +387,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 获取用户用量数据
   const fetchUsageData = async () => {
-    if (isLocalDeployment || !userSubscriptionStatus) return;
+    if (!userSubscriptionStatus) return;
 
     setIsLoadingUsage(true);
     try {
@@ -456,28 +436,6 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 获取用户订阅状态
   const fetchUserSubscriptionStatus = async (): Promise<void> => {
-    if (isLocalDeployment) {
-      // 本地部署模式，设置默认的订阅状态，用量为99999
-      setUserSubscriptionStatus({
-        is_premium: true, // 本地部署默认为premium
-        subscription_plan: 'premium',
-        subscription_status: 'active',
-        subscription_period_start: new Date().toISOString(),
-        subscription_period_end: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 一年后
-        effective_end_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        days_left: 99999, // 本地部署设置为99999天
-        expired_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      });
-      return;
-    }
-
-    // 云端部署模式
     setIsLoadingSubscriptionStatus(true);
 
     try {
@@ -533,7 +491,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   // 自动获取订阅状态
   useEffect(() => {
     fetchUserSubscriptionStatus();
-  }, [isLocalDeployment]);
+  }, []);
 
   // 自动获取用量数据
   useEffect(() => {
@@ -548,7 +506,6 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         cloudModels,
         localModels,
         availableModels,
-        isLocalDeployment,
         isLoadingLocalModels,
         ollamaConnected,
         toggleModelAvailability,

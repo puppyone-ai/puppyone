@@ -346,8 +346,8 @@ export interface RunAllNodesContext {
   // 通信相关
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  // 🔒 认证通过服务端代理处理
-  isLocalDeployment: boolean;
+  // 🔒 认证通过服务端代理处理（不需要从前端传入）
+  isLocalDeployment?: boolean;
 }
 
 // 构建包含所有节点的JSON数据

@@ -107,6 +107,7 @@ const EditText: React.FC<ModifyConfigNodeProps> = React.memo(
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,

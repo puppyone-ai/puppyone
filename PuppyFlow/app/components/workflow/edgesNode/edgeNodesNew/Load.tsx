@@ -71,6 +71,7 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
     }),
     [
       getNode,

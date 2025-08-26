@@ -11,7 +11,6 @@ type UsageDisplayProps = {
 const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
   const {
     userSubscriptionStatus,
-    isLocalDeployment,
     usageData,
     planLimits,
     isLoadingUsage,
@@ -21,8 +20,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
 
   // Show Get Pro button for FREE users OR local deployment users
   const shouldShowGetProButton =
-    userSubscriptionStatus &&
-    (!userSubscriptionStatus.is_premium || isLocalDeployment);
+    userSubscriptionStatus && !userSubscriptionStatus.is_premium;
 
   // Handle Get Pro button click
   const handleGetProClick = () => {
@@ -86,11 +84,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         {/* First row: Plan type and upgrade button */}
         <div className='flex items-center justify-between mb-2'>
           <span className='text-[#8B8B8B] text-[10px] font-medium'>
-            {isLocalDeployment
-              ? 'LOCAL'
-              : userSubscriptionStatus.is_premium
-                ? 'PRO'
-                : 'FREE'}
+            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
           </span>
           {shouldShowGetProButton && (
             <button
@@ -111,9 +105,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           {/* Workspaces - current/max format */}
           <div className='flex flex-col items-center gap-1'>
             <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {isLocalDeployment
-                ? `${workspaces?.length || 0}/∞`
-                : `${workspaces?.length || 0}/${planLimits.workspaces}`}
+              {`${workspaces?.length || 0}/${planLimits.workspaces}`}
             </span>
             <span className='text-[9px] text-[#666666]'>space</span>
           </div>
@@ -121,9 +113,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           {/* Deployed Services - current/max format */}
           <div className='flex flex-col items-center gap-1'>
             <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {isLocalDeployment
-                ? `${(apis?.length || 0) + (chatbots?.length || 0)}/∞`
-                : `${(apis?.length || 0) + (chatbots?.length || 0)}/${planLimits.deployedServices}`}
+              {`${(apis?.length || 0) + (chatbots?.length || 0)}/${planLimits.deployedServices}`}
             </span>
             <span className='text-[9px] text-[#666666]'>server</span>
           </div>
@@ -132,24 +122,18 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           <div className='flex flex-col items-center gap-1 mt-[6px]'>
             <CircularProgress
               percentage={
-                isLocalDeployment
-                  ? 100
-                  : usageData
-                    ? ((planLimits.runs - usageData.runs.used) /
-                        planLimits.runs) *
-                      100
-                    : 100
+                usageData
+                  ? ((planLimits.runs - usageData.runs.used) / planLimits.runs) * 100
+                  : 100
               }
               size={3}
               strokeWidth={2}
             />
             <div className='text-[9px] text-[#666666] text-center'>
               <div>
-                {isLocalDeployment
-                  ? '∞ runs'
-                  : usageData
-                    ? `${planLimits.runs - usageData.runs.used} runs`
-                    : `${planLimits.runs} runs`}
+                {usageData
+                  ? `${planLimits.runs - usageData.runs.used} runs`
+                  : `${planLimits.runs} runs`}
               </div>
               <div>remain</div>
             </div>
@@ -159,24 +143,18 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           <div className='flex flex-col items-center gap-1 mt-[6px]'>
             <CircularProgress
               percentage={
-                isLocalDeployment
-                  ? 100
-                  : usageData
-                    ? ((planLimits.llm_calls - usageData.llm_calls.used) /
-                        planLimits.llm_calls) *
-                      100
-                    : 100
+                usageData
+                  ? ((planLimits.llm_calls - usageData.llm_calls.used) / planLimits.llm_calls) * 100
+                  : 100
               }
               size={3}
               strokeWidth={2}
             />
             <div className='text-[9px] text-[#666666] text-center'>
               <div>
-                {isLocalDeployment
-                  ? '∞ calls'
-                  : usageData
-                    ? `${planLimits.llm_calls - usageData.llm_calls.used} calls`
-                    : `${planLimits.llm_calls} calls`}
+                {usageData
+                  ? `${planLimits.llm_calls - usageData.llm_calls.used} calls`
+                  : `${planLimits.llm_calls} calls`}
               </div>
               <div>remain</div>
             </div>
@@ -192,11 +170,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         {/* Plan status and Get Pro button */}
         <div className='flex items-center gap-1'>
           <span className='text-[#8B8B8B] text-[9px] font-medium'>
-            {isLocalDeployment
-              ? 'LOCAL'
-              : userSubscriptionStatus.is_premium
-                ? 'PRO'
-                : 'FREE'}
+            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
           </span>
           {shouldShowGetProButton && (
             <button
@@ -210,21 +184,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         </div>
 
         {/* Usage info with mini circles - Runs left, LLM right */}
-        {isLocalDeployment ? (
-          <div className='w-full flex items-center justify-center gap-2'>
-            {/* Mini Mock Runs Circle for Local - LEFT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress percentage={100} size={3} strokeWidth={3} />
-              <span className='text-[8px] text-[#666666]'>∞ left</span>
-            </div>
-
-            {/* Mini Mock LLM Circle for Local - RIGHT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress percentage={100} size={3} strokeWidth={3} />
-              <span className='text-[8px] text-[#666666]'>∞ left</span>
-            </div>
-          </div>
-        ) : usageData ? (
+        {usageData ? (
           <div className='w-full flex items-center justify-center gap-2'>
             {/* Mini Runs Circle - LEFT */}
             <div className='flex items-center gap-[2px]'>

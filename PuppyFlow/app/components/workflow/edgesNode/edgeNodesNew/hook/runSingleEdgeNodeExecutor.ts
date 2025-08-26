@@ -365,8 +365,8 @@ export interface RunSingleEdgeNodeContext {
   streamResult: (taskId: string, nodeId: string) => Promise<any>;
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  // 🔒 认证通过服务端代理处理
-  isLocalDeployment: boolean;
+  // 🔒 认证通过服务端代理处理（不需要从前端传入）
+  isLocalDeployment?: boolean;
 }
 
 // Pre-run sync for involved block nodes (sources and targets) without requiring global getNodes

@@ -26,12 +26,12 @@ function DeployBotton() {
     showingItem?.type === 'workspace' ? showingItem.id : null;
   const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
 
-  const { planLimits, isLocalDeployment } = useAppSettings();
+  const { planLimits } = useAppSettings();
   const { apis: allApis, chatbots: allChatbots } = useAllDeployedServices();
   const totalDeployedServices =
     (allApis?.length || 0) + (allChatbots?.length || 0);
   const isServiceLimitReached =
-    !isLocalDeployment && totalDeployedServices >= planLimits.deployedServices;
+    totalDeployedServices >= planLimits.deployedServices;
 
   // 仅保留顶层菜单所需的状态
   const [hovered, setHovered] = useState(false);

@@ -34,7 +34,7 @@ function DeployAsApi({
 
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { isLocalDeployment } = useAppSettings();
+  const { } = useAppSettings();
 
   // 添加必要的hooks
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =

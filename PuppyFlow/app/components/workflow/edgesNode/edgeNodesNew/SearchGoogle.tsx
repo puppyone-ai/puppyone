@@ -88,6 +88,7 @@ const SearchGoogle: React.FC<SearchConfigNodeProps> = React.memo(
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,

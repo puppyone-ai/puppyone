@@ -85,6 +85,7 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,

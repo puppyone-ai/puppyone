@@ -47,8 +47,8 @@ export interface RunGroupNodeContext {
   ) => Promise<any>;
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  // 🔒 安全修复：getAuthHeaders已弃用，认证通过服务端代理处理
-  isLocalDeployment: boolean;
+  // 🔒 认证通过服务端代理处理（不需要从前端传入）
+  isLocalDeployment?: boolean;
 }
 
 // 步骤1: 获取组内所有的 BlockNode

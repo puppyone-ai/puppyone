@@ -51,6 +51,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
     }),
     [
       getNode,

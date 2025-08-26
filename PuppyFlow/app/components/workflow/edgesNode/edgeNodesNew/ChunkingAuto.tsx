@@ -67,6 +67,7 @@ function ChunkingAuto({
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
     }),
     [
       getNode,

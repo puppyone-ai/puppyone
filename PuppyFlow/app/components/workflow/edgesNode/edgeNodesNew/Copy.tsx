@@ -79,6 +79,7 @@ function CopyEdgeNode({
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
     }),
     [
       getNode,

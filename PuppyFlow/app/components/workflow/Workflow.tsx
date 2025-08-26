@@ -203,7 +203,7 @@ function Workflow() {
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
-  const { isLocalDeployment } = useAppSettings();
+  const { } = useAppSettings();
   const didExternalPrefetchRef = useRef<string | null>(null);
 
   // 用于管理节点的 z-index 层级

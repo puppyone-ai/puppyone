@@ -37,7 +37,7 @@ export type WorkspaceSwitchResult = {
 };
 
 export const useWorkspaceManagement = () => {
-  const { isLocalDeployment } = useAppSettings();
+  const { } = useAppSettings();
   
   // 🔒 安全修复：移除客户端认证处理，统一使用服务端代理认证
 
@@ -45,7 +45,7 @@ export const useWorkspaceManagement = () => {
   const fetchUserId = async (
     isLocal?: boolean
   ): Promise<string | undefined> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = false;
     try {
       if (useLocal) {
         // 本地部署模式直接返回固定值，不需要API调用
@@ -86,7 +86,7 @@ export const useWorkspaceManagement = () => {
     userId?: string,
     isLocal?: boolean
   ): Promise<string | undefined> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = false;
     try {
       if (useLocal) {
         // 修复：本地部署模式直接返回固定值
@@ -141,7 +141,7 @@ export const useWorkspaceManagement = () => {
     userId?: string,
     isLocal?: boolean
   ): Promise<WorkspaceBasicInfo[]> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = false;
     try {
       // 本地/云端统一：从内部API获取
       const response = await fetch('/api/workspace/list');
@@ -160,7 +160,7 @@ export const useWorkspaceManagement = () => {
   const initializeUserData = async (
     isLocal?: boolean
   ): Promise<InitialUserData> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = false;
     try {
       if (useLocal) {
         // 本地部署模式
@@ -217,7 +217,7 @@ export const useWorkspaceManagement = () => {
     userId?: string
   ): Promise<WorkspaceBasicInfo | undefined> => {
     try {
-      if (isLocalDeployment) {
+      if (false) {
         // 本地部署模式：直接返回workspace信息，目录会在保存时创建
         return {
           workspace_id: workspaceId,
@@ -256,7 +256,7 @@ export const useWorkspaceManagement = () => {
   // 删除工作区
   const deleteWorkspace = async (workspaceId: string): Promise<boolean> => {
     try {
-      if (isLocalDeployment) {
+      if (false) {
         // 本地部署模式
         const response = await fetch(`/api/workspace/${workspaceId}`, {
           method: 'DELETE',
@@ -281,7 +281,7 @@ export const useWorkspaceManagement = () => {
     newName: string
   ): Promise<WorkspaceBasicInfo | undefined> => {
     try {
-      if (isLocalDeployment) {
+      if (false) {
         // 本地部署模式
         const response = await fetch(`/api/workspace/${workspaceId}/rename`, {
           method: 'PUT',
@@ -320,7 +320,7 @@ export const useWorkspaceManagement = () => {
     workspaceId: string,
     isLocal?: boolean
   ): Promise<WorkspaceJSON | null> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = false;
     try {
       if (useLocal) {
         // 修复：本地部署模式使用正确的API路径
@@ -354,7 +354,7 @@ export const useWorkspaceManagement = () => {
     timestamp: string,
     isLocal?: boolean
   ): Promise<boolean> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = false;
     try {
       if (useLocal) {
         // 本地部署模式：保存到文件系统

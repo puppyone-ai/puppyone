@@ -87,6 +87,7 @@ function ChunkingByLength({
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
     }),
     [
       getNode,

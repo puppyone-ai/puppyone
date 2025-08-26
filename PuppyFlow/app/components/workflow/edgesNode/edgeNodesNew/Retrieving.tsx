@@ -167,6 +167,7 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
       streamResult,
       reportError,
       resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,
