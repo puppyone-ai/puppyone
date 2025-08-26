@@ -31,15 +31,32 @@ function filterRequestHeaders(headers: Headers): HeadersInit {
         'encoding',
         'upgrade',
         'content-length',
+        'cookie', // 🔒 过滤cookie防止客户端直接传递
+        'authorization', // 🔒 过滤客户端authorization，由服务端重新注入
       ].includes(lower)
     ) {
       return;
     }
     newHeaders[key] = value;
   });
+
+  // 🔒 安全增强：从HttpOnly cookie中自动注入认证
+  try {
+    const { cookies } = require('next/headers');
+    const token = cookies().get('access_token')?.value;
+    if (token) {
+      newHeaders['authorization'] = `Bearer ${token}`;
+    }
+  } catch (error) {
+    // Cookie读取失败时的处理
+    console.warn('Failed to read access_token cookie for user-system proxy:', error);
+  }
+
+  // 服务间认证密钥
   if (SERVER_ENV.SERVICE_KEY) {
     newHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   }
+  
   return newHeaders;
 }
 

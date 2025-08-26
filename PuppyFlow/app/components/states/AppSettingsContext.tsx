@@ -406,27 +406,17 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     setLocalModels(localModels.filter(model => model.id !== id));
   };
 
-  // 认证相关方法 - 获取认证headers
+  // 🔒 安全修复：认证headers现在通过服务端代理处理
+  // 这个函数保留用于向后兼容，但不再处理敏感认证信息
   const getAuthHeaders = (): HeadersInit => {
-    // 在本地部署时，可能不需要认证或有不同的认证逻辑
-    if (isLocalDeployment) {
-      // 本地开发环境的逻辑（根据需要调整）
-      const token = Cookies.get('access_token');
-      return token ? { Authorization: `Bearer ${token}` } : {};
-    }
-
-    // 生产环境始终要求认证
-    const token = Cookies.get('access_token');
-    if (!token) {
-      console.warn('No access token found in production environment');
-      addWarn('认证令牌缺失，请重新登录');
-      return {};
-    }
-
-    return { Authorization: `Bearer ${token}` };
+    // 客户端不再直接处理认证token
+    // 所有API调用应使用 credentials: 'include' 通过代理处理
+    console.warn('getAuthHeaders() is deprecated - use credentials: "include" instead');
+    return {};
   };
 
-  // 获取用户token的通用方法
+  // 🔒 安全修复：移除客户端token访问
+  // 这个函数保留用于向后兼容，但不再返回敏感token
   const getUserToken = (forceLocal?: boolean): string | undefined => {
     const useLocal = forceLocal !== undefined ? forceLocal : isLocalDeployment;
 
@@ -434,21 +424,19 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
       return 'local-token';
     }
 
-    const token = Cookies.get('access_token');
-    if (!token && !useLocal) {
-      console.warn('No access token found in production environment');
-      addWarn('认证令牌缺失，请重新登录');
-    }
-
-    return token;
+    // 客户端不再直接访问access_token
+    // 所有认证通过HttpOnly cookie和服务端代理处理
+    console.warn('getUserToken() is deprecated - authentication handled server-side');
+    return undefined;
   };
 
-  // 获取带有自定义header名称的认证headers
+  // 🔒 安全修复：移除自定义认证headers
+  // 这个函数保留用于向后兼容，但不再处理敏感认证
   const getCustomAuthHeaders = (
     headerName: string = 'Authorization'
   ): Record<string, string> => {
-    const token = getUserToken();
-    return token ? { [headerName]: `Bearer ${token}` } : {};
+    console.warn('getCustomAuthHeaders() is deprecated - authentication handled server-side');
+    return {};
   };
 
   // 获取用户用量数据
@@ -460,18 +448,16 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
       const [llmResponse, runsResponse] = await Promise.all([
         fetch(`/api/user-system/usage/check/llm_calls`, {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // 认证现在通过HttpOnly cookie处理
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }),
         fetch(`/api/user-system/usage/check/runs`, {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // 认证现在通过HttpOnly cookie处理
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }),
       ]);

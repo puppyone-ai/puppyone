@@ -37,7 +37,9 @@ export type WorkspaceSwitchResult = {
 };
 
 export const useWorkspaceManagement = () => {
-  const { isLocalDeployment, getUserToken, getAuthHeaders } = useAppSettings();
+  const { isLocalDeployment } = useAppSettings();
+  
+  // 🔒 安全修复：移除客户端认证处理，统一使用服务端代理认证
 
   // 获取用户 ID
   const fetchUserId = async (
@@ -49,20 +51,14 @@ export const useWorkspaceManagement = () => {
         // 本地部署模式直接返回固定值，不需要API调用
         return 'local-user';
       } else {
-        // 云端部署模式
-        const userAccessToken = getUserToken();
-        if (!userAccessToken) {
-          throw new Error('No user access token found');
-        }
-
+        // 云端部署模式 - 认证现在由服务端代理处理
         const response = await fetch(
           `/api/user-system/get_user_id`,
           {
             method: 'GET',
-            credentials: 'include',
+            credentials: 'include', // 通过HttpOnly cookie自动认证
             headers: {
               'Content-Type': 'application/json',
-              ...getAuthHeaders(),
             },
           }
         );
@@ -179,20 +175,14 @@ export const useWorkspaceManagement = () => {
           workspace_history: {},
         };
       } else {
-        // 云端部署模式
-        const userAccessToken = getUserToken();
-        if (!userAccessToken) {
-          throw new Error('No user access token found');
-        }
-
+        // 云端部署模式 - 认证现在由服务端代理处理
         const response = await fetch(
           `/api/user-system/initialize_user_data_v2`,
           {
             method: 'GET',
-            credentials: 'include',
+            credentials: 'include', // 通过HttpOnly cookie自动认证
             headers: {
               'Content-Type': 'application/json',
-              ...getAuthHeaders(),
             },
           }
         );
