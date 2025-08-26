@@ -245,13 +245,32 @@ Instructions:
         }
         self.llm_interaction_log.append(interaction_data)
         
-        # Get response from LLM
+        # Get API key and base URL from environment variables
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        base_url = os.environ.get("OPENROUTER_BASE_URL")
+        
+        # Log API key status (masked for security)
+        if api_key:
+            masked_key = f"{api_key[:8]}{'*' * (len(api_key) - 12)}{api_key[-4:]}" if len(api_key) > 12 else "***"
+            logger.info(f"🔑 [DeepResearcher] Using API key: {masked_key}")
+        else:
+            logger.warning(f"⚠️ [DeepResearcher] No OPENROUTER_API_KEY found in environment variables")
+        
+        if base_url:
+            logger.info(f"🌐 [DeepResearcher] Using base URL: {base_url}")
+        else:
+            logger.warning(f"⚠️ [DeepResearcher] No OPENROUTER_BASE_URL found in environment variables")
+        
+        # Get response from LLM with API credentials
         chat_service = ChatService(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
-            printing=False
+            printing=False,
+            api_key=api_key,           # 添加 API 密钥
+            base_url=base_url,         # 添加 base URL
+            is_openrouter=True         # 明确指定使用 OpenRouter
         )
         response = chat_service.chat_completion()
         

@@ -21,12 +21,38 @@ import {
   RunSingleEdgeNodeContext,
 } from './hook/runSingleEdgeNodeExecutor';
 
+// 与后端 DeepResearcherEdge/config.json 对齐的配置结构
+// 另外增加 dataSource（简化）以承载来自已索引结构化数据的选择，
+// 在发送到后端时由执行器转换为 vector_search_configs.data_source
+interface SimplifiedIndexItem {
+  index_name: string;
+  collection_configs?: {
+    collection_name: string;
+  };
+}
+
+// 与 Retrieving.tsx 对齐的索引项接口
+interface IndexingItem {
+  type: string;
+  status: string;
+  index_name: string;
+  collection_configs?: {
+    collection_name: string;
+  };
+}
+
 export type DeepResearchNodeData = {
   nodeLabels?: { label: string; id: string }[];
   subMenuType: string | null;
   content: string | null;
   looped: boolean | undefined;
   query_id: { id: string; label: string } | undefined;
+  // 来自上游 JSON Block 的索引数据选择（与 Retrieving.tsx 保持一致的简化结构）
+  dataSource?: {
+    id: string;
+    label: string;
+    index_item?: SimplifiedIndexItem;
+  }[];
   modelAndProvider?:
     | {
         id: string;
@@ -36,27 +62,63 @@ export type DeepResearchNodeData = {
       }
     | undefined;
   extra_configs: {
-    max_rounds: number;
-    llm_model: string;
-    vector_config: {
-      enabled: boolean;
-      data_source: string[];
+    model: string;
+    temperature: number;
+    max_tokens: number;
+    max_iterations: number;
+    vector_search_configs: {
       top_k: number;
       threshold: number;
     };
-    web_config: {
-      top_k: number;
-      disable_content_filtering: boolean;
-      disable_quality_filtering: boolean;
-    };
-    perplexity_config: {
-      model: string;
+    google_search_configs: {
+      enabled: boolean;
       sub_search_type: string;
+      top_k: number;
+      filter_unreachable_pages: boolean;
+      firecrawl_config: {
+        formats: string[];
+        is_only_main_content: boolean;
+        wait_for: number;
+        skip_tls_verification: boolean;
+        remove_base64_images: boolean;
+      };
+    };
+    perplexity_search_configs: {
+      enabled: boolean;
+      sub_search_type: string;
+      model: string;
+      max_tokens: number;
+      temperature: number;
     };
   };
 };
 
 type DeepResearchNodeProps = NodeProps<Node<DeepResearchNodeData>>;
+
+// 定义各字段的可选值
+const GOOGLE_SEARCH_TYPES = [
+  { id: 'google', name: 'Google Standard' },
+  { id: 'google_v2', name: 'Google V2 (Firecrawl)' },
+  { id: 'ddg', name: 'DuckDuckGo' },
+];
+
+const PERPLEXITY_SEARCH_TYPES = [
+  { id: 'perplexity', name: 'Perplexity API' },
+  { id: 'ddg', name: 'DuckDuckGo Chat' },
+];
+
+const PERPLEXITY_MODELS = [
+  { id: 'perplexity/sonar', name: 'Sonar' },
+  { id: 'perplexity/sonar-pro', name: 'Sonar Pro' },
+  { id: 'perplexity/sonar-reasoning-pro', name: 'Sonar Reasoning Pro' },
+];
+
+const FIRECRAWL_FORMATS = [
+  { id: 'markdown', name: 'Markdown' },
+  { id: 'html', name: 'HTML' },
+  { id: 'text', name: 'Text' },
+  { id: 'json', name: 'JSON' },
+];
 
 function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
   const {
@@ -91,12 +153,18 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
   const hasMountedRef = useRef(false);
 
   // 状态管理
-  const [showSettings, setShowSettings] = useState(false);
+  const [showGoogleSettings, setShowGoogleSettings] = useState(false);
+  const [showPerplexitySettings, setShowPerplexitySettings] = useState(false);
+  const [showVectorSettings, setShowVectorSettings] = useState(false);
 
   // 创建默认配置的辅助函数
   const createDefaultNodeData = useCallback(
     (existingData?: Partial<DeepResearchNodeData>): DeepResearchNodeData => {
       const defaultModel = activeModels.length > 0 ? activeModels[0] : null;
+
+      const existingExtra = existingData?.extra_configs as
+        | DeepResearchNodeData['extra_configs']
+        | undefined;
 
       return {
         nodeLabels: existingData?.nodeLabels || [],
@@ -104,6 +172,7 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
         content: existingData?.content || null,
         looped: existingData?.looped || false,
         query_id: existingData?.query_id || undefined,
+        dataSource: existingData?.dataSource || [],
         modelAndProvider:
           existingData?.modelAndProvider ||
           (defaultModel
@@ -115,35 +184,53 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
               }
             : undefined),
         extra_configs: {
-          max_rounds: existingData?.extra_configs?.max_rounds ?? 3,
-          llm_model:
-            existingData?.extra_configs?.llm_model ||
-            defaultModel?.id ||
-            'gpt-4o',
-          vector_config: {
-            enabled:
-              existingData?.extra_configs?.vector_config?.enabled ?? false,
-            data_source:
-              existingData?.extra_configs?.vector_config?.data_source || [],
-            top_k: existingData?.extra_configs?.vector_config?.top_k ?? 5,
-            threshold:
-              existingData?.extra_configs?.vector_config?.threshold ?? 0.5,
+          model:
+            existingExtra?.model || defaultModel?.id || 'gpt-4o-2024-08-06',
+          temperature: existingExtra?.temperature ?? 0.1,
+          max_tokens: existingExtra?.max_tokens ?? 10000,
+          max_iterations: existingExtra?.max_iterations ?? 3,
+          vector_search_configs: {
+            top_k: existingExtra?.vector_search_configs?.top_k ?? 5,
+            threshold: existingExtra?.vector_search_configs?.threshold ?? 0.7,
           },
-          web_config: {
-            top_k: existingData?.extra_configs?.web_config?.top_k ?? 5,
-            disable_content_filtering:
-              existingData?.extra_configs?.web_config
-                ?.disable_content_filtering ?? true,
-            disable_quality_filtering:
-              existingData?.extra_configs?.web_config
-                ?.disable_quality_filtering ?? true,
-          },
-          perplexity_config: {
-            model:
-              existingData?.extra_configs?.perplexity_config?.model || 'sonar',
+          google_search_configs: {
+            enabled: existingExtra?.google_search_configs?.enabled ?? true,
             sub_search_type:
-              existingData?.extra_configs?.perplexity_config?.sub_search_type ||
+              existingExtra?.google_search_configs?.sub_search_type ||
+              'google_v2',
+            top_k: existingExtra?.google_search_configs?.top_k ?? 5,
+            filter_unreachable_pages:
+              existingExtra?.google_search_configs?.filter_unreachable_pages ??
+              true,
+            firecrawl_config: {
+              formats: existingExtra?.google_search_configs?.firecrawl_config
+                ?.formats || ['markdown'],
+              is_only_main_content:
+                existingExtra?.google_search_configs?.firecrawl_config
+                  ?.is_only_main_content ?? true,
+              wait_for:
+                existingExtra?.google_search_configs?.firecrawl_config
+                  ?.wait_for ?? 60,
+              skip_tls_verification:
+                existingExtra?.google_search_configs?.firecrawl_config
+                  ?.skip_tls_verification ?? true,
+              remove_base64_images:
+                existingExtra?.google_search_configs?.firecrawl_config
+                  ?.remove_base64_images ?? true,
+            },
+          },
+          perplexity_search_configs: {
+            enabled: existingExtra?.perplexity_search_configs?.enabled ?? true,
+            sub_search_type:
+              existingExtra?.perplexity_search_configs?.sub_search_type ||
               'perplexity',
+            model:
+              existingExtra?.perplexity_search_configs?.model ||
+              'perplexity/sonar',
+            max_tokens:
+              existingExtra?.perplexity_search_configs?.max_tokens ?? 4000,
+            temperature:
+              existingExtra?.perplexity_search_configs?.temperature ?? 0.1,
           },
         },
       };
@@ -182,17 +269,17 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
               extra_configs: {
                 ...currentData.extra_configs,
                 ...(updates.extra_configs || {}),
-                vector_config: {
-                  ...currentData.extra_configs.vector_config,
-                  ...(updates.extra_configs?.vector_config || {}),
+                vector_search_configs: {
+                  ...currentData.extra_configs.vector_search_configs,
+                  ...(updates.extra_configs?.vector_search_configs || {}),
                 },
-                web_config: {
-                  ...currentData.extra_configs.web_config,
-                  ...(updates.extra_configs?.web_config || {}),
+                google_search_configs: {
+                  ...currentData.extra_configs.google_search_configs,
+                  ...(updates.extra_configs?.google_search_configs || {}),
                 },
-                perplexity_config: {
-                  ...currentData.extra_configs.perplexity_config,
-                  ...(updates.extra_configs?.perplexity_config || {}),
+                perplexity_search_configs: {
+                  ...currentData.extra_configs.perplexity_search_configs,
+                  ...(updates.extra_configs?.perplexity_search_configs || {}),
                 },
               },
             };
@@ -257,20 +344,75 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     });
 
   const [maxRounds, setMaxRounds] = useState<number>(
-    currentData.extra_configs.max_rounds
+    currentData.extra_configs.max_iterations
   );
-  const [vectorEnabled, setVectorEnabled] = useState<boolean>(() => {
-    const currentData = getCurrentNodeData();
-    return currentData.extra_configs.vector_config.enabled;
-  });
+  // Vector search is always enabled by default (no enable field in backend config)
+  const vectorEnabled = true;
   const [vectorTopK, setVectorTopK] = useState<number>(
-    currentData.extra_configs.vector_config.top_k
+    currentData.extra_configs.vector_search_configs.top_k
   );
   const [vectorThreshold, setVectorThreshold] = useState<number>(
-    currentData.extra_configs.vector_config.threshold
+    currentData.extra_configs.vector_search_configs.threshold
   );
   const [webTopK, setWebTopK] = useState<number>(
-    currentData.extra_configs.web_config.top_k
+    currentData.extra_configs.google_search_configs.top_k
+  );
+
+  // General LLM settings
+  const [temperature, setTemperature] = useState<number>(
+    currentData.extra_configs.temperature
+  );
+  const [maxTokens, setMaxTokens] = useState<number>(
+    currentData.extra_configs.max_tokens
+  );
+
+  // Google search configs
+  const [googleEnabled, setGoogleEnabled] = useState<boolean>(
+    currentData.extra_configs.google_search_configs.enabled
+  );
+  const [googleSubType, setGoogleSubType] = useState<string>(
+    currentData.extra_configs.google_search_configs.sub_search_type
+  );
+  const [googleFilterUnreachable, setGoogleFilterUnreachable] =
+    useState<boolean>(
+      currentData.extra_configs.google_search_configs.filter_unreachable_pages
+    );
+  const [firecrawlFormats, setFirecrawlFormats] = useState<string[]>(
+    currentData.extra_configs.google_search_configs.firecrawl_config
+      .formats || ['markdown']
+  );
+  const [firecrawlIsOnlyMainContent, setFirecrawlIsOnlyMainContent] =
+    useState<boolean>(
+      currentData.extra_configs.google_search_configs.firecrawl_config
+        .is_only_main_content
+    );
+  const [firecrawlWaitFor, setFirecrawlWaitFor] = useState<number>(
+    currentData.extra_configs.google_search_configs.firecrawl_config.wait_for
+  );
+  const [firecrawlSkipTls, setFirecrawlSkipTls] = useState<boolean>(
+    currentData.extra_configs.google_search_configs.firecrawl_config
+      .skip_tls_verification
+  );
+  const [firecrawlRemoveBase64, setFirecrawlRemoveBase64] = useState<boolean>(
+    currentData.extra_configs.google_search_configs.firecrawl_config
+      .remove_base64_images
+  );
+
+  // Perplexity configs
+  const [perplexityEnabled, setPerplexityEnabled] = useState<boolean>(
+    currentData.extra_configs.perplexity_search_configs.enabled
+  );
+  const [perplexitySubType, setPerplexitySubType] = useState<string>(
+    currentData.extra_configs.perplexity_search_configs.sub_search_type
+  );
+  const [perplexityModel, setPerplexityModel] = useState<string>(
+    currentData.extra_configs.perplexity_search_configs.model
+  );
+  const [perplexityMaxTokens, setPerplexityMaxTokens] = useState<number>(
+    currentData.extra_configs.perplexity_search_configs.max_tokens
+  );
+  const [perplexityTemperature, setPerplexityTemperature] = useState<number>(
+    currentData.extra_configs.perplexity_search_configs.temperature
   );
 
   // 当可用模型变化且当前选择的模型不在可用列表中时，更新为第一个可用模型
@@ -308,9 +450,17 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     return `${model.name} (${model.provider})`;
   }, []);
 
-  // 简化onChange处理 - vectorEnabled checkbox
-  const handleVectorEnabledChange = useCallback((checked: boolean) => {
-    setVectorEnabled(checked);
+  // Vector search is always enabled, so we only need to handle data source changes
+  // Remove vector enabled change handler since it's always enabled
+
+  // Google search enabled change handler
+  const handleGoogleEnabledChange = useCallback((checked: boolean) => {
+    setGoogleEnabled(checked);
+  }, []);
+
+  // Perplexity search enabled change handler
+  const handlePerplexityEnabledChange = useCallback((checked: boolean) => {
+    setPerplexityEnabled(checked);
   }, []);
 
   // Refs for inputs
@@ -318,6 +468,12 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
   const vectorTopKRef = useRef<HTMLInputElement>(null);
   const vectorThresholdRef = useRef<HTMLInputElement>(null);
   const webTopKRef = useRef<HTMLInputElement>(null);
+
+  // DeepResearch: 数据源（来自索引）
+  const [dataSource, setDataSource] = useState<
+    { label: string; id: string; index_item?: SimplifiedIndexItem }[]
+  >(() => currentData.dataSource || []);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // 数据同步函数 - 模型选择
   const onModelAndProviderChange = useCallback(
@@ -332,7 +488,7 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
         },
         extra_configs: {
           ...currentData.extra_configs,
-          llm_model: newModelAndProvider.id,
+          model: newModelAndProvider.id,
         },
       });
     },
@@ -357,21 +513,35 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
               }
             : currentData.modelAndProvider,
           extra_configs: {
-            max_rounds: maxRounds,
-            llm_model:
-              selectedModelAndProvider?.id ||
-              currentData.extra_configs.llm_model,
-            vector_config: {
-              enabled: vectorEnabled,
-              data_source: vectorEnabled ? ['default'] : [],
+            model:
+              selectedModelAndProvider?.id || currentData.extra_configs.model,
+            temperature: temperature,
+            max_tokens: maxTokens,
+            max_iterations: maxRounds,
+            vector_search_configs: {
               top_k: vectorTopK,
               threshold: vectorThreshold,
             },
-            web_config: {
-              ...currentData.extra_configs.web_config,
+            google_search_configs: {
+              enabled: googleEnabled,
+              sub_search_type: googleSubType,
               top_k: webTopK,
+              filter_unreachable_pages: googleFilterUnreachable,
+              firecrawl_config: {
+                formats: firecrawlFormats,
+                is_only_main_content: firecrawlIsOnlyMainContent,
+                wait_for: firecrawlWaitFor,
+                skip_tls_verification: firecrawlSkipTls,
+                remove_base64_images: firecrawlRemoveBase64,
+              },
             },
-            perplexity_config: currentData.extra_configs.perplexity_config,
+            perplexity_search_configs: {
+              enabled: perplexityEnabled,
+              sub_search_type: perplexitySubType,
+              model: perplexityModel,
+              max_tokens: perplexityMaxTokens,
+              temperature: perplexityTemperature,
+            },
           },
         };
 
@@ -388,10 +558,26 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     isOnGeneratingNewNode,
     selectedModelAndProvider,
     maxRounds,
-    vectorEnabled,
     vectorTopK,
     vectorThreshold,
     webTopK,
+    temperature,
+    maxTokens,
+    googleEnabled,
+    googleSubType,
+    googleFilterUnreachable,
+    firecrawlFormats,
+    firecrawlIsOnlyMainContent,
+    firecrawlWaitFor,
+    firecrawlSkipTls,
+    firecrawlRemoveBase64,
+    perplexityEnabled,
+    perplexitySubType,
+    perplexityModel,
+    perplexityMaxTokens,
+    perplexityTemperature,
+    getCurrentNodeData,
+    updateNodeData,
   ]);
 
   // 创建执行上下文
@@ -435,7 +621,7 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     try {
       await runSingleEdgeNode({
         parentId: id,
-        targetNodeType: 'structured',
+        targetNodeType: 'text',
         context,
       });
     } catch (error) {
@@ -491,10 +677,88 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     }
   }, []);
 
+  // 拉平可选择的索引项（参考 Retrieving.tsx）
+  const flattenedIndexItems = useMemo(() => {
+    const items: {
+      nodeId: string;
+      nodeLabel: string;
+      indexItem: IndexingItem;
+    }[] = [];
+
+    getSourceNodeIdWithLabel(id).forEach(node => {
+      const nodeInfo = getNode(node.id);
+      if (nodeInfo?.type === 'structured') {
+        const indexingList = nodeInfo?.data?.indexingList as
+          | IndexingItem[]
+          | undefined;
+        if (Array.isArray(indexingList)) {
+          indexingList.forEach(item => {
+            if (item.type === 'vector' && item.status === 'done') {
+              items.push({
+                nodeId: node.id,
+                nodeLabel: node.label,
+                indexItem: item,
+              });
+            }
+          });
+        }
+      }
+    });
+    return items;
+  }, [id, getSourceNodeIdWithLabel, getNode]);
+
+  const addNodeLabel = useCallback(
+    (option: {
+      nodeId: string;
+      nodeLabel: string;
+      indexItem: IndexingItem;
+    }) => {
+      const nodeId = option.nodeId;
+      if (!dataSource.some(item => item.id === nodeId)) {
+        const simplified: SimplifiedIndexItem = {
+          index_name: option.indexItem.index_name,
+          collection_configs: option.indexItem.collection_configs,
+        };
+        const newItem = {
+          id: nodeId,
+          label: option.nodeLabel,
+          index_item: simplified,
+        };
+        const newDataSource = [...dataSource, newItem];
+        setDataSource(newDataSource);
+        updateNodeData({ dataSource: newDataSource });
+      }
+    },
+    [dataSource, updateNodeData]
+  );
+
+  const removeNodeLabel = useCallback(
+    (index: number) => {
+      const newDataSource = [...dataSource];
+      newDataSource.splice(index, 1);
+      setDataSource(newDataSource);
+      updateNodeData({ dataSource: newDataSource });
+    },
+    [dataSource, updateNodeData]
+  );
+
   // 添加停止函数
   const onStopExecution = useCallback(() => {
     console.log('Stop execution');
     setIsLoading(false);
+  }, []);
+
+  // 处理多选格式的函数
+  const handleFormatToggle = useCallback((formatId: string) => {
+    setFirecrawlFormats(prev => {
+      if (prev.includes(formatId)) {
+        // 如果已选中，则移除（但至少保留一个）
+        return prev.length > 1 ? prev.filter(f => f !== formatId) : prev;
+      } else {
+        // 如果未选中，则添加
+        return [...prev, formatId];
+      }
+    });
   }, []);
 
   // 缓存按钮样式
@@ -827,123 +1091,606 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
             )}
           </li>
 
-          {/* Settings section */}
+          {/* General Settings */}
+          <li className='flex flex-col gap-2'>
+            <div className='flex items-center gap-2'>
+              <label className='text-[13px] font-semibold text-[#6D7177]'>
+                General Settings
+              </label>
+              <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='flex flex-col gap-1'>
+                <label className='text-[11px] text-[#6D7177]'>
+                  Max Iterations
+                </label>
+                <input
+                  ref={maxRoundsRef}
+                  type='number'
+                  value={maxRounds}
+                  onChange={e => setMaxRounds(parseInt(e.target.value) || 3)}
+                  min='1'
+                  max='10'
+                  className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+              <div className='flex flex-col gap-1'>
+                <label className='text-[11px] text-[#6D7177]'>Max Tokens</label>
+                <input
+                  type='number'
+                  value={maxTokens}
+                  min='1'
+                  max='32000'
+                  onChange={e => setMaxTokens(parseInt(e.target.value) || 1)}
+                  className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+            </div>
+            <div className='grid grid-cols-2 gap-2'>
+              <div className='flex flex-col gap-1'>
+                <label className='text-[11px] text-[#6D7177]'>
+                  Temperature
+                </label>
+                <input
+                  type='number'
+                  value={temperature}
+                  min='0'
+                  max='2'
+                  step='0.1'
+                  onChange={e =>
+                    setTemperature(parseFloat(e.target.value) || 0)
+                  }
+                  className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
+                  onFocus={onFocus}
+                  onBlur={onBlur}
+                />
+              </div>
+            </div>
+          </li>
+
+          {/* Google Search Settings */}
           <li className='flex flex-col gap-2'>
             <div className='flex items-center justify-between'>
               <div className='flex items-center gap-2'>
                 <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Settings
+                  Google Search
                 </label>
                 <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
               </div>
               <button
-                onClick={() => setShowSettings(!showSettings)}
+                onClick={() => setShowGoogleSettings(!showGoogleSettings)}
                 className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
               >
-                {showSettings ? 'Hide' : 'Show'}
+                {showGoogleSettings ? 'Hide' : 'Show'}
               </button>
             </div>
 
-            {showSettings && (
-              <div className='flex flex-col gap-3'>
-                {/* Max Rounds */}
-                <div className='flex flex-col gap-1'>
-                  <label className='text-[11px] text-[#6D7177]'>
-                    Max Research Rounds
-                  </label>
+            {showGoogleSettings && (
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
                   <input
-                    ref={maxRoundsRef}
-                    type='number'
-                    value={maxRounds}
-                    onChange={e => setMaxRounds(parseInt(e.target.value) || 3)}
-                    min='1'
-                    max='10'
-                    className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
+                    type='checkbox'
+                    checked={googleEnabled}
+                    onChange={e => handleGoogleEnabledChange(e.target.checked)}
+                    className='w-4 h-4'
                     onFocus={onFocus}
                     onBlur={onBlur}
                   />
+                  <label className='text-[11px] text-[#6D7177]'>
+                    Enable Google Search
+                  </label>
                 </div>
-
-                {/* Vector Search Settings */}
-                <div className='flex flex-col gap-2'>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Sub Type
+                    </label>
+                    <div
+                      className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
+                        googleEnabled
+                          ? 'bg-[#252525] hover:border-[#6D7177]/50'
+                          : 'bg-[#1A1A1A] cursor-not-allowed'
+                      } transition-colors`}
+                    >
+                      <PuppyDropdown
+                        options={GOOGLE_SEARCH_TYPES}
+                        selectedValue={
+                          GOOGLE_SEARCH_TYPES.find(
+                            type => type.id === googleSubType
+                          ) || GOOGLE_SEARCH_TYPES[0]
+                        }
+                        onSelect={(selectedType: {
+                          id: string;
+                          name: string;
+                        }) => setGoogleSubType(selectedType.id)}
+                        buttonHeight='28px'
+                        buttonBgColor='transparent'
+                        menuBgColor='#1A1A1A'
+                        listWidth='100%'
+                        containerClassnames='w-full'
+                        onFocus={onFocus}
+                        onBlur={onBlur}
+                        disabled={!googleEnabled}
+                        mapValueTodisplay={(
+                          type: { id: string; name: string } | null
+                        ) => type?.name || 'Select Type'}
+                      />
+                    </div>
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Top K Results
+                    </label>
+                    <input
+                      ref={webTopKRef}
+                      type='number'
+                      value={webTopK}
+                      onChange={e => setWebTopK(parseInt(e.target.value) || 5)}
+                      disabled={!googleEnabled}
+                      min='1'
+                      max='20'
+                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                        googleEnabled
+                          ? 'bg-[#252525] text-white'
+                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                      }`}
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
                   <div className='flex items-center gap-2'>
                     <input
                       type='checkbox'
-                      checked={vectorEnabled}
+                      checked={googleFilterUnreachable}
                       onChange={e =>
-                        handleVectorEnabledChange(e.target.checked)
+                        setGoogleFilterUnreachable(e.target.checked)
                       }
+                      disabled={!googleEnabled}
                       className='w-4 h-4'
                       onFocus={onFocus}
                       onBlur={onBlur}
                     />
                     <label className='text-[11px] text-[#6D7177]'>
-                      Enable Vector Search
+                      Filter Unreachable
                     </label>
                   </div>
-
-                  {vectorEnabled && (
-                    <div className='flex flex-col gap-2 ml-6'>
-                      <div className='flex flex-col gap-1'>
-                        <label className='text-[11px] text-[#6D7177]'>
-                          Top K Results
-                        </label>
-                        <input
-                          ref={vectorTopKRef}
-                          type='number'
-                          value={vectorTopK}
-                          onChange={e =>
-                            setVectorTopK(parseInt(e.target.value) || 5)
-                          }
-                          min='1'
-                          max='20'
-                          className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
-                          onFocus={onFocus}
-                          onBlur={onBlur}
-                        />
-                      </div>
-
-                      <div className='flex flex-col gap-1'>
-                        <label className='text-[11px] text-[#6D7177]'>
-                          Similarity Threshold
-                        </label>
-                        <input
-                          ref={vectorThresholdRef}
-                          type='number'
-                          value={vectorThreshold}
-                          onChange={e =>
-                            setVectorThreshold(
-                              parseFloat(e.target.value) || 0.5
-                            )
-                          }
-                          min='0'
-                          max='1'
-                          step='0.1'
-                          className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
-                          onFocus={onFocus}
-                          onBlur={onBlur}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Wait For (s)
+                    </label>
+                    <input
+                      type='number'
+                      value={firecrawlWaitFor}
+                      onChange={e =>
+                        setFirecrawlWaitFor(parseInt(e.target.value) || 0)
+                      }
+                      disabled={!googleEnabled}
+                      min='0'
+                      max='120'
+                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                        googleEnabled
+                          ? 'bg-[#252525] text-white'
+                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                      }`}
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                  </div>
                 </div>
-
-                {/* Web Search Settings */}
                 <div className='flex flex-col gap-1'>
                   <label className='text-[11px] text-[#6D7177]'>
-                    Web Search Results
+                    Firecrawl Formats
                   </label>
+                  <div
+                    className={`min-h-[28px] p-2 border-[1px] border-[#6D7177]/30 rounded-[4px] ${
+                      googleEnabled
+                        ? 'bg-[#252525]'
+                        : 'bg-[#1A1A1A] cursor-not-allowed'
+                    } transition-colors`}
+                  >
+                    <div className='flex flex-wrap gap-2'>
+                      {FIRECRAWL_FORMATS.map(format => (
+                        <button
+                          key={format.id}
+                          type='button'
+                          onClick={() => handleFormatToggle(format.id)}
+                          disabled={!googleEnabled}
+                          className={`px-2 py-1 text-[10px] rounded-[4px] border transition-colors ${
+                            firecrawlFormats.includes(format.id)
+                              ? 'bg-[#39BC66] border-[#39BC66] text-black font-semibold'
+                              : googleEnabled
+                                ? 'bg-[#1A1A1A] border-[#6D7177]/30 text-[#6D7177] hover:border-[#6D7177]/50'
+                                : 'bg-[#1A1A1A] border-[#6D7177]/20 text-[#6D7177]/50 cursor-not-allowed'
+                          }`}
+                        >
+                          {format.name}
+                        </button>
+                      ))}
+                    </div>
+                    <div className='text-[9px] text-[#6D7177] mt-1'>
+                      Selected: {firecrawlFormats.join(', ')}
+                    </div>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <input
+                      type='checkbox'
+                      checked={firecrawlIsOnlyMainContent}
+                      onChange={e =>
+                        setFirecrawlIsOnlyMainContent(e.target.checked)
+                      }
+                      disabled={!googleEnabled}
+                      className='w-4 h-4'
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Only Main Content
+                    </label>
+                  </div>
+                  <div className='flex items-center gap-2'>
+                    <input
+                      type='checkbox'
+                      checked={firecrawlSkipTls}
+                      onChange={e => setFirecrawlSkipTls(e.target.checked)}
+                      disabled={!googleEnabled}
+                      className='w-4 h-4'
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Skip TLS Verification
+                    </label>
+                  </div>
+                </div>
+                <div className='flex items-center gap-2'>
                   <input
-                    ref={webTopKRef}
-                    type='number'
-                    value={webTopK}
-                    onChange={e => setWebTopK(parseInt(e.target.value) || 5)}
-                    min='1'
-                    max='20'
-                    className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
+                    type='checkbox'
+                    checked={firecrawlRemoveBase64}
+                    onChange={e => setFirecrawlRemoveBase64(e.target.checked)}
+                    disabled={!googleEnabled}
+                    className='w-4 h-4'
                     onFocus={onFocus}
                     onBlur={onBlur}
                   />
+                  <label className='text-[11px] text-[#6D7177]'>
+                    Remove Base64 Images
+                  </label>
+                </div>
+              </div>
+            )}
+          </li>
+
+          {/* Perplexity Search Settings */}
+          <li className='flex flex-col gap-2'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>
+                  Perplexity Search
+                </label>
+                <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+              </div>
+              <button
+                onClick={() =>
+                  setShowPerplexitySettings(!showPerplexitySettings)
+                }
+                className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
+              >
+                {showPerplexitySettings ? 'Hide' : 'Show'}
+              </button>
+            </div>
+
+            {showPerplexitySettings && (
+              <div className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <input
+                    type='checkbox'
+                    checked={perplexityEnabled}
+                    onChange={e =>
+                      handlePerplexityEnabledChange(e.target.checked)
+                    }
+                    className='w-4 h-4'
+                    onFocus={onFocus}
+                    onBlur={onBlur}
+                  />
+                  <label className='text-[11px] text-[#6D7177]'>
+                    Enable Perplexity Search
+                  </label>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Sub Type
+                    </label>
+                    <div
+                      className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
+                        perplexityEnabled
+                          ? 'bg-[#252525] hover:border-[#6D7177]/50'
+                          : 'bg-[#1A1A1A] cursor-not-allowed'
+                      } transition-colors`}
+                    >
+                      <PuppyDropdown
+                        options={PERPLEXITY_SEARCH_TYPES}
+                        selectedValue={
+                          PERPLEXITY_SEARCH_TYPES.find(
+                            type => type.id === perplexitySubType
+                          ) || PERPLEXITY_SEARCH_TYPES[0]
+                        }
+                        onSelect={(selectedType: {
+                          id: string;
+                          name: string;
+                        }) => setPerplexitySubType(selectedType.id)}
+                        buttonHeight='28px'
+                        buttonBgColor='transparent'
+                        menuBgColor='#1A1A1A'
+                        listWidth='100%'
+                        containerClassnames='w-full'
+                        onFocus={onFocus}
+                        onBlur={onBlur}
+                        disabled={!perplexityEnabled}
+                        mapValueTodisplay={(
+                          type: { id: string; name: string } | null
+                        ) => type?.name || 'Select Type'}
+                      />
+                    </div>
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>Model</label>
+                    <div
+                      className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
+                        perplexityEnabled
+                          ? 'bg-[#252525] hover:border-[#6D7177]/50'
+                          : 'bg-[#1A1A1A] cursor-not-allowed'
+                      } transition-colors`}
+                    >
+                      <PuppyDropdown
+                        options={PERPLEXITY_MODELS}
+                        selectedValue={
+                          PERPLEXITY_MODELS.find(
+                            model => model.id === perplexityModel
+                          ) || PERPLEXITY_MODELS[0]
+                        }
+                        onSelect={(selectedModel: {
+                          id: string;
+                          name: string;
+                        }) => setPerplexityModel(selectedModel.id)}
+                        buttonHeight='28px'
+                        buttonBgColor='transparent'
+                        menuBgColor='#1A1A1A'
+                        listWidth='100%'
+                        containerClassnames='w-full'
+                        onFocus={onFocus}
+                        onBlur={onBlur}
+                        disabled={!perplexityEnabled}
+                        mapValueTodisplay={(
+                          model: { id: string; name: string } | null
+                        ) => model?.name || 'Select Model'}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Max Tokens
+                    </label>
+                    <input
+                      type='number'
+                      value={perplexityMaxTokens}
+                      onChange={e =>
+                        setPerplexityMaxTokens(parseInt(e.target.value) || 0)
+                      }
+                      disabled={!perplexityEnabled}
+                      min='0'
+                      max='16000'
+                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                        perplexityEnabled
+                          ? 'bg-[#252525] text-white'
+                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                      }`}
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Temperature
+                    </label>
+                    <input
+                      type='number'
+                      value={perplexityTemperature}
+                      onChange={e =>
+                        setPerplexityTemperature(
+                          parseFloat(e.target.value) || 0
+                        )
+                      }
+                      disabled={!perplexityEnabled}
+                      min='0'
+                      max='2'
+                      step='0.1'
+                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                        perplexityEnabled
+                          ? 'bg-[#252525] text-white'
+                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                      }`}
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </li>
+
+          {/* Vector Search Settings */}
+          <li className='flex flex-col gap-2'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <label className='text-[13px] font-semibold text-[#6D7177]'>
+                  Vector Search
+                </label>
+                <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+              </div>
+              <button
+                onClick={() => setShowVectorSettings(!showVectorSettings)}
+                className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
+              >
+                {showVectorSettings ? 'Hide' : 'Show'}
+              </button>
+            </div>
+
+            {showVectorSettings && (
+              <div className='flex flex-col gap-2'>
+                <div className='grid grid-cols-2 gap-2'>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Top K Results
+                    </label>
+                    <input
+                      ref={vectorTopKRef}
+                      type='number'
+                      value={vectorTopK}
+                      onChange={e =>
+                        setVectorTopK(parseInt(e.target.value) || 5)
+                      }
+                      min='1'
+                      max='20'
+                      className='h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none bg-[#252525] text-white'
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                  </div>
+                  <div className='flex flex-col gap-1'>
+                    <label className='text-[11px] text-[#6D7177]'>
+                      Similarity Threshold
+                    </label>
+                    <input
+                      ref={vectorThresholdRef}
+                      type='number'
+                      value={vectorThreshold}
+                      onChange={e =>
+                        setVectorThreshold(parseFloat(e.target.value) || 0.5)
+                      }
+                      min='0'
+                      max='1'
+                      step='0.1'
+                      className='h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none bg-[#252525] text-white'
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
+                  </div>
+                </div>
+
+                {/* Indexed Structured Data Selection */}
+                <div className='flex flex-col gap-2'>
+                  <label className='text-[11px] text-[#6D7177]'>
+                    Indexed Structured Data
+                  </label>
+
+                  {/* start of node labels */}
+                  <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
+                      {dataSource.map((item, index) => (
+                        <div
+                          key={index}
+                          className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
+                                     border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 
+                                     transition-colors group'
+                        >
+                          <span className='text-[10px] text-[#9B7EDB] font-medium'>
+                            {item.label}
+                          </span>
+                          <button
+                            onClick={() => removeNodeLabel(index)}
+                            className='ml-2 text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
+                                       opacity-0 group-hover:opacity-100'
+                          >
+                            <svg
+                              xmlns='http://www.w3.org/2000/svg'
+                              width='10'
+                              height='10'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            >
+                              <line x1='18' y1='6' x2='6' y2='18'></line>
+                              <line x1='6' y1='6' x2='18' y2='18'></line>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+
+                      {flattenedIndexItems.length > 0 && (
+                        <div className='relative'>
+                          <button
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            className='w-[24px] h-[24px] flex items-center justify-center rounded-md
+                                       bg-[#252525] border border-[#6D7177]/30 
+                                       text-[#6D7177] 
+                                       hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
+                                       transition-colors'
+                          >
+                            <svg
+                              width='12'
+                              height='12'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                            >
+                              <path
+                                d='M12 5v14M5 12h14'
+                                strokeWidth='2'
+                                strokeLinecap='round'
+                              />
+                            </svg>
+                          </button>
+
+                          {isDropdownOpen && (
+                            <div
+                              className='absolute top-full left-0 mt-1 w-[240px] bg-[#1A1A1A] 
+                                         border border-[#6D7177]/30 rounded-[8px] shadow-lg z-10 max-h-[200px] overflow-y-auto'
+                            >
+                              {flattenedIndexItems
+                                .filter(
+                                  item =>
+                                    !dataSource.some(
+                                      ds => ds.id === item.nodeId
+                                    )
+                                )
+                                .map((item, index) => (
+                                  <button
+                                    key={index}
+                                    onClick={() => {
+                                      addNodeLabel(item);
+                                      setIsDropdownOpen(false);
+                                    }}
+                                    className='w-full text-left px-3 py-2 text-[11px] text-[#CDCDCD] 
+                                               hover:bg-[#252525] transition-colors border-b border-[#6D7177]/20 last:border-b-0'
+                                  >
+                                    <div className='font-medium text-[#9B7EDB]'>
+                                      {item.nodeLabel}
+                                    </div>
+                                    <div className='text-[#6D7177] text-[10px] mt-1'>
+                                      Index: {item.indexItem.index_name}
+                                    </div>
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
