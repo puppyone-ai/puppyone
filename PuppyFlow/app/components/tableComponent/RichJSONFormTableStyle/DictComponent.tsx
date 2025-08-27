@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import ComponentRenderer, { createEmptyElement, useHover, useSelection } from './ComponentRenderer';
 import DictActionMenu from './DictActionMenu';
+import { getClipboard } from './ClipboardStore';
 import { useOverflowContext } from './OverflowContext';
 
 type DictComponentProps = {
@@ -249,6 +250,102 @@ const DictComponent = ({
     const [menuOpen, setMenuOpen] = React.useState(false);
     const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
+    // Anchor map for per-key inline actions (rename/delete) rendered via portal
+    const keyAnchorMapRef = React.useRef<Map<string, HTMLElement>>(new Map());
+
+    // Render per-key inline actions (rename/delete) via portal so it can overflow
+    React.useEffect(() => {
+        const currentKey = actionKey;
+        if (!currentKey || readonly) return;
+        const anchor = keyAnchorMapRef.current.get(currentKey);
+        if (!anchor) return;
+
+        const menuId = `dict-key-actions-${path}-${currentKey}`;
+        let rafId: number | null = null;
+
+        const updatePosition = () => {
+            const rect = anchor.getBoundingClientRect();
+            const gap = 6;
+            const top = rect.top - gap;
+            const left = rect.left + rect.width / 2;
+
+            const element = (
+                <div
+                    className="rjft-key-inline-actions"
+                    style={{ position: 'fixed', top, left, transform: 'translate(-50%, -100%)' }}
+                >
+                    {renamingKey === currentKey ? (
+                        <div className="flex items-center gap-[6px] bg-[#252525] p-[4px] rounded-[6px] border border-[#404040] shadow-lg">
+                            <input
+                                value={renameInput}
+                                onChange={(e) => setRenameInput(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') { e.preventDefault(); submitRenameKey(currentKey); }
+                                    if (e.key === 'Escape') { e.preventDefault(); setRenamingKey(null); }
+                                }}
+                                className="h-[24px] w-[128px] text-[12px] bg-[#1E1E1E] text-[#E5E7EB] rounded-[4px] px-[6px] outline-none border border-[#3A3D45]"
+                            />
+                            <button
+                                className="h-[24px] px-[8px] text-[11px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 text-[#E5E7EB]"
+                                onClick={(e) => { e.stopPropagation(); submitRenameKey(currentKey); }}
+                            >
+                                save
+                            </button>
+                            <button
+                                className="h-[24px] px-[8px] text-[11px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 text-[#E5E7EB]"
+                                onClick={(e) => { e.stopPropagation(); setRenamingKey(null); }}
+                            >
+                                cancel
+                            </button>
+                        </div>
+                    ) : (
+                        <div className="flex items-center gap-[6px] bg-[#252525] p-[4px] rounded-[6px] border border-[#404040] shadow-lg">
+                            <button
+                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
+                                title="Rename key"
+                                onClick={(e) => { e.stopPropagation(); beginRenameKey(currentKey); }}
+                            >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#E5E7EB" strokeWidth="1.6">
+                                    <path d="M4 13.5V16h2.5L15 7.5 12.5 5 4 13.5z"/>
+                                    <path d="M11 6l3 3"/>
+                                </svg>
+                            </button>
+                            <button
+                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
+                                title="Delete key"
+                                onClick={(e) => { e.stopPropagation(); deleteKey(currentKey); setActionKey(null); }}
+                            >
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#F44336" strokeWidth="1.6">
+                                    <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
+                                </svg>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            );
+
+            registerOverflowElement(menuId, element, anchor);
+        };
+
+        const loop = () => {
+            updatePosition();
+            rafId = requestAnimationFrame(loop);
+        };
+        loop();
+
+        const onScroll = () => updatePosition();
+        const onResize = () => updatePosition();
+        window.addEventListener('scroll', onScroll, true);
+        window.addEventListener('resize', onResize);
+
+        return () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            unregisterOverflowElement(menuId);
+            window.removeEventListener('scroll', onScroll, true);
+            window.removeEventListener('resize', onResize);
+        };
+    }, [actionKey, renamingKey, renameInput, readonly, path, registerOverflowElement, unregisterOverflowElement]);
 
     React.useEffect(() => {
         const menuId = `dict-menu-${path}`;
@@ -273,9 +370,28 @@ const DictComponent = ({
 
                         <DictActionMenu
                             value={data}
-                            onClear={() => { onUpdate({}); setMenuOpen(false); }}
+                            onClear={() => { onUpdate(null as any); setMenuOpen(false); }}
                             onTransferToList={() => { onReplace && onReplace([null, null]); setMenuOpen(false); }}
                             onTransferToText={() => { onReplace && onReplace(''); setMenuOpen(false); }}
+                            onPaste={async () => {
+                                let payload: any = getClipboard();
+                                if (!payload) {
+                                    try {
+                                        const text = await navigator.clipboard.readText();
+                                        payload = text?.startsWith('__RJF__') ? JSON.parse(text.slice('__RJF__'.length)) : JSON.parse(text);
+                                    } catch {}
+                                }
+                                if (payload !== undefined) {
+                                    if (Array.isArray(payload)) {
+                                        onReplace && onReplace(payload);
+                                    } else if (payload && typeof payload === 'object') {
+                                        onUpdate(payload);
+                                    } else if (typeof payload === 'string') {
+                                        onReplace && onReplace(payload);
+                                    }
+                                }
+                                setMenuOpen(false);
+                            }}
                         />
                     </div>
                 ),
@@ -362,39 +478,11 @@ const DictComponent = ({
             >
                 {keys.length === 0 ? (
                     <div className="w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200">
-                        {readonly ? (
-                            <div className="flex items-center h-[24px]">
-                                <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty object
-                                </div>
+                        <div className="flex items-center h-[24px]">
+                            <div className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
+                                empty object
                             </div>
-                        ) : (
-                            <div className="flex items-center h-[24px] space-x-2">
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    empty object, click
-                                </span>
-                                <button
-                                    onClick={addEmptyKey}
-                                    className="flex items-center justify-center w-6 h-5 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md text-[#CDCDCD] hover:text-white transition-all duration-200"
-                                    title="Add first key"
-                                >
-                                    <svg 
-                                        className="w-3 h-3" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                                <span className="text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans">
-                                    to add
-                                </span>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -442,6 +530,13 @@ const DictComponent = ({
                                                                 : 'text-[#C74F8A] hover:text-[#D96BA0]'
                                                             }`}
                                                         title={key}
+                                                        ref={(el) => {
+                                                            if (el) {
+                                                                keyAnchorMapRef.current.set(key, el);
+                                                            } else {
+                                                                keyAnchorMapRef.current.delete(key);
+                                                            }
+                                                        }}
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
                                                             setSelectedPath(path);
@@ -451,55 +546,6 @@ const DictComponent = ({
                                                     >
                                                         {key}
                                                     </span>
-                                                    {actionKey === key && !readonly && (
-                                                        <div className="rjft-key-inline-actions absolute right-full top-1/2 -translate-y-1/2 mr-[4px] flex gap-[6px] z-30">
-                                                            <button
-                                                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
-                                                                title="Rename key"
-                                                                onClick={(e) => { e.stopPropagation(); beginRenameKey(key); }}
-                                                            >
-                                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#E5E7EB" strokeWidth="1.6">
-                                                                    <path d="M4 13.5V16h2.5L15 7.5 12.5 5 4 13.5z"/>
-                                                                    <path d="M11 6l3 3"/>
-                                                                </svg>
-                                                            </button>
-                                                            <button
-                                                                className="h-[22px] w-[22px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center"
-                                                                title="Delete key"
-                                                                onClick={(e) => { e.stopPropagation(); deleteKey(key); setActionKey(null); }}
-                                                            >
-                                                                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="none" stroke="#F44336" strokeWidth="1.6">
-                                                                    <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
-                                                                </svg>
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                    {renamingKey === key && (
-                                                        <div className="rjft-key-inline-actions absolute right-full top-1/2 -translate-y-1/2 mr-[4px] flex items-center gap-[6px] z-30 bg-[#252525] p-[4px] rounded-[6px] border border-[#404040]">
-                                                            <input
-                                                                value={renameInput}
-                                                                onChange={(e) => setRenameInput(e.target.value)}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') { e.preventDefault(); submitRenameKey(key); }
-                                                                    if (e.key === 'Escape') { e.preventDefault(); setRenamingKey(null); }
-                                                                }}
-                                                                className="h-[22px] w-[96px] text-[12px] bg-[#1E1E1E] text-[#E5E7EB] rounded-[4px] px-[6px] outline-none border border-[#3A3D45]"
-                                                            />
-                                                            <button
-                                                                className="h-[22px] px-[8px] text-[11px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 text-[#E5E7EB]"
-                                                                onClick={(e) => { e.stopPropagation(); submitRenameKey(key); }}
-                                                            >
-                                                                save
-                                                            </button>
-                                                            <button
-                                                                className="h-[22px] px-[8px] text-[11px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 text-[#E5E7EB]"
-                                                                onClick={(e) => { e.stopPropagation(); setRenamingKey(null); }}
-                                                            >
-                                                                cancel
-                                                            </button>
-                                                        </div>
-                                                    )}
                                                 </div>
                                             </div>
                                             
@@ -538,33 +584,34 @@ const DictComponent = ({
                             );
                         })}
                         
-                        {/* Add New Key Button */}
-                        {!readonly && (
-                            <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
-                                <button
-                                    onClick={addEmptyKey}
-                                    className="group w-6 h-6 flex items-center justify-center rounded-full 
-                                             bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
-                                             transition-all duration-200 ease-out shadow-lg opacity-0 group-hover/dict:opacity-100"
-                                    title="Add new key"
-                                >
-                                    <svg 
-                                        className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
-                                        viewBox="0 0 16 16" 
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        strokeWidth="1.5"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                    >
-                                        <path d="M8 3v10M3 8h10" />
-                                    </svg>
-                                </button>
-                            </div>
-                        )}
                     </>
                 )}
             </div>
+            {/* Add New Key Button at bottom - visible on hover/selected/menuOpen or when empty */}
+            {!readonly && (
+                <div className="absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2">
+                    <button
+                        onClick={addEmptyKey}
+                        className={`group w-6 h-6 flex items-center justify-center rounded-full 
+                                 bg-[#2a2a2a] hover:bg-[#3a3a3a] border border-[#6D7177]/40 hover:border-[#6D7177]/60 
+                                 transition-all duration-200 ease-out shadow-lg 
+                                 ${(isHovered || isSelected || menuOpen) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                        title="Add new key"
+                    >
+                        <svg 
+                            className="w-3 h-3 text-[#E5E7EB] transition-transform duration-200 group-hover:scale-110" 
+                            viewBox="0 0 16 16" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M8 3v10M3 8h10" />
+                        </svg>
+                    </button>
+                </div>
+            )}
         </div>
     );
 };
