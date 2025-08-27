@@ -72,7 +72,7 @@ const Models: React.FC = () => {
     );
 
   return (
-    <div className='space-y-4 max-h-[500px] pr-2'>
+    <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
       <h3 className='text-[16px] font-semibold text-[#E5E5E5] sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
         AI Models Configuration
       </h3>
@@ -81,7 +81,7 @@ const Models: React.FC = () => {
         {/* LLM Models Section */}
         <div className='space-y-4'>
           <div className='flex items-center justify-between'>
-            <h4 className='text-[16px] font-semibold text-[#E5E5E5]'>
+            <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
               LLM Models
             </h4>
             <button
@@ -116,7 +116,7 @@ const Models: React.FC = () => {
 
         {/* Embedding Models Section */}
         <div className='space-y-4'>
-          <h4 className='text-[16px] font-semibold text-[#E5E5E5]'>
+          <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
             Embedding Models
           </h4>
 

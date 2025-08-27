@@ -24,7 +24,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
       onTabChange={onTabChange}
       onClose={onClose}
     >
-      <div className='flex h-[600px] text-[14px] font-medium'>
+      <div className='flex h-[600px] text-[13px] text-[#D4D4D4]'>
         {/* Sidebar Navigation (贯穿全高) */}
         <div className='w-48 h-full border-r border-[#2f2f2f] bg-transparent py-2'>
           <nav className='space-y-1 px-2'>
@@ -33,7 +33,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'settings'
                   ? 'bg-[#343434] text-white font-semibold'
-                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+                  : 'text-[#9CA3AF] hover:bg-[#2f2f2f] hover:text-[#E5E5E5]'
               }`}
               >
                 User Settings
@@ -43,7 +43,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'models'
                   ? 'bg-[#343434] text-white font-semibold'
-                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+                  : 'text-[#9CA3AF] hover:bg-[#2f2f2f] hover:text-[#E5E5E5]'
               }`}
               >
                 AI Models
@@ -53,7 +53,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'servers'
                   ? 'bg-[#343434] text-white font-semibold'
-                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+                  : 'text-[#9CA3AF] hover:bg-[#2f2f2f] hover:text-[#E5E5E5]'
               }`}
               >
                 Deployed Servers
@@ -63,7 +63,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'usage'
                   ? 'bg-[#343434] text-white font-semibold'
-                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+                  : 'text-[#9CA3AF] hover:bg-[#2f2f2f] hover:text-[#E5E5E5]'
               }`}
               >
                 Usage
@@ -73,7 +73,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'billing'
                   ? 'bg-[#343434] text-white font-semibold'
-                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+                  : 'text-[#9CA3AF] hover:bg-[#2f2f2f] hover:text-[#E5E5E5]'
               }`}
               >
                 Billing
