@@ -50,19 +50,16 @@ export const SERVER_ENV = {
   // Backend bases for internal proxies (server-only when provided)
   // Prefer server-only envs; fall back to public envs for local/dev convenience
   PUPPY_ENGINE_BACKEND: (() => {
-    const server = process.env.PUPPYENGINE_URL;
-    const pub = process.env.NEXT_PUBLIC_PUPPYENGINE_URL || 'http://localhost:8001';
-    return normalizeUrlBase((server && server.trim() !== '' ? server : pub) as string);
+    const server = process.env.PUPPYENGINE_URL || 'http://localhost:8001';
+    return normalizeUrlBase(server as string);
   })(),
   PUPPY_STORAGE_BACKEND: (() => {
-    const server = process.env.PUPPYSTORAGE_URL;
-    const pub = process.env.NEXT_PUBLIC_PUPPYSTORAGE_URL || 'http://localhost:8002';
-    return normalizeUrlBase((server && server.trim() !== '' ? server : pub) as string);
+    const server = process.env.PUPPYSTORAGE_URL || 'http://localhost:8002';
+    return normalizeUrlBase(server as string);
   })(),
   API_SERVER_BACKEND: (() => {
-    const server = process.env.API_SERVER_URL;
-    const pub = process.env.NEXT_PUBLIC_API_SERVER_URL || 'http://localhost:8004';
-    return normalizeUrlBase((server && server.trim() !== '' ? server : pub) as string);
+    const server = process.env.API_SERVER_URL || 'http://localhost:8004';
+    return normalizeUrlBase(server as string);
   })(),
 };
 
