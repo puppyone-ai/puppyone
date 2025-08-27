@@ -1,16 +1,12 @@
+// 🔒 安全修复：移除客户端直接访问后端服务的URL配置
+// 所有后端通信现在通过安全的API代理进行：/api/server, /api/engine, /api/storage, /api/user-system
+
 export const SYSTEM_URLS = {
   USER_SYSTEM: {
-    // Do not expose backend URL to client. Use server-side env in API routes/middleware.
-    // BACKEND is intentionally removed from client bundle.
     FRONTEND: process.env.USER_SYSTEM_FRONTEND_URL || 'http://localhost:3000',
   },
-  PUPPY_ENGINE: {
-    BASE: process.env.NEXT_PUBLIC_PUPPYENGINE_URL || 'http://localhost:8001',
-  },
-  PUPPY_STORAGE: {
-    BASE: process.env.NEXT_PUBLIC_PUPPYSTORAGE_URL || 'http://localhost:8002',
-  },
-  API_SERVER: {
-    BASE: process.env.NEXT_PUBLIC_API_SERVER_URL || 'http://localhost:8004',
-  },
+  // Client code must use same-origin API proxies; direct bases removed
+  PUPPY_ENGINE: { BASE: '' },
+  PUPPY_STORAGE: { BASE: '' },
+  API_SERVER: { BASE: '' },
 };

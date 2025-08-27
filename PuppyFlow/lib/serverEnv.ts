@@ -47,6 +47,20 @@ export const SERVER_ENV = {
   // Allow bypassing service key for local/dev verification only
   ALLOW_VERIFY_WITHOUT_SERVICE_KEY:
     (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true',
+  // Backend bases for internal proxies (server-only when provided)
+  // Prefer server-only envs; fall back to public envs for local/dev convenience
+  PUPPY_ENGINE_BACKEND: (() => {
+    const server = process.env.PUPPYENGINE_URL || 'http://localhost:8001';
+    return normalizeUrlBase(server as string);
+  })(),
+  PUPPY_STORAGE_BACKEND: (() => {
+    const server = process.env.PUPPYSTORAGE_URL || 'http://localhost:8002';
+    return normalizeUrlBase(server as string);
+  })(),
+  API_SERVER_BACKEND: (() => {
+    const server = process.env.API_SERVER_URL || 'http://localhost:8004';
+    return normalizeUrlBase(server as string);
+  })(),
 };
 
 

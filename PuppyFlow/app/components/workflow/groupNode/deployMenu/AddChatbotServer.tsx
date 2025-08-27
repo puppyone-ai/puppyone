@@ -37,7 +37,7 @@ function DeployAsChatbot({
   const { addChatbotService, removeChatbotService } = useServers();
   const { configChatbotService } = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
 
   // 构建器 hooks
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
@@ -146,7 +146,6 @@ function DeployAsChatbot({
       streamResultForMultipleNodes,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
     };
 
     // 使用新的 buildGroupNodeJson 函数

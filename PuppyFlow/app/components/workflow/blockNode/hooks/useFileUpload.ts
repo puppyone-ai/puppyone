@@ -29,7 +29,7 @@ export function useFileUpload({
 }: FileUploadProps) {
   const { userId } = useWorkspaces();
   const { fetchUserId } = useWorkspaceManagement();
-  const { addWarn, getAuthHeaders } = useAppSettings();
+  const { addWarn } = useAppSettings();
 
   const [uploadedFiles, setUploadedFiles] =
     useState<UploadedFile[]>(initialFiles);
@@ -55,15 +55,8 @@ export function useFileUpload({
     return res;
   };
 
-  // 获取 Authorization headers，若缺失则在本地开发下提供兜底
-  const getAuthHeader = (): HeadersInit => {
-    const headers = getAuthHeaders() || {};
-    if (!('Authorization' in headers)) {
-      // PuppyStorage 的 /upload/chunk/direct 在本地也需要存在 Authorization 头
-      return { Authorization: 'Bearer local-dev' };
-    }
-    return headers;
-  };
+  // 🔒 安全修复：移除客户端认证处理，所有请求通过服务端代理认证
+  // getAuthHeader 已弃用，认证完全由服务端代理处理
 
   // 处理文件输入变化
   const handleInputChange = async (
@@ -180,20 +173,21 @@ export function useFileUpload({
       const MULTIPART_THRESHOLD_BYTES = 5 * 1024 * 1024; // 5MB 阈值
 
       if (file.size <= MULTIPART_THRESHOLD_BYTES) {
-        // 1) 直接上传文件到 PuppyStorage（小文件直传）
+        // 1) 小文件直接上传到 PuppyStorage（直传）
         const qs = new URLSearchParams({
           block_id: nodeId,
           file_name: fileName,
           content_type: file.type || 'application/octet-stream',
         });
         if (versionId) qs.set('version_id', versionId);
-        const directUploadUrl = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/chunk/direct?${qs.toString()}`;
+        // 🔒 安全修复：Route via same-origin API proxy
+        const directUploadUrl = `/api/storage/upload/chunk/direct?${qs.toString()}`;
 
         const uploadResp = await fetch(directUploadUrl, {
           method: 'POST',
+          credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
           headers: {
             'Content-Type': file.type || 'application/octet-stream',
-            ...getAuthHeader(),
           },
           body: file,
         });
@@ -256,11 +250,11 @@ export function useFileUpload({
         const tryUpdateManifest = async (
           body: typeof baseManifestBody
         ): Promise<Response> => {
-          return fetch(`${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/manifest`, {
+          return fetch(`/api/storage/upload/manifest`, {
             method: 'PUT',
+            credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
             headers: {
               'Content-Type': 'application/json',
-              ...getAuthHeader(),
             },
             body: JSON.stringify(body),
           });
@@ -315,22 +309,19 @@ export function useFileUpload({
       } else {
         // 2) 大文件分片上传：init -> get_upload_url -> PUT parts -> complete
         console.log('Uploading large file:', fileName);
-        const initResp = await fetch(
-          `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/init`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...getAuthHeader(),
-            },
-            body: JSON.stringify({
-              block_id: nodeId,
-              file_name: fileName,
-              content_type: file.type || 'application/octet-stream',
-              file_size: file.size,
-            }),
-          }
-        );
+        const initResp = await fetch(`/api/storage/upload/init`, {
+          method: 'POST',
+          credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            block_id: nodeId,
+            file_name: fileName,
+            content_type: file.type || 'application/octet-stream',
+            file_size: file.size,
+          }),
+        });
         if (!initResp.ok) {
           const msg = await initResp.text();
           addWarn(`Init multipart failed: ${initResp.status} ${msg}`);
@@ -363,22 +354,19 @@ export function useFileUpload({
           const end = Math.min(offset + partSize, file.size);
           const blobPart = file.slice(offset, end);
 
-          const urlReq = await fetch(
-            `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/get_upload_url`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                ...getAuthHeader(),
-              },
-              body: JSON.stringify({
-                key: initData.key,
-                upload_id: initData.upload_id,
-                part_number: partNumber,
-                expires_in: 300,
-              }),
-            }
-          );
+          const urlReq = await fetch(`/api/storage/upload/get_upload_url`, {
+            method: 'POST',
+            credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              key: initData.key,
+              upload_id: initData.upload_id,
+              part_number: partNumber,
+              expires_in: 300,
+            }),
+          });
           if (!urlReq.ok) {
             const msg = await urlReq.text();
             addWarn(
@@ -424,21 +412,18 @@ export function useFileUpload({
           partNumber += 1;
         }
 
-        const completeResp = await fetch(
-          `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/complete`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...getAuthHeader(),
-            },
-            body: JSON.stringify({
-              key: initData.key,
-              upload_id: initData.upload_id,
-              parts,
-            }),
-          }
-        );
+        const completeResp = await fetch(`/api/storage/upload/complete`, {
+          method: 'POST',
+          credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            key: initData.key,
+            upload_id: initData.upload_id,
+            parts,
+          }),
+        });
         if (!completeResp.ok) {
           const msg = await completeResp.text();
           addWarn(`Complete multipart failed: ${completeResp.status} ${msg}`);
@@ -474,17 +459,14 @@ export function useFileUpload({
           status: isLastInBatch ? 'completed' : 'generating',
         } as const;
 
-        const manifestResp = await fetch(
-          `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/upload/manifest`,
-          {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              ...getAuthHeader(),
-            },
-            body: JSON.stringify(body),
-          }
-        );
+        const manifestResp = await fetch(`/api/storage/upload/manifest`, {
+          method: 'PUT',
+          credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        });
         if (!manifestResp.ok) {
           const msg = await manifestResp.text();
           addWarn(`Failed to update manifest: ${manifestResp.status} ${msg}`);
@@ -527,20 +509,17 @@ export function useFileUpload({
         ? file.task_id
         : `${userIdVal}/${nodeId}/${versionId ?? ''}/${file.fileName}`;
 
-      const response = await fetch(
-        `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/files/delete`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(),
-          },
-          body: JSON.stringify({
-            user_id: userIdVal,
-            resource_key: fullKey,
-          }),
-        }
-      );
+      const response = await fetch(`/api/storage/files/delete`, {
+        method: 'DELETE',
+        credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userIdVal,
+          resource_key: fullKey,
+        }),
+      });
       if (response.ok) {
         console.log('File deleted successfully');
         // 更新本地状态

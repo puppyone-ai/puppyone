@@ -86,7 +86,7 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
 
     // 使用 useRef 跟踪是否已挂载
     const hasMountedRef = useRef(false);
@@ -161,13 +161,13 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
         getNode,
         setNodes,
         setEdges,
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
-        clearAll,
-        streamResult,
-        reportError,
-        resetLoadingUI,
-        getAuthHeaders,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      reportError,
+      resetLoadingUI,
+      isLocalDeployment: false,
       }),
       [
         getNode,
@@ -179,7 +179,6 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       ]
     );
 

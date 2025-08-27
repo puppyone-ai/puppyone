@@ -305,10 +305,7 @@ class ManifestPoller {
 
   private async getDownloadUrl(key: string): Promise<string> {
     const response = await fetch(
-      `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(key)}`,
-      {
-        headers: this.context.getAuthHeaders(),
-      }
+      `/api/storage/download/url?key=${encodeURIComponent(key)}`
     );
     if (!response.ok) {
       throw new Error(`Failed to get download URL for ${key}`);
@@ -349,7 +346,8 @@ export interface RunAllNodesContext {
   // 通信相关
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  getAuthHeaders: () => HeadersInit;
+  // 🔒 认证通过服务端代理处理（不需要从前端传入）
+  isLocalDeployment?: boolean;
 }
 
 // 构建包含所有节点的JSON数据
@@ -593,11 +591,11 @@ async function sendDataToTargets(
 
     console.log(`🌐 [sendDataToTargets] 开始发送HTTP请求`);
 
-    const response = await fetch(`${SYSTEM_URLS.PUPPY_ENGINE.BASE}/task`, {
+    const response = await fetch(`/api/engine/task`, {
       method: 'POST',
+      credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
       headers: {
         'Content-Type': 'application/json',
-        ...context.getAuthHeaders(),
       },
       body: JSON.stringify(jsonData),
     });
@@ -626,12 +624,9 @@ async function sendDataToTargets(
       const taskId = result.task_id;
 
       // 建立 SSE 连接
-      const streamResponse = await fetch(
-        `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/task/${taskId}/stream`,
-        {
-          headers: context.getAuthHeaders(),
-        }
-      );
+      const streamResponse = await fetch(`/api/engine/task/${taskId}/stream`, {
+        credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+      });
 
       if (!streamResponse.body) {
         console.error(`❌ [sendDataToTargets] 流式响应没有body`);
