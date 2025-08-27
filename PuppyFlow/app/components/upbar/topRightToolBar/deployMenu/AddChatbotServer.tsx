@@ -9,7 +9,7 @@ import { useServerOperations } from '@/app/components/hooks/useServerManagement'
 import { useWorkspaces } from '@/app/components/states/UserWorkspacesContext';
 import { useEdgeNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/hookhistory/useEdgeNodeBackEndJsonBuilder';
 import { useBlockNodeBackEndJsonBuilder } from '../../../workflow/edgesNode/edgeNodesNew/hook/hookhistory/useBlockNodeBackEndJsonBuilder';
-import { SYSTEM_URLS } from '@/config/urls';
+// Using same-origin BFF proxy for API server
 
 interface DeployAsChatbotProps {
   selectedFlowId: string | null;
@@ -61,8 +61,8 @@ function DeployAsChatbot({
   );
   const isDeployed = currentChatbot !== null;
 
-  // 统一管理 API Server URL
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  // 统一管理 API Server URL（同源代理）
+  const API_SERVER_URL = '/api/server';
 
   // 初始化引用
   const initializedRef = useRef<boolean>(false);
