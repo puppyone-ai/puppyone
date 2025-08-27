@@ -1073,31 +1073,7 @@ input[type='number']::-webkit-outer-spin-button {
   }
 }
 
-/* Notion-like UI helpers */
-.ui-card {
-  border-radius: 8px;
-  border: 1px solid #343434;
-  background-color: #2b2b2b;
-  padding: 16px;
-}
-
-.ui-heading {
-  font-size: 16px;
-  font-weight: 600;
-  color: #e5e5e5;
-}
-
-.ui-muted {
-  color: #8b8b8b;
-}
-
-.ui-subtle {
-  color: #a1a1a1;
-}
-
-.ui-divider {
-  border-bottom: 1px solid #343434;
-}
+/* Notion-like UI helpers - removed (migrated to Tailwind in components) */
 
 /* Buttons */
 .btn {
@@ -1142,17 +1118,4 @@ input[type='number']::-webkit-outer-spin-button {
   border-color: #505050;
   color: #ffffff;
 }
-
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border-radius: 6px;
-  color: #8b8b8b;
-}
-
-.icon-btn:hover {
-  background-color: #333333;
-  color: #cdcdcd;
-}
+/* .icon-btn removed (migrated to Tailwind in components) */

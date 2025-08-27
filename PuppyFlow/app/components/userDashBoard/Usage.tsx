@@ -143,7 +143,7 @@ const Usage: React.FC = () => {
 
   if (isLoadingSubscriptionStatus) {
     return (
-      <div className='space-y-4 max-h-[500px] pr-2'>
+      <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
         <h3 className='text-[16px] font-semibold text-[#E5E5E5] sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
           Usage
         </h3>
@@ -161,7 +161,7 @@ const Usage: React.FC = () => {
 
   if (!userSubscriptionStatus) {
     return (
-      <div className='space-y-4 max-h-[500px] pr-2'>
+      <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
         <h3 className='text-[16px] font-semibold text-[#E5E5E5] sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
           Usage
         </h3>
@@ -180,7 +180,7 @@ const Usage: React.FC = () => {
   const planLimits = getPlanLimits();
 
   return (
-    <div className='space-y-4 max-h-[500px] pr-2'>
+    <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
       <h3 className='text-[16px] font-semibold text-[#E5E5E5] sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
         Usage
       </h3>
@@ -193,7 +193,7 @@ const Usage: React.FC = () => {
           </h4>
           <div className='space-y-2'>
             <div className='flex items-center justify-between'>
-              <span className='text-[13px] text-[#E5E5E5]'>Plan</span>
+              <span className='text-[12px] text-[#E5E5E5]'>Plan</span>
               <span
                 className={`text-[13px] font-medium ${
                   userSubscriptionStatus.is_premium
@@ -206,7 +206,7 @@ const Usage: React.FC = () => {
               </span>
             </div>
             <div className='flex items-center justify-between'>
-              <span className='text-[13px] text-[#E5E5E5]'>Status</span>
+              <span className='text-[12px] text-[#E5E5E5]'>Status</span>
               <span
                 className={`text-[13px] font-medium capitalize ${
                   userSubscriptionStatus.subscription_status === 'active'
@@ -219,7 +219,7 @@ const Usage: React.FC = () => {
             </div>
             {!isLocalDeployment && (
               <div className='flex items-center justify-between'>
-                <span className='text-[13px] text-[#E5E5E5]'>Days Left</span>
+                <span className='text-[12px] text-[#E5E5E5]'>Days Left</span>
                 <span
                   className={`text-[13px] font-medium ${
                     userSubscriptionStatus.days_left > 7
@@ -240,12 +240,12 @@ const Usage: React.FC = () => {
         {!isLocalDeployment &&
           userSubscriptionStatus.subscription_period_start && (
             <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
-              <h4 className='text-[16px] font-semibold text-[#E5E5E5] mb-2'>
+              <h4 className='text-[14px] font-semibold text-[#E5E5E5] mb-2'>
                 Billing Period
               </h4>
               <div className='space-y-2'>
                 <div className='flex items-center justify-between'>
-                  <span className='text-[13px] text-[#E5E5E5]'>Start Date</span>
+                  <span className='text-[12px] text-[#E5E5E5]'>Start Date</span>
                   <span className='text-[13px] text-[#888888]'>
                     {new Date(
                       userSubscriptionStatus.subscription_period_start
@@ -253,7 +253,7 @@ const Usage: React.FC = () => {
                   </span>
                 </div>
                 <div className='flex items-center justify-between'>
-                  <span className='text-[13px] text-[#E5E5E5]'>End Date</span>
+                  <span className='text-[12px] text-[#E5E5E5]'>End Date</span>
                   <span className='text-[13px] text-[#888888]'>
                     {new Date(
                       userSubscriptionStatus.subscription_period_end
@@ -267,7 +267,7 @@ const Usage: React.FC = () => {
         {/* Usage Limits */}
         <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
           <div className='flex items-center justify-between mb-3'>
-            <h4 className='text-[16px] font-semibold text-[#E5E5E5]'>
+            <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
               Usage Limits
             </h4>
             {!isLocalDeployment && (
