@@ -149,7 +149,7 @@ const CustomChatInterfaceDeployed: React.FC<{
 const ChatbotServiceDisplay: React.FC<ChatbotServiceDisplayProps> = ({
   service,
 }) => {
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
   const [isConfigExpanded, setIsConfigExpanded] = useState<boolean>(false);
 
   // Use hooks

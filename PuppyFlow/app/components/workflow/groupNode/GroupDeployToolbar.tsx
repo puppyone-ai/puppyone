@@ -34,7 +34,7 @@ export function GroupDeployToolbar({
 
   const { deleteApiService, deleteChatbotService } = useServerOperations();
   const { removeApiService, removeChatbotService } = useServers();
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // Get workspace services
   const workspaceServices = selectedFlowId

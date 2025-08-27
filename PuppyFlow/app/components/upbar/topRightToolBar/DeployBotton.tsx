@@ -24,7 +24,7 @@ function DeployBotton() {
   const { setWorkspaces, showingItem, workspaces } = useWorkspaces();
   const selectedFlowId =
     showingItem?.type === 'workspace' ? showingItem.id : null;
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   const { planLimits } = useAppSettings();
   const { apis: allApis, chatbots: allChatbots } = useAllDeployedServices();
