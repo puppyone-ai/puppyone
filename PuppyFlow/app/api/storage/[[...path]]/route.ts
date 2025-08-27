@@ -40,6 +40,11 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
       if (token) newHeaders['authorization'] = `Bearer ${token}`;
     } catch {}
   }
+  // In local/dev, backend still requires presence of Authorization header.
+  // Inject a harmless dev token so LocalAuthProvider accepts it.
+  if (mode !== 'cloud' && !newHeaders['authorization']) {
+    newHeaders['authorization'] = 'Bearer local-dev';
+  }
 
   // Service-to-service key if configured
   if (SERVER_ENV.SERVICE_KEY) {
