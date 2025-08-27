@@ -48,7 +48,7 @@ function DeployAsApi({ selectedFlowId, setActivePanel }: DeployAsApiProps) {
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
   // 统一管理 API Server URL
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // 语言选项常量
   const PYTHON = 'Python';
@@ -263,7 +263,7 @@ api_url = "${API_SERVER_URL}/api/${api_id}"
 api_key = "${api_key}"
 
 headers = {
-    "x-user-token": f"Bearer {api_key}",
+    "Authorization": f"Bearer {api_key}",
     "Content-Type": "application/json"
 }
 
@@ -279,7 +279,7 @@ else:
     print("Error:", response.status_code, response.json())`;
 
     const sh = `curl -X POST "${API_SERVER_URL}/api/${api_id}" \\
--H "x-user-token: Bearer ${api_key}" \\
+-H "Authorization: Bearer ${api_key}" \\
 -H "Content-Type: application/json" \\
 -d '{
 ${input_text_gen(selectedInputs, SHELL)}
@@ -295,7 +295,7 @@ ${input_text_gen(selectedInputs, JAVASCRIPT)}
 
 axios.post(apiUrl, data, {
     headers: {
-        "x-user-token": "Bearer ${api_key}",
+        "Authorization": "Bearer ${api_key}",
         "Content-Type": "application/json"
     }
 })
