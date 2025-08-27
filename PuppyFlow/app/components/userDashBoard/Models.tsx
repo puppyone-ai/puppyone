@@ -39,7 +39,7 @@ const Models: React.FC = () => {
     emptyMessage: string;
   }) =>
     models.length > 0 ? (
-      <div className='ui-card space-y-3'>
+      <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 space-y-3'>
         {models.map(model => (
           <div
             key={model.id}
@@ -66,8 +66,8 @@ const Models: React.FC = () => {
         ))}
       </div>
     ) : (
-      <div className='ui-card text-center'>
-        <span className='ui-muted block text-[13px]'>{emptyMessage}</span>
+      <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
+        <span className='text-[#8B8B8B] block text-[13px]'>{emptyMessage}</span>
       </div>
     );
 
@@ -81,14 +81,14 @@ const Models: React.FC = () => {
         {/* LLM Models Section */}
         <div className='space-y-4'>
           <div className='flex items-center justify-between'>
-            <h4 className='ui-heading'>
+            <h4 className='text-[16px] font-semibold text-[#E5E5E5]'>
               LLM Models
             </h4>
             <button
               onClick={() => {
                 /* refresh function will be added later */
               }}
-              className='btn btn-outline gap-1 px-2 py-1'
+              className='inline-flex items-center justify-center rounded-md text-[13px] font-medium border border-[#404040] text-[#A1A1A1] hover:border-[#505050] hover:text-white transition-colors gap-1 px-2 py-1 active:scale-95'
             >
               <svg
                 className='w-4 h-4'
@@ -116,7 +116,7 @@ const Models: React.FC = () => {
 
         {/* Embedding Models Section */}
         <div className='space-y-4'>
-          <h4 className='ui-heading'>
+          <h4 className='text-[16px] font-semibold text-[#E5E5E5]'>
             Embedding Models
           </h4>
 

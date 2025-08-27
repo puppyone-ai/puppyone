@@ -148,9 +148,9 @@ const Usage: React.FC = () => {
           Usage
         </h3>
         <div className='py-[8px] overflow-y-auto'>
-          <div className='ui-card text-center'>
+          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
             <div className='w-6 h-6 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin mx-auto mb-2'></div>
-            <span className='ui-muted text-[13px]'>
+            <span className='text-[#8B8B8B] text-[13px]'>
               Loading usage information...
             </span>
           </div>
@@ -166,8 +166,8 @@ const Usage: React.FC = () => {
           Usage
         </h3>
         <div className='py-[8px] overflow-y-auto'>
-          <div className='ui-card text-center'>
-            <span className='ui-muted text-[13px]'>
+          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
+            <span className='text-[#8B8B8B] text-[13px]'>
               Unable to load usage information
             </span>
           </div>
@@ -185,10 +185,10 @@ const Usage: React.FC = () => {
         Usage
       </h3>
 
-      <div className='py-[8px] overflow-y-auto space-y-4'>
+        <div className='py-[8px] overflow-y-auto space-y-4'>
         {/* Subscription Status */}
-        <div className='ui-card'>
-          <h4 className='ui-heading mb-2'>
+        <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
+          <h4 className='text-[16px] font-semibold text-[#E5E5E5] mb-2'>
             Subscription Status
           </h4>
           <div className='space-y-2'>
@@ -239,8 +239,8 @@ const Usage: React.FC = () => {
         {/* Subscription Period */}
         {!isLocalDeployment &&
           userSubscriptionStatus.subscription_period_start && (
-            <div className='ui-card'>
-              <h4 className='ui-heading mb-2'>
+            <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
+              <h4 className='text-[16px] font-semibold text-[#E5E5E5] mb-2'>
                 Billing Period
               </h4>
               <div className='space-y-2'>
@@ -265,16 +265,16 @@ const Usage: React.FC = () => {
           )}
 
         {/* Usage Limits */}
-        <div className='ui-card'>
+        <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
           <div className='flex items-center justify-between mb-3'>
-            <h4 className='ui-heading'>
+            <h4 className='text-[16px] font-semibold text-[#E5E5E5]'>
               Usage Limits
             </h4>
             {!isLocalDeployment && (
               <button
                 onClick={fetchUsageData}
                 disabled={isLoadingUsage}
-                className={`btn btn-outline gap-2 ${
+                className={`inline-flex items-center justify-center rounded-md text-[13px] font-medium border border-[#404040] text-[#A1A1A1] hover:border-[#505050] hover:text-white transition-colors gap-2 ${
                   isLoadingUsage ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
