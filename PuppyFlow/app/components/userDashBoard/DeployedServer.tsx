@@ -102,7 +102,7 @@ const DeployedServers: React.FC = () => {
       <div className='py-[8px] overflow-y-auto'>
         {/* 加载状态 */}
         {isLoading ? (
-          <div className='ui-card text-center'>
+          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
             <div className='flex items-center justify-center space-x-2'>
               <svg
                 className='animate-spin w-3.5 h-3.5 text-[#888888]'
@@ -129,7 +129,7 @@ const DeployedServers: React.FC = () => {
             </div>
           </div>
         ) : servers.length > 0 ? (
-          <div className='ui-card p-3'>
+          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-3'>
             <table className='w-full table-fixed'>
               <thead>
                 <tr className='text-left border-b border-[#343434]'>
@@ -220,7 +220,7 @@ const DeployedServers: React.FC = () => {
                         </div>
                         <button
                           onClick={() => copyToClipboard(server.id)}
-                          className='icon-btn active:scale-95'
+                          className='inline-flex items-center justify-center p-1.5 rounded-md text-[#8B8B8B] hover:bg-[#333333] hover:text-[#CDCDCD] active:scale-95 transition-colors'
                           title='Copy Service ID'
                         >
                           <svg
@@ -245,7 +245,7 @@ const DeployedServers: React.FC = () => {
             </table>
           </div>
         ) : (
-          <div className='ui-card text-center'>
+          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
             <div className='text-[12px] text-[#888888] mb-1'>
               No deployed servers found
             </div>

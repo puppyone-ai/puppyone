@@ -113,11 +113,11 @@ const Footer: React.FC = () => {
         <div className='flex justify-end gap-3 pt-6 border-t border-[#343434]'>
       <button
         onClick={onClose}
-            className='btn btn-ghost'
+            className='inline-flex items-center justify-center rounded-md text-[13px] font-medium px-2.5 py-1.5 text-[#CDCDCD] hover:bg-[#333333] hover:text-white transition-colors active:scale-95'
       >
         Cancel
       </button>
-          <button className='btn btn-primary'>
+          <button className='inline-flex items-center justify-center rounded-md text-[13px] font-medium px-2.5 py-1.5 bg-[#2B5C9B] text-white hover:bg-[#1E4B8A] transition-colors active:scale-95'>
         Save Changes
       </button>
     </div>

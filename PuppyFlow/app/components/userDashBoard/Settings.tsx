@@ -13,7 +13,7 @@ const Settings: React.FC = () => {
 
       <div className='py-[8px] overflow-y-auto'>
         {/* Profile Section */}
-        <div className='ui-card mb-4 flex items-center gap-6'>
+        <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 mb-4 flex items-center gap-6'>
           <div className='w-16 h-16 rounded-full bg-[#3A3A3A] flex items-center justify-center'>
             <span className='text-2xl text-[#A1A1A1]'>🐶</span>
           </div>
@@ -28,8 +28,8 @@ const Settings: React.FC = () => {
         </div>
 
         {/* Preferences Section */}
-        <h4 className='ui-heading mb-2'>Preferences</h4>
-        <div className='ui-card'>
+        <h4 className='text-[16px] font-semibold text-[#E5E5E5] mb-2'>Preferences</h4>
+        <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
           <div className='flex items-center justify-between'>
             <span className='text-[13px] text-[#E5E5E5]'>Email Notifications</span>
             <div
