@@ -243,7 +243,8 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   // 检查部署类型
-  const isLocalDeployment = false;
+  const isLocalDeployment =
+    (process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud';
 
   // 使用 Ollama hook
   const {
@@ -293,9 +294,17 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     }
   }, [ollamaModels, ollamaError, isLoadingLocalModels]);
 
-  // 根据订阅状态计算套餐限制
+  // 根据部署类型/订阅状态计算套餐限制
   useEffect(() => {
-    if (userSubscriptionStatus?.is_premium) {
+    if (isLocalDeployment) {
+      setPlanLimits({
+        workspaces: 999,
+        deployedServices: 999,
+        llm_calls: 99999,
+        runs: 99999,
+        fileStorage: '500M',
+      });
+    } else if (userSubscriptionStatus?.is_premium) {
       setPlanLimits({
         workspaces: 20,
         deployedServices: 10,
@@ -312,7 +321,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         fileStorage: '5M',
       });
     }
-  }, [userSubscriptionStatus]);
+  }, [userSubscriptionStatus, isLocalDeployment]);
 
   // 刷新本地模型的函数
   const refreshLocalModels = async () => {
@@ -387,7 +396,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 获取用户用量数据
   const fetchUsageData = async () => {
-    if (!userSubscriptionStatus) return;
+    if (isLocalDeployment || !userSubscriptionStatus) return;
 
     setIsLoadingUsage(true);
     try {
