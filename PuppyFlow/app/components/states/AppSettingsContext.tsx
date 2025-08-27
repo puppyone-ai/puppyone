@@ -298,11 +298,11 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   useEffect(() => {
     if (isLocalDeployment) {
       setPlanLimits({
-        workspaces: 999,
-        deployedServices: 999,
-        llm_calls: 99999,
-        runs: 99999,
-        fileStorage: '500M',
+        workspaces: Infinity as unknown as number,
+        deployedServices: Infinity as unknown as number,
+        llm_calls: Infinity as unknown as number,
+        runs: Infinity as unknown as number,
+        fileStorage: '∞',
       });
     } else if (userSubscriptionStatus?.is_premium) {
       setPlanLimits({

@@ -105,7 +105,11 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           {/* Workspaces - current/max format */}
           <div className='flex flex-col items-center gap-1'>
             <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {`${workspaces?.length || 0}/${planLimits.workspaces}`}
+              {`${workspaces?.length || 0}/${
+                (Number.isFinite(planLimits.workspaces as any)
+                  ? planLimits.workspaces
+                  : '∞') as any
+              }`}
             </span>
             <span className='text-[9px] text-[#666666]'>space</span>
           </div>
@@ -113,7 +117,11 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           {/* Deployed Services - current/max format */}
           <div className='flex flex-col items-center gap-1'>
             <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {`${(apis?.length || 0) + (chatbots?.length || 0)}/${planLimits.deployedServices}`}
+              {`${(apis?.length || 0) + (chatbots?.length || 0)}/${
+                (Number.isFinite(planLimits.deployedServices as any)
+                  ? planLimits.deployedServices
+                  : '∞') as any
+              }`}
             </span>
             <span className='text-[9px] text-[#666666]'>server</span>
           </div>
@@ -122,7 +130,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           <div className='flex flex-col items-center gap-1 mt-[6px]'>
             <CircularProgress
               percentage={
-                usageData
+                usageData && Number.isFinite(planLimits.runs as any)
                   ? ((planLimits.runs - usageData.runs.used) / planLimits.runs) * 100
                   : 100
               }
@@ -131,9 +139,9 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             />
             <div className='text-[9px] text-[#666666] text-center'>
               <div>
-                {usageData
+                {usageData && Number.isFinite(planLimits.runs as any)
                   ? `${planLimits.runs - usageData.runs.used} runs`
-                  : `${planLimits.runs} runs`}
+                  : `∞ runs`}
               </div>
               <div>remain</div>
             </div>
@@ -143,7 +151,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           <div className='flex flex-col items-center gap-1 mt-[6px]'>
             <CircularProgress
               percentage={
-                usageData
+                usageData && Number.isFinite(planLimits.llm_calls as any)
                   ? ((planLimits.llm_calls - usageData.llm_calls.used) / planLimits.llm_calls) * 100
                   : 100
               }
@@ -152,9 +160,9 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             />
             <div className='text-[9px] text-[#666666] text-center'>
               <div>
-                {usageData
+                {usageData && Number.isFinite(planLimits.llm_calls as any)
                   ? `${planLimits.llm_calls - usageData.llm_calls.used} calls`
-                  : `${planLimits.llm_calls} calls`}
+                  : `∞ calls`}
               </div>
               <div>remain</div>
             </div>
@@ -184,7 +192,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         </div>
 
         {/* Usage info with mini circles - Runs left, LLM right */}
-        {usageData ? (
+            {usageData && Number.isFinite(planLimits.runs as any) && Number.isFinite(planLimits.llm_calls as any) ? (
           <div className='w-full flex items-center justify-center gap-2'>
             {/* Mini Runs Circle - LEFT */}
             <div className='flex items-center gap-[2px]'>
@@ -217,10 +225,8 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
               </span>
             </div>
           </div>
-        ) : (
-          <div className='text-[7px] text-[#666666] text-center'>
-            {planLimits.runs}•{planLimits.llm_calls}
-          </div>
+            ) : (
+          <div className='text-[7px] text-[#666666] text-center'>∞•∞</div>
         )}
 
       </div>
