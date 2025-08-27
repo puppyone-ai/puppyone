@@ -92,7 +92,7 @@ function TestRunBotton() {
 
   return (
     <button
-      className={`h-[36px] px-[12px] rounded-r-[8px] ${!isComplete ? 'bg-gray-200' : 'bg-[rgba(217,217,217, 0)]'} flex items-center justify-center gap-[4px] hover:cursor-pointer hover:bg-main-green transition-colors`}
+      className={`btn btn-primary h-[36px] ${!isComplete ? 'opacity-60 cursor-not-allowed' : ''}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onDataSubmit}
@@ -136,11 +136,7 @@ function TestRunBotton() {
           />
         </svg>
       )}
-      <div
-        className={`text-[14px] font-normal leading-normal transition-colors ${!isComplete ? 'text-gray-500' : hovered === true ? 'text-[#000]' : 'text-[#39BC66]'}`}
-      >
-        {!isComplete ? 'Processing...' : 'Test Run'}
-      </div>
+      <div className={`text-[13px] font-medium leading-normal`}> {!isComplete ? 'Processing...' : 'Test Run'}</div>
     </button>
   );
 }

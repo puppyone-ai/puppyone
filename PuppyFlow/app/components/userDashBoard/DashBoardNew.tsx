@@ -24,67 +24,66 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
       onTabChange={onTabChange}
       onClose={onClose}
     >
-      <div className='flex flex-col h-[600px]'>
-        {/* Main Content with Sidebar */}
-        <div className='flex flex-1 gap-8 text-[14px] font-medium'>
-          {/* Sidebar Navigation */}
-          <div className='w-48 border-r border-[#404040]'>
-            <nav className='space-y-1 pr-4'>
+      <div className='flex h-[600px] text-[14px] font-medium'>
+        {/* Sidebar Navigation (贯穿全高) */}
+        <div className='w-48 h-full border-r border-[#2f2f2f] bg-transparent py-2'>
+          <nav className='space-y-1 px-2'>
               <button
                 onClick={() => onTabChange('settings')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'settings'
-                    ? 'bg-[#36404A] text-[#60A5FA]'
-                    : 'text-[#888888] hover:bg-[#333333] hover:text-white'
-                }`}
+              className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
+                activeTab === 'settings'
+                  ? 'bg-[#343434] text-white font-semibold'
+                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+              }`}
               >
                 User Settings
               </button>
               <button
                 onClick={() => onTabChange('models')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'models'
-                    ? 'bg-[#36404A] text-[#60A5FA]'
-                    : 'text-[#888888] hover:bg-[#333333] hover:text-white'
-                }`}
+              className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
+                activeTab === 'models'
+                  ? 'bg-[#343434] text-white font-semibold'
+                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+              }`}
               >
                 AI Models
               </button>
               <button
                 onClick={() => onTabChange('servers')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'servers'
-                    ? 'bg-[#36404A] text-[#60A5FA]'
-                    : 'text-[#888888] hover:bg-[#333333] hover:text-white'
-                }`}
+              className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
+                activeTab === 'servers'
+                  ? 'bg-[#343434] text-white font-semibold'
+                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+              }`}
               >
                 Deployed Servers
               </button>
               <button
                 onClick={() => onTabChange('usage')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'usage'
-                    ? 'bg-[#36404A] text-[#60A5FA]'
-                    : 'text-[#888888] hover:bg-[#333333] hover:text-white'
-                }`}
+              className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
+                activeTab === 'usage'
+                  ? 'bg-[#343434] text-white font-semibold'
+                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+              }`}
               >
                 Usage
               </button>
               <button
                 onClick={() => onTabChange('billing')}
-                className={`w-full text-left px-4 py-2 rounded-md transition-colors ${
-                  activeTab === 'billing'
-                    ? 'bg-[#36404A] text-[#60A5FA]'
-                    : 'text-[#888888] hover:bg-[#333333] hover:text-white'
-                }`}
+              className={`w-full text-left px-2 py-1.5 rounded-md transition-colors ${
+                activeTab === 'billing'
+                  ? 'bg-[#343434] text-white font-semibold'
+                  : 'text-[#a1a1a1] hover:bg-[#2f2f2f] hover:text-[#e5e5e5]'
+              }`}
               >
                 Billing
               </button>
-            </nav>
-          </div>
+          </nav>
+        </div>
 
-          {/* Content Area */}
-          <div className='flex-1 overflow-y-auto pr-4'>
+        {/* Right Column: Content + Footer */}
+        <div className='flex flex-col flex-1 pl-6 pr-4'>
+          <div className='flex-1 overflow-y-auto'>
             {activeTab === 'settings' ? (
               <Settings />
             ) : activeTab === 'models' ? (
@@ -97,10 +96,10 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
               <Billing />
             )}
           </div>
-        </div>
 
-        {/* Footer */}
-        <Footer />
+          {/* Footer */}
+          <Footer />
+        </div>
       </div>
     </DashboardProvider>
   );
@@ -111,14 +110,14 @@ const Footer: React.FC = () => {
   const { onClose } = useDashboardContext();
 
   return (
-    <div className='flex justify-end gap-3 pt-6 border-t border-[#404040]'>
+        <div className='flex justify-end gap-3 pt-6 border-t border-[#343434]'>
       <button
         onClick={onClose}
-        className='px-4 py-2 text-[#CDCDCD] hover:text-white rounded-md transition duration-200'
+            className='btn btn-ghost'
       >
         Cancel
       </button>
-      <button className='px-4 py-2 bg-[#2B5C9B] hover:bg-[#1E4B8A] text-white rounded-md transition duration-200'>
+          <button className='btn btn-primary'>
         Save Changes
       </button>
     </div>

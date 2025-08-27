@@ -93,16 +93,16 @@ const DeployedServers: React.FC = () => {
   };
 
   return (
-    <div className='space-y-6 max-h-[500px] pr-2'>
+    <div className='space-y-4 max-h-[500px] pr-2'>
       {/* 标题栏 */}
-      <div className='flex items-center justify-between sticky top-0 z-10 bg-[#2A2A2A] pb-2'>
-        <h3 className='text-[16px] font-medium text-white'>Deployed Servers</h3>
+      <div className='flex items-center justify-between sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
+        <h3 className='text-[16px] font-semibold text-[#E5E5E5]'>Deployed Servers</h3>
       </div>
 
       <div className='py-[8px] overflow-y-auto'>
         {/* 加载状态 */}
         {isLoading ? (
-          <div className='bg-[#333333] rounded-lg p-4 text-center'>
+          <div className='ui-card text-center'>
             <div className='flex items-center justify-center space-x-2'>
               <svg
                 className='animate-spin w-3.5 h-3.5 text-[#888888]'
@@ -129,17 +129,17 @@ const DeployedServers: React.FC = () => {
             </div>
           </div>
         ) : servers.length > 0 ? (
-          <div className='bg-[#333333] rounded-lg p-3'>
+          <div className='ui-card p-3'>
             <table className='w-full table-fixed'>
               <thead>
-                <tr className='text-left border-b border-[#404040]'>
-                  <th className='pb-3 pr-4 text-[14px] font-medium text-[#AAAAAA] w-[90px]'>
+                <tr className='text-left border-b border-[#343434]'>
+                  <th className='pb-3 pr-4 text-[13px] font-medium text-[#AAAAAA] w-[90px]'>
                     Type
                   </th>
-                  <th className='pb-3 px-4 text-[14px] font-medium text-[#AAAAAA] w-[120px]'>
+                  <th className='pb-3 px-4 text-[13px] font-medium text-[#AAAAAA] w-[120px]'>
                     Workspace
                   </th>
-                  <th className='pb-3 pl-4 text-[14px] font-medium text-[#AAAAAA] w-[150px]'>
+                  <th className='pb-3 pl-4 text-[13px] font-medium text-[#AAAAAA] w-[150px]'>
                     Service ID
                   </th>
                 </tr>
@@ -148,7 +148,7 @@ const DeployedServers: React.FC = () => {
                 {servers.map(server => (
                   <tr
                     key={server.id}
-                    className='border-b border-[#404040] last:border-0'
+                    className='border-b border-[#343434] last:border-0'
                   >
                     {/* 服务类型 */}
                     <td className='py-3 pr-4 w-[90px]'>
@@ -199,7 +199,7 @@ const DeployedServers: React.FC = () => {
                     <td className='py-3 px-4 w-[120px]'>
                       <div className='min-w-0'>
                         <div
-                          className='text-[13px] text-[#CDCDCD] truncate'
+                          className='text-[13px] text-[#E5E5E5] truncate'
                           title={server.workspaceName}
                         >
                           {server.workspaceName}
@@ -211,7 +211,7 @@ const DeployedServers: React.FC = () => {
                     <td className='py-3 pl-4 w-[150px]'>
                       <div className='min-w-0 flex items-center justify-between'>
                         <div
-                          className='text-[13px] text-white font-medium truncate flex-1 mr-2'
+                          className='text-[13px] text-[#E5E5E5] font-medium truncate flex-1 mr-2'
                           title={server.id}
                         >
                           {server.id.length > 15
@@ -220,7 +220,7 @@ const DeployedServers: React.FC = () => {
                         </div>
                         <button
                           onClick={() => copyToClipboard(server.id)}
-                          className='flex-shrink-0 p-1 rounded hover:bg-[#404040] text-[#808080] hover:text-[#CDCDCD] transition-all duration-200 active:scale-95'
+                          className='icon-btn active:scale-95'
                           title='Copy Service ID'
                         >
                           <svg
@@ -245,7 +245,7 @@ const DeployedServers: React.FC = () => {
             </table>
           </div>
         ) : (
-          <div className='bg-[#333333] rounded-lg p-4 text-center'>
+          <div className='ui-card text-center'>
             <div className='text-[12px] text-[#888888] mb-1'>
               No deployed servers found
             </div>
