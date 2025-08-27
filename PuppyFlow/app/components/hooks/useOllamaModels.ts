@@ -95,6 +95,18 @@ export function useOllamaModels(
     retryDelay = 1000,
   } = options;
 
+  // Runtime guard: if running on a cloud origin (non-localhost) and endpoint points to localhost,
+  // disable auto-fetch to avoid browser CORS errors. This keeps cloud builds safe regardless of
+  // build-time env inlining.
+  const isBrowser = typeof window !== 'undefined';
+  const originIsCloud = isBrowser
+    ? !['localhost', '127.0.0.1'].includes(window.location.hostname)
+    : false;
+  const endpointIsLocalhost = /^(https?:)\/\/(localhost|127\.0\.0\.1)([:/]|$)/i.test(
+    endpoint
+  );
+  const shouldAutoFetch = autoFetch && !(originIsCloud && endpointIsLocalhost);
+
   const [models, setModels] = useState<Model[]>([]);
   const [rawModels, setRawModels] = useState<OllamaModel[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -103,6 +115,11 @@ export function useOllamaModels(
 
   // 检查 Ollama 服务连接
   const checkConnection = useCallback(async (): Promise<boolean> => {
+    // Block in cloud origin when endpoint is localhost
+    if (originIsCloud && endpointIsLocalhost) {
+      setIsConnected(false);
+      return false;
+    }
     try {
       const response = await fetch(`${endpoint}/api/tags`, {
         method: 'HEAD',
@@ -119,6 +136,15 @@ export function useOllamaModels(
 
   // 获取模型列表（带重试机制）
   const fetchModels = useCallback(async (): Promise<void> => {
+    // Block in cloud origin when endpoint is localhost
+    if (originIsCloud && endpointIsLocalhost) {
+      setLoading(false);
+      setError('Disabled: local Ollama endpoint on cloud origin');
+      setIsConnected(false);
+      setModels([]);
+      setRawModels([]);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -174,14 +200,14 @@ export function useOllamaModels(
 
   // 自动获取模型列表
   useEffect(() => {
-    if (autoFetch) {
+    if (shouldAutoFetch) {
       fetchModels();
     }
-  }, [autoFetch, fetchModels]);
+  }, [shouldAutoFetch, fetchModels]);
 
   // 定期检查连接状态（可选）
   useEffect(() => {
-    if (!autoFetch) return;
+    if (!shouldAutoFetch) return;
 
     const interval = setInterval(() => {
       if (!loading) {
@@ -190,7 +216,7 @@ export function useOllamaModels(
     }, 30000); // 每30秒检查一次
 
     return () => clearInterval(interval);
-  }, [autoFetch, loading, checkConnection]);
+  }, [shouldAutoFetch, loading, checkConnection]);
 
   return {
     models,

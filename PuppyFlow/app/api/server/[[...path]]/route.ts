@@ -50,7 +50,7 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
     newHeaders[key] = value;
   });
 
-  // 从HttpOnly cookie中获取用户token并注入Authorization header
+  // 从HttpOnly cookie中获取用户token
   let authHeader: string | undefined;
   try {
     const token = cookies().get('access_token')?.value;
@@ -62,17 +62,23 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
     console.warn('Failed to read access_token cookie:', error);
   }
 
-  // 注入用户认证token
+  // 优先注入 x-user-token（Server 后端要求）
   if (authHeader) {
-    newHeaders['authorization'] = authHeader;
+    newHeaders['x-user-token'] = authHeader;
+  } else {
+    // 如果没有 Cookie，则尝试使用客户端传来的 Authorization 作为后备
+    const incomingAuth = headers.get('authorization') || headers.get('Authorization');
+    if (incomingAuth) {
+      newHeaders['x-user-token'] = incomingAuth;
+    }
   }
 
   // 在非云模式下提供本地开发的fallback认证
   const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
-  if (!newHeaders['authorization'] && mode !== 'cloud') {
+  if (!newHeaders['x-user-token'] && mode !== 'cloud') {
     // 仅在服务端提供本地开发fallback
-    newHeaders['authorization'] = 'Bearer local-dev';
-    console.warn('Using local-dev fallback auth for server API proxy');
+    newHeaders['x-user-token'] = 'Bearer local-user';
+    console.warn('Using local-user fallback x-user-token for server API proxy');
   }
 
   // 如果配置了service key，添加服务间认证
