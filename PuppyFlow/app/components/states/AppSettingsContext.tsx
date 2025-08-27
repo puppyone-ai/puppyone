@@ -101,6 +101,8 @@ type AppSettingsContextType = {
   cloudModels: Model[];
   localModels: Model[];
   availableModels: Model[];
+  // 部署类型
+  isLocalDeployment: boolean;
   isLoadingLocalModels: boolean;
   ollamaConnected: boolean;
   toggleModelAvailability: (id: string) => void;
@@ -515,6 +517,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         cloudModels,
         localModels,
         availableModels,
+        isLocalDeployment,
         isLoadingLocalModels,
         ollamaConnected,
         toggleModelAvailability,
