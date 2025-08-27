@@ -63,7 +63,8 @@ async function proxy(request: Request, path: string[] | undefined): Promise<Resp
   const upstreamResponse = await fetch(target, {
     method,
     headers,
-    body: hasBody ? request.body : undefined,
+    body: hasBody ? (request as any).body : undefined,
+    ...(hasBody ? { duplex: 'half' as any } : {}),
     redirect: 'manual',
   });
 

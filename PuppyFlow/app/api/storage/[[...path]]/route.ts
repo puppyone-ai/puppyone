@@ -32,28 +32,18 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
     newHeaders[key] = value;
   });
 
-  // Inject Authorization from cookie if available
-  let authHeader: string | undefined;
-  try {
-    const token = cookies().get('access_token')?.value;
-    if (token) authHeader = `Bearer ${token}`;
-  } catch {
-    // ignore
-  }
-
-  if (!newHeaders['authorization'] && authHeader) {
-    newHeaders['authorization'] = authHeader;
+  // Storage expects Authorization, inject from cookie in cloud
+  const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
+  if (mode === 'cloud') {
+    try {
+      const token = cookies().get('access_token')?.value;
+      if (token) newHeaders['authorization'] = `Bearer ${token}`;
+    } catch {}
   }
 
   // Service-to-service key if configured
   if (SERVER_ENV.SERVICE_KEY) {
     newHeaders['x-service-key'] = SERVER_ENV.SERVICE_KEY;
-  }
-
-  const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
-  if (!newHeaders['authorization'] && mode !== 'cloud') {
-    // Server-side local fallback only
-    newHeaders['authorization'] = 'Bearer local-dev';
   }
 
   return newHeaders;
@@ -68,15 +58,19 @@ async function proxy(request: Request, path: string[] | undefined): Promise<Resp
   const upstreamResponse = await fetch(target, {
     method,
     headers,
-    body: hasBody ? request.body : undefined,
+    body: hasBody ? (request as any).body : undefined,
+    // Required by Node/undici when forwarding a streamed body
+    // Only set when there is a request body to avoid warnings
+    ...(hasBody ? { duplex: 'half' as any } : {}),
     redirect: 'manual',
   });
 
   const resHeaders = new Headers();
-  const contentType = upstreamResponse.headers.get('content-type');
-  if (contentType) resHeaders.set('content-type', contentType);
-  const cacheControl = upstreamResponse.headers.get('cache-control');
-  if (cacheControl) resHeaders.set('cache-control', cacheControl);
+  // Reflect storage response headers that matter for uploads/downloads
+  for (const key of ['content-type', 'cache-control', 'etag']) {
+    const v = upstreamResponse.headers.get(key);
+    if (v) resHeaders.set(key, v);
+  }
 
   return new Response(upstreamResponse.body, {
     status: upstreamResponse.status,

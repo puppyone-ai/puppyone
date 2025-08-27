@@ -92,12 +92,13 @@ async function proxy(request: Request, path: string[] | undefined): Promise<Resp
   try {
     console.log(`[Server API Proxy] ${method} ${target}`);
 
-    const upstreamResponse = await fetch(target, {
-      method,
-      headers,
-      body: hasBody ? request.body : undefined,
-      redirect: 'manual',
-    });
+  const upstreamResponse = await fetch(target, {
+    method,
+    headers,
+    body: hasBody ? (request as any).body : undefined,
+    ...(hasBody ? { duplex: 'half' as any } : {}),
+    redirect: 'manual',
+  });
 
     // 转发响应headers（仅转发必要的）
     const resHeaders = new Headers();
