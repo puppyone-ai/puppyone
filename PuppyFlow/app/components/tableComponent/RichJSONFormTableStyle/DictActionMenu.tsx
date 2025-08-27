@@ -6,6 +6,7 @@ type DictActionMenuProps = {
   onClear: () => void;
   onTransferToList: () => void;
   onTransferToText: () => void;
+  onPaste: () => void;
   className?: string;
 };
 
@@ -19,6 +20,14 @@ const IconCopy = () => (
 const IconTrash = () => (
   <svg className="w-3.5 h-3.5 text-[#D1D5DB]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
     <path d="M6 6h8m-7 2.5V15a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V8.5M8 6V4.8A1.8 1.8 0 0 1 9.8 3h0.4A1.8 1.8 0 0 1 12 4.8V6" strokeLinecap="round"/>
+  </svg>
+);
+
+const IconPaste = () => (
+  <svg className="w-3.5 h-3.5 text-[#D1D5DB]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M7 4h6v2H7z" />
+    <rect x="5" y="6" width="10" height="10" rx="2" />
+    <path d="M8 10h4M8 13h4" strokeLinecap="round"/>
   </svg>
 );
 
@@ -39,6 +48,7 @@ const DictActionMenu: React.FC<DictActionMenuProps> = ({
   onClear,
   onTransferToList,
   onTransferToText,
+  onPaste,
   className = '',
 }) => {
   return (
@@ -54,6 +64,13 @@ const DictActionMenu: React.FC<DictActionMenuProps> = ({
       >
         <IconCopy />
         <span>Copy</span>
+      </button>
+      <button
+        className="px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]"
+        onClick={() => { onPaste(); window.dispatchEvent(new CustomEvent('rjft:close-all-menus')); }}
+      >
+        <IconPaste />
+        <span>Paste</span>
       </button>
       <button
 

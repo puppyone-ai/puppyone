@@ -73,6 +73,33 @@ const TextComponent = React.memo(
                 onClear={() => { onEdit(path, ''); setMenuOpen(false); }}
                 onTransferToList={() => { onReplace && onReplace([null, null]); setMenuOpen(false); }}
                 onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
+                onPaste={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText();
+                    if (text?.startsWith('__RJF__')) {
+                      const parsed = JSON.parse(text.slice('__RJF__'.length));
+                      if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
+                        onReplace && onReplace(parsed);
+                      } else if (typeof parsed === 'string') {
+                        onEdit(path, parsed);
+                      }
+                    } else {
+                      // Try parse as JSON
+                      try {
+                        const parsed = JSON.parse(text);
+                        if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
+                          onReplace && onReplace(parsed);
+                        } else if (typeof parsed === 'string') {
+                          onEdit(path, parsed);
+                        }
+                      } catch {
+                        // plain text
+                        onEdit(path, text);
+                      }
+                    }
+                  } catch {}
+                  setMenuOpen(false);
+                }}
               />
             </div>
           ),
