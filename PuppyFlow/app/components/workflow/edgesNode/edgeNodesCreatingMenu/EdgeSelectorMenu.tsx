@@ -791,29 +791,60 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                       fill='none'
                       xmlns='http://www.w3.org/2000/svg'
                     >
-                      <path
-                        d='M7 2.5C7 2.5 4.5 1 2 3.5C2 3.5 1.5 6.5 4 7.5C4 7.5 6 8.5 7 11.5C7 11.5 8 8.5 10 7.5C10 7.5 12.5 6.5 12 3.5C12 3.5 9.5 1 7 2.5Z'
+                      <circle
+                        cx='5'
+                        cy='5'
+                        r='4'
+                        fill='#1C1D1F'
                         stroke='#CDCDCD'
                         strokeWidth='1.5'
+                      />
+
+                      <path
+                        d='M8 8L12 12'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
+
+                      <circle
+                        cx='5'
+                        cy='5'
+                        r='2.5'
                         fill='none'
+                        stroke='#CDCDCD'
+                        strokeWidth='0.8'
+                        opacity='0.6'
+                      />
+
+                      <circle
+                        cx='5'
+                        cy='5'
+                        r='1'
+                        fill='#CDCDCD'
+                        opacity='0.8'
+                      />
+
+                      <circle
+                        cx='3.5'
+                        cy='3.5'
+                        r='0.3'
+                        fill='#CDCDCD'
+                        opacity='0.7'
                       />
                       <circle
-                        cx='7'
-                        cy='7'
-                        r='2'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                        fill='none'
+                        cx='6.5'
+                        cy='3.5'
+                        r='0.3'
+                        fill='#CDCDCD'
+                        opacity='0.7'
                       />
-                      <path
-                        d='M6.5 5.5L7.5 6.5'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                      />
-                      <path
-                        d='M7.5 7.5L6.5 8.5'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
+                      <circle
+                        cx='5'
+                        cy='2.5'
+                        r='0.3'
+                        fill='#CDCDCD'
+                        opacity='0.7'
                       />
                     </svg>
                   </div>
@@ -1264,29 +1295,60 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                       fill='none'
                       xmlns='http://www.w3.org/2000/svg'
                     >
-                      <path
-                        d='M7 2.5C7 2.5 4.5 1 2 3.5C2 3.5 1.5 6.5 4 7.5C4 7.5 6 8.5 7 11.5C7 11.5 8 8.5 10 7.5C10 7.5 12.5 6.5 12 3.5C12 3.5 9.5 1 7 2.5Z'
+                      <circle
+                        cx='5'
+                        cy='5'
+                        r='4'
+                        fill='#1C1D1F'
                         stroke='#CDCDCD'
                         strokeWidth='1.5'
+                      />
+
+                      <path
+                        d='M8 8L12 12'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                        strokeLinecap='round'
+                      />
+
+                      <circle
+                        cx='5'
+                        cy='5'
+                        r='2.5'
                         fill='none'
+                        stroke='#CDCDCD'
+                        strokeWidth='0.8'
+                        opacity='0.6'
+                      />
+
+                      <circle
+                        cx='5'
+                        cy='5'
+                        r='1'
+                        fill='#CDCDCD'
+                        opacity='0.8'
+                      />
+
+                      <circle
+                        cx='3.5'
+                        cy='3.5'
+                        r='0.3'
+                        fill='#CDCDCD'
+                        opacity='0.7'
                       />
                       <circle
-                        cx='7'
-                        cy='7'
-                        r='2'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                        fill='none'
+                        cx='6.5'
+                        cy='3.5'
+                        r='0.3'
+                        fill='#CDCDCD'
+                        opacity='0.7'
                       />
-                      <path
-                        d='M6.5 5.5L7.5 6.5'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                      />
-                      <path
-                        d='M7.5 7.5L6.5 8.5'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
+                      <circle
+                        cx='5'
+                        cy='2.5'
+                        r='0.3'
+                        fill='#CDCDCD'
+                        opacity='0.7'
                       />
                     </svg>
                   </div>
