@@ -13,12 +13,10 @@ function AddNewWorkspaceButton() {
     setShowingWorkspace,
     workspaces,
   } = useWorkspaces();
-  const { planLimits, isLocalDeployment } = useAppSettings();
+  const { planLimits } = useAppSettings();
 
   const isWorkspaceLimitReached =
-    !isLocalDeployment &&
-    workspaces &&
-    workspaces.length >= planLimits.workspaces;
+    workspaces && workspaces.length >= planLimits.workspaces;
 
   const handleAddFlow = async () => {
     if (isWorkspaceLimitReached) {

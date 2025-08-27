@@ -40,7 +40,7 @@ import React, {
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';
 import { SYSTEM_URLS } from '@/config/urls';
-import Cookies from 'js-cookie';
+// import Cookies from 'js-cookie';
 
 // 定义用量数据类型
 export type UsageData = {
@@ -101,7 +101,6 @@ type AppSettingsContextType = {
   cloudModels: Model[];
   localModels: Model[];
   availableModels: Model[];
-  isLocalDeployment: boolean;
   isLoadingLocalModels: boolean;
   ollamaConnected: boolean;
   toggleModelAvailability: (id: string) => void;
@@ -114,10 +113,7 @@ type AppSettingsContextType = {
   isLoadingSubscriptionStatus: boolean;
   fetchUserSubscriptionStatus: () => Promise<void>;
 
-  // 认证相关
-  getAuthHeaders: () => HeadersInit;
-  getUserToken: (forceLocal?: boolean) => string | undefined;
-  getCustomAuthHeaders: (headerName?: string) => Record<string, string>;
+  // 认证相关（全部由服务端处理，无需客户端headers）
 
   // 警告消息相关
   warns: WarnMessage[];
@@ -248,7 +244,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   // 检查部署类型
   const isLocalDeployment =
-    (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
+    (process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud';
 
   // 使用 Ollama hook
   const {
@@ -290,26 +286,23 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 当 Ollama 模型更新时，更新本地模型列表
   useEffect(() => {
-    if (isLocalDeployment) {
-      if (ollamaModels.length > 0) {
-        setLocalModels(ollamaModels);
-      } else if (ollamaError && !isLoadingLocalModels) {
-        // 如果 Ollama 连接失败，使用后备模型
-        setLocalModels(FALLBACK_LOCAL_MODELS);
-        addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
-      }
+    if (ollamaModels.length > 0) {
+      setLocalModels(ollamaModels);
+    } else if (ollamaError && !isLoadingLocalModels) {
+      setLocalModels(FALLBACK_LOCAL_MODELS);
+      addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
     }
-  }, [ollamaModels, ollamaError, isLoadingLocalModels, isLocalDeployment]);
+  }, [ollamaModels, ollamaError, isLoadingLocalModels]);
 
-  // 根据订阅状态计算套餐限制
+  // 根据部署类型/订阅状态计算套餐限制
   useEffect(() => {
     if (isLocalDeployment) {
       setPlanLimits({
-        workspaces: 999,
-        deployedServices: 999,
-        llm_calls: 99999,
-        runs: 99999,
-        fileStorage: '500M',
+        workspaces: Infinity as unknown as number,
+        deployedServices: Infinity as unknown as number,
+        llm_calls: Infinity as unknown as number,
+        runs: Infinity as unknown as number,
+        fileStorage: '∞',
       });
     } else if (userSubscriptionStatus?.is_premium) {
       setPlanLimits({
@@ -332,7 +325,6 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 刷新本地模型的函数
   const refreshLocalModels = async () => {
-    if (!isLocalDeployment) return;
     await refreshOllamaModels();
   };
 
@@ -365,14 +357,8 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 根据部署类型更新可用模型
   useEffect(() => {
-    if (isLocalDeployment) {
-      // 在本地部署时，同时包含本地模型和云端模型
-      setAvailableModels([...localModels, ...cloudModels]);
-    } else {
-      // 在云端部署时，只包含云端模型
-      setAvailableModels([...cloudModels]);
-    }
-  }, [isLocalDeployment, cloudModels, localModels]);
+    setAvailableModels([...localModels, ...cloudModels]);
+  }, [cloudModels, localModels]);
 
   // 切换模型可用性
   const toggleModelAvailability = (id: string) => {
@@ -406,50 +392,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     setLocalModels(localModels.filter(model => model.id !== id));
   };
 
-  // 认证相关方法 - 获取认证headers
-  const getAuthHeaders = (): HeadersInit => {
-    // 在本地部署时，可能不需要认证或有不同的认证逻辑
-    if (isLocalDeployment) {
-      // 本地开发环境的逻辑（根据需要调整）
-      const token = Cookies.get('access_token');
-      return token ? { Authorization: `Bearer ${token}` } : {};
-    }
-
-    // 生产环境始终要求认证
-    const token = Cookies.get('access_token');
-    if (!token) {
-      console.warn('No access token found in production environment');
-      addWarn('认证令牌缺失，请重新登录');
-      return {};
-    }
-
-    return { Authorization: `Bearer ${token}` };
-  };
-
-  // 获取用户token的通用方法
-  const getUserToken = (forceLocal?: boolean): string | undefined => {
-    const useLocal = forceLocal !== undefined ? forceLocal : isLocalDeployment;
-
-    if (useLocal) {
-      return 'local-token';
-    }
-
-    const token = Cookies.get('access_token');
-    if (!token && !useLocal) {
-      console.warn('No access token found in production environment');
-      addWarn('认证令牌缺失，请重新登录');
-    }
-
-    return token;
-  };
-
-  // 获取带有自定义header名称的认证headers
-  const getCustomAuthHeaders = (
-    headerName: string = 'Authorization'
-  ): Record<string, string> => {
-    const token = getUserToken();
-    return token ? { [headerName]: `Bearer ${token}` } : {};
-  };
+  // 客户端不再提供任何 auth headers 函数，统一用 credentials: 'include'
 
   // 获取用户用量数据
   const fetchUsageData = async () => {
@@ -460,18 +403,16 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
       const [llmResponse, runsResponse] = await Promise.all([
         fetch(`/api/user-system/usage/check/llm_calls`, {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // 认证现在通过HttpOnly cookie处理
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }),
         fetch(`/api/user-system/usage/check/runs`, {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // 认证现在通过HttpOnly cookie处理
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }),
       ]);
@@ -504,47 +445,16 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 获取用户订阅状态
   const fetchUserSubscriptionStatus = async (): Promise<void> => {
-    if (isLocalDeployment) {
-      // 本地部署模式，设置默认的订阅状态，用量为99999
-      setUserSubscriptionStatus({
-        is_premium: true, // 本地部署默认为premium
-        subscription_plan: 'premium',
-        subscription_status: 'active',
-        subscription_period_start: new Date().toISOString(),
-        subscription_period_end: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 一年后
-        effective_end_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        days_left: 99999, // 本地部署设置为99999天
-        expired_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      });
-      return;
-    }
-
-    // 云端部署模式
     setIsLoadingSubscriptionStatus(true);
 
     try {
-      const userAccessToken = getUserToken();
-      if (!userAccessToken) {
-        throw new Error('No user access token found');
-      }
-
-      const response = await fetch(
-        `/api/user-system/user_subscription_status`,
-        {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeaders(),
-          },
-        }
-      );
+      const response = await fetch(`/api/user-system/user_subscription_status`, {
+        method: 'GET',
+        credentials: 'include', // Auth via HttpOnly cookie
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
       if (response.status !== 200) {
         const error_data: { error: string } = await response.json();
@@ -590,7 +500,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   // 自动获取订阅状态
   useEffect(() => {
     fetchUserSubscriptionStatus();
-  }, [isLocalDeployment]);
+  }, []);
 
   // 自动获取用量数据
   useEffect(() => {
@@ -605,7 +515,6 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         cloudModels,
         localModels,
         availableModels,
-        isLocalDeployment,
         isLoadingLocalModels,
         ollamaConnected,
         toggleModelAvailability,
@@ -615,9 +524,6 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         userSubscriptionStatus,
         isLoadingSubscriptionStatus,
         fetchUserSubscriptionStatus,
-        getAuthHeaders,
-        getUserToken,
-        getCustomAuthHeaders,
         warns,
         addWarn,
         removeWarn,

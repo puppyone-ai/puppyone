@@ -17,11 +17,8 @@ type UsageData = {
 };
 
 const Usage: React.FC = () => {
-  const {
-    userSubscriptionStatus,
-    isLoadingSubscriptionStatus,
-    getAuthHeaders,
-  } = useAppSettings();
+  const { userSubscriptionStatus, isLoadingSubscriptionStatus } =
+    useAppSettings();
   const [usageData, setUsageData] = useState<UsageData | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
@@ -38,7 +35,6 @@ const Usage: React.FC = () => {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }),
         fetch(`/api/user-system/usage/check/runs`, {
@@ -46,7 +42,6 @@ const Usage: React.FC = () => {
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }),
       ]);

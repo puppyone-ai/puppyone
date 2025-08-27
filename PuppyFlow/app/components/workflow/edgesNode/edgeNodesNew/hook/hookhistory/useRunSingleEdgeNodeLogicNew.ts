@@ -42,7 +42,7 @@ export function useBaseEdgeNodeLogic({
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
   const { clearAll } = useNodesPerFlowContext();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
 
   // Add hooks for JSON building
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
@@ -195,9 +195,9 @@ export function useBaseEdgeNodeLogic({
 
       const response = await fetch(`${backend_IP_address_for_sendingData}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
         },
         body: JSON.stringify(jsonData),
       });

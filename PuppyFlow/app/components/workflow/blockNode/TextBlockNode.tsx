@@ -84,7 +84,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     } = useNodesPerFlowContext();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
     const { fetchUserId } = useWorkspaceManagement();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
@@ -265,7 +265,6 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
             node,
             content: currentContent,
             getUserId: fetchUserId as any,
-            getAuthHeaders,
             setNodes: setNodes as any,
             contentType: 'text',
           });
@@ -288,7 +287,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       }, 2000);
 
       return () => clearTimeout(timer);
-    }, [id, getNode, setNodes, fetchUserId, getAuthHeaders]);
+    }, [id, getNode, setNodes, fetchUserId]);
 
     const calculateMaxLabelContainerWidth = useCallback(() => {
       return contentRef.current

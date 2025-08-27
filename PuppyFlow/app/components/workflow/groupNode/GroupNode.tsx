@@ -87,7 +87,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
     reportError,
     resetLoadingUI,
   } = useJsonConstructUtils();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
 
@@ -104,7 +104,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
       streamResultForMultipleNodes,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
+      isLocalDeployment: false,
     }),
     [
       getNode,
@@ -117,7 +117,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
       streamResultForMultipleNodes,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
+      
     ]
   );
 
