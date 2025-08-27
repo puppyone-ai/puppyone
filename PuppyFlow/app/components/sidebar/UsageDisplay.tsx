@@ -14,13 +14,14 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
     usageData,
     planLimits,
     isLoadingUsage,
+    isLocalDeployment,
   } = useAppSettings();
   const { workspaces } = useWorkspaces();
   const { apis, chatbots } = useAllDeployedServices();
 
   // Show Get Pro button for FREE users OR local deployment users
   const shouldShowGetProButton =
-    userSubscriptionStatus && !userSubscriptionStatus.is_premium;
+    userSubscriptionStatus && (!userSubscriptionStatus.is_premium || isLocalDeployment);
 
   // Handle Get Pro button click
   const handleGetProClick = () => {
@@ -84,7 +85,11 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         {/* First row: Plan type and upgrade button */}
         <div className='flex items-center justify-between mb-2'>
           <span className='text-[#8B8B8B] text-[10px] font-medium'>
-            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+            {isLocalDeployment
+              ? 'LOCAL'
+              : userSubscriptionStatus.is_premium
+                ? 'PRO'
+                : 'FREE'}
           </span>
           {shouldShowGetProButton && (
             <button
@@ -178,7 +183,11 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         {/* Plan status and Get Pro button */}
         <div className='flex items-center gap-1'>
           <span className='text-[#8B8B8B] text-[9px] font-medium'>
-            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+            {isLocalDeployment
+              ? 'LOCAL'
+              : userSubscriptionStatus.is_premium
+                ? 'PRO'
+                : 'FREE'}
           </span>
           {shouldShowGetProButton && (
             <button
