@@ -133,7 +133,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     } = useNodesPerFlowContext();
 
     const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -313,7 +313,6 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                 ? currentContent
                 : JSON.stringify(currentContent ?? []),
             getUserId: fetchUserId as any,
-            getAuthHeaders,
             setNodes: setNodes as any,
             contentType: 'structured',
           });
@@ -336,7 +335,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       }, 2000);
 
       return () => clearTimeout(timer);
-    }, [id, getNode, setNodes, fetchUserId, getAuthHeaders]);
+    }, [id, getNode, setNodes, fetchUserId]);
 
     const calculateMaxLabelContainerWidth = useCallback(() => {
       return contentRef.current

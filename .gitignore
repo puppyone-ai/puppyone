@@ -102,3 +102,7 @@ json_received.json
 *.patch.xz
 *.diff.xz
 
+# Tree directories
+.tree/
+
+

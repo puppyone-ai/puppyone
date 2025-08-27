@@ -24,7 +24,7 @@ function TestRunBotton() {
     streamResultForMultipleNodes,
   } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
   const { fetchUserId } = useWorkspaceManagement();
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
@@ -53,7 +53,7 @@ function TestRunBotton() {
         getNodes: () => getNodes() as unknown as any[],
         setNodes: (updater: (nodes: any[]) => any[]) =>
           setNodes((prev: any) => updater(prev as any)),
-        getAuthHeaders,
+        // auth via credentials: 'include'
         getUserId: fetchUserId as any,
       });
 
@@ -70,7 +70,6 @@ function TestRunBotton() {
         streamResultForMultipleNodes,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       };
 
       // 执行全局运行

@@ -75,9 +75,12 @@ interface FetchUserDeploymentsParams {
 
 // Hook for API operations
 export const useServerOperations = () => {
-  const apiServerUrl = SYSTEM_URLS.API_SERVER.BASE;
-  const { isLocalDeployment, getUserToken, getCustomAuthHeaders } =
-    useAppSettings();
+  // Route via same-origin API proxy - 所有请求现在通过我们的新代理处理
+  const apiServerUrl = `/api/server`;
+  const { } = useAppSettings();
+  
+  // 注意：不再需要 getUserToken 和 getCustomAuthHeaders，
+  // 认证现在完全由服务端代理处理
 
   // 获取用户的所有部署服务 - 基础 API 调用
   const fetchUserDeployments = useCallback(
@@ -85,8 +88,7 @@ export const useServerOperations = () => {
       params: FetchUserDeploymentsParams = {}
     ): Promise<UserDeploymentsResponse> => {
       try {
-        const useLocal =
-          params.isLocal !== undefined ? params.isLocal : isLocalDeployment;
+        const useLocal = false;
 
         const queryParams = new URLSearchParams();
         if (params.deploymentType) {
@@ -103,21 +105,16 @@ export const useServerOperations = () => {
         }
 
         const url = `${apiServerUrl}/deployments${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-        const userToken = getUserToken(useLocal);
 
-        if (!userToken && !useLocal) {
-          throw new Error('No user access token found');
-        }
-
+        // 认证现在完全由服务端代理处理，从HttpOnly cookie中自动注入
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          ...getCustomAuthHeaders('x-user-token'),
         };
 
         const res = await fetch(url, {
           method: 'GET',
           headers,
-          credentials: 'include',
+          credentials: 'include', // 确保cookie被发送给服务端
         });
 
         if (!res.ok) {
@@ -135,7 +132,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, isLocalDeployment, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 获取所有增强服务 - 统一的数据转换逻辑
@@ -296,13 +293,12 @@ export const useServerOperations = () => {
   const deleteApiService = useCallback(
     async (apiId: string): Promise<void> => {
       try {
-        const userToken = getUserToken();
         const res = await fetch(`${apiServerUrl}/delete_api/${apiId}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
+          credentials: 'include', // 确保cookie被发送
         });
 
         if (!res.ok) {
@@ -315,20 +311,19 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 删除Chatbot服务
   const deleteChatbotService = useCallback(
     async (chatbotId: string): Promise<void> => {
       try {
-        const userToken = getUserToken();
         const res = await fetch(`${apiServerUrl}/delete_chatbot/${chatbotId}`, {
           method: 'DELETE',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
+          credentials: 'include',
         });
 
         if (!res.ok) {
@@ -341,7 +336,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 创建API服务
@@ -351,13 +346,12 @@ export const useServerOperations = () => {
       apiData: Partial<ApiService>
     ): Promise<ApiService> => {
       try {
-        const userToken = getUserToken();
         const res = await fetch(`${apiServerUrl}/create_api`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
+          credentials: 'include',
           body: JSON.stringify({
             workspace_id: workspaceId,
             ...apiData,
@@ -376,7 +370,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 创建Chatbot服务
@@ -386,13 +380,12 @@ export const useServerOperations = () => {
       chatbotData: Partial<ChatbotService>
     ): Promise<ChatbotService> => {
       try {
-        const userToken = getUserToken();
         const res = await fetch(`${apiServerUrl}/create_chatbot`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
+          credentials: 'include',
           body: JSON.stringify({
             workspace_id: workspaceId,
             ...chatbotData,
@@ -411,7 +404,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 配置 Chatbot 服务
@@ -424,23 +417,15 @@ export const useServerOperations = () => {
       endpoint?: string;
     }> => {
       try {
-        // Get user token according to API documentation
-        const userToken = getUserToken();
-
-        // Check if user token is required (for non-local deployments)
-        if (!userToken && !isLocalDeployment) {
-          throw new Error('No user access token found');
-        }
-
-        // Build headers according to API documentation
+        // 认证现在由服务端代理处理
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
-          ...getCustomAuthHeaders('x-user-token'),
         };
 
         const res = await fetch(`${apiServerUrl}/config_chatbot`, {
           method: 'POST',
           headers,
+          credentials: 'include',
           body: JSON.stringify(params),
         });
 
@@ -456,7 +441,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, isLocalDeployment, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 更新API服务
@@ -466,13 +451,12 @@ export const useServerOperations = () => {
       updates: Partial<ApiService>
     ): Promise<ApiService> => {
       try {
-        const userToken = getUserToken();
         const res = await fetch(`${apiServerUrl}/update_api/${apiId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
+          credentials: 'include',
           body: JSON.stringify(updates),
         });
 
@@ -488,7 +472,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   // 更新Chatbot服务
@@ -498,13 +482,12 @@ export const useServerOperations = () => {
       updates: Partial<ChatbotService>
     ): Promise<ChatbotService> => {
       try {
-        const userToken = getUserToken();
         const res = await fetch(`${apiServerUrl}/update_chatbot/${chatbotId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            ...getCustomAuthHeaders('x-user-token'),
           },
+          credentials: 'include',
           body: JSON.stringify(updates),
         });
 
@@ -520,7 +503,7 @@ export const useServerOperations = () => {
         throw error;
       }
     },
-    [apiServerUrl, getUserToken, getCustomAuthHeaders]
+    [apiServerUrl]
   );
 
   return {
@@ -542,7 +525,7 @@ export const useServerOperations = () => {
 
     // 配置信息
     apiServerUrl,
-    getUserToken,
+    // 注意：getUserToken 已移除，认证现在完全由服务端处理
   };
 };
 
