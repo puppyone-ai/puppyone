@@ -102,7 +102,7 @@ json_received.json
 *.patch.xz
 *.diff.xz
 
-# Tree and VSCode directories
+# Tree directories
 .tree/
-.vscode/
+
 
