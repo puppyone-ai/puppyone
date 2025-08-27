@@ -203,7 +203,7 @@ function Workflow() {
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
   const didExternalPrefetchRef = useRef<string | null>(null);
 
   // 用于管理节点的 z-index 层级
@@ -323,10 +323,12 @@ function Workflow() {
           if (!resourceKey) continue;
 
           const manifestResp = await fetch(
-            `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
+            `/api/storage/download/url?key=${encodeURIComponent(
               `${resourceKey}/manifest.json`
             )}`,
-            { headers: getAuthHeaders() as HeadersInit }
+            {
+              credentials: 'include', // 🔒 安全修复：统一使用服务端代理认证
+            }
           );
           if (!manifestResp.ok) continue;
           const { download_url: manifestUrl } = await manifestResp.json();
@@ -343,12 +345,14 @@ function Workflow() {
               if (chunk.size === 0) continue;
             }
 
-            const urlResp = await fetch(
-              `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
-                `${resourceKey}/${name}`
-              )}`,
-              { headers: getAuthHeaders() as HeadersInit }
-            );
+          const urlResp = await fetch(
+            `/api/storage/download/url?key=${encodeURIComponent(
+              `${resourceKey}/${name}`
+            )}`,
+            {
+              credentials: 'include', // 🔒 安全修复：统一使用服务端代理认证
+            }
+          );
             if (!urlResp.ok) continue;
             const { download_url } = await urlResp.json();
             const chunkResp = await fetch(download_url);
@@ -383,7 +387,6 @@ function Workflow() {
   }, [
     currentWorkspaceContent,
     selectedFlowId,
-    getAuthHeaders,
     setUnsortedNodes,
   ]);
 

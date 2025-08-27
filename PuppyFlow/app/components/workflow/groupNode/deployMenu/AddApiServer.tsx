@@ -34,7 +34,7 @@ function DeployAsApi({
 
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { isLocalDeployment, getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
 
   // 添加必要的hooks
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
@@ -69,7 +69,8 @@ function DeployAsApi({
   const { buildBlockNodeJson } = useBlockNodeBackEndJsonBuilder();
 
   // 统一管理 API Server URL
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  // Use secure proxy route
+  const API_SERVER_URL = `/api/server`;
 
   // 初始化引用
   const initializedRef = useRef<boolean>(false);
@@ -113,7 +114,6 @@ function DeployAsApi({
       streamResultForMultipleNodes,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
     };
 
     // 使用新的 buildGroupNodeJson 函数
@@ -144,19 +144,16 @@ function DeployAsApi({
         workspace_id: selectedFlowId,
       };
 
-      // Get user token according to API documentation
-      const userToken = serverOperations.getUserToken();
-
-      // Build headers according to API documentation
+      // Auth handled by server proxy via HttpOnly cookie
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'x-user-token': `Bearer ${userToken || ''}`, // Use Bearer token authentication
       };
 
       console.log('🌐 开始调用API部署服务...', payload);
       const res = await fetch(`${API_SERVER_URL}/config_api`, {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
@@ -165,7 +162,11 @@ function DeployAsApi({
       }
 
       const { api_id, api_key } = await res.json();
-      console.log('✅ API部署成功，返回结果:', { api_id, api_key });
+      // 🔒 安全修复：移除API密钥的日志输出，防止敏感信息泄露
+      console.log('✅ API部署成功，返回结果:', { 
+        api_id, 
+        api_key: '***REDACTED***' 
+      });
 
       // 如果是重新部署，先移除旧的 API
       if (currentApi) {

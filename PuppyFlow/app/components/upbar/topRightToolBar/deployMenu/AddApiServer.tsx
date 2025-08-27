@@ -22,7 +22,7 @@ function DeployAsApi({ selectedFlowId, setActivePanel }: DeployAsApiProps) {
 
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { isLocalDeployment } = useAppSettings();
+  const { } = useAppSettings();
 
   // 简化的本地状态管理
   const [selectedInputs, setSelectedInputs] = useState<string[]>([]);
@@ -132,18 +132,13 @@ function DeployAsApi({ selectedFlowId, setActivePanel }: DeployAsApiProps) {
         workspace_id: selectedFlowId,
       };
 
-      // Get user token according to API documentation
-      const userToken = serverOperations.getUserToken();
-
-      // Build headers according to API documentation
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-user-token': `Bearer ${userToken || ''}`, // Use Bearer token authentication
-      };
-
-      const res = await fetch(`${API_SERVER_URL}/config_api`, {
+      // 🔒 安全修复：认证现在通过服务端代理自动处理
+      const res = await fetch(`/api/server/config_api`, {
         method: 'POST',
-        headers,
+        credentials: 'include', // HttpOnly cookie自动认证
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(payload),
       });
 

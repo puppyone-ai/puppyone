@@ -148,7 +148,7 @@ export const useLayoutGeneration = () => {
 // API执行 Hook
 export const useApiExecution = (service: any) => {
   const { state, updateState } = useApiServiceState(service?.api_id || '');
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   const executeWorkflow = useCallback(async () => {
     if (!service?.api_id) return;
@@ -167,12 +167,14 @@ export const useApiExecution = (service: any) => {
         }
       });
 
+      // 通过代理调用，认证由服务端处理
       const endpoint = `${API_SERVER_URL}/api/${service.api_id}`;
       const response = await axios.post(endpoint, requestData, {
         headers: {
-          Authorization: `Bearer ${service.api_key}`,
           'Content-Type': 'application/json',
+          // API密钥现在由服务端代理注入，客户端不再直接处理
         },
+        withCredentials: true, // 确保cookie被发送
         timeout: 30000,
       });
 
@@ -219,10 +221,10 @@ export const useChatbotCommunication = (service: any) => {
       }
 
       try {
-        // 准备请求头
+        // 准备请求头 - 认证现在由服务端代理处理
         const headers = {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${service.chatbot_key}`,
+          // chatbot_key 现在由服务端代理注入，客户端不再直接处理
         };
 
         // 准备请求体
@@ -266,6 +268,7 @@ export const useChatbotCommunication = (service: any) => {
           method: 'POST',
           headers,
           body: JSON.stringify(requestBody),
+          credentials: 'include', // 确保cookie被发送
         });
 
         if (response.ok) {
@@ -318,13 +321,13 @@ export const useChatbotCommunication = (service: any) => {
 // 服务验证 Hook
 export const useServiceValidation = (service: any) => {
   const isValidApiService = useMemo(() => {
-    return service?.type === 'api' && service?.api_id && service?.api_key;
+    // API密钥验证现在由服务端处理，客户端只需要检查基本信息
+    return service?.type === 'api' && service?.api_id;
   }, [service]);
 
   const isValidChatbotService = useMemo(() => {
-    return (
-      service?.type === 'chatbot' && service?.chatbot_id && service?.chatbot_key
-    );
+    // Chatbot密钥验证现在由服务端处理，客户端只需要检查基本信息
+    return service?.type === 'chatbot' && service?.chatbot_id;
   }, [service]);
 
   const isServiceConfigured = useMemo(() => {
