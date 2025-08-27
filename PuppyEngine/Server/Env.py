@@ -134,6 +134,7 @@ class Env:
             
         except Exception as e:
             log_error(f"Env {self.id} execution failed: {str(e)}")
+            # No workflow-level usage event; usage is tracked per edge
             yield {
                 "event_type": "TASK_FAILED",
                 "env_id": self.id,
@@ -216,6 +217,7 @@ class Env:
         
         # Prepare edge execution tasks
         edge_tasks = []
+        edge_start_times: Dict[str, float] = {}
         for edge_id in edge_ids:
             edge_info = self.edges[edge_id]
             block_configs = self._prepare_block_configs(edge_id)
@@ -228,6 +230,13 @@ class Env:
             )
             
             # Create execution task
+            # Record start time for execution duration calculation
+            try:
+                from time import perf_counter  # local import to avoid global namespace pollution
+            except Exception:
+                perf_counter = None  # type: ignore
+            if perf_counter:
+                edge_start_times[edge_id] = perf_counter()
             task = asyncio.create_task(self._execute_single_edge(edge_id, executor))
             edge_tasks.append((edge_id, task))
         
@@ -248,7 +257,15 @@ class Env:
                 
                 # Track edge usage if callback provided
                 if self.edge_usage_callback:
-                    await self._track_edge_usage(edge_id)
+                    # Compute execution time if possible
+                    execution_time = None
+                    try:
+                        from time import perf_counter
+                        if edge_id in edge_start_times:
+                            execution_time = max(0.0, perf_counter() - edge_start_times.get(edge_id, 0.0))
+                    except Exception:
+                        execution_time = None
+                    await self._track_edge_usage(edge_id, execution_success=True, execution_time=execution_time)
                     
             except Exception as e:
                 log_error(f"Edge {edge_id} execution failed: {str(e)}")
@@ -259,6 +276,24 @@ class Env:
                     "error_type": type(e).__name__,
                     "timestamp": datetime.utcnow().isoformat()
                 }
+                # Track failed edge usage event (amount=0 on consumer side)
+                if self.edge_usage_callback:
+                    execution_time = None
+                    try:
+                        from time import perf_counter
+                        if edge_id in edge_start_times:
+                            execution_time = max(0.0, perf_counter() - edge_start_times.get(edge_id, 0.0))
+                    except Exception:
+                        execution_time = None
+                    await self._track_edge_usage(
+                        edge_id,
+                        execution_success=False,
+                        execution_time=execution_time,
+                        error_info={
+                            "message": str(e),
+                            "type": type(e).__name__
+                        }
+                    )
                 raise
         
         # Update blocks with results and persist before emitting BLOCK_UPDATED
@@ -376,16 +411,21 @@ class Env:
         
         return block_configs
     
-    async def _track_edge_usage(self, edge_id: str):
+    async def _track_edge_usage(self, edge_id: str, execution_success: bool, execution_time: Optional[float] = None, error_info: Optional[Dict[str, Any]] = None):
         """Track edge usage through callback"""
         if self.edge_usage_callback:
             try:
                 edge_info = self.edges[edge_id]
-                await self.edge_usage_callback(
-                    user_id=self.user_info['user_id'],
-                    edge_type=edge_info.get('type'),
-                    edge_id=edge_id
-                )
+                edge_metadata = {
+                    "task_id": self.id,
+                    "edge_id": edge_id,
+                    "edge_type": edge_info.get('type'),
+                    "execution_time": execution_time if execution_time is not None else 0.0,
+                    "execution_success": execution_success,
+                }
+                if error_info:
+                    edge_metadata["error_info"] = error_info
+                await self.edge_usage_callback(edge_metadata)
             except Exception as e:
                 log_warning(f"Failed to track edge usage: {str(e)}")
     
