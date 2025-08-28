@@ -141,6 +141,9 @@ function NodeMenu({
     null
   );
   const [rectEnd, setRectEnd] = useState<{ x: number; y: number } | null>(null);
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
 
   const handleMouseDown = useCallback((nodeType: string) => {
     setIsDragging(true);
@@ -150,8 +153,9 @@ function NodeMenu({
     // The rectangle starts on first mousedown on canvas pane
   }, []);
 
-  const handleRectMouseMove = useCallback(
+  const handlePointerMove = useCallback(
     (event: MouseEvent) => {
+      setCursorPos({ x: event.clientX, y: event.clientY });
       if (!isDragging || !rectStart) return;
       setRectEnd({ x: event.clientX, y: event.clientY });
     },
@@ -275,17 +279,17 @@ function NodeMenu({
 
     const pane = document.querySelector('.react-flow__pane');
     pane?.addEventListener('mousedown', handlePaneMouseDown as any);
-    document.addEventListener('mousemove', handleRectMouseMove as any);
+    document.addEventListener('mousemove', handlePointerMove as any);
     document.addEventListener('mouseup', handleRectMouseUp as any);
     document.addEventListener('contextmenu', handleRightClick as any);
 
     return () => {
       pane?.removeEventListener('mousedown', handlePaneMouseDown as any);
-      document.removeEventListener('mousemove', handleRectMouseMove as any);
+      document.removeEventListener('mousemove', handlePointerMove as any);
       document.removeEventListener('mouseup', handleRectMouseUp as any);
       document.removeEventListener('contextmenu', handleRightClick as any);
     };
-  }, [isDragging, handlePaneMouseDown, handleRectMouseMove, handleRectMouseUp, handleRightClick]);
+  }, [isDragging, handlePaneMouseDown, handlePointerMove, handleRectMouseUp, handleRightClick]);
 
   const [selectedNodeMenuSubMenu, setSelectedNodeMenuSubMenu] = useState(-1);
 
@@ -354,6 +358,23 @@ function NodeMenu({
     const width = Math.abs(rectEnd.x - rectStart.x);
     const height = Math.abs(rectEnd.y - rectStart.y);
 
+    const theme = (() => {
+      switch (draggedNodeType) {
+        case 'text':
+          return { border: '#60A5FA', bg: 'rgba(96,165,250,0.08)' };
+        case 'structured':
+          return { border: '#A78BFA', bg: 'rgba(167,139,250,0.10)' };
+        case 'file':
+          return { border: '#22C55E', bg: 'rgba(34,197,94,0.10)' };
+        case 'weblink':
+          return { border: '#F59E0B', bg: 'rgba(245,158,11,0.10)' };
+        case 'group':
+          return { border: '#9B7EDB', bg: 'rgba(155,126,219,0.10)' };
+        default:
+          return { border: '#60A5FA', bg: 'rgba(96,165,250,0.08)' };
+      }
+    })();
+
     const overlayEl = (
       <div
         style={{
@@ -364,8 +385,10 @@ function NodeMenu({
           height,
           pointerEvents: 'none',
           zIndex: 100000,
+          borderColor: theme.border,
+          backgroundColor: theme.bg,
         }}
-        className='border border-[#60A5FA] border-dashed bg-[rgba(96,165,250,0.08)] rounded-lg'
+        className='border border-dashed rounded-lg'
       />
     );
 
@@ -373,6 +396,106 @@ function NodeMenu({
       return createPortal(overlayEl, document.body);
     }
     return overlayEl;
+  };
+
+  // 渲染创建模式提示（跟随光标的类型图标，无文字）
+  const renderCreateModeHint = () => {
+    if (!isOnGeneratingNewNode || !isDragging || !draggedNodeType || !cursorPos)
+      return <></>;
+
+    const getTypeIcon = () => {
+      switch (draggedNodeType) {
+        case 'text':
+          return (
+            <span className='text-[13px] font-semibold bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text'>
+              Aa
+            </span>
+          );
+        case 'structured':
+          return (
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
+              <defs>
+                <linearGradient id='structuredSmall' x1='2' y1='2' x2='22' y2='22'>
+                  <stop offset='0%' stopColor='#A78BFA' />
+                  <stop offset='100%' stopColor='#7C3AED' />
+                </linearGradient>
+              </defs>
+              <rect x='3' y='3' width='18' height='18' rx='3' stroke='url(#structuredSmall)' strokeWidth='2' />
+            </svg>
+          );
+        case 'file':
+          return (
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='url(#g1)' strokeWidth='2'>
+              <defs>
+                <linearGradient id='g1' x1='0%' y1='0%' x2='100%' y2='100%'>
+                  <stop offset='0%' stopColor='#22C55E' />
+                  <stop offset='100%' stopColor='#16A34A' />
+                </linearGradient>
+              </defs>
+              <path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z' />
+              <polyline points='13 2 13 9 20 9'></polyline>
+            </svg>
+          );
+        case 'weblink':
+          return (
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='url(#g2)' strokeWidth='2'>
+              <defs>
+                <linearGradient id='g2' x1='0%' y1='0%' x2='100%' y2='100%'>
+                  <stop offset='0%' stopColor='#F59E0B' />
+                  <stop offset='100%' stopColor='#D97706' />
+                </linearGradient>
+              </defs>
+              <path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path>
+              <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path>
+            </svg>
+          );
+        case 'group':
+          return (
+            <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
+              <rect x='3' y='3' width='18' height='18' rx='2' stroke='#9B7EDB' strokeWidth='1.5' strokeDasharray='4 4' />
+              <rect x='7' y='7' width='10' height='10' rx='1' fill='#9B7EDB' fillOpacity='0.2' />
+            </svg>
+          );
+        default:
+          return null;
+      }
+    };
+
+    const hint = (
+      <div
+        style={{
+          position: 'fixed',
+          left: cursorPos.x + 14,
+          top: cursorPos.y + 14,
+          pointerEvents: 'none',
+          zIndex: 100001,
+          borderColor: (() => {
+            switch (draggedNodeType) {
+              case 'text':
+                return '#60A5FA';
+              case 'structured':
+                return '#A78BFA';
+              case 'file':
+                return '#22C55E';
+              case 'weblink':
+                return '#F59E0B';
+              case 'group':
+                return '#9B7EDB';
+              default:
+                return '#3E3E41';
+            }
+          })(),
+        }}
+        className='w-[32px] h-[32px] rounded-md border bg-[#1C1D1F]/85 shadow-lg backdrop-blur-sm flex items-center justify-center'
+      >
+        {getTypeIcon()}
+      </div>
+    );
+
+    if (typeof document !== 'undefined') {
+      return createPortal(hint, document.body);
+    }
+    return hint;
   };
 
   return (
@@ -580,6 +703,7 @@ function NodeMenu({
         </ul>
       </Transition>
       {renderSelectionOverlay()}
+      {renderCreateModeHint()}
     </>
   );
 }
