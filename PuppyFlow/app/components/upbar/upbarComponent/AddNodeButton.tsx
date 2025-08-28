@@ -62,6 +62,8 @@ function AddNodeButton() {
     <div id='nodeMenuButtonContainer' className='relative inline-block'>
       <button
         id='nodeMenuButton'
+        title='Add Block'
+        aria-label='Add Block'
         className={`w-[44px] h-[44px] rounded-[16px] flex flex-row items-center justify-center cursor-pointer ${selectedMenu === 1 ? 'bg-[#CDCDCD]' : 'bg-main-blue'} transition-colors ${isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'}`}
       >
         <svg
