@@ -212,7 +212,7 @@ export const useChatbotCommunication = (service: any) => {
   const { chatHistory, updateChatHistory } = useChatHistory(
     service?.chatbot_id || ''
   );
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   const handleSendMessage = useCallback(
     async (message: string): Promise<string> => {

@@ -84,7 +84,7 @@ function DeployAsChatbot({
   const isDeployed = currentChatbot !== null;
 
   // 统一管理 API Server URL
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // 初始化引用
   const initializedRef = useRef<boolean>(false);
