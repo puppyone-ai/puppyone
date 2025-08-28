@@ -187,7 +187,7 @@ const Usage: React.FC = () => {
 
         <div className='py-[8px] overflow-y-auto space-y-4'>
         {/* Subscription Status */}
-        <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
+        <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
           <h4 className='text-[16px] font-semibold text-[#E5E5E5] mb-2'>
             Subscription Status
           </h4>
@@ -239,7 +239,7 @@ const Usage: React.FC = () => {
         {/* Subscription Period */}
         {!isLocalDeployment &&
           userSubscriptionStatus.subscription_period_start && (
-            <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
+            <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
               <h4 className='text-[14px] font-semibold text-[#E5E5E5] mb-2'>
                 Billing Period
               </h4>
@@ -265,7 +265,7 @@ const Usage: React.FC = () => {
           )}
 
         {/* Usage Limits */}
-        <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
+        <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
           <div className='flex items-center justify-between mb-3'>
             <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
               Usage Limits
