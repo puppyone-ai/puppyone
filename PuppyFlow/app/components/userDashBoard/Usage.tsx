@@ -95,46 +95,46 @@ const Usage: React.FC = () => {
     }
   };
 
-  // 渲染用量进度条
+  // 渲染 Notion 风格用量条
   const renderUsageBar = (used: number, total: number, label: string) => {
     const percentage = total > 0 ? (used / total) * 100 : 0;
     const isNearLimit = percentage >= 80;
     const isOverLimit = percentage >= 100;
 
     return (
-      <div className='space-y-2'>
+      <div className='space-y-1.5'>
         <div className='flex justify-between items-center'>
-          <span className='text-[14px] text-white'>{label}</span>
-          <span className='text-[14px] text-[#888888]'>
+          <span className='text-[12px] text-[#E5E5E5]'>{label}</span>
+          <span className='text-[12px] text-[#9CA3AF]'>
             {used} / {total}
           </span>
         </div>
-        <div className='w-full bg-[#404040] rounded-full h-2'>
+        <div className='w-full bg-[#2F2F2F] rounded-full h-1.5'>
           <div
-            className={`h-2 rounded-full transition-all duration-300 ${
+            className={`h-1.5 rounded-full transition-all duration-300 ${
               isOverLimit
                 ? 'bg-[#EF4444]'
                 : isNearLimit
                   ? 'bg-[#F59E0B]'
-                  : 'bg-[#16A34A]'
+                  : 'bg-[#4091FF]'
             }`}
             style={{ width: `${Math.min(percentage, 100)}%` }}
-          ></div>
+          />
         </div>
         <div className='flex justify-between items-center'>
-          <span className='text-[14px] text-[#888888]'>
-            {total - used} remaining
+          <span className='text-[11px] text-[#6B7280]'>
+            {Math.max(total - used, 0)} remaining
           </span>
           <span
-            className={`text-[12px] font-medium ${
+            className={`text-[11px] ${
               isOverLimit
                 ? 'text-[#EF4444]'
                 : isNearLimit
                   ? 'text-[#F59E0B]'
-                  : 'text-[#16A34A]'
+                  : 'text-[#9CA3AF]'
             }`}
           >
-            {percentage.toFixed(1)}% used
+            {percentage.toFixed(1)}%
           </span>
         </div>
       </div>
@@ -148,11 +148,11 @@ const Usage: React.FC = () => {
           Usage
         </h3>
         <div className='py-[8px] overflow-y-auto'>
-          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
-            <div className='w-6 h-6 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin mx-auto mb-2'></div>
-            <span className='text-[#8B8B8B] text-[13px]'>
-              Loading usage information...
-            </span>
+          <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
+            <div className='flex items-center gap-2 text-[#8B8B8B] text-[12px]'>
+              <div className='w-4 h-4 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin'></div>
+              <span>Loading usage information...</span>
+            </div>
           </div>
         </div>
       </div>
@@ -166,10 +166,8 @@ const Usage: React.FC = () => {
           Usage
         </h3>
         <div className='py-[8px] overflow-y-auto'>
-          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
-            <span className='text-[#8B8B8B] text-[13px]'>
-              Unable to load usage information
-            </span>
+          <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
+            <span className='text-[#8B8B8B] text-[12px]'>Unable to load usage information</span>
           </div>
         </div>
       </div>
@@ -188,27 +186,25 @@ const Usage: React.FC = () => {
         <div className='py-[8px] overflow-y-auto space-y-4'>
         {/* Subscription Status */}
         <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-          <h4 className='text-[16px] font-semibold text-[#E5E5E5] mb-2'>
-            Subscription Status
-          </h4>
-          <div className='space-y-2'>
-            <div className='flex items-center justify-between'>
+          <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>Subscription</div>
+          <div className='space-y-2 divide-y divide-[#2A2A2A]'>
+            <div className='flex items-center justify-between pb-2'>
               <span className='text-[12px] text-[#E5E5E5]'>Plan</span>
               <span
-                className={`text-[13px] font-medium ${
+                className={`text-[12px] font-medium ${
                   userSubscriptionStatus.is_premium
                     ? 'text-[#16A34A]'
-                    : 'text-[#888888]'
+                    : 'text-[#9CA3AF]'
                 }`}
               >
                 {userSubscriptionStatus.subscription_plan?.toUpperCase() ||
                   'FREE'}
               </span>
             </div>
-            <div className='flex items-center justify-between'>
+            <div className='flex items-center justify-between py-2'>
               <span className='text-[12px] text-[#E5E5E5]'>Status</span>
               <span
-                className={`text-[13px] font-medium capitalize ${
+                className={`text-[12px] font-medium capitalize ${
                   userSubscriptionStatus.subscription_status === 'active'
                     ? 'text-[#16A34A]'
                     : 'text-[#F59E0B]'
@@ -218,10 +214,10 @@ const Usage: React.FC = () => {
               </span>
             </div>
             {!isLocalDeployment && (
-              <div className='flex items-center justify-between'>
-                <span className='text-[12px] text-[#E5E5E5]'>Days Left</span>
+              <div className='flex items-center justify-between pt-2'>
+                <span className='text-[12px] text-[#E5E5E5]'>Days left</span>
                 <span
-                  className={`text-[13px] font-medium ${
+                  className={`text-[12px] font-medium ${
                     userSubscriptionStatus.days_left > 7
                       ? 'text-[#16A34A]'
                       : userSubscriptionStatus.days_left > 0
@@ -229,7 +225,7 @@ const Usage: React.FC = () => {
                         : 'text-[#EF4444]'
                   }`}
                 >
-                  {userSubscriptionStatus.days_left} days
+                  {userSubscriptionStatus.days_left}
                 </span>
               </div>
             )}
@@ -240,21 +236,19 @@ const Usage: React.FC = () => {
         {!isLocalDeployment &&
           userSubscriptionStatus.subscription_period_start && (
             <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-              <h4 className='text-[14px] font-semibold text-[#E5E5E5] mb-2'>
-                Billing Period
-              </h4>
+              <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>Billing period</div>
               <div className='space-y-2'>
                 <div className='flex items-center justify-between'>
-                  <span className='text-[12px] text-[#E5E5E5]'>Start Date</span>
-                  <span className='text-[13px] text-[#888888]'>
+                  <span className='text-[12px] text-[#E5E5E5]'>Start</span>
+                  <span className='text-[12px] text-[#9CA3AF]'>
                     {new Date(
                       userSubscriptionStatus.subscription_period_start
                     ).toLocaleDateString()}
                   </span>
                 </div>
                 <div className='flex items-center justify-between'>
-                  <span className='text-[12px] text-[#E5E5E5]'>End Date</span>
-                  <span className='text-[13px] text-[#888888]'>
+                  <span className='text-[12px] text-[#E5E5E5]'>End</span>
+                  <span className='text-[12px] text-[#9CA3AF]'>
                     {new Date(
                       userSubscriptionStatus.subscription_period_end
                     ).toLocaleDateString()}
@@ -266,141 +260,79 @@ const Usage: React.FC = () => {
 
         {/* Usage Limits */}
         <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-          <div className='flex items-center justify-between mb-3'>
-            <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
-              Usage Limits
-            </h4>
+          <div className='flex items-center justify-between mb-2'>
+            <div className='text-[12px] font-semibold text-[#9CA3AF]'>Usage this month</div>
             {!isLocalDeployment && (
               <button
                 onClick={fetchUsageData}
                 disabled={isLoadingUsage}
-                className={`inline-flex items-center justify-center rounded-md text-[13px] font-medium border border-[#404040] text-[#A1A1A1] hover:border-[#505050] hover:text-white transition-colors gap-2 ${
+                className={`text-[12px] text-[#9CA3AF] hover:text-[#E5E5E5] transition-colors ${
                   isLoadingUsage ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
-                {isLoadingUsage ? (
-                  <>
-                    <div className='w-3 h-3 border border-[#666666] border-t-transparent rounded-full animate-spin'></div>
-                    <span>Refreshing...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className='w-3 h-3'
-                      fill='none'
-                      stroke='currentColor'
-                      viewBox='0 0 24 24'
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth={2}
-                        d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
-                      />
-                    </svg>
-                    <span>Refresh</span>
-                  </>
-                )}
+                {isLoadingUsage ? 'Refreshing…' : 'Refresh'}
               </button>
             )}
           </div>
-          <div className='space-y-3'>
+          <div className='space-y-4'>
             {userSubscriptionStatus.is_premium ? (
               isLocalDeployment ? (
-                <div className='text-center py-4'>
-                  <div className='text-[#16A34A] text-[24px] mb-2'>∞</div>
-                  <span className='text-[14px] text-[#16A34A] font-medium'>
-                    Unlimited Usage
-                  </span>
-                  <p className='text-[12px] text-[#888888] mt-1'>
-                    Local deployment with no restrictions
-                  </p>
+                <div className='py-2'>
+                  <div className='text-[12px] text-[#16A34A]'>Unlimited usage on local deployment</div>
                 </div>
               ) : (
-                <div className='space-y-4'>
-                    <div className='text-center py-2'>
-                      <div className='text-[#16A34A] text-[18px] mb-2'>🎉</div>
-                      <span className='text-[13px] text-[#16A34A] font-medium'>
-                      Premium Features Unlocked
-                    </span>
-                      <p className='text-[12px] text-[#888888] mt-1'>
-                      Enhanced limits and premium features
-                    </p>
-                  </div>
-
-                  {/* Premium用户用量显示 */}
+                <>
                   {usageData ? (
-                    <div className='space-y-4 pt-2'>
+                    <div className='space-y-4 pt-1'>
                       {renderUsageBar(
                         usageData.llm_calls.used,
                         planLimits.llm_calls,
-                        'LLM Calls'
+                        'LLM calls'
                       )}
                       {renderUsageBar(
                         usageData.runs.used,
                         planLimits.runs,
-                        'Single Runs'
+                        'Single runs'
                       )}
                     </div>
                   ) : isLoadingUsage ? (
-                    <div className='text-center py-2'>
-                      <div className='w-4 h-4 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin mx-auto mb-2'></div>
-                      <span className='text-[12px] text-[#888888]'>
-                        Loading usage data...
-                      </span>
+                    <div className='flex items-center gap-2 text-[12px] text-[#888888]'>
+                      <div className='w-3.5 h-3.5 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin'></div>
+                      <span>Loading usage data…</span>
                     </div>
                   ) : (
-                    <div className='text-center py-2'>
-                      <span className='text-[12px] text-[#888888]'>
-                        Monthly limits: {planLimits.llm_calls} LLM calls,{' '}
-                        {planLimits.runs} runs
-                      </span>
+                    <div className='text-[12px] text-[#888888]'>
+                      Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs
                     </div>
                   )}
-                </div>
+                </>
               )
             ) : (
-              <div className='space-y-4'>
-                <div className='text-center py-2'>
-                  <div className='text-[#888888] text-[18px] mb-2'>📊</div>
-                  <span className='text-[13px] text-[#888888] font-medium'>
-                    Free Plan Limits
-                  </span>
-                  <p className='text-[12px] text-[#666666] mt-1'>
-                    Upgrade to premium for unlimited access
-                  </p>
-                </div>
-
-                {/* Free用户用量显示 */}
+              <>
                 {usageData ? (
-                  <div className='space-y-4 pt-2'>
+                  <div className='space-y-4 pt-1'>
                     {renderUsageBar(
                       usageData.llm_calls.used,
                       planLimits.llm_calls,
-                      'LLM Calls'
+                      'LLM calls'
                     )}
                     {renderUsageBar(
                       usageData.runs.used,
                       planLimits.runs,
-                      'Single Runs'
+                      'Single runs'
                     )}
                   </div>
                 ) : isLoadingUsage ? (
-                  <div className='text-center py-2'>
-                    <div className='w-4 h-4 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin mx-auto mb-2'></div>
-                    <span className='text-[12px] text-[#888888]'>
-                      Loading usage data...
-                    </span>
+                  <div className='flex items-center gap-2 text-[12px] text-[#888888]'>
+                    <div className='w-3.5 h-3.5 border-2 border-[#404040] border-t-[#8B8B8B] rounded-full animate-spin'></div>
+                    <span>Loading usage data…</span>
                   </div>
                 ) : (
-                  <div className='text-center py-2'>
-                    <span className='text-[12px] text-[#888888]'>
-                      Monthly limits: {planLimits.llm_calls} LLM calls,{' '}
-                      {planLimits.runs} runs
-                    </span>
+                  <div className='text-[12px] text-[#888888]'>
+                    Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         </div>
