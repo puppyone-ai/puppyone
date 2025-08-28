@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useReactFlow } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { nanoid } from 'nanoid';
@@ -195,6 +196,13 @@ function NodeMenu({
       const minSize = getMinSize(draggedNodeType);
       const width = Math.max(rawWidth, minSize.width);
       const height = Math.max(rawHeight, minSize.height);
+      // snap top-left when user dragged to the left/up to keep overlay and final rect aligned
+      const dx = rectEnd.x - rectStart.x;
+      const dy = rectEnd.y - rectStart.y;
+      const snappedTopLeft = {
+        x: dx >= 0 ? topLeft.x : topLeft.x - (width - rawWidth),
+        y: dy >= 0 ? topLeft.y : topLeft.y - (height - rawHeight),
+      };
 
       // Build node data
       const newNodeId = nanoid(6);
@@ -226,7 +234,7 @@ function NodeMenu({
         ...prev,
         {
           id: newNodeId,
-          position: topLeft,
+          position: snappedTopLeft,
           data: nodeData,
           type: draggedNodeType,
           measured: { width, height },
@@ -340,12 +348,37 @@ function NodeMenu({
     if (!isDragging || !draggedNodeType || !rectStart || !rectEnd || !isOnGeneratingNewNode)
       return <></>;
 
-    const left = Math.min(rectStart.x, rectEnd.x);
-    const top = Math.min(rectStart.y, rectEnd.y);
-    const width = Math.abs(rectEnd.x - rectStart.x);
-    const height = Math.abs(rectEnd.y - rectStart.y);
+    // apply min-size in SCREEN px to match the created node
+    const zoom = getZoom();
+    const getMinSize = (nodeType: string) => {
+      switch (nodeType) {
+        case 'group':
+          return { width: 240, height: 176 };
+        case 'text':
+        case 'structured':
+        case 'file':
+        case 'weblink':
+        case 'switch':
+        default:
+          return { width: 240, height: 176 };
+      }
+    };
 
-    return (
+    const dx = rectEnd.x - rectStart.x;
+    const dy = rectEnd.y - rectStart.y;
+    const absWidth = Math.abs(dx);
+    const absHeight = Math.abs(dy);
+    const minScreenW = getMinSize(draggedNodeType).width * zoom;
+    const minScreenH = getMinSize(draggedNodeType).height * zoom;
+    const displayWidth = Math.max(absWidth, minScreenW);
+    const displayHeight = Math.max(absHeight, minScreenH);
+
+    const left = dx >= 0 ? rectStart.x : rectStart.x - displayWidth;
+    const top = dy >= 0 ? rectStart.y : rectStart.y - displayHeight;
+    const width = displayWidth;
+    const height = displayHeight;
+
+    const overlayEl = (
       <div
         style={{
           position: 'fixed',
@@ -359,6 +392,11 @@ function NodeMenu({
         className='border border-[#60A5FA] border-dashed bg-[rgba(96,165,250,0.08)] rounded-lg'
       />
     );
+
+    if (typeof document !== 'undefined') {
+      return createPortal(overlayEl, document.body);
+    }
+    return overlayEl;
   };
 
   return (
