@@ -122,7 +122,7 @@ function NodeMenu({
   externalCreate: { nodeType: string; nonce: number } | null;
   onExternalHandled: () => void;
 }) {
-  const { getNodes, setNodes, screenToFlowPosition, getZoom } = useReactFlow();
+  const { getNodes, setNodes, screenToFlowPosition } = useReactFlow();
   const {
     allowActivateOtherNodesWhenConnectEnd,
     clearAll,
@@ -348,35 +348,11 @@ function NodeMenu({
     if (!isDragging || !draggedNodeType || !rectStart || !rectEnd || !isOnGeneratingNewNode)
       return <></>;
 
-    // apply min-size in SCREEN px to match the created node
-    const zoom = getZoom();
-    const getMinSize = (nodeType: string) => {
-      switch (nodeType) {
-        case 'group':
-          return { width: 240, height: 176 };
-        case 'text':
-        case 'structured':
-        case 'file':
-        case 'weblink':
-        case 'switch':
-        default:
-          return { width: 240, height: 176 };
-      }
-    };
-
-    const dx = rectEnd.x - rectStart.x;
-    const dy = rectEnd.y - rectStart.y;
-    const absWidth = Math.abs(dx);
-    const absHeight = Math.abs(dy);
-    const minScreenW = getMinSize(draggedNodeType).width * zoom;
-    const minScreenH = getMinSize(draggedNodeType).height * zoom;
-    const displayWidth = Math.max(absWidth, minScreenW);
-    const displayHeight = Math.max(absHeight, minScreenH);
-
-    const left = dx >= 0 ? rectStart.x : rectStart.x - displayWidth;
-    const top = dy >= 0 ? rectStart.y : rectStart.y - displayHeight;
-    const width = displayWidth;
-    const height = displayHeight;
+    // no min size in overlay; show exactly what user dragged in SCREEN coords
+    const left = Math.min(rectStart.x, rectEnd.x);
+    const top = Math.min(rectStart.y, rectEnd.y);
+    const width = Math.abs(rectEnd.x - rectStart.x);
+    const height = Math.abs(rectEnd.y - rectStart.y);
 
     const overlayEl = (
       <div
