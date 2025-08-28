@@ -33,12 +33,23 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                 onClick={() => onTabChange('settings')}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'settings'
-                  ? 'relative bg-[#1F1F1F] text-[#E5E5E5] before:content-[""] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-4 before:rounded-full before:bg-[#4091FF]'
+                  ? 'bg-[#1F1F1F] text-[#E5E5E5]'
                   : 'text-[#9CA3AF] hover:bg-[#1A1A1A] hover:text-[#E5E5E5]'
               }`}
               >
-                <svg className='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'>
-                  <path d='M10 2a4 4 0 014 4v1h1a2 2 0 110 4h-1v1a4 4 0 11-8 0V11H5a2 2 0 110-4h1V6a4 4 0 014-4z' />
+                <svg
+                  className='w-4 h-4'
+                  viewBox='0 0 24 24'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='2'
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  aria-hidden='true'
+                >
+                  <circle cx='12' cy='12' r='10' />
+                  <circle cx='12' cy='10' r='3' />
+                  <path d='M6 18c2-2 4-3 6-3s4 1 6 3' />
                 </svg>
                 <span className='text-[13px]'>Preferences</span>
               </button>
@@ -46,12 +57,15 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                 onClick={() => onTabChange('models')}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'models'
-                  ? 'relative bg-[#1F1F1F] text-[#E5E5E5] before:content-[""] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-4 before:rounded-full before:bg-[#4091FF]'
+                  ? 'bg-[#1F1F1F] text-[#E5E5E5]'
                   : 'text-[#9CA3AF] hover:bg-[#1A1A1A] hover:text-[#E5E5E5]'
               }`}
               >
-                <svg className='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'>
-                  <path d='M4 3h12a1 1 0 011 1v4H3V4a1 1 0 011-1zm-1 8h14v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-4z' />
+                <svg className='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>
+                  <ellipse cx='12' cy='12' rx='8' ry='4' />
+                  <ellipse cx='12' cy='12' rx='8' ry='4' transform='rotate(60 12 12)' />
+                  <ellipse cx='12' cy='12' rx='8' ry='4' transform='rotate(-60 12 12)' />
+                  <circle cx='12' cy='12' r='1.5' fill='currentColor' stroke='none' />
                 </svg>
                 <span className='text-[13px]'>AI Models</span>
               </button>
@@ -60,12 +74,15 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                 onClick={() => onTabChange('servers')}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'servers'
-                  ? 'relative bg-[#1F1F1F] text-[#E5E5E5] before:content-[""] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-4 before:rounded-full before:bg-[#4091FF]'
+                  ? 'bg-[#1F1F1F] text-[#E5E5E5]'
                   : 'text-[#9CA3AF] hover:bg-[#1A1A1A] hover:text-[#E5E5E5]'
               }`}
               >
-                <svg className='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'>
-                  <path d='M3 4a2 2 0 012-2h10a2 2 0 012 2v3H3V4zm0 5h14v3a2 2 0 01-2 2H5a2 2 0 01-2-2V9z' />
+                <svg className='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>
+                  <path d='M12 2c-3 2-4 6-4 9v3l-2 2 3 .5.5 3L12 18l2.5 1.5.5-3 3-.5-2-2v-3c0-3-1-7-4-9z' />
+                  <circle cx='12' cy='9.5' r='1.5' />
+                  <path d='M9 14l-2 2m8-2l2 2' />
+                  <path d='M12 18s-1.5 1.5-1.5 3c0 .6.4 1 1.5 1s1.5-.4 1.5-1c0-1.5-1.5-3-1.5-3z' fill='currentColor' stroke='none' />
                 </svg>
                 <span className='text-[13px]'>Deployed Servers</span>
               </button>
@@ -73,12 +90,12 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                 onClick={() => onTabChange('usage')}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'usage'
-                  ? 'relative bg-[#1F1F1F] text-[#E5E5E5] before:content-[""] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-4 before:rounded-full before:bg-[#4091FF]'
+                  ? 'bg-[#1F1F1F] text-[#E5E5E5]'
                   : 'text-[#9CA3AF] hover:bg-[#1A1A1A] hover:text-[#E5E5E5]'
               }`}
               >
-                <svg className='w-4 h-4' viewBox='0 0 20 20' fill='currentColor'>
-                  <path d='M11 2a1 1 0 011 1v6h5a1 1 0 110 2h-6a1 1 0 01-1-1V3a1 1 0 011-1zM4 9a1 1 0 10-2 0v6a1 1 0 102 0V9zm5 3a1 1 0 10-2 0v3a1 1 0 102 0v-3zm5-2a1 1 0 10-2 0v5a1 1 0 102 0V10z' />
+                <svg className='w-4 h-4' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' aria-hidden='true'>
+                  <polyline points='3 12 8 12 10 7 14 17 16 12 21 12' />
                 </svg>
                 <span className='text-[13px]'>Usage</span>
               </button>
@@ -86,7 +103,7 @@ function Dashboard({ activeTab, onTabChange, onClose }: DashboardProps) {
                 onClick={() => onTabChange('billing')}
               className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
                 activeTab === 'billing'
-                  ? 'relative bg-[#1F1F1F] text-[#E5E5E5] before:content-[""] before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-[3px] before:h-4 before:rounded-full before:bg-[#4091FF]'
+                  ? 'bg-[#1F1F1F] text-[#E5E5E5]'
                   : 'text-[#9CA3AF] hover:bg-[#1A1A1A] hover:text-[#E5E5E5]'
               }`}
               >
@@ -134,7 +151,7 @@ const Footer: React.FC = () => {
       >
         Cancel
       </button>
-          <button className='inline-flex items-center justify-center rounded-md text-[13px] font-medium px-3 py-1.5 border border-[#2A2A2A] bg-[#141414] text-[#E5E5E5] hover:bg-[#1A1A1A] transition-colors active:scale-95'>
+          <button className='inline-flex items-center justify-center rounded-md text-[13px] font-medium px-3 py-1.5 bg-[#4091FF] text-white hover:bg-[#3578E5] transition-colors active:scale-95'>
         Save Changes
       </button>
     </div>
