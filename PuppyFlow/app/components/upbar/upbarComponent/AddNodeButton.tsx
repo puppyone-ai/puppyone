@@ -511,22 +511,15 @@ function NodeMenu({
       >
         <ul
           id='nodeMenu'
-          className={`will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute left-1/2 -translate-x-1/2 transform top-full mt-3 z-[10000] text-white flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-lg min-w-[384px] backdrop-blur-sm bg-opacity-95`}
+          className={`will-change-auto bg-[#1c1d1f] rounded-lg border-solid border-[1.5px] border-[#3e3e41] absolute left-0 top-full mt-3 z-[10000] text-white text-[12px] flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-lg w-[260px] backdrop-blur-sm bg-opacity-95`}
           onMouseLeave={() => manageNodeMenuSubMenu(null)}
         >
-          {/* First Section Title */}
-          <div className='flex items-center gap-3 px-2 group'>
-            <span className='text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2'>
-              <div className='w-1 h-1 rounded-full bg-blue-500'></div>
-              Text Elements
-            </span>
-            <div className='h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50'></div>
-          </div>
+          {/* Remove category header per request */}
 
-          {/* First Row - Text Elements */}
-          <div className='grid grid-cols-2 gap-[12px] px-1'>
+          {/* First Row - Text Elements (vertical list) */}
+          <div className='flex flex-col gap-[12px] px-1'>
             <button
-              className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-md flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
                 manageNodeMenuSubMenu('Textsub1');
               }}
@@ -540,23 +533,23 @@ function NodeMenu({
               }}
             >
               <div className='absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center text-[20px] font-[500] rounded-[8px] shadow-inner relative'>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center text-[20px] font-[500] rounded-md shadow-inner relative'>
                 <span className='bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text group-hover:scale-110 transition-transform duration-200'>
                   Aa
                 </span>
               </div>
               <div className='flex flex-col items-start relative'>
-                <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>
+                <div className='text-[12px] font-[600] text-white group-hover:text-white transition-colors'>
                   Text
                 </div>
-                <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>
+                <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>
                   Basic text node
                 </div>
               </div>
             </button>
 
             <button
-              className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-md flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
                 manageNodeMenuSubMenu('StructuredTextsub1');
               }}
@@ -570,7 +563,7 @@ function NodeMenu({
               }}
             >
               <div className='absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner relative'>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-md shadow-inner relative'>
                 <svg
                   width='24'
                   height='24'
@@ -630,31 +623,27 @@ function NodeMenu({
                 </svg>
               </div>
               <div className='flex flex-col items-start relative'>
-                <div className='text-[13px] font-[600] text-white leading-tight'>
+                <div className='text-[12px] font-[600] text-white leading-tight'>
                   Structured Text
                 </div>
-                <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200'>
+                <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200'>
                   JSON format
                 </div>
               </div>
             </button>
           </div>
 
-          {/* Second Section Title */}
-          <div className='flex items-center gap-3 px-2 group mt-1'>
-            <span className='text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2'>
-              <div className='w-1 h-1 rounded-full bg-orange-500'></div>
-              External Resources
-            </span>
-            <div className='h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50'></div>
-          </div>
+          {/* Remove category header per request */}
 
-          {/* Second Row - Resource Elements */}
-          <div className='grid grid-cols-2 gap-[12px] px-1'>
+          {/* Second Row - Resource Elements (vertical list) */}
+          <div className='flex flex-col gap-[12px] px-1'>
             <button
-              className={`w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200`}
+              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-md flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
                 manageNodeMenuSubMenu('Filesub1');
+              }}
+              onMouseLeave={() => {
+                manageNodeMenuSubMenu(null);
               }}
               onClick={event => {
                 event.preventDefault();
@@ -662,21 +651,22 @@ function NodeMenu({
                 handleMouseDown('file');
               }}
             >
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner'>
+              <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-md shadow-inner'>
                 <svg
                   xmlns='http://www.w3.org/2000/svg'
                   width='24'
                   height='24'
                   viewBox='0 0 24 24'
                   fill='none'
-                  stroke='url(#gradient1)'
+                  stroke='url(#gradientFileGreen)'
                   strokeWidth='2'
                   strokeLinecap='round'
                   strokeLinejoin='round'
                 >
                   <defs>
                     <linearGradient
-                      id='gradient1'
+                      id='gradientFileGreen'
                       x1='0%'
                       y1='0%'
                       x2='100%'
@@ -691,8 +681,8 @@ function NodeMenu({
                 </svg>
               </div>
               <div className='flex flex-col items-start'>
-                <div className='text-[14px] font-[600] text-white'>File</div>
-                <div className='text-[11px] font-[400] text-gray-400'>
+                <div className='text-[12px] font-[600] text-white transition-colors group-hover:text-white'>File</div>
+                <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200'>
                   Upload & Process
                 </div>
               </div>
