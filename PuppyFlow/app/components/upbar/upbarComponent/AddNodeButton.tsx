@@ -1,14 +1,11 @@
 'use client';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useReactFlow, Node } from '@xyflow/react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useReactFlow } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { nanoid } from 'nanoid';
 import { Transition } from '@headlessui/react';
 
-export type nodeSmallProps = {
-  nodeid: string;
-  nodeType: string;
-};
+// deprecated legacy type removed
 
 // 恢复 "Groupsub1" 类型
 type menuNameType =
@@ -133,7 +130,7 @@ function NodeMenu({
     finishGeneratingNewNode,
     isOnGeneratingNewNode,
   } = useNodesPerFlowContext();
-  const [node, setNode] = useState<nodeSmallProps | null>(null);
+  // removed legacy single-click placement node state
 
   // for drag and drop purpose
   // Rectangle-to-create workflow state
@@ -252,13 +249,12 @@ function NodeMenu({
   const handleRightClick = useCallback(
     (event: MouseEvent) => {
       event.preventDefault();
-      if (isOnGeneratingNewNode) {
+    if (isOnGeneratingNewNode) {
         // 重置状态
         setIsDragging(false);
         setDraggedNodeType(null);
         setRectStart(null);
         setRectEnd(null);
-        setNode(null);
         clearAll();
         console.log('Node generation cancelled');
       }
@@ -301,91 +297,7 @@ function NodeMenu({
     onExternalHandled();
   }, [externalCreate]);
 
-  useEffect(() => {
-    if (!node || !isOnGeneratingNewNode) return;
-
-    if (mousePosition) {
-      console.log('mousePosition will be set', mousePosition);
-      const defaultNodeContent = node.nodeType === 'switch' ? 'OFF' : '';
-
-      // 為不同類型的節點設定特殊尺寸
-      const getNodeSize = (nodeType: string) => {
-        switch (nodeType) {
-          case 'group':
-            return { width: 400, height: 300 }; // GroupNode 使用更大的默认尺寸
-          case 'text':
-          case 'structured':
-          case 'file':
-          case 'weblink':
-          case 'switch':
-          default:
-            return { width: 240, height: 176 }; // 其他所有 block node 的默認尺寸
-        }
-      };
-
-      const nodeSize = getNodeSize(node.nodeType);
-
-      // 为 GroupNode 生成随机背景颜色
-      const getRandomGroupColor = () => {
-        const colors = [
-          'rgba(85, 83, 77, 0.2)',   // Gray
-          'rgba(108, 72, 60, 0.2)',  // Brown
-          'rgba(143, 63, 61, 0.2)',  // Red
-          'rgba(68, 106, 91, 0.2)',  // Green
-          'rgba(64, 101, 131, 0.2)', // Blue
-          'rgba(110, 95, 133, 0.2)', // Purple
-          'rgba(119, 89, 110, 0.2)', // Pink
-        ];
-        return colors[Math.floor(Math.random() * colors.length)];
-      };
-
-      // 构建节点数据
-      const nodeData: any = {
-        content: defaultNodeContent,
-        label: node.nodeid,
-        isLoading: false,
-        locked: false,
-        isInput: false,
-        isOutput: false,
-        editable: false,
-      };
-
-      // 如果是 GroupNode，添加随机背景色
-      if (node.nodeType === 'group') {
-        nodeData.backgroundColor = getRandomGroupColor();
-      }
-
-      new Promise(resolve => {
-        setNodes(prevNodes => {
-          resolve(null); // 在状态更新完成后解析 Promise
-          return [
-            ...prevNodes,
-            {
-              id: node.nodeid,
-              position: mousePosition,
-              data: nodeData,
-              type: node.nodeType,
-              measured: {
-                width: nodeSize.width,
-                height: nodeSize.height,
-              },
-              width: nodeSize.width,
-              height: nodeSize.height,
-            },
-          ];
-        });
-      })
-        .then(() => {
-          setNode(null);
-          setIsDragging(false);
-          setDraggedNodeType(null);
-          setMousePosition(null);
-        })
-        .finally(() => {
-          clearAll();
-        });
-    }
-  }, [node, isOnGeneratingNewNode]);
+  // removed legacy mousePosition-based placement effect
 
   const manageNodeMenuSubMenu = (menuName: menuNameType) => {
     let value = -1;
