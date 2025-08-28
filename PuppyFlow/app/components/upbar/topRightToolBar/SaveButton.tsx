@@ -126,9 +126,9 @@ function SaveButton() {
   return (
     <div className='relative flex flex-col items-center'>
       <button
-        className={`btn btn-outline h-[36px] ${
+        className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] bg-[#2A2A2A] text-[13px] font-medium transition-colors ${
           isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'
-        } group`}
+        }`}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         onClick={e => {

@@ -577,10 +577,22 @@ function DeployBotton() {
         return (
           <>
             <Menu.Button
-              className={`btn btn-outline h-[36px] group`}
+              className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] text-[13px] font-medium bg-[#2A2A2A] text-[#FFA73D] hover:bg-[#FFA73D] hover:text-black transition-colors`}
               onMouseEnter={() => setHovered(true)}
               onMouseLeave={() => setHovered(false)}
             >
+              <svg
+                className='w-6 h-6 text-[#FFA73D] group-hover:text-black transform rotate-45 origin-center'
+                viewBox='0 0 24 24'
+                fill='currentColor'
+                aria-hidden='true'
+              >
+                <path
+                  fillRule='evenodd'
+                  clipRule='evenodd'
+                  d='M12 2c-3 2-4 6-4 9v2l-2 2 3 .5.5 3L12 18l2.5 1.5.5-3 3-.5-2-2v-2c0-3-1-7-4-9z M12 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z'
+                />
+              </svg>
               <div className='text-[13px] font-medium'>Deploy</div>
             </Menu.Button>
 

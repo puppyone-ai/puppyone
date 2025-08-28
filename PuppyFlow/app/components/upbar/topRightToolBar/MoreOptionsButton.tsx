@@ -22,7 +22,7 @@ function MoreOptionsButton({
   return (
     <Menu as='div' className='relative TopRightButtonWithMenu'>
       <Menu.Button
-        className={`group flex items-center justify-center w-[34px] h-[34px] rounded-l-[7px] border-r border-[#3E3E41] bg-[rgba(217,217,217, 0)] hover:cursor-pointer hover:bg-[#3E3E41]`}
+        className={`group flex items-center justify-center w-[34px] h-[34px] rounded-[7px] bg-[rgba(217,217,217,0)] hover:cursor-pointer hover:bg-[#3E3E41]`}
       >
         <svg
           xmlns='http://www.w3.org/2000/svg'
