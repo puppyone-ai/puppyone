@@ -56,7 +56,7 @@ const ChatbotTestInterface = ({
     }
 
     try {
-      const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+      const API_SERVER_URL = '/api/server';
       const finalApiEndpoint = `${API_SERVER_URL}/chat/${chatbotId}`;
 
       const requestData: any = {

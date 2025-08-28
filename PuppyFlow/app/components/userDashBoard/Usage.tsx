@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useAppSettings } from '../states/AppSettingsContext';
-import { SYSTEM_URLS } from '@/config/urls';
 
 // 定义用量数据类型
 type UsageData = {
@@ -17,83 +16,22 @@ type UsageData = {
 };
 
 const Usage: React.FC = () => {
-  const { userSubscriptionStatus, isLoadingSubscriptionStatus } =
-    useAppSettings();
-  const [usageData, setUsageData] = useState<UsageData | null>(null);
-  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
-
-  // 获取用量数据
-  const fetchUsageData = async () => {
-    if (!userSubscriptionStatus) return;
-
-    setIsLoadingUsage(true);
-    try {
-      // 并行请求两个API（服务端代理）
-      const [llmResponse, runsResponse] = await Promise.all([
-        fetch(`/api/user-system/usage/check/llm_calls`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }),
-        fetch(`/api/user-system/usage/check/runs`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }),
-      ]);
-
-      if (llmResponse.ok && runsResponse.ok) {
-        const llmData = await llmResponse.json();
-        const runsData = await runsResponse.json();
-
-        setUsageData({
-          llm_calls: {
-            used: llmData.current_usage || 0,
-            total: llmData.base_limit + (llmData.extra_balance || 0),
-            remaining: llmData.available || 0,
-          },
-          runs: {
-            used: runsData.current_usage || 0,
-            total: runsData.base_limit + (runsData.extra_balance || 0),
-            remaining: runsData.available || 0,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching usage data:', error);
-    } finally {
-      setIsLoadingUsage(false);
-    }
-  };
+  const {
+    userSubscriptionStatus,
+    isLoadingSubscriptionStatus,
+    isLocalDeployment,
+    usageData,
+    isLoadingUsage,
+    fetchUsageData,
+    planLimits,
+  } = useAppSettings();
 
   // 当订阅状态更新时，获取用量数据
   useEffect(() => {
-    if (userSubscriptionStatus) {
-      const isLocalDeployment = userSubscriptionStatus.days_left === 99999;
-      if (!isLocalDeployment) {
-        fetchUsageData();
-      }
+    if (userSubscriptionStatus && !isLocalDeployment) {
+      fetchUsageData();
     }
-  }, [userSubscriptionStatus]);
-
-  // 获取计划限制
-  const getPlanLimits = () => {
-    if (userSubscriptionStatus?.is_premium) {
-      return {
-        llm_calls: 200,
-        runs: 1000,
-      };
-    } else {
-      return {
-        llm_calls: 50,
-        runs: 100,
-      };
-    }
-  };
+  }, [userSubscriptionStatus, isLocalDeployment, fetchUsageData]);
 
   // 渲染 Notion 风格用量条
   const renderUsageBar = (used: number, total: number, label: string) => {
@@ -174,8 +112,7 @@ const Usage: React.FC = () => {
     );
   }
 
-  const isLocalDeployment = userSubscriptionStatus.days_left === 99999;
-  const planLimits = getPlanLimits();
+  // 使用全局上下文提供的部署类型与套餐限制
 
   return (
     <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
@@ -197,8 +134,9 @@ const Usage: React.FC = () => {
                     : 'text-[#9CA3AF]'
                 }`}
               >
-                {userSubscriptionStatus.subscription_plan?.toUpperCase() ||
-                  'FREE'}
+                {isLocalDeployment
+                  ? 'LOCAL'
+                  : userSubscriptionStatus.subscription_plan?.toUpperCase() || 'FREE'}
               </span>
             </div>
             <div className='flex items-center justify-between py-2'>
@@ -274,6 +212,7 @@ const Usage: React.FC = () => {
               </button>
             )}
           </div>
+
           <div className='space-y-4'>
             {userSubscriptionStatus.is_premium ? (
               isLocalDeployment ? (
@@ -282,6 +221,7 @@ const Usage: React.FC = () => {
                 </div>
               ) : (
                 <>
+
                   {usageData ? (
                     <div className='space-y-4 pt-1'>
                       {renderUsageBar(
@@ -305,8 +245,9 @@ const Usage: React.FC = () => {
                       Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs
                     </div>
                   )}
-                </>
+ </>
               )
+
             ) : (
               <>
                 {usageData ? (

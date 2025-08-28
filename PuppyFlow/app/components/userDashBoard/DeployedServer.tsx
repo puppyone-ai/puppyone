@@ -37,7 +37,7 @@ interface ChatbotInfo {
 
 const DeployedServers: React.FC = () => {
   const { apis, chatbots, isLoading } = useAllDeployedServices();
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // 转换数据格式
   const servers = [
