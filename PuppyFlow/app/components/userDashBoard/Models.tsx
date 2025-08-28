@@ -39,11 +39,11 @@ const Models: React.FC = () => {
     emptyMessage: string;
   }) =>
     models.length > 0 ? (
-      <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 space-y-3'>
+      <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4 space-y-3'>
         {models.map(model => (
           <div
             key={model.id}
-            className='flex items-center justify-between border-b border-[#343434] pb-2 last:border-0 last:pb-0'
+            className='flex items-center justify-between border-b border-[#2A2A2A] pb-2 last:border-0 last:pb-0'
           >
             <div>
               <div className='text-[#E5E5E5] text-[13px]'>{model.name}</div>
@@ -55,8 +55,8 @@ const Models: React.FC = () => {
               <span
                 className={`px-2 py-1 rounded text-[11px] font-medium ${
                   model.deployment === 'local'
-                    ? 'bg-[#2A4365] text-[#90CDF4]'
-                    : 'bg-[#3A3A3A] text-[#CDCDCD]'
+                    ? 'bg-[#113A5C] text-[#90CDF4]'
+                    : 'bg-[#1E1E1E] text-[#CDCDCD]'
                 }`}
               >
                 {model.deployment === 'local' ? 'Local' : 'Cloud'}
@@ -66,7 +66,7 @@ const Models: React.FC = () => {
         ))}
       </div>
     ) : (
-      <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4 text-center'>
+      <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4 text-center'>
         <span className='text-[#8B8B8B] block text-[13px]'>{emptyMessage}</span>
       </div>
     );

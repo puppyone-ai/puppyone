@@ -9,7 +9,7 @@ const Billing: React.FC = () => {
 
       <div className='py-[8px] overflow-y-auto'>
         <div className='max-w-[560px] mx-auto'>
-          <div className='rounded-lg border border-[#343434] bg-[#2B2B2B] p-4'>
+          <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
             <span className='block text-[#A1A1A1] text-[13px]'>
               🚧 Billing features coming soon
             </span>
