@@ -55,15 +55,10 @@ function TopRightToolBar() {
         />
       </div>
       <SaveButton />
-      <div
-        className={`w-auto h-[36px] border-[1px] border-solid border-[#3E3E41] rounded-[8px] flex flex-row justify-center items-center bg-[#252525]`}
-      >
-        <MoreOptionsButton
-          showMenu={showMenu}
-          showMenuHandler={showMenuHandler}
-        />
-        <TestRunBotton />
+      <div className='w-auto h-[36px] border border-[#2A2A2A] rounded-[8px] flex flex-row items-center bg-[#252525]'>
+        <MoreOptionsButton showMenu={showMenu} showMenuHandler={showMenuHandler} />
       </div>
+      <TestRunBotton />
       <DeployBottonNew />
     </div>
   );

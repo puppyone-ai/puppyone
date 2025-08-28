@@ -1,20 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAllDeployedServices } from '../states/UserServersContext';
-import { SYSTEM_URLS } from '@/config/urls';
 
 type UsageDisplayProps = {
   isExpanded: boolean;
 };
 
 const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
-  const {
-    userSubscriptionStatus,
-    usageData,
-    planLimits,
-    isLoadingUsage,
-  } = useAppSettings();
+  const { userSubscriptionStatus, usageData, planLimits } = useAppSettings();
   const { workspaces } = useWorkspaces();
   const { apis, chatbots } = useAllDeployedServices();
 
@@ -80,7 +75,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
 
   if (isExpanded) {
     return (
-      <div className='my-[5px] p-[8px] pb-[4px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
+      <div className='my-[5px] p-[8px] pb-[6px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
         {/* First row: Plan type and upgrade button */}
         <div className='flex items-center justify-between mb-2'>
           <span className='text-[#8B8B8B] text-[10px] font-medium'>
@@ -98,10 +93,10 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         </div>
 
         {/* Divider line */}
-        <div className='w-full h-[1px] bg-[#404040] my-2'></div>
+        <div className='w-full h-[1px] bg-[#404040] my-1.5'></div>
 
-        {/* Second row: Mixed layout - circles for usage, text for limits */}
-        <div className='w-full flex justify-between items-center'>
+        {/* Second row: Mixed layout - center three items */}
+        <div className='w-full flex items-center justify-center gap-6'>
           {/* Workspaces - current/max format */}
           <div className='flex flex-col items-center gap-1'>
             <span className='text-[12px] text-[#8B8B8B] font-medium'>
@@ -147,26 +142,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             </div>
           </div>
 
-          {/* LLM Calls - circle showing remaining */}
-          <div className='flex flex-col items-center gap-1 mt-[6px]'>
-            <CircularProgress
-              percentage={
-                usageData && Number.isFinite(planLimits.llm_calls as any)
-                  ? ((planLimits.llm_calls - usageData.llm_calls.used) / planLimits.llm_calls) * 100
-                  : 100
-              }
-              size={3}
-              strokeWidth={2}
-            />
-            <div className='text-[9px] text-[#666666] text-center'>
-              <div>
-                {usageData && Number.isFinite(planLimits.llm_calls as any)
-                  ? `${planLimits.llm_calls - usageData.llm_calls.used} calls`
-                  : `∞ calls`}
-              </div>
-              <div>remain</div>
-            </div>
-          </div>
+          {/* LLM Calls hidden in expanded view per requirement */}
         </div>
       </div>
     );
@@ -175,60 +151,47 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
 
     return (
       <div className='mb-[8px] w-full flex flex-col items-center gap-1'>
-        {/* Plan status and Get Pro button */}
-        <div className='flex items-center gap-1'>
-          <span className='text-[#8B8B8B] text-[9px] font-medium'>
-            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
-          </span>
-          {shouldShowGetProButton && (
-            <button
-              onClick={handleGetProClick}
-              className='border border-[#404040] hover:border-[#FF6B35] text-[#8B8B8B] hover:text-[#FF6B35] text-[9px] font-medium py-[2px] px-[4px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-[2px]'
-            >
-              <span>Upgrade</span>
-              <span className='text-[9px]'>→</span>
-            </button>
-          )}
+        {/* Plan label */}
+        <div className='text-[#8B8B8B] text-[9px] font-medium'>
+          {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
         </div>
 
-        {/* Usage info with mini circles - Runs left, LLM right */}
-            {usageData && Number.isFinite(planLimits.runs as any) && Number.isFinite(planLimits.llm_calls as any) ? (
-          <div className='w-full flex items-center justify-center gap-2'>
-            {/* Mini Runs Circle - LEFT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress
-                percentage={
-                  ((planLimits.runs - usageData.runs.used) / planLimits.runs) *
-                  100
-                }
-                size={3}
-                strokeWidth={3}
-              />
-              <span className='text-[8px] text-[#666666]'>
-                {planLimits.runs - usageData.runs.used} left
-              </span>
-            </div>
-
-            {/* Mini LLM Circle - RIGHT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress
-                percentage={
-                  ((planLimits.llm_calls - usageData.llm_calls.used) /
-                    planLimits.llm_calls) *
-                  100
-                }
-                size={3}
-                strokeWidth={3}
-              />
-              <span className='text-[8px] text-[#666666]'>
-                {planLimits.llm_calls - usageData.llm_calls.used} left
-              </span>
-            </div>
-          </div>
-            ) : (
-          <div className='text-[7px] text-[#666666] text-center'>∞•∞</div>
+        {/* Upgrade button under plan */}
+        {shouldShowGetProButton && (
+          <button
+            onClick={handleGetProClick}
+            title='Upgrade'
+            aria-label='Upgrade'
+            className='border border-[#404040] hover:border-[#FF6B35] text-[#8B8B8B] hover:text-[#FF6B35] p-[2px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center justify-center'
+          >
+            <ArrowUpRight size={12} />
+          </button>
         )}
 
+        {/* Usage: use expanded-style small circle (Runs only) */}
+        <div className='w-full flex flex-col items-center justify-center gap-2 mt-[12px]'>
+          <div className='flex flex-col items-center gap-1'>
+            <CircularProgress
+              percentage={
+                usageData && Number.isFinite((planLimits as any).runs as any)
+                  ? ((planLimits.runs - usageData.runs.used) / planLimits.runs) * 100
+                  : 100
+              }
+              size={3}
+              strokeWidth={2}
+            />
+            <div className='text-[9px] text-[#666666] text-center'>
+              {usageData && Number.isFinite((planLimits as any).runs as any) ? (
+                <>
+                  <div>{`${Math.max(planLimits.runs - usageData.runs.used, 0)}/${planLimits.runs}`}</div>
+                  <div>runs</div>
+                </>
+              ) : (
+                <div>∞ runs</div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

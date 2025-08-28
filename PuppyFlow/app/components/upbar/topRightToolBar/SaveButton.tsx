@@ -126,13 +126,9 @@ function SaveButton() {
   return (
     <div className='relative flex flex-col items-center'>
       <button
-        className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[36px] rounded-[8px] bg-[#252525] border-[1px] hover:bg-[#3E3E41] transition-colors ${
-          saveState === 'idle'
-            ? 'border-[#3E3E41]'
-            : saveState === 'success'
-              ? 'border-main-green hover:border-main-green'
-              : 'border-main-red hover:border-main-red'
-        } ${isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'} group`}
+        className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] bg-[#2A2A2A] text-[13px] font-medium transition-colors ${
+          isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'
+        }`}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         onClick={e => {
@@ -145,7 +141,7 @@ function SaveButton() {
           {saveButtonLogo}
         </div>
         <div
-          className={`text-[14px] font-normal leading-normal ${
+          className={`text-[13px] font-medium leading-normal ${
             saveState === 'idle'
               ? 'text-[#CDCDCD] group-hover:text-main-grey'
               : saveState === 'success'

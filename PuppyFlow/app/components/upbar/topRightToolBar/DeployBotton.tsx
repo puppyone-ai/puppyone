@@ -577,41 +577,23 @@ function DeployBotton() {
         return (
           <>
             <Menu.Button
-              className={`flex flex-row items-center justify-center gap-[8px] px-[10px] h-[36px] rounded-[8px] bg-[#252525] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#3E3E41] group`}
+              className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] text-[13px] font-medium bg-[#2A2A2A] text-[#FFA73D] hover:bg-[#FFA73D] hover:text-black transition-colors`}
               onMouseEnter={() => setHovered(true)}
               onMouseLeave={() => setHovered(false)}
             >
               <svg
-                width='18'
-                height='15'
-                viewBox='0 0 18 15'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-                className='transition-[stroke]'
+                className='w-6 h-6 text-[#FFA73D] group-hover:text-black transform rotate-45 origin-center'
+                viewBox='0 0 24 24'
+                fill='currentColor'
+                aria-hidden='true'
               >
                 <path
-                  className='transition-[fill]'
-                  d='M14.5 11L17.5 15H14.5V11Z'
-                  fill={hovered === true ? '#000' : '#FFA73D'}
-                />
-                <path
-                  className='transition-[fill]'
-                  d='M3.5 11V15H0.5L3.5 11Z'
-                  fill={hovered === true ? '#000' : '#FFA73D'}
-                />
-                <path
-                  className='transition-[fill]'
                   fillRule='evenodd'
                   clipRule='evenodd'
-                  d='M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z'
-                  fill={hovered === true ? '#000' : '#FFA73D'}
+                  d='M12 2c-3 2-4 6-4 9v2l-2 2 3 .5.5 3L12 18l2.5 1.5.5-3 3-.5-2-2v-2c0-3-1-7-4-9z M12 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z'
                 />
               </svg>
-              <div
-                className={`text-[14px] font-normal leading-normal transition-colors ${hovered === true ? 'text-[#000]' : 'text-[#FFA73D]'}`}
-              >
-                Deploy
-              </div>
+              <div className='text-[13px] font-medium'>Deploy</div>
             </Menu.Button>
 
             <Transition
@@ -623,7 +605,7 @@ function DeployBotton() {
               leaveFrom='transform opacity-100 translate-y-0'
               leaveTo='transform opacity-0 translate-y-[-10px]'
             >
-              <Menu.Items className='absolute right-0 mt-[16px] w-[360px] origin-top-right rounded-2xl bg-[#1E1E1E] shadow-lg border border-[#404040] focus:outline-none'>
+              <Menu.Items className='absolute right-0 mt-[16px] w-[360px] origin-top-right rounded-2xl bg-[#1E1E1E] shadow-lg border border-[#343434] focus:outline-none'>
                 {renderActivePanel()}
               </Menu.Items>
             </Transition>
