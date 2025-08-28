@@ -248,9 +248,9 @@ const DeployedServers: React.FC = () => {
           <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
             <div className='text-[12px] text-[#888888] mb-1'>No deployed servers found</div>
             {apis.length === 0 && chatbots.length === 0 ? (
-              <div className='text-[#666666] text-[10px]'>No services deployed across any workspace</div>
+              <div className='text-[#666666] text-[12px]'>No services deployed across any workspace</div>
             ) : (
-              <div className='text-[#666666] text-[10px]'>No services deployed across {apis.length + chatbots.length} services</div>
+              <div className='text-[#666666] text-[12px]'>No services deployed across {apis.length + chatbots.length} services</div>
             )}
           </div>
         )}

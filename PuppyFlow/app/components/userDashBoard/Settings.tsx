@@ -29,7 +29,7 @@ const Settings: React.FC = () => {
 
         {/* Preferences Section */}
         <div className='px-1'>
-          <div className='text-[11px] uppercase tracking-wide text-[#9CA3AF] mb-2'>Preferences</div>
+          <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>Preferences</div>
         </div>
         <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] overflow-hidden'>
           <div className='divide-y divide-[#2A2A2A]'>
