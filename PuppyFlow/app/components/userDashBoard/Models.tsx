@@ -81,7 +81,7 @@ const Models: React.FC = () => {
         {/* LLM Models Section */}
         <div className='space-y-4'>
           <div className='flex items-center justify-between'>
-            <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
+            <h4 className='text-[12px] font-semibold text-[#E5E5E5]'>
               LLM Models
             </h4>
             <button
@@ -116,7 +116,7 @@ const Models: React.FC = () => {
 
         {/* Embedding Models Section */}
         <div className='space-y-4'>
-          <h4 className='text-[14px] font-semibold text-[#E5E5E5]'>
+          <h4 className='text-[12px] font-semibold text-[#E5E5E5]'>
             Embedding Models
           </h4>
 
