@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import AddNodeButton from './topLeftToolBar/AddNodeButton';
-import SaveButton from './topRightToolBar/SaveButton';
-import MoreOptionsButton from './topRightToolBar/MoreOptionsButton';
-import TestRunBotton from './topRightToolBar/TestRunBotton';
-import DeployBotton from './topRightToolBar/DeployBotton';
+import AddNodeButton from './upbarComponent/AddNodeButton';
+import SaveButton from './upbarComponent/SaveButton';
+import MoreOptionsButton from './upbarComponent/MoreOptionsButton';
+import GroupListButton from './upbarComponent/GroupListButton';
 import { Controls } from '@xyflow/react';
 
 function Upbar() {
@@ -45,8 +44,7 @@ function Upbar() {
         <div className='w-auto h-[36px] border border-[#2A2A2A] rounded-[8px] flex flex-row items-center bg-[#252525]'>
           <MoreOptionsButton showMenu={showMenu} showMenuHandler={setShowMenu} />
         </div>
-        <TestRunBotton />
-        <DeployBotton />
+        <GroupListButton />
       </div>
     </div>
   );
