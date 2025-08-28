@@ -876,11 +876,11 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .react-flow__controls-custom {
-  background: #252525;
-  border: 1px solid #3e3e41;
-  border-radius: 8px;
+  background: #2a2a2a; /* unify with buttons */
+  border: 1px solid #2a2a2a; /* unify with buttons */
+  border-radius: 6px; /* rounded-md */
   padding: 4px;
-  height: 36px;
+  height: 36px; /* unify height */
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -921,7 +921,7 @@ input[type='number']::-webkit-outer-spin-button {
 
 /* hover 样式 */
 .react-flow__controls-custom button:hover {
-  background: #3e3e41;
+  background: #3a3a3a; /* unify hover bg */
   border-radius: 4px;
   color: #cdcdcd;
 }

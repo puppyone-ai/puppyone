@@ -29,12 +29,13 @@ function AddNodeButton() {
     isOnGeneratingNewNode,
   } = useNodesPerFlowContext();
   const { setNodes, getNodes } = useReactFlow();
+  const [externalCreate, setExternalCreate] = useState<
+    { nodeType: string; nonce: number } | null
+  >(null);
 
   useEffect(() => {
     // define onClick action and click out action
     const onMouseClick = (event: MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
       const menubuttonContainer = document.getElementById(
         'nodeMenuButtonContainer'
       ) as HTMLButtonElement;
@@ -54,6 +55,31 @@ function AddNodeButton() {
     return () => document.removeEventListener('click', onMouseClick);
   }, []);
 
+  // Listen to external openAddNodeMenu events (from Group button)
+  useEffect(() => {
+    const onOpenAddNodeMenu = (evt: Event) => {
+      try {
+        const e = evt as CustomEvent<any>;
+        const preselect = e?.detail?.preselect as string | undefined;
+        if (isOnGeneratingNewNode) return;
+        // Open the menu then trigger create via NodeMenu
+        setSelectedMenu(1);
+        if (preselect) {
+          setExternalCreate({ nodeType: preselect, nonce: Date.now() });
+        }
+      } catch (_) {
+        // noop
+      }
+    };
+    window.addEventListener('openAddNodeMenu' as any, onOpenAddNodeMenu as any);
+    return () => {
+      window.removeEventListener(
+        'openAddNodeMenu' as any,
+        onOpenAddNodeMenu as any
+      );
+    };
+  }, [isOnGeneratingNewNode]);
+
   const clearMenu = () => {
     setSelectedMenu(0);
   };
@@ -64,20 +90,24 @@ function AddNodeButton() {
         id='nodeMenuButton'
         title='Add Block'
         aria-label='Add Block'
-        className={`w-[44px] h-[44px] rounded-[16px] flex flex-row items-center justify-center cursor-pointer ${selectedMenu === 1 ? 'bg-[#CDCDCD]' : 'bg-main-blue'} transition-colors ${isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'}`}
+        className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border text-[13px] font-medium transition-colors ${
+          selectedMenu === 1
+            ? 'bg-[#3A3A3A] border-[#3A3A3A] text-white'
+            : 'bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A]'
+        } ${isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'}`}
       >
-        <svg
-          xmlns='http://www.w3.org/2000/svg'
-          width='18'
-          height='18'
-          viewBox='0 0 8 8'
-          fill='none'
-        >
-          <path d='M4 0L4 8' stroke='#181818' strokeWidth='1.5' />
-          <path d='M0 4L8 4' stroke='#181818' strokeWidth='1.5' />
+        <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 8 8' fill='none' className='text-current'>
+          <path d='M4 0L4 8' stroke='currentColor' strokeWidth='1.5' />
+          <path d='M0 4L8 4' stroke='currentColor' strokeWidth='1.5' />
         </svg>
+        <span>Add Block</span>
       </button>
-      <NodeMenu selectedMenu={selectedMenu} clearMenu={clearMenu} />
+      <NodeMenu
+        selectedMenu={selectedMenu}
+        clearMenu={clearMenu}
+        externalCreate={externalCreate}
+        onExternalHandled={() => setExternalCreate(null)}
+      />
     </div>
   );
 }
@@ -86,9 +116,13 @@ function AddNodeButton() {
 function NodeMenu({
   selectedMenu,
   clearMenu,
+  externalCreate,
+  onExternalHandled,
 }: {
   selectedMenu: number;
   clearMenu: () => void;
+  externalCreate: { nodeType: string; nonce: number } | null;
+  onExternalHandled: () => void;
 }) {
   const { getNodes, setNodes, screenToFlowPosition, getZoom } = useReactFlow();
   const {
@@ -130,9 +164,7 @@ function NodeMenu({
   );
 
   const handleMouseSettlePosition = useCallback(
-    (event: React.MouseEvent) => {
-      event.preventDefault();
-      event.stopPropagation();
+    (event: MouseEvent) => {
       if (isDragging && draggedNodeType) {
         const newNodeId = nanoid(6);
         const position = screenToFlowPosition({
@@ -164,40 +196,42 @@ function NodeMenu({
   );
 
   useEffect(() => {
-    if (isDragging) {
-      document.addEventListener(
+    if (!isDragging) return;
+
+    // track cursor regardless of location
+    document.addEventListener(
+      'mousemove',
+      handleMouseMove as unknown as EventListener
+    );
+
+    // only place on clicks inside the ReactFlow pane to avoid blocking UI
+    const pane = document.querySelector('.react-flow__pane');
+    pane?.addEventListener(
+      'click',
+      handleMouseSettlePosition as unknown as EventListener
+    );
+
+    // allow cancellation with right click anywhere
+    document.addEventListener(
+      'contextmenu',
+      handleRightClick as unknown as EventListener
+    );
+
+    return () => {
+      document.removeEventListener(
         'mousemove',
         handleMouseMove as unknown as EventListener
       );
-      document.addEventListener(
+      pane?.removeEventListener(
         'click',
         handleMouseSettlePosition as unknown as EventListener
       );
-      document.addEventListener(
+      document.removeEventListener(
         'contextmenu',
         handleRightClick as unknown as EventListener
-      ); // 新增监听右键点击
-      return () => {
-        document.removeEventListener(
-          'mousemove',
-          handleMouseMove as unknown as EventListener
-        );
-        document.removeEventListener(
-          'click',
-          handleMouseSettlePosition as unknown as EventListener
-        );
-        document.removeEventListener(
-          'contextmenu',
-          handleRightClick as unknown as EventListener
-        ); // 移除监听
-      };
-    }
-  }, [
-    isDragging,
-    handleMouseMove,
-    handleMouseSettlePosition,
-    handleRightClick,
-  ]);
+      );
+    };
+  }, [isDragging, handleMouseMove, handleMouseSettlePosition, handleRightClick]);
 
   const [selectedNodeMenuSubMenu, setSelectedNodeMenuSubMenu] = useState(-1);
 
@@ -206,6 +240,16 @@ function NodeMenu({
       setSelectedNodeMenuSubMenu(-1);
     }
   }, [selectedMenu]);
+
+  // Respond to external create requests (e.g., Group button)
+  useEffect(() => {
+    if (!externalCreate) return;
+    const nodeType = externalCreate.nodeType;
+    if (!nodeType) return;
+    // Start create flow using the same logic as clicking a menu item
+    handleMouseDown(nodeType);
+    onExternalHandled();
+  }, [externalCreate]);
 
   useEffect(() => {
     if (!node || !isOnGeneratingNewNode) return;
@@ -715,71 +759,7 @@ function NodeMenu({
             </button>
           </div>
 
-          {/* Third Section Title */}
-          <div className='flex items-center gap-3 px-2 group mt-1'>
-            <span className='text-[11px] font-medium text-gray-500 whitespace-nowrap flex items-center gap-2'>
-              <div className='w-1 h-1 rounded-full bg-purple-500'></div>
-              Layout Elements
-            </span>
-            <div className='h-[1px] flex-grow bg-gradient-to-r from-gray-600 to-transparent opacity-50'></div>
-          </div>
-
-          {/* Third Row - Layout Elements */}
-          <div className='grid grid-cols-2 gap-[12px] px-1'>
-            <button
-              className={`group w-[180px] h-[64px] bg-[#2A2B2D] rounded-[10px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#2563EB] hover:shadow-blue-500/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
-              onMouseEnter={() => {
-                manageNodeMenuSubMenu('Groupsub1');
-              }}
-              onMouseLeave={() => {
-                manageNodeMenuSubMenu(null);
-              }}
-              onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                handleMouseDown('group');
-              }}
-            >
-              <div className='absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[8px] shadow-inner relative'>
-                <svg
-                  width='24'
-                  height='24'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <rect
-                    x='3'
-                    y='3'
-                    width='18'
-                    height='18'
-                    rx='2'
-                    stroke='#9B7EDB'
-                    strokeWidth='1.5'
-                    strokeDasharray='4 4'
-                  />
-                  <rect
-                    x='7'
-                    y='7'
-                    width='10'
-                    height='10'
-                    rx='1'
-                    fill='#9B7EDB'
-                    fillOpacity='0.2'
-                  />
-                </svg>
-              </div>
-              <div className='flex flex-col items-start relative'>
-                <div className='text-[14px] font-[600] text-white group-hover:text-white transition-colors'>
-                  Group
-                </div>
-                <div className='text-[11px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>
-                  Group nodes
-                </div>
-              </div>
-            </button>
-          </div>
+          {/* Group creation has been removed from menu UI */}
         </ul>
       </Transition>
       {renderDragIndicator()}
