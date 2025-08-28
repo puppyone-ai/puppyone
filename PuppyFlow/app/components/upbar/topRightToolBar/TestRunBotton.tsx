@@ -92,7 +92,11 @@ function TestRunBotton() {
 
   return (
     <button
-      className={`h-[36px] px-[12px] rounded-r-[8px] ${!isComplete ? 'bg-gray-200' : 'bg-[rgba(217,217,217, 0)]'} flex items-center justify-center gap-[4px] hover:cursor-pointer hover:bg-main-green transition-colors`}
+      className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] text-[13px] font-medium transition-colors active:scale-95 ${
+        !isComplete
+          ? 'bg-[#2A2A2A] text-[#39BC66] opacity-60 cursor-not-allowed'
+          : 'bg-[#2A2A2A] text-[#39BC66] hover:bg-[#39BC66] hover:text-black'
+      }`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onClick={onDataSubmit}
@@ -127,20 +131,12 @@ function TestRunBotton() {
           viewBox='0 0 14 14'
           fill='none'
           xmlns='http://www.w3.org/2000/svg'
-          className='transition-[fill]'
+          className='transition-colors'
         >
-          <path
-            className='transition-[fill]'
-            d='M12 7L3 13V1L12 7Z'
-            fill={hovered === true ? '#000' : '#39BC66'}
-          />
+          <path d='M12 7L3 13V1L12 7Z' fill='currentColor' className='text-[#39BC66] group-hover:text-black' />
         </svg>
       )}
-      <div
-        className={`text-[14px] font-normal leading-normal transition-colors ${!isComplete ? 'text-gray-500' : hovered === true ? 'text-[#000]' : 'text-[#39BC66]'}`}
-      >
-        {!isComplete ? 'Processing...' : 'Test Run'}
-      </div>
+      <div className={`text-[13px] font-medium leading-normal`}> {!isComplete ? 'Processing...' : 'Run All'}</div>
     </button>
   );
 }
