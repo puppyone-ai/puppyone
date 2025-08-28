@@ -59,7 +59,7 @@ function AddNodeButton() {
   };
 
   return (
-    <div id='nodeMenuButtonContainer'>
+    <div id='nodeMenuButtonContainer' className='relative inline-block'>
       <button
         id='nodeMenuButton'
         className={`w-[44px] h-[44px] rounded-[16px] flex flex-row items-center justify-center cursor-pointer ${selectedMenu === 1 ? 'bg-[#CDCDCD]' : 'bg-main-blue'} transition-colors ${isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'}`}
@@ -525,7 +525,7 @@ function NodeMenu({
       >
         <ul
           id='nodeMenu'
-          className={`will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute top-[62px] left-[48px] z-[10000] text-white flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out transform origin-top pointer-events-auto shadow-lg min-w-[384px] backdrop-blur-sm bg-opacity-95`}
+          className={`will-change-auto bg-[#1c1d1f] rounded-[16px] border-solid border-[1.5px] border-[#3e3e41] absolute left-1/2 -translate-x-1/2 transform top-full mt-3 z-[10000] text-white flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-lg min-w-[384px] backdrop-blur-sm bg-opacity-95`}
           onMouseLeave={() => manageNodeMenuSubMenu(null)}
         >
           {/* First Section Title */}
