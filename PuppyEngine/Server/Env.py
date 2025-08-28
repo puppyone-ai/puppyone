@@ -238,12 +238,23 @@ class Env:
                 edge_results = await task
                 results.update(edge_results)
                 
-                # Yield EDGE_COMPLETED event
+                # 🚀 优化：在EDGE_COMPLETED事件中直接包含结果内容
+                # 让前端立即显示结果，后续持久化异步进行
+                block_results = {}
+                for block_id, content in edge_results.items():
+                    block_results[block_id] = {
+                        "content": content,
+                        "storage_class": "internal"  # 临时标记为internal，实际存储类型在persist后确定
+                    }
+                
+                # Yield EDGE_COMPLETED event with immediate results
                 yield {
                     "event_type": "EDGE_COMPLETED",
                     "edge_id": edge_id,
                     "output_blocks": list(edge_results.keys()),
-                    "timestamp": datetime.utcnow().isoformat()
+                    "timestamp": datetime.utcnow().isoformat(),
+                    # ✨ 新增：直接包含结果内容，让前端立即显示
+                    "block_results": block_results
                 }
                 
                 # Track edge usage if callback provided

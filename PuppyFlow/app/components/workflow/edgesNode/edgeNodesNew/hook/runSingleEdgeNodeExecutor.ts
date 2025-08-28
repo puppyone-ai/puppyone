@@ -613,9 +613,11 @@ async function sendDataToTargets(
             const eventData = JSON.parse(line.slice(6));
             const { event_type } = eventData as ServerSentEvent;
 
-            // 对于BLOCK_UPDATED事件，数据直接在根级别，而不是在data字段中
+            // 对于某些事件，数据直接在根级别，而不是在data字段中
             const data =
-              event_type === 'BLOCK_UPDATED' ? eventData : eventData.data;
+              event_type === 'BLOCK_UPDATED' || event_type === 'EDGE_COMPLETED'
+                ? eventData
+                : eventData.data;
 
             // 处理不同类型的事件
             switch (event_type) {
@@ -730,23 +732,54 @@ async function sendDataToTargets(
                 break;
               case 'EDGE_COMPLETED':
                 if (data?.edge_id && data?.output_blocks) {
-                  // 为输出块设置初始加载状态
-                  data.output_blocks.forEach((blockId: string) => {
-                    context.setNodes(prevNodes =>
-                      prevNodes.map(node =>
-                        node.id === blockId
-                          ? {
-                              ...node,
-                              data: {
-                                ...node.data,
-                                isLoading: true,
-                                isWaitingForFlow: true,
-                              },
-                            }
-                          : node
-                      )
+                  // 🚀 优化：如果包含block_results，立即显示结果内容
+                  if (data.block_results) {
+                    console.log(
+                      `✨ [EDGE_COMPLETED] 立即显示结果内容，edge: ${data.edge_id}`
                     );
-                  });
+
+                    // 立即更新所有输出块的内容
+                    Object.entries(data.block_results).forEach(
+                      ([blockId, blockResult]: [string, any]) => {
+                        context.setNodes(prevNodes =>
+                          prevNodes.map(node =>
+                            node.id === blockId
+                              ? {
+                                  ...node,
+                                  data: {
+                                    ...node.data,
+                                    content: blockResult.content,
+                                    isLoading: false, // 立即停止loading
+                                    isWaitingForFlow: false,
+                                    // 标记为临时内容，等待持久化完成
+                                    temporaryContent: true,
+                                    storage_class: blockResult.storage_class,
+                                  },
+                                }
+                              : node
+                          )
+                        );
+                      }
+                    );
+                  } else {
+                    // 兼容旧版本：设置加载状态
+                    data.output_blocks.forEach((blockId: string) => {
+                      context.setNodes(prevNodes =>
+                        prevNodes.map(node =>
+                          node.id === blockId
+                            ? {
+                                ...node,
+                                data: {
+                                  ...node.data,
+                                  isLoading: true,
+                                  isWaitingForFlow: true,
+                                },
+                              }
+                            : node
+                        )
+                      );
+                    });
+                  }
                 }
                 break;
               case 'PROGRESS_UPDATE':
@@ -832,8 +865,12 @@ async function sendDataToTargets(
                               isLoading: false,
                               isWaitingForFlow: false,
                               isExternalStorage: true,
-                              // 对于external存储，content为空，需要通过ManifestPoller下载
-                              content: '',
+                              // 🚀 优化：如果已有临时内容，保留它；否则清空等待下载
+                              content: node.data?.temporaryContent
+                                ? node.data.content
+                                : '',
+                              // 清除临时内容标记，表示持久化已完成
+                              temporaryContent: false,
                             },
                           };
                         }
@@ -880,10 +917,17 @@ async function sendDataToTargets(
                             ...node,
                             data: {
                               ...node.data,
-                              content: data.content,
+                              // 🚀 优化：如果已有临时内容且与新内容相同，保持；否则使用新内容
+                              content:
+                                node.data?.temporaryContent &&
+                                node.data.content === data.content
+                                  ? node.data.content
+                                  : data.content,
                               isLoading: false,
                               isWaitingForFlow: false,
                               isExternalStorage: false,
+                              // 清除临时内容标记，表示持久化已完成
+                              temporaryContent: false,
                             },
                           };
                         }
