@@ -136,49 +136,119 @@ function NodeMenu({
   const [node, setNode] = useState<nodeSmallProps | null>(null);
 
   // for drag and drop purpose
+  // Rectangle-to-create workflow state
   const [isDragging, setIsDragging] = useState(false);
   const [draggedNodeType, setDraggedNodeType] = useState<string | null>(null);
-  const [mousePosition, setMousePosition] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
-  const [lastMousePosition, setLastMousePosition] = useState<{
-    x: number;
-    y: number;
-  } | null>(null);
+  const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [rectEnd, setRectEnd] = useState<{ x: number; y: number } | null>(null);
 
   const handleMouseDown = useCallback((nodeType: string) => {
     setIsDragging(true);
     setDraggedNodeType(nodeType);
     generateNewNode();
     clearMenu();
+    // The rectangle starts on first mousedown on canvas pane
   }, []);
 
-  const handleMouseMove = useCallback(
+  const handleRectMouseMove = useCallback(
     (event: MouseEvent) => {
-      if (isDragging) {
-        setMousePosition({ x: event.clientX, y: event.clientY });
-      }
+      if (!isDragging || !rectStart) return;
+      setRectEnd({ x: event.clientX, y: event.clientY });
+    },
+    [isDragging, rectStart]
+  );
+
+  const handlePaneMouseDown = useCallback(
+    (event: MouseEvent) => {
+      if (!isDragging) return;
+      // Start rectangle from where user pressed down
+      setRectStart({ x: event.clientX, y: event.clientY });
+      setRectEnd({ x: event.clientX, y: event.clientY });
     },
     [isDragging]
   );
 
-  const handleMouseSettlePosition = useCallback(
+  const handleRectMouseUp = useCallback(
     (event: MouseEvent) => {
-      if (isDragging && draggedNodeType) {
-        const newNodeId = nanoid(6);
-        const position = screenToFlowPosition({
-          x: event.clientX - 32,
-          y: event.clientY - 32,
-        });
-        setNode({ nodeid: newNodeId, nodeType: draggedNodeType });
-        setMousePosition(position);
+      if (!isDragging || !draggedNodeType || !rectStart || !rectEnd) return;
+
+      // Convert both corners to flow coordinates
+      const p0 = screenToFlowPosition({ x: rectStart.x, y: rectStart.y });
+      const p1 = screenToFlowPosition({ x: rectEnd.x, y: rectEnd.y });
+      const topLeft = { x: Math.min(p0.x, p1.x), y: Math.min(p0.y, p1.y) };
+      const rawWidth = Math.abs(p1.x - p0.x);
+      const rawHeight = Math.abs(p1.y - p0.y);
+
+      const getMinSize = (nodeType: string) => {
+        switch (nodeType) {
+          case 'group':
+            return { width: 240, height: 176 };
+          case 'text':
+          case 'structured':
+          case 'file':
+          case 'weblink':
+          case 'switch':
+          default:
+            return { width: 240, height: 176 };
+        }
+      };
+
+      const minSize = getMinSize(draggedNodeType);
+      const width = Math.max(rawWidth, minSize.width);
+      const height = Math.max(rawHeight, minSize.height);
+
+      // Build node data
+      const newNodeId = nanoid(6);
+      const defaultNodeContent = draggedNodeType === 'switch' ? 'OFF' : '';
+      const nodeData: any = {
+        content: defaultNodeContent,
+        label: newNodeId,
+        isLoading: false,
+        locked: false,
+        isInput: false,
+        isOutput: false,
+        editable: false,
+      };
+      if (draggedNodeType === 'group') {
+        // Random background color for group
+        const colors = [
+          'rgba(85, 83, 77, 0.2)',
+          'rgba(108, 72, 60, 0.2)',
+          'rgba(143, 63, 61, 0.2)',
+          'rgba(68, 106, 91, 0.2)',
+          'rgba(64, 101, 131, 0.2)',
+          'rgba(110, 95, 133, 0.2)',
+          'rgba(119, 89, 110, 0.2)',
+        ];
+        nodeData.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
       }
+
+      setNodes(prev => [
+        ...prev,
+        {
+          id: newNodeId,
+          position: topLeft,
+          data: nodeData,
+          type: draggedNodeType,
+          measured: { width, height },
+          width,
+          height,
+        } as any,
+      ]);
+
+      // Reset states and listeners
+      setRectStart(null);
+      setRectEnd(null);
+      setIsDragging(false);
+      setDraggedNodeType(null);
+      clearAll();
     },
-    [isDragging, draggedNodeType]
+    [isDragging, draggedNodeType, rectStart, rectEnd, screenToFlowPosition, setNodes]
   );
 
-  // 新增：右键点击事件处理函数
+  // 右键点击取消
   const handleRightClick = useCallback(
     (event: MouseEvent) => {
       event.preventDefault();
@@ -186,7 +256,8 @@ function NodeMenu({
         // 重置状态
         setIsDragging(false);
         setDraggedNodeType(null);
-        setMousePosition(null);
+        setRectStart(null);
+        setRectEnd(null);
         setNode(null);
         clearAll();
         console.log('Node generation cancelled');
@@ -198,40 +269,19 @@ function NodeMenu({
   useEffect(() => {
     if (!isDragging) return;
 
-    // track cursor regardless of location
-    document.addEventListener(
-      'mousemove',
-      handleMouseMove as unknown as EventListener
-    );
-
-    // only place on clicks inside the ReactFlow pane to avoid blocking UI
     const pane = document.querySelector('.react-flow__pane');
-    pane?.addEventListener(
-      'click',
-      handleMouseSettlePosition as unknown as EventListener
-    );
-
-    // allow cancellation with right click anywhere
-    document.addEventListener(
-      'contextmenu',
-      handleRightClick as unknown as EventListener
-    );
+    pane?.addEventListener('mousedown', handlePaneMouseDown as any);
+    document.addEventListener('mousemove', handleRectMouseMove as any);
+    document.addEventListener('mouseup', handleRectMouseUp as any);
+    document.addEventListener('contextmenu', handleRightClick as any);
 
     return () => {
-      document.removeEventListener(
-        'mousemove',
-        handleMouseMove as unknown as EventListener
-      );
-      pane?.removeEventListener(
-        'click',
-        handleMouseSettlePosition as unknown as EventListener
-      );
-      document.removeEventListener(
-        'contextmenu',
-        handleRightClick as unknown as EventListener
-      );
+      pane?.removeEventListener('mousedown', handlePaneMouseDown as any);
+      document.removeEventListener('mousemove', handleRectMouseMove as any);
+      document.removeEventListener('mouseup', handleRectMouseUp as any);
+      document.removeEventListener('contextmenu', handleRightClick as any);
     };
-  }, [isDragging, handleMouseMove, handleMouseSettlePosition, handleRightClick]);
+  }, [isDragging, handlePaneMouseDown, handleRectMouseMove, handleRectMouseUp, handleRightClick]);
 
   const [selectedNodeMenuSubMenu, setSelectedNodeMenuSubMenu] = useState(-1);
 
@@ -373,188 +423,29 @@ function NodeMenu({
     return;
   };
 
-  // 渲染拖拽指示器
-  const renderDragIndicator = () => {
-    if (
-      !isDragging ||
-      !draggedNodeType ||
-      !mousePosition ||
-      !isOnGeneratingNewNode ||
-      node
-    )
+  // 渲染矩形选择覆盖层
+  const renderSelectionOverlay = () => {
+    if (!isDragging || !draggedNodeType || !rectStart || !rectEnd || !isOnGeneratingNewNode)
       return <></>;
 
-    const getNodeIcon = () => {
-      switch (draggedNodeType) {
-        case 'text':
-          return (
-            <span className='bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text text-[24px]'>
-              Aa
-            </span>
-          );
-        case 'structured':
-          return (
-            <svg
-              width='28'
-              height='28'
-              viewBox='0 0 24 24'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-            >
-              <defs>
-                <linearGradient
-                  id='structuredGradient'
-                  x1='2'
-                  y1='2'
-                  x2='22'
-                  y2='22'
-                >
-                  <stop offset='0%' stopColor='#A78BFA' />
-                  <stop offset='100%' stopColor='#7C3AED' />
-                </linearGradient>
-              </defs>
-              <rect
-                x='2'
-                y='2'
-                width='20'
-                height='20'
-                rx='3'
-                stroke='url(#structuredGradient)'
-                strokeWidth='1.5'
-              />
-              <rect
-                x='5'
-                y='6'
-                width='14'
-                height='2.5'
-                rx='1'
-                fill='url(#structuredGradient)'
-              />
-              <rect
-                x='5'
-                y='11'
-                width='11'
-                height='2.5'
-                rx='1'
-                fill='url(#structuredGradient)'
-              />
-              <rect
-                x='5'
-                y='16'
-                width='8'
-                height='2.5'
-                rx='1'
-                fill='url(#structuredGradient)'
-              />
-            </svg>
-          );
-        case 'file':
-          return (
-            <svg
-              width='28'
-              height='28'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='url(#gradient1)'
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            >
-              <defs>
-                <linearGradient
-                  id='gradient1'
-                  x1='0%'
-                  y1='0%'
-                  x2='100%'
-                  y2='100%'
-                >
-                  <stop offset='0%' stopColor='#22C55E' />
-                  <stop offset='100%' stopColor='#16A34A' />
-                </linearGradient>
-              </defs>
-              <path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'></path>
-              <polyline points='13 2 13 9 20 9'></polyline>
-            </svg>
-          );
-        case 'weblink':
-          return (
-            <svg
-              width='28'
-              height='28'
-              viewBox='0 0 24 24'
-              fill='none'
-              stroke='url(#gradient2)'
-              strokeWidth='2'
-              strokeLinecap='round'
-              strokeLinejoin='round'
-            >
-              <defs>
-                <linearGradient
-                  id='gradient2'
-                  x1='0%'
-                  y1='0%'
-                  x2='100%'
-                  y2='100%'
-                >
-                  <stop offset='0%' stopColor='#F59E0B' />
-                  <stop offset='100%' stopColor='#D97706' />
-                </linearGradient>
-              </defs>
-              <path d='M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71'></path>
-              <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path>
-            </svg>
-          );
-        case 'group':
-          return (
-            <svg
-              width='28'
-              height='28'
-              viewBox='0 0 24 24'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-            >
-              <rect
-                x='3'
-                y='3'
-                width='18'
-                height='18'
-                rx='2'
-                stroke='#9B7EDB'
-                strokeWidth='1.5'
-                strokeDasharray='4 4'
-              />
-              <rect
-                x='7'
-                y='7'
-                width='10'
-                height='10'
-                rx='1'
-                fill='#9B7EDB'
-                fillOpacity='0.2'
-              />
-            </svg>
-          );
-        default:
-          return null;
-      }
-    };
+    const left = Math.min(rectStart.x, rectEnd.x);
+    const top = Math.min(rectStart.y, rectEnd.y);
+    const width = Math.abs(rectEnd.x - rectStart.x);
+    const height = Math.abs(rectEnd.y - rectStart.y);
 
     return (
       <div
         style={{
           position: 'fixed',
-          width: `64px`,
-          height: `64px`,
-          left: mousePosition.x + 32,
-          top: mousePosition.y + 32,
+          left,
+          top,
+          width,
+          height,
           pointerEvents: 'none',
           zIndex: 100000,
-          transform: 'translate(-50%, -50%)',
         }}
-        className='flex items-center justify-center bg-[#1C1D1F] rounded-lg border border-[#6D7177]'
-      >
-        {getNodeIcon()}
-      </div>
+        className='border border-[#60A5FA] border-dashed bg-[rgba(96,165,250,0.08)] rounded-lg'
+      />
     );
   };
 
@@ -762,7 +653,7 @@ function NodeMenu({
           {/* Group creation has been removed from menu UI */}
         </ul>
       </Transition>
-      {renderDragIndicator()}
+      {renderSelectionOverlay()}
     </>
   );
 }
