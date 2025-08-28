@@ -1112,8 +1112,8 @@ export async function runSingleEdgeNode({
   try {
     context.clearAll();
 
-    // 运行前同步当前边涉及的 block 节点（只依赖 source/target 列表与 getNode）
-    await preRunSyncInvolvedNodes(parentId, context);
+    // 🚀 优化：去掉运行前强制同步，直接发送数据
+    // 依赖2秒防抖机制保证数据一致性，大幅提升性能
 
     const targetNodeIdWithLabelGroup =
       context.getTargetNodeIdWithLabel(parentId);

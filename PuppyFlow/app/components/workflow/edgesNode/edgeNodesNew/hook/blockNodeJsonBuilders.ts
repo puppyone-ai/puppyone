@@ -60,24 +60,11 @@ function buildTextNodeJson(
 
   const label = nodeData.label || node.id;
 
-  // 如果是 external 指针，按数据最小化规范构建
-  const isExternalPointer =
-    nodeData?.storage_class === 'external' &&
-    nodeData?.external_metadata &&
-    typeof nodeData.external_metadata?.resource_key === 'string';
-
-  if (isExternalPointer) {
-    return {
-      label,
-      type: 'text',
-      storage_class: 'external',
-      data: {
-        external_metadata: nodeData.external_metadata,
-      },
-      looped: !!nodeData.looped,
-      collection_configs: [],
-    };
-  }
+  // 🚀 架构优化：统一使用content传递，后端不再从外部存储下载
+  // 这样可以大幅简化逻辑，减少网络请求，提升性能
+  console.log(
+    `🔧 [buildTextNodeJson] Building text block ${nodeId} with direct content`
+  );
 
   return {
     label,
@@ -132,24 +119,11 @@ function buildStructuredNodeJson(
       .map((item: any) => item.collection_configs);
   }
 
-  // 如果是 external 指针，按数据最小化规范构建
-  const isExternalPointer =
-    nodeData?.storage_class === 'external' &&
-    nodeData?.external_metadata &&
-    typeof nodeData.external_metadata?.resource_key === 'string';
-
-  if (isExternalPointer) {
-    return {
-      label,
-      type: 'structured',
-      storage_class: 'external',
-      data: {
-        external_metadata: nodeData.external_metadata,
-      },
-      looped: !!nodeData.looped,
-      collection_configs: collectionConfigs,
-    };
-  }
+  // 🚀 架构优化：统一使用content传递，后端不再从外部存储下载
+  // 这样可以大幅简化逻辑，减少网络请求，提升性能
+  console.log(
+    `🔧 [buildStructuredNodeJson] Building structured block ${nodeId} with direct content`
+  );
 
   return {
     label,

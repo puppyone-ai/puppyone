@@ -23,7 +23,10 @@ class BlockFactory:
     @staticmethod
     def create_block(block_id: str, block_data: Dict[str, Any]) -> BaseBlock:
         """
-        Create a block instance with the appropriate persistence strategy
+        🚀 优化：简化block创建逻辑，统一使用内容驱动的策略选择
+        
+        现在后端不再从外部存储下载内容，而是直接使用JSON中的content。
+        策略选择基于内容大小和类型，而不是external_metadata。
         
         Args:
             block_id: Unique identifier for the block
@@ -32,19 +35,23 @@ class BlockFactory:
         Returns:
             BaseBlock: A configured block instance
         """
-        # Determine initial persistence strategy
-        storage_class = block_data.get('storage_class', 'internal')
+        # 检查是否是文件类型（文件类型仍需要外部存储策略用于下载实际文件）
+        block_type = block_data.get('type', 'text')
         has_external_metadata = bool(block_data.get('data', {}).get('external_metadata'))
+        content_type = block_data.get('data', {}).get('external_metadata', {}).get('content_type', 'text')
         
-        if storage_class == 'external' or has_external_metadata:
+        # 文件类型仍然需要ExternalStorageStrategy来处理文件下载
+        if block_type == 'file' or content_type == 'files':
             strategy = ExternalStorageStrategy()
-            log_debug(f"Creating block {block_id} with ExternalStorageStrategy")
+            log_debug(f"Creating file block {block_id} with ExternalStorageStrategy for file handling")
         else:
+            # 对于text和structured类型，默认使用MemoryStrategy
+            # ExternalStorageStrategy只在需要持久化大内容时动态切换
             strategy = MemoryStrategy()
-            log_debug(f"Creating block {block_id} with MemoryStrategy")
+            log_debug(f"Creating block {block_id} with MemoryStrategy (will auto-switch if needed)")
         
         # Create GenericBlock instance
-        # In the future, we could create different block types based on block_data['type']
+        # GenericBlock会根据内容大小动态切换策略
         return GenericBlock(block_id, block_data, persistence_strategy=strategy)
     
     @staticmethod

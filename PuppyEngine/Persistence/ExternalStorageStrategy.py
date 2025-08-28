@@ -33,51 +33,46 @@ class ExternalStorageStrategy:
     
     async def resolve(self, storage_client: Any, block: 'BaseBlock') -> None:
         """
-        Resolve external content for the block
+        🚀 优化：不再从外部存储下载内容，直接使用JSON中传递的content
         
-        Downloads content from external storage and reconstructs it
-        based on the content type specified in external_metadata.
+        前端已经通过防抖机制确保了数据一致性，后端直接使用传递的内容即可。
+        这样可以大幅减少网络请求，提升性能。
         
         Args:
-            storage_client: Client for accessing external storage
+            storage_client: Client for accessing external storage (unused)
             block: The block to resolve
         """
-        external_metadata = block.data.get('external_metadata', {})
-        if not external_metadata:
-            log_debug(f"Block {block.id} has no external_metadata, skipping resolve")
+        # 检查是否已经有内容
+        if block.get_content() is not None:
+            log_debug(f"Block {block.id} already has content, marking as resolved")
             block.is_resolved = True
             return
         
-        resource_key = external_metadata.get('resource_key')
-        if not resource_key:
-            raise ValueError(f"Block {block.id} has external_metadata but no resource_key")
-
-        log_info(f"Resolving external content for block {block.id} from {resource_key}")
-
-        try:
-            # Get manifest
-            manifest_key = f"{resource_key}/manifest.json"
-            manifest = await storage_client.get_manifest(manifest_key)
-
-            # Determine content handling strategy
-            content_type = external_metadata.get('content_type', 'text')
-
-            if content_type == 'files':
-                # Prefetch-only: download files to a local working directory and attach a file list
+        # 如果没有内容，检查是否有external_metadata（用于文件类型）
+        external_metadata = block.data.get('external_metadata', {})
+        content_type = external_metadata.get('content_type', 'text')
+        
+        # 特殊处理：仅对文件类型进行下载（因为文件需要实际的本地路径）
+        if content_type == 'files' and external_metadata.get('resource_key'):
+            log_info(f"File block {block.id} requires actual file download, proceeding with download")
+            resource_key = external_metadata.get('resource_key')
+            
+            try:
+                # Get manifest
+                manifest_key = f"{resource_key}/manifest.json"
+                manifest = await storage_client.get_manifest(manifest_key)
+                
+                # Download files to local directory
                 import os
                 import tempfile
-                from Utils.logger import log_debug
-
-                # Derive a stable local dir per block/version
+                
                 version_id = manifest.get('version_id') or resource_key.strip('/').split('/')[-1]
-                # Use system temp dir with namespaced folder
                 base_tmp = tempfile.gettempdir()
                 local_dir = os.path.join(base_tmp, 'puppy', 'env_files', block.id, version_id)
                 os.makedirs(local_dir, exist_ok=True)
 
                 files = []
                 for chunk_info in manifest.get('chunks', []):
-                    # 仅消费 state==done 的分块
                     if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
                         continue
                     name = chunk_info.get('name')
@@ -87,7 +82,6 @@ class ExternalStorageStrategy:
                     try:
                         data = await storage_client.download_chunk(chunk_key)
                         local_path = os.path.join(local_dir, name)
-                        # Ensure parent dirs exist for nested names
                         os.makedirs(os.path.dirname(local_path), exist_ok=True)
                         with open(local_path, 'wb') as f:
                             f.write(data)
@@ -103,60 +97,28 @@ class ExternalStorageStrategy:
                             'size': chunk_info.get('size'),
                             'etag': chunk_info.get('etag'),
                         })
-                        log_debug(f"Downloaded chunk to {local_path}")
+                        log_debug(f"Downloaded file to {local_path}")
                     except Exception as de:
-                        log_warning(f"Failed to download chunk {chunk_key}: {de}")
+                        log_warning(f"Failed to download file {chunk_key}: {de}")
                         files.append({
                             'local_path': None,
                             'file_name': chunk_info.get('file_name') or name,
-                            'mime_type': chunk_info.get('mime_type'),
-                            'file_type': decide_file_type(
-                                chunk_info.get('file_type'),
-                                chunk_info.get('mime_type'),
-                                name
-                            ),
-                            'size': chunk_info.get('size'),
-                            'etag': chunk_info.get('etag'),
                             'error': str(de)
                         })
 
-                # Attach local_dir for lifecycle management and set file list as content
                 block.data.setdefault('external_metadata', {})['local_dir'] = local_dir
                 block.set_content(files)
-                block.is_resolved = True
-                log_info(f"Prefetched {len(files)} files for block {block.id} into {local_dir}")
-                return
-
-            if content_type == 'structured':
-                # Use StreamingJSONAggregator for structured data
-                aggregator = StreamingJSONAggregator()
-                for chunk_info in manifest['chunks']:
-                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
-                        continue
-                    chunk_key = f"{resource_key}/{chunk_info['name']}"
-                    chunk_data = await storage_client.download_chunk(chunk_key)
-                    aggregator.add_jsonl_chunk(chunk_data)
-                block.set_content(aggregator.get_all_objects())
-            else:  # text or binary
-                # Simple concatenation
-                content_parts = []
-                for chunk_info in manifest['chunks']:
-                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
-                        continue
-                    chunk_key = f"{resource_key}/{chunk_info['name']}"
-                    chunk_data = await storage_client.download_chunk(chunk_key)
-                    content_parts.append(chunk_data)
-                if content_type == 'text':
-                    block.set_content(b''.join(content_parts).decode('utf-8'))
-                else:
-                    block.set_content(b''.join(content_parts))
-
-            block.is_resolved = True
-            log_info(f"Successfully resolved content for block {block.id}")
-
-        except Exception as e:
-            log_error(f"Failed to resolve block {block.id}: {str(e)}")
-            raise
+                log_info(f"Downloaded {len(files)} files for block {block.id}")
+                
+            except Exception as e:
+                log_error(f"Failed to download files for block {block.id}: {str(e)}")
+                raise
+        else:
+            # 对于text和structured类型，不进行任何下载
+            # 内容应该已经通过JSON传递过来了
+            log_debug(f"Block {block.id} content should be provided via JSON, no download needed")
+        
+        block.is_resolved = True
     
     async def persist(self, storage_client: Any, user_id: str, block: 'BaseBlock') -> AsyncGenerator[Dict, None]:
         """
