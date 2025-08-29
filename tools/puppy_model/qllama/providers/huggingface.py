@@ -2,8 +2,8 @@ import os
 import time
 from typing import List, Dict, Any, Optional
 
-from puppy_model.capabilities import ModelCapability, cached
-from puppy_model.providers.base import Provider
+from qllama.capabilities import ModelCapability, cached
+from qllama.providers.base import Provider
 
 # 尝试导入transformers库，没有安装则忽略
 try:

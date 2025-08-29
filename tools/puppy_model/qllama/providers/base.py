@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
-
-from puppy_model.capabilities import ModelCapability
+from qllama.capabilities import ModelCapability
 
 class Provider(ABC):
     """模型提供商基类"""

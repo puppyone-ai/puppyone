@@ -1,14 +1,16 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="puppy_model",
+    name="qllama",
     version="0.1.0",
-    description="统一模型接口，支持多种模型提供商",
-    author="PuppyAgent Team",
-    author_email="info@puppyagent.com",
+    description="统一LLM接口，支持多种模型提供商",
+    author="Qllama Team",
+    author_email="info@qllama.com",
     packages=find_packages(),
     install_requires=[
         "requests>=2.25.0",
+        "flask>=2.0.0",
+        "flask-cors>=3.0.0",
     ],
     extras_require={
         "openai": ["openai>=1.0.0"],

@@ -1,46 +1,52 @@
-# PuppyModel
+# Qllama
 
-统一的模型管理包，同时支持嵌入和LLM功能。
+统一LLM接口，支持多种模型提供商。
 
-## 功能特点
+## 特性
 
-- 统一接口：所有提供商通过相同的接口提供服务
-- 自动能力检测：自动检测模型支持的功能（嵌入、LLM等）
-- 多提供商支持：支持Ollama、OpenAI、HuggingFace等
-- 简单易用的API：面向任务的简洁API
+- 🎯 **统一接口** - 一套API调用不同提供商的模型
+- 🚀 **简单易用** - 最少的代码即可开始使用
+- 🔌 **插件化** - 支持扩展新的模型提供商
+- 🔧 **能力检测** - 自动检测模型支持的功能（LLM、嵌入等）
 
 ## 安装
 
 ```bash
-pip install -e /path/to/puppy_model
+pip install -e /path/to/qllama
 ```
 
-## 使用示例
+或者使用requirements.txt:
+```bash
+pip install -r requirements.txt
+```
 
-### 基本用法
+## 快速开始
 
 ```python
-from puppy_model import Embedder, LLM
+from qllama import Embedder, LLM
 
-# 嵌入示例
-embedder = Embedder("bge-large:latest", provider_name="ollama")
-vectors = embedder.embed(["文档1", "文档2"])
-
-# LLM示例
-llm = LLM("llama3.2:latest", provider_name="ollama")
-response = llm.generate("讲个笑话")
+# 使用LLM生成文本
+llm = LLM("gpt-3.5-turbo")
+response = llm.generate("告诉我Python的优点")
 print(response)
+
+# 使用嵌入模型
+embedder = Embedder("text-embedding-ada-002")
+embeddings = embedder.embed(["Hello", "World"])
+print(f"嵌入维度: {len(embeddings[0])}")
 ```
 
-### 获取可用模型
+## 支持的提供商
+
+使用模型注册表查看支持的提供商和模型：
 
 ```python
-from puppy_model import Embedder, LLM, ModelRegistry
+from qllama import Embedder, LLM, ModelRegistry
 
 # 获取所有提供商
 registry = ModelRegistry()
 providers = registry.list_providers()
-print(f"可用提供商: {providers}")
+print("支持的提供商:", providers)
 
 # 获取支持嵌入的模型
 embed_models = Embedder.list_models()
@@ -51,32 +57,28 @@ llm_models = LLM.list_models()
 print(f"支持LLM的模型: {llm_models}")
 ```
 
-## 自定义配置
+## API 服务
 
-```python
-# Ollama配置
-embedder = Embedder("bge-large:latest", provider_name="ollama", endpoint="http://localhost:11434")
+项目包含一个REST API服务，方便其他应用调用：
 
-# 设置超时时间
-vectors = embedder.embed(["文档1", "文档2"], timeout=60)
+```bash
+python api_server.py
 ```
 
-## 集成到现有项目
+然后访问 http://localhost:8080 查看演示页面。
+
+## 更多示例
+
+查看 `examples/` 目录了解更多使用示例：
 
 ```python
-# 示例：在FastAPI中添加模型API
-from fastapi import APIRouter
-from puppy_model import Embedder, LLM
+from qllama import Embedder, LLM
 
-router = APIRouter()
+# 指定提供商
+llm = LLM("gpt-4", provider_name="openai")
+response = llm.generate("你好")
 
-@router.get("/models/embed")
-async def get_embedding_models():
-    """获取支持嵌入的模型列表"""
-    return {"models": Embedder.list_models()}
-
-@router.get("/models/llm")
-async def get_llm_models():
-    """获取支持LLM的模型列表"""
-    return {"models": LLM.list_models()}
+# 自定义配置
+embedder = Embedder("bge-large:latest", provider_name="ollama", endpoint="http://localhost:11434")
+vectors = embedder.embed(["文档1", "文档2"], timeout=60)
 ``` 
