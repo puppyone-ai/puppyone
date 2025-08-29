@@ -285,14 +285,31 @@ class Env:
                             execution_time = max(0.0, perf_counter() - edge_start_times.get(edge_id, 0.0))
                     except Exception:
                         execution_time = None
+                    # Build structured error info for downstream debug collection (will be filtered by policy)
+                    error_text = str(e) if e else ""
+                    # Attempt to extract error category like [PUPPYENGINE_ERROR_XXXX]
+                    error_category = None
+                    try:
+                        import re
+                        m = re.search(r"\[(?P<code>[A-Z_0-9]+)\]", error_text)
+                        if m:
+                            error_category = m.group("code")
+                    except Exception:
+                        error_category = None
+                    # Truncate message to a safe length for debug mode; policy will filter as needed
+                    MAX_MSG = 256
+                    truncated_msg = error_text[:MAX_MSG]
+                    error_info = {
+                        "has_error": True,
+                        "error_type": type(e).__name__,
+                        "error_category": error_category or "engine_execution",
+                        "error_message": truncated_msg,
+                    }
                     await self._track_edge_usage(
                         edge_id,
                         execution_success=False,
                         execution_time=execution_time,
-                        error_info={
-                            "message": str(e),
-                            "type": type(e).__name__
-                        }
+                        error_info=error_info
                     )
                 raise
         
