@@ -1,0 +1,60 @@
+{
+    "edge_name": "DeepResearcherEdge",
+    "model": "gpt-4o-2024-08-06",
+    "max_iterations": 3,
+    "vector_search_configs": {
+        "data_source": [
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "research_papers",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "pgvector",
+                        "user_id": "research_user",
+                        "set_name": "academic_papers",
+                        "description": "Academic research papers and scientific publications",
+                        "enabled": true
+                    }
+                }
+            },
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "news_articles",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "chroma",
+                        "user_id": "research_user",
+                        "set_name": "current_news",
+                        "description": "Recent news articles and current events",
+                        "enabled": true
+                    }
+                }
+            },
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "technical_docs",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "pinecone",
+                        "user_id": "research_user",
+                        "set_name": "technical_documentation",
+                        "description": "Technical documentation and manuals",
+                        "enabled": false
+                    }
+                }
+            }
+        ],
+        "top_k": 5,
+        "threshold": 0.7
+    },
+    "google_search_configs": {
+        "enabled": true,
+        "sub_search_type": "google_v2",
+        "top_k": 5
+    },
+    "perplexity_search_configs": {
+        "enabled": true,
+        "top_k": 5,
+        "model": "perplexity/sonar"
+    }
+}
