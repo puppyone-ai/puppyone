@@ -79,8 +79,8 @@ def stream_until_terminal(task_id: str, user_token: str) -> str:
 def workflow_modify_success():
     return {
         "blocks": {
-            "input": {"label": "input", "type": "text", "data": {"content": "Hello Engine"}},
-            "output": {"label": "output", "type": "text", "data": {"content": ""}},
+            "input": {"label": "input", "type": "text", "storage_class": "internal", "data": {"content": "Hello Engine"}},
+            "output": {"label": "output", "type": "text", "storage_class": "internal", "data": {"content": ""}},
         },
         "edges": {
             "e_modify_ok": {
@@ -99,8 +99,8 @@ def workflow_modify_success():
 def workflow_modify_fail():
     return {
         "blocks": {
-            "input": {"label": "input", "type": "text", "data": {"content": "Will fail"}},
-            "output": {"label": "output", "type": "text", "data": {"content": ""}},
+            "input": {"label": "input", "type": "text", "storage_class": "internal", "data": {"content": "Will fail"}},
+            "output": {"label": "output", "type": "text", "storage_class": "internal", "data": {"content": ""}},
         },
         "edges": {
             "e_modify_fail": {
@@ -119,8 +119,8 @@ def workflow_modify_fail():
 def workflow_llm_success():
     return {
         "blocks": {
-            "input": {"label": "input", "type": "text", "data": {"content": "Say hi"}},
-            "output": {"label": "output", "type": "text", "data": {"content": ""}},
+            "input": {"label": "input", "type": "text", "storage_class": "internal", "data": {"content": "Say hi"}},
+            "output": {"label": "output", "type": "text", "storage_class": "internal", "data": {"content": ""}},
         },
         "edges": {
             "e_llm_ok": {
