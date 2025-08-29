@@ -9,7 +9,7 @@ type UsageDisplayProps = {
 };
 
 const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
-  const { userSubscriptionStatus, usageData, planLimits } = useAppSettings();
+  const { userSubscriptionStatus, usageData, planLimits, isLoadingUsage } = useAppSettings();
   const { workspaces } = useWorkspaces();
   const { apis, chatbots } = useAllDeployedServices();
 
@@ -76,17 +76,17 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
   if (isExpanded) {
     return (
       <div className='my-[5px] p-[8px] pb-[6px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
-        {/* First row: Plan type and upgrade button */}
-        <div className='flex items-center justify-between mb-2'>
-          <span className='text-[#8B8B8B] text-[10px] font-medium'>
-            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
-          </span>
+        {/* First row: Runs left and Unlock CTA */}
+        <div className='flex flex-col items-start gap-1 mb-2'>
+          <div className='text-[#B0B0B0] text-[10px] font-medium'>
+            {`You have ${usageData ? Math.max(usageData.runs.remaining, 0) : Number.isFinite((planLimits as any).runs as any) ? planLimits.runs : '∞'} runs left`}
+          </div>
           {shouldShowGetProButton && (
             <button
               onClick={handleGetProClick}
               className='border border-[#303030] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-1'
             >
-              <span>Upgrade</span>
+              <span>Unlock</span>
               <span className='text-[10px]'>→</span>
             </button>
           )}
@@ -95,8 +95,14 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         {/* Divider line */}
         <div className='w-full h-[1px] bg-[#404040] my-1.5'></div>
 
-        {/* Second row: Mixed layout - center three items */}
+        {/* Second row: Four items with plan on the left */}
         <div className='w-full flex items-center justify-center gap-6'>
+          {/* Plan label moved here */}
+          <div className='flex flex-col items-center gap-1'>
+            <span className='text-[12px] text-[#8B8B8B] font-medium'>
+              {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+            </span>
+          </div>
           {/* Workspaces - current/max format */}
           <div className='flex flex-col items-center gap-1'>
             <span className='text-[12px] text-[#8B8B8B] font-medium'>
@@ -125,8 +131,8 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
           <div className='flex flex-col items-center gap-1 mt-[6px]'>
             <CircularProgress
               percentage={
-                usageData && Number.isFinite(planLimits.runs as any)
-                  ? ((planLimits.runs - usageData.runs.used) / planLimits.runs) * 100
+                usageData && Number.isFinite((usageData.runs.total as any)) && usageData.runs.total > 0
+                  ? ((usageData.runs.total - usageData.runs.used) / usageData.runs.total) * 100
                   : 100
               }
               size={3}
@@ -134,11 +140,13 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             />
             <div className='text-[9px] text-[#666666] text-center'>
               <div>
-                {usageData && Number.isFinite(planLimits.runs as any)
-                  ? `${planLimits.runs - usageData.runs.used} runs`
+                {usageData
+                  ? `${Math.max(usageData.runs.remaining, 0)} runs`
+                  : Number.isFinite((planLimits as any).runs as any)
+                  ? `${planLimits.runs} runs`
                   : `∞ runs`}
               </div>
-              <div>remain</div>
+              <div>{usageData ? 'remain' : 'limit'}</div>
             </div>
           </div>
 
