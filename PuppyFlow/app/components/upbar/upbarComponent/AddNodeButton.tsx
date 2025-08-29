@@ -467,11 +467,10 @@ function NodeMenu({
       >
         <ul
           id='nodeMenu'
-          className={`will-change-auto bg-gradient-to-b from-[#1E1F22]/95 to-[#131416]/95 rounded-[14px] border border-[#3e3e41] ring-1 ring-black/30 absolute left-0 top-full mt-3 z-[10000] text-white text-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] p-[10px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-2xl shadow-black/50 w-[260px] backdrop-blur-md`}
+          className={`will-change-auto bg-gradient-to-b from-[#1E1F22]/95 to-[#131416]/95 rounded-[14px] border border-[#3e3e41] ring-1 ring-black/30 absolute -left-3 top-full mt-3 z-[10000] text-white text-[12px] font-plus-jakarta-sans flex flex-col gap-[12px] p-[12px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-2xl shadow-black/50 w-[260px] backdrop-blur-md`}
           onMouseLeave={() => manageNodeMenuSubMenu(null)}
         >
-          {/* First Row - Text Elements (vertical list) */}
-          <div className='flex flex-col gap-[12px] px-1'>
+          {/* Nodes */}
             <button
               className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
@@ -585,10 +584,6 @@ function NodeMenu({
                 </div>
               </div>
             </button>
-          </div>
-
-          {/* Second Row - Resource Elements (vertical list) */}
-          <div className='flex flex-col gap-[12px] px-1'>
             <button
               className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
@@ -639,7 +634,6 @@ function NodeMenu({
                 </div>
               </div>
             </button>
-          </div>
 
           {/* Group creation has been removed from menu UI */}
         </ul>
