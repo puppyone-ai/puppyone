@@ -467,13 +467,13 @@ function NodeMenu({
       >
         <ul
           id='nodeMenu'
-          className={`will-change-auto bg-[#1c1d1f] rounded-lg border-solid border-[1.5px] border-[#3e3e41] absolute left-0 top-full mt-3 z-[10000] text-white text-[12px] flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-lg w-[260px] backdrop-blur-sm bg-opacity-95`}
+          className={`will-change-auto bg-gradient-to-b from-[#1E1F22]/95 to-[#131416]/95 rounded-[14px] border border-[#3e3e41] ring-1 ring-black/30 absolute left-0 top-full mt-3 z-[10000] text-white text-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] p-[10px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-2xl shadow-black/50 w-[260px] backdrop-blur-md`}
           onMouseLeave={() => manageNodeMenuSubMenu(null)}
         >
           {/* First Row - Text Elements (vertical list) */}
           <div className='flex flex-col gap-[12px] px-1'>
             <button
-              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-md flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
                 manageNodeMenuSubMenu('Textsub1');
               }}
@@ -487,7 +487,7 @@ function NodeMenu({
               }}
             >
               <div className='absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center text-[20px] font-[500] rounded-md shadow-inner relative'>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center text-[20px] font-[500] rounded-[10px] shadow-inner relative'>
                 <span className='bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text group-hover:scale-110 transition-transform duration-200'>
                   Aa
                 </span>
@@ -503,7 +503,7 @@ function NodeMenu({
             </button>
 
             <button
-              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-md flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
                 manageNodeMenuSubMenu('StructuredTextsub1');
               }}
@@ -517,7 +517,7 @@ function NodeMenu({
               }}
             >
               <div className='absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-md shadow-inner relative'>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[10px] shadow-inner relative'>
                 <svg
                   width='24'
                   height='24'
@@ -590,7 +590,7 @@ function NodeMenu({
           {/* Second Row - Resource Elements (vertical list) */}
           <div className='flex flex-col gap-[12px] px-1'>
             <button
-              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-md flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
               onMouseEnter={() => {
                 manageNodeMenuSubMenu('Filesub1');
               }}
@@ -604,7 +604,7 @@ function NodeMenu({
               }}
             >
               <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-md shadow-inner'>
+              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[10px] shadow-inner'>
                 <svg
                   xmlns='http://www.w3.org/2000/svg'
                   width='24'
