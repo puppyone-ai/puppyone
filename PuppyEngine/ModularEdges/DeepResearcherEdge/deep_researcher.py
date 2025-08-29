@@ -134,8 +134,9 @@ class DeepResearcherEdge(EdgeFactoryBase):
                     # Log tool execution results to interaction log
             self._log_tool_execution_to_interaction_log(iteration, tool_results, context, follow_up_prompt)
         
-        # If we've reached max iterations, get final response
-        logger.info(f"🏁 [DeepResearcher] Reached max iterations, getting final response")
+        # If we've reached max iterations, get final response with forced answer prompt
+        logger.info(f"🏁 [DeepResearcher] Reached max iterations, forcing final answer")
+        
         final_response = self._get_llm_response(
             conversation_history, model, temperature, max_tokens, "final"
         )
@@ -171,8 +172,16 @@ class DeepResearcherEdge(EdgeFactoryBase):
             for source in data_sources:
                 index_item = source.get("index_item", {})
                 collection_configs = index_item.get("collection_configs", {})
-                if collection_configs.get("enabled", True):  # Default to True if not specified
+                if collection_configs.get("enabled", False):
                     enabled_vector_dbs.append(collection_configs.get("collection_name", "unknown"))
+        
+        # Check if Google search is enabled
+        google_configs = extra_configs.get("google_search_configs", {})
+        google_enabled = google_configs.get("enabled", False)
+        
+        # Check if Perplexity search is enabled
+        perplexity_configs = extra_configs.get("perplexity_search_configs", {})
+        perplexity_enabled = perplexity_configs.get("enabled", False)
         
         # Build available tools list
         available_tools = []
@@ -183,12 +192,14 @@ class DeepResearcherEdge(EdgeFactoryBase):
             available_tools.append("1. VECTOR_SEARCH")
             tool_descriptions.append("VECTOR_SEARCH - Search across multiple vector databases for relevant documents")
         
-        # Always add web search tools
-        available_tools.append("2. GOOGLE_SEARCH")
-        tool_descriptions.append("GOOGLE_SEARCH - Search the web using Google for current information")
+        # Add web search tools based on configuration
+        if google_enabled:
+            available_tools.append("2. GOOGLE_SEARCH")
+            tool_descriptions.append("GOOGLE_SEARCH - Search the web using Google for current information")
         
-        available_tools.append("3. PERPLEXITY_SEARCH")
-        tool_descriptions.append("PERPLEXITY_SEARCH - Search using Perplexity API for detailed answers")
+        if perplexity_enabled:
+            available_tools.append("3. PERPLEXITY_SEARCH")
+            tool_descriptions.append("PERPLEXITY_SEARCH - Search using Perplexity API for detailed answers")
         
         # Create the system prompt
         system_prompt = f"""You are an intelligent research assistant with access to multiple tools. Your goal is to provide comprehensive and accurate answers to user queries.
@@ -244,6 +255,27 @@ Instructions:
             "messages": messages.copy()
         }
         self.llm_interaction_log.append(interaction_data)
+        
+        # Check if this is the final iteration and modify system prompt accordingly
+        if iteration == "final":
+            # For final iteration, replace the system prompt with one that doesn't mention tools
+            final_system_prompt = """You are an intelligent research assistant. You have reached the maximum number of research iterations and must provide a comprehensive final answer based on all the information you have gathered.
+
+Your task is to synthesize all the information from previous tool executions and provide a well-structured, accurate, and comprehensive answer to the user's original query.
+
+DO NOT call any more tools. Use only the information you have already collected and analyzed.
+
+Please provide your final comprehensive answer now."""
+            
+            # Replace the system message in the messages
+            modified_messages = []
+            for msg in messages:
+                if msg.get("role") == "system":
+                    modified_messages.append({"role": "system", "content": final_system_prompt})
+                else:
+                    modified_messages.append(msg)
+            
+            messages = modified_messages
         
         # Get response from LLM
         chat_service = ChatService(
@@ -519,14 +551,19 @@ Instructions:
             # Use configurable top_k, default to 3 if not specified
             top_k = google_search_configs.get("top_k", 3)
             
+            # Default firecrawl configuration
+            default_firecrawl_config = {
+                "formats": ["markdown"],
+                "is_only_main_content": True,
+                "wait_for": 60,
+                "skip_tls_verification": True,
+                "remove_base64_images": True
+            }
+            
             google_configs = {
                 "sub_search_type": sub_search_type,
                 "top_k": top_k,
-                "firecrawl_config": {
-                    "formats": ["markdown"],
-                    "is_only_main_content": True,
-                    "wait_for": 60
-                }
+                "firecrawl_config": default_firecrawl_config.copy()
             }
             
             # Merge any additional Google configs from extra_configs
