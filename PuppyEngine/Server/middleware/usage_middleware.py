@@ -31,7 +31,8 @@ async def check_usage_limit(
         UsageError: If usage check fails or quota is insufficient
     """
     if not usage_module.requires_usage_check():
-        # Usage check not required, allow all requests
+        # Local mode: explicitly skip usage pre-check
+        log_info("Local mode: skipping usage pre-check")
         return UsageCheckResult(allowed=True, available=float('inf'), estimated_required=estimated_runs)
     
     try:
@@ -89,61 +90,68 @@ async def consume_usage_for_edge(
         UsageError: If usage consumption fails
     """
     if not usage_module.requires_usage_check():
+        log_info("Local mode: skipping usage consumption")
         return
     
     execution_success = edge_metadata.get("execution_success", False)
-    
+
+    edge_type = edge_metadata.get("edge_type")
+
     # 更新事件元数据
     event_metadata = {
         "task_id": edge_metadata.get("task_id"),
         "connection_id": edge_metadata.get("connection_id"),
-        "edge_id": edge_metadata["edge_id"],
-        "edge_type": edge_metadata["edge_type"],
-        "execution_time": edge_metadata["execution_time"],
+        "edge_id": edge_metadata.get("edge_id"),
+        "edge_type": edge_type,
+        "execution_time": edge_metadata.get("execution_time", 0.0),
         "execution_success": execution_success,
         "workflow_type": "engine_execution"
     }
-    
+
     # 添加错误信息（如果有）
     if edge_metadata.get("error_info"):
         event_metadata["error_info"] = edge_metadata["error_info"]
-    
-    if execution_success:
-        # 成功执行的edge：消费usage
-        # 根据可用的认证信息选择合适的方法
-        if auth_result.user_token:
-            # 有用户token，使用基于token的方法
-            await usage_module.consume_usage_async(
-                user_token=auth_result.user_token,
-                usage_type="runs",
-                amount=1,
-                event_metadata=event_metadata
-            )
-        else:
-            # 只有用户ID，使用基于用户ID的方法
-            await usage_module.consume_usage_by_user_id_async(
-                user_id=auth_result.user.user_id,
-                usage_type="runs",
-                amount=1,
-                event_metadata=event_metadata
-            )
+
+    # 决定usage类型与数量
+    from typing import Optional
+    usage_type: Optional[str] = None
+    amount: int = 0
+
+    if edge_type == "llm":
+        # LLM边对应 calls
+        usage_type = "llm_calls"
+        amount = 1 if execution_success else 0
+        if not execution_success:
+            event_metadata["failure_reason"] = "llm_call_failed"
     else:
-        # 失败执行的edge：不消费usage，但记录事件用于调试分析
-        event_metadata["consumed_amount"] = 0  # 明确标记未消费usage
-        event_metadata["failure_reason"] = "edge_execution_failed"
-        
-        # 记录失败事件但不消费usage
+        # 其他基础边：成功执行就计入 runs；失败记录事件（amount=0）
+        usage_type = "runs"
+        amount = 1 if execution_success else 0
+        if not execution_success:
+            event_metadata["failure_reason"] = "edge_execution_failed"
+
+    # 失败为 amount=0 也需要上报（用于审计），成功则上报对应的 amount
+
+    # 发送到用户系统（或本地模式跳过）
+    async def _consume(utype: str, amt: int):
         if auth_result.user_token:
             await usage_module.consume_usage_async(
                 user_token=auth_result.user_token,
-                usage_type="runs",
-                amount=0,  # 失败不消费usage
+                usage_type=utype,
+                amount=amt,
                 event_metadata=event_metadata
             )
         else:
             await usage_module.consume_usage_by_user_id_async(
                 user_id=auth_result.user.user_id,
-                usage_type="runs",
-                amount=0,  # 失败不消费usage
+                usage_type=utype,
+                amount=amt,
                 event_metadata=event_metadata
-            ) 
+            )
+
+    if edge_type in ("llm", "search"):
+        # 对 LLM 与 Search 边：同时计 runs 和 calls（统一记到 llm_calls）
+        await _consume("runs", 1 if execution_success else 0)
+        await _consume("llm_calls", 1 if execution_success else 0)
+    else:
+        await _consume("runs", amount)
