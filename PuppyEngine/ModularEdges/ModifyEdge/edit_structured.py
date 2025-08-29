@@ -72,6 +72,10 @@ class ModifyEditStructured(ModifyStrategy):
                         plugins = op_params.get("plugins", {})
                         result = self._replace_structured_variable_values(plugins=plugins)
 
+                    case "apply_template":
+                        template = op_params.get("value_template", None)
+                        result = self._apply_template(template, result)
+
                     case "set_operation":
                         path1 = op_params.get("path1", [])
                         path2 = op_params.get("path2", [])
@@ -329,6 +333,43 @@ class ModifyEditStructured(ModifyStrategy):
         self.content = replace_value(self.content)
         return self.content
 
+    @global_exception_handler(4212, "Error Applying Template")
+    def _apply_template(
+        self,
+        template: Any,
+        source: Any
+    ) -> Any:
+        """Construct a new object strictly following template structure.
+
+        - Only copy values from source that exist at the same path in template
+        - For dicts: recurse by keys in template
+        - For lists: copy by index with null fill and truncation to template length
+        - For leaves: return source if not None, else None
+        """
+
+        # Dict branch: build keys from template only
+        if isinstance(template, dict):
+            output = {}
+            for key, template_value in template.items():
+                source_value = source.get(key) if isinstance(source, dict) else None
+                output[key] = self._apply_template(template_value, source_value)
+            return output
+
+        # List branch: align by index with null fill/truncation
+        if isinstance(template, list):
+            output_list = []
+            template_length = len(template)
+            for index in range(template_length):
+                template_item = template[index]
+                source_item = (
+                    source[index] if isinstance(source, list) and index < len(source) else None
+                )
+                output_list.append(self._apply_template(template_item, source_item))
+            return output_list
+
+        # Leaf: return source if present, else null
+        return source if source is not None else None
+
 
 if __name__ == "__main__":
     nested_data = {
@@ -507,3 +548,34 @@ if __name__ == "__main__":
             print("状态: ❌ 抛出异常 (符合预期)")
         
         print("-" * 30)
+
+    # === apply_template 演示用例 ===
+    print("\n" + "="*50)
+    print("apply_template 演示 - 同路径拷贝，最底层数组按索引，缺失填 null")
+    print("="*50)
+
+    source_a = {
+        "user": {"name": "Hello {{nick}}", "age": 30, "tags": ["pro", "beta"]},
+        "prefs": {"theme": "dark"}
+    }
+    template_a = {
+        "user": {"name": None, "age": None, "tags": [None, None, None]},
+        "prefs": {"theme": None, "lang": None}
+    }
+    operations_a = [
+        {"type": "variable_replace", "params": {"plugins": {"nick": "Alice"}}},
+        {"type": "apply_template", "params": {"value_template": template_a}}
+    ]
+    result_a = ModifyEditStructured(content=source_a, extra_configs={"operations": operations_a}).modify()
+    print("用例A结果:", result_a)
+
+    source_b = {
+        "user": {"name": "Hello {{nick}}", "age": 30, "tags": ["pro"]},
+        "prefs": {"theme": "dark"}
+    }
+    operations_b = [
+        {"type": "variable_replace", "params": {"plugins": {"nick": "Alice"}}},
+        {"type": "apply_template", "params": {"value_template": template_a}}
+    ]
+    result_b = ModifyEditStructured(content=source_b, extra_configs={"operations": operations_b}).modify()
+    print("用例B结果(源数组更短，null 补齐):", result_b)
