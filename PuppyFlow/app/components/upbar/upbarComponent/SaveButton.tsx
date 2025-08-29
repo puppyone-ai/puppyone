@@ -76,8 +76,8 @@ function SaveButton() {
     saveState === 'idle' ? (
       <svg
         xmlns='http://www.w3.org/2000/svg'
-        width='14'
-        height='14'
+        width='16'
+        height='16'
         viewBox='0 0 14 14'
         fill='none'
       >
@@ -91,8 +91,8 @@ function SaveButton() {
     ) : saveState === 'success' ? (
       <svg
         xmlns='http://www.w3.org/2000/svg'
-        width='14'
-        height='14'
+        width='16'
+        height='16'
         viewBox='0 0 14 14'
         fill='none'
       >
@@ -106,8 +106,8 @@ function SaveButton() {
     ) : (
       <svg
         xmlns='http://www.w3.org/2000/svg'
-        width='14'
-        height='14'
+        width='16'
+        height='16'
         viewBox='0 0 14 14'
         fill='none'
       >
@@ -126,7 +126,7 @@ function SaveButton() {
   return (
     <div className='relative flex flex-col items-center'>
       <button
-        className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border text-[13px] font-medium transition-colors ${
+        className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border text-[14px] font-medium transition-colors ${
           isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'
         } bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A]`}
         onMouseEnter={() => setIsHovering(true)}
@@ -141,7 +141,7 @@ function SaveButton() {
           {saveButtonLogo}
         </div>
         <div
-          className={`text-[13px] font-medium leading-normal ${
+          className={`text-[14px] font-medium leading-normal ${
             saveState === 'idle'
               ? 'text-[#CDCDCD] group-hover:text-main-grey'
               : saveState === 'success'
