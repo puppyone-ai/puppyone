@@ -9,7 +9,7 @@ type UsageDisplayProps = {
 };
 
 const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
-  const { userSubscriptionStatus, usageData, planLimits, isLoadingUsage } = useAppSettings();
+  const { userSubscriptionStatus, usageData, planLimits, isLoadingUsage, isLocalDeployment } = useAppSettings();
   const { workspaces } = useWorkspaces();
   const { apis, chatbots } = useAllDeployedServices();
 
@@ -21,6 +21,25 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
   const handleGetProClick = () => {
     window.open('https://www.puppyagent.com/pricing', '_blank');
   };
+
+  // Handle Learn more click
+  const handleLearnMoreClick = () => {
+    window.open('https://www.puppyagent.com/pricing', '_blank');
+  };
+
+  // Derived usage numbers for banner
+  const totalRuns =
+    usageData && Number.isFinite((usageData.runs.total as any))
+      ? usageData.runs.total
+      : Number.isFinite((planLimits as any).runs as any)
+      ? (planLimits as any).runs
+      : undefined;
+
+  const remainingRuns = usageData
+    ? Math.max(usageData.runs.remaining, 0)
+    : Number.isFinite((planLimits as any).runs as any)
+    ? (planLimits as any).runs
+    : 0;
 
   // Circular progress component
   const CircularProgress: React.FC<{
@@ -76,81 +95,33 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
   if (isExpanded) {
     return (
       <div className='my-[5px] p-[8px] pb-[6px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
-        {/* First row: Runs left and Unlock CTA */}
-        <div className='flex flex-col items-start gap-1 mb-2'>
-          <div className='text-[#B0B0B0] text-[10px] font-medium'>
-            {`You have ${usageData ? Math.max(usageData.runs.remaining, 0) : Number.isFinite((planLimits as any).runs as any) ? planLimits.runs : '∞'} runs left`}
+        {/* Banner with two-row layout */}
+        <div className='flex flex-col items-start gap-2 mb-2'>
+          <div className='text-[#E5E5E5] text-[12px]'>
+            {isLocalDeployment
+              ? 'You are running locally. Unlimited runs.'
+              : `You have ${remainingRuns}${Number.isFinite((totalRuns as any)) ? ` of ${totalRuns}` : ''} ${userSubscriptionStatus?.is_premium ? 'Runs' : 'free Runs'} remaining with your ${userSubscriptionStatus?.is_premium ? 'Pro' : 'Free'} plan.`}
           </div>
-          {shouldShowGetProButton && (
-            <button
-              onClick={handleGetProClick}
-              className='border border-[#303030] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-1'
-            >
-              <span>Unlock</span>
-              <span className='text-[10px]'>→</span>
-            </button>
-          )}
+          
         </div>
 
         {/* Divider line */}
         <div className='w-full h-[1px] bg-[#404040] my-1.5'></div>
 
-        {/* Second row: Four items with plan on the left */}
-        <div className='w-full flex items-center justify-center gap-6'>
-          {/* Plan label moved here */}
-          <div className='flex flex-col items-center gap-1'>
-            <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
-            </span>
-          </div>
-          {/* Workspaces - current/max format */}
-          <div className='flex flex-col items-center gap-1'>
-            <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {`${workspaces?.length || 0}/${
-                (Number.isFinite(planLimits.workspaces as any)
-                  ? planLimits.workspaces
-                  : '∞') as any
-              }`}
-            </span>
-            <span className='text-[9px] text-[#666666]'>space</span>
-          </div>
-
-          {/* Deployed Services - current/max format */}
-          <div className='flex flex-col items-center gap-1'>
-            <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {`${(apis?.length || 0) + (chatbots?.length || 0)}/${
-                (Number.isFinite(planLimits.deployedServices as any)
-                  ? planLimits.deployedServices
-                  : '∞') as any
-              }`}
-            </span>
-            <span className='text-[9px] text-[#666666]'>server</span>
-          </div>
-
-          {/* Runs - circle showing remaining */}
-          <div className='flex flex-col items-center gap-1 mt-[6px]'>
-            <CircularProgress
-              percentage={
-                usageData && Number.isFinite((usageData.runs.total as any)) && usageData.runs.total > 0
-                  ? ((usageData.runs.total - usageData.runs.used) / usageData.runs.total) * 100
-                  : 100
-              }
-              size={3}
-              strokeWidth={2}
-            />
-            <div className='text-[9px] text-[#666666] text-center'>
-              <div>
-                {usageData
-                  ? `${Math.max(usageData.runs.remaining, 0)} runs`
-                  : Number.isFinite((planLimits as any).runs as any)
-                  ? `${planLimits.runs} runs`
-                  : `∞ runs`}
-              </div>
-              <div>{usageData ? 'remain' : 'limit'}</div>
-            </div>
-          </div>
-
-          {/* LLM Calls hidden in expanded view per requirement */}
+        {/* Lower section: plan label and CTA (space-between) */}
+        <div className='w-full flex items-center justify-between gap-3 py-1'>
+          <span className='text-[12px] text-[#8B8B8B] font-medium'>
+            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
+          </span>
+          {shouldShowGetProButton && (
+            <button
+              onClick={handleGetProClick}
+              className='border border-[#404040] bg-[#2B2B2B] text-[#CDCDCD] text-[11px] font-medium py-[6px] px-[10px] rounded-md hover:border-[#FFA73D] hover:bg-[#FFA73D] hover:text-[#111111] transition-all duration-200 inline-flex items-center gap-1'
+            >
+              <span>Unlock unlimited</span>
+              <ArrowUpRight size={12} />
+            </button>
+          )}
         </div>
       </div>
     );
@@ -160,7 +131,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
     return (
       <div className='mb-[8px] w-full flex flex-col items-center gap-1'>
         {/* Plan label */}
-        <div className='text-[#8B8B8B] text-[9px] font-medium'>
+        <div className='text-[#8B8B8B] text-[12px] font-medium'>
           {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
         </div>
 
@@ -170,7 +141,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             onClick={handleGetProClick}
             title='Upgrade'
             aria-label='Upgrade'
-            className='border border-[#404040] hover:border-[#FF6B35] text-[#8B8B8B] hover:text-[#FF6B35] p-[2px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center justify-center'
+            className='border border-[#404040] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] p-[2px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FFA73D]/10 flex items-center justify-center'
           >
             <ArrowUpRight size={12} />
           </button>
@@ -189,14 +160,11 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
               strokeWidth={2}
             />
             <div className='text-[9px] text-[#666666] text-center'>
-              {usageData && Number.isFinite((planLimits as any).runs as any) ? (
-                <>
-                  <div>{`${Math.max(planLimits.runs - usageData.runs.used, 0)}/${planLimits.runs}`}</div>
-                  <div>runs</div>
-                </>
-              ) : (
-                <div>∞ runs</div>
-              )}
+              {usageData && Number.isFinite((planLimits as any).runs as any)
+                ? `${Math.max(planLimits.runs - usageData.runs.used, 0)} runs`
+                : Number.isFinite((planLimits as any).runs as any)
+                ? `${planLimits.runs} runs`
+                : `∞ runs`}
             </div>
           </div>
         </div>
