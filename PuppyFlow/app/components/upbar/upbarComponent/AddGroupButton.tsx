@@ -18,15 +18,15 @@ export default function AddGroupButton() {
           } as any)
         );
       }}
-      className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border text-[13px] font-medium transition-colors bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A] ${
+      className={`group inline-flex items-center gap-2 h-[36px] w-[90px] rounded-[8px] px-2.5 py-1.5 border text-[14px] font-medium transition-colors bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A] ${
         isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'
       }`}
       title='Group'
       aria-label='Group'
     >
       <svg
-        width='14'
-        height='14'
+        width='16'
+        height='16'
         viewBox='0 0 24 24'
         fill='none'
         xmlns='http://www.w3.org/2000/svg'

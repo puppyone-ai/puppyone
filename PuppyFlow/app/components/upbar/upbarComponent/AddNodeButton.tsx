@@ -6,18 +6,13 @@ import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { nanoid } from 'nanoid';
 import { Transition } from '@headlessui/react';
 
-// deprecated legacy type removed
-
-// 恢复 "Groupsub1" 类型
+// Simplified menu type - only keeping the ones we need
 type menuNameType =
   | null
   | 'Textsub1'
   | 'StructuredTextsub1'
   | 'Filesub1'
-  | 'Switchsub1'
-  | 'VectorDatabasesub1'
-  | 'Otherssub1'
-  | 'Groupsub1';
+  | 'Weblinksub1';
 
 function AddNodeButton() {
   const [selectedMenu, setSelectedMenu] = useState(0);
@@ -86,19 +81,19 @@ function AddNodeButton() {
     <div id='nodeMenuButtonContainer' className='relative inline-block'>
       <button
         id='nodeMenuButton'
-        title='Add Block'
-        aria-label='Add Block'
-        className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border text-[13px] font-medium transition-colors ${
+        title='Block'
+        aria-label='Block'
+        className={`group inline-flex items-center gap-2 h-[36px] w-[90px] rounded-[8px] px-2.5 py-1.5 border text-[14px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#4599DF]/40 ${
           selectedMenu === 1
-            ? 'bg-[#3A3A3A] border-[#3A3A3A] text-white'
-            : 'bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A]'
+            ? 'bg-[#4599DF] border-[#4599DF] text-black'
+            : 'bg-[#4599DF] border-[#4599DF] text-black hover:bg-[#3A8BD9] active:bg-[#2F7EC9]'
         } ${isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'}`}
       >
         <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 8 8' fill='none' className='text-current'>
           <path d='M4 0L4 8' stroke='currentColor' strokeWidth='1.5' />
           <path d='M0 4L8 4' stroke='currentColor' strokeWidth='1.5' />
         </svg>
-        <span>Add Block</span>
+        <span>Block</span>
       </button>
       <NodeMenu
         selectedMenu={selectedMenu}
@@ -131,7 +126,6 @@ function NodeMenu({
     finishGeneratingNewNode,
     isOnGeneratingNewNode,
   } = useNodesPerFlowContext();
-  // removed legacy single-click placement node state
 
   // for drag and drop purpose
   // Rectangle-to-create workflow state
@@ -185,13 +179,10 @@ function NodeMenu({
 
       const getMinSize = (nodeType: string) => {
         switch (nodeType) {
-          case 'group':
-            return { width: 240, height: 176 };
           case 'text':
           case 'structured':
           case 'file':
           case 'weblink':
-          case 'switch':
           default:
             return { width: 240, height: 176 };
         }
@@ -210,7 +201,7 @@ function NodeMenu({
 
       // Build node data
       const newNodeId = nanoid(6);
-      const defaultNodeContent = draggedNodeType === 'switch' ? 'OFF' : '';
+      const defaultNodeContent = '';
       const nodeData: any = {
         content: defaultNodeContent,
         label: newNodeId,
@@ -220,19 +211,6 @@ function NodeMenu({
         isOutput: false,
         editable: false,
       };
-      if (draggedNodeType === 'group') {
-        // Random background color for group
-        const colors = [
-          'rgba(85, 83, 77, 0.2)',
-          'rgba(108, 72, 60, 0.2)',
-          'rgba(143, 63, 61, 0.2)',
-          'rgba(68, 106, 91, 0.2)',
-          'rgba(64, 101, 131, 0.2)',
-          'rgba(110, 95, 133, 0.2)',
-          'rgba(119, 89, 110, 0.2)',
-        ];
-        nodeData.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-      }
 
       setNodes(prev => [
         ...prev,
@@ -309,8 +287,6 @@ function NodeMenu({
     onExternalHandled();
   }, [externalCreate]);
 
-  // removed legacy mousePosition-based placement effect
-
   const manageNodeMenuSubMenu = (menuName: menuNameType) => {
     let value = -1;
     if (menuName === null) {
@@ -327,17 +303,8 @@ function NodeMenu({
       case 'Filesub1':
         value = 2;
         break;
-      case 'Switchsub1':
+      case 'Weblinksub1':
         value = 3;
-        break;
-      case 'VectorDatabasesub1':
-        value = 4;
-        break;
-      case 'Otherssub1':
-        value = 5;
-        break;
-      case 'Groupsub1': // 恢复 group 菜单项
-        value = 6;
         break;
       default:
         value = -1;
@@ -368,8 +335,6 @@ function NodeMenu({
           return { border: '#22C55E', bg: 'rgba(34,197,94,0.10)' };
         case 'weblink':
           return { border: '#F59E0B', bg: 'rgba(245,158,11,0.10)' };
-        case 'group':
-          return { border: '#9B7EDB', bg: 'rgba(155,126,219,0.10)' };
         default:
           return { border: '#60A5FA', bg: 'rgba(96,165,250,0.08)' };
       }
@@ -449,13 +414,6 @@ function NodeMenu({
               <path d='M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71'></path>
             </svg>
           );
-        case 'group':
-          return (
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
-              <rect x='3' y='3' width='18' height='18' rx='2' stroke='#9B7EDB' strokeWidth='1.5' strokeDasharray='4 4' />
-              <rect x='7' y='7' width='10' height='10' rx='1' fill='#9B7EDB' fillOpacity='0.2' />
-            </svg>
-          );
         default:
           return null;
       }
@@ -479,8 +437,6 @@ function NodeMenu({
                 return '#22C55E';
               case 'weblink':
                 return '#F59E0B';
-              case 'group':
-                return '#9B7EDB';
               default:
                 return '#3E3E41';
             }
@@ -514,8 +470,6 @@ function NodeMenu({
           className={`will-change-auto bg-[#1c1d1f] rounded-lg border-solid border-[1.5px] border-[#3e3e41] absolute left-0 top-full mt-3 z-[10000] text-white text-[12px] flex flex-col gap-[16px] p-[14px] transition-all duration-300 ease-in-out origin-top pointer-events-auto shadow-lg w-[260px] backdrop-blur-sm bg-opacity-95`}
           onMouseLeave={() => manageNodeMenuSubMenu(null)}
         >
-          {/* Remove category header per request */}
-
           {/* First Row - Text Elements (vertical list) */}
           <div className='flex flex-col gap-[12px] px-1'>
             <button
@@ -632,8 +586,6 @@ function NodeMenu({
               </div>
             </button>
           </div>
-
-          {/* Remove category header per request */}
 
           {/* Second Row - Resource Elements (vertical list) */}
           <div className='flex flex-col gap-[12px] px-1'>

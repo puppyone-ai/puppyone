@@ -92,7 +92,7 @@ function TestRunBotton() {
 
   return (
     <button
-      className={`group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] text-[13px] font-medium transition-colors active:scale-95 ${
+      className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border border-[#2A2A2A] text-[14px] font-medium transition-colors active:scale-95 ${
         !isComplete
           ? 'bg-[#2A2A2A] text-[#39BC66] opacity-60 cursor-not-allowed'
           : 'bg-[#2A2A2A] text-[#39BC66] hover:bg-[#39BC66] hover:text-black'
@@ -136,7 +136,7 @@ function TestRunBotton() {
           <path d='M12 7L3 13V1L12 7Z' fill='currentColor' className='text-[#39BC66] group-hover:text-black' />
         </svg>
       )}
-      <div className={`text-[13px] font-medium leading-normal`}> {!isComplete ? 'Processing...' : 'Run All'}</div>
+      <div className={`text-[14px] font-medium leading-normal`}> {!isComplete ? 'Processing...' : 'Run All'}</div>
     </button>
   );
 }
