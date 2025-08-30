@@ -5,14 +5,12 @@ python-multipart==0.0.20
 # Embedding
 openai==1.95.1
 transformers==4.53.2
-sentence-transformers==5.0.0
-torch==2.7.1
-pillow==11.3.0
+sentence_transformers==5.0.0
 
 # Vector Database
 vecs==0.4.5
 pymilvus==2.5.12
-qdrant-client==1.14.3
+qdrant_client==1.14.3
 weaviate-client==4.15.4
 psycopg2-binary==2.9.10
 pinecone==7.3.0
@@ -23,13 +21,12 @@ boto3==1.39.4
 fastapi==0.116.1
 axiom-py==0.9.0
 hypercorn==0.17.3
-requests==2.32.4
-pydantic==2.11.7
 
-# gRPC and protobuf
+# Unknown -- Delete?
 grpcio==1.67.1
 grpcio-tools==1.67.1
 protobuf==5.29.5
+protoc-gen-openapiv2==0.0.1
 googleapis-common-protos==1.70.0
 
 # Test
