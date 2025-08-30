@@ -13,6 +13,8 @@ import { AppSettingsProvider } from './components/states/AppSettingsContext';
 import { ServersProvider } from './components/states/UserServersContext';
 import { useDisplaySwitch } from './components/hooks/useDisplayWorkspcaeSwitching';
 import ServerDisplay from './components/serverDisplay/ServerDisplay';
+import { SYSTEM_URLS } from '@/config/urls';
+import axios from 'axios';
 
 function ActiveFlowContent() {
   const { showingItem } = useWorkspaces();
@@ -36,6 +38,60 @@ function ActiveFlowContent() {
 }
 
 function MainApplication() {
+  // Install global 401 handlers for fetch and axios
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const originalFetch = window.fetch;
+    const redirectFlagKey = '__auth_redirecting_due_to_401__';
+
+    const redirectToLogin = () => {
+      // Prevent multiple simultaneous redirects
+      if ((window as any)[redirectFlagKey]) return;
+      (window as any)[redirectFlagKey] = true;
+
+      try {
+        const loginUrl = new URL(SYSTEM_URLS.USER_SYSTEM.FRONTEND);
+        loginUrl.searchParams.set('return_to', window.location.href);
+        // Notify UI before navigating away
+        window.dispatchEvent(
+          new CustomEvent('auth:expired', { detail: { status: 401 } })
+        );
+        window.location.replace(loginUrl.toString());
+      } catch (error) {
+        // Fallback: hard reload if URL config malformed
+        window.location.reload();
+      }
+    };
+
+    // Wrap fetch to catch 401 responses
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...(args as Parameters<typeof originalFetch>));
+      if (response && response.status === 401) {
+        redirectToLogin();
+      }
+      return response;
+    };
+
+    // Axios response interceptor to handle 401 globally
+    const interceptorId = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const status: number | undefined = error?.response?.status;
+        if (status === 401) {
+          redirectToLogin();
+        }
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      // Cleanup on unmount
+      window.fetch = originalFetch;
+      axios.interceptors.response.eject(interceptorId);
+    };
+  }, []);
+
   return (
     <div
       id='home'
