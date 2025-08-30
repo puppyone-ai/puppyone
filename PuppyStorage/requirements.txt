@@ -1,34 +1,38 @@
-python-dotenv==1.1.0
+python-dotenv==1.1.1
 PyYAML==6.0.2
-python-multipart==0.0.9
+python-multipart==0.0.20
 
 # Embedding
-openai==1.85.0
-transformers==4.52.4
-sentence_transformers==4.1.0
+openai==1.95.1
+transformers==4.53.2
+sentence-transformers==5.0.0
+torch==2.7.1
+pillow==11.3.0
 
 # Vector Database
 vecs==0.4.5
-pymilvus==2.4.9
-qdrant_client==1.14.2
-weaviate-client==4.9.6
+pymilvus==2.5.12
+qdrant-client==1.14.3
+weaviate-client==4.15.4
 psycopg2-binary==2.9.10
-pinecone==7.0.2
-chromadb==0.5.11
+pinecone==7.3.0
+chromadb==1.0.15
 
 # Server
-boto3==1.38.32
-fastapi==0.115.12
+boto3==1.39.4
+fastapi==0.116.1
 axiom-py==0.9.0
 hypercorn==0.17.3
+requests==2.32.4
+pydantic==2.11.7
 
 # gRPC and protobuf
-grpcio==1.73.1
-grpcio-tools==1.73.1
-protobuf==5.29.2
-googleapis-common-protos==1.63.1
+grpcio==1.67.1
+grpcio-tools==1.67.1
+protobuf==5.29.5
+googleapis-common-protos==1.70.0
 
 # Test
-pytest==8.3.3
-httpx==0.27.0
+pytest==8.4.1
+httpx==0.28.1
 
