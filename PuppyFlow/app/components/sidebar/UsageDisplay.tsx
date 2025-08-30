@@ -10,6 +10,7 @@ type UsageDisplayProps = {
 
 const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
   const { userSubscriptionStatus, usageData, planLimits, isLoadingUsage, isLocalDeployment } = useAppSettings();
+
   const { workspaces } = useWorkspaces();
   const { apis, chatbots } = useAllDeployedServices();
 
@@ -111,6 +112,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
         {/* Lower section: plan label and CTA (space-between) */}
         <div className='w-full flex items-center justify-between gap-3 py-1'>
           <span className='text-[12px] text-[#8B8B8B] font-medium'>
+
             {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
           </span>
           {shouldShowGetProButton && (
@@ -131,7 +133,9 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
     return (
       <div className='mb-[8px] w-full flex flex-col items-center gap-1'>
         {/* Plan label */}
+
         <div className='text-[#8B8B8B] text-[12px] font-medium'>
+
           {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
         </div>
 
@@ -141,7 +145,9 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
             onClick={handleGetProClick}
             title='Upgrade'
             aria-label='Upgrade'
+
             className='border border-[#404040] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] p-[2px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FFA73D]/10 flex items-center justify-center'
+
           >
             <ArrowUpRight size={12} />
           </button>
@@ -165,6 +171,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
                 : Number.isFinite((planLimits as any).runs as any)
                 ? `${planLimits.runs} runs`
                 : `∞ runs`}
+
             </div>
           </div>
         </div>

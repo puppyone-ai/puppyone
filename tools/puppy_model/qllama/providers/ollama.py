@@ -1,12 +1,18 @@
+"""
+Ollama 提供商实现
+
+支持本地运行的Ollama模型
+"""
 import requests
+import json
 from typing import List, Dict, Any, Optional
 import sys
 import os
 
 # 添加父级目录到路径以解决导入问题
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from puppy_model.capabilities import ModelCapability, cached
-from puppy_model.providers.base import Provider
+from qllama.capabilities import ModelCapability, cached
+from qllama.providers.base import Provider
 
 class OllamaProvider(Provider):
     """Ollama提供商实现"""
@@ -86,9 +92,29 @@ class OllamaProvider(Provider):
             # 流式实现略，根据需要补充
             raise NotImplementedError("Streaming not implemented")
         
+        # 只传递Ollama支持的参数
+        ollama_params = {
+            "model": model_name,
+            "prompt": prompt,
+            "stream": False
+        }
+        
+        # 映射常见参数到Ollama格式
+        if "max_tokens" in kwargs:
+            # Ollama使用num_predict而不是max_tokens
+            ollama_params["options"] = ollama_params.get("options", {})
+            ollama_params["options"]["num_predict"] = kwargs["max_tokens"]
+        
+        if "temperature" in kwargs:
+            ollama_params["options"] = ollama_params.get("options", {})
+            ollama_params["options"]["temperature"] = kwargs["temperature"]
+        
+        if "system_message" in kwargs:
+            ollama_params["system"] = kwargs["system_message"]
+        
         response = requests.post(
             f"{self.endpoint}/api/generate",
-            json={"model": model_name, "prompt": prompt, **kwargs},
+            json=ollama_params,
             timeout=kwargs.get("timeout", 60)
         )
         

@@ -72,9 +72,9 @@ async def create_task(
                 "The 'blocks' field cannot be empty"
             )
         
-        # Check usage limits
+        # Check usage limits: runs ≈ 预计会执行的基础 edges 数（包含 llm）
         try:
-            estimated_runs = len(blocks)
+            estimated_runs = len(edges) or 1
             usage_check_result = await check_usage_limit(auth_result, estimated_runs)
         except UsageError as ue:
             return create_usage_insufficient_response(
