@@ -14,7 +14,7 @@ type menuNameType =
   | 'Filesub1'
   | 'Weblinksub1';
 
-function AddNodeButton() {
+function AddNodeButton({ showTriggerButton = true }: { showTriggerButton?: boolean }) {
   const [selectedMenu, setSelectedMenu] = useState(0);
   const {
     allowActivateOtherNodesWhenConnectEnd,
@@ -54,9 +54,12 @@ function AddNodeButton() {
       try {
         const e = evt as CustomEvent<any>;
         const preselect = e?.detail?.preselect as string | undefined;
+        const startDirect = (e?.detail?.startDirect as boolean | undefined) ?? false;
         if (isOnGeneratingNewNode) return;
-        // Open the menu then trigger create via NodeMenu
-        setSelectedMenu(1);
+        // Optionally open menu; or start directly when triggered externally
+        if (!startDirect) {
+          setSelectedMenu(1);
+        }
         if (preselect) {
           setExternalCreate({ nodeType: preselect, nonce: Date.now() });
         }
@@ -79,22 +82,24 @@ function AddNodeButton() {
 
   return (
     <div id='nodeMenuButtonContainer' className='relative inline-block'>
-      <button
-        id='nodeMenuButton'
-        title='Block'
-        aria-label='Block'
-        className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border-0 text-[14px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#4599DF]/40 ${
-          selectedMenu === 1
-            ? 'bg-[#4599DF] text-black'
-            : 'bg-[#4599DF] text-black hover:bg-[#3A8BD9] active:bg-[#2F7EC9]'
-        } ${isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'}`}
-      >
-        <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 8 8' fill='none' className='text-current'>
-          <path d='M4 0L4 8' stroke='currentColor' strokeWidth='1.5' />
-          <path d='M0 4L8 4' stroke='currentColor' strokeWidth='1.5' />
-        </svg>
-        <span>Block</span>
-      </button>
+      {showTriggerButton && (
+        <button
+          id='nodeMenuButton'
+          title='Block'
+          aria-label='Block'
+          className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border-0 text-[14px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#4599DF]/40 ${
+            selectedMenu === 1
+              ? 'bg-[#4599DF] text-black'
+              : 'bg-[#4599DF] text-black hover:bg-[#3A8BD9] active:bg-[#2F7EC9]'
+          } ${isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'}`}
+        >
+          <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 8 8' fill='none' className='text-current'>
+            <path d='M4 0L4 8' stroke='currentColor' strokeWidth='1.5' />
+            <path d='M0 4L8 4' stroke='currentColor' strokeWidth='1.5' />
+          </svg>
+          <span>Block</span>
+        </button>
+      )}
       <NodeMenu
         selectedMenu={selectedMenu}
         clearMenu={clearMenu}
