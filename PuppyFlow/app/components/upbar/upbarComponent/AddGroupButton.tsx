@@ -32,16 +32,10 @@ export default function AddGroupButton() {
         xmlns='http://www.w3.org/2000/svg'
         className='text-current'
       >
-        <rect
-          x='3'
-          y='3'
-          width='18'
-          height='18'
-          rx='2'
-          stroke='currentColor'
-          strokeWidth='1.5'
-          strokeDasharray='4 4'
-        />
+        <path d='M8 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+        <path d='M16 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+        <path d='M4 8H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+        <path d='M4 16H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
       </svg>
       <span>Group</span>
     </button>
