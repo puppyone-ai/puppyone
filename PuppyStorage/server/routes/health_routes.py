@@ -4,15 +4,13 @@ Health Check Routes for PuppyStorage
 """
 
 import time
+import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from utils.logger import log_info, log_error
 from storage import get_storage
 
 health_router = APIRouter(tags=["health"])
-
-# 获取存储适配器
-storage_adapter = get_storage()
 
 @health_router.get("/health")
 async def health_check():
@@ -24,38 +22,38 @@ async def health_check():
     try:
         log_info("Health Check Accessed!")
         
-        # 简单检查存储适配器是否正常
-        # 不同的存储适配器可能有不同的健康检查方式
+        # 轻量健康检查（避免阻塞/重操作）：每次请求动态获取适配器并执行 ping
         try:
-            # 尝试列出存储，检查存储后端是否可用
-            if hasattr(storage_adapter, 'list_multipart_uploads'):
-                uploads = storage_adapter.list_multipart_uploads()
-                active_uploads = len(uploads) if uploads else 0
+            adapter = get_storage()
+            # 将同步 ping 放入线程，避免阻塞事件循环；如未实现则标记通过
+            if hasattr(adapter, 'ping'):
+                ping_result = await asyncio.to_thread(adapter.ping)
             else:
-                active_uploads = 0
-                
+                ping_result = {"ok": True, "note": "no ping implemented"}
+
+            status_text = "healthy" if ping_result.get("ok", False) else "degraded"
             return JSONResponse(
                 content={
-                    "status": "healthy",
+                    "status": status_text,
                     "service": "PuppyStorage",
-                    "storage_backend": type(storage_adapter).__name__,
-                    "active_uploads": active_uploads,
+                    "storage_backend": type(adapter).__name__,
+                    "storage": ping_result,
                     "timestamp": int(time.time())
                 },
                 status_code=200
             )
         except Exception as storage_error:
             log_error(f"Storage backend health check failed: {str(storage_error)}")
+            # 仍返回200，避免探针误判为实例宕机；状态体标注 unhealthy
             return JSONResponse(
                 content={
-                    "status": "degraded",
-                    "service": "PuppyStorage", 
-                    "storage_backend": type(storage_adapter).__name__,
-                    "error": "Storage backend unavailable",
+                    "status": "unhealthy",
+                    "service": "PuppyStorage",
+                    "error": "Storage backend check failed",
                     "details": str(storage_error),
                     "timestamp": int(time.time())
                 },
-                status_code=503
+                status_code=200
             )
             
     except Exception as e:
