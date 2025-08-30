@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, Fragment } from 'react';
 import { Controls, useReactFlow } from '@xyflow/react';
 import SaveButton from './SaveButton';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
@@ -31,6 +31,8 @@ export default function Upright() {
       .filter(n => n?.type === 'group')
       .map(n => ({ id: String(n.id), name: String(n?.data?.label ?? n.id) }));
   }, [content]);
+
+  
 
   const handleRunGroup = useCallback(async (groupId: string) => {
     try {
@@ -109,38 +111,44 @@ export default function Upright() {
           </button>
           {areGroupsOpen && (
             <div className='absolute right-0 top-full mt-2 z-[10001]'>
-              <div className='py-[8px] px-[8px] w-[300px] bg-[#181818] border border-[#3A3A3A] rounded-[8px] shadow-2xl'>
-                <div className='text-[#808080] text-[12px] mb-1 px-[2px]'>Groups</div>
+              <div className='py-[8px] px-[8px] w-[260px] bg-[#2A2A2A] border border-[#404040] rounded-[8px] shadow-2xl'>
                 {groups.length === 0 ? (
                   <div className='text-[#606060] text-[12px] px-[2px] py-[6px]'>No Groups yet</div>
                 ) : (
-                  <div className='space-y-1 max-h-[200px] overflow-y-auto'>
-                    {groups.map(g => (
-                      <div
-                        key={g.id}
-                        className='w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md border transition-colors border-[#404040] hover:bg-[#2A2A2A] text-[#CDCDCD] text-[12px] cursor-pointer'
-                        onClick={e => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          activateNode(g.id);
-                        }}
-                      >
-                        <span className='truncate'>{g.name}</span>
-                        <button
-                          className='flex items-center justify-center w-[22px] h-[22px] rounded-[4px] border border-[#404040] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
-                          title='Run group'
-                          aria-label={`Run group ${g.name}`}
+                  <div className='max-h-[200px] overflow-y-auto'>
+                    {groups.map((g, idx) => (
+                      <Fragment key={g.id}>
+                        <div
+                          className='w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md transition-colors hover:bg-[#3A3A3A] text-[#CDCDCD] text-[12px] cursor-pointer'
                           onClick={e => {
                             e.preventDefault();
                             e.stopPropagation();
-                            handleRunGroup(g.id);
+                            activateNode(g.id);
                           }}
                         >
-                          <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
-                            <path d='M8 5V19L19 12L8 5Z' />
-                          </svg>
-                        </button>
-                      </div>
+                          <div className='flex items-center gap-2 min-w-0'>
+                            <span className='truncate'>{g.name}</span>
+                          </div>
+                          <button
+                            className='inline-flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] border border-[#404040] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
+                            title='Run group'
+                            aria-label={`Run group ${g.name}`}
+                            onClick={e => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleRunGroup(g.id);
+                            }}
+                          >
+                            <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+                              <path d='M8 5V19L19 12L8 5Z' />
+                            </svg>
+                            <span className='text-[12px]'>Run</span>
+                          </button>
+                        </div>
+                        {idx < groups.length - 1 && (
+                          <div className='h-px bg-[#404040] mx-[2px]'></div>
+                        )}
+                      </Fragment>
                     ))}
                   </div>
                 )}
