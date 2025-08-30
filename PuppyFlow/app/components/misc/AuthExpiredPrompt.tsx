@@ -24,8 +24,8 @@ const AuthExpiredPrompt: React.FC<AuthExpiredPromptProps> = ({ visible, onLogin,
               <circle cx="12" cy="15.5" r="1.25" fill="#FF3A3A" />
             </svg>
             <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-medium">登录已过期</div>
-              <div className="text-[12px] opacity-90 mt-0.5">您的登录状态已过期，请重新登录以继续使用。您可以立即前往登录，或取消并留在当前页面。</div>
+              <div className="text-[13px] font-medium">Session expired</div>
+              <div className="text-[12px] opacity-90 mt-0.5">Your session has expired. Please sign in again to continue. You can sign in now or cancel to stay on this page.</div>
             </div>
           </div>
         </div>
@@ -34,13 +34,13 @@ const AuthExpiredPrompt: React.FC<AuthExpiredPromptProps> = ({ visible, onLogin,
             onClick={onDismiss}
             className="text-white/95 hover:text-white border border-white/40 hover:border-white/60 rounded-md px-3 py-1.5 text-[12px] transition-colors"
           >
-            取消
+            Cancel
           </button>
           <button
             onClick={onLogin}
             className="bg-white text-red-600 hover:bg-red-50 rounded-md px-3 py-1.5 text-[12px] font-medium transition-colors"
           >
-            立即登录
+            Sign in now
           </button>
         </div>
       </div>
