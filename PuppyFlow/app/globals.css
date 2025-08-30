@@ -921,7 +921,13 @@ input[type='number']::-webkit-outer-spin-button {
 
 /* hover 样式 */
 .react-flow__controls-custom button:hover {
-  background: #3a3a3a; /* unify hover bg */
+  background: #444444; /* clearer hover */
+  border-radius: 4px;
+  color: #cdcdcd;
+}
+
+.react-flow__controls-custom button:active {
+  background: #505050; /* active press */
   border-radius: 4px;
   color: #cdcdcd;
 }
