@@ -1,5 +1,12 @@
 # Getting Started
 
+Note on license and acceptable use
+- Personal or internal single-tenant use is permitted under the PuppyAgent Sustainable Use License (SUL)
+- Offering managed/hosted multi-tenant services to third parties is not permitted
+- Paid redistribution is not permitted
+- Use of PuppyAgent trademarks/logos is not granted
+- For commercial or multi-tenant rights, contact guantum@puppyagent.com; see LICENSE
+
 This guide helps you run PuppyAgent locally.
 
 Prerequisites

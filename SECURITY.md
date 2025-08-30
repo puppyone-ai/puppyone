@@ -12,5 +12,8 @@ Secrets and environment variables
   3) Verify GitHub secret scanning and push protection
 
 Dependency security
+Trademarks and branding
+- This project does not grant rights to use PuppyAgent trademarks, service marks, or logos
+- Remove third-party brand assets unless explicitly licensed; prefer neutral icons
 - Keep dependencies up to date; we use lockfiles and pinned versions where possible
 - Enable GitHub Dependabot alerts and code scanning
