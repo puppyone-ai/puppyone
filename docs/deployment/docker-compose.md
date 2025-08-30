@@ -1,5 +1,10 @@
 # Docker Compose
 
+License reminder
+- The compose stack is for personal or internal single-tenant use under SUL
+- Do not operate as a managed/hosted multi-tenant service to third parties without a commercial license
+- See LICENSE for details; contact guantum@puppyagent.com for commercial rights
+
 A compose file is provided at the repo root.
 
 Start all services:
