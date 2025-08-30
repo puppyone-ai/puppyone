@@ -130,7 +130,7 @@ function Upbar() {
       {/* Keep AddNodeButton mounted outside layout to avoid flex gap spacing */}
       <AddNodeButton showTriggerButton={false} />
       {/* Move resize (Controls) and Save outside the upbar card */}
-      <div className='pointer-events-auto absolute right-[12px] top-1/2 -translate-y-1/2'>
+      <div className='pointer-events-auto absolute right-[24px] top-[6px]'>
         <Upright />
       </div>
     </div>
