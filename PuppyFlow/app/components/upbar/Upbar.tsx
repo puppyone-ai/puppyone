@@ -1,18 +1,18 @@
 import React from 'react';
 import AddNodeButton from './upbarComponent/AddNodeButton';
 import GroupListButton from './upbarComponent/GroupListButton';
-import ControlsSaveButtons from './upbarComponent/ControlsSaveButtons';
+import Upright from './upbarComponent/Upright';
 
 function Upbar() {
   return (
-    <div className='w-auto h-[52px] gap-[8px] absolute top-[48px] left-1/2 -translate-x-1/2 z-[10000] flex flex-row justify-center items-center pointer-events-none'>
+    <div className='w-full h-[48px] absolute top-[48px] left-0 z-[10000] pointer-events-none'>
       <div
-        className='pointer-events-auto will-change-auto bg-gradient-to-b from-[#1E1F22]/95 to-[#131416]/95 rounded-[12px] border border-[#3e3e41] ring-1 ring-black/30 shadow-2xl shadow-black/50 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[8px]'
+        className='pointer-events-auto will-change-auto bg-[#2A2A2A] rounded-[12px] border border-[#2A2A2A] ring-1 ring-black/30 shadow-2xl shadow-black/50 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[6px] absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'
       >
         {/* Inline +Add types (compact with per-button hover menu) */}
         <div className='relative group'>
           <button
-            className='inline-flex items-center justify-center gap-0 h-[40px] w-[40px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#2A2A2A] transition-colors'
+            className='inline-flex items-center justify-center gap-0 h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
             onClick={() => {
               window.dispatchEvent(
                 new CustomEvent('openAddNodeMenu', { detail: { preselect: 'text', startDirect: true } } as any)
@@ -38,7 +38,7 @@ function Upbar() {
         </div>
         <div className='relative group'>
           <button
-            className='inline-flex items-center justify-center gap-0 h-[40px] w-[40px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#2A2A2A] transition-colors'
+            className='inline-flex items-center justify-center gap-0 h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
             onClick={() => {
               window.dispatchEvent(
                 new CustomEvent('openAddNodeMenu', { detail: { preselect: 'structured', startDirect: true } } as any)
@@ -85,7 +85,7 @@ function Upbar() {
         </div>
         <div className='relative group'>
           <button
-            className='inline-flex items-center justify-center gap-0 h-[40px] w-[40px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#2A2A2A] transition-colors'
+            className='inline-flex items-center justify-center gap-0 h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
             onClick={() => {
               window.dispatchEvent(
                 new CustomEvent('openAddNodeMenu', { detail: { preselect: 'file', startDirect: true } } as any)
@@ -114,7 +114,7 @@ function Upbar() {
         <button ...>Weblink</button>
         **/}
         {/* Vertical divider moved to Upbar level */}
-        <div className='w-px h-[40px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
+        <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
         <div className='relative group'>
           <GroupListButton />
           <div className='pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block z-[10001]'>
@@ -130,8 +130,8 @@ function Upbar() {
       {/* Keep AddNodeButton mounted outside layout to avoid flex gap spacing */}
       <AddNodeButton showTriggerButton={false} />
       {/* Move resize (Controls) and Save outside the upbar card */}
-      <div className='pointer-events-auto ml-[12px]'>
-        <ControlsSaveButtons />
+      <div className='pointer-events-auto absolute right-[12px] top-1/2 -translate-y-1/2'>
+        <Upright />
       </div>
     </div>
   );

@@ -97,7 +97,7 @@ export default function GroupListButton() {
 
   return (
     <button
-      className='inline-flex items-center justify-center h-[40px] w-[40px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#2A2A2A] transition-colors'
+      className='inline-flex items-center justify-center h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
       title='New Group'
       aria-label='New Group'
       onClick={e => {

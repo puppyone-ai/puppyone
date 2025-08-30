@@ -128,7 +128,7 @@ function SaveButton() {
       <button
         className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border text-[14px] font-medium transition-colors ${
           isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'
-        } bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A]`}
+        } bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#444444] active:bg-[#505050] active:scale-95`}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
         onClick={e => {
