@@ -6,7 +6,8 @@ import SaveButton from './SaveButton';
 
 export default function Upright() {
   return (
-    <div className='flex items-center gap-2 pointer-events-auto'>
+    <div className='flex items-center gap-1 pointer-events-auto'>
+      <SaveButton />
       <Controls
         className='react-flow__controls-custom'
         showZoom={true}
@@ -15,7 +16,6 @@ export default function Upright() {
         orientation='horizontal'
         style={{ position: 'relative' }}
       />
-      <SaveButton />
     </div>
   );
 }
