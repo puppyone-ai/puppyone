@@ -15,6 +15,7 @@ import { useDisplaySwitch } from './components/hooks/useDisplayWorkspcaeSwitchin
 import ServerDisplay from './components/serverDisplay/ServerDisplay';
 import { SYSTEM_URLS } from '@/config/urls';
 import axios from 'axios';
+import AuthExpiredPrompt from './components/misc/AuthExpiredPrompt';
 
 function ActiveFlowContent() {
   const { showingItem } = useWorkspaces();
@@ -38,6 +39,8 @@ function ActiveFlowContent() {
 }
 
 function MainApplication() {
+  const [authExpired, setAuthExpired] = React.useState(false);
+
   // Install global 401 handlers for fetch and axios
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -68,7 +71,9 @@ function MainApplication() {
     window.fetch = async (...args) => {
       const response = await originalFetch(...(args as Parameters<typeof originalFetch>));
       if (response && response.status === 401) {
-        redirectToLogin();
+        // Show prompt and let user decide
+        setAuthExpired(true);
+        window.dispatchEvent(new CustomEvent('auth:expired', { detail: { status: 401 } }));
       }
       return response;
     };
@@ -79,7 +84,11 @@ function MainApplication() {
       (error) => {
         const status: number | undefined = error?.response?.status;
         if (status === 401) {
-          redirectToLogin();
+          // Show prompt and let user decide
+          setAuthExpired(true);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:expired', { detail: { status: 401 } }));
+          }
         }
         return Promise.reject(error);
       }
@@ -90,6 +99,17 @@ function MainApplication() {
       window.fetch = originalFetch;
       axios.interceptors.response.eject(interceptorId);
     };
+  }, []);
+
+  const handleLogin = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const loginUrl = new URL(SYSTEM_URLS.USER_SYSTEM.FRONTEND);
+    loginUrl.searchParams.set('return_to', window.location.href);
+    window.location.replace(loginUrl.toString());
+  }, []);
+
+  const handleDismiss = React.useCallback(() => {
+    setAuthExpired(false);
   }, []);
 
   return (
@@ -112,6 +132,7 @@ function MainApplication() {
           </WorkspacesProvider>
         </ReactFlowProvider>
       </AppSettingsProvider>
+      <AuthExpiredPrompt visible={authExpired} onLogin={handleLogin} onDismiss={handleDismiss} />
     </div>
   );
 }
