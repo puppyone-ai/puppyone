@@ -64,6 +64,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   const componentRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const deployMenuRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const { getNodes, deleteElements, setNodes, getNode } = useReactFlow();
   const { detachNodes, detachNodesFromGroup } = useDetachNodes();
   const { recalculateGroupNodes } = useGroupNodeCalculation();
@@ -71,6 +72,8 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState<string>(data?.label || '');
 
   // Add workspace context for deployment
   const { showingItem } = useWorkspaces();
@@ -287,6 +290,37 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
     };
   }, [showDeployMenu]);
 
+  // Focus the input when entering rename mode
+  useEffect(() => {
+    if (isRenaming) {
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+        titleInputRef.current?.select();
+      }, 0);
+    }
+  }, [isRenaming]);
+
+  const startRename = useCallback(() => {
+    setNameDraft(data?.label || '');
+    setIsRenaming(true);
+  }, [data?.label]);
+
+  const commitRename = useCallback(() => {
+    const next = (nameDraft || '').trim();
+    const finalName = next.length > 0 ? next : (data?.label || '');
+    setNodes(nodes =>
+      nodes.map(n =>
+        n.id === id ? { ...n, data: { ...n.data, label: finalName } } : n
+      )
+    );
+    setIsRenaming(false);
+  }, [nameDraft, data?.label, id, setNodes]);
+
+  const cancelRename = useCallback(() => {
+    setNameDraft(data?.label || '');
+    setIsRenaming(false);
+  }, [data?.label]);
+
   return (
     <div
       className='relative w-full h-full min-w-[240px] min-h-[176px] cursor-default'
@@ -318,11 +352,26 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
               backgroundColor: getToolbarBackgroundColor(),
               backdropFilter: 'blur(8px)'
             }}>
-            {/* Group Title */}
+            {/* Group Title with rename state (triggered from settings menu) */}
             <div className='flex items-center gap-2'>
-              <span className='font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]'>
-                {`Group ${data.label}`}
-              </span>
+              {isRenaming ? (
+                <input
+                  ref={titleInputRef}
+                  value={nameDraft}
+                  onChange={e => setNameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') cancelRename();
+                  }}
+                  className='h-[28px] px-2 bg-[#2A2A2A] text-[#CDCDCD] border border-[#444444] rounded-md text-[13px] outline-none'
+                  placeholder='Group name'
+                />
+              ) : (
+                <span className='font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]'>
+                  {data.label}
+                </span>
+              )}
               {/* 子节点数量指示器 */}
               {childNodes.length > 0 && (
                 <div className='text-[10px] text-[#666666] px-1 py-0.5 rounded'>
@@ -360,6 +409,26 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                 leaveTo="opacity-0 -translate-y-1"
               >
                 <Menu.Items className="absolute top-full left-0 mt-1 w-56 bg-[#1E1E1E] border border-[#404040] rounded-xl shadow-xl z-50 p-1">
+                  {/* Rename Group - triggers inline edit on title and closes menu */}
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                        onClick={() => {
+                          startRename();
+                          // headlessui menu closes automatically on item click
+                        }}
+                      >
+                        <svg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                          <path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z' stroke='#CDCDCD' strokeWidth='1.5' fill='none'/>
+                          <path d='M14.06 6.19l1.41-1.41a1.5 1.5 0 0 1 2.12 0l1.63 1.63a1.5 1.5 0 0 1 0 2.12l-1.41 1.41-3.75-3.75z' stroke='#CDCDCD' strokeWidth='1.5' fill='none'/>
+                        </svg>
+                        Rename
+                      </button>
+                    )}
+                  </Menu.Item>
+
+                  <div className="w-full h-px bg-[#404040] my-1"></div>
                   {/* Recalculate */}
                   <Menu.Item>
                     {({ active }) => (
