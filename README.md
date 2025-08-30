@@ -65,32 +65,39 @@ Choose ONE (alternatives—pick just one):
 
 ### Self-Hosted (Local) — for developers
 
-  Prereqs: Python 3.10+, Node.js 18+, npm
+Prereqs: Python 3.10+, Node.js 18+, npm
 
-  1) Start storage
-  ```bash
-  cd PuppyStorage
-  python3 -m venv .venv && source .venv/bin/activate
-  pip install -r requirements.txt
-  python server/storage_server.py
-  ```
+Option A) One-click start (recommended)
+```bash
+./scripts/run-all.sh
+```
 
-  2) Start engine
-  ```bash
-  cd ../PuppyEngine
-  python3 -m venv .venv && source .venv/bin/activate
-  pip install -r requirements.txt
-  python Server/EngineServer.py
-  ```
+This script will:
+- Create virtualenvs and install Python deps for `PuppyStorage` and `PuppyEngine`
+- Install frontend deps for `PuppyFlow`
+- Launch services on: Storage 8002, Engine 8001, Flow 4000
 
-  3) Start frontend
-  ```bash
-  cd ../PuppyFlow
-  npm install
-  npm run dev
-  ```
+Option B) Manual start
+```bash
+# 1) Storage
+cd PuppyStorage
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m server.storage_server
 
-Once all three are running, open http://localhost:4000 and create your first workflow.
+# 2) Engine
+cd ../PuppyEngine
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m Server.EngineServer
+
+# 3) Frontend
+cd ../PuppyFlow
+npm install
+npm run dev
+```
+
+Once all three are running, open http://localhost:4000
 
 
 ## Core Concepts
