@@ -75,7 +75,7 @@ function SaveButton() {
 
   return (
     <button
-      className={`inline-flex items-center gap-2 h-[36px] rounded-md px-3 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] transition-colors ${
+      className={`inline-flex items-center gap-1.5 h-[32px] rounded-[8px] px-2.5 border border-[#3A3A3A] bg-[#181818] text-[#CDCDCD] transition-colors ${
         isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'
       } hover:bg-[#444444]`}
       title='Save'
@@ -89,8 +89,8 @@ function SaveButton() {
       {saveState === 'idle' ? (
         <svg
           xmlns='http://www.w3.org/2000/svg'
-          width='20'
-          height='20'
+          width='14'
+          height='14'
           viewBox='0 0 14 14'
           fill='none'
         >
@@ -104,8 +104,8 @@ function SaveButton() {
       ) : saveState === 'success' ? (
         <svg
           xmlns='http://www.w3.org/2000/svg'
-          width='20'
-          height='20'
+          width='14'
+          height='14'
           viewBox='0 0 14 14'
           fill='none'
         >
@@ -119,8 +119,8 @@ function SaveButton() {
       ) : (
         <svg
           xmlns='http://www.w3.org/2000/svg'
-          width='20'
-          height='20'
+          width='14'
+          height='14'
           viewBox='0 0 14 14'
           fill='none'
         >
