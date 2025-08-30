@@ -54,6 +54,19 @@ class S3StorageAdapter(StorageAdapter):
             log_error(f"初始化S3客户端失败: {str(e)}")
             raise
 
+    def ping(self) -> Dict[str, Any]:
+        """
+        轻量健康检查：最小权限探测存储可用性。
+        优先使用 list_objects_v2(Bucket, MaxKeys=1) 以避免需要 ListAllMyBuckets 权限。
+        """
+        try:
+            # 最小读取：尝试列出当前 bucket 的一个对象
+            self.s3_client.list_objects_v2(Bucket=self.bucket, MaxKeys=1)
+            return {"ok": True, "type": "s3", "bucket": self.bucket}
+        except Exception as e:
+            log_error(f"S3 storage ping failed: {str(e)}")
+            return {"ok": False, "type": "s3", "bucket": self.bucket, "error": str(e)}
+
     def generate_upload_url(self, key: str, content_type: str, expires_in: int = 300) -> str:
         return self.s3_client.generate_presigned_url(
             'put_object',
