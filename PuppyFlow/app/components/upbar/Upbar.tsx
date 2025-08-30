@@ -1,6 +1,6 @@
 import React from 'react';
 import AddNodeButton from './upbarComponent/AddNodeButton';
-import AddGroupButton from './upbarComponent/AddGroupButton';
+import GroupListButton from './upbarComponent/GroupListButton';
 import ControlsSaveButtons from './upbarComponent/ControlsSaveButtons';
 
 function Upbar() {
@@ -10,8 +10,9 @@ function Upbar() {
         className='pointer-events-auto will-change-auto bg-gradient-to-b from-[#1E1F22]/95 to-[#131416]/95 rounded-[14px] border border-[#3e3e41] ring-1 ring-black/30 shadow-2xl shadow-black/50 backdrop-blur-md flex flex-row items-center gap-[32px] px-[12px] py-[12px]'
       >
         <AddNodeButton />
-        <AddGroupButton />
+        <GroupListButton />
         <ControlsSaveButtons />
+        
       </div>
     </div>
   );
