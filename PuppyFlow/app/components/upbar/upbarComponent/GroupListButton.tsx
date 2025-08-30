@@ -103,9 +103,12 @@ export default function GroupListButton() {
                   className='flex items-center justify-between gap-2 px-3 py-2 rounded-md border border-[#404040] hover:bg-[#2A2A2A] transition-colors'
                 >
                   <div className='flex items-center gap-2 min-w-0'>
-                    <div className='w-5 h-5 rounded-md border border-[#9B7EDB] flex items-center justify-center flex-shrink-0'>
+                    <div className='w-5 h-5 flex items-center justify-center flex-shrink-0'>
                       <svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                        <rect x='3' y='3' width='18' height='18' rx='2' stroke='#9B7EDB' strokeWidth='1.5' strokeDasharray='4 4' />
+                        <path d='M8 4V20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
+                        <path d='M16 4V20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
+                        <path d='M4 8H20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
+                        <path d='M4 16H20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
                       </svg>
                     </div>
                     <div className='truncate text-[12px] text-[#CDCDCD]'>
@@ -186,7 +189,10 @@ export default function GroupListButton() {
               xmlns='http://www.w3.org/2000/svg'
               className='text-[#CDCDCD]'
             >
-              <rect x='3' y='3' width='18' height='18' rx='2' stroke='currentColor' strokeWidth='1.5' strokeDasharray='4 4' />
+              <path d='M8 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+              <path d='M16 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+              <path d='M4 8H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+              <path d='M4 16H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
             </svg>
             <span>Group List</span>
           </Menu.Button>
