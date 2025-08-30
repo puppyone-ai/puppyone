@@ -83,10 +83,10 @@ function AddNodeButton() {
         id='nodeMenuButton'
         title='Block'
         aria-label='Block'
-        className={`group inline-flex items-center gap-2 h-[36px] w-[90px] rounded-[8px] px-2.5 py-1.5 border text-[14px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#4599DF]/40 ${
+        className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border-0 text-[14px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#4599DF]/40 ${
           selectedMenu === 1
-            ? 'bg-[#4599DF] border-[#4599DF] text-black'
-            : 'bg-[#4599DF] border-[#4599DF] text-black hover:bg-[#3A8BD9] active:bg-[#2F7EC9]'
+            ? 'bg-[#4599DF] text-black'
+            : 'bg-[#4599DF] text-black hover:bg-[#3A8BD9] active:bg-[#2F7EC9]'
         } ${isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'}`}
       >
         <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 8 8' fill='none' className='text-current'>

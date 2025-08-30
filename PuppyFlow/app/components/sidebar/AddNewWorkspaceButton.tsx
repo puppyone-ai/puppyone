@@ -58,7 +58,7 @@ function AddNewWorkspaceButton() {
 
   const buttonContent = (
     <button
-      className={`w-full h-[32px] pl-[16px] pr-[4px] flex items-center gap-[10px] font-plus-jakarta-sans text-[#6d7177] rounded-md transition-colors group ${
+      className={`w-full h-[32px] pl-[12px] pr-[4px] flex items-center gap-[10px] font-plus-jakarta-sans text-[#6d7177] rounded-md transition-colors group ${
         isWorkspaceLimitReached
           ? 'cursor-not-allowed bg-[#2a2a2a]'
           : 'hover:bg-[#313131] cursor-pointer'
@@ -85,21 +85,21 @@ function AddNewWorkspaceButton() {
           height='14.5'
           rx='3.25'
           stroke={isWorkspaceLimitReached ? '#4a4a4a' : '#5D6065'}
-          strokeWidth='1.5'
+          strokeWidth='1.2'
         />
         <path
           d='M8 4V12'
           stroke={isWorkspaceLimitReached ? '#4a4a4a' : '#5D6065'}
-          strokeWidth='1.5'
+          strokeWidth='1.2'
         />
         <path
           d='M4 8L12 8'
           stroke={isWorkspaceLimitReached ? '#4a4a4a' : '#5D6065'}
-          strokeWidth='1.5'
+          strokeWidth='1.2'
         />
       </svg>
       <span
-        className={`text-[12px] font-medium ${
+        className={`text-[12px] ${
           isWorkspaceLimitReached
             ? 'text-[#4a4a4a]'
             : 'text-[#5D6065] group-hover:text-[#CDCDCD]'
@@ -111,7 +111,7 @@ function AddNewWorkspaceButton() {
   );
 
   return (
-    <div className='flex h-[32px] items-center mt-[24px] relative self-stretch w-full'>
+    <div className='flex h-[32px] items-center mt-[16px] relative self-stretch w-full'>
       {isWorkspaceLimitReached ? (
         <Tippy
           content={`You have reached the limit of ${planLimits.workspaces} workspaces for your current plan.`}

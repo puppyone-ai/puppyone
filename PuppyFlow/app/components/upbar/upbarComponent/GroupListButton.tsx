@@ -147,6 +147,34 @@ export default function GroupListButton() {
             })}
           </div>
         )}
+
+        <div className='mt-3 pt-3 border-t border-[#343434]'>
+          <button
+            className={`w-full h-[32px] rounded-md text-[12px] border transition-colors flex items-center justify-center gap-2 ${
+              isOnGeneratingNewNode
+                ? 'border-[#2A2A2A] bg-[#2A2A2A] text-[#CDCDCD] opacity-60 cursor-not-allowed'
+                : 'border-[#2A2A2A] bg-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
+            }`}
+            onClick={e => {
+              e.preventDefault();
+              e.stopPropagation();
+              window.dispatchEvent(
+                new CustomEvent('openAddNodeMenu', {
+                  detail: { preselect: 'group' },
+                } as any)
+              );
+            }}
+            disabled={isOnGeneratingNewNode}
+            title='New Group'
+            aria-label='New Group'
+          >
+            <svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+              <path d='M12 5V19' stroke='currentColor' strokeWidth='2' strokeLinecap='round' />
+              <path d='M5 12H19' stroke='currentColor' strokeWidth='2' strokeLinecap='round' />
+            </svg>
+            <span>New Group</span>
+          </button>
+        </div>
       </div>
     );
   };
@@ -179,7 +207,7 @@ export default function GroupListButton() {
         <>
           <Menu.Button
             className='group inline-flex items-center gap-2 h-[36px] rounded-md px-2.5 py-1.5 border border-[#2A2A2A] bg-[#2A2A2A] text-[13px] font-medium text-[#CDCDCD] hover:bg-[#3A3A3A] transition-colors'
-            title='Group List'
+            title='Group'
           >
             <svg
               width='16'
@@ -194,7 +222,7 @@ export default function GroupListButton() {
               <path d='M4 8H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
               <path d='M4 16H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
             </svg>
-            <span>Group List</span>
+            <span>Group</span>
           </Menu.Button>
 
           <Transition
@@ -206,7 +234,7 @@ export default function GroupListButton() {
             leaveFrom='transform opacity-100 translate-y-0'
             leaveTo='transform opacity-0 translate-y-[-10px]'
           >
-            <Menu.Items className='absolute right-0 mt-[16px] w-[400px] origin-top-right rounded-2xl bg-[#1E1E1E] shadow-lg border border-[#343434] focus:outline-none'>
+            <Menu.Items className='absolute left-0 mt-[16px] w-[400px] origin-top-left rounded-2xl bg-[#1E1E1E] shadow-lg border border-[#343434] focus:outline-none'>
               {renderActivePanel()}
             </Menu.Items>
           </Transition>

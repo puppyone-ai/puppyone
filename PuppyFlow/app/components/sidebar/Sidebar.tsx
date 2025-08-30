@@ -54,7 +54,7 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
     <div className='flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out'>
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className='flex flex-col items-start relative self-stretch w-full h-full overflow-hidden'>
-        <div className='w-full text-[#5D6065] text-[11px] font-semibold pt-[24px] pl-[16px] pr-[8px] font-plus-jakarta-sans'>
+        <div className='w-full text-[#5D6065] text-[11px] font-normal pt-[16px] pl-[12px] pr-[8px] font-plus-jakarta-sans'>
           <div className='mb-[16px] flex items-center gap-2'>
             <span>Workpaces</span>
             <div className='h-[1px] flex-grow bg-[#404040]'></div>

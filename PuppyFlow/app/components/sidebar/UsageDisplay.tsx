@@ -97,7 +97,7 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
       <div className='my-[5px] p-[8px] pb-[6px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
         {/* Banner with two-row layout */}
         <div className='flex flex-col items-start gap-2 mb-2'>
-          <div className='text-[#E5E5E5] text-[12px]'>
+          <div className='text-[#CDCDCD] text-[12px]'>
             {isLocalDeployment
               ? 'You are running locally. Unlimited runs.'
               : `You have ${remainingRuns}${Number.isFinite((totalRuns as any)) ? ` of ${totalRuns}` : ''} ${userSubscriptionStatus?.is_premium ? 'Runs' : 'free Runs'} remaining with your ${userSubscriptionStatus?.is_premium ? 'Pro' : 'Free'} plan.`}
