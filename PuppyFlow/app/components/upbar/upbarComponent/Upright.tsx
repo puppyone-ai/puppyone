@@ -1,20 +1,70 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Controls, useReactFlow } from '@xyflow/react';
 import SaveButton from './SaveButton';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
+import { useWorkspaces } from '../../states/UserWorkspacesContext';
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
+import useGetSourceTarget from '../../hooks/useGetSourceTarget';
+import { runGroupNode } from '../../workflow/edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
 
 export default function Upright() {
-  const { getNodes } = useReactFlow();
-  const { activateNode } = useNodesPerFlowContext();
+  const { activateNode, clearAll } = useNodesPerFlowContext();
+  const { getCurrentWorkspaceContent } = useWorkspaces();
+  const { getNode, getNodes, setNodes } = useReactFlow();
+  const {
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+  } = useJsonConstructUtils();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
+    useGetSourceTarget();
   const [areGroupsOpen, setAreGroupsOpen] = useState(true);
 
+  const content = getCurrentWorkspaceContent?.() ?? null;
+
   const groups = useMemo(() => {
-    return getNodes()
-      .filter(n => n.type === 'group')
-      .map(n => ({ id: n.id, name: String(n.data?.label || n.id) }));
-  }, [getNodes]);
+    const blocks = content?.blocks ?? [];
+    return blocks
+      .filter(n => n?.type === 'group')
+      .map(n => ({ id: String(n.id), name: String(n?.data?.label ?? n.id) }));
+  }, [content]);
+
+  const handleRunGroup = useCallback(async (groupId: string) => {
+    try {
+      await runGroupNode({
+        groupNodeId: groupId,
+        context: {
+          getNode,
+          getNodes,
+          setNodes,
+          getSourceNodeIdWithLabel,
+          getTargetNodeIdWithLabel,
+          clearAll,
+          streamResult,
+          streamResultForMultipleNodes,
+          reportError,
+          resetLoadingUI,
+          isLocalDeployment: false,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to run group:', error);
+    }
+  }, [
+    getNode,
+    getNodes,
+    setNodes,
+    getSourceNodeIdWithLabel,
+    getTargetNodeIdWithLabel,
+    clearAll,
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+  ]);
 
   return (
     <div className='flex flex-col items-end gap-2 pointer-events-auto'>
@@ -66,9 +116,9 @@ export default function Upright() {
                 ) : (
                   <div className='space-y-1 max-h-[200px] overflow-y-auto'>
                     {groups.map(g => (
-                      <button
+                      <div
                         key={g.id}
-                        className='w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md border transition-colors border-[#404040] hover:bg-[#2A2A2A] text-[#CDCDCD] text-[12px]'
+                        className='w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md border transition-colors border-[#404040] hover:bg-[#2A2A2A] text-[#CDCDCD] text-[12px] cursor-pointer'
                         onClick={e => {
                           e.preventDefault();
                           e.stopPropagation();
@@ -76,7 +126,21 @@ export default function Upright() {
                         }}
                       >
                         <span className='truncate'>{g.name}</span>
-                      </button>
+                        <button
+                          className='flex items-center justify-center w-[22px] h-[22px] rounded-[4px] border border-[#404040] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
+                          title='Run group'
+                          aria-label={`Run group ${g.name}`}
+                          onClick={e => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRunGroup(g.id);
+                          }}
+                        >
+                          <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+                            <path d='M8 5V19L19 12L8 5Z' />
+                          </svg>
+                        </button>
+                      </div>
                     ))}
                   </div>
                 )}

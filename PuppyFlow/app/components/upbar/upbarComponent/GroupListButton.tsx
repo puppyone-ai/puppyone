@@ -1,20 +1,64 @@
 'use client';
 
-import React, { Fragment, useMemo } from 'react';
+import React, { Fragment, useMemo, useCallback } from 'react';
 import { Menu, Transition } from '@headlessui/react';
-import { useReactFlow } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
+import { useWorkspaces } from '../../states/UserWorkspacesContext';
+import { useReactFlow } from '@xyflow/react';
+import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
+import useGetSourceTarget from '../../hooks/useGetSourceTarget';
+import { runGroupNode } from '../../workflow/edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
 
 export default function GroupListButton() {
-  const { getNodes } = useReactFlow();
-  const { isOnGeneratingNewNode, activateNode } = useNodesPerFlowContext();
+  const { isOnGeneratingNewNode, activateNode, clearAll } = useNodesPerFlowContext();
+  const { getCurrentWorkspaceContent } = useWorkspaces();
+  const { getNode, getNodes, setNodes } = useReactFlow();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
+  const { streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI } = useJsonConstructUtils();
+
+  const content = getCurrentWorkspaceContent?.() ?? null;
 
   // 计算当前工作区内的所有 Group 节点
   const groups = useMemo(() => {
-    return getNodes()
-      .filter(n => n.type === 'group')
-      .map(n => ({ id: n.id, name: String(n.data?.label || n.id) }));
-  }, [getNodes]);
+    const blocks = content?.blocks ?? [];
+    return blocks
+      .filter(n => n?.type === 'group')
+      .map(n => ({ id: String(n.id), name: String(n?.data?.label ?? n.id) }));
+  }, [content]);
+
+  const handleRunGroup = useCallback(async (groupId: string) => {
+    try {
+      await runGroupNode({
+        groupNodeId: groupId,
+        context: {
+          getNode,
+          getNodes,
+          setNodes,
+          getSourceNodeIdWithLabel,
+          getTargetNodeIdWithLabel,
+          clearAll,
+          streamResult,
+          streamResultForMultipleNodes,
+          reportError,
+          resetLoadingUI,
+          isLocalDeployment: false,
+        },
+      });
+    } catch (error) {
+      console.error('Failed to run group:', error);
+    }
+  }, [
+    getNode,
+    getNodes,
+    setNodes,
+    getSourceNodeIdWithLabel,
+    getTargetNodeIdWithLabel,
+    clearAll,
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+  ]);
 
   const renderListPanel = () => {
     return (
@@ -31,7 +75,7 @@ export default function GroupListButton() {
             {groups.map(g => (
               <Menu.Item key={g.id}>
                 {({ active }) => (
-                  <button
+                  <div
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md border transition-colors ${
                       active ? 'bg-[#2A2A2A] border-[#404040]' : 'border-[#404040] hover:bg-[#2A2A2A]'
                     }`}
@@ -54,7 +98,21 @@ export default function GroupListButton() {
                         {g.name}
                       </div>
                     </div>
-                  </button>
+                    <button
+                      className='flex items-center justify-center w-[22px] h-[22px] rounded-[4px] border border-[#404040] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
+                      title='Run group'
+                      aria-label={`Run group ${g.name}`}
+                      onClick={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRunGroup(g.id);
+                      }}
+                    >
+                      <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+                        <path d='M8 5V19L19 12L8 5Z' />
+                      </svg>
+                    </button>
+                  </div>
                 )}
               </Menu.Item>
             ))}
