@@ -292,20 +292,7 @@
 }
 
 /* 可选：添加hover效果 */
-.react-flow__edge:hover .react-flow__edge-path,
-.react-flow__edge:hover #custom-arrow-default path {
-  /* hover时的边颜色 */
-  stroke-dasharray: 8, 8;
-  animation: flow 6s linear infinite;
-  /* fill: #FFA73D !important; */
-}
-
-/* 修改选中边的样式 */
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: #ffa73d !important; /* 选中时的边颜色 */
-  stroke-dasharray: 8, 8;
-  animation: flow 6s linear infinite;
-}
+/* moved edge hover/selected styles into edge components */
 
 /* 根据节点尺寸区分 Block Node 和 Edge Node */
 

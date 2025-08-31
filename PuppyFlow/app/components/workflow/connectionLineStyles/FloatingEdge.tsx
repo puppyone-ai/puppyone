@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import {
   getBezierPath,
   useInternalNode,
@@ -27,6 +28,30 @@ function FloatingEdge({
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
+  // apply selected style (moved from global css): orange, dashed, animated
+  const appliedStyle = selected
+    ? {
+        ...style,
+        stroke: '#FFA73D',
+        strokeDasharray: '8 8',
+        animation: 'flow 6s linear infinite',
+      }
+    : style;
+
+  // hover: flowing white dashed line
+  const [isHovered, setIsHovered] = useState(false);
+  // Priority: selected > hover. Only apply hover style when not selected
+  const finalStyle = selected
+    ? appliedStyle
+    : isHovered
+      ? {
+          ...appliedStyle,
+          stroke: UI_COLORS.LINE,
+          strokeDasharray: '8 8',
+          animation: 'flow 6s linear infinite',
+        }
+      : appliedStyle;
+
   if (!sourceNode || !targetNode) {
     return null;
   }
@@ -48,7 +73,9 @@ function FloatingEdge({
     });
 
     return (
-      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      <g onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+        <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={finalStyle} />
+      </g>
     );
   } else if (data.connectionType === 'CTT') {
     // recalculate edgePath targetX and targetY for MarkerEnd arrow (10px)
@@ -78,7 +105,7 @@ function FloatingEdge({
     });
 
     return (
-      <>
+      <g onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
         <defs>
           {/* 默认箭头 */}
           <marker
@@ -119,9 +146,9 @@ function FloatingEdge({
           id={id}
           path={edgePath}
           markerEnd={`url(#custom-arrow-${selected ? 'selected' : 'default'})`}
-          style={style}
+          style={finalStyle}
         />
-      </>
+      </g>
     );
   }
 }

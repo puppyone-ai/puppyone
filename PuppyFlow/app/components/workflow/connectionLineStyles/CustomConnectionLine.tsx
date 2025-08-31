@@ -51,9 +51,11 @@ export default function CustomConnectionLine({
       <path
         fill='none'
         stroke='#FFA73D'
-        strokeWidth={4}
+        strokeWidth={2}
         strokeLinecap='round'
         strokeLinejoin='round'
+        strokeDasharray='8 8'
+        style={{ animation: 'flow 6s linear infinite', strokeDashoffset: 0 }}
         d={path}
       />
     </g>
