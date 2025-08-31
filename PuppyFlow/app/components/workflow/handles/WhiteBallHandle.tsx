@@ -219,6 +219,7 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
         sourceNodeId={sourceNodeId}
         handleId={props.id}
         position={props.position}
+        mode='handle'
       />
     </>
   );

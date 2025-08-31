@@ -63,12 +63,14 @@ import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
+import EdgeMenuNode from './edgesNode/edgeNodesCreatingMenu/EdgeMenuNode';
 
 const nodeTypes = {
   text: TextBlockNode,
   file: FileNode,
   structured: JsonBlockNode,
   copy: CopyEdgeNode,
+  edgeMenu: EdgeMenuNode,
   chunkingByLength: ChunkingByLength,
   chunkingByCharacter: ChunkingByCharacter,
   chunkingAuto: ChunkingAuto,
@@ -203,6 +205,12 @@ function Workflow() {
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
   const { } = useAppSettings();
   const didExternalPrefetchRef = useRef<string | null>(null);
+  const connectStartRef = useRef<{
+    nodeId: string | null;
+    handleId: string | null;
+    handleType: 'target' | 'source' | null;
+  }>({ nodeId: null, handleId: null, handleType: null });
+  const didCreateEdgeRef = useRef<boolean>(false);
 
   // 用于管理节点的 z-index 层级
   const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>(
@@ -478,6 +486,7 @@ function Workflow() {
       };
 
       setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges));
+      didCreateEdgeRef.current = true;
       allowActivateOtherNodesWhenConnectEnd();
     },
     [
@@ -506,13 +515,51 @@ function Workflow() {
     event.stopPropagation();
     if (nodeId) preventInactivateNode();
     preventActivateOtherNodesWhenConnectStart();
+    connectStartRef.current = { nodeId, handleId, handleType };
   };
 
   const onConnectEnd = (event: MouseEvent | TouchEvent) => {
     if (isOnGeneratingNewNode) return;
     event.preventDefault();
     event.stopPropagation();
+    const isMouse = (event as MouseEvent).clientX !== undefined;
+    // If no real edge was created and we started from a source handle, spawn a floating edge menu node at release position
+    if (!didCreateEdgeRef.current && connectStartRef.current.nodeId && connectStartRef.current.handleType === 'source') {
+      const point = screenToFlowPosition({
+        x: isMouse ? (event as MouseEvent).clientX : (event as TouchEvent).changedTouches[0].clientX,
+        y: isMouse ? (event as MouseEvent).clientY : (event as TouchEvent).changedTouches[0].clientY,
+      });
+
+      const sourceId = connectStartRef.current.nodeId as string;
+      const sourceNode = getNode(sourceId);
+      const newNodeId = `edgeMenu-${Date.now()}`;
+
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'edgeMenu',
+        position: { x: point.x, y: point.y },
+        data: {
+          sourceNodeId: sourceId,
+          sourceNodeType: sourceNode?.type || 'text',
+        },
+      } as any;
+
+      setNodes(prev => prev.concat(newNode));
+
+      const edge: Edge = {
+        id: `connection-${Date.now()}`,
+        source: sourceId,
+        target: newNodeId,
+        type: 'floating',
+        data: { connectionType: 'STC' },
+      } as any;
+
+      setEdges(prev => addEdge(edge, prev));
+    }
+
     allowActivateOtherNodesWhenConnectEnd();
+    didCreateEdgeRef.current = false;
+    connectStartRef.current = { nodeId: null, handleId: null, handleType: null };
   };
 
   const onNodeMouseLeave = (id: string) => {
