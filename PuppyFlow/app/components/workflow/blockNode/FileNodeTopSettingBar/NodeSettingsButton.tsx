@@ -4,7 +4,6 @@ import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowCont
 import React, { useState, useRef, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { createPortal } from 'react-dom';
-import FileNodeSettingMenu from '../nodeTopRightBar/nodeSettingMenu/FileNodeSettingMenu';
 
 type FileNodeSettingsControllerProps = {
   nodeid: string;
@@ -17,8 +16,8 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const { activatedNode, setHandleActivated } = useNodesPerFlowContext();
-  const { getNode } = useReactFlow();
+  const { activatedNode, setHandleActivated, setNodeEditable, preventInactivateNode } = useNodesPerFlowContext();
+  const { getNode, setNodes, setEdges } = useReactFlow();
 
   useEffect(() => {
     const currRef = componentRef.current;
@@ -61,8 +60,9 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
         return;
       }
       const rect = btn.getBoundingClientRect();
-      const MENU_WIDTH = 160; // matches w-[160px] in FileNodeSettingMenu ul
-      const top = rect.bottom; // menu has absolute top-[8px] itself
+      const MENU_WIDTH = 160; // matches w-[160px]
+      const GAP = 8;
+      const top = rect.bottom + GAP;
       let left = rect.left; // align left edge to button's left edge
       left = Math.max(8, Math.min(left, window.innerWidth - MENU_WIDTH - 8));
 
@@ -101,6 +101,19 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
   const onMouseEnter = () => setHovered(true);
   const onMouseLeave = () => setHovered(false);
 
+  const manageEditLabel = () => {
+    setNodeEditable(nodeid);
+    preventInactivateNode();
+    setIsMenuOpen(false);
+  };
+
+  const deleteNode = () => {
+    setEdges(prevEdges =>
+      prevEdges.filter(edge => edge.source !== nodeid && edge.target !== nodeid)
+    );
+    setNodes(prevNodes => prevNodes.filter(node => node.id !== nodeid));
+  };
+
   const renderSettingMenu = () => {
     if (!isMenuOpen) return null;
 
@@ -111,11 +124,59 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
         onMouseDown={e => e.stopPropagation()}
         onClick={e => e.stopPropagation()}
       >
-        <FileNodeSettingMenu
-          showSettingMenu={isMenuOpen ? 1 : 0}
-          clearMenu={clearMenu}
-          nodeid={nodeid}
-        />
+        <ul className='flex flex-col p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px]'>
+          <li>
+            <button
+              className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
+              onClick={manageEditLabel}
+            >
+              <div className='renameButton flex items-center justify-center'>
+                <svg
+                  width='26'
+                  height='26'
+                  viewBox='0 0 26 26'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                >
+                  <path
+                    d='M16.8891 6L20.0003 9.11118L13.0002 16.111L9.88915 13L16.8891 6Z'
+                    fill='currentColor'
+                  />
+                  <path
+                    d='M9.1109 13.7776L12.222 16.8887L7.55536 18.4442L9.1109 13.7776Z'
+                    fill='currentColor'
+                  />
+                </svg>
+              </div>
+              <div className='renameButton font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                Rename
+              </div>
+            </button>
+          </li>
+          <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+          <li>
+            <button
+              className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#F44336] hover:text-[#FF6B64]'
+              onClick={deleteNode}
+            >
+              <div className='flex items-center justify-center'>
+                <svg
+                  width='26'
+                  height='26'
+                  viewBox='0 0 26 26'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                >
+                  <path d='M19 7L7 19' stroke='currentColor' strokeWidth='2' />
+                  <path d='M19 19L7 7' stroke='currentColor' strokeWidth='2' />
+                </svg>
+              </div>
+              <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
+                Delete
+              </div>
+            </button>
+          </li>
+        </ul>
       </div>,
       document.body
     );
