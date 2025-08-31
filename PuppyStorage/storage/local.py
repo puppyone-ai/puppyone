@@ -744,6 +744,25 @@ class LocalStorageAdapter(StorageAdapter):
             log_error(f"列出本地对象失败: {str(e)}")
             raise
 
+    def ping(self) -> Dict[str, Any]:
+        """
+        轻量健康检查：确认基础目录存在且可写。
+        """
+        try:
+            # 目录存在性
+            os.makedirs(self.base_path, exist_ok=True)
+            # 可写性测试（不落地大文件，仅touch并删除）
+            test_dir = os.path.join(self.base_path, ".health")
+            os.makedirs(test_dir, exist_ok=True)
+            test_file = os.path.join(test_dir, "ping.tmp")
+            with open(test_file, "w") as f:
+                f.write("ok")
+            os.remove(test_file)
+            return {"ok": True, "type": "local", "base_path": self.base_path}
+        except Exception as e:
+            log_error(f"Local storage ping failed: {str(e)}")
+            return {"ok": False, "type": "local", "error": str(e)}
+
 if __name__ == "__main__":
     # 创建适配器实例并运行测试
     adapter = LocalStorageAdapter()
