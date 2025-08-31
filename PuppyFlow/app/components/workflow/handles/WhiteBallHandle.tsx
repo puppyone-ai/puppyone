@@ -161,6 +161,21 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
     }
   };
 
+  const getHitAreaClassName = () => {
+    switch (props.position) {
+      case Position.Left:
+      case Position.Right:
+        // taller hit area for left/right
+        return '!w-[32px] !h-[64px]';
+      case Position.Top:
+      case Position.Bottom:
+        // wider hit area for top/bottom
+        return '!w-[64px] !h-[32px]';
+      default:
+        return '!w-[40px] !h-[40px]';
+    }
+  };
+
   return (
     <>
       <Handle
@@ -172,14 +187,19 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
           console.log(connection.source, connection.sourceHandle)
         }
         style={getHandleStyle()}
-        className={`relative flex items-center justify-center z-10 ${judgeDisplay()} ${showHandleColor()}  hover:!border-main-orange hover:!w-[20px] hover:!h-[20px] hover:!border-2 hover:!rounded-[10px] group`}
+        className={`relative flex items-center justify-center z-10 ${judgeDisplay()} ${showHandleColor()} ${getHitAreaClassName()}  !bg-transparent !border-transparent group ${judgeDisplay() === 'transparent' ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}
       >
+        {/* inner visible dot (keeps visual small while enlarging transparent hit area) */}
         <div
-          className={`absolute z-[-10] inset-0 flex items-center justify-center text-main-orange opacity-0 group-hover:opacity-100 ${showHandleColor() === 'selected' ? 'opacity-100' : ''} pointer-events-none ${getArrowRotation()}`}
+          className={`pointer-events-none relative z-10 w-[12px] h-[12px] rounded-full border border-[#565656] transition-all duration-150 ease-out group-hover:w-[24px] group-hover:h-[24px] group-hover:border-2 group-hover:border-main-orange ${showHandleColor() === 'selected' ? 'w-[24px] h-[24px] border-2 border-main-orange' : ''}`}
+        />
+        {/* center arrow icon, visible on hover or when selected */}
+        <div
+          className={`pointer-events-none absolute inset-0 flex items-center justify-center text-main-orange transition-opacity duration-150 ease-out opacity-0 group-hover:opacity-100 ${showHandleColor() === 'selected' ? 'opacity-100' : ''} ${getArrowRotation()}`}
         >
           <svg
-            width='12'
-            height='12'
+            width='16'
+            height='16'
             viewBox='0 0 12 12'
             fill='none'
             xmlns='http://www.w3.org/2000/svg'
@@ -192,210 +212,6 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
               strokeLinejoin='round'
             />
           </svg>
-        </div>
-        <div
-          className={`${getHoverPreviewPosition()} z-[-10] opacity-0 group-hover:opacity-100 pointer-events-none`}
-        >
-          {props.position === Position.Top && (
-            <svg
-              width='176'
-              height='341'
-              viewBox='0 0 176 341'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-            >
-              <rect x='86' y='181' width='4' height='160' fill='#565656' />
-              <rect
-                x='58'
-                y='247'
-                width='60'
-                height='28'
-                rx='6'
-                fill='#181818'
-              />
-              <rect
-                x='58'
-                y='247'
-                width='60'
-                height='28'
-                rx='6'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-              <path
-                d='M79 188L88 179L97 188'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-              <rect
-                x='2'
-                y='2'
-                width='172'
-                height='172'
-                rx='14'
-                fill='#181818'
-              />
-              <rect
-                x='2'
-                y='2'
-                width='172'
-                height='172'
-                rx='14'
-                stroke='#565655'
-                strokeWidth='4'
-              />
-            </svg>
-          )}
-          {props.position === Position.Right && (
-            <svg
-              width='405'
-              height='176'
-              viewBox='0 0 405 176'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-            >
-              <rect y='86' width='224' height='4' fill='#565656' />
-              <path
-                d='M217 79L226 88L217 97'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-              <rect
-                x='231'
-                y='2'
-                width='172'
-                height='172'
-                rx='14'
-                fill='#181818'
-              />
-              <rect
-                x='231'
-                y='2'
-                width='172'
-                height='172'
-                rx='14'
-                stroke='#565655'
-                strokeWidth='4'
-              />
-              <rect
-                x='82'
-                y='74'
-                width='60'
-                height='28'
-                rx='6'
-                fill='#181818'
-              />
-              <rect
-                x='82'
-                y='74'
-                width='60'
-                height='28'
-                rx='6'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-            </svg>
-          )}
-          {props.position === Position.Bottom && (
-            <svg
-              width='176'
-              height='341'
-              viewBox='0 0 176 341'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-            >
-              <rect x='86' y='0' width='4' height='160' fill='#565656' />
-              <rect
-                x='58'
-                y='66'
-                width='60'
-                height='28'
-                rx='6'
-                fill='#181818'
-              />
-              <rect
-                x='58'
-                y='66'
-                width='60'
-                height='28'
-                rx='6'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-              <path
-                d='M79 153L88 162L97 153'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-              <rect
-                x='2'
-                y='167'
-                width='172'
-                height='172'
-                rx='14'
-                fill='#181818'
-              />
-              <rect
-                x='2'
-                y='167'
-                width='172'
-                height='172'
-                rx='14'
-                stroke='#565655'
-                strokeWidth='4'
-              />
-            </svg>
-          )}
-          {props.position === Position.Left && (
-            <svg
-              width='405'
-              height='176'
-              viewBox='0 0 405 176'
-              fill='none'
-              xmlns='http://www.w3.org/2000/svg'
-            >
-              <rect x='181' y='86' width='224' height='4' fill='#565656' />
-              <path
-                d='M188 79L179 88L188 97'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-              <rect
-                x='2'
-                y='2'
-                width='172'
-                height='172'
-                rx='14'
-                fill='#181818'
-              />
-              <rect
-                x='2'
-                y='2'
-                width='172'
-                height='172'
-                rx='14'
-                stroke='#565655'
-                strokeWidth='4'
-              />
-              <rect
-                x='263'
-                y='74'
-                width='60'
-                height='28'
-                rx='6'
-                fill='#181818'
-              />
-              <rect
-                x='263'
-                y='74'
-                width='60'
-                height='28'
-                rx='6'
-                stroke='#565656'
-                strokeWidth='4'
-              />
-            </svg>
-          )}
         </div>
       </Handle>
       <EdgeMenu1
