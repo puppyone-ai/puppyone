@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Handle, NodeProps, Node, Position, useReactFlow } from '@xyflow/react';
-import EdgeMenu1 from '../edgeNodesCreatingMenu/EdgeSelectorMenu';
+import EdgeMenu1 from '../../edgeNodesCreatingMenu/EdgeSelectorMenu';
 
 export type EdgeMenuTempNodeData = {
   sourceNodeId: string;
