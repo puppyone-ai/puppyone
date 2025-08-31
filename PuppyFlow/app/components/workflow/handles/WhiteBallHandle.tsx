@@ -6,7 +6,6 @@ import {
   Connection,
   useReactFlow,
 } from '@xyflow/react';
-import EdgeMenu1 from '../edgesNode/edgeNodesCreatingMenu/EdgeSelectorMenu';
 import { useNodeContext } from '../../states/NodeContext';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 
@@ -214,13 +213,6 @@ function WhiteBallHandle({ sourceNodeId, ...props }: WhiteBallHandleProps) {
           </svg>
         </div>
       </Handle>
-      <EdgeMenu1
-        nodeType={getNode(sourceNodeId)?.type || 'text'}
-        sourceNodeId={sourceNodeId}
-        handleId={props.id}
-        position={props.position}
-        mode='handle'
-      />
     </>
   );
 }
