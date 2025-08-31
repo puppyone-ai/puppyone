@@ -16,13 +16,7 @@ function FileNodeSettingMenu({
   clearMenu,
   nodeid,
 }: FileNodeSettingMenuProps) {
-  const {
-    manageNodeasLocked,
-    setNodeEditable,
-    preventInactivateNode,
-    manageNodeasInput,
-    manageNodeasOutput,
-  } = useNodesPerFlowContext();
+  const { setNodeEditable, preventInactivateNode } = useNodesPerFlowContext();
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
   const [tempUploadInfo, setTempUploadInfo] = useState<{
     uploadUrl: string;
@@ -157,7 +151,7 @@ function FileNodeSettingMenu({
             </button>
           </li>
 
-          <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+          
           {/* <li>
                     <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                     onClick={()=> manageNodeasInput(nodeid)}>
@@ -189,44 +183,7 @@ function FileNodeSettingMenu({
                     </button>
                 </li> */}
 
-          <li>
-            <button
-              className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
-              onClick={() => manageNodeasLocked(nodeid)}
-            >
-              <div className='flex items-center justify-center'>
-                <svg
-                  width='26'
-                  height='26'
-                  viewBox='0 0 26 26'
-                  fill='none'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <rect
-                    x='7'
-                    y='13'
-                    width='12'
-                    height='7'
-                    fill='currentColor'
-                  />
-                  <rect
-                    x='9'
-                    y='7'
-                    width='8'
-                    height='11'
-                    rx='4'
-                    stroke='currentColor'
-                    strokeWidth='2'
-                  />
-                </svg>
-              </div>
-              <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                {getNode(nodeid)?.data?.isLocked
-                  ? 'Unlock the File'
-                  : 'Lock the File'}
-              </div>
-            </button>
-          </li>
+          
           <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
           <li>
             <button
