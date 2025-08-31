@@ -1,6 +1,6 @@
 import React, { useEffect, useState, Fragment } from 'react';
 // import { useNodeContext } from '../../states/NodeContext'
-import { useReactFlow, Position } from '@xyflow/react';
+import { useReactFlow } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
 import { Transition } from '@headlessui/react';
 
@@ -16,13 +16,7 @@ function TextNodeSettingMenu({
   nodeid,
 }: TextNodeSettingMenuProps) {
   // const {nodes, searchNode, deleteNode, lockNode, unlockNode,setHandleDisconnected, clear, markNodeAsInput, unmarkNodeAsInput, markNodeAsOutput, unmarkNodeAsOutput, allowEditLabel, disallowEditLabel, preventInactivateNode} = useNodeContext()
-  const {
-    manageNodeasInput,
-    manageNodeasLocked,
-    manageNodeasOutput,
-    setNodeEditable,
-    preventInactivateNode,
-  } = useNodesPerFlowContext();
+  const { setNodeEditable, preventInactivateNode } = useNodesPerFlowContext();
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
   // 0 未开始， 1待开始 ， 2 完成步骤1:disconnect handle ， 3 完成步骤二：delete node in the context 3. 完成步骤3: 在reactflow中删除节点和连线
   // const [deleteState, setDeleteState] = useState(0)
@@ -142,39 +136,7 @@ function TextNodeSettingMenu({
                 </div>
                 </button>
             </li> */}
-        <li>
-          <button
-            className='flex flex-row items-center justify-start  gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none  text-[#CDCDCD] hover:text-white'
-            onClick={() => manageNodeasLocked(nodeid)}
-          >
-            <div className='flex items-center justify-center'>
-              <svg
-                width='26'
-                height='26'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect x='7' y='13' width='12' height='7' fill='currentColor' />
-                <rect
-                  x='9'
-                  y='7'
-                  width='8'
-                  height='11'
-                  rx='4'
-                  stroke='currentColor'
-                  strokeWidth='2'
-                />
-              </svg>
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-              {getNode(nodeid)?.data?.locked
-                ? 'Unlock the text'
-                : 'Lock the text'}
-            </div>
-          </button>
-        </li>
-        <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+        
 
         <li>
           <button

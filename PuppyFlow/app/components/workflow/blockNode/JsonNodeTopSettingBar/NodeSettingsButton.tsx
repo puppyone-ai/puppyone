@@ -18,7 +18,6 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
   const {
     activatedNode,
     setHandleActivated,
-    manageNodeasLocked,
     setNodeEditable,
     preventInactivateNode,
     clearAll,
@@ -99,45 +98,8 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
           leaveTo='transform opacity-0 translate-y-[-10px]'
         >
           <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
-            <li>
-              <button
-                className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
-                onClick={() => manageNodeasLocked(nodeid)}
-              >
-                <div className='flex items-center justify-center'>
-                  <svg
-                    width='26'
-                    height='26'
-                    viewBox='0 0 26 26'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <rect
-                      x='7'
-                      y='13'
-                      width='12'
-                      height='7'
-                      fill='currentColor'
-                    />
-                    <rect
-                      x='9'
-                      y='7'
-                      width='8'
-                      height='11'
-                      rx='4'
-                      stroke='currentColor'
-                      strokeWidth='2'
-                    />
-                  </svg>
-                </div>
-                <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-                  {getNode(nodeid)?.data?.locked
-                    ? 'Unlock the text'
-                    : 'Lock the text'}
-                </div>
-              </button>
-            </li>
-            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            
+            
             <li>
               <button
                 className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'

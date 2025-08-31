@@ -14,13 +14,7 @@ function DatabaseNodeSettingMenu({
   clearMenu,
   nodeid,
 }: DatabaseNodeSettingMenuProps) {
-  const {
-    manageNodeasInput,
-    manageNodeasLocked,
-    manageNodeasOutput,
-    setNodeEditable,
-    preventInactivateNode,
-  } = useNodesPerFlowContext();
+  const { setNodeEditable, preventInactivateNode } = useNodesPerFlowContext();
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
   // 0 未开始， 1待开始 ， 2 完成步骤1:disconnect handle ， 3 完成步骤二：delete node in the context 3. 完成步骤3: 在reactflow中删除节点和连线
 
@@ -75,36 +69,7 @@ function DatabaseNodeSettingMenu({
           </div>
         </button>
       </li>
-      <li>
-        <button
-          className='flex flex-row items-center justify-start px-[11px] py-[2px] gap-[9px] w-[108px] h-[20px] bg-[#3E3E41]'
-          onClick={() => manageNodeasLocked(nodeid)}
-        >
-          <div className='flex items-center justify-center'>
-            <svg
-              xmlns='http://www.w3.org/2000/svg'
-              width='8'
-              height='9'
-              viewBox='0 0 8 9'
-              fill='none'
-            >
-              <rect y='4' width='8' height='5' fill='#BEBEBE' />
-              <rect
-                x='1.75'
-                y='0.75'
-                width='4.5'
-                height='6.5'
-                rx='2.25'
-                stroke='#BEBEBE'
-                strokeWidth='1.5'
-              />
-            </svg>
-          </div>
-          <div className='font-plus-jakarta-sans text-[10px] font-normal leading-normal text-[#BEBEBE] whitespace-nowrap'>
-            {getNode(nodeid)?.data?.locked ? 'Unlock it' : 'Lock it'}
-          </div>
-        </button>
-      </li>
+      
       <li>
         <div className='h-[1px] w-[91px] bg-[#D9D9D9] mx-[8px] my-[5px]'></div>
       </li>

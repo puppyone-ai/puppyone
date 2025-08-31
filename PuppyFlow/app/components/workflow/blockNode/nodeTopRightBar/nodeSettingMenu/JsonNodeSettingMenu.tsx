@@ -1,6 +1,6 @@
 import React, { useEffect, useState, Fragment } from 'react';
 // import { useNodeContext } from '../../states/NodeContext'
-import { useReactFlow, Position, Node } from '@xyflow/react';
+import { useReactFlow, Node } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
 import { PuppyStorage_IP_address_for_embedding } from '../../../../hooks/useJsonConstructUtils';
 import useJsonConstructUtils from '../../../../hooks/useJsonConstructUtils';
@@ -18,14 +18,8 @@ function JsonNodeSettingMenu({
   nodeid,
 }: JsonNodeSettingMenuProps) {
   // const {nodes, searchNode, deleteNode, lockNode, unlockNode,setHandleDisconnected, clear, markNodeAsInput, unmarkNodeAsInput, markNodeAsOutput, unmarkNodeAsOutput, allowEditLabel, disallowEditLabel, preventInactivateNode} = useNodeContext()
-  const {
-    manageNodeasInput,
-    manageNodeasLocked,
-    manageNodeasOutput,
-    setNodeEditable,
-    preventInactivateNode,
-    clearAll,
-  } = useNodesPerFlowContext();
+  const { setNodeEditable, preventInactivateNode, clearAll } =
+    useNodesPerFlowContext();
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
   const { cleanJsonString } = useJsonConstructUtils();
 
@@ -351,38 +345,7 @@ function JsonNodeSettingMenu({
           </button>
         </li> */}
 
-        <li>
-          <button
-            className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
-            onClick={() => manageNodeasLocked(nodeid)}
-          >
-            <div className='flex items-center justify-center'>
-              <svg
-                width='26'
-                height='26'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect x='7' y='13' width='12' height='7' fill='currentColor' />
-                <rect
-                  x='9'
-                  y='7'
-                  width='8'
-                  height='11'
-                  rx='4'
-                  stroke='currentColor'
-                  strokeWidth='2'
-                />
-              </svg>
-            </div>
-            <div className='font-plus-jakarta-sans text-[12px] font-normal leading-normal whitespace-nowrap'>
-              {getNode(nodeid)?.data?.locked
-                ? 'Unlock the text'
-                : 'Lock the text'}
-            </div>
-          </button>
-        </li>
+        
         {/* <li>
                 <button className='flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
                 onClick={onEmbeddingClick}>
@@ -396,7 +359,7 @@ function JsonNodeSettingMenu({
             </li>
             <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li> */}
 
-        <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+        
         <li>
           <button
             className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
