@@ -63,7 +63,7 @@ import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
-import EdgeMenuNode from './edgesNode/edgeNodesCreatingMenu/EdgeMenuNode';
+import EdgeMenuNode from './edgesNode/edgeNodesNew/EdgeMenuNode';
 
 const nodeTypes = {
   text: TextBlockNode,
