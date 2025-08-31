@@ -32,7 +32,7 @@ export default function Upright() {
       .map(n => ({ id: String(n.id), name: String(n?.data?.label ?? n.id) }));
   }, [content]);
 
-  
+  // Keep menu logically open; visually collapse when there are no groups
 
   const handleRunGroup = useCallback(async (groupId: string) => {
     try {
@@ -69,95 +69,92 @@ export default function Upright() {
   ]);
 
   return (
-    <div className='flex flex-col items-end gap-2 pointer-events-auto'>
-      <div className='flex items-start gap-3'>
-        <SaveButton />
-        <Controls
-          className='react-flow__controls-custom'
-          showZoom={true}
-          showFitView={true}
-          showInteractive={false}
-          orientation='horizontal'
-          style={{ position: 'relative' }}
-        />
-        <div className='relative'>
-          <button
-            className='inline-flex items-center gap-1.5 h-[32px] rounded-[8px] px-2.5 border border-[#3A3A3A] bg-[#181818] text-[#CDCDCD] hover:bg-[#444444]'
-            title='Groups'
-            aria-label='Toggle group list'
-            aria-expanded={areGroupsOpen}
-            onClick={e => {
-              e.preventDefault();
-              e.stopPropagation();
-              setAreGroupsOpen(v => !v);
-            }}
-          >
-            <svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-              <path d='M8 4V20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
-              <path d='M16 4V20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
-              <path d='M4 8H20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
-              <path d='M4 16H20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
+    <div className='will-change-auto bg-[#1E1E1E] rounded-[12px] border border-[#343434] ring-1 ring-black/20 shadow-xl shadow-black/30 backdrop-blur-md flex items-center gap-[8px] px-[8px] py-[6px] pointer-events-auto'>
+      <SaveButton />
+      <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
+      <Controls
+        className='react-flow__controls-custom'
+        showZoom={true}
+        showFitView={true}
+        showInteractive={false}
+        orientation='horizontal'
+        style={{ position: 'relative' }}
+      />
+      <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
+      <div className='relative'>
+        <button
+          className='inline-flex items-center gap-1.5 h-[36px] rounded-[8px] px-2 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444]'
+          title='Groups'
+          aria-label='Toggle group list'
+          aria-expanded={areGroupsOpen}
+          onClick={e => {
+            e.preventDefault();
+            e.stopPropagation();
+            setAreGroupsOpen(v => !v);
+          }}
+        >
+          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+            <path d='M8 4V20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
+            <path d='M16 4V20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
+            <path d='M4 8H20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
+            <path d='M4 16H20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
+          </svg>
+          <span className='text-[12px]'>Groups</span>
+          {areGroupsOpen ? (
+            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+              <path d='M6 14L12 8L18 14' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
             </svg>
-            <span className='text-[12px]'>Groups</span>
-            {areGroupsOpen ? (
-              <svg width='10' height='10' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                <path d='M6 14L12 8L18 14' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-              </svg>
-            ) : (
-              <svg width='10' height='10' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                <path d='M6 10L12 16L18 10' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
-              </svg>
-            )}
-          </button>
-          {areGroupsOpen && (
-            <div className='absolute right-0 top-full mt-2 z-[10001]'>
-              <div className='py-[8px] px-[8px] w-[260px] bg-[#2A2A2A] border border-[#404040] rounded-[8px] shadow-2xl'>
-                {groups.length === 0 ? (
-                  <div className='text-[#606060] text-[12px] px-[2px] py-[6px]'>No Groups yet</div>
-                ) : (
-                  <div className='max-h-[200px] overflow-y-auto'>
-                    {groups.map((g, idx) => (
-                      <Fragment key={g.id}>
-                        <div
-                          className='w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md transition-colors hover:bg-[#3A3A3A] text-[#CDCDCD] text-[12px] cursor-pointer'
-                          onClick={e => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            activateNode(g.id);
-                          }}
-                        >
-                          <div className='flex items-center gap-2 min-w-0'>
-                            <span className='truncate'>{g.name}</span>
-                          </div>
-                          <button
-                            className='inline-flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] border border-[#404040] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
-                            title='Run group'
-                            aria-label={`Run group ${g.name}`}
-                            onClick={e => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleRunGroup(g.id);
-                            }}
-                          >
-                            <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
-                              <path d='M8 5V19L19 12L8 5Z' />
-                            </svg>
-                            <span className='text-[12px]'>Run</span>
-                          </button>
-                        </div>
-                        {idx < groups.length - 1 && (
-                          <div className='h-px bg-[#404040] mx-[2px]'></div>
-                        )}
-                      </Fragment>
-                    ))}
+          ) : (
+            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+              <path d='M6 10L12 16L18 10' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
+            </svg>
+          )}
+        </button>
+        {areGroupsOpen && (
+          <div className='absolute right-0 top-full mt-2 z-[10001] translate-x-[8px]'>
+            <div
+              className={`w-[220px] rounded-[8px] shadow-none transition-all duration-150 ${
+                groups.length === 0
+                  ? 'h-0 p-0 opacity-0 bg-transparent border-0 pointer-events-none overflow-hidden'
+                  : 'py-[8px] opacity-100 bg-transparent border-0'
+              }`}
+            >
+              <div className='max-h-[200px] overflow-y-auto flex flex-col gap-2'>
+                {groups.map(g => (
+                  <div
+                    key={g.id}
+                    className='w-full flex items-center justify-between gap-2 px-3 py-2 rounded-[8px] border border-[#404040] bg-[#232323] hover:bg-[#2A2A2A] text-[#CDCDCD] text-[12px] cursor-pointer'
+                    onClick={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      activateNode(g.id);
+                    }}
+                  >
+                    <div className='flex items-center gap-2 min-w-0'>
+                      <span className='truncate'>{g.name}</span>
+                    </div>
+                    <button
+                      className='inline-flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] border border-[#404040] text-[#39bc66] hover:bg-[#39bc66] hover:text-black active:scale-95'
+                      title='Run group'
+                      aria-label={`Run group ${g.name}`}
+                      onClick={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRunGroup(g.id);
+                      }}
+                    >
+                      <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+                        <path d='M8 5V19L19 12L8 5Z' />
+                      </svg>
+                      <span className='text-[12px]'>Run</span>
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-      {/* Group dropdown attached to button above */}
     </div>
   );
 }

@@ -876,11 +876,11 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .react-flow__controls-custom {
-  background: #181818; /* subtle transparent-like bar */
-  border: 1px solid #3a3a3a; /* visible border */
-  border-radius: 8px; /* match toolbar rounded */
-  padding: 2px 4px; /* tighter */
-  height: 32px; /* slimmer */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  height: 36px; /* match toolbar button height */
   display: flex;
   flex-direction: row;
   align-items: center;

@@ -119,7 +119,7 @@ export default function GroupListButton() {
                             </div>
                           </div>
                           <button
-                            className='flex items-center justify-center w-[22px] h-[22px] rounded-[6px] border border-[#3A3A3A] bg-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A] active:scale-95'
+                            className='flex items-center justify-center w-[22px] h-[22px] rounded-[6px] border border-[#3A3A3A] bg-[#2A2A2A] text-[#39bc66] hover:bg-[#39bc66] hover:text-black active:scale-95'
                             title='Run group'
                             aria-label={`Run group ${g.name}`}
                             onClick={e => {
