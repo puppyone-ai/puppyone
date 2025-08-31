@@ -75,7 +75,7 @@ function SaveButton() {
 
   return (
     <button
-      className={`inline-flex items-center gap-1.5 h-[32px] rounded-[8px] px-2.5 border border-[#3A3A3A] bg-[#181818] text-[#CDCDCD] transition-colors ${
+      className={`inline-flex items-center gap-1.5 h-[36px] rounded-[8px] px-2 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] transition-colors ${
         isOnGeneratingNewNode ? 'pointer-events-none' : 'pointer-events-auto'
       } hover:bg-[#444444]`}
       title='Save'
