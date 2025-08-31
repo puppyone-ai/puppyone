@@ -15,7 +15,7 @@ import React, {
   useMemo,
 } from 'react';
 import WhiteBallHandle from '../handles/WhiteBallHandle';
-import NodeToolBar from './nodeTopRightBar/NodeTopRightBar';
+import FileNodeSettingsController from './FileNodeTopSettingBar/NodeSettingsButton';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import ReactDOM from 'react-dom';
 import { useFileUpload, UploadedFile } from './hooks/useFileUpload';
@@ -461,7 +461,7 @@ const FileNode = React.memo<FileNodeProps>(
 
             {/* top-right toolbar */}
             <div className='min-w-[24px] min-h-[24px] flex items-center justify-center'>
-              <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
+              <FileNodeSettingsController nodeid={id} />
             </div>
           </div>
 
