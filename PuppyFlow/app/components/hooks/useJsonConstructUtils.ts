@@ -8,7 +8,6 @@ import { JsonNodeData } from '../workflow/blockNode/JsonNodeNew';
 import { FileNodeData } from '../workflow/blockNode/FileNode';
 
 import { TextBlockNodeData } from '../workflow/blockNode/TextBlockNode';
-import { WebLinkNodeData } from '../workflow/blockNode/WebLinkNode';
 import { SYSTEM_URLS } from '@/config/urls';
 import { useAppSettings } from '../states/AppSettingsContext';
 // import {WarnsContext,WarnsContainer} from "puppyui"
@@ -28,7 +27,6 @@ export type BasicNodeData =
   | JsonNodeData
   | FileNodeData
   | TextBlockNodeData
-  | WebLinkNodeData
   | {
       content: string | any;
       subtype?: string;
