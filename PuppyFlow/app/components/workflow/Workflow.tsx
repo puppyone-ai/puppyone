@@ -27,7 +27,6 @@ import {
 } from '@xyflow/react';
 import TextBlockNode from './blockNode/TextBlockNode';
 import '@xyflow/react/dist/style.css';
-import WebLinkNode from './blockNode/WebLinkNode';
 import Upbar from '../upbar/Upbar';
 import JsonBlockNode from './blockNode/JsonNodeNew';
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge';
@@ -68,7 +67,6 @@ import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
 const nodeTypes = {
   text: TextBlockNode,
   file: FileNode,
-  weblink: WebLinkNode,
   structured: JsonBlockNode,
   copy: CopyEdgeNode,
   chunkingByLength: ChunkingByLength,
