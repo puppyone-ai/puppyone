@@ -28,6 +28,7 @@ function FloatingEdge({
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
+
   // apply selected style (moved from global css): orange, dashed, animated
   const appliedStyle = selected
     ? {
@@ -60,6 +61,7 @@ function FloatingEdge({
     sourceNode,
     targetNode
   );
+
 
   if (data.connectionType === 'STC') {
     const [edgePath] = getSmoothStepPath({
