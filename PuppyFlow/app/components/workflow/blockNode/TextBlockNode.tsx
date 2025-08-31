@@ -16,7 +16,7 @@ import React, {
   useMemo,
 } from 'react';
 import WhiteBallHandle from '../handles/WhiteBallHandle';
-import NodeToolBar from './nodeTopRightBar/NodeTopRightBar';
+import TextNodeSettingsController from './TextNodeTopSettingBar/NodeSettingsButton';
 import TextEditor from '../../tableComponent/TextEditor';
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon';
 import dynamic from 'next/dynamic';
@@ -457,7 +457,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
               )}
             </div>
             <div className='min-w-[24px] min-h-[24px] flex items-center justify-center'>
-              <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
+              <TextNodeSettingsController nodeid={id} />
             </div>
           </div>
 

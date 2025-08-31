@@ -659,7 +659,7 @@ function Workflow() {
           fitView
           deleteKeyCode={['Backspace', 'Delete']} // 同时支持Backspace和Delete键
           minZoom={0.2} // 最小缩放级别
-          maxZoom={1.5}
+          maxZoom={1}
           zoomOnScroll={canZoom}
           zoomOnPinch={true}
           panOnDrag={canPan ? true : [1]}
