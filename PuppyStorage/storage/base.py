@@ -95,3 +95,13 @@ class StorageAdapter(ABC):
             async iterator: 文件内容的异步迭代器，以及状态码、范围头、文件大小
         """
         pass
+
+    @abstractmethod
+    def ping(self) -> Dict[str, Any]:
+        """
+        轻量健康检查接口，用于检测存储后端可用性。
+
+        Returns:
+            Dict[str, Any]: 包含至少键 `ok` 的结果；`ok=True` 表示存储可访问。
+        """
+        pass
