@@ -4,6 +4,7 @@ import { Position, Node } from '@xyflow/react';
 import React, { useState, useRef, useEffect, Fragment } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { Transition } from '@headlessui/react';
+import { createPortal } from 'react-dom';
 
 type NodeSettingsControllerProps = {
   nodeid: string;
@@ -23,13 +24,17 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
     clearAll,
   } = useNodesPerFlowContext();
   const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
+  // container for the portaled menu
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const currRef = componentRef.current;
 
     const closeSettings = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (currRef && !currRef.contains(target) && isMenuOpen) {
+      const clickedInsideButton = !!currRef && currRef.contains(target);
+      const clickedInsideMenu = !!menuContainerRef.current && menuContainerRef.current.contains(target);
+      if (!clickedInsideButton && !clickedInsideMenu && isMenuOpen) {
         setIsMenuOpen(false);
       }
     };
@@ -48,6 +53,48 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
       setIsMenuOpen(false);
     }
   }, [activatedNode?.id, nodeid]);
+
+  // Keep menu tethered to button position (independent of React Flow zoom/pan)
+  useEffect(() => {
+    if (!isMenuOpen) return;
+
+    let rafId: number | null = null;
+
+    const positionMenu = () => {
+      const btn = settingControllerRef.current;
+      const container = menuContainerRef.current;
+      if (!btn || !container) {
+        rafId = requestAnimationFrame(positionMenu);
+        return;
+      }
+      const rect = btn.getBoundingClientRect();
+      const GAP = 8;
+      const MENU_WIDTH = 160; // matches w-[160px]
+      const top = rect.bottom + GAP;
+      let left = rect.left; // align menu's left edge to button's left edge
+      left = Math.max(8, Math.min(left, window.innerWidth - MENU_WIDTH - 8));
+
+      container.style.position = 'fixed';
+      container.style.top = `${top}px`;
+      container.style.left = `${left}px`;
+      container.style.zIndex = '2000000';
+
+      rafId = requestAnimationFrame(positionMenu);
+    };
+
+    positionMenu();
+
+    const onScroll = () => positionMenu();
+    const onResize = () => positionMenu();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [isMenuOpen]);
 
   const manageSettings = () => {
     const target = getNode(nodeid);
@@ -86,7 +133,7 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
   const renderSettingMenu = () => {
     const parentNodeType = getNode(nodeid)?.type;
     if (parentNodeType === 'structured' && isMenuOpen) {
-      return (
+      const menu = (
         <Transition
           show={isMenuOpen}
           as={Fragment}
@@ -97,9 +144,11 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
           leaveFrom='transform opacity-100 translate-y-0'
           leaveTo='transform opacity-0 translate-y-[-10px]'
         >
-          <ul className='flex flex-col absolute top-[8px] p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] left-0 z-[20000]'>
-            
-            
+          <ul
+            className='flex flex-col p-[8px] w-[160px] gap-[4px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px]'
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+          >
             <li>
               <button
                 className='renameButton flex flex-row items-center justify-start gap-[8px] w-full h-[26px] hover:bg-[#3E3E41] rounded-[4px] border-none text-[#CDCDCD] hover:text-white'
@@ -162,6 +211,18 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
           </ul>
         </Transition>
       );
+
+      return createPortal(
+        <div
+          ref={menuContainerRef}
+          style={{ position: 'fixed', zIndex: 2000000 }}
+          onMouseDown={e => e.stopPropagation()}
+          onClick={e => e.stopPropagation()}
+        >
+          {menu}
+        </div>,
+        document.body
+      );
     }
     return null;
   };
@@ -192,9 +253,7 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
           <path d='M4.5 0H6.5V2H4.5V0Z' fill={fillColor} />
         </svg>
       </button>
-      <div style={{ position: 'fixed', zIndex: 20000 }}>
-        {renderSettingMenu()}
-      </div>
+      {renderSettingMenu()}
     </div>
   );
 }
