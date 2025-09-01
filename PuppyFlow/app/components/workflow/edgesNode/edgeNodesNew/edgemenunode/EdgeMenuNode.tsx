@@ -28,13 +28,22 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
   const { getNode, setNodes, setEdges } = useReactFlow();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // search removed to save space
+  const mainListRef = useRef<HTMLUListElement | null>(null);
+  const subListRef = useRef<HTMLUListElement | null>(null);
   const listItemRefs = useRef<(HTMLLIElement | null)[]>([]);
   const [activeMainIndex, setActiveMainIndex] = useState(0);
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null);
   const [activeSubIndex, setActiveSubIndex] = useState<number>(0);
+  // search removed to save space
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const [submenuTop, setSubmenuTop] = useState<number>(0);
+  const [sideHandleTop, setSideHandleTop] = useState<number>(18);
+  const [mainHasTopShadow, setMainHasTopShadow] = useState(false);
+  const [mainHasBottomShadow, setMainHasBottomShadow] = useState(false);
+  const [subHasTopShadow, setSubHasTopShadow] = useState(false);
+  const [subHasBottomShadow, setSubHasBottomShadow] = useState(false);
 
   const sourceType = useMemo(() => {
     return data?.sourceNodeType || getNode(data?.sourceNodeId)?.type || 'text';
@@ -187,6 +196,28 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
     }
   };
 
+  const updateScrollShadows = useCallback(
+    (
+      el: HTMLUListElement | null,
+      setTop: React.Dispatch<React.SetStateAction<boolean>>,
+      setBottom: React.Dispatch<React.SetStateAction<boolean>>
+    ) => {
+      if (!el) return;
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      setTop(scrollTop > 1);
+      setBottom(scrollTop + clientHeight < scrollHeight - 1);
+    },
+    []
+  );
+
+  const handleMainScroll = useCallback(() => {
+    updateScrollShadows(mainListRef.current, setMainHasTopShadow, setMainHasBottomShadow);
+  }, [updateScrollShadows]);
+
+  const handleSubScroll = useCallback(() => {
+    updateScrollShadows(subListRef.current, setSubHasTopShadow, setSubHasBottomShadow);
+  }, [updateScrollShadows]);
+
   const updateSubmenuTop = useCallback((index: number) => {
     const menuEl = menuRef.current;
     const itemEl = listItemRefs.current[index];
@@ -197,12 +228,38 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
     setSubmenuTop(top);
   }, []);
 
+  useEffect(() => {
+    setOpenSubmenuIndex(null);
+    window.setTimeout(() => {
+      updateScrollShadows(mainListRef.current, setMainHasTopShadow, setMainHasBottomShadow);
+    }, 0);
+  }, []);
+
+  // Calculate side handles vertical position: center of search bar
+  useEffect(() => {
+    const calc = () => {
+      const cont = menuRef.current;
+      if (!cont) return;
+      const cr = cont.getBoundingClientRect();
+      // default place handles around top region when search removed
+      const top = Math.max(0, 32);
+      setSideHandleTop(top);
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
+
   const openSubmenuWithDelay = (index: number) => {
     clearTimers();
     openTimerRef.current = window.setTimeout(() => {
       setOpenSubmenuIndex(index);
       setActiveSubIndex(0);
       updateSubmenuTop(index);
+      // ensure submenu scroll shadows are updated after it renders
+      window.setTimeout(() => {
+        updateScrollShadows(subListRef.current, setSubHasTopShadow, setSubHasBottomShadow);
+      }, 0);
     }, 120);
   };
 
@@ -294,8 +351,8 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
   };
 
   const menuDims = useMemo(() => {
-    const width = 196;
-    const height = sourceType === 'text' ? 386 : sourceType === 'structured' ? 432 : 152;
+    const width = 320;
+    const height = sourceType === 'file' || sourceType === 'weblink' ? 240 : 480;
     return { width, height };
   }, [sourceType]);
 
@@ -332,7 +389,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         id={`${id}-t-right`}
         type='target'
         position={Position.Right}
-        style={{ opacity: 0, border: 'none', background: 'transparent', right: '-12px', top: '10px' }}
+        style={{ opacity: 0, border: 'none', background: 'transparent', right: '-12px', top: `${sideHandleTop}px` }}
         isConnectable={isConnectable}
       />
       <Handle
@@ -346,24 +403,42 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         id={`${id}-t-left`}
         type='target'
         position={Position.Left}
-        style={{ opacity: 0, border: 'none', background: 'transparent', left: '-12px', top: '10px' }}
+        style={{ opacity: 0, border: 'none', background: 'transparent', left: '-12px', top: `${sideHandleTop}px` }}
         isConnectable={isConnectable}
       />
 
       {/* Inline menu implementation per design.md */}
       <div
         ref={menuRef}
-        className='absolute left-0 top-0 bg-[#1c1d1f] text-[#CDCDCD] border-4 border-[#42454A] rounded-[16px] p-[8px] shadow-lg text-sm overflow-visible outline-none'
+        className='absolute left-0 top-0 bg-[#1c1d1f] text-[#CDCDCD] border-2 border-[#8B8B8B] rounded-[16px] p-[8px] pl-[12px] pr-0 shadow-lg text-sm overflow-visible outline-none menu-container'
         style={{ width: menuDims.width }}
         tabIndex={0}
         onKeyDown={onKeyDown}
+        onWheelCapture={(e) => {
+          e.stopPropagation();
+        }}
+        onWheel={(e) => {
+          e.stopPropagation();
+        }}
+        onTouchMoveCapture={(e) => {
+          e.stopPropagation();
+        }}
+        onTouchMove={(e) => {
+          e.stopPropagation();
+        }}
       >
         <div>
           {/* Main menu with section titles */}
-          <ul className='overflow-visible flex flex-col gap-[8px] py-[11px] items-start'>
+          <ul
+            ref={mainListRef}
+            className={`max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0 pr-[4px] items-start ${
+              mainHasTopShadow ? 'scroll-shadow-top' : ''
+            } ${mainHasBottomShadow ? 'scroll-shadow-bottom' : ''}`}
+            onScroll={handleMainScroll}
+          >
             {sections.map((section) => (
               <React.Fragment key={`section-${section.key}`}>
-                <li className='text-left w-full h-[12px] text-[#6D7177] text-[10px] font-semibold flex items-center px-[4px]'>
+                <li className='text-left w-full h-[18px] text-[#9AA0A6] text-[11px] tracking-wide font-semibold flex items-center px-[4px] uppercase'>
                   {section.label}
                 </li>
                 {section.items.map((item) => {
@@ -376,7 +451,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
                       ref={(el) => {
                         listItemRefs.current[index] = el;
                       }}
-                      className={`w-full h-[38px] ${isDisabled ? 'cursor-default' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] py-[4px] pl-[8px] pr-[8px] bg-[#3E3E41] hover:bg-[#FFA73D]`}
+                      className={`w-full min-h-[54px] ${isDisabled ? 'cursor-default' : 'cursor-pointer'} rounded-[10px] flex items-center justify-between gap-[11px] py-[10px] pl-[12px] pr-[12px] bg-[#2A2B2E] hover:bg-[#FFA73D]`}
                       onMouseEnter={() => {
                         if (item.submenuKey) {
                           openSubmenuWithDelay(index);
@@ -471,7 +546,20 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
                             </svg>
                           )}
                         </div>
-                        <div className='text-[14px] font-plus-jakarta-sans flex items-center justify-center h-full'>{item.label.replace(' ▸','')}</div>
+                        <div className='flex flex-col items-start justify-center'>
+                          <div className='text-[14px] font-plus-jakarta-sans leading-[16px]'>{item.label.replace(' ▸','')}</div>
+                          <div className='text-[11px] text-[#9AA0A6] leading-[14px]'>
+                            {item.key === 'llm' && 'Run an LLM over the content'}
+                            {item.key === 'modify' && 'Copy, convert formats, or edit content'}
+                            {item.key === 'chunk' && 'Split the content into chunks'}
+                            {item.key === 'retrieve' && 'Retrieve by vector similarity'}
+                            {item.key === 'generate' && 'Generate outputs using the context'}
+                            {item.key === 'deepresearch' && 'Plan and research across the web'}
+                            {item.key === 'search' && 'Search the web with engines'}
+                            {item.key === 'ifelse' && 'Branch logic using conditions'}
+                            {item.key === 'load' && 'Load data from file'}
+                          </div>
+                        </div>
                       </div>
                       {item.submenuKey && (
                         <span className='text-[#CDCDCD] hover:text-[#1C1D1F]'>▸</span>
@@ -487,7 +575,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         {/* Submenu panel */}
         {openSubmenuIndex !== null && (
           <div
-            className='absolute left-full ml-1 bg-[#1c1d1f] text-[#CDCDCD] border-4 border-[#42454A] rounded-[16px] p-[8px] shadow-lg'
+            className='absolute left-full ml-1 bg-[#1c1d1f] text-[#CDCDCD] border-2 border-[#8B8B8B] rounded-[16px] p-[8px] shadow-lg'
             style={{ top: submenuTop }}
             onMouseEnter={() => openSubmenuWithDelay(openSubmenuIndex)}
             onMouseLeave={closeSubmenuWithDelay}
@@ -496,11 +584,17 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
             {(() => {
               const items = getSubmenuItems(openSubmenuIndex);
               return (
-                <ul className='min-w-[200px] max-h-[360px] overflow-auto menu-scroll flex flex-col gap-[8px] py-[3px]'>
+                <ul
+                  ref={subListRef}
+                  className={`min-w-[200px] max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-[3px] pr-[6px] ${
+                    subHasTopShadow ? 'scroll-shadow-top' : ''
+                  } ${subHasBottomShadow ? 'scroll-shadow-bottom' : ''}`}
+                  onScroll={handleSubScroll}
+                >
                   {items.map((s, si) => (
                     <li
                       key={s.key}
-                      className={`w-full h-[38px] ${s.disabled ? 'text-neutral-500 cursor-not-allowed' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] py-[4px] pl-[8px] pr-[8px] bg-[#3E3E41] hover:bg-[#FFA73D]`}
+                      className={`w-full h-[44px] ${s.disabled ? 'text-neutral-500 cursor-not-allowed' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] py-[8px] pl-[12px] pr-[12px] bg-[#3E3E41] hover:bg-[#FFA73D]`}
                       onMouseEnter={() => setActiveSubIndex(si)}
                       onClick={() => {
                         if (s.disabled || !s.onPickEdgeType) return;
@@ -585,12 +679,26 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
       </div>
       <style jsx>{`
         .menu-scroll {
-          -ms-overflow-style: none; /* IE and Edge */
-          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: auto; /* IE and Edge */
+          scrollbar-width: thin; /* Firefox: thin, always visible */
+          scrollbar-color: #777777 transparent; /* slightly darker than border */
+          overscroll-behavior: contain;
+          scrollbar-gutter: stable; /* keep gutter so content won't shift */
+          color-scheme: light; /* prefer light scrollbars where supported */
         }
-        .menu-scroll::-webkit-scrollbar {
-          display: none; /* Chrome, Safari, Opera */
+        /* WebKit: thin, darker gray, always visible */
+        .menu-scroll::-webkit-scrollbar { width: 6px; background: transparent; }
+        .menu-scroll::-webkit-scrollbar-track { background: transparent; }
+        .menu-scroll::-webkit-scrollbar-thumb {
+          background: #777777 !important;
+          border-radius: 8px;
+          border: 2px solid rgba(0,0,0,0); /* keep thumb slim look */
+          box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
         }
+        .menu-scroll::-webkit-scrollbar-thumb:hover { background: #828282 !important; }
+        .menu-container { overscroll-behavior: contain; }
+        .scroll-shadow-top { box-shadow: inset 0 8px 8px -8px rgba(0,0,0,0.35); }
+        .scroll-shadow-bottom { box-shadow: inset 0 -8px 8px -8px rgba(0,0,0,0.35); }
       `}</style>
     </div>
   );
