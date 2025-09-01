@@ -2,8 +2,10 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Handle, NodeProps, Node, Position, useReactFlow } from '@xyflow/react';
+import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGoogle } from '@fortawesome/free-brands-svg-icons';
+import { UI_COLORS } from '@/app/utils/colors';
 
 export type EdgeMenuTempNodeData = {
   sourceNodeId: string;
@@ -26,6 +28,7 @@ type MenuSection = { key: string; label: string; items: ActionItem[] };
 
 const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable }) => {
   const { getNode, setNodes, setEdges } = useReactFlow();
+  const { isOnConnect } = useNodesPerFlowContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   // search removed to save space
@@ -35,11 +38,13 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
   const [activeMainIndex, setActiveMainIndex] = useState(0);
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null);
   const [activeSubIndex, setActiveSubIndex] = useState<number>(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [, setIsTargetHandleTouched] = useState(false);
   // search removed to save space
   const openTimerRef = useRef<number | null>(null);
   const closeTimerRef = useRef<number | null>(null);
   const [submenuTop, setSubmenuTop] = useState<number>(0);
-  const [sideHandleTop, setSideHandleTop] = useState<number>(18);
+  const [sideHandleTop, setSideHandleTop] = useState<number>(16);
   const [mainHasTopShadow, setMainHasTopShadow] = useState(false);
   const [mainHasBottomShadow, setMainHasBottomShadow] = useState(false);
   const [subHasTopShadow, setSubHasTopShadow] = useState(false);
@@ -185,6 +190,22 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
   const sections = useMemo(() => buildSections(), [buildSections]);
   const flatItems = useMemo(() => sections.flatMap(s => s.items), [sections]);
 
+  // Match Copy.tsx full-overlay target handle style so the anchor is vertically centered
+  const handleStyle = useMemo(() => ({
+    position: 'absolute' as const,
+    width: 'calc(100%)',
+    height: 'calc(100%)',
+    top: '0',
+    left: '0',
+    borderRadius: '0',
+    transform: 'translate(0px, 0px)',
+    background: 'transparent',
+    border: '3px solid transparent',
+    zIndex: !isOnConnect ? '-1' : '1',
+  }), [isOnConnect]);
+
+  
+
   const clearTimers = () => {
     if (openTimerRef.current) {
       window.clearTimeout(openTimerRef.current);
@@ -235,20 +256,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
     }, 0);
   }, []);
 
-  // Calculate side handles vertical position: center of search bar
-  useEffect(() => {
-    const calc = () => {
-      const cont = menuRef.current;
-      if (!cont) return;
-      const cr = cont.getBoundingClientRect();
-      // default place handles around top region when search removed
-      const top = Math.max(0, 32);
-      setSideHandleTop(top);
-    };
-    calc();
-    window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
-  }, []);
+  // Fixed side handle offsets for compact node size
 
   const openSubmenuWithDelay = (index: number) => {
     clearTimers();
@@ -357,60 +365,90 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
   }, [sourceType]);
 
   return (
-    <div ref={containerRef} className='relative' style={{ width: `${menuDims.width}px`, height: `${menuDims.height}px` }}>
-      {/* Invisible source handles to satisfy floating edge geometry */}
-      <Handle id={`${id}-a`} className='edgeSrcHandle handle-with-icon handle-top' type='source' position={Position.Top} />
-      <Handle
-        id={`${id}-b`}
-        className='edgeSrcHandle handle-with-icon handle-right'
-        type='source'
-        position={Position.Right}
-        style={{ right: '-12px', top: '10px' }}
-      />
-      <Handle id={`${id}-c`} className='edgeSrcHandle handle-with-icon handle-bottom' type='source' position={Position.Bottom} />
-      <Handle
-        id={`${id}-d`}
-        className='edgeSrcHandle handle-with-icon handle-left'
-        type='source'
-        position={Position.Left}
-        style={{ left: '-12px', top: '10px' }}
-      />
+    <div ref={containerRef} className='p-[3px] w-[80px] h-[48px] relative'>
+      {/* Main node button - empty, non-toggling */}
+      <button
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600] edge-node transition-colors gap-[4px]`}
+        style={{
+          borderColor: isHovered
+            ? UI_COLORS.LINE_ACTIVE
+            : UI_COLORS.MAIN_DEEP_GREY,
+          color: isHovered
+            ? UI_COLORS.LINE_ACTIVE
+            : UI_COLORS.MAIN_DEEP_GREY,
+        }}
+        title='Edge Node'
+      >
+        {/* Source handles */}
+        <Handle
+          id={`${id}-a`}
+          className='edgeSrcHandle handle-with-icon handle-top'
+          type='source'
+          position={Position.Top}
+        />
+        <Handle
+          id={`${id}-b`}
+          className='edgeSrcHandle handle-with-icon handle-right'
+          type='source'
+          position={Position.Right}
+        />
+        <Handle
+          id={`${id}-c`}
+          className='edgeSrcHandle handle-with-icon handle-bottom'
+          type='source'
+          position={Position.Bottom}
+        />
+        <Handle
+          id={`${id}-d`}
+          className='edgeSrcHandle handle-with-icon handle-left'
+          type='source'
+          position={Position.Left}
+        />
+        {/* Target handles */}
+        <Handle
+          id={`${id}-a`}
+          type='target'
+          position={Position.Top}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-b`}
+          type='target'
+          position={Position.Right}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-c`}
+          type='target'
+          position={Position.Bottom}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+        <Handle
+          id={`${id}-d`}
+          type='target'
+          position={Position.Left}
+          style={handleStyle}
+          isConnectable={isConnectable}
+          onMouseEnter={() => setIsTargetHandleTouched(true)}
+          onMouseLeave={() => setIsTargetHandleTouched(false)}
+        />
+      </button>
 
-      {/* Also add large target handles so this temp node can accept incoming edges if needed */}
-      {/* Make side target handles near the top edge to match visual attachment */}
-      <Handle
-        id={`${id}-t-top`}
-        type='target'
-        position={Position.Top}
-        style={{ opacity: 0, border: 'none', background: 'transparent' }}
-        isConnectable={isConnectable}
-      />
-      <Handle
-        id={`${id}-t-right`}
-        type='target'
-        position={Position.Right}
-        style={{ opacity: 0, border: 'none', background: 'transparent', right: '-12px', top: `${sideHandleTop}px` }}
-        isConnectable={isConnectable}
-      />
-      <Handle
-        id={`${id}-t-bottom`}
-        type='target'
-        position={Position.Bottom}
-        style={{ opacity: 0, border: 'none', background: 'transparent' }}
-        isConnectable={isConnectable}
-      />
-      <Handle
-        id={`${id}-t-left`}
-        type='target'
-        position={Position.Left}
-        style={{ opacity: 0, border: 'none', background: 'transparent', left: '-12px', top: `${sideHandleTop}px` }}
-        isConnectable={isConnectable}
-      />
-
-      {/* Inline menu implementation per design.md */}
+      {/* Inline menu implementation per design.md (overlay, not affecting layout) */}
       <div
         ref={menuRef}
-        className='absolute left-0 top-0 bg-[#1c1d1f] text-[#CDCDCD] border-2 border-[#8B8B8B] rounded-[16px] p-[8px] pl-[12px] pr-0 shadow-lg text-sm overflow-visible outline-none menu-container'
+        className='absolute left-0 top-[56px] bg-[#181818] text-[#CDCDCD] border-2 border-[#3E3E41] rounded-[10px] p-[8px] pl-[12px] pr-0 shadow-lg text-sm overflow-visible outline-none menu-container'
         style={{ width: menuDims.width }}
         tabIndex={0}
         onKeyDown={onKeyDown}
@@ -431,14 +469,14 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
           {/* Main menu with section titles */}
           <ul
             ref={mainListRef}
-            className={`max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0 pr-[4px] items-start ${
+            className={`max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0 px-[4px] items-start ${
               mainHasTopShadow ? 'scroll-shadow-top' : ''
             } ${mainHasBottomShadow ? 'scroll-shadow-bottom' : ''}`}
             onScroll={handleMainScroll}
           >
             {sections.map((section) => (
               <React.Fragment key={`section-${section.key}`}>
-                <li className='text-left w-full h-[18px] text-[#9AA0A6] text-[11px] tracking-wide font-semibold flex items-center px-[4px] uppercase'>
+                <li className='text-left w-full h-[18px] text-[#9AA0A6] text-[10px] tracking-wide font-semibold flex items-center px-[4px] uppercase'>
                   {section.label}
                 </li>
                 {section.items.map((item) => {
@@ -451,7 +489,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
                       ref={(el) => {
                         listItemRefs.current[index] = el;
                       }}
-                      className={`w-full min-h-[54px] ${isDisabled ? 'cursor-default' : 'cursor-pointer'} rounded-[10px] flex items-center justify-between gap-[11px] py-[10px] pl-[12px] pr-[12px] bg-[#2A2B2E] hover:bg-[#FFA73D]`}
+                      className={`w-full min-h-[54px] ${isDisabled ? 'cursor-default' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] py-[10px] pl-[12px] pr-[12px] bg-[#252525] hover:bg-[#3E3E41]`}
                       onMouseEnter={() => {
                         if (item.submenuKey) {
                           openSubmenuWithDelay(index);
@@ -562,7 +600,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
                         </div>
                       </div>
                       {item.submenuKey && (
-                        <span className='text-[#CDCDCD] hover:text-[#1C1D1F]'>▸</span>
+                        <span className='text-[#9AA0A6]'>▸</span>
                       )}
                     </li>
                   );
@@ -575,7 +613,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         {/* Submenu panel */}
         {openSubmenuIndex !== null && (
           <div
-            className='absolute left-full ml-1 bg-[#1c1d1f] text-[#CDCDCD] border-2 border-[#8B8B8B] rounded-[16px] p-[8px] shadow-lg'
+            className='absolute left-full ml-1 bg-[#181818] text-[#CDCDCD] border-2 border-[#3E3E41] rounded-[10px] p-[8px] shadow-lg'
             style={{ top: submenuTop }}
             onMouseEnter={() => openSubmenuWithDelay(openSubmenuIndex)}
             onMouseLeave={closeSubmenuWithDelay}
@@ -586,7 +624,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
               return (
                 <ul
                   ref={subListRef}
-                  className={`min-w-[200px] max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-[3px] pr-[6px] ${
+                  className={`min-w-[200px] max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-[3px] px-[6px] ${
                     subHasTopShadow ? 'scroll-shadow-top' : ''
                   } ${subHasBottomShadow ? 'scroll-shadow-bottom' : ''}`}
                   onScroll={handleSubScroll}
@@ -594,7 +632,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
                   {items.map((s, si) => (
                     <li
                       key={s.key}
-                      className={`w-full h-[44px] ${s.disabled ? 'text-neutral-500 cursor-not-allowed' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] py-[8px] pl-[12px] pr-[12px] bg-[#3E3E41] hover:bg-[#FFA73D]`}
+                      className={`w-full h-[44px] ${s.disabled ? 'text-neutral-500 cursor-not-allowed' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] py-[8px] pl-[12px] pr-[12px] bg-[#252525] hover:bg-[#3E3E41]`}
                       onMouseEnter={() => setActiveSubIndex(si)}
                       onClick={() => {
                         if (s.disabled || !s.onPickEdgeType) return;
@@ -699,6 +737,17 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         .menu-container { overscroll-behavior: contain; }
         .scroll-shadow-top { box-shadow: inset 0 8px 8px -8px rgba(0,0,0,0.35); }
         .scroll-shadow-bottom { box-shadow: inset 0 -8px 8px -8px rgba(0,0,0,0.35); }
+        /* Center the left/right target handles only for this component */
+        .center-target-left {
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          left: -12px !important;
+        }
+        .center-target-right {
+          top: 50% !important;
+          transform: translateY(-50%) !important;
+          right: -12px !important;
+        }
       `}</style>
     </div>
   );
