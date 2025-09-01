@@ -450,13 +450,16 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoadingSubscriptionStatus(true);
 
     try {
-      const response = await fetch(`/api/user-system/user_subscription_status`, {
-        method: 'GET',
-        credentials: 'include', // Auth via HttpOnly cookie
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const response = await fetch(
+        `/api/user-system/user_subscription_status`,
+        {
+          method: 'GET',
+          credentials: 'include', // Auth via HttpOnly cookie
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
       if (response.status !== 200) {
         const error_data: { error: string } = await response.json();
@@ -499,10 +502,12 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // 自动获取订阅状态
+  // 自动获取订阅状态 - 只在非本地部署模式下调用
   useEffect(() => {
-    fetchUserSubscriptionStatus();
-  }, []);
+    if (!isLocalDeployment) {
+      fetchUserSubscriptionStatus();
+    }
+  }, [isLocalDeployment]);
 
   // 自动获取用量数据
   useEffect(() => {
