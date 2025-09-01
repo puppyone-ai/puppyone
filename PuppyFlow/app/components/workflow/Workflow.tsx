@@ -38,7 +38,7 @@ import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy';
 import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge';
 import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils';
 import { markerEnd } from './connectionLineStyles/ConfigToTargetEdge';
-import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine';
+import CustomConnectionLine from './connectionLineStyles/PreviewEdge';
 // import useManageNodeStateUtils from '../hooks/useManageNodeStateUtils'
 import { useNodesPerFlowContext } from '../states/NodesPerFlowContext';
 import FloatingEdge from './connectionLineStyles/FloatingEdge';
@@ -537,7 +537,8 @@ function Workflow() {
       const newNode: Node = {
         id: newNodeId,
         type: 'edgeMenu',
-        position: { x: point.x, y: point.y },
+        // place with center aligned to cursor (edge menu size: 80x48)
+        position: { x: point.x - 40, y: point.y - 24 },
         data: {
           sourceNodeId: sourceId,
           sourceNodeType: sourceNode?.type || 'text',

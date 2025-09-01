@@ -372,12 +372,8 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         onMouseLeave={() => setIsHovered(false)}
         className={`w-full h-full flex-shrink-0 rounded-[8px] border-[2px] bg-[#181818] flex items-center justify-center font-plus-jakarta-sans text-[10px] font-[600] edge-node transition-colors gap-[4px]`}
         style={{
-          borderColor: isHovered
-            ? UI_COLORS.LINE_ACTIVE
-            : UI_COLORS.MAIN_DEEP_GREY,
-          color: isHovered
-            ? UI_COLORS.LINE_ACTIVE
-            : UI_COLORS.MAIN_DEEP_GREY,
+          borderColor:  UI_COLORS.MAIN_DEEP_GREY,
+          color: UI_COLORS.MAIN_DEEP_GREY,
         }}
         title='Edge Node'
       >
@@ -387,24 +383,28 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
           className='edgeSrcHandle handle-with-icon handle-top'
           type='source'
           position={Position.Top}
+          isConnectable={false}
         />
         <Handle
           id={`${id}-b`}
           className='edgeSrcHandle handle-with-icon handle-right'
           type='source'
           position={Position.Right}
+          isConnectable={false}
         />
         <Handle
           id={`${id}-c`}
           className='edgeSrcHandle handle-with-icon handle-bottom'
           type='source'
           position={Position.Bottom}
+          isConnectable={false}
         />
         <Handle
           id={`${id}-d`}
           className='edgeSrcHandle handle-with-icon handle-left'
           type='source'
           position={Position.Left}
+          isConnectable={false}
         />
         {/* Target handles */}
         <Handle
