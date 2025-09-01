@@ -141,8 +141,7 @@ export default function useConnectSpawn() {
       connection: Connection,
       setNodes: (updater: (prev: Node[]) => Node[]) => void,
       setEdges: (updater: (prev: Edge[]) => Edge[]) => void,
-      markerEnd: any,
-      onHandled?: () => void
+      markerEnd: any
     ): boolean => {
       const sourceId = connection.source as string;
       const targetId = connection.target as string;
@@ -211,7 +210,6 @@ export default function useConnectSpawn() {
         )
       );
 
-      onHandled?.();
       return true;
     },
     [judgeNodeIsEdgeNode, getNode]
