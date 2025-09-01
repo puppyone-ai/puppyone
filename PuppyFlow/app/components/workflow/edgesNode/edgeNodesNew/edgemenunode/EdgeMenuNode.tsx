@@ -624,7 +624,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
               return (
                 <ul
                   ref={subListRef}
-                  className={`min-w-[200px] max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-[3px] px-[6px] ${
+                  className={`min-w-[200px] max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] p-[8px] pr-[0px] ${
                     subHasTopShadow ? 'scroll-shadow-top' : ''
                   } ${subHasBottomShadow ? 'scroll-shadow-bottom' : ''}`}
                   onScroll={handleSubScroll}
