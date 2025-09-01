@@ -25,6 +25,7 @@ import {
   SelectionMode,
   NodeChange,
 } from '@xyflow/react';
+import { nanoid } from 'nanoid';
 import TextBlockNode from './blockNode/TextBlockNode';
 import '@xyflow/react/dist/style.css';
 import Upbar from '../upbar/Upbar';
@@ -64,6 +65,7 @@ import { useAppSettings } from '../states/AppSettingsContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
 import EdgeMenuNode from './edgesNode/edgeNodesNew/edgemenunode/EdgeMenuNode';
+import useConnectSpawn from '../hooks/useConnectSpawn';
 
 const nodeTypes = {
   text: TextBlockNode,
@@ -211,6 +213,7 @@ function Workflow() {
     handleType: 'target' | 'source' | null;
   }>({ nodeId: null, handleId: null, handleType: null });
   const didCreateEdgeRef = useRef<boolean>(false);
+  const { spawnOnConnectEnd, handleBlockToBlockConnect } = useConnectSpawn();
 
   // 用于管理节点的 z-index 层级
   const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>(
@@ -464,10 +467,20 @@ function Workflow() {
       const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source);
 
       if (
-        (targetIsEdgeNode && sourceIsEdgeNode) ||
-        (!targetIsEdgeNode && !sourceIsEdgeNode)
+        (targetIsEdgeNode && sourceIsEdgeNode)
       )
         return;
+
+      // 如果是 block -> block，插入 edgeMenu 到中点，并创建两条边
+      if (!sourceIsEdgeNode && !targetIsEdgeNode) {
+        const handled = handleBlockToBlockConnect(connection, setNodes as any, setEdges as any, markerEnd);
+        if (handled) {
+          // 标记已创建实际边，阻止 onConnectEnd 再次在鼠标位置生成 edgeMenu
+          didCreateEdgeRef.current = true;
+          allowActivateOtherNodesWhenConnectEnd();
+          return;
+        }
+      }
 
       // 檢查 source 節點是否是 server 類型
       const sourceNode = getNode(connection.source);
@@ -525,37 +538,13 @@ function Workflow() {
     const isMouse = (event as MouseEvent).clientX !== undefined;
     // If no real edge was created and we started from a source handle, spawn a floating edge menu node at release position
     if (!didCreateEdgeRef.current && connectStartRef.current.nodeId && connectStartRef.current.handleType === 'source') {
-      const point = screenToFlowPosition({
-        x: isMouse ? (event as MouseEvent).clientX : (event as TouchEvent).changedTouches[0].clientX,
-        y: isMouse ? (event as MouseEvent).clientY : (event as TouchEvent).changedTouches[0].clientY,
-      });
-
-      const sourceId = connectStartRef.current.nodeId as string;
-      const sourceNode = getNode(sourceId);
-      const newNodeId = `edgeMenu-${Date.now()}`;
-
-      const newNode: Node = {
-        id: newNodeId,
-        type: 'edgeMenu',
-        // place with center aligned to cursor (edge menu size: 80x48)
-        position: { x: point.x - 40, y: point.y - 24 },
-        data: {
-          sourceNodeId: sourceId,
-          sourceNodeType: sourceNode?.type || 'text',
-        },
-      } as any;
-
-      setNodes(prev => prev.concat(newNode));
-
-      const edge: Edge = {
-        id: `connection-${Date.now()}`,
-        source: sourceId,
-        target: newNodeId,
-        type: 'floating',
-        data: { connectionType: 'STC' },
-      } as any;
-
-      setEdges(prev => addEdge(edge, prev));
+      spawnOnConnectEnd(
+        event,
+        { nodeId: connectStartRef.current.nodeId, handleType: 'source' },
+        setNodes as any,
+        setEdges as any,
+        markerEnd
+      );
     }
 
     allowActivateOtherNodesWhenConnectEnd();

@@ -7,6 +7,7 @@ import {
 } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { UI_COLORS } from '../../../utils/colors';
+import useManageReactFlowUtils from '../../hooks/useManageReactFlowUtils';
 
 export default function CustomConnectionLine({
   fromX,
@@ -20,6 +21,7 @@ export default function CustomConnectionLine({
 }: ConnectionLineComponentProps) {
   const { isOnGeneratingNewNode } = useNodesPerFlowContext();
   const { getNode } = useReactFlow();
+  const { judgeNodeIsEdgeNode } = useManageReactFlowUtils();
 
   // console.log(fromX, fromY, toX, toY, fromPosition, toPosition, fromHandle, toHandle, "you are generating connection line")
 
@@ -38,6 +40,8 @@ export default function CustomConnectionLine({
     const lastDash = handleId.lastIndexOf('-');
     if (lastDash > 0) sourceNodeId = handleId.slice(0, lastDash);
   }
+
+  const isSourceEdgeNode = sourceNodeId ? judgeNodeIsEdgeNode(sourceNodeId) : false;
 
   // 根据目标相对源节点中心的位置，动态选择源边并调整起点坐标
   let virtualSourceX = fromX;
@@ -124,6 +128,68 @@ export default function CustomConnectionLine({
         >
           <path d='M2 2L11 11L2 20' fill='none' stroke={UI_COLORS.LINE} strokeWidth='4' />
         </marker>
+        {/* 边对齐的大块预览（用于 EdgeNode → BlockNode）：根据进入方向将参考点放在边上 */}
+        <marker
+          id='preview-large-block-left'
+          viewBox='0 0 240 176'
+          refX='2'
+          refY='88'
+          markerWidth='240'
+          markerHeight='176'
+          orient='0'
+          markerUnits='userSpaceOnUse'
+        >
+          <rect x='2' y='2' width='236' height='172' rx='16' ry='16' fill='transparent' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+        </marker>
+        <marker
+          id='preview-large-block-right'
+          viewBox='0 0 240 176'
+          refX='238'
+          refY='88'
+          markerWidth='240'
+          markerHeight='176'
+          orient='0'
+          markerUnits='userSpaceOnUse'
+        >
+          <rect x='2' y='2' width='236' height='172' rx='16' ry='16' fill='transparent' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+        </marker>
+        <marker
+          id='preview-large-block-top'
+          viewBox='0 0 240 176'
+          refX='120'
+          refY='2'
+          markerWidth='240'
+          markerHeight='176'
+          orient='0'
+          markerUnits='userSpaceOnUse'
+        >
+          <rect x='2' y='2' width='236' height='172' rx='16' ry='16' fill='transparent' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+        </marker>
+        <marker
+          id='preview-large-block-bottom'
+          viewBox='0 0 240 176'
+          refX='120'
+          refY='174'
+          markerWidth='240'
+          markerHeight='176'
+          orient='0'
+          markerUnits='userSpaceOnUse'
+        >
+          <rect x='2' y='2' width='236' height='172' rx='16' ry='16' fill='transparent' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+        </marker>
+        {/* 预览大块标记：与 TextBlock 尺寸一致的轮廓 (240x176, r=16) */}
+        <marker
+          id='preview-large-block'
+          viewBox='0 0 240 176'
+          refX='120'
+          refY='88'
+          markerWidth='240'
+          markerHeight='176'
+          orient='0'
+          markerUnits='userSpaceOnUse'
+        >
+          <rect x='2' y='2' width='236' height='172' rx='16' ry='16' fill='transparent' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+        </marker>
       </defs>
 
       <path
@@ -135,11 +201,55 @@ export default function CustomConnectionLine({
         strokeDasharray='4 8'
         style={{ animation: 'flow 6s linear infinite', strokeDashoffset: 0 }}
         d={path}
-        markerEnd='url(#preview-edge-block)'
+        markerEnd={isSourceEdgeNode ? 'url(#preview-arrow)' : 'url(#preview-edge-block)'}
       />
 
+      {/* EdgeNode → BlockNode：在终点处渲染大块轮廓，并让箭头对准该轮廓的边中心 */}
+      {isSourceEdgeNode && (() => {
+        const BLOCK_W = 240;
+        const BLOCK_H = 176;
+
+        let blockX = toX - BLOCK_W / 2;
+        let blockY = toY - BLOCK_H / 2;
+
+        if (targetPos === Position.Left) {
+          // 线连到大块左边中点
+          blockX = toX;
+          blockY = toY - BLOCK_H / 2;
+        } else if (targetPos === Position.Right) {
+          // 线连到大块右边中点
+          blockX = toX - BLOCK_W;
+          blockY = toY - BLOCK_H / 2;
+        } else if (targetPos === Position.Top) {
+          // 线连到大块上边中点
+          blockX = toX - BLOCK_W / 2;
+          blockY = toY;
+        } else if (targetPos === Position.Bottom) {
+          // 线连到大块下边中点
+          blockX = toX - BLOCK_W / 2;
+          blockY = toY - BLOCK_H;
+        }
+
+        return (
+          <g>
+            <rect
+              x={blockX}
+              y={blockY}
+              width={BLOCK_W}
+              height={BLOCK_H}
+              rx={16}
+              ry={16}
+              fill='transparent'
+              stroke={UI_COLORS.MAIN_DEEP_GREY}
+              strokeWidth={2}
+              opacity={0.95}
+            />
+          </g>
+        );
+      })()}
+
       {/* 进一步的“未来 Block”预览：在 EdgeMenu 预览块外侧再渲染一个 Block 轮廓 */}
-      {(() => {
+      {!isSourceEdgeNode && (() => {
         // 默认以文本块的外观来预览未来 Block（尺寸 240x176、圆角 16）
         const BLOCK_W = 240;
         const BLOCK_H = 176;
