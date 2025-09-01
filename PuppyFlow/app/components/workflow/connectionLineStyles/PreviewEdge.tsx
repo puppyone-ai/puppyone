@@ -110,7 +110,19 @@ export default function CustomConnectionLine({
           orient='0'
           markerUnits='userSpaceOnUse'
         >
-          <rect x='1' y='1' width='78' height='46' rx='8' ry='8' fill='#181818' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+          <rect x='3' y='3' width='74' height='42' rx='8' ry='8' fill='#181818' stroke={UI_COLORS.MAIN_DEEP_GREY} strokeWidth='2' />
+        </marker>
+        {/* 提示连线箭头 */}
+        <marker
+          id='preview-arrow'
+          viewBox='0 0 14 22'
+          refX='11'
+          refY='11'
+          markerWidth='6'
+          markerHeight='6'
+          orient='auto'
+        >
+          <path d='M2 2L11 11L2 20' fill='none' stroke={UI_COLORS.LINE} strokeWidth='4' />
         </marker>
       </defs>
 
@@ -125,6 +137,94 @@ export default function CustomConnectionLine({
         d={path}
         markerEnd='url(#preview-edge-block)'
       />
+
+      {/* 进一步的“未来 Block”预览：在 EdgeMenu 预览块外侧再渲染一个 Block 轮廓 */}
+      {(() => {
+        // 默认以文本块的外观来预览未来 Block（尺寸 240x176、圆角 16）
+        const BLOCK_W = 240;
+        const BLOCK_H = 176;
+        const TILE_W = 80;
+        const TILE_H = 48;
+        const GAP = 96; // 磁贴与未来块之间的间距（再减 32px）
+
+        let blockX = toX - BLOCK_W / 2;
+        let blockY = toY - BLOCK_H / 2;
+
+        if (targetPos === Position.Left) {
+          blockX = toX + TILE_W / 2 + GAP;
+          blockY = toY - BLOCK_H / 2;
+        } else if (targetPos === Position.Right) {
+          blockX = toX - TILE_W / 2 - GAP - BLOCK_W;
+          blockY = toY - BLOCK_H / 2;
+        } else if (targetPos === Position.Top) {
+          blockX = toX - BLOCK_W / 2;
+          blockY = toY + TILE_H / 2 + GAP;
+        } else if (targetPos === Position.Bottom) {
+          blockX = toX - BLOCK_W / 2;
+          blockY = toY - TILE_H / 2 - GAP - BLOCK_H;
+        }
+
+        return (
+          <g>
+            {/* 外框 */}
+            <rect
+              x={blockX}
+              y={blockY}
+              width={BLOCK_W}
+              height={BLOCK_H}
+              rx={16}
+              ry={16}
+              fill='transparent'
+              stroke={UI_COLORS.MAIN_DEEP_GREY}
+              strokeWidth={2}
+              opacity={0.95}
+            />
+            {/* 小方块与大方块之间的提示连线 */}
+            {(() => {
+              let startX = toX;
+              let startY = toY;
+              let endX = blockX + BLOCK_W / 2;
+              let endY = blockY + BLOCK_H / 2;
+
+              if (targetPos === Position.Left) {
+                // 从小方块右侧到大方块左侧中心
+                startX = toX + TILE_W / 2;
+                startY = toY;
+                endX = blockX;
+                endY = blockY + BLOCK_H / 2;
+              } else if (targetPos === Position.Right) {
+                // 从小方块左侧到大方块右侧中心
+                startX = toX - TILE_W / 2;
+                startY = toY;
+                endX = blockX + BLOCK_W;
+                endY = blockY + BLOCK_H / 2;
+              } else if (targetPos === Position.Top) {
+                // 从小方块下侧到大方块上侧中心
+                startX = toX;
+                startY = toY + TILE_H / 2;
+                endX = blockX + BLOCK_W / 2;
+                endY = blockY;
+              } else if (targetPos === Position.Bottom) {
+                // 从小方块上侧到大方块下侧中心
+                startX = toX;
+                startY = toY - TILE_H / 2;
+                endX = blockX + BLOCK_W / 2;
+                endY = blockY + BLOCK_H;
+              }
+
+              return (
+                <path
+                  d={`M ${startX} ${startY} L ${endX} ${endY}`}
+                  stroke={UI_COLORS.LINE}
+                  strokeWidth={2}
+                  strokeDasharray='4 8'
+                  markerEnd='url(#preview-arrow)'
+                />
+              );
+            })()}
+          </g>
+        );
+      })()}
     </g>
   );
 }
