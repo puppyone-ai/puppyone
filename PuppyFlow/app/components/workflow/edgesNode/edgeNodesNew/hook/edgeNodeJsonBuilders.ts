@@ -772,7 +772,73 @@ function buildEditStructuredNodeJson(
   const getConfigData =
     (nodeData?.getConfigData as Array<{ key: string; value: string }>) || [];
   const paramv = nodeData?.paramv;
+  const sourceInput = nodeData?.sourceInput;
+  const templateInput = nodeData?.templateInput;
+  const variableReplacePlugins = nodeData?.variableReplacePlugins || {};
 
+  // 处理 apply_template 模式
+  if (execMode === 'apply_template') {
+    const operations: {
+      type: string;
+      params: {
+        max_depth?: number;
+        path?: (string | number)[];
+        default?: string;
+        value?: string;
+        plugins?: { [key: string]: string };
+        value_template?: string;
+      };
+    }[] = [];
+
+    // 可选：添加 variable_replace 操作
+    if (
+      variableReplacePlugins &&
+      Object.keys(variableReplacePlugins).length > 0
+    ) {
+      operations.push({
+        type: 'variable_replace',
+        params: {
+          plugins: variableReplacePlugins,
+        },
+      });
+    }
+
+    // 找到模板节点
+    const templateNode =
+      sourceNodes.find(node => node.label === templateInput) || sourceNodes[1];
+
+    // 必选：添加 apply_template 操作
+    // 使用模板节点的ID作为占位符，而不是标签
+    operations.push({
+      type: 'apply_template',
+      params: {
+        value_template: `{{${templateNode?.id || templateNode?.label}}}`,
+      },
+    });
+
+    // 确保有两个输入：源和模板
+    const sourceNode =
+      sourceNodes.find(node => node.label === sourceInput) || sourceNodes[0];
+
+    return {
+      type: 'modify',
+      data: {
+        content: `{{${sourceInput || sourceNode?.label || sourceNode?.id}}}`,
+        modify_type: 'edit_structured',
+        extra_configs: {
+          operations: operations,
+        },
+        inputs: Object.fromEntries(
+          sourceNodes.map(node => [node.id, node.label])
+        ),
+        outputs: Object.fromEntries(
+          targetNodes.map(node => [node.id, node.label])
+        ),
+      },
+    };
+  }
+
+  // 处理其他模式（原有逻辑）
   // 从配置数据准备路径
   const path = getConfigData.map(item => {
     if (item.key === 'num') {

@@ -188,17 +188,17 @@ export type EditStructuredEdgeJsonType = {
     content: string;
     modify_type: 'edit_structured';
     extra_configs: {
-      operations: [
-        {
-          type: string;
-          params: {
-            max_depth?: number;
-            path?: (string | number)[];
-            default?: string;
-            value?: string;
-          };
-        },
-      ];
+      operations: {
+        type: string;
+        params: {
+          max_depth?: number;
+          path?: (string | number)[];
+          default?: string;
+          value?: string;
+          plugins?: { [key: string]: string };
+          value_template?: string;
+        };
+      }[];
     };
     inputs: { [key: string]: string };
     outputs: { [key: string]: string };

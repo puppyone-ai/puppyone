@@ -66,6 +66,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
   const MODIFY_REPL_TYPE = 'replace';
   const MODIFY_GET_ALL_KEYS = 'get_keys';
   const MODIFY_GET_ALL_VAL = 'get_values';
+  const MODIFY_APPLY_TEMPLATE = 'apply_template';
 
   // 首先定义 getConfigDataa 函数，避免在使用前访问错误
   const getConfigDataa = (): Array<{ key: string; value: string }> =>
@@ -107,6 +108,29 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
   );
 
   const [paramv, setParamv] = useState('');
+
+  // Apply template 相关状态
+  const [sourceInput, setSourceInput] = useState(
+    (getNode(id)?.data.sourceInput as string) || ''
+  );
+  const [templateInput, setTemplateInput] = useState(
+    (getNode(id)?.data.templateInput as string) || ''
+  );
+  const [variableReplacePlugins, setVariableReplacePlugins] = useState<{
+    [key: string]: string;
+  }>(
+    (getNode(id)?.data.variableReplacePlugins as { [key: string]: string }) ||
+      {}
+  );
+
+  // 获取连接的 structured 输入节点
+  const getStructuredInputNodes = useCallback(() => {
+    const sourceNodes = getSourceNodeIdWithLabel(id, 'blocknode');
+    return sourceNodes.filter(node => {
+      const nodeData = getNode(node.id);
+      return nodeData?.type === 'structured';
+    });
+  }, [id, getSourceNodeIdWithLabel, getNode]);
 
   // Add this new state for tree path structure - 现在可以安全使用 getConfigDataa
   const [pathTree, setPathTree] = useState<PathNode[]>(() => {
@@ -564,6 +588,28 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
               inputNodeCategory='blocknode'
               outputNodeCategory='blocknode'
             />
+            {execMode === MODIFY_APPLY_TEMPLATE && (
+              <div className='mt-2 p-2 bg-[#2D2544] rounded-[6px] border-[1px] border-[#9B6DFF]/30'>
+                <div className='flex items-center gap-2'>
+                  <svg
+                    width='14'
+                    height='14'
+                    viewBox='0 0 24 24'
+                    fill='none'
+                    stroke='#9B6DFF'
+                    strokeWidth='2'
+                  >
+                    <circle cx='12' cy='12' r='10' />
+                    <path d='M12 16v-4' />
+                    <path d='M12 8h.01' />
+                  </svg>
+                  <span className='text-[11px] text-[#9B6DFF] font-medium'>
+                    Apply Template mode requires two structured inputs: one as
+                    source data, one as template structure
+                  </span>
+                </div>
+              </div>
+            )}
           </li>
 
           <li className='flex flex-col gap-2'>
@@ -581,6 +627,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                   MODIFY_REPL_TYPE,
                   MODIFY_GET_ALL_KEYS,
                   MODIFY_GET_ALL_VAL,
+                  MODIFY_APPLY_TEMPLATE,
                 ]}
                 onSelect={(option: string) => setExecMode(option)}
                 selectedValue={execMode}
@@ -588,6 +635,7 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                 mapValueTodisplay={(v: string) => {
                   if (v === MODIFY_GET_ALL_KEYS) return 'get all keys';
                   if (v === MODIFY_GET_ALL_VAL) return 'get all values';
+                  if (v === MODIFY_APPLY_TEMPLATE) return 'apply template';
                   return v;
                 }}
               />
@@ -595,7 +643,9 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
           </li>
 
           {!(
-            execMode === MODIFY_GET_ALL_KEYS || execMode === MODIFY_GET_ALL_VAL
+            execMode === MODIFY_GET_ALL_KEYS ||
+            execMode === MODIFY_GET_ALL_VAL ||
+            execMode === MODIFY_APPLY_TEMPLATE
           ) && (
             <li className='flex flex-col gap-2'>
               <div className='flex items-center gap-2'>
@@ -630,6 +680,140 @@ function EditStructured({ data, isConnectable, id }: ModifyConfigNodeProps) {
                 onBlur={onBlur}
               />
             </li>
+          )}
+
+          {execMode === MODIFY_APPLY_TEMPLATE && (
+            <>
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <label className='text-[13px] font-semibold text-[#6D7177]'>
+                    Source Input
+                  </label>
+                  <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                </div>
+                <div className='flex gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                  <PuppyDropdown
+                    options={getStructuredInputNodes().map(node => node.label)}
+                    onSelect={(option: string) => setSourceInput(option)}
+                    selectedValue={sourceInput}
+                    listWidth={'200px'}
+                    mapValueTodisplay={(v: string) =>
+                      v || 'Select source input'
+                    }
+                  />
+                </div>
+              </li>
+
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <label className='text-[13px] font-semibold text-[#6D7177]'>
+                    Template Input
+                  </label>
+                  <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                </div>
+                <div className='flex gap-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                  <PuppyDropdown
+                    options={getStructuredInputNodes().map(node => node.label)}
+                    onSelect={(option: string) => setTemplateInput(option)}
+                    selectedValue={templateInput}
+                    listWidth={'200px'}
+                    mapValueTodisplay={(v: string) =>
+                      v || 'Select template input'
+                    }
+                  />
+                </div>
+              </li>
+
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <label className='text-[12px] font-medium text-[#6D7177]'>
+                    Variable Replace Plugins (Optional)
+                  </label>
+                </div>
+                <div className='flex flex-col gap-2 p-3 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                  {Object.entries(variableReplacePlugins).map(
+                    ([key, value], index) => (
+                      <div key={index} className='flex gap-2 items-center'>
+                        <input
+                          value={key}
+                          onChange={e => {
+                            const newPlugins = { ...variableReplacePlugins };
+                            delete newPlugins[key];
+                            newPlugins[e.target.value] = value;
+                            setVariableReplacePlugins(newPlugins);
+                          }}
+                          placeholder='Key'
+                          className='flex-1 h-[28px] px-2 bg-[#252525] rounded-[4px] border-[1px] border-[#6D7177]/30 
+                                   text-[#CDCDCD] text-[11px] font-medium outline-none
+                                   hover:border-[#6D7177]/50 transition-colors'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                        <span className='text-[#6D7177] text-[11px]'>=</span>
+                        <input
+                          value={value}
+                          onChange={e => {
+                            setVariableReplacePlugins(prev => ({
+                              ...prev,
+                              [key]: e.target.value,
+                            }));
+                          }}
+                          placeholder='Value'
+                          className='flex-1 h-[28px] px-2 bg-[#252525] rounded-[4px] border-[1px] border-[#6D7177]/30 
+                                   text-[#CDCDCD] text-[11px] font-medium outline-none
+                                   hover:border-[#6D7177]/50 transition-colors'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                        <button
+                          onClick={() => {
+                            const newPlugins = { ...variableReplacePlugins };
+                            delete newPlugins[key];
+                            setVariableReplacePlugins(newPlugins);
+                          }}
+                          className='w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                        >
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                          >
+                            <path
+                              d='M18 6L6 18M6 6l12 12'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    )
+                  )}
+                  <button
+                    onClick={() => {
+                      const newKey = `key_${Object.keys(variableReplacePlugins).length + 1}`;
+                      setVariableReplacePlugins(prev => ({
+                        ...prev,
+                        [newKey]: '',
+                      }));
+                    }}
+                    className='w-full h-[28px] flex items-center justify-center gap-2 rounded-[4px] 
+                               border border-[#6D7177]/30 bg-[#252525] text-[#CDCDCD] text-[11px] font-medium 
+                               hover:border-[#6D7177]/50 hover:bg-[#1E1E1E] transition-colors'
+                  >
+                    <svg width='10' height='10' viewBox='0 0 14 14'>
+                      <path
+                        d='M7 0v14M0 7h14'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                      />
+                    </svg>
+                    Add Key-Value Pair
+                  </button>
+                </div>
+              </li>
+            </>
           )}
         </ul>
       )}
