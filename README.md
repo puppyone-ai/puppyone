@@ -1,91 +1,113 @@
-## Backend Notes
-### Logics
-1. The server calls the `json_parser.py` to parse the json data send from the frontend and execute the edges step by step.
-2. The parser first find the beginning block, and forming a new beginning block before the actual beginning block to handle multiple beginning block cases, due to the thread safety considerations in multi-threading.
-3. There will be multiple threads, each handle one connected edges by the current block.
-4. The program will then analyze the edge configuration dict and handle cases where the input value come from previous block's output value. 
-5. Also handle the case for 'self-loop', split a list into a loop of executions for each element, by splitting the edge into several ones, copy the configurations but use different data (each list elements) to execute.
-6. The chunks are in types of self-defined datatype `Chunk`, so will store the chunks by converting them into normal list of strings and the `Chunk` type is not serializable in JSON when send back to the frontend.
-7. The program then converts the parsed edges into `Edge` objects and then execute the edge.
-8. In the `Edges/edges.py` file, edges are defined in different methods by extracting the configurations as parameters, then initialize an class instance for the specific edge type and then execute the edge logic.
-9. The executed result will be passed to the json_parser and saved into separate files.
-10. The results will be updated into the block data and yield to the server.
+<p align="center">
+  <img src="assert/PuppyAgentLOGO.png" alt="PuppyAgent Logo" width="120" />
+</p>
 
-**Note**:
-One block can be connected with multiple edges, and they will be executed concurrently, that's why the yield data is a list of dicts (a list of blocks) rather than one result. 
-
-### Testing
-1. The `developer.md`, `index.md`, and `tutorial.md` files are used for testing json parser, not part of the backend, can be removed later on.
-2. The `Blocks/testfiles` and `Blocks/savedfiles` folders contain files for testing `FileLoader`, not part of the backend, can be removed later on.
-3. The `Results` and `FaissIndexes` folders store the result data when executing the pipeline. For tracking all the intermediate values and can be accessible from frontend code, those files are not deleted. However, can open the commanded-out codes (line 86 and 87) in the `Server/json_parer.py` to clear all the files in those folders all in once.
-
-## Run Frontend
-### **Install all Dependencies**
-```bash
-cd PuppyAgent-Engine/PuppyFlow
-npm install
-```
-
-### **Run the Frontend**
-```bash
-npm run dev
-```
+<h1 align="center">PuppyAgent</h1>
 
 
-## Run Backend
-### **Install all Dependencies**
-1. **创建虚拟环境**：
-```bash
-cd PuppyAgent-Engine
-python -m venv myenv
-```
-
-2. **激活虚拟环境**：
-- **在 Windows 上**：
-```bash
-myenv\Scripts\activate
-```
-   - **在 macOS 和 Linux 上**：
-```bash
-source myenv/bin/activate
-```
-
-3. **用pip安装依赖**：
-```bash
-pip install -r ./PuppyEngine/requirements.txt
-```
-
-### 1. **Run the JSON Parser for RAG Pipeline Testing**
-```bash
-python ./PuppyEngine/Server/json_parser.py
-```
-
-### 2. **Run the Server**
-- Using Python
-```bash
-python -Wd PuppyEngine/Server/EngineServer.py
-```
-
-- Using Hypercorn
-```bash
-python -Wd -m hypercorn -b 127.0.0.1:8001 PuppyEngine/Server/EngineServer:app
-```
-
-### 3. **Run the Server Tester**
-```bash
-python PuppyEngine/TestTools/server_tester.py
-```
 
 
-## Run the backend in Docker
-### 1. **Build the Docker Image**
-```bash
-docker build -t puppyengine-backend .
-```
+<p align="center">
+  <a href="https://www.puppyagent.com" target="_blank">
+    <img src="https://img.shields.io/badge/Web-puppyagent.com-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
+  </a>
+  &nbsp;
+  <a href="https://doc.puppyagent.com" target="_blank">
+    <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
+  </a>
+   &nbsp;
+    <a href="https://x.com/PuppyAgentTech" target="_blank">
+    <img src="https://img.shields.io/badge/X-@PuppyAgentTech-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
+  </a>
+  &nbsp;
+  <a href="https://discord.gg/eRjwqZpjBT" target="_blank">
+    <img src="https://img.shields.io/badge/Discord-Join-5865F2?style=flat&logo=discord&logoColor=white" alt="Discord" height="22" />
+  </a>
+  &nbsp;
+  <a href="mailto:guantum@puppyagent.com">
+    <img src="https://img.shields.io/badge/Support-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
+  </a>
+</p>
 
-### 2. **Run the Docker Container**
-```bash
-docker run -p 8000:8000 puppyengine-backend
-```
+<p align="center">Automate your knowledge bases with agents</p>
 
-- The server is then started in `http://localhost:8000`
+<p align="center"><b>License and acceptable use</b>: Personal or internal single-tenant use is permitted under the PuppyAgent Sustainable Use License (SUL). Managed/hosted multi-tenant services to third parties, paid redistribution, and use of PuppyAgent trademarks/logos are not granted. For commercial or multi-tenant use, contact guantum@puppyagent.com. See LICENSE.</p>
+
+## What is PuppyAgent
+
+PuppyAgent is a context‑centric workspace where agents connect contexts to automate your knowledge bases.
+
+
+
+## Why PuppyAgent
+
+- **Context‑centric**: not flow orchestration; context is the interface, users face results
+- **Agent‑friendly**: agent‑oriented indexing, not a static knowledge base or database
+- **Workflow as edge**: workflows are edges between contexts; beyond orchestration, they embody agents
+- **RAG & Deep Research**: on local knowledge; supporting data cleaning, structuring, indexing
+
+
+Common use cases:
+
+- Deep Research and document Q&A (Agentic RAG)
+- Content extractio
+- Agentive Archive
+- Content Generation
+
+## Quick Start
+
+Choose ONE (alternatives—pick just one):
+- **Cloud (Hosted by PuppyAgent)**: zero setup, managed upgrades/scaling, support.
+- **Self-Hosted (Local)**: runs fully on your machine; data stays local; best for prototyping/dev.
+
+
+### Cloud (Hosted by PuppyAgent) — no setup
+
+   Create an account at https://www.puppyagent.com and get started.
+
+### Self-Hosted (Local) — for developers
+
+See docs for detailed steps:
+- Getting started: docs/getting-started.md
+- Configuration: docs/configuration.md
+- Docker Compose: docs/deployment/docker-compose.md
+
+
+## Core Concepts
+
+- Workspace: your project context (workflows, assets, settings)
+- Block: an operation (e.g., load file, embed, query, call model)
+- Edge: a connection that passes data between blocks
+- Workflow: a graph of blocks and edges that runs as a job
+- Storage: where files, chunks, and vectors are managed
+
+
+## Key Features
+
+- Visual editor for workflows (drag, connect, configure)
+- Blocks for file operations, LLM calls, embeddings, search, control-flow
+- Pluggable vector databases (Milvus, Qdrant, Chroma, Pinecone, Weaviate, Postgres+Vecs)
+- Streaming results and structured outputs
+- Local-first setup; ready to scale in production environments
+
+
+## Contributing
+
+- Issues and feature requests are welcome
+- Please open a PR for small fixes; for larger changes, file an issue first to discuss the design
+- By contributing, you agree your contributions may be used under the project’s license
+
+
+## License
+
+This repository uses the PuppyAgent Sustainable Use License (SUL).
+
+Summary (for convenience; the License controls):
+1) Personal use (individual): Allowed, free.
+2) Internal business use (single-tenant, per organization): Allowed, free.
+3) Self-hosted multi-tenant: Not allowed. To obtain rights, contact guantum@puppyagent.com.
+4) Managed/hosted service to third parties: Not allowed. Subscribe to the official hosted service at https://wwww.puppyagent.com or obtain a commercial license.
+5) Commercial redistribution (paid distribution): Not allowed. Commercial license required.
+6) Use of PuppyAgent trademarks/logos: Not granted; prior written permission required.
+
+See `LICENSE` for full terms.

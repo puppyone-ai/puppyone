@@ -1,6 +1,6 @@
 /**
  * Display Switch Hook
- * 
+ *
  * Simple hook to switch between workspace and server display modes.
  * Also handles switching the selected ID and corresponding JSON content.
  */
@@ -9,26 +9,26 @@ import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useServers } from '../states/UserServersContext';
 
 export const useDisplaySwitch = () => {
-  const { 
-    displayOrNot: workspaceDisplay, 
+  const {
+    displayOrNot: workspaceDisplay,
     setDisplayOrNot: setWorkspaceDisplay,
     setShowingWorkspace,
-    getWorkspaceById
+    getWorkspaceById,
   } = useWorkspaces();
-  
-  const { 
-    displayOrNot: serverDisplay, 
+
+  const {
+    displayOrNot: serverDisplay,
     setDisplayOrNot: setServerDisplay,
     setShowingId: setShowingServerId,
     getApiServiceById,
-    getChatbotServiceById
+    getChatbotServiceById,
   } = useServers();
 
   // 切换到工作区显示
   const switchToWorkspace = (workspaceId?: string) => {
     setWorkspaceDisplay(true);
     setServerDisplay(false);
-    
+
     // 如果提供了工作区ID，同时切换到该工作区
     if (workspaceId) {
       setShowingWorkspace(workspaceId);
@@ -39,7 +39,7 @@ export const useDisplaySwitch = () => {
   const switchToServer = (serviceId?: string) => {
     setWorkspaceDisplay(false);
     setServerDisplay(true);
-    
+
     // 如果提供了服务ID，同时切换到该服务
     if (serviceId) {
       setShowingServerId(serviceId);
@@ -62,14 +62,14 @@ export const useDisplaySwitch = () => {
       switchToServer(serviceId);
       return;
     }
-    
+
     // 再检查是否是Chatbot服务
     const chatbotService = getChatbotServiceById(serviceId);
     if (chatbotService) {
       switchToServer(serviceId);
       return;
     }
-    
+
     console.warn(`Service with ID ${serviceId} not found`);
   };
 
@@ -81,7 +81,7 @@ export const useDisplaySwitch = () => {
       switchToWorkspaceById(id);
       return;
     }
-    
+
     // 再尝试作为服务ID
     switchToServiceById(id);
   };
@@ -98,14 +98,14 @@ export const useDisplaySwitch = () => {
     workspaceDisplay,
     serverDisplay,
     currentMode: getCurrentDisplayMode(),
-    
+
     // 基础切换方法
     switchToWorkspace,
     switchToServer,
-    
+
     // 带ID的切换方法
     switchToWorkspaceById,
     switchToServiceById,
     switchToItemById,
   };
-}; 
+};

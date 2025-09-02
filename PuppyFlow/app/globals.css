@@ -4,9 +4,9 @@
 
 .ProseMirror.bn-editor {
   background: #252525;
-  color: #CDCDCD;
+  color: #cdcdcd;
   font-family: 'Plus Jakarta Sans', sans-serif;
-  caret-color: #CDCDCD;
+  caret-color: #cdcdcd;
   caret-shape: bar;
   cursor: text;
   padding-left: 16px;
@@ -29,7 +29,6 @@
   z-index: 1000000000 !important;
   scrollbar-width: none !important;
   -webkit-scrollbar: none !important;
-
 }
 
 .bn-suggestion-menu > .bn-suggestion-menu-item {
@@ -99,8 +98,6 @@
   height: 0;
 } */
 
-
-
 /* .paragraph-with-menu {
   display: flex;
   position: relative;
@@ -139,7 +136,7 @@
 
 /* for Font */
 /* https://github.com/JetBrains/JetBrainsMono */
-@font-face{
+@font-face {
   font-family: 'JetBrains Mono';
   src: url('/fonts/JetBrainsMono-Regular.ttf') format('truetype');
   font-weight: normal;
@@ -148,24 +145,25 @@
 
 @font-face {
   font-family: 'Plus Jakarta Sans';
-  src: url('/fonts/PlusJakartaSans-VariableFont_wght.ttf') format('truetype-variations');
+  src: url('/fonts/PlusJakartaSans-VariableFont_wght.ttf')
+    format('truetype-variations');
   font-weight: 200 800;
   font-style: normal;
 }
 
 @font-face {
   font-family: 'Plus Jakarta Sans';
-  src: url('/fonts/PlusJakartaSans-Italic-VariableFont_wght.ttf') format('truetype-variations');
+  src: url('/fonts/PlusJakartaSans-Italic-VariableFont_wght.ttf')
+    format('truetype-variations');
   font-weight: 200 800;
   font-style: italic;
 }
 
-
 * {
-    padding: 0;
-    margin: 0;
-    box-sizing: border-box;
-    font-family: inherit;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+  font-family: inherit;
 }
 
 .no-scrollbar {
@@ -176,7 +174,6 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none !important;
 }
-
 
 .react-flow {
   position: relative !important;
@@ -194,24 +191,21 @@
   z-index: 1;
 }
 
-
 .react-flow .react-flow__handle {
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    background-color: transparent;
-    border: 2px solid #42454A;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: transparent;
+  border: 2px solid #42454a;
 }
 
 .react-flow .react-flow__handle:hover {
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    border: 2px solid #FFA73D;
-    cursor: pointer;
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  border: 2px solid #ffa73d;
+  cursor: pointer;
 }
-
-
 
 /* 防止react flow的滚动和拖拽 */
 .react-flow__renderer,
@@ -227,117 +221,101 @@
   width: 100% !important;
 }
 
-  .react-flow .react-flow__handle.active {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    background-color: transparent;
-    border: 2px solid #42454A;
-  }
+.react-flow .react-flow__handle.active {
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background-color: transparent;
+  border: 2px solid #42454a;
+}
 
-  .react-flow .react-flow__handle.transparent {
-    width: 16px;
-    height: 16px;
-    border-radius: 8px;
-    background-color: transparent;
-    border: 2px solid transparent;
-    z-index: 3;
-  }
+.react-flow .react-flow__handle.transparent {
+  width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  background-color: transparent;
+  border: 2px solid transparent;
+  z-index: 3;
+}
 
-  .react-flow .react-flow__handle.selected {
-    width: 20px;
-    height: 20px;
-    border-radius: 10px;
-    border: 2px solid #FFA73D;
-    z-index: 20;
-  }
-  
-  .react-flow .react-flow__handle.connectingfrom {
-    border: 2px solid #FFA73D;
-  }
+.react-flow .react-flow__handle.selected {
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  border: 2px solid #ffa73d;
+  z-index: 20;
+}
+
+.react-flow .react-flow__handle.connectingfrom {
+  border: 2px solid #ffa73d;
+}
 
 /* custom react flow handle position */
 .react-flow .react-flow__handle-top {
-    top: 16px;
-  }
-  
+  top: 16px;
+}
+
 .react-flow .react-flow__handle-bottom {
-    bottom: 16px;
-  }
+  bottom: 16px;
+}
 
 .react-flow .react-flow__handle-left {
-    left: 16px;
-  }
+  left: 16px;
+}
 
-  .react-flow .react-flow__handle-right {
-    right: 16px;
-  }
+.react-flow .react-flow__handle-right {
+  right: 16px;
+}
 
-  .react-flow .react-flow__handle-bottom.edgeSrcHandle {
-    bottom: -8px;
-    border: transparent;
-    
-  }
+.react-flow .react-flow__handle-bottom.edgeSrcHandle {
+  bottom: -8px;
+  border: transparent;
+}
 
-  .react-flow .react-flow__handle-left.edgeSrcHandle {
-    left: -8px;
-    border: transparent;
-  }
+.react-flow .react-flow__handle-left.edgeSrcHandle {
+  left: -8px;
+  border: transparent;
+}
 
-  .react-flow .react-flow__handle-right.edgeSrcHandle {
-    right: -8px;
-    border: transparent;
-  }
+.react-flow .react-flow__handle-right.edgeSrcHandle {
+  right: -8px;
+  border: transparent;
+}
 
-  .react-flow .react-flow__handle-top.edgeSrcHandle {
-    top: -8px;
-    border: transparent;
-  }
+.react-flow .react-flow__handle-top.edgeSrcHandle {
+  top: -8px;
+  border: transparent;
+}
 
-
-  .server-node-handle::before {
-    opacity: 1 !important;
-  }
-
+.server-node-handle::before {
+  opacity: 1 !important;
+}
 
 /* 可选：添加hover效果 */
-.react-flow__edge:hover .react-flow__edge-path,
-.react-flow__edge:hover #custom-arrow-default path {  /* hover时的边颜色 */
-  stroke-dasharray: 8, 8;
-  animation: flow 6s linear infinite;
-  /* fill: #FFA73D !important; */
-}
-
-  /* 修改选中边的样式 */
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: #FFA73D !important;  /* 选中时的边颜色 */
-  stroke-dasharray: 8, 8;
-  animation: flow 6s linear infinite;
-}
+/* moved edge hover/selected styles into edge components */
 
 /* 根据节点尺寸区分 Block Node 和 Edge Node */
 
+/* Text Block Node 的选中样式 */
+.react-flow__node.selected .text-block-node {
+  border-color: #4599df; /* main-blue 主题色 */
+  border-radius: 16px;
+}
 
-  /* Text Block Node 的选中样式 */
-  .react-flow__node.selected .text-block-node {
-    border-color: #4599DF;  /* main-blue 主题色 */
-    border-radius: 16px;
-  }
+/* Json Block Node 的选中样式 */
+.react-flow__node.selected .json-block-node {
+  border-color: #9b7edb; /* 紫色主题色 */
+  border-radius: 16px;
+}
 
-  /* Json Block Node 的选中样式 */
-  .react-flow__node.selected .json-block-node {
-    border-color: #9B7EDB;  /* 紫色主题色 */
-    border-radius: 16px;
-  }
-
-  /* File Block Node 的选中样式 */
-  .react-flow__node.selected .file-block-node {
-    border-color: #BF9A78;  /* 棕色主题色 */
-    border-radius: 16px;
-  }
+/* File Block Node 的选中样式 */
+.react-flow__node.selected .file-block-node {
+  border-color: #bf9a78; /* 棕色主题色 */
+  border-radius: 16px;
+}
 /* Edge Node 的选中样式 */
 .react-flow__node.selected .edge-node {
-  border-color: #FFA73D;  /* main-orange 主题色 */
+  border-color: #ffa73d; /* main-orange 主题色 */
   border-radius: 8px;
 }
 
@@ -351,79 +329,77 @@
   }
 }
 
-  select {
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    appearance: none;
-    background: none;
-    border: 1px solid #CDCDCD;
-    /* 你可以根据需要添加其他样式 */
-  }
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: none;
+  border: 1px solid #cdcdcd;
+  /* 你可以根据需要添加其他样式 */
+}
 
-  .max-w-custom {
-    width: max(320px, fit-content);
-  }
+.max-w-custom {
+  width: max(320px, fit-content);
+}
 
-  .max-role-w-custom {
-    width: max(80px, fit-content);
-  }
+.max-role-w-custom {
+  width: max(80px, fit-content);
+}
 
-  /* 使用CSS来截断文本并显示省略号 */
-  input {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+/* 使用CSS来截断文本并显示省略号 */
+input {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
-  input:focus, select:focus {
-    outline-color: rgb(205,205,205);
-    z-index: 2000000;
-  }
+input:focus,
+select:focus {
+  outline-color: rgb(205, 205, 205);
+  z-index: 2000000;
+}
 
+/* 删除全局中number input的默认样式, 上面是针对于firefox呢， 下面是针对于Webkit浏览器的（比如Chrome，Safari， newer versions of Opera */
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
 
-  /* 删除全局中number input的默认样式, 上面是针对于firefox呢， 下面是针对于Webkit浏览器的（比如Chrome，Safari， newer versions of Opera */
-  input[type="number"] {
-    -moz-appearance: textfield;
-    appearance: textfield;
-  }
-  
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
-  input[type="number"]::-webkit-inner-spin-button,
-  input[type="number"]::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
+/* 修改HeaderTitle的placeholder样式 */
 
-  /* 修改HeaderTitle的placeholder样式 */
+.HeaderTitle:focus,
+.FlowElementInput:focus {
+  caret-color: #cdcdcd !important;
+  caret-shape: block !important;
+  outline: none !important;
+}
 
-  .HeaderTitle:focus,
-  .FlowElementInput:focus {
-    caret-color: #CDCDCD !important;
-    caret-shape: block !important;
-    outline: none !important;
-  }
-  
+.ace_editor,
+.ace_editor * {
+  font-family:
+    'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Droid Sans Mono',
+    'Consolas', monospace !important;
+  font-weight: 400 !important;
+  letter-spacing: 0 !important;
+  text-align: left !important;
+}
 
- 
-  .ace_editor,
-  .ace_editor * {
-    font-family:'JetBrains Mono', 'Monaco', 'Menlo', 'Ubuntu Mono', 'Droid Sans Mono', 'Consolas', monospace !important;
-    font-weight: 400 !important;
-    letter-spacing: 0 !important;
-    text-align: left !important;
-  } 
-
-  /* 自定义行号背景色 */
+/* 自定义行号背景色 */
 .ace-github-dark .ace_gutter {
-  background-color: #1C1D1F; /* 设置为和编辑器背景一样的颜色 */
-  color: #FFFFFF; /* 设置行号的颜色 */
+  background-color: #1c1d1f; /* 设置为和编辑器背景一样的颜色 */
+  color: #ffffff; /* 设置行号的颜色 */
 }
 
 /* 自定义边框颜色 */
 .ace-github-dark .ace_gutter-active-line {
-  background-color: #FFA73D; /* 设置活动行的背景颜色 */
+  background-color: #ffa73d; /* 设置活动行的背景颜色 */
 }
-
 
 /* 在你的 CSS 文件中 */
 .monaco-editor {
@@ -437,25 +413,24 @@
 
 .monaco-editor .monaco-scrollable-element {
   overflow-x: hidden !important;
-}  
+}
 
 /* 在你的 CSS 文件中 */
- .monaco-editor .monaco-editor-background,
- .monaco-editor .margin-view-overlays,
- .monaco-editor .margin-view-overlays .line-numbers {
+.monaco-editor .monaco-editor-background,
+.monaco-editor .margin-view-overlays,
+.monaco-editor .margin-view-overlays .line-numbers {
   background-color: #000 !important;
 }
 
- .monaco-editor,
- .monaco-editor-background {
+.monaco-editor,
+.monaco-editor-background {
   background-color: #000 !important;
 }
-
 
 /* 设置editor的各项文字颜色 */
 /* 普通文本颜色 */
 .monaco-editor .mtk1 {
-  color: #9CDCFE  !important; /* 浅灰色文本 */
+  color: #9cdcfe !important; /* 浅灰色文本 */
 }
 
 /* 字符串值 */
@@ -465,25 +440,22 @@
 
 /* 键名 */
 .monaco-editor .mtk6 {
-  color: #9CDCFE !important; /* 浅蓝色 */
+  color: #9cdcfe !important; /* 浅蓝色 */
 }
 
 /* 数字 */
 .monaco-editor .mtk7 {
-  color: #B5CEA8 !important; /* 浅绿色 */
+  color: #b5cea8 !important; /* 浅绿色 */
 }
 
 /* 布尔值和 null */
 .monaco-editor .mtk9 {
-  color: #569CD6 !important; /* 蓝色 */
+  color: #569cd6 !important; /* 蓝色 */
 }
-
 
 .monaco-editor .mtk20 {
-  color: #9CDCFE !important; /* 浅蓝色 */
+  color: #9cdcfe !important; /* 浅蓝色 */
 }
-
-
 
 /* 修改输入法组合文本的背景色和前景色 */
 .monaco-editor .inputarea.ime-input {
@@ -511,7 +483,6 @@
   position: relative !important;
 } */
 
-
 .monaco-editor .monaco-scrollable-element > .lines-content {
   position: relative !important;
   width: 100% !important;
@@ -536,7 +507,6 @@
   z-index: 10000000 !important;
 }
 
-
 /* monaco的悬停提示样式 */
 .custom-hover {
   position: absolute;
@@ -547,7 +517,7 @@
   font-size: 12px;
   z-index: 100;
   max-width: 300px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 /* 设置左边line number的颜色 */
@@ -561,21 +531,17 @@
 }
 
 .monaco-editor .selected-text {
-  background-color: #4B5563 !important; /* 中性灰色 */
+  background-color: #4b5563 !important; /* 中性灰色 */
 }
 
 .monaco-editor .view-overlays .selected-text {
-  color: #CDCDCD !important; /* 可以根据需要调整颜色 */
+  color: #cdcdcd !important; /* 可以根据需要调整颜色 */
 }
-
 
 .monaco-editor .cursor {
-  background-color: #CDCDCD !important;
+  background-color: #cdcdcd !important;
   width: 2px !important;
 }
-
-
-
 
 /* 为单个editor 设置背景色 */
 
@@ -589,19 +555,17 @@
   outline: none !important;
 }
 
-
-
 /* 为editor的文本字体颜色设置 */
 .json-form .monaco-editor .mtk1 {
-  color: #CDCDCD !important;
+  color: #cdcdcd !important;
 }
 
 .json-form .monaco-editor .mtk1.bracket-highlighting-0 {
-  color:#C586C0 !important;
+  color: #c586c0 !important;
 }
 
 .json-form .monaco-editor .mtk1.bracket-highlighting-1 {
-  color:#4EC9B0 !important;
+  color: #4ec9b0 !important;
 }
 
 .text-editor .monaco-editor {
@@ -616,10 +580,8 @@
   outline: none !important;
 }
 
-
-
 .text-editor .monaco-editor .mtk1 {
-  color: #D4D4D4 !important;
+  color: #d4d4d4 !important;
 }
 
 /* 默认滑块颜色 */
@@ -634,9 +596,8 @@
 
 /* 激活/点击时的滑块颜色 */
 .text-editor .monaco-scrollable-element .slider.active {
-  background-color: #CDCDCD !important;
+  background-color: #cdcdcd !important;
 }
-
 
 .json-config-editor .monaco-editor,
 .json-config-editor .monaco-editor .margin,
@@ -647,22 +608,20 @@
 }
 
 .json-config-editor .monaco-editor .mtk1 {
-  color: #D4D4D4 !important;
+  color: #d4d4d4 !important;
 }
 
-
 .json-config-editor .monaco-editor .mtk1.bracket-highlighting-0 {
-  color:#C586C0 !important;
+  color: #c586c0 !important;
 }
 
 .json-config-editor .monaco-editor .mtk1.bracket-highlighting-1 {
-  color:#4EC9B0 !important;
+  color: #4ec9b0 !important;
 }
 
 .text-config-editor .monaco-editor {
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
-
 
 .text-config-editor .monaco-editor,
 .text-config-editor .monaco-editor .margin,
@@ -673,7 +632,7 @@
 }
 
 .text-config-editor .monaco-editor .mtk1 {
-  color: #D4D4D4 !important;
+  color: #d4d4d4 !important;
 }
 
 .python-config-editor .monaco-editor,
@@ -685,16 +644,15 @@
 }
 
 .python-config-editor .monaco-editor .mtk1 {
-  color: #D4D4D4 !important;
+  color: #d4d4d4 !important;
 }
 
-
 .python-config-editor .monaco-editor .mtk1.bracket-highlighting-0 {
-  color:#C586C0 !important;
+  color: #c586c0 !important;
 }
 
 .python-config-editor .monaco-editor .mtk1.bracket-highlighting-1 {
-  color:#4EC9B0 !important;
+  color: #4ec9b0 !important;
 }
 
 /* .readonly-line {
@@ -743,13 +701,10 @@
   cursor: not-allowed !important;
 }
 
-
-
-/* monica editor placeholder */ 
+/* monica editor placeholder */
 .hideLineNumbers .line-numbers {
   display: none !important;
 }
-
 
 /* 修改Ant.design Select 默认背景颜色和边框 */
 .dark-Select .ant-select-selector {
@@ -760,7 +715,7 @@
 /* 修改Ant.design Select 多选输入框的选中项的背景颜色和文字颜色 */
 .dark-Select .ant-select-selection-item {
   color: #000 !important;
-  background: #6D7177 !important;
+  background: #6d7177 !important;
   border-radius: 6px !important;
   font-size: 12px !important;
   font-weight: 700 !important;
@@ -769,35 +724,35 @@
 
 /* 修改Ant.design Select 下拉框选项的背景颜色 */
 .ant-select-dropdown {
-  background-color: #1C1D1F !important;
+  background-color: #1c1d1f !important;
 }
 
 /* 修改Ant.design Select 下拉框选项的文字颜色和背景颜色 */
 .ant-select-item {
-  color: #CDCDCD !important;
-  background-color: #3E3E41 !important;
+  color: #cdcdcd !important;
+  background-color: #3e3e41 !important;
 }
 
 /* 修改Ant.design Select 下拉框选项的选中项的背景颜色和文字颜色 */
 .ant-select-item-option-selected {
-  background-color: #FFA73D !important;
-  color: #1C1D1F !important;
+  background-color: #ffa73d !important;
+  color: #1c1d1f !important;
 }
 
 /* 修改Ant.design Select 多选输入框的placeholder颜色 */
 .dark-Select .ant-select-selection-placeholder {
-  color: #CDCDCD !important;
+  color: #cdcdcd !important;
   font-family: 'Plus Jakarta Sans', sans-serif !important;
 }
 
 /* 修改Ant.design Select 多选输入框的箭头颜色 */
 .dark-Select .ant-select-arrow {
-  color: #CDCDCD !important;
+  color: #cdcdcd !important;
 }
 
 /* 修改Ant.design Select 多选输入框的光标颜色 */
 .dark-Select .ant-select-selection-search-input {
-  caret-color: #CDCDCD !important;
+  caret-color: #cdcdcd !important;
 }
 
 /* 修改 loading图标样式 */
@@ -813,7 +768,6 @@
   margin: 10px 0;
   animation: skeleton-loading 1.5s infinite;
 }
-
 
 @keyframes skeleton-loading {
   0% {
@@ -899,7 +853,6 @@
   opacity: 1;
 }
 
-
 /* This is the React Flow controller component styles */
 /* Contains zoom controls and fit view buttons */
 /* Located in the toolbar at the top right of the canvas */
@@ -910,11 +863,11 @@
 }
 
 .react-flow__controls-custom {
-  background: #252525;
-  border: 1px solid #3E3E41;
-  border-radius: 8px;
-  padding: 4px;
-  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  height: 36px; /* match toolbar button height */
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -924,7 +877,7 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: 2px; /* tighter */
 }
 
 /* 重新排序按钮 */
@@ -942,11 +895,11 @@
 
 /* 按钮基础样式 */
 .react-flow__controls-custom button {
-  width: 28px;
-  height: 28px;
+  width: 24px; /* smaller */
+  height: 24px; /* smaller */
   background: transparent;
   border: none;
-  color: #6D7177;
+  color: #6d7177;
   padding: 4px;
   display: flex;
   align-items: center;
@@ -955,18 +908,26 @@
 
 /* hover 样式 */
 .react-flow__controls-custom button:hover {
-  background: #3E3E41;
+  background: #444444; /* clearer hover */
   border-radius: 4px;
-  color: #CDCDCD;
+  color: #cdcdcd;
+}
+
+.react-flow__controls-custom button:active {
+  background: #505050; /* active press */
+  border-radius: 4px;
+  color: #cdcdcd;
 }
 
 /* 确保 SVG 图标颜色跟随按钮颜色变化 */
 .react-flow__controls-custom button svg {
-  fill: #6D7177;
+  width: 14px; /* slightly smaller icon */
+  height: 14px; /* slightly smaller icon */
+  fill: #6d7177;
 }
 
 .react-flow__controls-custom button:hover svg {
-  fill: #CDCDCD;
+  fill: #cdcdcd;
 }
 
 .reactflow-custom-watermark .react-flow__panel.react-flow__attribution {
@@ -987,12 +948,12 @@
 }
 
 /* Add these rules to style brackets differently */
-.json-form .monaco-editor .mtk9.bracket-highlighting{
-  color: #FF9CAC !important; /* Pink color for curly braces */
+.json-form .monaco-editor .mtk9.bracket-highlighting {
+  color: #ff9cac !important; /* Pink color for curly braces */
 }
 
 .json-form .monaco-editor .mtk9.bracket-highlighting {
-  color: #9CFFC9 !important; /* Green color for square brackets */
+  color: #9cffc9 !important; /* Green color for square brackets */
 }
 
 /* You might need to adjust the class names based on your Monaco editor's output */
@@ -1006,19 +967,25 @@
 
 /* 优化选中文本的样式 */
 .json-form .monaco-editor .selected-text {
-  background-color: rgba(255, 167, 61, 0.25) !important; /* 稍微降低了不透明度 */
+  background-color: rgba(
+    255,
+    167,
+    61,
+    0.25
+  ) !important; /* 稍微降低了不透明度 */
   border-radius: 2px;
 }
 
 .custom-dashed-border {
   border-style: solid;
   border-image: repeating-linear-gradient(
-    to right,
-    gray 0%,
-    gray 70%,
-    transparent 70%,
-    transparent 100%
-  ) 1;
+      to right,
+      gray 0%,
+      gray 70%,
+      transparent 70%,
+      transparent 100%
+    )
+    1;
 }
 
 /* 在 PuppyFlow/app/globals.css 添加这些样式 */
@@ -1032,23 +999,26 @@
 /* React Grid Layout drag shadow customization */
 .react-grid-item.react-grid-placeholder {
   background: rgba(96, 165, 250, 0.15) !important;
-  border: 2px dashed #60A5FA !important;
+  border: 2px dashed #60a5fa !important;
   border-radius: 8px !important;
-  box-shadow: 0 8px 25px rgba(96, 165, 250, 0.25), 
-              0 4px 15px rgba(96, 165, 250, 0.15) !important;
+  box-shadow:
+    0 8px 25px rgba(96, 165, 250, 0.25),
+    0 4px 15px rgba(96, 165, 250, 0.15) !important;
 }
 
 .react-grid-item.react-dragging {
-  box-shadow: 0 12px 30px rgba(96, 165, 250, 0.3), 
-              0 6px 20px rgba(96, 165, 250, 0.2), 
-              0 0 0 1px rgba(96, 165, 250, 0.4) !important;
+  box-shadow:
+    0 12px 30px rgba(96, 165, 250, 0.3),
+    0 6px 20px rgba(96, 165, 250, 0.2),
+    0 0 0 1px rgba(96, 165, 250, 0.4) !important;
   transform: scale(1.02) !important;
   transition: all 0.2s ease !important;
 }
 
 .react-grid-item.react-resizing {
-  box-shadow: 0 8px 25px rgba(107, 114, 128, 0.3), 
-              0 4px 15px rgba(107, 114, 128, 0.2) !important;
+  box-shadow:
+    0 8px 25px rgba(107, 114, 128, 0.3),
+    0 4px 15px rgba(107, 114, 128, 0.2) !important;
 }
 
 /* Hide the default react-grid-layout resize handle */
@@ -1073,12 +1043,12 @@
 
 /* 隐藏滚动条但保持滚动功能 */
 .scrollbar-hide {
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;     /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
 }
 
 .scrollbar-hide::-webkit-scrollbar {
-    display: none;             /* Chrome, Safari and Opera */
+  display: none; /* Chrome, Safari and Opera */
 }
 
 /* TextBlock Loading 呼吸效果 - 只影响边框 */
