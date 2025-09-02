@@ -45,6 +45,24 @@ function MainApplication() {
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Client-side boot log and env check
+    try {
+      const type = (process.env.DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'cloud' : 'local';
+      // Safe to log NEXT_PUBLIC_* values directly
+      console.log('🐶 [PuppyFlow] Client boot:', {
+        deploymentType: type,
+        NEXT_PUBLIC_FRONTEND_VERSION: process.env.NEXT_PUBLIC_FRONTEND_VERSION,
+        NEXT_PUBLIC_OLLAMA_ENDPOINT: process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT,
+      });
+      // Call server env health endpoint
+      fetch('/api/health/env', { method: 'GET', credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+          console.log('🐶 [PuppyFlow] Server env health:', data);
+        })
+        .catch(err => console.warn('PuppyFlow env health check failed:', err));
+    } catch {}
+
     const originalFetch = window.fetch;
     const redirectFlagKey = '__auth_redirecting_due_to_401__';
 
