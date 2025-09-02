@@ -4,6 +4,9 @@
 import { cookies } from 'next/headers';
 import { SERVER_ENV } from '@/lib/serverEnv';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 export async function GET(request: Request) {
   const hdrs = new Headers(request.headers);
 
@@ -63,7 +66,7 @@ export async function GET(request: Request) {
 
   try {
     const upstream = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
       headers: upstreamHeaders,
     });
 
