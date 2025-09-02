@@ -47,7 +47,7 @@ function MainApplication() {
 
     // Client-side boot log and env check
     try {
-      const type = (process.env.DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'cloud' : 'local';
+      const type = (process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'cloud' : 'local';
       // Safe to log NEXT_PUBLIC_* values directly
       console.log('🐶 [PuppyFlow] Client boot:', {
         deploymentType: type,
