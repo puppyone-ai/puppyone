@@ -77,7 +77,7 @@ function FlowElement({
   return (
     <li
       className={`
-      flex items-center justify-center pl-[16px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[6px] cursor-pointer relative
+      flex items-center justify-center pl-[12px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[6px] cursor-pointer relative
       ${
         isSelected || flowIdShowOperationMenu === FlowId
           ? 'bg-[#454545] hover:bg-[#454545] transition-colors duration-200'
@@ -93,7 +93,7 @@ function FlowElement({
       }}
     >
       <div
-        className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-medium font-plus-jakarta-sans 
+        className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-plus-jakarta-sans 
       ${isSelected ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}
       >

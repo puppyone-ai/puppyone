@@ -6,7 +6,6 @@ import {
 import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
 import { useServerOperations } from '../hooks/useServerManagement';
 import { SYSTEM_URLS } from '@/config/urls';
-import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
 import DeployedServiceOperationMenu from './DeployedServiceOperationMenu';
 
 // 定义简化的服务类型

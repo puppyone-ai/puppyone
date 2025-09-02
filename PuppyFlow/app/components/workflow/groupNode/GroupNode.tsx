@@ -64,6 +64,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   const componentRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const deployMenuRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const { getNodes, deleteElements, setNodes, getNode } = useReactFlow();
   const { detachNodes, detachNodesFromGroup } = useDetachNodes();
   const { recalculateGroupNodes } = useGroupNodeCalculation();
@@ -71,6 +72,11 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState<string>(data?.label || '');
+  // Measure meta slot width (block count) to keep layout width stable when swapping to rename
+  const countRef = useRef<HTMLDivElement | null>(null);
+  const [metaSlotWidth, setMetaSlotWidth] = useState<number>(0);
 
   // Add workspace context for deployment
   const { showingItem } = useWorkspaces();
@@ -141,20 +147,57 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
   // 获取当前背景颜色
   const currentBackgroundColor = data.backgroundColor || 'transparent';
 
-  // 获取toolbar背景颜色 - 使用适中的颜色强度，保持视觉层次
+  // 获取toolbar背景颜色 - 固定主基调，叠加少量组色（不透明）
   const getToolbarBackgroundColor = () => {
-    if (currentBackgroundColor === 'transparent') {
-      return 'rgba(26, 26, 26, 0.6)'; // 默认半透明深灰
+    const baseR = 35, baseG = 35, baseB = 35; // #232323 主基调
+    const weight = 0.06; // 极轻的组色个性
+
+    const color = currentBackgroundColor;
+    if (!color || color === 'transparent') {
+      return `rgb(${baseR}, ${baseG}, ${baseB})`;
     }
-    // 提取GroupNode的背景色并创建适中强度的版本
-    const rgbaMatch = currentBackgroundColor.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
+
+    let tr: number | null = null;
+    let tg: number | null = null;
+    let tb: number | null = null;
+
+    // rgba(r, g, b, a)
+    const rgbaMatch = color.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,/i);
     if (rgbaMatch) {
-      const [, r, g, b, a] = rgbaMatch;
-      // 使用原始透明度的60%，让颜色更明显但不过分
-      const newAlpha = parseFloat(a) * 0.6;
-      return `rgba(${r}, ${g}, ${b}, ${newAlpha})`;
+      tr = parseInt(rgbaMatch[1], 10);
+      tg = parseInt(rgbaMatch[2], 10);
+      tb = parseInt(rgbaMatch[3], 10);
     }
-    return 'rgba(26, 26, 26, 0.6)'; // 默认回退
+
+    // rgb(r, g, b)
+    if (tr === null) {
+      const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+      if (rgbMatch) {
+        tr = parseInt(rgbMatch[1], 10);
+        tg = parseInt(rgbMatch[2], 10);
+        tb = parseInt(rgbMatch[3], 10);
+      }
+    }
+
+    // #rrggbb
+    if (tr === null) {
+      const hexMatch = color.match(/^#([0-9a-f]{6})$/i);
+      if (hexMatch) {
+        const hex = hexMatch[1];
+        tr = parseInt(hex.slice(0, 2), 16);
+        tg = parseInt(hex.slice(2, 4), 16);
+        tb = parseInt(hex.slice(4, 6), 16);
+      }
+    }
+
+    if (tr === null || tg === null || tb === null) {
+      return `rgb(${baseR}, ${baseG}, ${baseB})`;
+    }
+
+    const r = Math.round(baseR * (1 - weight) + tr * weight);
+    const g = Math.round(baseG * (1 - weight) + tg * weight);
+    const b = Math.round(baseB * (1 - weight) + tb * weight);
+    return `rgb(${r}, ${g}, ${b})`;
   };
 
   // 更新节点背景颜色
@@ -287,6 +330,49 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
     };
   }, [showDeployMenu]);
 
+  // Focus the input when entering rename mode
+  useEffect(() => {
+    if (isRenaming) {
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+        titleInputRef.current?.select();
+      }, 0);
+    }
+  }, [isRenaming]);
+
+  const startRename = useCallback(() => {
+    setNameDraft(data?.label || '');
+    setIsRenaming(true);
+  }, [data?.label]);
+
+  const commitRename = useCallback(() => {
+    const next = (nameDraft || '').trim();
+    const finalName = next.length > 0 ? next : (data?.label || '');
+    setNodes(nodes =>
+      nodes.map(n =>
+        n.id === id ? { ...n, data: { ...n.data, label: finalName } } : n
+      )
+    );
+    setIsRenaming(false);
+  }, [nameDraft, data?.label, id, setNodes]);
+
+  const cancelRename = useCallback(() => {
+    setNameDraft(data?.label || '');
+    setIsRenaming(false);
+  }, [data?.label]);
+
+  // Keep the meta slot width constant across hover swaps (block count <-> rename)
+  useEffect(() => {
+    const measure = () => {
+      const width = countRef.current?.offsetWidth ?? 0;
+      const finalWidth = Math.max(width, 24); // at least rename button width
+      setMetaSlotWidth(finalWidth);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [childNodes.length]);
+
   return (
     <div
       className='relative w-full h-full min-w-[240px] min-h-[176px] cursor-default'
@@ -313,31 +399,67 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
         {/* ReactFlow NodeToolbar - simplified design */}
         <NodeToolbar isVisible={true}>
           <div 
-            className='flex items-center gap-2 backdrop-blur-md border border-[#333333]/60 rounded-lg p-2 shadow-lg'
+            className='will-change-auto flex items-center gap-2 px-2 py-1.5 rounded-[8px] border border-[#404040] bg-transparent'
             style={{ 
-              backgroundColor: getToolbarBackgroundColor(),
-              backdropFilter: 'blur(8px)'
+              backgroundColor: getToolbarBackgroundColor()
             }}>
-            {/* Group Title */}
-            <div className='flex items-center gap-2'>
-              <span className='font-[600] text-[13px] leading-[20px] font-plus-jakarta-sans text-[#888888]'>
-                {`Group ${data.label}`}
-              </span>
-              {/* 子节点数量指示器 */}
+            {/* Group Title with rename (rename appears on hover) */}
+            <div className='group/label flex items-center gap-2'>
+              {isRenaming ? (
+                <input
+                  ref={titleInputRef}
+                  value={nameDraft}
+                  onChange={e => setNameDraft(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitRename();
+                    if (e.key === 'Escape') cancelRename();
+                  }}
+                  className='h-[26px] px-2 bg-[#2A2A2A] text-[#CDCDCD] border border-[#404040] rounded-[6px] text-[12px] outline-none'
+                  placeholder='Group name'
+                />
+              ) : (
+                <span className='font-medium text-[12px] leading-[18px] font-plus-jakarta-sans text-[#CDCDCD]'>
+                  {data.label}
+                </span>
+              )}
+              {/* 子节点数量指示器（hover 时隐藏，显示 Rename） */}
               {childNodes.length > 0 && (
-                <div className='text-[10px] text-[#666666] px-1 py-0.5 rounded'>
+                <div
+                  ref={countRef}
+                  className='text-[10px] text-[#666666] px-1 py-0.5 rounded group-hover/label:hidden'
+                  style={{ minWidth: `${metaSlotWidth}px` }}
+                >
                   ({childNodes.length}{' '}
-                  {childNodes.length === 1 ? 'node' : 'nodes'})
+                  {childNodes.length === 1 ? 'block' : 'blocks'})
+                </div>
+              )}
+              {!isRenaming && (
+                <div
+                  className='hidden group-hover/label:inline-flex items-center justify-start'
+                  style={{ minWidth: `${metaSlotWidth}px` }}
+                >
+                  <button
+                    onClick={startRename}
+                    className='inline-flex items-center justify-center w-[24px] h-[24px] rounded-[6px] text-[#808080] hover:text-[#CDCDCD] hover:bg-[#2A2A2A] transition-colors'
+                    title='Rename'
+                    aria-label='Rename group'
+                  >
+                    <svg width='14' height='14' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
+                      <path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z' stroke='currentColor' strokeWidth='1.5'/>
+                      <path d='M14.06 6.19l1.41-1.41a1.5 1.5 0 0 1 2.12 0l1.63 1.63a1.5 1.5 0 0 1 0 2.12l-1.41 1.41-3.75-3.75z' stroke='currentColor' strokeWidth='1.5'/>
+                    </svg>
+                  </button>
                 </div>
               )}
             </div>
             
             {/* 分隔符 */}
-            <div className='w-px h-[32px] bg-[#555555]/80'></div>
+            <div className='w-px h-[26px] bg-[#3e3e41] opacity-90'></div>
 
             {/* Settings Menu */}
             <Menu as="div" className="relative">
-              <Menu.Button className='group w-[32px] h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#3A3B3D] text-[#CDCDCD] rounded-md border border-[#444444] hover:border-[#555555] flex items-center justify-center transition-all duration-200 hover:shadow-md'>
+              <Menu.Button className='group w-[28px] h-[28px] rounded-[6px] bg-transparent text-[#808080] hover:text-[#CDCDCD] flex items-center justify-center transition-colors duration-150 hover:bg-[#2A2A2A]'>
                 <svg
                   width='15'
                   height='3'
@@ -345,9 +467,9 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                   fill='none'
                   xmlns='http://www.w3.org/2000/svg'
                 >
-                  <rect x='0' y='0' width='3' height='3' className='fill-[#6D7177] group-hover:fill-[#CDCDCD]'/>
-                  <rect x='6' y='0' width='3' height='3' className='fill-[#6D7177] group-hover:fill-[#CDCDCD]'/>
-                  <rect x='12' y='0' width='3' height='3' className='fill-[#6D7177] group-hover:fill-[#CDCDCD]'/>
+                  <rect x='0' y='0' width='3' height='3' className='fill-[#808080] group-hover:fill-[#CDCDCD]'/>
+                  <rect x='6' y='0' width='3' height='3' className='fill-[#808080] group-hover:fill-[#CDCDCD]'/>
+                  <rect x='12' y='0' width='3' height='3' className='fill-[#808080] group-hover:fill-[#CDCDCD]'/>
                 </svg>
               </Menu.Button>
               <Transition
@@ -359,13 +481,13 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                 leaveFrom="opacity-100 translate-y-0"
                 leaveTo="opacity-0 -translate-y-1"
               >
-                <Menu.Items className="absolute top-full left-0 mt-1 w-56 bg-[#1E1E1E] border border-[#404040] rounded-xl shadow-xl z-50 p-1">
+                <Menu.Items className="absolute top-full left-0 mt-1 w-56 bg-[#1E1E1E] border border-[#404040] rounded-[8px] shadow-xl z-50 p-1">
                   {/* Recalculate */}
                   <Menu.Item>
                     {({ active }) => (
                       <button
                         onClick={onManualRecalculate}
-                        className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                        className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-[12px] text-[#CDCDCD] rounded-md flex items-center gap-2`}
                       >
                         <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
                           <path d='M1 4V10H7' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
@@ -380,7 +502,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                   {/* Background Color */}
                   <Menu.Item>
                     <div className="px-3 py-2">
-                      <div className="text-xs text-[#888888] mb-2">Background Color</div>
+                      <div className="text-[11px] text-[#888888] mb-2">Background Color</div>
                       <div className='grid grid-cols-4 gap-1.5'>
                         {BACKGROUND_COLORS.map(color => (
                           <button
@@ -418,7 +540,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                       {({ active }) => (
                         <button
                           onClick={onDetachAll}
-                          className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-sm text-[#CDCDCD] rounded-md flex items-center gap-2`}
+                          className={`${active ? 'bg-[#2A2A2A]' : ''} w-full text-left px-3 py-2 text-[12px] text-[#CDCDCD] rounded-md flex items-center gap-2`}
                         >
                           <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
                             <path d='M9 14L4 9L9 4' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'/>
@@ -435,7 +557,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                     {({ active }) => (
                       <button
                         onClick={onDelete}
-                        className={`${active ? 'bg-[#E53E3E] text-white' : 'text-[#E53E3E]'} w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-2`}
+                        className={`${active ? 'bg-[#E53E3E] text-white' : 'text-[#E53E3E]'} w-full text-left px-3 py-2 text-[12px] rounded-md flex items-center gap-2`}
                       >
                         <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
                           <path d='M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z' stroke='currentColor' fill='none' strokeWidth='2'/>
@@ -454,7 +576,7 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
             {/* Deploy Button with Menu (icon only) */}
             <div className="relative" ref={deployMenuRef}>
               <button
-                className={`group flex items-center justify-center w-[32px] h-[32px] rounded-md bg-[#2A2B2D] border-[1px] hover:bg-[#FFA73D] transition-colors border-[#444444] hover:border-[#FFA73D]`}
+                className={`group flex items-center justify-center w-[28px] h-[28px] rounded-[6px] bg-transparent hover:bg-[#2A2A2A] transition-colors`}
                 onClick={() => setShowDeployMenu(!showDeployMenu)}
                 aria-label='Deploy'
                 title='Deploy'
@@ -467,15 +589,15 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
                   xmlns='http://www.w3.org/2000/svg'
                 >
                   <path
-                    className='fill-[#6D7177] group-hover:fill-black transition-colors'
+                    className='fill-[#808080] group-hover:fill-[#FFA73D] transition-colors'
                     d='M14.5 11L17.5 15H14.5V11Z'
                   />
                   <path
-                    className='fill-[#6D7177] group-hover:fill-black transition-colors'
+                    className='fill-[#808080] group-hover:fill-[#FFA73D] transition-colors'
                     d='M3.5 11V15H0.5L3.5 11Z'
                   />
                   <path
-                    className='fill-[#6D7177] group-hover:fill-black transition-colors'
+                    className='fill-[#808080] group-hover:fill-[#FFA73D] transition-colors'
                     fillRule='evenodd'
                     clipRule='evenodd'
                     d='M12.0049 5.19231C11.0095 2.30769 9.01893 0 9.01893 0C9.01893 0 7.02834 2.30769 6.03314 5.19231C4.79777 8.77308 5.03785 15 5.03785 15H13.0002C13.0002 15 13.2405 8.77298 12.0049 5.19231ZM9 6C7.89543 6 7 6.89543 7 8C7 9.10457 7.89543 10 9 10C10.1046 10 11 9.10457 11 8C11 6.89543 10.1046 6 9 6Z'
@@ -504,33 +626,31 @@ function GroupNode({ data, id, selected }: GroupNodeProps) {
             </div>
 
             {/* Separator between Deploy and Run */}
-            <div className='w-px h-[32px] bg-[#555555]/80'></div>
+            <div className='w-px h-[26px] bg-[#3e3e41] opacity-90'></div>
 
             {/* Run Button */}
             <button
               onClick={onRunGroup}
               disabled={isLoading}
-              className={`px-3 py-1.5 h-[32px] text-sm bg-[#2A2B2D] hover:bg-[#39BC66] text-[#CDCDCD] hover:text-black rounded-md border border-[#444444] hover:border-[#39BC66] flex items-center gap-2 transition-all duration-200 ${
-                isLoading
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:shadow-md'
+              className={`inline-flex items-center gap-1.5 h-[26px] px-2 rounded-[6px] border border-[#404040] text-[#39bc66] text-[12px] hover:bg-[#39bc66] hover:text-black transition-all duration-150 active:scale-95 ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
               {isLoading ? (
-                <div className='w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                <div className='w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
               ) : (
                 <svg
-                  width='14'
-                  height='14'
+                  width='12'
+                  height='12'
                   viewBox='0 0 24 24'
-                  fill='none'
+                  fill='currentColor'
                   xmlns='http://www.w3.org/2000/svg'
                   className='transition-colors duration-200'
                 >
-                  <path d='M8 5V19L19 12L8 5Z' fill='currentColor' />
+                  <path d='M8 5V19L19 12L8 5Z' />
                 </svg>
               )}
-              {isLoading ? 'Running...' : 'Run All'}
+              {isLoading ? 'Running...' : 'Run'}
             </button>
             </div>
           </div>

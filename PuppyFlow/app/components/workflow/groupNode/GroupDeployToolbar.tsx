@@ -483,7 +483,7 @@ export function GroupDeployToolbar({
   };
 
   return (
-    <div className='w-[380px] rounded-xl bg-[#1E1E1E] shadow-xl border border-[#404040] overflow-hidden p-1'>
+    <div className='w-[380px] rounded-[8px] bg-[#232323] shadow-none border border-[#404040] overflow-hidden p-1'>
       {renderActivePanel()}
     </div>
   );

@@ -271,7 +271,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
       leaveTo='transform opacity-0 translate-y-[-10px]'
     >
       <div
-        className={`absolute top-[8px] ${!showSubPage ? ' w-[360px]' : ' w-[420px]'} p-[8px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] shadow-lg shadow-black/20 z-[20000] flex flex-col gap-3`}
+        className={`${!showSubPage ? ' w-[360px]' : ' w-[420px]'} p-[8px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] shadow-lg shadow-black/20 z-[20000] flex flex-col gap-3`}
       >
         {/* 主页面 */}
         {!showSubPage ? (

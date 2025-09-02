@@ -6,6 +6,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { VectorIndexingItem, IndexingItem } from '../JsonNodeNew';
 import IndexingMenu from './NodeIndexingMenu';
+import { createPortal } from 'react-dom';
 
 type NodeIndexingButtonProps = {
   nodeid: string;
@@ -24,7 +25,7 @@ function NodeIndexingButton({
   const [showMenu, setShowMenu] = useState(false);
   const indexButtonRef = useRef<HTMLButtonElement | null>(null);
   const componentRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
   const { activatedNode, setHandleActivated } = useNodesPerFlowContext();
   const { getNode } = useReactFlow();
@@ -52,49 +53,21 @@ function NodeIndexingButton({
     setShowMenu(false);
   };
 
-  // 添加点击外部关闭菜单的逻辑 - 修改后，不再在事件委托上处理，而是使用mousedown/mouseup组合
+  // 点击外部关闭（考虑 portal 后的容器）
   useEffect(() => {
     if (!showMenu) return;
 
-    let isClickInsideMenu = false;
-    let isClickInsideButton = false;
-
-    // 使用mousedown和mouseup事件组合来准确判断点击位置
-    const handleMouseDown = (e: MouseEvent) => {
-      const targetElement = e.target as HTMLElement;
-
-      // 检查是否点击在菜单内部
-      if (
-        menuRef.current?.contains(targetElement) ||
-        targetElement.closest('.indexing-menu-container')
-      ) {
-        isClickInsideMenu = true;
-      } else {
-        isClickInsideMenu = false;
-      }
-
-      // 检查是否点击在按钮上
-      if (componentRef.current?.contains(targetElement)) {
-        isClickInsideButton = true;
-      } else {
-        isClickInsideButton = false;
-      }
-    };
-
-    const handleMouseUp = (e: MouseEvent) => {
-      // 如果既不是点击在菜单内部，也不是点击在按钮上，则关闭菜单
-      if (!isClickInsideMenu && !isClickInsideButton) {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const clickedInsideButton = !!componentRef.current && componentRef.current.contains(target);
+      const clickedInsideMenu = !!menuContainerRef.current && menuContainerRef.current.contains(target);
+      if (!clickedInsideButton && !clickedInsideMenu) {
         setShowMenu(false);
       }
     };
 
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
+    document.addEventListener('click', onDocClick, true);
+    return () => document.removeEventListener('click', onDocClick, true);
   }, [showMenu]);
 
   // 当节点不再激活时关闭菜单
@@ -103,6 +76,48 @@ function NodeIndexingButton({
       setShowMenu(false);
     }
   }, [activatedNode?.id, nodeid]);
+
+  // 位置更新：将菜单锚定到按钮（左对齐），并通过 portal 放到 body，避免缩放
+  useEffect(() => {
+    if (!showMenu) return;
+
+    let rafId: number | null = null;
+
+    const positionMenu = () => {
+      const btn = indexButtonRef.current;
+      const container = menuContainerRef.current;
+      if (!btn || !container) {
+        rafId = requestAnimationFrame(positionMenu);
+        return;
+      }
+      const rect = btn.getBoundingClientRect();
+      const GAP = 8;
+      const containerWidth = container.offsetWidth || 420; // 估算，首次渲染后会被真实宽度覆盖
+      const top = rect.bottom + GAP;
+      let left = rect.left; // 左对齐按钮
+      left = Math.max(8, Math.min(left, window.innerWidth - containerWidth - 8));
+
+      container.style.position = 'fixed';
+      container.style.top = `${top}px`;
+      container.style.left = `${left}px`;
+      container.style.zIndex = '2000000';
+
+      rafId = requestAnimationFrame(positionMenu);
+    };
+
+    positionMenu();
+
+    const onScroll = () => positionMenu();
+    const onResize = () => positionMenu();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [showMenu]);
 
   // 设置悬浮效果对应的颜色
   const fillColor = isHovered ? '#BEBEBE' : '#6D7177';
@@ -163,23 +178,26 @@ function NodeIndexingButton({
         </svg>
       </button>
 
-      {/* 使用固定定位确保菜单显示在其他元素之上 */}
-      <div
-        ref={menuRef}
-        style={{ position: 'fixed', zIndex: 20000 }}
-        className='indexing-menu-container'
-      >
-        {showMenu && (
-          <IndexingMenu
-            id={nodeid}
-            showMenu={showMenu}
-            indexingList={indexingList}
-            onClose={handleCloseMenu}
-            onAddIndex={onAddIndex}
-            onRemoveIndex={onRemoveIndex}
-          />
+      {showMenu &&
+        createPortal(
+          <div
+            ref={menuContainerRef}
+            style={{ position: 'fixed', zIndex: 2000000 }}
+            className='indexing-menu-container'
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <IndexingMenu
+              id={nodeid}
+              showMenu={showMenu}
+              indexingList={indexingList}
+              onClose={handleCloseMenu}
+              onAddIndex={onAddIndex}
+              onRemoveIndex={onRemoveIndex}
+            />
+          </div>,
+          document.body
         )}
-      </div>
     </div>
   );
 }
