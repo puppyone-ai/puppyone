@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { SERVER_ENV } from '@/lib/serverEnv';
 
 export async function getCurrentUserId(request: Request): Promise<string> {
   // Non-cloud deployments do not require user verification
@@ -31,9 +32,18 @@ export async function getCurrentUserId(request: Request): Promise<string> {
 
   // Cloud mode: Call internal verify endpoint
   const url = new URL('/api/auth/verify', request.url).toString();
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    authorization: authHeader,
+  };
+  // Include service key for internal verification if configured
+  if (SERVER_ENV.SERVICE_KEY) {
+    headers['x-service-key'] = SERVER_ENV.SERVICE_KEY;
+  }
+
   const res = await fetch(url, {
     method: 'GET',
-    headers: { 'content-type': 'application/json', authorization: authHeader },
+    headers,
   });
   if (!res.ok) throw new Error(`verify failed: ${res.status}`);
 
