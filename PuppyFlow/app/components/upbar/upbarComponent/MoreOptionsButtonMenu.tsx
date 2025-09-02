@@ -172,7 +172,7 @@ function MoreOptionsButtonMenu({
                       fileInputRef.current?.click();
                     }}
                   >
-                    Upload JSON
+                    Import JSON
                   </button>
                 </li>
               )}
@@ -191,7 +191,7 @@ function MoreOptionsButtonMenu({
                       clearTopRightToolBarMenu();
                     }}
                   >
-                    Download JSON
+                    Export JSON
                   </button>
                 </li>
               )}
