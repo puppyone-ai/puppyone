@@ -15,7 +15,7 @@ import React, {
   useMemo,
 } from 'react';
 import WhiteBallHandle from '../handles/WhiteBallHandle';
-import NodeToolBar from './nodeTopRightBar/NodeTopRightBar';
+import FileNodeSettingsController from './FileNodeTopSettingBar/NodeSettingsButton';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import ReactDOM from 'react-dom';
 import { useFileUpload, UploadedFile } from './hooks/useFileUpload';
@@ -374,78 +374,8 @@ const FileNode = React.memo<FileNodeProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        <div className='absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5'>
-          {effectiveIsInput && (
-            <div className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black'>
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect
-                  x='16'
-                  y='7'
-                  width='3'
-                  height='12'
-                  rx='1'
-                  fill='currentColor'
-                />
-                <path
-                  d='M5 13H14'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                />
-                <path
-                  d='M10 9L14 13L10 17'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <span>INPUT</span>
-            </div>
-          )}
-
-          {effectiveIsOutput && (
-            <div className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black'>
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect
-                  x='7'
-                  y='7'
-                  width='3'
-                  height='12'
-                  rx='1'
-                  fill='currentColor'
-                />
-                <path
-                  d='M12 13H21'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                />
-                <path
-                  d='M17 9L21 13L17 17'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <span>OUTPUT</span>
-            </div>
-          )}
-
-          {locked && (
+        {locked && (
+          <div className='absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5'>
             <div className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black'>
               <svg
                 width='16'
@@ -460,19 +390,12 @@ const FileNode = React.memo<FileNodeProps>(
                   strokeWidth='1.5'
                   strokeLinecap='round'
                 />
-                <rect
-                  x='4'
-                  y='7'
-                  width='8'
-                  height='6'
-                  rx='1'
-                  fill='currentColor'
-                />
+                <rect x='4' y='7' width='8' height='6' rx='1' fill='currentColor' />
               </svg>
               <span>LOCKED</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div id={id} ref={contentRef} className={containerClassName}>
           {/* the top bar of a block */}
@@ -538,7 +461,7 @@ const FileNode = React.memo<FileNodeProps>(
 
             {/* top-right toolbar */}
             <div className='min-w-[24px] min-h-[24px] flex items-center justify-center'>
-              <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
+              <FileNodeSettingsController nodeid={id} />
             </div>
           </div>
 

@@ -1,0 +1,518 @@
+{
+    "personal_rss": {
+        "title": "Personal RSS",
+        "description": "Daily digest from your favorite feeds (concise summaries).",
+        "content": {
+            "blocks": [
+                {
+                    "id": "rss_input",
+                    "position": {
+                        "x": -352,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Add your RSS feed URLs (one per line). Optionally paste fetched items to summarize.\nhttps://example.com/feed.xml\nhttps://example.org/rss",
+                        "label": "RSS Feeds",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": true,
+                        "isOutput": false,
+                        "editable": true,
+                        "isWaitingForFlow": false
+                    },
+                    "type": "text",
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "selected": false
+                },
+                {
+                    "id": "rss_llm",
+                    "type": "llmnew",
+                    "position": {
+                        "x": -16,
+                        "y": 0
+                    },
+                    "data": {
+                        "subMenuType": null,
+                        "content": [
+                            {
+                                "role": "system",
+                                "content": "You are a personal RSS digest assistant. When given RSS items or links, produce a concise daily summary with sections: New Posts, Highlights, and Reading List. When only feed URLs are provided, instruct the user to fetch items, then summarize. Keep each item: title, one-line summary, and link."
+                            },
+                            {
+                                "role": "user",
+                                "content": "Summarize today's items from these feeds:\n{{RSS Feeds}}"
+                            }
+                        ],
+                        "model": "openai/gpt-4o-mini",
+                        "base_url": "",
+                        "structured_output": false,
+                        "max_tokens": 4096,
+                        "resultNode": "rss_output",
+                        "modelAndProvider": {
+                            "id": "openai/gpt-4o-mini",
+                            "name": "GPT-4o Mini",
+                            "provider": "OpenAI",
+                            "isLocal": false
+                        }
+                    },
+                    "measured": {
+                        "width": 80,
+                        "height": 48
+                    },
+                    "selected": false,
+                    "dragging": false,
+                    "style": {
+                        "zIndex": 1122
+                    }
+                },
+                {
+                    "id": "rss_output",
+                    "position": {
+                        "x": 160,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Your RSS daily digest will appear here.",
+                        "label": "Digest",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": false,
+                        "isOutput": true,
+                        "editable": false,
+                        "isWaitingForFlow": false
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "type": "text",
+                    "style": {
+                        "zIndex": 1125
+                    },
+                    "selected": false,
+                    "dragging": false
+                }
+            ],
+            "edges": [
+                {
+                    "id": "conn-rss-1",
+                    "source": "rss_input",
+                    "target": "rss_llm",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "STC"
+                    }
+                },
+                {
+                    "id": "conn-rss-2",
+                    "source": "rss_llm",
+                    "target": "rss_output",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "CTT"
+                    }
+                }
+            ],
+            "viewport": {
+                "x": 915,
+                "y": 801,
+                "zoom": 1
+            },
+            "version": "0.0.1"
+        }
+    },
+    "agentic_rag": {
+        "title": "Agentic RAG",
+        "description": "Plan + retrieve + cite sources. Works best with a retriever.",
+        "content": {
+            "blocks": [
+                {
+                    "id": "rag_query",
+                    "position": {
+                        "x": -352,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Ask a question. The agent will plan retrieval and cite sources.",
+                        "label": "Query",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": true,
+                        "isOutput": false,
+                        "editable": true,
+                        "isWaitingForFlow": false
+                    },
+                    "type": "text",
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "selected": false
+                },
+                {
+                    "id": "rag_llm",
+                    "type": "llmnew",
+                    "position": {
+                        "x": -16,
+                        "y": 0
+                    },
+                    "data": {
+                        "subMenuType": null,
+                        "content": [
+                            {
+                                "role": "system",
+                                "content": "You are an agentic RAG assistant. Plan steps, retrieve relevant context, and answer concisely with citations. If retrieval tools are not connected yet, respond with a short plan asking the user to connect a retriever/vector store, then proceed with best-effort reasoning on the provided context."
+                            },
+                            {
+                                "role": "user",
+                                "content": "Question: {{Query}}\nReturn: answer + sources."
+                            }
+                        ],
+                        "model": "openai/gpt-4o-mini",
+                        "base_url": "",
+                        "structured_output": false,
+                        "max_tokens": 4096,
+                        "resultNode": "rag_output",
+                        "modelAndProvider": {
+                            "id": "openai/gpt-4o-mini",
+                            "name": "GPT-4o Mini",
+                            "provider": "OpenAI",
+                            "isLocal": false
+                        }
+                    },
+                    "measured": {
+                        "width": 80,
+                        "height": 48
+                    },
+                    "selected": false,
+                    "dragging": false,
+                    "style": {
+                        "zIndex": 1122
+                    }
+                },
+                {
+                    "id": "rag_output",
+                    "position": {
+                        "x": 160,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Answer with citations will appear here.",
+                        "label": "Answer",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": false,
+                        "isOutput": true,
+                        "editable": false,
+                        "isWaitingForFlow": false
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "type": "text",
+                    "style": {
+                        "zIndex": 1125
+                    },
+                    "selected": false,
+                    "dragging": false
+                }
+            ],
+            "edges": [
+                {
+                    "id": "conn-rag-1",
+                    "source": "rag_query",
+                    "target": "rag_llm",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "STC"
+                    }
+                },
+                {
+                    "id": "conn-rag-2",
+                    "source": "rag_llm",
+                    "target": "rag_output",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "CTT"
+                    }
+                }
+            ],
+            "viewport": {
+                "x": 915,
+                "y": 801,
+                "zoom": 1
+            },
+            "version": "0.0.1"
+        }
+    },
+    "article_writer": {
+        "title": "High-quality Article",
+        "description": "Turn a brief into a polished, long-form article.",
+        "content": {
+            "blocks": [
+                {
+                    "id": "writer_brief",
+                    "position": {
+                        "x": -352,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Topic: \nAudience: \nTone: authoritative, clear\nLength: 1200-1500 words\nOutline bullets…",
+                        "label": "Brief",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": true,
+                        "isOutput": false,
+                        "editable": true,
+                        "isWaitingForFlow": false
+                    },
+                    "type": "text",
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "selected": false
+                },
+                {
+                    "id": "writer_llm",
+                    "type": "llmnew",
+                    "position": {
+                        "x": -16,
+                        "y": 0
+                    },
+                    "data": {
+                        "subMenuType": null,
+                        "content": [
+                            {
+                                "role": "system",
+                                "content": "You are a senior tech writer. Produce a high-quality, well-structured article with an engaging intro, clear sections, examples, and a concise conclusion. Avoid fluff, ensure coherence, and maintain an authoritative yet friendly tone."
+                            },
+                            {
+                                "role": "user",
+                                "content": "Write the article based on the brief:\n{{Brief}}\nConstraints: markdown, headings, short paragraphs, and actionable insights."
+                            }
+                        ],
+                        "model": "openai/gpt-4o-mini",
+                        "base_url": "",
+                        "structured_output": false,
+                        "max_tokens": 4096,
+                        "resultNode": "writer_output",
+                        "modelAndProvider": {
+                            "id": "openai/gpt-4o-mini",
+                            "name": "GPT-4o Mini",
+                            "provider": "OpenAI",
+                            "isLocal": false
+                        }
+                    },
+                    "measured": {
+                        "width": 80,
+                        "height": 48
+                    },
+                    "selected": false,
+                    "dragging": false,
+                    "style": {
+                        "zIndex": 1122
+                    }
+                },
+                {
+                    "id": "writer_output",
+                    "position": {
+                        "x": 160,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Your generated article will appear here.",
+                        "label": "Draft",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": false,
+                        "isOutput": true,
+                        "editable": false,
+                        "isWaitingForFlow": false
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "type": "text",
+                    "style": {
+                        "zIndex": 1125
+                    },
+                    "selected": false,
+                    "dragging": false
+                }
+            ],
+            "edges": [
+                {
+                    "id": "conn-writer-1",
+                    "source": "writer_brief",
+                    "target": "writer_llm",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "STC"
+                    }
+                },
+                {
+                    "id": "conn-writer-2",
+                    "source": "writer_llm",
+                    "target": "writer_output",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "CTT"
+                    }
+                }
+            ],
+            "viewport": {
+                "x": 915,
+                "y": 801,
+                "zoom": 1
+            },
+            "version": "0.0.1"
+        }
+    },
+    "onboarding_guide": {
+        "title": "Getting Started",
+        "description": "A guided workspace to learn the basics in minutes.",
+        "content": {
+            "blocks": [
+                {
+                    "id": "intro",
+                    "position": {
+                        "x": -352,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Welcome to PuppyFlow!\n\nThis onboarding workspace will help you:\n1) Add a text input\n2) Connect an LLM block\n3) See results and iterate\n\nTip: right-click canvas for quick actions.",
+                        "label": "Onboarding",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": true,
+                        "isOutput": false,
+                        "editable": true,
+                        "isWaitingForFlow": false
+                    },
+                    "type": "text",
+                    "measured": {
+                        "width": 280,
+                        "height": 220
+                    },
+                    "width": 280,
+                    "height": 220,
+                    "selected": false
+                },
+                {
+                    "id": "guide_llm",
+                    "type": "llmnew",
+                    "position": {
+                        "x": -16,
+                        "y": 0
+                    },
+                    "data": {
+                        "subMenuType": null,
+                        "content": [
+                            {
+                                "role": "system",
+                                "content": "You are a helpful assistant guiding a new user through PuppyFlow."
+                            },
+                            {
+                                "role": "user",
+                                "content": "Respond briefly with the next step based on this note:\n{{Onboarding}}"
+                            }
+                        ],
+                        "model": "openai/gpt-4o-mini",
+                        "base_url": "",
+                        "structured_output": false,
+                        "max_tokens": 1024,
+                        "resultNode": "guide_output",
+                        "modelAndProvider": {
+                            "id": "openai/gpt-4o-mini",
+                            "name": "GPT-4o Mini",
+                            "provider": "OpenAI",
+                            "isLocal": false
+                        }
+                    },
+                    "measured": {
+                        "width": 80,
+                        "height": 48
+                    },
+                    "selected": false,
+                    "dragging": false,
+                    "style": {
+                        "zIndex": 1122
+                    }
+                },
+                {
+                    "id": "guide_output",
+                    "position": {
+                        "x": 200,
+                        "y": -64
+                    },
+                    "data": {
+                        "content": "Next step suggestions will appear here.",
+                        "label": "Next Step",
+                        "isLoading": false,
+                        "locked": false,
+                        "isInput": false,
+                        "isOutput": true,
+                        "editable": false,
+                        "isWaitingForFlow": false
+                    },
+                    "width": 260,
+                    "height": 196,
+                    "measured": {
+                        "width": 260,
+                        "height": 196
+                    },
+                    "type": "text",
+                    "style": {
+                        "zIndex": 1125
+                    },
+                    "selected": false,
+                    "dragging": false
+                }
+            ],
+            "edges": [
+                {
+                    "id": "conn-guide-1",
+                    "source": "intro",
+                    "target": "guide_llm",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "STC"
+                    }
+                },
+                {
+                    "id": "conn-guide-2",
+                    "source": "guide_llm",
+                    "target": "guide_output",
+                    "type": "floating",
+                    "data": {
+                        "connectionType": "CTT"
+                    }
+                }
+            ],
+            "viewport": {
+                "x": 915,
+                "y": 801,
+                "zoom": 1
+            },
+            "version": "0.0.1"
+        }
+    }
+}
