@@ -246,7 +246,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   // 检查部署类型
   const isLocalDeployment =
-    (process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud';
+    (process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud';
 
   // 使用 Ollama hook
   const {

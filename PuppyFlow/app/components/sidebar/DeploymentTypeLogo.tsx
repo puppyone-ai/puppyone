@@ -16,7 +16,7 @@ function DeploymentTypeLogo() {
         onClick={handleDeploymentTypeClick}
       >
         {/* Conditional icon for deployment type */}
-        {(process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud' ? (
+        {(process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud' ? (
           <svg
             className='w-4 h-4 text-[#5D6065]'
             fill='currentColor'
@@ -49,7 +49,7 @@ function DeploymentTypeLogo() {
           <div className='flex flex-col space-y-1 text-[#AAAAAA]'>
             <div>
               Type:{' '}<span className='text-white'>
-                {(process.env.DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'Cloud' : 'Local'}
+                {(process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'Cloud' : 'Local'}
               </span>
             </div>
             <div>
