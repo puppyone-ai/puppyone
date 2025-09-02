@@ -24,6 +24,10 @@ type EdgeMenuProps = {
   position: Position;
   sourceNodeId: string;
   handleId: string | undefined;
+  // optional floating mode: render at (0,0) of its container and force visible
+  mode?: 'handle' | 'floating';
+  // optional override: when provided, do not create a new node; delegate to caller
+  onPick?: (edgeType: string, subMenuType?: string | null) => void;
 };
 
 export type menuNameType =
@@ -43,7 +47,7 @@ export type menuNameType =
   | 'Generatingsub1'
   | 'DeepResearchsub1';
 
-function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
+function EdgeMenu1({ nodeType, sourceNodeId, mode = 'handle', onPick }: EdgeMenuProps) {
   // TextBlock menu onClick function
   // get source node info
   const {
@@ -78,20 +82,25 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
     clearAll,
   } = useNodesPerFlowContext();
   const [edgeMenuStyle, setEdgeMenuStyle] = useState<CSSProperties>({
-    height: '0px',
-    visibility: 'hidden',
-    border: 'none',
+    height: mode === 'floating' ? 'auto' : '0px',
+    visibility: mode === 'floating' ? 'visible' : 'hidden',
+    border: mode === 'floating' ? undefined : 'none',
   });
 
   useEffect(() => {
     const newEdgeMenuStyle = updateEdgeMenuStyle();
     setEdgeMenuStyle(newEdgeMenuStyle);
-  }, [activatedNode?.id, activatedNode?.HandlePosition]);
+  }, [activatedNode?.id, activatedNode?.HandlePosition, mode]);
 
   const createNewConnection = (
     edgeType: string,
     subMenuType: string | null = null
   ) => {
+    // floating override: delegate creation to caller (e.g., transform current floating menu node)
+    if (onPick) {
+      onPick(edgeType, subMenuType);
+      return;
+    }
     const sourceNode = getNode(sourceNodeId);
     // console.log(sourceNode)
     if (!sourceNode) return;
@@ -278,6 +287,13 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
   };
 
   const updateEdgeMenuStyle = (): CSSProperties => {
+    if (mode === 'floating') {
+      return {
+        left: '0px',
+        top: '0px',
+        visibility: 'visible',
+      };
+    }
     // const sourceNode = getNode(sourceNodeId)
     const node = getNode(sourceNodeId);
     // console.log(node?.measured)

@@ -304,22 +304,43 @@ export type DeepResearchEdgeJsonType = {
   data: {
     query: string;
     extra_configs: {
-      max_rounds: number;
-      llm_model: { [key: string]: { inference_method?: string } };
-      vector_config: {
-        enabled: boolean;
-        data_source: string[];
+      model: string;
+      temperature: number;
+      max_tokens: number;
+      max_iterations: number;
+      vector_search_configs: {
         top_k: number;
         threshold: number;
+        data_source?: Array<{
+          id: string;
+          label: string;
+          index_item?: {
+            index_name: string;
+            collection_configs?: {
+              collection_name: string;
+            };
+          };
+        }>;
       };
-      web_config: {
-        top_k: number;
-        disable_content_filtering: boolean;
-        disable_quality_filtering: boolean;
-      };
-      perplexity_config: {
-        model: string;
+      google_search_configs: {
+        enabled: boolean;
         sub_search_type: string;
+        top_k: number;
+        filter_unreachable_pages: boolean;
+        firecrawl_config: {
+          formats: string[];
+          is_only_main_content: boolean;
+          wait_for: number;
+          skip_tls_verification: boolean;
+          remove_base64_images: boolean;
+        };
+      };
+      perplexity_search_configs: {
+        enabled: boolean;
+        sub_search_type: string;
+        model: string;
+        max_tokens: number;
+        temperature: number;
       };
     };
     inputs: Record<string, string>;

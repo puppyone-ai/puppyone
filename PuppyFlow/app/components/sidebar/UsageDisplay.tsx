@@ -1,33 +1,46 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAllDeployedServices } from '../states/UserServersContext';
-import { SYSTEM_URLS } from '@/config/urls';
 
 type UsageDisplayProps = {
   isExpanded: boolean;
 };
 
 const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
-  const {
-    userSubscriptionStatus,
-    isLocalDeployment,
-    usageData,
-    planLimits,
-    isLoadingUsage,
-  } = useAppSettings();
+  const { userSubscriptionStatus, usageData, planLimits, isLoadingUsage, isLocalDeployment } = useAppSettings();
+
   const { workspaces } = useWorkspaces();
   const { apis, chatbots } = useAllDeployedServices();
 
   // Show Get Pro button for FREE users OR local deployment users
   const shouldShowGetProButton =
-    userSubscriptionStatus &&
-    (!userSubscriptionStatus.is_premium || isLocalDeployment);
+    userSubscriptionStatus && !userSubscriptionStatus.is_premium;
 
   // Handle Get Pro button click
   const handleGetProClick = () => {
     window.open('https://www.puppyagent.com/pricing', '_blank');
   };
+
+  // Handle Learn more click
+  const handleLearnMoreClick = () => {
+    window.open('https://www.puppyagent.com/pricing', '_blank');
+  };
+
+  // Derived usage numbers for banner
+  const totalRuns =
+    usageData && Number.isFinite((usageData.runs.total as any))
+      ? usageData.runs.total
+      : Number.isFinite((planLimits as any).runs as any)
+      ? (planLimits as any).runs
+      : undefined;
+
+  const remainingRuns = usageData
+    ? Math.max(usageData.runs.remaining, 0)
+    : Number.isFinite((planLimits as any).runs as any)
+    ? (planLimits as any).runs
+    : 0;
 
   // Circular progress component
   const CircularProgress: React.FC<{
@@ -82,105 +95,35 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
 
   if (isExpanded) {
     return (
-      <div className='my-[5px] p-[8px] pb-[4px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
-        {/* First row: Plan type and upgrade button */}
-        <div className='flex items-center justify-between mb-2'>
-          <span className='text-[#8B8B8B] text-[10px] font-medium'>
+      <div className='my-[5px] p-[8px] pb-[6px] w-full border border-[#404040] rounded-[8px] bg-[#252525]'>
+        {/* Banner with two-row layout */}
+        <div className='flex flex-col items-start gap-2 mb-2'>
+          <div className='text-[#CDCDCD] text-[12px]'>
             {isLocalDeployment
-              ? 'LOCAL'
-              : userSubscriptionStatus.is_premium
-                ? 'PRO'
-                : 'FREE'}
+              ? 'You are running locally. Unlimited runs.'
+              : `You have ${remainingRuns}${Number.isFinite((totalRuns as any)) ? ` of ${totalRuns}` : ''} ${userSubscriptionStatus?.is_premium ? 'Runs' : 'free Runs'} remaining with your ${userSubscriptionStatus?.is_premium ? 'Pro' : 'Free'} plan.`}
+          </div>
+          
+        </div>
+
+        {/* Divider line */}
+        <div className='w-full h-[1px] bg-[#404040] my-1.5'></div>
+
+        {/* Lower section: plan label and CTA (space-between) */}
+        <div className='w-full flex items-center justify-between gap-3 py-1'>
+          <span className='text-[12px] text-[#8B8B8B] font-medium'>
+
+            {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
           </span>
           {shouldShowGetProButton && (
             <button
               onClick={handleGetProClick}
-              className='border border-[#303030] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-1'
+              className='border border-[#404040] bg-[#2B2B2B] text-[#CDCDCD] text-[11px] font-medium py-[6px] px-[10px] rounded-md hover:border-[#FFA73D] hover:bg-[#FFA73D] hover:text-[#111111] transition-all duration-200 inline-flex items-center gap-1'
             >
-              <span>Upgrade</span>
-              <span className='text-[10px]'>→</span>
+              <span>Unlock unlimited</span>
+              <ArrowUpRight size={12} />
             </button>
           )}
-        </div>
-
-        {/* Divider line */}
-        <div className='w-full h-[1px] bg-[#404040] my-2'></div>
-
-        {/* Second row: Mixed layout - circles for usage, text for limits */}
-        <div className='w-full flex justify-between items-center'>
-          {/* Workspaces - current/max format */}
-          <div className='flex flex-col items-center gap-1'>
-            <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {isLocalDeployment
-                ? `${workspaces?.length || 0}/∞`
-                : `${workspaces?.length || 0}/${planLimits.workspaces}`}
-            </span>
-            <span className='text-[9px] text-[#666666]'>space</span>
-          </div>
-
-          {/* Deployed Services - current/max format */}
-          <div className='flex flex-col items-center gap-1'>
-            <span className='text-[12px] text-[#8B8B8B] font-medium'>
-              {isLocalDeployment
-                ? `${(apis?.length || 0) + (chatbots?.length || 0)}/∞`
-                : `${(apis?.length || 0) + (chatbots?.length || 0)}/${planLimits.deployedServices}`}
-            </span>
-            <span className='text-[9px] text-[#666666]'>server</span>
-          </div>
-
-          {/* Runs - circle showing remaining */}
-          <div className='flex flex-col items-center gap-1 mt-[6px]'>
-            <CircularProgress
-              percentage={
-                isLocalDeployment
-                  ? 100
-                  : usageData
-                    ? ((planLimits.runs - usageData.runs.used) /
-                        planLimits.runs) *
-                      100
-                    : 100
-              }
-              size={3}
-              strokeWidth={2}
-            />
-            <div className='text-[9px] text-[#666666] text-center'>
-              <div>
-                {isLocalDeployment
-                  ? '∞ runs'
-                  : usageData
-                    ? `${planLimits.runs - usageData.runs.used} runs`
-                    : `${planLimits.runs} runs`}
-              </div>
-              <div>remain</div>
-            </div>
-          </div>
-
-          {/* LLM Calls - circle showing remaining */}
-          <div className='flex flex-col items-center gap-1 mt-[6px]'>
-            <CircularProgress
-              percentage={
-                isLocalDeployment
-                  ? 100
-                  : usageData
-                    ? ((planLimits.llm_calls - usageData.llm_calls.used) /
-                        planLimits.llm_calls) *
-                      100
-                    : 100
-              }
-              size={3}
-              strokeWidth={2}
-            />
-            <div className='text-[9px] text-[#666666] text-center'>
-              <div>
-                {isLocalDeployment
-                  ? '∞ calls'
-                  : usageData
-                    ? `${planLimits.llm_calls - usageData.llm_calls.used} calls`
-                    : `${planLimits.llm_calls} calls`}
-              </div>
-              <div>remain</div>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -189,80 +132,49 @@ const UsageDisplay: React.FC<UsageDisplayProps> = ({ isExpanded }) => {
 
     return (
       <div className='mb-[8px] w-full flex flex-col items-center gap-1'>
-        {/* Plan status and Get Pro button */}
-        <div className='flex items-center gap-1'>
-          <span className='text-[#8B8B8B] text-[9px] font-medium'>
-            {isLocalDeployment
-              ? 'LOCAL'
-              : userSubscriptionStatus.is_premium
-                ? 'PRO'
-                : 'FREE'}
-          </span>
-          {shouldShowGetProButton && (
-            <button
-              onClick={handleGetProClick}
-              className='border border-[#404040] hover:border-[#FF6B35] text-[#8B8B8B] hover:text-[#FF6B35] text-[9px] font-medium py-[2px] px-[4px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FF6B35]/10 flex items-center gap-[2px]'
-            >
-              <span>Upgrade</span>
-              <span className='text-[9px]'>→</span>
-            </button>
-          )}
+        {/* Plan label */}
+
+        <div className='text-[#8B8B8B] text-[12px] font-medium'>
+
+          {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
         </div>
 
-        {/* Usage info with mini circles - Runs left, LLM right */}
-        {isLocalDeployment ? (
-          <div className='w-full flex items-center justify-center gap-2'>
-            {/* Mini Mock Runs Circle for Local - LEFT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress percentage={100} size={3} strokeWidth={3} />
-              <span className='text-[8px] text-[#666666]'>∞ left</span>
-            </div>
+        {/* Upgrade button under plan */}
+        {shouldShowGetProButton && (
+          <button
+            onClick={handleGetProClick}
+            title='Upgrade'
+            aria-label='Upgrade'
 
-            {/* Mini Mock LLM Circle for Local - RIGHT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress percentage={100} size={3} strokeWidth={3} />
-              <span className='text-[8px] text-[#666666]'>∞ left</span>
-            </div>
-          </div>
-        ) : usageData ? (
-          <div className='w-full flex items-center justify-center gap-2'>
-            {/* Mini Runs Circle - LEFT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress
-                percentage={
-                  ((planLimits.runs - usageData.runs.used) / planLimits.runs) *
-                  100
-                }
-                size={3}
-                strokeWidth={3}
-              />
-              <span className='text-[8px] text-[#666666]'>
-                {planLimits.runs - usageData.runs.used} left
-              </span>
-            </div>
+            className='border border-[#404040] hover:border-[#FFA73D] text-[#8B8B8B] hover:text-[#FFA73D] p-[2px] rounded transition-all duration-200 bg-[#252525] hover:bg-[#FFA73D]/10 flex items-center justify-center'
 
-            {/* Mini LLM Circle - RIGHT */}
-            <div className='flex items-center gap-[2px]'>
-              <CircularProgress
-                percentage={
-                  ((planLimits.llm_calls - usageData.llm_calls.used) /
-                    planLimits.llm_calls) *
-                  100
-                }
-                size={3}
-                strokeWidth={3}
-              />
-              <span className='text-[8px] text-[#666666]'>
-                {planLimits.llm_calls - usageData.llm_calls.used} left
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className='text-[7px] text-[#666666] text-center'>
-            {planLimits.runs}•{planLimits.llm_calls}
-          </div>
+          >
+            <ArrowUpRight size={12} />
+          </button>
         )}
 
+        {/* Usage: use expanded-style small circle (Runs only) */}
+        <div className='w-full flex flex-col items-center justify-center gap-2 mt-[12px]'>
+          <div className='flex flex-col items-center gap-1'>
+            <CircularProgress
+              percentage={
+                usageData && Number.isFinite((planLimits as any).runs as any)
+                  ? ((planLimits.runs - usageData.runs.used) / planLimits.runs) * 100
+                  : 100
+              }
+              size={3}
+              strokeWidth={2}
+            />
+            <div className='text-[9px] text-[#666666] text-center'>
+              {usageData && Number.isFinite((planLimits as any).runs as any)
+                ? `${Math.max(planLimits.runs - usageData.runs.used, 0)} runs`
+                : Number.isFinite((planLimits as any).runs as any)
+                ? `${planLimits.runs} runs`
+                : `∞ runs`}
+
+            </div>
+          </div>
+        </div>
       </div>
     );
   }

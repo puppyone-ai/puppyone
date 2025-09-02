@@ -20,6 +20,8 @@ import TreeJSONForm from '../../tableComponent/TreeJSONForm';
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon';
 import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import { syncBlockContent } from '../../workflow/utils/externalStorage';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
@@ -131,6 +133,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     } = useNodesPerFlowContext();
 
     const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
+    const { } = useAppSettings();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -141,7 +144,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       isEditing: false,
       vectorIndexingStatus: 'notStarted' as VectorIndexingStatus,
       showSettingMenu: false,
-      useRichEditor: false,
+      useRichEditor: true,
       userInput: 'input view' as string | undefined,
     });
 
@@ -271,7 +274,12 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             node.id === id
               ? {
                   ...node,
-                  data: { ...node.data, content: newValue },
+                  data: {
+                    ...node.data,
+                    content: newValue,
+                    dirty: true,
+                    savingStatus: 'editing',
+                  },
                 }
               : node
           )
@@ -279,6 +287,55 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       },
       [id, setNodes]
     );
+
+    // 防抖保存 external storage（2s），structured
+    useEffect(() => {
+      const node = getNode(id);
+      if (!node) return;
+      const data = node.data || {};
+      const currentContent = data.content;
+      const isDirty = !!data.dirty;
+      if (!isDirty || data.isLoading) return;
+
+      const timer = setTimeout(async () => {
+        try {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? { ...n, data: { ...n.data, savingStatus: 'saving' } }
+                : n
+            )
+          );
+          await syncBlockContent({
+            node,
+            content:
+              typeof currentContent === 'string'
+                ? currentContent
+                : JSON.stringify(currentContent ?? []),
+            getUserId: fetchUserId as any,
+            setNodes: setNodes as any,
+            contentType: 'structured',
+          });
+        } catch (e) {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      savingStatus: 'error',
+                      saveError: (e as Error)?.message || String(e),
+                    },
+                  }
+                : n
+            )
+          );
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }, [id, getNode, setNodes, fetchUserId]);
 
     const calculateMaxLabelContainerWidth = useCallback(() => {
       return contentRef.current
@@ -650,79 +707,9 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Tags for input, output and locked states */}
-        <div className='absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5'>
-          {isInput && (
-            <div className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black'>
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect
-                  x='16'
-                  y='7'
-                  width='3'
-                  height='12'
-                  rx='1'
-                  fill='currentColor'
-                />
-                <path
-                  d='M5 13H14'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                />
-                <path
-                  d='M10 9L14 13L10 17'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <span>INPUT</span>
-            </div>
-          )}
-
-          {isOutput && (
-            <div className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black'>
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect
-                  x='7'
-                  y='7'
-                  width='3'
-                  height='12'
-                  rx='1'
-                  fill='currentColor'
-                />
-                <path
-                  d='M12 13H21'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                />
-                <path
-                  d='M17 9L21 13L17 17'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <span>OUTPUT</span>
-            </div>
-          )}
-
-          {locked && (
+        {/* Tag for locked state only (input/output tags hidden) */}
+        {locked && (
+          <div className='absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5'>
             <div className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black'>
               <svg
                 width='16'
@@ -737,19 +724,12 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   strokeWidth='1.5'
                   strokeLinecap='round'
                 />
-                <rect
-                  x='4'
-                  y='7'
-                  width='8'
-                  height='6'
-                  rx='1'
-                  fill='currentColor'
-                />
+                <rect x='4' y='7' width='8' height='6' rx='1' fill='currentColor' />
               </svg>
               <span>LOCKED</span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div ref={contentRef} id={id} className={containerClassName}>
           {/* the top bar of a block */}
@@ -799,12 +779,6 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             {/* top-right toolbar */}
             <div className='min-w-[60px] min-h-[24px] z-[100000] flex items-center justify-end gap-[8px]'>
               <NodeSettingsController nodeid={id} />
-
-              <NodeViewToggleButton
-                useRichEditor={nodeState.useRichEditor}
-                onToggle={toggleRichEditor}
-              />
-
               <NodeIndexingButton
                 nodeid={id}
                 indexingList={indexingList}
@@ -853,6 +827,20 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             </div>
           )}
 
+          {/* Bottom-left view toggle button - show on hover only */}
+          <div
+            className='absolute left-2 bottom-2 z-[100001] transition-opacity duration-200'
+            style={{
+              opacity: nodeState.isHovered ? 1 : 0,
+              pointerEvents: nodeState.isHovered ? 'auto' : 'none',
+            }}
+          >
+            <NodeViewToggleButton
+              useRichEditor={nodeState.useRichEditor}
+              onToggle={toggleRichEditor}
+            />
+          </div>
+
           <NodeResizeControl
             minWidth={240}
             minHeight={176}
@@ -863,14 +851,15 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
               cursor: 'se-resize',
               background: 'transparent',
               border: 'none',
+              opacity: nodeState.isHovered ? 1 : 0,
+              transition: 'opacity 0.2s ease-in-out',
+              pointerEvents: nodeState.isHovered ? 'auto' : 'none',
             }}
           >
             <div
               style={{
                 position: 'absolute',
-                visibility: `${
-                  activatedNode?.id === id ? 'visible' : 'hidden'
-                }`,
+                visibility: `${nodeState.isHovered ? 'visible' : 'hidden'}`,
                 right: '0px',
                 bottom: '0px',
                 display: 'flex',

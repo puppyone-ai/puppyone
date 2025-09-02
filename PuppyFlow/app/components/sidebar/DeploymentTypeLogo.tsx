@@ -16,7 +16,7 @@ function DeploymentTypeLogo() {
         onClick={handleDeploymentTypeClick}
       >
         {/* Conditional icon for deployment type */}
-        {process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE === 'Local' ? (
+        {(process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud' ? (
           <svg
             className='w-4 h-4 text-[#5D6065]'
             fill='currentColor'
@@ -48,9 +48,8 @@ function DeploymentTypeLogo() {
         <div className="absolute left-full top-1/4 transform -translate-y-1/2 ml-3 bg-[#2A2A2A] border border-[#404040] rounded-md p-2 shadow-lg z-10 min-w-[96px] text-[11px] select-none before:content-[''] before:absolute before:left-[-6px] before:top-1/2 before:transform before:-translate-y-1/2 before:w-3 before:h-3 before:bg-[#2A2A2A] before:border-b before:border-l before:border-[#404040] before:rotate-45">
           <div className='flex flex-col space-y-1 text-[#AAAAAA]'>
             <div>
-              Type:{' '}
-              <span className='text-white'>
-                {process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE}
+              Type:{' '}<span className='text-white'>
+                {(process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'Cloud' : 'Local'}
               </span>
             </div>
             <div>

@@ -638,11 +638,11 @@ function buildSearchPerplexityNodeJson(
       .model;
 
     // 验证是允许的模型名称之一
-  if (
-    configModel === 'sonar' ||
-    configModel === 'sonar-pro' ||
-    configModel === 'sonar-reasoning-pro'
-  ) {
+    if (
+      configModel === 'sonar' ||
+      configModel === 'sonar-pro' ||
+      configModel === 'sonar-reasoning-pro'
+    ) {
       perplexityModel = configModel;
     }
   }
@@ -1245,55 +1245,12 @@ function buildLoadNodeJson(
 }
 
 // 创建标准化的 DeepResearch 节点数据
+// 已废弃的旧标准化函数，保留占位避免引用错误（不再使用）
 function createStandardizedDeepResearchNodeData(
   nodeId: string,
   context: EdgeNodeBuilderContext
 ): DeepResearchNodeData {
-  const currentNode = context.getNode(nodeId);
-  const existingData = currentNode?.data as Partial<DeepResearchNodeData>;
-
-  // 创建默认配置
-  const defaultData: DeepResearchNodeData = {
-    nodeLabels: existingData?.nodeLabels || [],
-    subMenuType: existingData?.subMenuType || null,
-    content: existingData?.content || null,
-    looped: existingData?.looped || false,
-    query_id: existingData?.query_id || undefined,
-    modelAndProvider: existingData?.modelAndProvider || {
-      id: 'openai/gpt-4o-mini',
-      name: 'GPT-4o-mini',
-      provider: 'openai',
-      isLocal: false,
-    },
-    extra_configs: {
-      max_rounds: existingData?.extra_configs?.max_rounds ?? 3,
-      llm_model: existingData?.extra_configs?.llm_model || 'openai/gpt-4o-mini',
-      vector_config: {
-        enabled: existingData?.extra_configs?.vector_config?.enabled ?? false,
-        data_source:
-          existingData?.extra_configs?.vector_config?.data_source || [],
-        top_k: existingData?.extra_configs?.vector_config?.top_k ?? 5,
-        threshold: existingData?.extra_configs?.vector_config?.threshold ?? 0.5,
-      },
-      web_config: {
-        top_k: existingData?.extra_configs?.web_config?.top_k ?? 5,
-        disable_content_filtering:
-          existingData?.extra_configs?.web_config?.disable_content_filtering ??
-          true,
-        disable_quality_filtering:
-          existingData?.extra_configs?.web_config?.disable_quality_filtering ??
-          true,
-      },
-      perplexity_config: {
-        model: existingData?.extra_configs?.perplexity_config?.model || 'sonar',
-        sub_search_type:
-          existingData?.extra_configs?.perplexity_config?.sub_search_type ||
-          'perplexity',
-      },
-    },
-  };
-
-  return defaultData;
+  return context.getNode(nodeId)?.data as DeepResearchNodeData;
 }
 
 function buildDeepResearchNodeJson(
@@ -1302,11 +1259,8 @@ function buildDeepResearchNodeJson(
   targetNodes: { id: string; label: string }[],
   context: EdgeNodeBuilderContext
 ): DeepResearchEdgeJsonType {
-  // 使用标准化的节点数据
-  const nodeData = createStandardizedDeepResearchNodeData(nodeId, context);
-  console.log(`📊 [buildDeepResearchNodeJson] 标准化节点数据:`, nodeData);
+  const nodeData = context.getNode(nodeId)?.data as DeepResearchNodeData;
 
-  // 获取查询内容
   if (sourceNodes.length === 0) {
     throw new Error(
       'DeepResearch node requires at least one source node for query content'
@@ -1315,58 +1269,57 @@ function buildDeepResearchNodeJson(
 
   const query = `{{${sourceNodes[0]?.label || sourceNodes[0]?.id}}}`;
 
-  // 获取配置参数 - 现在可以安全地访问，因为数据已经标准化
-  const extraConfigs = nodeData.extra_configs;
-  const maxRounds = extraConfigs.max_rounds;
+  // 输入输出映射
+  const inputs = Object.fromEntries(sourceNodes.map(n => [n.id, n.label]));
+  const outputs = Object.fromEntries(targetNodes.map(n => [n.id, n.label]));
 
-  // 获取模型信息 - 处理可能为 undefined 的情况
-  const modelAndProvider = nodeData.modelAndProvider;
-  if (!modelAndProvider) {
-    throw new Error(
-      'DeepResearch node requires modelAndProvider configuration'
-    );
-  }
-  const modelId = modelAndProvider.id;
-  const isLocal = modelAndProvider.isLocal;
+  // 读取并兼容默认配置
+  const ec = (nodeData?.extra_configs ||
+    {}) as DeepResearchNodeData['extra_configs'];
 
-  let modelObject: { [key: string]: { inference_method?: string } } = {};
+  // 将 UI 中的 dataSource 映射到后端所需位置：extra_configs.vector_search_configs.data_source
+  const vectorSearchConfigs = {
+    top_k: ec?.vector_search_configs?.top_k ?? 5,
+    threshold: ec?.vector_search_configs?.threshold ?? 0.7,
+    // 直接透传来自节点的数据源（结构与 Retrieving 保持一致，后端自行解析）
+    data_source: (nodeData?.dataSource as any) || [],
+  } as any;
 
-  if (isLocal) {
-    // 本地模型：添加 inference_method
-    modelObject[modelId] = { inference_method: 'ollama' };
-  } else {
-    // 非本地模型：保持内部 JSON 为空
-    modelObject[modelId] = {};
-  }
-
-  // 获取配置 - 现在可以安全地访问，因为数据已经标准化
-  const vectorConfig = extraConfigs.vector_config;
-  const webConfig = extraConfigs.web_config;
-  const perplexityConfig = extraConfigs.perplexity_config;
-
-  // 构建输入输出映射
-  const inputs = Object.fromEntries(
-    sourceNodes.map(node => [node.id, node.label])
-  );
-  const outputs = Object.fromEntries(
-    targetNodes.map(node => [node.id, node.label])
-  );
-
-  const result = {
-    type: 'deep_research' as const,
-    data: {
-      query: query,
-      extra_configs: {
-        max_rounds: maxRounds,
-        llm_model: modelObject,
-        vector_config: vectorConfig,
-        web_config: webConfig,
-        perplexity_config: perplexityConfig,
+  const extra_configs = {
+    model: ec?.model || nodeData?.modelAndProvider?.id || 'gpt-4o-2024-08-06',
+    temperature: ec?.temperature ?? 0.1,
+    max_tokens: ec?.max_tokens ?? 10000,
+    max_iterations: ec?.max_iterations ?? 3,
+    vector_search_configs: vectorSearchConfigs,
+    google_search_configs: ec?.google_search_configs || {
+      enabled: true,
+      sub_search_type: 'google_v2',
+      top_k: 5,
+      filter_unreachable_pages: true,
+      firecrawl_config: {
+        formats: ['markdown'],
+        is_only_main_content: true,
+        wait_for: 60,
+        skip_tls_verification: true,
+        remove_base64_images: true,
       },
-      inputs: inputs,
-      outputs: outputs,
+    },
+    perplexity_search_configs: ec?.perplexity_search_configs || {
+      enabled: true,
+      sub_search_type: 'perplexity',
+      model: 'perplexity/sonar',
+      max_tokens: 4000,
+      temperature: 0.1,
     },
   };
 
-  return result;
+  return {
+    type: 'deep_research',
+    data: {
+      query,
+      extra_configs,
+      inputs,
+      outputs,
+    },
+  };
 }

@@ -47,6 +47,7 @@ interface Manifest {
     name: string;
     size: number;
     index: number;
+    state?: 'processing' | 'done';
   }>;
   content_type: string;
   total_size: number;
@@ -173,8 +174,10 @@ class ManifestPoller {
 
       const manifest: Manifest = await manifestResponse.json();
       const newChunks = manifest.chunks
-        .filter(chunk => !this.knownChunks.has(chunk.name))
-        .sort((a, b) => a.index - b.index);
+        .filter(
+          chunk => !this.knownChunks.has(chunk.name) && chunk.state === 'done'
+        )
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
       if (newChunks.length === 0) return;
 
@@ -183,8 +186,6 @@ class ManifestPoller {
       );
 
       for (const chunkInfo of newChunks) {
-        // 跳过完成标记（不是真实内容文件）
-        if (chunkInfo.name === '_completed.marker') continue;
         this.knownChunks.add(chunkInfo.name);
         const chunkUrl = await this.getDownloadUrl(
           `${this.resource_key}/${chunkInfo.name}`
@@ -269,7 +270,10 @@ class ManifestPoller {
           `[ManifestPoller] JSONL parse error in ${chunkName} at record #${this.totalRecords}:`,
           err
         );
-        console.warn('[ManifestPoller] Offending line (truncated):', rawLine.slice(0, 500));
+        console.warn(
+          '[ManifestPoller] Offending line (truncated):',
+          rawLine.slice(0, 500)
+        );
       }
     }
 
@@ -290,7 +294,10 @@ class ManifestPoller {
     } catch (err) {
       this.parseErrors += 1;
       console.warn('[ManifestPoller] Final leftover JSONL parse error:', err);
-      console.warn('[ManifestPoller] Offending leftover (truncated):', leftover.slice(0, 500));
+      console.warn(
+        '[ManifestPoller] Offending leftover (truncated):',
+        leftover.slice(0, 500)
+      );
     } finally {
       this.leftoverPartialLine = '';
     }
@@ -298,10 +305,7 @@ class ManifestPoller {
 
   private async getDownloadUrl(key: string): Promise<string> {
     const response = await fetch(
-      `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(key)}`,
-      {
-        headers: this.context.getAuthHeaders(),
-      }
+      `/api/storage/download/url?key=${encodeURIComponent(key)}`
     );
     if (!response.ok) {
       throw new Error(`Failed to get download URL for ${key}`);
@@ -342,7 +346,8 @@ export interface RunAllNodesContext {
   // 通信相关
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  getAuthHeaders: () => HeadersInit;
+  // 🔒 认证通过服务端代理处理（不需要从前端传入）
+  isLocalDeployment?: boolean;
 }
 
 // 构建包含所有节点的JSON数据
@@ -586,11 +591,11 @@ async function sendDataToTargets(
 
     console.log(`🌐 [sendDataToTargets] 开始发送HTTP请求`);
 
-    const response = await fetch(`${SYSTEM_URLS.PUPPY_ENGINE.BASE}/task`, {
+    const response = await fetch(`/api/engine/task`, {
       method: 'POST',
+      credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
       headers: {
         'Content-Type': 'application/json',
-        ...context.getAuthHeaders(),
       },
       body: JSON.stringify(jsonData),
     });
@@ -619,12 +624,9 @@ async function sendDataToTargets(
       const taskId = result.task_id;
 
       // 建立 SSE 连接
-      const streamResponse = await fetch(
-        `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/task/${taskId}/stream`,
-        {
-          headers: context.getAuthHeaders(),
-        }
-      );
+      const streamResponse = await fetch(`/api/engine/task/${taskId}/stream`, {
+        credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+      });
 
       if (!streamResponse.body) {
         console.error(`❌ [sendDataToTargets] 流式响应没有body`);
@@ -713,7 +715,9 @@ async function sendDataToTargets(
                     // 若提供了resource_key（有的实现会包含），则启动poller
                     if (data.resource_key) {
                       const normalizedContentType =
-                        data.content_type === 'structured' ? 'structured' : 'text';
+                        data.content_type === 'structured'
+                          ? 'structured'
+                          : 'text';
                       console.log(
                         `📥 [runAllNodes] 流式传输开始: ${data.resource_key} -> ${data.block_id}`
                       );

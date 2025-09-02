@@ -22,7 +22,7 @@ const ApiServiceDisplayDashboard: React.FC<ApiServiceDisplayProps> = ({
   service,
   generateLayout,
 }) => {
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
   const endpoint = `${API_SERVER_URL}/api/${service.api_id}`;
 
   // 使用hooks

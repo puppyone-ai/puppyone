@@ -6,6 +6,7 @@
 
 
 
+
 <p align="center">
   <a href="https://www.puppyagent.com" target="_blank">
     <img src="https://img.shields.io/badge/Web-puppyagent.com-39BC66?style=flat&logo=google-chrome&logoColor=white" alt="Homepage" height="22" />
@@ -13,6 +14,10 @@
   &nbsp;
   <a href="https://doc.puppyagent.com" target="_blank">
     <img src="https://img.shields.io/badge/Docs-doc.puppyagent.com-D7F3FF?style=flat&logo=readthedocs&logoColor=white" alt="Docs" height="22" />
+  </a>
+   &nbsp;
+    <a href="https://x.com/PuppyAgentTech" target="_blank">
+    <img src="https://img.shields.io/badge/X-@PuppyAgentTech-000000?style=flat&logo=x&logoColor=white" alt="X (Twitter)" height="22" />
   </a>
   &nbsp;
   <a href="https://discord.gg/eRjwqZpjBT" target="_blank">
@@ -26,19 +31,28 @@
 
 <p align="center">Automate your knowledge bases with agents</p>
 
+<p align="center"><b>License and acceptable use</b>: Personal or internal single-tenant use is permitted under the PuppyAgent Sustainable Use License (SUL). Managed/hosted multi-tenant services to third parties, paid redistribution, and use of PuppyAgent trademarks/logos are not granted. For commercial or multi-tenant use, contact guantum@puppyagent.com. See LICENSE.</p>
+
+## What is PuppyAgent
+
+PuppyAgent is a context‑centric workspace where agents connect contexts to automate your knowledge bases.
+
+
+
 ## Why PuppyAgent
 
-- Visual-first: build and iterate faster with a drag-and-drop editor
-- AI-native: integrate LLMs, embeddings, and retrieval (RAG) with ready-made blocks
-- Data-friendly: upload, index, and query your content with vector search
-- Extensible: add your own blocks, connectors, and tools
+- **Context‑centric**: not flow orchestration; context is the interface, users face results
+- **Agent‑friendly**: agent‑oriented indexing, not a static knowledge base or database
+- **Workflow as edge**: workflows are edges between contexts; beyond orchestration, they embody agents
+- **RAG & Deep Research**: on local knowledge; supporting data cleaning, structuring, indexing
+
 
 Common use cases:
-- Document Q&A and knowledge assistants (RAG)
-- Content extraction, parsing, and transformation pipelines
-- Data enrichment, categorization, and routing
-- Multi-step agent workflows (call tools, branch, loop)
 
+- Deep Research and document Q&A (Agentic RAG)
+- Content extractio
+- Agentive Archive
+- Content Generation
 
 ## Quick Start
 
@@ -53,32 +67,10 @@ Choose ONE (alternatives—pick just one):
 
 ### Self-Hosted (Local) — for developers
 
-  Prereqs: Python 3.10+, Node.js 18+, npm
-
-  1) Start storage (http://127.0.0.1:8002)
-  ```bash
-  cd PuppyStorage
-  python3 -m venv .venv && source .venv/bin/activate
-  pip install -r requirements.txt
-  python server/storage_server.py
-  ```
-
-  2) Start engine (http://127.0.0.1:8001)
-  ```bash
-  cd ../PuppyEngine
-  python3 -m venv .venv && source .venv/bin/activate
-  pip install -r requirements.txt
-  python Server/EngineServer.py
-  ```
-
-  3) Start frontend (http://localhost:4000)
-  ```bash
-  cd ../PuppyFlow
-  npm install
-  npm run dev
-  ```
-
-Once all three are running, open http://localhost:4000 and create your first workflow.
+See docs for detailed steps:
+- Getting started: docs/getting-started.md
+- Configuration: docs/configuration.md
+- Docker Compose: docs/deployment/docker-compose.md
 
 
 ## Core Concepts

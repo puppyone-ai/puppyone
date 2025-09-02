@@ -37,7 +37,7 @@ function DeployAsChatbot({
   const { addChatbotService, removeChatbotService } = useServers();
   const { configChatbotService } = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
 
   // 构建器 hooks
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
@@ -84,7 +84,7 @@ function DeployAsChatbot({
   const isDeployed = currentChatbot !== null;
 
   // 统一管理 API Server URL
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // 初始化引用
   const initializedRef = useRef<boolean>(false);
@@ -146,7 +146,6 @@ function DeployAsChatbot({
       streamResultForMultipleNodes,
       reportError,
       resetLoadingUI,
-      getAuthHeaders,
     };
 
     // 使用新的 buildGroupNodeJson 函数

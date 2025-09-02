@@ -261,13 +261,13 @@ function MoreOptionsButtonMenu({
         leaveFrom='transform opacity-100 translate-y-0'
         leaveTo='transform opacity-0 translate-y-[-10px]'
       >
-        <Menu.Items className='absolute top-full mt-[16px] left-0 z-50'>
-          <ul className='w-[128px] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col items-start justify-start'>
+        <Menu.Items className='absolute top-full mt-4 left-0 z-50'>
+          <ul className='w-32 bg-[#252525] p-2 border border-[#404040] rounded-lg gap-1 flex flex-col items-start justify-start'>
             <Menu.Item>
               {({ active }) => (
                 <li className='w-full'>
                   <button
-                    className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                    className='px-2 rounded bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-normal tracking-[0.5px] cursor-pointer whitespace-nowrap'
                     onClick={e => {
                       e.stopPropagation();
                       e.preventDefault();
@@ -280,13 +280,13 @@ function MoreOptionsButtonMenu({
               )}
             </Menu.Item>
 
-            <li className='w-full h-[1px] bg-[#404040] my-[2px]'></li>
+            <li className='w-full h-[1px] bg-[#404040] my-0.5'></li>
 
             <Menu.Item>
               {({ active }) => (
                 <li className='w-full'>
                   <button
-                    className='px-[8px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap'
+                    className='px-2 rounded bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#CDCDCD] hover:text-white font-plus-jakarta-sans text-[12px] font-normal tracking-[0.5px] cursor-pointer whitespace-nowrap'
                     onClick={() => {
                       const jsonData = constructWholeJsonWorkflow();
                       console.log(jsonData);

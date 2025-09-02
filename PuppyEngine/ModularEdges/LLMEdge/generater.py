@@ -15,7 +15,7 @@ from Utils.puppy_exception import global_exception_handler
 
 
 # Load the prompt template
-prompt_template_file: str = "ModularEdges/LLMEdge/prompt_templates.yaml"
+prompt_template_file: str = os.path.join(os.path.dirname(__file__), "prompt_templates.yaml")
 with open(prompt_template_file, "r") as f:
     prompt_templates = yaml.safe_load(f)
 
