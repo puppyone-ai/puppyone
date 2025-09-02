@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 
 # Copy the entire project directory to the container
 COPY . .
+RUN if [ ! -f .env ] && [ -f .env.example ]; then cp .env.example .env; fi
 
 # Add current directory to PYTHONPATH
 ENV PYTHONPATH="/app"
