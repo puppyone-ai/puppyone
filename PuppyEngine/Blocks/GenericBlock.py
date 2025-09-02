@@ -7,6 +7,7 @@ It supports dynamic switching between memory and external storage based on conte
 
 from typing import Any, Dict, AsyncGenerator
 import sys
+import os
 from .BaseBlock import BaseBlock
 from Persistence import MemoryStrategy, ExternalStorageStrategy
 from Utils.logger import log_info, log_debug
@@ -20,8 +21,8 @@ class GenericBlock(BaseBlock):
     strategies based on content size or explicit configuration.
     """
     
-    # Default size threshold for external storage (1MB)
-    SIZE_THRESHOLD = 1024 * 1024
+    # Default size threshold for external storage (configurable via environment variable)
+    SIZE_THRESHOLD = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))
     
     def __init__(self, block_id: str, block_data: Dict[str, Any], persistence_strategy=None):
         """
@@ -111,26 +112,29 @@ class GenericBlock(BaseBlock):
     
     def _calculate_content_size(self, content: Any) -> int:
         """
-        Calculate the approximate size of content in bytes
+        Calculate the approximate size of content in characters
         
         Args:
             content: The content to measure
             
         Returns:
-            int: Approximate size in bytes
+            int: Approximate size in characters
         """
-        if isinstance(content, (str, bytes)):
-            if isinstance(content, str):
-                return len(content.encode('utf-8'))
+        if isinstance(content, str):
             return len(content)
         elif isinstance(content, (list, dict)):
-            # For structured data, use sys.getsizeof for approximation
-            # This is not perfect but good enough for threshold comparison
-            return sys.getsizeof(content)
-        else:
-            # For other types, try to get size
+            # For structured data, convert to JSON string to measure length
+            import json
             try:
-                return sys.getsizeof(content)
+                return len(json.dumps(content, ensure_ascii=False))
+            except:
+                return 0
+        elif isinstance(content, bytes):
+            return len(content)
+        else:
+            # For other types, try to convert to string
+            try:
+                return len(str(content))
             except:
                 # If we can't determine size, assume it's small
                 return 0

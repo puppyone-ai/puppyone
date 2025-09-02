@@ -52,8 +52,12 @@ function jsonToJsonl(input: any): string {
   }
 }
 
-// Default chunk size: 1MB (aligned with server-side defaults)
-const DEFAULT_CHUNK_SIZE = 1024 * 1024;
+// Default chunk size for byte-level splitting (configurable via environment variable)
+// Note: This is for byte-level chunking, different from character-level threshold
+const DEFAULT_CHUNK_SIZE = parseInt(
+  process.env.NEXT_PUBLIC_STORAGE_CHUNK_SIZE || '1024',
+  10
+);
 
 function encodeUtf8(input: string): Uint8Array {
   return new TextEncoder().encode(input);
