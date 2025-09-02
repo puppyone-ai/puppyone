@@ -1,5 +1,9 @@
 // Safe environment health endpoint
 // Returns a summary of deployment mode and env injection status.
+// Force dynamic to avoid static optimization in build output.
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const revalidate = 0;
 
 export async function GET() {
   const rawMode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
@@ -37,6 +41,9 @@ export async function GET() {
 
   return new Response(JSON.stringify(payload), {
     status: 200,
-    headers: { 'content-type': 'application/json' }
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store, no-cache, must-revalidate'
+    }
   });
 }
