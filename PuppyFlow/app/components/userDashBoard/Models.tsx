@@ -39,24 +39,24 @@ const Models: React.FC = () => {
     emptyMessage: string;
   }) =>
     models.length > 0 ? (
-      <div className='bg-[#333333] rounded-lg p-4 space-y-3'>
+      <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4 space-y-3'>
         {models.map(model => (
           <div
             key={model.id}
-            className='flex items-center justify-between border-b border-[#404040] pb-2 last:border-0 last:pb-0'
+            className='flex items-center justify-between border-b border-[#2A2A2A] pb-2 last:border-0 last:pb-0'
           >
             <div>
-              <div className='text-white'>{model.name}</div>
-              <div className='text-[#888888] text-sm flex items-center gap-2'>
+              <div className='text-[#E5E5E5] text-[13px]'>{model.name}</div>
+              <div className='text-[#8B8B8B] text-[12px] flex items-center gap-2'>
                 <span>{model.provider || 'Local Model'}</span>
               </div>
             </div>
             <div className='text-sm'>
               <span
-                className={`px-2 py-1 rounded text-xs font-medium ${
+                className={`px-2 py-1 rounded text-[11px] font-medium ${
                   model.deployment === 'local'
-                    ? 'bg-[#2A4365] text-[#90CDF4]'
-                    : 'bg-[#4A4A4A] text-[#CDCDCD]'
+                    ? 'bg-[#113A5C] text-[#90CDF4]'
+                    : 'bg-[#1E1E1E] text-[#CDCDCD]'
                 }`}
               >
                 {model.deployment === 'local' ? 'Local' : 'Cloud'}
@@ -66,32 +66,32 @@ const Models: React.FC = () => {
         ))}
       </div>
     ) : (
-      <div className='bg-[#333333] rounded-lg p-6 text-center'>
-        <span className='text-[#888888] block'>{emptyMessage}</span>
+      <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4 text-center'>
+        <span className='text-[#8B8B8B] block text-[13px]'>{emptyMessage}</span>
       </div>
     );
 
   return (
-    <div className='space-y-6 max-h-[500px] pr-2'>
-      <h3 className='text-[18px] font-medium text-white mb-4 sticky top-0 z-10 bg-[#2A2A2A]'>
+    <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
+      <h3 className='text-[16px] font-semibold text-[#E5E5E5] sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
         AI Models Configuration
       </h3>
 
-      <div className='py-[8px] space-y-6 overflow-y-auto'>
+      <div className='py-[8px] space-y-4 overflow-y-auto'>
         {/* LLM Models Section */}
         <div className='space-y-4'>
           <div className='flex items-center justify-between'>
-            <h4 className='text-[16px] font-medium text-[#AAAAAA]'>
+            <h4 className='text-[12px] font-semibold text-[#E5E5E5]'>
               LLM Models
             </h4>
             <button
               onClick={() => {
                 /* refresh function will be added later */
               }}
-              className='text-sm text-[#2B5C9B] flex items-center gap-1 px-2 py-1 rounded transition-all duration-200 hover:text-[#60A5FA] group'
+              className='inline-flex items-center justify-center rounded-md text-[13px] font-medium border border-[#404040] text-[#A1A1A1] hover:border-[#505050] hover:text-white transition-colors gap-1 px-2 py-1 active:scale-95'
             >
               <svg
-                className='w-4 h-4 transition-transform duration-300 group-hover:rotate-180'
+                className='w-4 h-4'
                 viewBox='0 0 24 24'
                 fill='none'
                 xmlns='http://www.w3.org/2000/svg'
@@ -116,7 +116,7 @@ const Models: React.FC = () => {
 
         {/* Embedding Models Section */}
         <div className='space-y-4'>
-          <h4 className='text-[16px] font-medium text-[#AAAAAA]'>
+          <h4 className='text-[12px] font-semibold text-[#E5E5E5]'>
             Embedding Models
           </h4>
 

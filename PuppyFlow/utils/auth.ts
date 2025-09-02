@@ -1,18 +1,18 @@
 import { SYSTEM_URLS } from '@/config/urls';
 import { NextRequest } from 'next/server';
 
+// 🔒 安全修复：移除客户端token处理，防止敏感信息泄露
 // 验证token并设置cookie（处理OAuth回调）
 export async function verifyAndSetToken(
   token: string
 ): Promise<{ isValid: boolean; status: number }> {
   try {
-    const fullUrl = `/api/auth/verify`;
-
-    const response = await fetch(fullUrl, {
+    // 🔒 安全修复：token验证完全通过服务端处理，避免客户端暴露
+    const response = await fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`, {
       method: 'GET',
+      credentials: 'include', // HttpOnly cookie自动管理
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
       },
     });
 
@@ -21,11 +21,8 @@ export async function verifyAndSetToken(
       isValid: response.status === 200,
     };
 
-    if (result.isValid) {
-      // 验证成功，设置cookie
-      const cookieValue = `access_token=${token}; Path=/; SameSite=Lax; Max-Age=${24 * 60 * 60}`;
-      document.cookie = cookieValue;
-    }
+    // 🔒 安全修复：移除客户端直接设置cookie，由服务端设置HttpOnly cookie
+    // Cookie设置现在由/api/auth/verify端点自动处理
 
     return result;
   } catch (error) {

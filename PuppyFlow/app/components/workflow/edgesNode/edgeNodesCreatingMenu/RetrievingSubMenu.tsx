@@ -21,7 +21,7 @@ function RetrievingSubMenu({
   return (
     <ul
       id='edgeMenu'
-      className={`w-[176px] bg-[#1c1d1f] rounded-[16px] border-solid border-[3px] border-[#42454A] absolute flex flex-col justify-evenly z-[20001] gap-[8px] p-[8px] items-center ${showMenu === 1 ? '' : 'hidden'}`}
+      className={`w-[176px] bg-[#1c1d1f] rounded-[16px] border-solid border-[2px] border-[#8B8B8B] absolute flex flex-col justify-evenly z-[20001] gap-[8px] p-[8px] items-center ${showMenu === 1 ? '' : 'hidden'}`}
       style={{
         position: 'absolute',
         top: '-12px',

@@ -8,26 +8,25 @@ import { JsonNodeData } from '../workflow/blockNode/JsonNodeNew';
 import { FileNodeData } from '../workflow/blockNode/FileNode';
 
 import { TextBlockNodeData } from '../workflow/blockNode/TextBlockNode';
-import { WebLinkNodeData } from '../workflow/blockNode/WebLinkNode';
 import { SYSTEM_URLS } from '@/config/urls';
 import { useAppSettings } from '../states/AppSettingsContext';
 // import {WarnsContext,WarnsContainer} from "puppyui"
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
 
-export const backend_IP_address_for_sendingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/send_data`;
-export const backend_IP_address_for_receivingData = `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/get_data`;
-export const PuppyStorage_IP_address_for_uploadingFile = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/file/generate_urls`;
-export const PuppyStorage_IP_address_for_embedding = `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/vector/embed`;
+// Route through same-origin API proxies to avoid exposing tokens
+export const backend_IP_address_for_sendingData = `/api/engine/send_data`;
+export const backend_IP_address_for_receivingData = `/api/engine/get_data`;
+export const PuppyStorage_IP_address_for_uploadingFile = `/api/storage/file/generate_urls`;
+export const PuppyStorage_IP_address_for_embedding = `/api/storage/vector/embed`;
 
 // 认证功能已完全迁移到 AppSettingsContext
-// 请使用 useAppSettings().getAuthHeaders() 获取认证headers
+// 🔒 安全修复：认证现在通过服务端代理和HttpOnly cookie处理
 
 export type BasicNodeData =
   | JsonNodeData
   | FileNodeData
   | TextBlockNodeData
-  | WebLinkNodeData
   | {
       content: string | any;
       subtype?: string;
@@ -62,7 +61,9 @@ export type ProcessingData = {
 function useJsonConstructUtils() {
   const { getEdges, getNode, setNodes, getNodes, getViewport } = useReactFlow();
   // const {warns,setWarns} = useContext(WarnsContext);
-  const { warns, addWarn, getAuthHeaders } = useAppSettings();
+  const { warns, addWarn } = useAppSettings();
+  
+  // 🔒 安全修复：移除客户端认证处理，所有API调用通过代理
   // const {searchNode, totalCount} = useNodeContext()
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -231,8 +232,8 @@ function useJsonConstructUtils() {
               headers: {
                 Accept: 'text/event-stream',
                 'Cache-Control': 'no-cache',
-                ...getAuthHeaders(),
               },
+              credentials: 'include', // 🔒 认证通过HttpOnly cookie处理
             }
           );
 
@@ -350,8 +351,8 @@ function useJsonConstructUtils() {
               headers: {
                 Accept: 'text/event-stream',
                 'Cache-Control': 'no-cache',
-                ...getAuthHeaders(),
               },
+              credentials: 'include', // 🔒 认证通过HttpOnly cookie处理
             }
           );
 

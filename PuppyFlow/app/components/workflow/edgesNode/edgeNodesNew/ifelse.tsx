@@ -112,7 +112,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
 
     // 使用 useRef 跟踪是否已挂载
     const hasMountedRef = useRef(false);
@@ -160,7 +160,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
+        isLocalDeployment: false,
       }),
       [
         getNode,
@@ -172,7 +172,6 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       ]
     );
 

@@ -25,9 +25,9 @@ import {
   SelectionMode,
   NodeChange,
 } from '@xyflow/react';
+import { nanoid } from 'nanoid';
 import TextBlockNode from './blockNode/TextBlockNode';
 import '@xyflow/react/dist/style.css';
-import WebLinkNode from './blockNode/WebLinkNode';
 import Upbar from '../upbar/Upbar';
 import JsonBlockNode from './blockNode/JsonNodeNew';
 import SourceToConfigEdge from './connectionLineStyles/SourceToConfigEdge';
@@ -39,7 +39,7 @@ import CopyEdgeNode from './edgesNode/edgeNodesNew/Copy';
 import ConfigToTargetEdge from './connectionLineStyles/ConfigToTargetEdge';
 import useManageReactFlowUtils from '../hooks/useManageReactFlowUtils';
 import { markerEnd } from './connectionLineStyles/ConfigToTargetEdge';
-import CustomConnectionLine from './connectionLineStyles/CustomConnectionLine';
+import CustomConnectionLine from './connectionLineStyles/PreviewEdge';
 // import useManageNodeStateUtils from '../hooks/useManageNodeStateUtils'
 import { useNodesPerFlowContext } from '../states/NodesPerFlowContext';
 import FloatingEdge from './connectionLineStyles/FloatingEdge';
@@ -64,13 +64,15 @@ import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { SYSTEM_URLS } from '@/config/urls';
 import ServerDashedEdge from './connectionLineStyles/ServerDashedEdge';
+import EdgeMenuNode from './edgesNode/edgeNodesNew/edgemenunode/EdgeMenuNode';
+import useConnectSpawn from '../hooks/useConnectSpawn';
 
 const nodeTypes = {
   text: TextBlockNode,
   file: FileNode,
-  weblink: WebLinkNode,
   structured: JsonBlockNode,
   copy: CopyEdgeNode,
+  edgeMenu: EdgeMenuNode,
   chunkingByLength: ChunkingByLength,
   chunkingByCharacter: ChunkingByCharacter,
   chunkingAuto: ChunkingAuto,
@@ -203,8 +205,15 @@ function Workflow() {
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
-  const { getAuthHeaders } = useAppSettings();
+  const { } = useAppSettings();
   const didExternalPrefetchRef = useRef<string | null>(null);
+  const connectStartRef = useRef<{
+    nodeId: string | null;
+    handleId: string | null;
+    handleType: 'target' | 'source' | null;
+  }>({ nodeId: null, handleId: null, handleType: null });
+  const didCreateEdgeRef = useRef<boolean>(false);
+  const { spawnOnConnectEnd, handleBlockToBlockConnect } = useConnectSpawn();
 
   // 用于管理节点的 z-index 层级
   const [nodeZIndexMap, setNodeZIndexMap] = useState<Record<string, number>>(
@@ -323,10 +332,12 @@ function Workflow() {
           if (!resourceKey) continue;
 
           const manifestResp = await fetch(
-            `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
+            `/api/storage/download/url?key=${encodeURIComponent(
               `${resourceKey}/manifest.json`
             )}`,
-            { headers: getAuthHeaders() as HeadersInit }
+            {
+              credentials: 'include', // 🔒 安全修复：统一使用服务端代理认证
+            }
           );
           if (!manifestResp.ok) continue;
           const { download_url: manifestUrl } = await manifestResp.json();
@@ -338,15 +349,19 @@ function Workflow() {
           for (const chunk of manifest.chunks || []) {
             const name = typeof chunk === 'string' ? chunk : chunk.name;
             if (!name) continue;
-            if (name === '_completed.marker') continue;
-            if (typeof chunk === 'object' && chunk.size === 0) continue;
+            if (typeof chunk === 'object') {
+              if (chunk.state && chunk.state !== 'done') continue;
+              if (chunk.size === 0) continue;
+            }
 
-            const urlResp = await fetch(
-              `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(
-                `${resourceKey}/${name}`
-              )}`,
-              { headers: getAuthHeaders() as HeadersInit }
-            );
+          const urlResp = await fetch(
+            `/api/storage/download/url?key=${encodeURIComponent(
+              `${resourceKey}/${name}`
+            )}`,
+            {
+              credentials: 'include', // 🔒 安全修复：统一使用服务端代理认证
+            }
+          );
             if (!urlResp.ok) continue;
             const { download_url } = await urlResp.json();
             const chunkResp = await fetch(download_url);
@@ -381,7 +396,6 @@ function Workflow() {
   }, [
     currentWorkspaceContent,
     selectedFlowId,
-    getAuthHeaders,
     setUnsortedNodes,
   ]);
 
@@ -453,10 +467,20 @@ function Workflow() {
       const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source);
 
       if (
-        (targetIsEdgeNode && sourceIsEdgeNode) ||
-        (!targetIsEdgeNode && !sourceIsEdgeNode)
+        (targetIsEdgeNode && sourceIsEdgeNode)
       )
         return;
+
+      // 如果是 block -> block，插入 edgeMenu 到中点，并创建两条边
+      if (!sourceIsEdgeNode && !targetIsEdgeNode) {
+        const handled = handleBlockToBlockConnect(connection, setNodes as any, setEdges as any, markerEnd);
+        if (handled) {
+          // 标记已创建实际边，阻止 onConnectEnd 再次在鼠标位置生成 edgeMenu
+          didCreateEdgeRef.current = true;
+          allowActivateOtherNodesWhenConnectEnd();
+          return;
+        }
+      }
 
       // 檢查 source 節點是否是 server 類型
       const sourceNode = getNode(connection.source);
@@ -475,6 +499,7 @@ function Workflow() {
       };
 
       setEdges((prevEdges: Edge[]) => addEdge(edge, prevEdges));
+      didCreateEdgeRef.current = true;
       allowActivateOtherNodesWhenConnectEnd();
     },
     [
@@ -503,13 +528,28 @@ function Workflow() {
     event.stopPropagation();
     if (nodeId) preventInactivateNode();
     preventActivateOtherNodesWhenConnectStart();
+    connectStartRef.current = { nodeId, handleId, handleType };
   };
 
   const onConnectEnd = (event: MouseEvent | TouchEvent) => {
     if (isOnGeneratingNewNode) return;
     event.preventDefault();
     event.stopPropagation();
+    const isMouse = (event as MouseEvent).clientX !== undefined;
+    // If no real edge was created and we started from a source handle, spawn a floating edge menu node at release position
+    if (!didCreateEdgeRef.current && connectStartRef.current.nodeId && connectStartRef.current.handleType === 'source') {
+      spawnOnConnectEnd(
+        event,
+        { nodeId: connectStartRef.current.nodeId, handleType: 'source' },
+        setNodes as any,
+        setEdges as any,
+        markerEnd
+      );
+    }
+
     allowActivateOtherNodesWhenConnectEnd();
+    didCreateEdgeRef.current = false;
+    connectStartRef.current = { nodeId: null, handleId: null, handleType: null };
   };
 
   const onNodeMouseLeave = (id: string) => {
@@ -654,7 +694,7 @@ function Workflow() {
           fitView
           deleteKeyCode={['Backspace', 'Delete']} // 同时支持Backspace和Delete键
           minZoom={0.2} // 最小缩放级别
-          maxZoom={1.5}
+          maxZoom={1}
           zoomOnScroll={canZoom}
           zoomOnPinch={true}
           panOnDrag={canPan ? true : [1]}
@@ -673,16 +713,6 @@ function Workflow() {
             gap={16}
           />
 
-          <div className='absolute bottom-[0px] left-[0px] text-[#646464] select-none text-[10px] z-10 h-[19px] px-[3px] py-[2px]'>
-            <a
-              href='https://www.puppyagent.com/'
-              target='_blank'
-              rel='noopener noreferrer'
-              className='hover:text-[#808080] transition-colors'
-            >
-              PuppyAgent
-            </a>
-          </div>
         </ReactFlow>
       </div>
     </div>

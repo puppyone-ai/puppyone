@@ -6,7 +6,6 @@ import {
 import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
 import { useServerOperations } from '../hooks/useServerManagement';
 import { SYSTEM_URLS } from '@/config/urls';
-import ChatbotTestInterface from '../upbar/topRightToolBar/deployMenu/ChatbotTestInterface';
 import DeployedServiceOperationMenu from './DeployedServiceOperationMenu';
 
 // 定义简化的服务类型
@@ -34,7 +33,7 @@ const DeployedServicesList: React.FC = () => {
   const { apis, chatbots, isLoading } = useAllDeployedServices();
   const { isServiceShowing, displayOrNot, refreshServices } = useServers();
   const { switchToServiceById } = useDisplaySwitch();
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // 转换数据格式
   const services = [

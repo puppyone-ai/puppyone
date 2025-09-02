@@ -37,35 +37,28 @@ export type WorkspaceSwitchResult = {
 };
 
 export const useWorkspaceManagement = () => {
-  const { isLocalDeployment, getUserToken, getAuthHeaders } = useAppSettings();
+  const { isLocalDeployment } = useAppSettings();
+
+  // 🔒 安全修复：移除客户端认证处理，统一使用服务端代理认证
 
   // 获取用户 ID
   const fetchUserId = async (
     isLocal?: boolean
   ): Promise<string | undefined> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = isLocalDeployment;
     try {
       if (useLocal) {
         // 本地部署模式直接返回固定值，不需要API调用
         return 'local-user';
       } else {
-        // 云端部署模式
-        const userAccessToken = getUserToken();
-        if (!userAccessToken) {
-          throw new Error('No user access token found');
-        }
-
-        const response = await fetch(
-          `/api/user-system/get_user_id`,
-          {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-              'Content-Type': 'application/json',
-              ...getAuthHeaders(),
-            },
-          }
-        );
+        // 云端部署模式 - 认证现在由服务端代理处理
+        const response = await fetch(`/api/user-system/get_user_id`, {
+          method: 'GET',
+          credentials: 'include', // 通过HttpOnly cookie自动认证
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
 
         // 修复：添加详细的状态码处理
         if (response.status !== 200) {
@@ -90,7 +83,7 @@ export const useWorkspaceManagement = () => {
     userId?: string,
     isLocal?: boolean
   ): Promise<string | undefined> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = isLocalDeployment;
     try {
       if (useLocal) {
         // 修复：本地部署模式直接返回固定值
@@ -145,7 +138,7 @@ export const useWorkspaceManagement = () => {
     userId?: string,
     isLocal?: boolean
   ): Promise<WorkspaceBasicInfo[]> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = isLocalDeployment;
     try {
       // 本地/云端统一：从内部API获取
       const response = await fetch('/api/workspace/list');
@@ -164,7 +157,7 @@ export const useWorkspaceManagement = () => {
   const initializeUserData = async (
     isLocal?: boolean
   ): Promise<InitialUserData> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = isLocalDeployment;
     try {
       if (useLocal) {
         // 本地部署模式
@@ -179,20 +172,14 @@ export const useWorkspaceManagement = () => {
           workspace_history: {},
         };
       } else {
-        // 云端部署模式
-        const userAccessToken = getUserToken();
-        if (!userAccessToken) {
-          throw new Error('No user access token found');
-        }
-
+        // 云端部署模式 - 认证现在由服务端代理处理
         const response = await fetch(
           `/api/user-system/initialize_user_data_v2`,
           {
             method: 'GET',
-            credentials: 'include',
+            credentials: 'include', // 通过HttpOnly cookie自动认证
             headers: {
               'Content-Type': 'application/json',
-              ...getAuthHeaders(),
             },
           }
         );
@@ -248,14 +235,20 @@ export const useWorkspaceManagement = () => {
         });
 
         if (!response.ok) {
-          const error_data: { error?: string } = await response.json().catch(() => ({} as any));
+          const error_data: { error?: string } = await response
+            .json()
+            .catch(() => ({}) as any);
           throw new Error(
             `HTTP error! status: ${response.status}, error message: ${error_data?.error || response.statusText}`
           );
         }
 
-        const data: { workspace_id: string; workspace_name: string } = await response.json();
-        return { workspace_id: data.workspace_id, workspace_name: data.workspace_name };
+        const data: { workspace_id: string; workspace_name: string } =
+          await response.json();
+        return {
+          workspace_id: data.workspace_id,
+          workspace_name: data.workspace_name,
+        };
       }
     } catch (error) {
       console.error('Error creating workspace:', error);
@@ -317,7 +310,10 @@ export const useWorkspaceManagement = () => {
         });
         if (!response.ok) return undefined;
         const data = await response.json();
-        return { workspace_id: data.workspace_id, workspace_name: data.workspace_name };
+        return {
+          workspace_id: data.workspace_id,
+          workspace_name: data.workspace_name,
+        };
       }
     } catch (error) {
       console.error('Error renaming workspace:', error);
@@ -330,7 +326,7 @@ export const useWorkspaceManagement = () => {
     workspaceId: string,
     isLocal?: boolean
   ): Promise<WorkspaceJSON | null> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = isLocalDeployment;
     try {
       if (useLocal) {
         // 修复：本地部署模式使用正确的API路径
@@ -364,7 +360,7 @@ export const useWorkspaceManagement = () => {
     timestamp: string,
     isLocal?: boolean
   ): Promise<boolean> => {
-    const useLocal = isLocal !== undefined ? isLocal : isLocalDeployment;
+    const useLocal = isLocalDeployment;
     try {
       if (useLocal) {
         // 本地部署模式：保存到文件系统
@@ -386,7 +382,11 @@ export const useWorkspaceManagement = () => {
         const response = await fetch(`/api/workspace`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ flowId: workspaceId, json: content, timestamp }),
+          body: JSON.stringify({
+            flowId: workspaceId,
+            json: content,
+            timestamp,
+          }),
         });
         return response.ok;
       }

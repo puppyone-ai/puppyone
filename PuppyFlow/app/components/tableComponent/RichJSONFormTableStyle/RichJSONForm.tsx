@@ -7,7 +7,25 @@ import DictComponent from './DictComponent';
 import ListComponent from './ListComponent';
 import { createEmptyElement } from './ComponentRenderer';
 import { OverflowProvider } from './OverflowContext';
-import ComponentRenderer, { HoverProvider, DragProvider } from './ComponentRenderer';
+import ComponentRenderer, { HoverProvider, SelectionProvider, useSelection } from './ComponentRenderer';
+import ClipboardManager from './ClipboardManager';
+
+// Helper: clear selection when clicking outside the editor container
+const ClearSelectionOnOutsideClick = ({ containerRef }: { containerRef: React.RefObject<HTMLDivElement> }) => {
+    const { setSelectedPath } = useSelection();
+    useEffect(() => {
+        const handleDocumentMouseDown = (e: MouseEvent) => {
+            const container = containerRef.current;
+            if (!container) return;
+            if (!container.contains(e.target as Node)) {
+                setSelectedPath(null);
+            }
+        };
+        document.addEventListener('mousedown', handleDocumentMouseDown);
+        return () => document.removeEventListener('mousedown', handleDocumentMouseDown);
+    }, [setSelectedPath, containerRef]);
+    return null;
+};
 
 type JSONViewerProps = {
     preventParentDrag: () => void,
@@ -64,8 +82,12 @@ const JSONViewer = ({
     // 解析JSON数据
     useEffect(() => {
         if (!value || value.trim() === '') {
+            // Default empty input to null
             setParsedData(null);
-            setIsValidJSON(false);
+            setIsValidJSON(true);
+            if (onChange && value?.trim() !== 'null') {
+                onChange('null');
+            }
             return;
         }
 
@@ -77,7 +99,9 @@ const JSONViewer = ({
             setParsedData(null);
             setIsValidJSON(false);
         }
-    }, [value]);
+    }, [value, onChange]);
+
+    
 
     // 判断组件类型
     const getComponentType = (data: JSONData | null): ComponentType => {
@@ -95,10 +119,10 @@ const JSONViewer = ({
                 newData = "";
                 break;
             case 'dict':
-                newData = {};
+                newData = { key1: null, key2: null }; // 预制两个空位
                 break;
             case 'list':
-                newData = [];
+                newData = [null, null]; // 预制两个空位
                 break;
         }
         
@@ -252,7 +276,17 @@ const JSONViewer = ({
     // 渲染主要内容
     const renderMainContent = () => {
         if (parsedData === null) {
-            return null;
+            // Render through ComponentRenderer so null shows EmptyComponent with handle
+            return (
+                <ComponentRenderer
+                    data={null}
+                    path=""
+                    readonly={readonly}
+                    onUpdate={updateData}
+                    preventParentDrag={preventParentDrag}
+                    allowParentDrag={allowParentDrag}
+                />
+            );
         }
 
         const componentType = getComponentType(parsedData);
@@ -302,35 +336,9 @@ const JSONViewer = ({
     const actualWidth = widthStyle === 0 ? "100%" : widthStyle;
     const actualHeight = heightStyle === 0 ? "100%" : heightStyle;
 
-    // 如果没有数据，显示类型选择器
+    // 如果没有数据，默认设为 null（上面的 effect 会触发写回）
     if (!value || value.trim() === '') {
-        return (
-            <div 
-                className={`relative rounded-xl bg-transparent p-8 ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
-                style={{ width: actualWidth, height: actualHeight }}
-            >
-                {showTypeSelector ? (
-                    <TypeSelector
-                        onTypeSelect={createNewComponent}
-                        onCancel={() => setShowTypeSelector(false)}
-                    />
-                ) : (
-                    <div className="text-center">
-                        <div className="text-[#6B7280] text-sm font-medium mb-4">
-                            {placeholder}
-                        </div>
-                        {!readonly && (
-                            <button
-                                onClick={() => setShowTypeSelector(true)}
-                                className="px-6 py-3 bg-[#4F8EF7] text-white rounded-lg hover:bg-[#3B82F6] transition-colors font-medium"
-                            >
-                                Create New Component
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-        );
+        return null;
     }
 
     if (!isValidJSON) {
@@ -353,22 +361,31 @@ const JSONViewer = ({
     }
 
     return (
-        <DragProvider>
-            <HoverProvider>
-                <OverflowProvider>
+        <HoverProvider>
+            <SelectionProvider>
+            <OverflowProvider>
+                    <ClearSelectionOnOutsideClick containerRef={containerRef} />
+                    <ClipboardManager
+                        containerRef={containerRef as React.RefObject<HTMLElement>}
+                        getRootData={() => parsedData}
+                        setRootData={(newData) => updateData(newData)}
+                        readonly={readonly}
+                    />
                     <div 
                         ref={containerRef}
-                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[8px] pl-[8px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+
+                        className={`relative bg-transparent overflow-auto scrollbar-hide pt-[4px] pl-[8px] pr-[4px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+
                         style={{ width: actualWidth, height: actualHeight }}
                         data-rich-json-form="true"
                     >
-                        <div className="border-t border-b border-[#6D7177]/70">
+                        <div className="border-t border-b border-[#3A3D41]">
                         {renderMainContent()}
                         </div>
                     </div>
-                </OverflowProvider>
-            </HoverProvider>
-        </DragProvider>
+            </OverflowProvider>
+            </SelectionProvider>
+        </HoverProvider>
     );
 };
 

@@ -54,7 +54,7 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
     <div className='flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out'>
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className='flex flex-col items-start relative self-stretch w-full h-full overflow-hidden'>
-        <div className='w-full text-[#5D6065] text-[11px] font-semibold pt-[24px] pl-[16px] pr-[8px] font-plus-jakarta-sans'>
+        <div className='w-full text-[#5D6065] text-[11px] font-normal pt-[16px] pl-[12px] pr-[8px] font-plus-jakarta-sans'>
           <div className='mb-[16px] flex items-center gap-2'>
             <span>Workpaces</span>
             <div className='h-[1px] flex-grow bg-[#404040]'></div>
@@ -281,12 +281,49 @@ function Sidebar() {
   return (
     <div id='workspace-manage-panel' className='relative'>
       <div
-        className={`transition-all duration-150 ease-in-out ${flowFullScreen ? 'w-[240px]' : 'w-[64px]'}`}
+        className={`relative transition-all duration-150 ease-in-out ${flowFullScreen ? 'w-[240px]' : 'w-[8px] bg-[#252525] h-screen'}`}
       >
-        {flowFullScreen ? (
+        {flowFullScreen && (
           <SidebarFullScreen setFlowFullScreen={setFlowFullScreen} />
-        ) : (
-          <SidebarHidden setFlowFullScreen={setFlowFullScreen} />
+        )}
+
+        {!flowFullScreen && (
+          <button
+            className='absolute top-4 left-full ml-2 w-[32px] h-[32px] flex items-center justify-center group transition-opacity duration-200 z-50 opacity-0 hover:opacity-100 focus:opacity-100'
+            onClick={() => setFlowFullScreen(true)}
+            aria-label='Expand sidebar'
+            title='Expand'
+          >
+            <svg
+              width='32'
+              height='32'
+              viewBox='0 0 32 32'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+              className='group-hover:bg-[#313131] rounded-md'
+            >
+              <rect
+                width='32'
+                height='32'
+                rx='4'
+                className='fill-transparent group-hover:fill-[#313131]'
+              />
+              <rect
+                x='8.75'
+                y='10.75'
+                width='14.5'
+                height='10.5'
+                rx='1.25'
+                className='stroke-[#8B8B8B] group-hover:stroke-[#FFFFFF]'
+                strokeWidth='1.5'
+              />
+              <path
+                d='M14 11V21'
+                className='stroke-[#8B8B8B] group-hover:stroke-[#FFFFFF]'
+                strokeWidth='1.5'
+              />
+            </svg>
+          </button>
         )}
       </div>
     </div>

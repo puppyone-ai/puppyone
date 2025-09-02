@@ -93,10 +93,10 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { getAuthHeaders } = useAppSettings();
+    const { } = useAppSettings();
 
     // 使用 AppSettingsContext
-    const { availableModels, isLocalDeployment } = useAppSettings();
+    const { availableModels } = useAppSettings();
 
     // 获取可用的激活模型列表 - 只显示 LLM 类型的模型 - 使用 useMemo 缓存
     const activeModels = useMemo(() => {
@@ -225,7 +225,7 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
+        isLocalDeployment: false,
       }),
       [
         getNode,
@@ -237,7 +237,6 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
         streamResult,
         reportError,
         resetLoadingUI,
-        getAuthHeaders,
       ]
     );
 

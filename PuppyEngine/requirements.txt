@@ -10,10 +10,10 @@ anyio==4.9.0
 gunicorn==23.0.0
 waitress==3.0.2
 hypercorn==0.17.3
-beautifulsoup4==4.13.4
+beautifulsoup4==4.12.3
 lxml==5.4.0
 readability-lxml==0.8.4.1
-fastapi[standard]==0.115.12
+fastapi[standard]>=0.115,<0.116
 pydantic==2.11.5
 
 # Edges
@@ -33,7 +33,7 @@ langdetect==1.0.9
 scikit-learn==1.7.0
 pyyaml==6.0.2 # for transformers
 transformers==4.52.4
-sentence_transformers==4.1.0
+sentence-transformers>=3,<4
 
 # File
 fpdf==1.7.2

@@ -16,12 +16,18 @@ import React, {
   useMemo,
 } from 'react';
 import WhiteBallHandle from '../handles/WhiteBallHandle';
-import NodeToolBar from './nodeTopRightBar/NodeTopRightBar';
+import TextNodeSettingsController from './TextNodeTopSettingBar/NodeSettingsButton';
 import TextEditor from '../../tableComponent/TextEditor';
 import SkeletonLoadingIcon from '../../loadingIcon/SkeletonLoadingIcon';
 import dynamic from 'next/dynamic';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import useGetSourceTarget from '../../hooks/useGetSourceTarget';
+import { useAppSettings } from '../../states/AppSettingsContext';
+import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
+import {
+  forceSyncDirtyNodes,
+  syncBlockContent,
+} from '../../workflow/utils/externalStorage';
 
 // 定义节点数据类型
 export type TextBlockNodeData = {
@@ -62,7 +68,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       isOutput,
     },
   }) => {
-    const { getNode, setNodes } = useReactFlow();
+    const { getNode, setNodes, getNodes } = useReactFlow();
     const {
       activatedNode,
       isOnConnect,
@@ -73,11 +79,12 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       allowInactivateNodeWhenClickOutside,
       manageNodeasInput,
       manageNodeasOutput,
-      manageNodeasLocked,
       activateNode,
     } = useNodesPerFlowContext();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
+    const { } = useAppSettings();
+    const { fetchUserId } = useWorkspaceManagement();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -198,32 +205,76 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     const allowNodeDrag = useCallback(() => {
       componentRef.current?.classList.remove('nodrag');
     }, []);
-
-    const toggleNodeInput = useCallback(
-      () => manageNodeasInput(id),
-      [manageNodeasInput, id]
-    );
-    const toggleNodeOutput = useCallback(
-      () => manageNodeasOutput(id),
-      [manageNodeasOutput, id]
-    );
-    const toggleNodeLocked = useCallback(
-      () => manageNodeasLocked(id),
-      [manageNodeasLocked, id]
-    );
+    
 
     const updateNodeContent = useCallback(
       (newValue: string) => {
         setNodes(prevNodes =>
           prevNodes.map(node =>
             node.id === id
-              ? { ...node, data: { ...node.data, content: newValue } }
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    content: newValue,
+                    dirty: true,
+                    savingStatus: 'editing',
+                  },
+                }
               : node
           )
         );
       },
       [id, setNodes]
     );
+
+    // 防抖保存 external storage（2s）
+    useEffect(() => {
+      const node = getNode(id);
+      if (!node) return;
+      const data = node.data || {};
+      const currentContent = String(data.content ?? '');
+      const isDirty = !!data.dirty;
+
+      // 不在加载时且有变更才尝试防抖保存
+      if (!isDirty || data.isLoading) return;
+
+      const timer = setTimeout(async () => {
+        try {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? { ...n, data: { ...n.data, savingStatus: 'saving' } }
+                : n
+            )
+          );
+          await syncBlockContent({
+            node,
+            content: currentContent,
+            getUserId: fetchUserId as any,
+            setNodes: setNodes as any,
+            contentType: 'text',
+          });
+        } catch (e) {
+          setNodes(prev =>
+            prev.map(n =>
+              n.id === id
+                ? {
+                    ...n,
+                    data: {
+                      ...n.data,
+                      savingStatus: 'error',
+                      saveError: (e as Error)?.message || String(e),
+                    },
+                  }
+                : n
+            )
+          );
+        }
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }, [id, getNode, setNodes, fetchUserId]);
 
     const calculateMaxLabelContainerWidth = useCallback(() => {
       return contentRef.current
@@ -368,113 +419,6 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Tags for input, output, locked states */}
-        <div className='absolute -top-[28px] h-[24px] left-0 z-10 flex gap-1.5'>
-          {isInput && (
-            <div
-              className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#84EB89] text-black cursor-pointer'
-              onClick={toggleNodeInput}
-            >
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect
-                  x='16'
-                  y='7'
-                  width='3'
-                  height='12'
-                  rx='1'
-                  fill='currentColor'
-                />
-                <path
-                  d='M5 13H14'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                />
-                <path
-                  d='M10 9L14 13L10 17'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <span>INPUT</span>
-            </div>
-          )}
-          {isOutput && (
-            <div
-              className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#FF9267] text-black cursor-pointer'
-              onClick={toggleNodeOutput}
-            >
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 26 26'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <rect
-                  x='7'
-                  y='7'
-                  width='3'
-                  height='12'
-                  rx='1'
-                  fill='currentColor'
-                />
-                <path
-                  d='M12 13H21'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                />
-                <path
-                  d='M17 9L21 13L17 17'
-                  stroke='currentColor'
-                  strokeWidth='2.5'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                />
-              </svg>
-              <span>OUTPUT</span>
-            </div>
-          )}
-          {locked && (
-            <div
-              className='px-2 py-0.5 rounded-[8px] flex items-center gap-1 text-[10px] font-bold bg-[#3EDBC9] text-black cursor-pointer'
-              onClick={toggleNodeLocked}
-            >
-              <svg
-                width='16'
-                height='16'
-                viewBox='0 0 16 16'
-                fill='none'
-                xmlns='http://www.w3.org/2000/svg'
-              >
-                <path
-                  d='M5 7V5C5 3.34315 6.34315 2 8 2C9.65685 2 11 3.34315 11 5V7'
-                  stroke='currentColor'
-                  strokeWidth='1.5'
-                  strokeLinecap='round'
-                />
-                <rect
-                  x='4'
-                  y='7'
-                  width='8'
-                  height='6'
-                  rx='1'
-                  fill='currentColor'
-                />
-              </svg>
-              <span>LOCKED</span>
-            </div>
-          )}
-        </div>
 
         {/* Main node body */}
         <div ref={contentRef} id={id} className={containerClassName}>
@@ -513,7 +457,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
               )}
             </div>
             <div className='min-w-[24px] min-h-[24px] flex items-center justify-center'>
-              <NodeToolBar Parentnodeid={id} ParentNodetype={type} />
+              <TextNodeSettingsController nodeid={id} />
             </div>
           </div>
 

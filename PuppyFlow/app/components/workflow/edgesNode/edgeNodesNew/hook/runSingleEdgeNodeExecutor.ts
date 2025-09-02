@@ -17,6 +17,7 @@ import {
   EdgeNodeBuilderContext,
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
+import { syncBlockContent } from '../../../../../components/workflow/utils/externalStorage';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -49,6 +50,7 @@ interface Manifest {
     name: string;
     size: number;
     index: number;
+    state?: 'processing' | 'done';
   }>;
   content_type: string;
   total_size: number;
@@ -69,6 +71,7 @@ interface Manifest {
     name: string;
     size: number;
     index: number;
+    state?: 'processing' | 'done';
   }>;
   content_type: string;
   total_size: number;
@@ -196,8 +199,10 @@ class ManifestPoller {
 
       const manifest: Manifest = await manifestResponse.json();
       const newChunks = manifest.chunks
-        .filter(chunk => !this.knownChunks.has(chunk.name))
-        .sort((a, b) => a.index - b.index);
+        .filter(
+          chunk => !this.knownChunks.has(chunk.name) && chunk.state === 'done'
+        )
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
 
       if (newChunks.length === 0) return;
 
@@ -206,8 +211,6 @@ class ManifestPoller {
       );
 
       for (const chunkInfo of newChunks) {
-        // 跳过完成标记（不是真实内容文件）
-        if (chunkInfo.name === '_completed.marker') continue;
         this.knownChunks.add(chunkInfo.name);
         const chunkUrl = await this.getDownloadUrl(
           `${this.resource_key}/${chunkInfo.name}`
@@ -293,7 +296,10 @@ class ManifestPoller {
           `[ManifestPoller] JSONL parse error in ${chunkName} at record #${this.totalRecords}:`,
           err
         );
-        console.warn('[ManifestPoller] Offending line (truncated):', rawLine.slice(0, 500));
+        console.warn(
+          '[ManifestPoller] Offending line (truncated):',
+          rawLine.slice(0, 500)
+        );
       }
     }
 
@@ -314,7 +320,10 @@ class ManifestPoller {
     } catch (err) {
       this.parseErrors += 1;
       console.warn('[ManifestPoller] Final leftover JSONL parse error:', err);
-      console.warn('[ManifestPoller] Offending leftover (truncated):', leftover.slice(0, 500));
+      console.warn(
+        '[ManifestPoller] Offending leftover (truncated):',
+        leftover.slice(0, 500)
+      );
     } finally {
       this.leftoverPartialLine = '';
     }
@@ -322,10 +331,7 @@ class ManifestPoller {
 
   private async getDownloadUrl(key: string): Promise<string> {
     const response = await fetch(
-      `${SYSTEM_URLS.PUPPY_STORAGE.BASE}/download/url?key=${encodeURIComponent(key)}`,
-      {
-        headers: this.context.getAuthHeaders(),
-      }
+      `/api/storage/download/url?key=${encodeURIComponent(key)}`
     );
     if (!response.ok) {
       throw new Error(`Failed to get download URL for ${key}`);
@@ -359,8 +365,82 @@ export interface RunSingleEdgeNodeContext {
   streamResult: (taskId: string, nodeId: string) => Promise<any>;
   reportError: (nodeId: string, error: string) => void;
   resetLoadingUI: (nodeId: string) => void;
-  // 修正getAuthHeaders的返回类型为HeadersInit以匹配实际函数
-  getAuthHeaders: () => HeadersInit;
+  // 🔒 认证通过服务端代理处理（不需要从前端传入）
+  isLocalDeployment?: boolean;
+}
+
+// Pre-run sync for involved block nodes (sources and targets) without requiring global getNodes
+async function preRunSyncInvolvedNodes(
+  parentId: string,
+  context: RunSingleEdgeNodeContext
+): Promise<void> {
+  try {
+    const sources =
+      context.getSourceNodeIdWithLabel(parentId, 'blocknode') || [];
+    const targets =
+      context.getTargetNodeIdWithLabel(parentId, 'blocknode') || [];
+    const ids = Array.from(
+      new Set<string>([...sources.map(s => s.id), ...targets.map(t => t.id)])
+    );
+
+    for (const id of ids) {
+      const node = context.getNode(id);
+      if (!node) continue;
+      const type = node.type || '';
+      if (type !== 'text' && type !== 'structured') continue;
+      const data = node.data || {};
+      const isDirty = !!data.dirty;
+      const needsInit = !(
+        data.storage_class === 'external' &&
+        data.external_metadata?.resource_key
+      );
+      if (!isDirty && !needsInit) continue;
+
+      const contentStr =
+        type === 'structured'
+          ? typeof data.content === 'string'
+            ? data.content
+            : JSON.stringify(data.content ?? [])
+          : String(data.content ?? '');
+      const contentType = type === 'structured' ? 'structured' : 'text';
+
+      // set saving
+      context.setNodes(prev =>
+        prev.map(n =>
+          n.id === id
+            ? { ...n, data: { ...n.data, savingStatus: 'saving' } }
+            : n
+        )
+      );
+
+      try {
+        await syncBlockContent({
+          node,
+          content: contentStr,
+          getUserId: async () => 'auto',
+          setNodes: context.setNodes,
+          contentType,
+        });
+      } catch (e) {
+        context.setNodes(prev =>
+          prev.map(n =>
+            n.id === id
+              ? {
+                  ...n,
+                  data: {
+                    ...n.data,
+                    savingStatus: 'error',
+                    saveError: (e as Error)?.message || String(e),
+                  },
+                }
+              : n
+          )
+        );
+      }
+    }
+  } catch {
+    console.error('preRunSyncInvolvedNodes error');
+  }
 }
 
 // 创建新的目标节点
@@ -478,11 +558,11 @@ async function sendDataToTargets(
       ? customConstructJsonData()
       : defaultConstructJsonData(parentId, context);
 
-    const response = await fetch(`${SYSTEM_URLS.PUPPY_ENGINE.BASE}/task`, {
+    const response = await fetch(`/api/engine/task`, {
       method: 'POST',
+      credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
       headers: {
         'Content-Type': 'application/json',
-        ...context.getAuthHeaders(),
       },
       body: JSON.stringify(jsonData),
     });
@@ -497,12 +577,9 @@ async function sendDataToTargets(
     const result = await response.json();
     const taskId = result.task_id;
 
-    const streamResponse = await fetch(
-      `${SYSTEM_URLS.PUPPY_ENGINE.BASE}/task/${taskId}/stream`,
-      {
-        headers: context.getAuthHeaders(),
-      }
-    );
+    const streamResponse = await fetch(`/api/engine/task/${taskId}/stream`, {
+      credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
+    });
 
     if (!streamResponse.body) {
       console.error(`❌ [sendDataToTargets] 流式响应没有body`);
@@ -1034,6 +1111,9 @@ export async function runSingleEdgeNode({
 
   try {
     context.clearAll();
+
+    // 运行前同步当前边涉及的 block 节点（只依赖 source/target 列表与 getNode）
+    await preRunSyncInvolvedNodes(parentId, context);
 
     const targetNodeIdWithLabelGroup =
       context.getTargetNodeIdWithLabel(parentId);
