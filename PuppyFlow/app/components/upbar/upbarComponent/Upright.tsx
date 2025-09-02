@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useCallback, Fragment } from 'react';
 import { Controls, useReactFlow } from '@xyflow/react';
 import SaveButton from './SaveButton';
+import MoreOptionsButton from './MoreOptionsButton';
 import { useNodesPerFlowContext } from '../../states/NodesPerFlowContext';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
@@ -22,6 +23,7 @@ export default function Upright() {
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
   const [areGroupsOpen, setAreGroupsOpen] = useState(true);
+  const [topRightMenu, setTopRightMenu] = useState<number>(-1);
 
   const content = getCurrentWorkspaceContent?.() ?? null;
 
@@ -71,6 +73,10 @@ export default function Upright() {
   return (
     <div className='will-change-auto bg-[#1E1E1E] rounded-[12px] border border-[#343434] ring-1 ring-black/20 shadow-xl shadow-black/30 backdrop-blur-md flex items-center gap-[8px] px-[8px] py-[6px] pointer-events-auto'>
       <SaveButton />
+      <MoreOptionsButton
+        showMenu={topRightMenu}
+        showMenuHandler={setTopRightMenu}
+      />
       <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
       <Controls
         className='react-flow__controls-custom'
