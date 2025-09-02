@@ -44,6 +44,7 @@ export async function getCurrentUserId(request: Request): Promise<string> {
   const res = await fetch(url, {
     method: 'GET',
     headers: verifyHeaders,
+
   });
   if (!res.ok) throw new Error(`verify failed: ${res.status}`);
 
