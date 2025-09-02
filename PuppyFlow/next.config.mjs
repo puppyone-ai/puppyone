@@ -27,6 +27,8 @@ const nextConfig = {
   // 统一把服务端 DEPLOYMENT_MODE 注入到客户端公开变量
   env: {
     NEXT_PUBLIC_DEPLOYMENT_MODE: process.env.DEPLOYMENT_MODE,
+    // 将用户系统前端地址在构建期注入到客户端，避免客户端回退到 localhost:3000
+    NEXT_PUBLIC_USER_SYSTEM_FRONTEND_URL: process.env.USER_SYSTEM_FRONTEND_URL,
   },
   // 你的其他配置保持不变
 };

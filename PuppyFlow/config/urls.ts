@@ -3,7 +3,12 @@
 
 export const SYSTEM_URLS = {
   USER_SYSTEM: {
-    FRONTEND: process.env.USER_SYSTEM_FRONTEND_URL || 'http://localhost:3000',
+    // Prefer runtime server env on the server; fall back to client-exposed public env
+    // Client bundle will only have NEXT_PUBLIC_* available
+    FRONTEND:
+      process.env.USER_SYSTEM_FRONTEND_URL ||
+      (process.env.NEXT_PUBLIC_USER_SYSTEM_FRONTEND_URL as string) ||
+      'http://localhost:3000',
   },
   // Client code must use same-origin API proxies; direct bases removed
   PUPPY_ENGINE: { BASE: '' },
