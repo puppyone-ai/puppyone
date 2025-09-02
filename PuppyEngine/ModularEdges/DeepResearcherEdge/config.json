@@ -1,0 +1,76 @@
+{
+    "edge_name": "DeepResearcherEdge",
+    "model": "gpt-4o-2024-08-06",
+    "temperature": 0.1,
+    "max_tokens": 10000,
+    "max_iterations": 3,
+    "vector_search_configs": {
+        "data_source": [
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "research_papers",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "pgvector",
+                        "user_id": "research_user",
+                        "set_name": "academic_papers",
+                        "description": "Academic research papers and scientific publications",
+                        "enabled": true
+                    }
+                }
+            },
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "news_articles",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "chroma",
+                        "user_id": "research_user",
+                        "set_name": "current_news",
+                        "description": "Recent news articles and current events",
+                        "enabled": true
+                    }
+                }
+            },
+            {
+                "index_item": {
+                    "collection_configs": {
+                        "collection_name": "technical_docs",
+                        "model": "text-embedding-ada-002",
+                        "vdb_type": "pinecone",
+                        "user_id": "research_user",
+                        "set_name": "technical_documentation",
+                        "description": "Technical documentation and manuals",
+                        "enabled": false
+                    }
+                }
+            }
+        ],
+        "top_k": 5,
+        "threshold": 0.7
+    },
+    "google_search_configs": {
+        "enabled": true,
+        "sub_search_type": "google_v2",
+        "top_k": 5,
+        "filter_unreachable_pages": true,
+        "firecrawl_config": {
+            "formats": [
+                "markdown"
+            ],
+            "is_only_main_content": true,
+            "wait_for": 60,
+            "skip_tls_verification": true,
+            "remove_base64_images": true
+        }
+    },
+    "perplexity_search_configs": {
+        "enabled": true,
+        "sub_search_type": "perplexity",
+        "model": "perplexity/sonar",
+        "api_key_env": "PERPLEXITY_API_KEY",
+        "base_url_env": "PERPLEXITY_BASE_URL",
+        "max_tokens": 4000,
+        "temperature": 0.1
+    }
+}

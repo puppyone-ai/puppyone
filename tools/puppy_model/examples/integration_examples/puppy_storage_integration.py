@@ -1,17 +1,17 @@
 """
-PuppyStorage集成示例 - 展示如何将puppy_model集成到PuppyStorage
+PuppyStorage集成示例 - 展示如何将qllama集成到PuppyStorage
 """
-import sys
 import os
+import sys
 
-# 确保能够导入puppy_model包
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 确保能够导入qllama包
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from puppy_model import Embedder, ModelCapability
+from qllama import Embedder, ModelCapability
 
-class TextEmbedder:
+class PuppyStorageEmbedding:
     """
-    兼容原始API的嵌入类，内部使用puppy_model
+    兼容原始API的嵌入类，内部使用qllama
     """
     
     def __init__(self, provider_instance=None):
@@ -22,9 +22,9 @@ class TextEmbedder:
         self._preprocess_enabled = True
 
     @classmethod
-    def create(cls, model_name: str, **kwargs) -> 'TextEmbedder':
+    def create(cls, model_name: str, **kwargs) -> 'PuppyStorageEmbedding':
         """
-        Factory method to create TextEmbedder instance.
+        Factory method to create PuppyStorageEmbedding instance.
         
         Args:
             model_name (str): Name of the model to use
@@ -34,14 +34,14 @@ class TextEmbedder:
                 - endpoint (str, optional): Endpoint URL for local services like Ollama
                 
         Returns:
-            TextEmbedder: An instance configured with the specified model
+            PuppyStorageEmbedding: An instance configured with the specified model
         """
         try:
-            # 使用puppy_model创建嵌入器
+            # 使用qllama创建嵌入器
             provider_name = kwargs.pop("provider", None)
             embedder = Embedder(model_name, provider_name, **kwargs)
             
-            # 创建并返回TextEmbedder实例
+            # 创建并返回PuppyStorageEmbedding实例
             return cls(embedder)
         except Exception as e:
             # 转换异常为PuppyException（示例中简化为普通异常）
@@ -81,7 +81,7 @@ class TextEmbedder:
         # 预处理所有文档
         processed_docs = [self._preprocess_content(doc) for doc in docs]
         
-        # 使用puppy_model生成嵌入
+        # 使用qllama生成嵌入
         try:
             return self._provider.embed(processed_docs)
         except Exception as e:
@@ -144,7 +144,7 @@ if __name__ == "__main__":
             model = models[provider][0]
             try:
                 print(f"\n使用模型 {model} (提供商: {provider})")
-                embedder = TextEmbedder.create(model, provider=provider)
+                embedder = PuppyStorageEmbedding.create(model, provider=provider)
                 vectors = embedder.embed(["测试文档1", "测试文档2"])
                 print(f"嵌入成功:")
                 print(f"- 文档数量: {len(vectors)}")
