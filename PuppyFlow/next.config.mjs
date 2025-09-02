@@ -24,6 +24,10 @@ console.log('[PuppyFlow] Env check (safe):', safeEnvSummary);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // 统一把服务端 DEPLOYMENT_MODE 注入到客户端公开变量
+  env: {
+    NEXT_PUBLIC_DEPLOYMENT_MODE: process.env.DEPLOYMENT_MODE,
+  },
   // 你的其他配置保持不变
 };
 
