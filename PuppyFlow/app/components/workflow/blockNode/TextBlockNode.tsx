@@ -28,6 +28,11 @@ import {
   forceSyncDirtyNodes,
   syncBlockContent,
 } from '../../workflow/utils/externalStorage';
+import {
+  handleDynamicStorageSwitch,
+  getStorageInfo,
+  CONTENT_LENGTH_THRESHOLD,
+} from '../../workflow/utils/dynamicStorageStrategy';
 
 // 定义节点数据类型
 export type TextBlockNodeData = {
@@ -83,7 +88,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     } = useNodesPerFlowContext();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
-    const { } = useAppSettings();
+    const {} = useAppSettings();
     const { fetchUserId } = useWorkspaceManagement();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
@@ -205,7 +210,6 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     const allowNodeDrag = useCallback(() => {
       componentRef.current?.classList.remove('nodrag');
     }, []);
-    
 
     const updateNodeContent = useCallback(
       (newValue: string) => {
@@ -228,7 +232,7 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       [id, setNodes]
     );
 
-    // 防抖保存 external storage（2s）
+    // 基于内容长度的动态存储策略切换（2s防抖）
     useEffect(() => {
       const node = getNode(id);
       if (!node) return;
@@ -248,12 +252,32 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
                 : n
             )
           );
-          await syncBlockContent({
+
+          // 使用动态存储策略处理内容保存
+          await handleDynamicStorageSwitch({
             node,
             content: currentContent,
+            contentType: 'text',
             getUserId: fetchUserId as any,
             setNodes: setNodes as any,
-            contentType: 'text',
+          });
+
+          // 调试信息：显示存储策略状态
+          const storageInfo = getStorageInfo(node);
+          const chunkCount = Math.ceil(
+            currentContent.length / CONTENT_LENGTH_THRESHOLD
+          );
+          console.log(`📝 Text block ${id} saved:`, {
+            contentLength: currentContent.length,
+            threshold: CONTENT_LENGTH_THRESHOLD,
+            storageClass: storageInfo.storageClass,
+            switched:
+              storageInfo.storageClass !==
+              (node.data?.storage_class || 'internal'),
+            estimatedChunks:
+              storageInfo.storageClass === 'external' ? chunkCount : 1,
+            resourceKey: storageInfo.resourceKey,
+            cleanupEnabled: storageInfo.storageClass === 'external',
           });
         } catch (e) {
           setNodes(prev =>
@@ -419,7 +443,6 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-
         {/* Main node body */}
         <div ref={contentRef} id={id} className={containerClassName}>
           <div

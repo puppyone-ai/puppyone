@@ -205,7 +205,7 @@ function Workflow() {
   const canZoom = useCtrlZoom();
   const canPan = useMiddleMousePan();
   const { onNodeDrag, onNodeDragStop } = useNodeDragHandlers();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
   const didExternalPrefetchRef = useRef<string | null>(null);
   const connectStartRef = useRef<{
     nodeId: string | null;
@@ -308,11 +308,17 @@ function Workflow() {
     if (!currentWorkspaceContent || !selectedFlowId) return;
     if (didExternalPrefetchRef.current === selectedFlowId) return;
 
+    // 只处理真正的external存储block，必须有storage_class='external'且有resource_key
     const externalBlocks = (currentWorkspaceContent.blocks || []).filter(
-      (n: any) =>
-        n?.data?.storage_class === 'external' ||
-        n?.storage_class === 'external' ||
-        n?.data?.external_metadata
+      (n: any) => {
+        const storageClass = n?.data?.storage_class || n?.storage_class;
+        const externalMetadata =
+          n?.data?.external_metadata || n?.external_metadata;
+        const hasResourceKey = externalMetadata?.resource_key;
+
+        // 必须是external存储且有resource_key
+        return storageClass === 'external' && hasResourceKey;
+      }
     ) as any[];
 
     if (externalBlocks.length === 0) {
@@ -329,6 +335,8 @@ function Workflow() {
             n?.data?.external;
           const resourceKey = external?.resource_key;
           const contentType = external?.content_type || 'text';
+
+          // 双重检查：确保有resource_key
           if (!resourceKey) continue;
 
           const manifestResp = await fetch(
@@ -354,14 +362,14 @@ function Workflow() {
               if (chunk.size === 0) continue;
             }
 
-          const urlResp = await fetch(
-            `/api/storage/download/url?key=${encodeURIComponent(
-              `${resourceKey}/${name}`
-            )}`,
-            {
-              credentials: 'include', // 🔒 安全修复：统一使用服务端代理认证
-            }
-          );
+            const urlResp = await fetch(
+              `/api/storage/download/url?key=${encodeURIComponent(
+                `${resourceKey}/${name}`
+              )}`,
+              {
+                credentials: 'include', // 🔒 安全修复：统一使用服务端代理认证
+              }
+            );
             if (!urlResp.ok) continue;
             const { download_url } = await urlResp.json();
             const chunkResp = await fetch(download_url);
@@ -393,11 +401,7 @@ function Workflow() {
 
       didExternalPrefetchRef.current = selectedFlowId;
     })();
-  }, [
-    currentWorkspaceContent,
-    selectedFlowId,
-    setUnsortedNodes,
-  ]);
+  }, [currentWorkspaceContent, selectedFlowId, setUnsortedNodes]);
 
   // 定期保存 ReactFlow 状态到工作区
   const lastSavedContent = useRef<string>('');
@@ -466,14 +470,16 @@ function Workflow() {
       const targetIsEdgeNode = judgeNodeIsEdgeNode(connection.target);
       const sourceIsEdgeNode = judgeNodeIsEdgeNode(connection.source);
 
-      if (
-        (targetIsEdgeNode && sourceIsEdgeNode)
-      )
-        return;
+      if (targetIsEdgeNode && sourceIsEdgeNode) return;
 
       // 如果是 block -> block，插入 edgeMenu 到中点，并创建两条边
       if (!sourceIsEdgeNode && !targetIsEdgeNode) {
-        const handled = handleBlockToBlockConnect(connection, setNodes as any, setEdges as any, markerEnd);
+        const handled = handleBlockToBlockConnect(
+          connection,
+          setNodes as any,
+          setEdges as any,
+          markerEnd
+        );
         if (handled) {
           // 标记已创建实际边，阻止 onConnectEnd 再次在鼠标位置生成 edgeMenu
           didCreateEdgeRef.current = true;
@@ -537,7 +543,11 @@ function Workflow() {
     event.stopPropagation();
     const isMouse = (event as MouseEvent).clientX !== undefined;
     // If no real edge was created and we started from a source handle, spawn a floating edge menu node at release position
-    if (!didCreateEdgeRef.current && connectStartRef.current.nodeId && connectStartRef.current.handleType === 'source') {
+    if (
+      !didCreateEdgeRef.current &&
+      connectStartRef.current.nodeId &&
+      connectStartRef.current.handleType === 'source'
+    ) {
       spawnOnConnectEnd(
         event,
         { nodeId: connectStartRef.current.nodeId, handleType: 'source' },
@@ -549,7 +559,11 @@ function Workflow() {
 
     allowActivateOtherNodesWhenConnectEnd();
     didCreateEdgeRef.current = false;
-    connectStartRef.current = { nodeId: null, handleId: null, handleType: null };
+    connectStartRef.current = {
+      nodeId: null,
+      handleId: null,
+      handleType: null,
+    };
   };
 
   const onNodeMouseLeave = (id: string) => {
@@ -712,7 +726,6 @@ function Workflow() {
             variant={BackgroundVariant.Dots}
             gap={16}
           />
-
         </ReactFlow>
       </div>
     </div>
