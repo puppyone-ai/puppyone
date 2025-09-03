@@ -4,13 +4,45 @@ import GroupListButton from './upbarComponent/GroupListButton';
 import Upright from './upbarComponent/Upright';
 
 function Upbar() {
+  const [openMenu, setOpenMenu] = React.useState<null | 'text' | 'structured' | 'file' | 'group'>(null);
+  const closeTimeoutRef = React.useRef<number | null>(null);
+
+  const openWithCancel = React.useCallback((menuKey: 'text' | 'structured' | 'file' | 'group') => {
+    if (closeTimeoutRef.current != null) {
+      window.clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setOpenMenu(menuKey);
+  }, []);
+
+  const scheduleClose = React.useCallback(() => {
+    if (closeTimeoutRef.current != null) {
+      window.clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setOpenMenu(null);
+      closeTimeoutRef.current = null;
+    }, 120);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current != null) {
+        window.clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
   return (
     <div className='w-full h-[48px] absolute top-[40px] left-0 z-[10000] pointer-events-none'>
       <div
         className='pointer-events-auto will-change-auto bg-[#2A2A2A] rounded-[12px] border border-transparent ring-1 ring-black/30 shadow-2xl shadow-black/50 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[6px] absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'
       >
         {/* Inline +Add types (compact with per-button hover menu) */}
-        <div className='relative group'>
+        <div
+          className='relative'
+          onMouseEnter={() => openWithCancel('text')}
+          onMouseLeave={scheduleClose}
+        >
           <button
             className='inline-flex items-center justify-center gap-0 h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
             onClick={() => {
@@ -27,16 +59,24 @@ function Upbar() {
               <path d='M6.99768 14.5L13 14.5' stroke='#CDCDCD'/>
             </svg>
           </button>
-          <div className='pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block z-[10001]'>
+          <div
+            className={`pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[10001] ${openMenu === 'text' ? 'block' : 'hidden'}`}
+            onMouseEnter={() => openWithCancel('text')}
+            onMouseLeave={scheduleClose}
+          >
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px]'>Text Block</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px]'>Add a freeform text block. Click and drag to draw its size and type your content.</div>
-              <a href='/learn/text-block' target='_blank' rel='noreferrer' className='text-[11px] text-[#4599DF] hover:underline'>Learn how to use →</a>
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>Text Block</div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Add a freeform text block. Click and drag to draw its size and type your content.</div>
+              <a href='https://www.youtube.com/watch?v=wa9KiyFApVU' target='_blank' rel='noreferrer' className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'>Learn how to use ↗</a>
             </div>
           </div>
         </div>
-        <div className='relative group'>
+        <div
+          className='relative'
+          onMouseEnter={() => openWithCancel('structured')}
+          onMouseLeave={scheduleClose}
+        >
           <button
             className='inline-flex items-center justify-center gap-0 h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
             onClick={() => {
@@ -74,16 +114,23 @@ function Upbar() {
               <path d='M9.5 12V11H8.5V12H9.5ZM13 12H14V11H13V12ZM13 13V14H14V13H13ZM9.5 13H8.5V14H9.5V13ZM9.5 12V13H13V12V11H9.5V12ZM13 12H12V13H13H14V12H13ZM13 13V12H9.5V13V14H13V13ZM9.5 13H10.5V12H9.5H8.5V13H9.5Z' fill='#CDCDCD' mask='url(#path-11-inside-4_8567_40)'/>
             </svg>
           </button>
-          <div className='pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block z-[10001]'>
+          <div
+            className={`pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[10001] ${openMenu === 'structured' ? 'block' : 'hidden'}`}
+            onMouseEnter={() => openWithCancel('structured')}
+            onMouseLeave={scheduleClose}
+          >
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px]'>Structured Block</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px]'>Add a structured JSON-style block. Drag to size, then define key-value content.</div>
-              <a href='/learn/structured-block' target='_blank' rel='noreferrer' className='text-[11px] text-[#4599DF] hover:underline'>Learn how to use →</a>
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>Structured Block</div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Add a structured JSON-style block. Drag to size, then define key-value content.</div>
             </div>
           </div>
         </div>
-        <div className='relative group'>
+        <div
+          className='relative'
+          onMouseEnter={() => openWithCancel('file')}
+          onMouseLeave={scheduleClose}
+        >
           <button
             className='inline-flex items-center justify-center gap-0 h-[36px] w-[36px] rounded-md px-0 py-0 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444] transition-colors'
             onClick={() => {
@@ -96,16 +143,17 @@ function Upbar() {
           >
             <svg width='24' height='24' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'>
               <path d='M8.79297 5.5L10.793 7.5H15.5V14.5H4.5V5.5H8.79297Z' stroke='#CDCDCD'/>
-              <path d='M10 12.5V10' stroke='#CDCDCD'/>
-              <path d='M8.5 11L10 9.5L11.5 11' stroke='#CDCDCD'/>
             </svg>
           </button>
-          <div className='pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block z-[10001]'>
+          <div
+            className={`pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[10001] ${openMenu === 'file' ? 'block' : 'hidden'}`}
+            onMouseEnter={() => openWithCancel('file')}
+            onMouseLeave={scheduleClose}
+          >
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px]'>File Block</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px]'>Add a file block for documents. Drag to size, then upload files to process.</div>
-              <a href='/learn/file-block' target='_blank' rel='noreferrer' className='text-[11px] text-[#4599DF] hover:underline'>Learn how to use →</a>
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>File Block</div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Add a file block for documents. Drag to size, then upload files to process.</div>
             </div>
           </div>
         </div>
@@ -115,14 +163,21 @@ function Upbar() {
         **/}
         {/* Vertical divider moved to Upbar level */}
         <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
-        <div className='relative group'>
+        <div
+          className='relative'
+          onMouseEnter={() => openWithCancel('group')}
+          onMouseLeave={scheduleClose}
+        >
           <GroupListButton />
-          <div className='pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:block z-[10001]'>
+          <div
+            className={`pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[10001] ${openMenu === 'group' ? 'block' : 'hidden'}`}
+            onMouseEnter={() => openWithCancel('group')}
+            onMouseLeave={scheduleClose}
+          >
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px]'>Group</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px]'>Click to draw an area and create a group of nodes you can run or deploy together.</div>
-              <a href='/learn/group-nodes' target='_blank' rel='noreferrer' className='text-[11px] text-[#4599DF] hover:underline'>Learn how to use →</a>
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>Group</div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Click to draw an area and create a group of nodes you can run or deploy together.</div>
             </div>
           </div>
         </div>

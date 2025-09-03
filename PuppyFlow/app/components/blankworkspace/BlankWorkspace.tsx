@@ -3,17 +3,19 @@ import { v4 as uuidv4 } from 'uuid';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAppSettings } from '../states/AppSettingsContext';
 import workspaceTemplates from '@/lib/templates/workspaceTemplates.json';
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
 
 const BlankWorkspace = () => {
   const {
     workspaces,
     addWorkspace,
     createEmptyWorkspace,
-    setShowingWorkspace,
+    setShowingItem,
     updateWorkspace,
     workspaceManagement,
   } = useWorkspaces();
   const { planLimits } = useAppSettings();
+  const { switchToWorkspace } = useDisplaySwitch();
 
   const isWorkspaceLimitReached =
     workspaces && workspaces.length >= planLimits.workspaces;
@@ -26,7 +28,8 @@ const BlankWorkspace = () => {
 
     const optimistic = createEmptyWorkspace(newWorkspaceId, newWorkspaceName);
     addWorkspace(optimistic);
-    setShowingWorkspace(newWorkspaceId);
+    setShowingItem({ type: 'workspace', id: newWorkspaceId, name: newWorkspaceName });
+    switchToWorkspace();
 
     try {
       if (initialContent) {
@@ -107,7 +110,7 @@ const BlankWorkspace = () => {
             <button
               onClick={() => createNewWorkspace((workspaceTemplates as any).onboarding_guide.content, 'Getting Started')}
               disabled={isWorkspaceLimitReached}
-              className={`mt-4 md:mt-5 h-[48px] px-6 rounded-[8px] border text-[14px] transition-colors duration-200 flex items-center gap-3 justify-center 
+              className={`mt-4 md:mt-5 h-[48px] px-6 rounded-[8px] border text-[12px] transition-colors duration-200 flex items-center gap-3 justify-center 
                 ${isWorkspaceLimitReached ? 'bg-[#232323] border-[#2E2E2E] text-[#5A5A5A] cursor-not-allowed' : 'bg-[#242424] hover:bg-[#343434] border-[#2A2A2A] text-[#B8B8B8]'}`}
             >
               <svg width='18' height='18' viewBox='0 0 18 18' fill='none' xmlns='http://www.w3.org/2000/svg' className='opacity-90'>
@@ -129,7 +132,7 @@ const BlankWorkspace = () => {
               <div className='h-px flex-1 bg-[#2A2A2A]' />
             </div>
 
-            <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pb-12'>
+            <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pb-[24px]'>
               {templates.map(t => (
                 <button
                   key={t.key}
@@ -147,8 +150,8 @@ const BlankWorkspace = () => {
                       </svg>
                     </div>
                     <div className='flex-1'>
-                      <div className='text-[#D6D6D6] text-[13px] font-medium'>{t.title}</div>
-                      <div className='text-[#8B8B8B] text-[12px] mt-[2px]'>{t.description}</div>
+                      <div className='text-[#D6D6D6] text-[12px] font-medium'>{t.title}</div>
+                      <div className='text-[#8B8B8B] text-[11px] mt-[2px]'>{t.description}</div>
                     </div>
                   </div>
                 </button>
