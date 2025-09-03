@@ -320,35 +320,64 @@ class Env:
             # Set content so persistence can read from it
             block.set_content(content)
 
-            # Persist block first (may yield STREAM_* events)
-            async for event in block.persist(self.storage_client, self.user_info['user_id']):
-                yield event
+            # Determine storage strategy based on content length (1024 characters threshold)
+            content_length = 0
+            if content is not None:
+                if isinstance(content, str):
+                    content_length = len(content)
+                elif isinstance(content, (list, dict)):
+                    # For structured data, convert to JSON string to measure length
+                    import json
+                    try:
+                        content_length = len(json.dumps(content, ensure_ascii=False))
+                    except:
+                        content_length = 0
+                elif isinstance(content, bytes):
+                    content_length = len(content)
+                else:
+                    # For other types, try to convert to string
+                    try:
+                        content_length = len(str(content))
+                    except:
+                        content_length = 0
 
-            # Decide payload based on storage class after persist
-            storage_class = getattr(block, 'storage_class', 'internal')
-            has_external = False
-            try:
-                has_external = bool(block.has_external_data())
-            except Exception:
-                has_external = False
-
-            block_event = {
-                "event_type": "BLOCK_UPDATED",
-                "block_id": block_id,
-                "storage_class": storage_class,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-
-            if storage_class == 'external' or has_external:
+            # Dynamic storage strategy decision
+            storage_threshold = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))
+            use_external_storage = content_length >= storage_threshold
+            
+            if use_external_storage:
+                # Force external storage for long content
+                block.storage_class = 'external'
+                # Persist block first (may yield STREAM_* events)
+                async for event in block.persist(self.storage_client, self.user_info['user_id']):
+                    yield event
+                
                 # External storage: do not include raw content
-                block_event["external_metadata"] = block.data.get("external_metadata")
+                block_event = {
+                    "event_type": "BLOCK_UPDATED",
+                    "block_id": block_id,
+                    "storage_class": "external",
+                    "external_metadata": block.data.get("external_metadata"),
+                    "timestamp": datetime.utcnow().isoformat()
+                }
                 v1_results[block_id] = {
-                    "storage_class": storage_class,
+                    "storage_class": "external",
                     "external_metadata": block.data.get("external_metadata")
                 }
             else:
-                # Internal storage: safe to include content
-                block_event["content"] = content
+                # Force internal storage for short content
+                block.storage_class = 'internal'
+                # For internal storage, we don't need to persist to external storage
+                block.is_persisted = True
+                
+                # Internal storage: include complete content in event
+                block_event = {
+                    "event_type": "BLOCK_UPDATED",
+                    "block_id": block_id,
+                    "storage_class": "internal",
+                    "content": content,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
                 v1_results[block_id] = content
 
             # Emit BLOCK_UPDATED after persist completes
