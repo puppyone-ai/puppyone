@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faGoogle } from '@fortawesome/free-brands-svg-icons';
 
@@ -35,7 +36,7 @@ const MENU_CONFIG: { default: MenuConfig; file: MenuConfig; weblink: MenuConfig 
         key: 'process',
         label: 'Processing',
         items: [
-          { key: 'llm', label: 'LLM', description: 'Run LLM', onPickEdgeType: 'llmnew' },
+          { key: 'llm', label: 'LLM', description: 'with AI', onPickEdgeType: 'llmnew' },
           { key: 'modify', label: 'Modify', description: 'Copy, convert, edit', submenu: [] },
         ],
       },
@@ -46,14 +47,14 @@ const MENU_CONFIG: { default: MenuConfig; file: MenuConfig; weblink: MenuConfig 
           {
             key: 'chunk',
             label: 'Chunk',
-            description: 'Split into chunks',
+            description: 'by length, character',
             submenu: [
               { key: 'auto', label: 'Auto', onPickEdgeType: 'chunkingAuto' },
               { key: 'by-length', label: 'Length', onPickEdgeType: 'chunkingByLength' },
               { key: 'by-character', label: 'Character', onPickEdgeType: 'chunkingByCharacter' },
             ],
           },
-          { key: 'retrieve', label: 'Retrieve', description: 'Vector retrieval', onPickEdgeType: 'retrieving' },
+          { key: 'retrieve', label: 'Retrieve', description: 'by query from a base', onPickEdgeType: 'retrieving' },
           { key: 'generate', label: 'Generate', description: 'Generate with context', onPickEdgeType: 'generate' },
         ],
       },
@@ -71,7 +72,7 @@ const MENU_CONFIG: { default: MenuConfig; file: MenuConfig; weblink: MenuConfig 
           {
             key: 'search',
             label: 'Search',
-            description: 'Web search',
+            description: 'for web',
             submenu: [
               { key: 'perplexity', label: 'Perplexity', onPickEdgeType: 'searchPerplexity' },
               { key: 'google', label: 'Google', onPickEdgeType: 'searchGoogle' },
@@ -358,7 +359,7 @@ function ScrollList({
   return (
     <ul
       ref={listRef}
-      className={`max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0  items-start ${
+      className={`max-h-[360px] overflow-y-auto overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0  items-start ${
         topShadow ? 'scroll-shadow-top' : ''
       } ${bottomShadow ? 'scroll-shadow-bottom' : ''} ${className ?? ''}`}
       onScroll={onScroll}
@@ -393,26 +394,30 @@ function MenuItemView({
     <li
       key={item.key}
       ref={(el) => setRef(el, index)}
-      className={`w-full min-h-[48px] px-[8px] ${isDisabled ? 'cursor-default' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] bg-[#3E3E41] hover:bg-[#3E3E41]`}
+      className={`menu-item group w-full min-h-[40px] px-[6px] ${isDisabled ? 'cursor-default' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] bg-[#3E3E41] hover:bg-[#FFA73D] transition-colors duration-100 ease-out`}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       onClick={onClick}
     >
       <div className='flex items-center gap-[11px] flex-1'>
-        <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+        <div className='w-[30px] h-[30px] bg-[#1C1D1F] group-hover:bg-black flex items-center justify-center rounded-[5px] transition-colors duration-100 ease-out'>
           <Icon name={item.key} />
         </div>
         <div className='flex flex-col items-start justify-center'>
-          <div className='text-[12px] font-plus-jakarta-sans leading-[16px]'>{item.label}</div>
+          <div className='menu-item__label text-[12px] font-plus-jakarta-sans leading-[16px] text-[#CDCDCD] group-hover:text-black transition-colors duration-100 ease-out'>{item.label}</div>
           {item.description && (
-            <div className='text-[10px] text-[#9AA0A6] leading-[14px]'>
+            <div className='menu-item__desc text-[10px] leading-[14px] text-[#9AA0A6] group-hover:text-black transition-colors duration-100 ease-out'>
               {item.description}
             </div>
           )}
         </div>
       </div>
       {hasSubmenu && (
-        <span className='text-[#9AA0A6]'>▸</span>
+        <span className='text-[#9AA0A6] group-hover:text-black transition-colors duration-100 ease-out'>
+          <svg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'>
+            <path d='M6 10.2427L10.2426 6.00004L6 1.75739' stroke='currentColor'/>
+          </svg>
+        </span>
       )}
     </li>
   );
@@ -450,7 +455,7 @@ function SectionList({
           </li>
           {section.items.map((item) => {
             const index = flatItems.findIndex((fi) => fi.key === item.key);
-            const isActive = index === activeMainIndex && openSubmenuIndex === null;
+            const isActive = false; // pure hover mode: no active highlight by keyboard
             const isDisabled = !!item.disabled;
             const hasSubmenu = Array.isArray(item.submenu) && item.submenu.length > 0;
             return (
@@ -469,7 +474,6 @@ function SectionList({
                   } else {
                     closeSubmenuWithDelay();
                   }
-                  setActiveMainIndex(index);
                 }}
                 onMouseLeave={() => {
                   if (hasSubmenu) {
@@ -480,9 +484,8 @@ function SectionList({
                   if (isDisabled) return;
                   if (item.onPickEdgeType) {
                     handlePick(item.onPickEdgeType, item.key);
-                  } else if (hasSubmenu) {
-                    openSubmenuWithDelay(index);
                   }
+                  // If item has submenu, do not open on click; hover handles opening
                 }}
               />
             );
@@ -523,22 +526,20 @@ function SubmenuPanel({
   if (openSubmenuIndex === null) return null;
   return (
     <div
-      className='absolute left-full ml-1 bg-[#181818] text-[#CDCDCD] border-2 border-[#3E3E41] rounded-[16px] p-[8px] pr-0 shadow-lg'
+      className='absolute left-full -ml-[12px] bg-[#181818] text-[#CDCDCD] border-2 border-[#3E3E41] rounded-[16px] p-[8px] shadow-lg'
       style={{ top: submenuTop }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
       <ul
         ref={subListRef}
-        className={`min-w-[150px] max-h-[360px] overflow-y-scroll overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0 items-start ${
-          subHasTopShadow ? 'scroll-shadow-top' : ''
-        } ${subHasBottomShadow ? 'scroll-shadow-bottom' : ''}`}
+        className={`min-w-[150px] overflow-y-visible overflow-x-hidden flex flex-col gap-[8px] py-0 items-start`}
         onScroll={handleSubScroll}
       >
         {items.map((s, si) => (
           <li
             key={s.key}
-            className={`w-full min-h-[48px] ${s.disabled ? 'text-neutral-500 cursor-not-allowed' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] px-[8px] bg-[#3E3E41] hover:bg-[#3E3E41]`}
+            className={`submenu-item group w-full min-h-[40px] ${s.disabled ? 'text-neutral-500 cursor-not-allowed' : 'cursor-pointer'} rounded-[8px] flex items-center justify-between gap-[11px] px-[6px] bg-[#3E3E41] hover:bg-[#FFA73D] transition-colors duration-100 ease-out`}
             onMouseEnter={() => setActiveSubIndex(si)}
             onClick={() => {
               if (s.disabled || !s.onPickEdgeType) return;
@@ -546,11 +547,11 @@ function SubmenuPanel({
             }}
           >
             <div className='flex items-center gap-[11px] flex-1'>
-              <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+              <div className='w-[30px] h-[30px] bg-[#1C1D1F] group-hover:bg-black flex items-center justify-center rounded-[6px] transition-colors duration-100 ease-out'>
                 <Icon name={s.key} />
               </div>
               <div className='flex flex-col items-start justify-center'>
-                <div className='text-[12px] font-plus-jakarta-sans leading-[16px]'>{s.label}</div>
+                <div className='submenu-item__label text-[12px] font-plus-jakarta-sans leading-[16px] text-[#CDCDCD] group-hover:text-black transition-colors duration-100 ease-out'>{s.label}</div>
               </div>
             </div>
           </li>
@@ -564,16 +565,20 @@ export type EdgeTypeMenuProps = {
   sourceType: string;
   onPick: (edgeType: string, subMenuType?: string | null) => void;
   onRequestClose: () => void;
+  anchorRef?: React.RefObject<HTMLElement | null>; // viewport-fixed portal anchor
 };
 
-const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onRequestClose }) => {
+const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onRequestClose, anchorRef }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
   const mainListRef = useRef<HTMLUListElement | null>(null);
   const subListRef = useRef<HTMLUListElement | null>(null);
   const listItemRefs = useRef<(HTMLLIElement | null)[]>([]);
 
+  // No keyboard highlight in pure hover mode; keep state for potential future needs
   const [activeMainIndex, setActiveMainIndex] = useState(0);
   const [openSubmenuIndex, setOpenSubmenuIndex] = useState<number | null>(null);
+  // No keyboard selection in pure hover mode
   const [activeSubIndex, setActiveSubIndex] = useState<number>(0);
   const [submenuTop, setSubmenuTop] = useState<number>(0);
   const [mainHasTopShadow, setMainHasTopShadow] = useState(false);
@@ -637,95 +642,65 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onReque
     }, 0);
   }, [updateScrollShadows]);
 
+  // Position the menu in a fixed portal anchored to the provided element
+  useEffect(() => {
+    let rafId: number | null = null;
+    const GAP = 8;
+
+    const positionMenu = () => {
+      const anchorEl = anchorRef?.current as HTMLElement | null;
+      const container = menuContainerRef.current;
+      if (!container || !anchorEl) {
+        rafId = requestAnimationFrame(positionMenu);
+        return;
+      }
+      const rect = anchorEl.getBoundingClientRect();
+      const menuWidth = 200; // sync with menuDims.width
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const top = rect.bottom + GAP;
+
+      container.style.position = 'fixed';
+      container.style.left = `${left}px`;
+      container.style.top = `${top}px`;
+      container.style.zIndex = '2000000';
+      container.style.pointerEvents = 'auto';
+
+      rafId = requestAnimationFrame(positionMenu);
+    };
+
+    positionMenu();
+    const onScroll = () => positionMenu();
+    const onResize = () => positionMenu();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [anchorRef]);
+
   const openSubmenuWithDelay = (index: number) => {
+    // Open immediately on hover; cancel any scheduled close
     clearTimers(openTimerRef, closeTimerRef);
-    openTimerRef.current = window.setTimeout(() => {
-      setOpenSubmenuIndex(index);
-      setActiveSubIndex(0);
-      updateSubmenuTop(index);
-      // ensure submenu scroll shadows are updated after it renders
-      window.setTimeout(() => {
-        updateScrollShadows(subListRef.current, setSubHasTopShadow, setSubHasBottomShadow);
-      }, 0);
-    }, 120);
+    setOpenSubmenuIndex(index);
+    setActiveSubIndex(0);
+    updateSubmenuTop(index);
+    // ensure submenu scroll shadows are updated after it renders
+    window.setTimeout(() => {
+      updateScrollShadows(subListRef.current, setSubHasTopShadow, setSubHasBottomShadow);
+    }, 0);
   };
 
   const closeSubmenuWithDelay = () => {
+    // Keep a small delay to prevent flicker when moving to submenu panel
     clearTimers(openTimerRef, closeTimerRef);
     closeTimerRef.current = window.setTimeout(() => {
       setOpenSubmenuIndex(null);
-    }, 250);
+    }, 180);
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    const hasOpenSubmenu = openSubmenuIndex !== null;
-    if (e.key === 'Escape') {
-      if (hasOpenSubmenu) {
-        setOpenSubmenuIndex(null);
-      } else {
-        onRequestClose();
-      }
-      return;
-    }
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      if (!hasOpenSubmenu) {
-        setActiveMainIndex(i => (i + 1) % flatItems.length);
-      } else {
-        const subItems = openSubmenuIndex !== null ? (flatItems[openSubmenuIndex]?.submenu ?? []) : [];
-        if (subItems.length > 0) setActiveSubIndex(i => (i + 1) % subItems.length);
-      }
-      return;
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      if (!hasOpenSubmenu) {
-        setActiveMainIndex(i => (i - 1 + flatItems.length) % flatItems.length);
-      } else {
-        const subItems = openSubmenuIndex !== null ? (flatItems[openSubmenuIndex]?.submenu ?? []) : [];
-        if (subItems.length > 0) setActiveSubIndex(i => (i - 1 + subItems.length) % subItems.length);
-      }
-      return;
-    }
-    if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      const item = flatItems[activeMainIndex];
-      const hasSubmenu = Array.isArray(item?.submenu) && item.submenu.length > 0;
-      if (hasSubmenu) {
-        setOpenSubmenuIndex(activeMainIndex);
-        setActiveSubIndex(0);
-        updateSubmenuTop(activeMainIndex);
-      }
-      return;
-    }
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      if (hasOpenSubmenu) {
-        setOpenSubmenuIndex(null);
-      }
-      return;
-    }
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const item = flatItems[activeMainIndex];
-      if (openSubmenuIndex === activeMainIndex) {
-        // pick sub
-        const subItems = item?.submenu ?? [];
-        const sub = subItems[activeSubIndex];
-        if (sub) {
-          if (!sub.disabled && sub.onPickEdgeType) {
-            onPick(sub.onPickEdgeType, sub.key);
-          }
-        }
-      } else if (item.onPickEdgeType) {
-        onPick(item.onPickEdgeType, item.key);
-      } else if (Array.isArray(item?.submenu) && item.submenu.length > 0) {
-        setOpenSubmenuIndex(activeMainIndex);
-        setActiveSubIndex(0);
-        updateSubmenuTop(activeMainIndex);
-      }
-    }
-  };
+  // Pure hover UX: no keyboard navigation handler
 
   const menuDims = useMemo(() => {
     const width = 200;
@@ -733,81 +708,103 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onReque
     return { width, height };
   }, [sourceType]);
 
-  return (
+  return createPortal(
     <div
-      ref={menuRef}
-      className='absolute left-0 top-[56px] bg-[#181818] text-[#CDCDCD] border-[2px] border-[#3E3E41] rounded-[16px] p-[8px] pr-0 shadow-lg text-sm overflow-visible outline-none menu-container'
-      style={{ width: menuDims.width }}
-      tabIndex={0}
-      onKeyDown={onKeyDown}
-      onWheelCapture={(e) => { e.stopPropagation(); }}
-      onWheel={(e) => { e.stopPropagation(); }}
-      onTouchMoveCapture={(e) => { e.stopPropagation(); }}
-      onTouchMove={(e) => { e.stopPropagation(); }}
+      ref={menuContainerRef}
+      style={{ position: 'fixed', zIndex: 2000000, width: menuDims.width }}
+      onMouseDown={(e) => { e.stopPropagation(); }}
+      onClick={(e) => { e.stopPropagation(); }}
     >
-      <div>
-        <ScrollList
-          listRef={mainListRef}
-          onScroll={handleMainScroll}
-          topShadow={mainHasTopShadow}
-          bottomShadow={mainHasBottomShadow}
-        >
-          <SectionList
-            sections={sections}
-            flatItems={flatItems}
-            activeMainIndex={activeMainIndex}
+      <div
+        ref={menuRef}
+        className='bg-[#181818] text-[#CDCDCD] border-[2px] border-[#3E3E41] rounded-[16px] pl-[8px] pr-0 pt-[8px] pb-[8px] shadow-lg text-sm overflow-visible outline-none menu-container'
+        style={{ width: menuDims.width }}
+        onWheelCapture={(e) => { e.stopPropagation(); }}
+        onWheel={(e) => { e.stopPropagation(); }}
+        onTouchMoveCapture={(e) => { e.stopPropagation(); }}
+        onTouchMove={(e) => { e.stopPropagation(); }}
+      >
+        <div>
+          <ScrollList
+            listRef={mainListRef}
+            onScroll={handleMainScroll}
+            topShadow={mainHasTopShadow}
+            bottomShadow={mainHasBottomShadow}
+          >
+            <SectionList
+              sections={sections}
+              flatItems={flatItems}
+              activeMainIndex={activeMainIndex}
+              openSubmenuIndex={openSubmenuIndex}
+              listItemRefs={listItemRefs}
+              openSubmenuWithDelay={openSubmenuWithDelay}
+              closeSubmenuWithDelay={closeSubmenuWithDelay}
+              updateSubmenuTop={updateSubmenuTop}
+              setActiveMainIndex={(i) => setActiveMainIndex(i)}
+              handlePick={onPick}
+            />
+          </ScrollList>
+        </div>
+
+        {openSubmenuIndex !== null && (
+          <SubmenuPanel
             openSubmenuIndex={openSubmenuIndex}
-            listItemRefs={listItemRefs}
-            openSubmenuWithDelay={openSubmenuWithDelay}
-            closeSubmenuWithDelay={closeSubmenuWithDelay}
-            updateSubmenuTop={updateSubmenuTop}
-            setActiveMainIndex={(i) => setActiveMainIndex(i)}
+            submenuTop={submenuTop}
+            items={(openSubmenuIndex !== null) ? (flatItems[openSubmenuIndex]?.submenu ?? []) : []}
+            onMouseEnter={() => { if (openSubmenuIndex !== null) openSubmenuWithDelay(openSubmenuIndex); }}
+            onMouseLeave={closeSubmenuWithDelay}
+            subListRef={subListRef}
+            subHasTopShadow={subHasTopShadow}
+            subHasBottomShadow={subHasBottomShadow}
+            handleSubScroll={handleSubScroll}
+            activeSubIndex={activeSubIndex}
+            setActiveSubIndex={() => {}}
             handlePick={onPick}
           />
-        </ScrollList>
-      </div>
+        )}
 
-      {openSubmenuIndex !== null && (
-        <SubmenuPanel
-          openSubmenuIndex={openSubmenuIndex}
-          submenuTop={submenuTop}
-          items={(openSubmenuIndex !== null) ? (flatItems[openSubmenuIndex]?.submenu ?? []) : []}
-          onMouseEnter={() => { if (openSubmenuIndex !== null) openSubmenuWithDelay(openSubmenuIndex); }}
-          onMouseLeave={closeSubmenuWithDelay}
-          subListRef={subListRef}
-          subHasTopShadow={subHasTopShadow}
-          subHasBottomShadow={subHasBottomShadow}
-          handleSubScroll={handleSubScroll}
-          activeSubIndex={activeSubIndex}
-          setActiveSubIndex={(i) => setActiveSubIndex(i)}
-          handlePick={onPick}
-        />
-      )}
-
-      <style jsx>{`
-        .menu-scroll {
+        <style jsx>{`
+        :global(.menu-scroll) {
           -ms-overflow-style: auto; /* IE and Edge */
-          scrollbar-width: thin; /* Firefox: thin, always visible */
-          scrollbar-color:rgb(92, 92, 92) transparent; /* slightly darker than border */
+          scrollbar-width: thin; /* Firefox */
+          scrollbar-color: rgb(92, 92, 92) transparent !important; /* Firefox: thumb + transparent track */
           overscroll-behavior: contain;
-          scrollbar-gutter: stable; /* keep gutter so content won't shift */
-          color-scheme: light; /* prefer light scrollbars where supported */
+          color-scheme: dark; /* Hint OS/engine to use dark overlay scrollbars */
+          /* Use dark background to avoid white gutter/track on some WebKit */
+          background-color: #181818 !important;
+          -webkit-overflow-scrolling: touch;
         }
-        /* WebKit: thinner, darker gray, always visible */
-        .menu-scroll::-webkit-scrollbar { width: 4px; height: 4px; background: transparent; }
-        .menu-scroll::-webkit-scrollbar-track { background: transparent; }
-        .menu-scroll::-webkit-scrollbar-thumb {
-          background:rgb(92, 92, 92)!important;
+        /* WebKit: enforce transparent/dark visuals on all parts */
+        :global(.menu-scroll::-webkit-scrollbar) {
+          width: 6px; height: 6px;
+          background: transparent !important;
+          background-color: transparent !important;
+        }
+        :global(.menu-scroll::-webkit-scrollbar-track),
+        :global(.menu-scroll::-webkit-scrollbar-track-piece) {
+          /* Prefer transparent; if ignored, a dark color prevents white */
+          background: #181818 !important;
+          background-color: #181818 !important;
+        }
+        :global(.menu-scroll::-webkit-scrollbar-corner) {
+          background: transparent !important;
+        }
+        :global(.menu-scroll::-webkit-scrollbar-button) { display: none; height: 0; width: 0; }
+        :global(.menu-scroll::-webkit-scrollbar-thumb) {
+          background: rgba(130, 130, 130, 0.9) !important; /* dark thumb */
           border-radius: 8px;
-          border: 1px solid rgba(0,0,0,0); /* keep thumb slim look on thinner width */
+          border: 1px solid transparent; /* keep slim look */
+          background-clip: padding-box;
           box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
         }
-        .menu-scroll::-webkit-scrollbar-thumb:hover { background: #828282 !important; }
-        .menu-container { overscroll-behavior: contain; }
-        .scroll-shadow-top { box-shadow: inset 0 8px 8px -8px rgba(0,0,0,0.35); }
-        .scroll-shadow-bottom { box-shadow: inset 0 -8px 8px -8px rgba(0,0,0,0.35); }
-      `}</style>
-    </div>
+        :global(.menu-scroll::-webkit-scrollbar-thumb:hover) { background: rgba(160, 160, 160, 1) !important; }
+        :global(.menu-container) { overscroll-behavior: contain; color-scheme: dark; }
+        :global(.scroll-shadow-top) { box-shadow: inset 0 8px 8px -8px rgba(0,0,0,0.35); }
+        :global(.scroll-shadow-bottom) { box-shadow: inset 0 -8px 8px -8px rgba(0,0,0,0.35); }
+        `}</style>
+      </div>
+    </div>,
+    document.body
   );
 };
 

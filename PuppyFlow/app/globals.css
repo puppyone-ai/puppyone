@@ -1067,3 +1067,34 @@ input[type='number']::-webkit-outer-spin-button {
     opacity: 0.6;
   }
 }
+
+/* Global overrides for EdgeTypeMenu scrollbars (transparent/dark track) */
+.menu-scroll {
+  background-color: #181818 !important; /* dark fallback to avoid white gutter */
+  color-scheme: dark !important; /* dark overlay scrollbars where supported */
+  scrollbar-width: thin !important; /* Firefox */
+  scrollbar-color: #7a7a7a transparent !important; /* thumb + transparent track */
+}
+.menu-scroll::-webkit-scrollbar {
+  width: 6px; height: 6px;
+  background: transparent !important;
+  background-color: transparent !important;
+}
+.menu-scroll::-webkit-scrollbar-track,
+.menu-scroll::-webkit-scrollbar-track-piece {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+.menu-scroll::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+.menu-scroll::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.menu-scroll::-webkit-scrollbar-thumb {
+  background: rgba(120,120,120,0.95) !important;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+.menu-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(160,160,160,1) !important;
+}

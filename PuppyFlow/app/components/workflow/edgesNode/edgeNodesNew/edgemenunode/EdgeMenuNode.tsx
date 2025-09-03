@@ -112,6 +112,7 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
   const { getNode, setNodes, setEdges } = useReactFlow();
   const { isOnConnect } = useNodesPerFlowContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const portalAnchorRef = useRef<HTMLDivElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [, setIsTargetHandleTouched] = useState(false);
 
@@ -177,11 +178,14 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
         setIsTargetHandleTouched={setIsTargetHandleTouched}
         setIsHovered={setIsHovered}
       />
+      {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+      <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
 
       <EdgeTypeMenu
         sourceType={sourceType}
         onPick={handlePick}
         onRequestClose={removeSelf}
+        anchorRef={portalAnchorRef}
       />
     </div>
   );
