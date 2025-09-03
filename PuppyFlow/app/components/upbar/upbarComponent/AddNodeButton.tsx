@@ -224,7 +224,6 @@ function NodeMenu({
           position: snappedTopLeft,
           data: nodeData,
           type: draggedNodeType,
-          measured: { width, height },
           width,
           height,
         } as any,

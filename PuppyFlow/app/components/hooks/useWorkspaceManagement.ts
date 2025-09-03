@@ -409,7 +409,6 @@ export const useWorkspaceManagement = () => {
         label: node.data?.label || '',
         content: node.data?.content || '',
       },
-      measured: node.measured,
       selected: node.selected || false,
       dragging: node.dragging || false,
       width: node.width,
@@ -557,10 +556,7 @@ export const useWorkspaceManagement = () => {
               isLocal: false,
             },
           },
-          measured: {
-            width: 80,
-            height: 48,
-          },
+          
           selected: false,
           dragging: false,
           style: {
@@ -584,10 +580,7 @@ export const useWorkspaceManagement = () => {
             isWaitingForFlow: false,
           },
           type: 'text',
-          measured: {
-            width: 240,
-            height: 176,
-          },
+          
           width: 240,
           height: 176,
           style: {
@@ -613,10 +606,7 @@ export const useWorkspaceManagement = () => {
           },
           width: 240,
           height: 176,
-          measured: {
-            width: 240,
-            height: 176,
-          },
+          
           type: 'text',
           style: {
             zIndex: 1125,
