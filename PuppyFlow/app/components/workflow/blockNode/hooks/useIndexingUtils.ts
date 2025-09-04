@@ -113,8 +113,8 @@ export default function useIndexingUtils() {
             indexContent === null || indexContent === undefined
               ? ''
               : typeof indexContent === 'string'
-              ? indexContent
-              : JSON.stringify(indexContent);
+                ? indexContent
+                : JSON.stringify(indexContent);
 
           chunks.push({
             content: contentString,

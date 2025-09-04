@@ -1,5 +1,12 @@
 import { useCallback } from 'react';
-import { Edge, Node, Position, addEdge, useReactFlow, Connection } from '@xyflow/react';
+import {
+  Edge,
+  Node,
+  Position,
+  addEdge,
+  useReactFlow,
+  Connection,
+} from '@xyflow/react';
 import { nanoid } from 'nanoid';
 import useManageReactFlowUtils from './useManageReactFlowUtils';
 
@@ -19,9 +26,15 @@ export default function useConnectSpawn() {
       let blockX = point.x - BLOCK_W / 2;
       let blockY = point.y - BLOCK_H / 2;
 
-      if (sourceNode && (sourceNode as any).measured?.width && (sourceNode as any).measured?.height) {
-        const centerX = sourceNode.position.x + (sourceNode as any).measured.width / 2;
-        const centerY = sourceNode.position.y + (sourceNode as any).measured.height / 2;
+      if (
+        sourceNode &&
+        (sourceNode as any).measured?.width &&
+        (sourceNode as any).measured?.height
+      ) {
+        const centerX =
+          sourceNode.position.x + (sourceNode as any).measured.width / 2;
+        const centerY =
+          sourceNode.position.y + (sourceNode as any).measured.height / 2;
         const dx = point.x - centerX;
         const dy = point.y - centerY;
 
@@ -52,7 +65,10 @@ export default function useConnectSpawn() {
   const spawnOnConnectEnd = useCallback(
     (
       event: MouseEvent | TouchEvent,
-      connectStart: { nodeId: string | null; handleType: 'target' | 'source' | null },
+      connectStart: {
+        nodeId: string | null;
+        handleType: 'target' | 'source' | null;
+      },
       setNodes: (updater: (prev: Node[]) => Node[]) => void,
       setEdges: (updater: (prev: Edge[]) => Edge[]) => void,
       markerEnd: any
@@ -61,8 +77,12 @@ export default function useConnectSpawn() {
 
       const isMouse = (event as MouseEvent).clientX !== undefined;
       const screenPoint = {
-        x: isMouse ? (event as MouseEvent).clientX : (event as TouchEvent).changedTouches[0].clientX,
-        y: isMouse ? (event as MouseEvent).clientY : (event as TouchEvent).changedTouches[0].clientY,
+        x: isMouse
+          ? (event as MouseEvent).clientX
+          : (event as TouchEvent).changedTouches[0].clientX,
+        y: isMouse
+          ? (event as MouseEvent).clientY
+          : (event as TouchEvent).changedTouches[0].clientY,
       };
 
       const sourceId = connectStart.nodeId as string;
@@ -133,7 +153,12 @@ export default function useConnectSpawn() {
         );
       }
     },
-    [judgeNodeIsEdgeNode, screenToFlowPosition, getNode, computeBlockAlignedPosition]
+    [
+      judgeNodeIsEdgeNode,
+      screenToFlowPosition,
+      getNode,
+      computeBlockAlignedPosition,
+    ]
   );
 
   const handleBlockToBlockConnect = useCallback(
@@ -217,5 +242,3 @@ export default function useConnectSpawn() {
 
   return { spawnOnConnectEnd, handleBlockToBlockConnect };
 }
-
-

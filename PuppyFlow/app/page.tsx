@@ -47,7 +47,11 @@ function MainApplication() {
 
     // Client-side boot log and env check
     try {
-      const type = (process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() === 'cloud' ? 'cloud' : 'local';
+      const type =
+        (process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() ===
+        'cloud'
+          ? 'cloud'
+          : 'local';
       // Safe to log NEXT_PUBLIC_* values directly
       console.log('🐶 [PuppyFlow] Client boot:', {
         deploymentType: type,
@@ -87,25 +91,31 @@ function MainApplication() {
 
     // Wrap fetch to catch 401 responses
     window.fetch = async (...args) => {
-      const response = await originalFetch(...(args as Parameters<typeof originalFetch>));
+      const response = await originalFetch(
+        ...(args as Parameters<typeof originalFetch>)
+      );
       if (response && response.status === 401) {
         // Show prompt and let user decide
         setAuthExpired(true);
-        window.dispatchEvent(new CustomEvent('auth:expired', { detail: { status: 401 } }));
+        window.dispatchEvent(
+          new CustomEvent('auth:expired', { detail: { status: 401 } })
+        );
       }
       return response;
     };
 
     // Axios response interceptor to handle 401 globally
     const interceptorId = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
+      response => response,
+      error => {
         const status: number | undefined = error?.response?.status;
         if (status === 401) {
           // Show prompt and let user decide
           setAuthExpired(true);
           if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('auth:expired', { detail: { status: 401 } }));
+            window.dispatchEvent(
+              new CustomEvent('auth:expired', { detail: { status: 401 } })
+            );
           }
         }
         return Promise.reject(error);
@@ -150,7 +160,11 @@ function MainApplication() {
           </WorkspacesProvider>
         </ReactFlowProvider>
       </AppSettingsProvider>
-      <AuthExpiredPrompt visible={authExpired} onLogin={handleLogin} onDismiss={handleDismiss} />
+      <AuthExpiredPrompt
+        visible={authExpired}
+        onLogin={handleLogin}
+        onDismiss={handleDismiss}
+      />
     </div>
   );
 }

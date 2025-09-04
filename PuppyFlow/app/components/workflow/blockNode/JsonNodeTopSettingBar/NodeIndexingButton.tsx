@@ -59,8 +59,10 @@ function NodeIndexingButton({
 
     const onDocClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
-      const clickedInsideButton = !!componentRef.current && componentRef.current.contains(target);
-      const clickedInsideMenu = !!menuContainerRef.current && menuContainerRef.current.contains(target);
+      const clickedInsideButton =
+        !!componentRef.current && componentRef.current.contains(target);
+      const clickedInsideMenu =
+        !!menuContainerRef.current && menuContainerRef.current.contains(target);
       if (!clickedInsideButton && !clickedInsideMenu) {
         setShowMenu(false);
       }
@@ -95,7 +97,10 @@ function NodeIndexingButton({
       const containerWidth = container.offsetWidth || 420; // 估算，首次渲染后会被真实宽度覆盖
       const top = rect.bottom + GAP;
       let left = rect.left; // 左对齐按钮
-      left = Math.max(8, Math.min(left, window.innerWidth - containerWidth - 8));
+      left = Math.max(
+        8,
+        Math.min(left, window.innerWidth - containerWidth - 8)
+      );
 
       container.style.position = 'fixed';
       container.style.top = `${top}px`;
@@ -184,8 +189,8 @@ function NodeIndexingButton({
             ref={menuContainerRef}
             style={{ position: 'fixed', zIndex: 2000000 }}
             className='indexing-menu-container'
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
             <IndexingMenu
               id={nodeid}

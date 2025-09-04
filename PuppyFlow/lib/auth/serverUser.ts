@@ -9,7 +9,8 @@ export async function getCurrentUserId(request: Request): Promise<string> {
   }
 
   const allowWithoutServiceKey =
-    (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true';
+    (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() ===
+    'true';
   if (!process.env.SERVICE_KEY && !allowWithoutServiceKey) {
     throw new Error(
       'Cloud mode requires SERVICE_KEY (or set ALLOW_VERIFY_WITHOUT_SERVICE_KEY=true for dev)'
@@ -44,7 +45,6 @@ export async function getCurrentUserId(request: Request): Promise<string> {
   const res = await fetch(url, {
     method: 'GET',
     headers: verifyHeaders,
-
   });
   if (!res.ok) throw new Error(`verify failed: ${res.status}`);
 
@@ -53,5 +53,3 @@ export async function getCurrentUserId(request: Request): Promise<string> {
   if (!userId) throw new Error('user_id not found from verify');
   return String(userId);
 }
-
-
