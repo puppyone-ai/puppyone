@@ -144,9 +144,9 @@ export type SearchGoogleEdgeJsonType = {
 
 // 添加 Perplexity 类型
 export type perplexityModelNames =
-  | 'llama-3.1-sonar-small-128k-online'
-  | 'llama-3.1-sonar-large-128k-online'
-  | 'llama-3.1-sonar-huge-128k-online';
+  | 'sonar'
+  | 'sonar-pro'
+  | 'sonar-reasoning-pro';
 
 export type SearchPerplexityEdgeJsonType = {
   type: 'search';
@@ -171,7 +171,7 @@ export type LLMEdgeJsonType = {
       role: 'system' | 'user' | 'assistant';
       content: string;
     }[];
-    model: { [key: string]: { inference_method?: string } };
+    model: string;
     base_url: string;
     max_tokens: number;
     temperature: number;
@@ -299,6 +299,55 @@ export type LoadEdgeJsonType = {
   };
 };
 
+export type DeepResearchEdgeJsonType = {
+  type: 'deep_research';
+  data: {
+    query: string;
+    extra_configs: {
+      model: string;
+      temperature: number;
+      max_tokens: number;
+      max_iterations: number;
+      vector_search_configs: {
+        top_k: number;
+        threshold: number;
+        data_source?: Array<{
+          id: string;
+          label: string;
+          index_item?: {
+            index_name: string;
+            collection_configs?: {
+              collection_name: string;
+            };
+          };
+        }>;
+      };
+      google_search_configs: {
+        enabled: boolean;
+        sub_search_type: string;
+        top_k: number;
+        filter_unreachable_pages: boolean;
+        firecrawl_config: {
+          formats: string[];
+          is_only_main_content: boolean;
+          wait_for: number;
+          skip_tls_verification: boolean;
+          remove_base64_images: boolean;
+        };
+      };
+      perplexity_search_configs: {
+        enabled: boolean;
+        sub_search_type: string;
+        model: string;
+        max_tokens: number;
+        temperature: number;
+      };
+    };
+    inputs: Record<string, string>;
+    outputs: Record<string, string>;
+  };
+};
+
 // 将 LoadEdgeJsonType 添加到 BaseEdgeJsonType 联合类型中
 export type BaseEdgeJsonType =
   | CopyEdgeJsonType
@@ -315,7 +364,8 @@ export type BaseEdgeJsonType =
   | RetrievingEdgeJsonType
   | IfElseEdgeJsonType
   | GenerateEdgeJsonType
-  | LoadEdgeJsonType;
+  | LoadEdgeJsonType
+  | DeepResearchEdgeJsonType;
 
 // 构造的数据类型
 export type BaseConstructedJsonData = {
@@ -942,8 +992,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
     const perplexityNodeData = getNode(nodeId)?.data;
 
     // 添加正确的类型检查
-    let perplexityModel: perplexityModelNames =
-      'llama-3.1-sonar-small-128k-online'; // 默认值
+    let perplexityModel: perplexityModelNames = 'sonar-pro'; // 默认值
 
     // 检查extra_configs是否存在并有model属性
     if (
@@ -958,9 +1007,9 @@ export function useEdgeNodeBackEndJsonBuilder() {
 
       // 验证是允许的模型名称之一
       if (
-        configModel === 'llama-3.1-sonar-small-128k-online' ||
-        configModel === 'llama-3.1-sonar-large-128k-online' ||
-        configModel === 'llama-3.1-sonar-huge-128k-online'
+        configModel === 'sonar' ||
+        configModel === 'sonar-pro' ||
+        configModel === 'sonar-reasoning-pro'
       ) {
         perplexityModel = configModel;
       }
@@ -1035,27 +1084,14 @@ export function useEdgeNodeBackEndJsonBuilder() {
         }
       | undefined;
 
-    let modelObject: { [key: string]: { inference_method?: string } } = {};
+    let modelString = 'openai/gpt-4o-mini'; // 默认值
 
     if (
       modelAndProvider &&
       typeof modelAndProvider === 'object' &&
-      'id' in modelAndProvider &&
-      'isLocal' in modelAndProvider
+      'id' in modelAndProvider
     ) {
-      const modelId = modelAndProvider.id;
-      const isLocal = modelAndProvider.isLocal;
-
-      if (isLocal) {
-        // 本地模型：添加 inference_method
-        modelObject[modelId] = { inference_method: 'ollama' }; // 默认使用 ollama，也可以是 huggingface
-      } else {
-        // 非本地模型：保持内部 JSON 为空
-        modelObject[modelId] = {};
-      }
-    } else {
-      // 如果没有模型信息，使用默认值
-      modelObject['anthropic/claude-3.5-haiku'] = {};
+      modelString = modelAndProvider.id;
     }
 
     const llmBaseUrl =
@@ -1073,7 +1109,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
       data: {
         messages: filteredMessages,
         chat_histories: filteredMessages, // 添加 chat_histories 字段，内容与 messages 相同
-        model: modelObject,
+        model: modelString,
         base_url: llmBaseUrl,
         max_tokens: maxTokens,
         temperature: 0.7,

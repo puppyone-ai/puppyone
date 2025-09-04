@@ -34,7 +34,7 @@ export function GroupDeployToolbar({
 
   const { deleteApiService, deleteChatbotService } = useServerOperations();
   const { removeApiService, removeChatbotService } = useServers();
-  const API_SERVER_URL = SYSTEM_URLS.API_SERVER.BASE;
+  const API_SERVER_URL = '/api/server';
 
   // Get workspace services
   const workspaceServices = selectedFlowId
@@ -223,11 +223,11 @@ export function GroupDeployToolbar({
         );
       default:
         return (
-          <div className='py-[16px] px-[16px]'>
+          <div className='py-1 px-1'>
             {/* 无部署服务时的提示 */}
             {deployedServices.apis.length === 0 &&
               deployedServices.chatbots.length === 0 && (
-                <div className='mb-6'>
+                <div className='mb-3'>
                   <div className='text-center py-4'>
                     <div className='text-[#808080] text-[12px]'>
                       No deployed services yet
@@ -242,9 +242,9 @@ export function GroupDeployToolbar({
             {/* 已部署的服务列表 */}
             {(deployedServices.apis.length > 0 ||
               deployedServices.chatbots.length > 0) && (
-              <div className='mb-6'>
-                <div className='flex items-center justify-between mb-4'>
-                  <h3 className='text-[#808080] text-[14px] font-normal'>
+              <div className='mb-3'>
+                <div className='flex items-center justify-between mb-2 px-3'>
+                  <h3 className='text-[#808080] text-[12px] font-normal'>
                     Deployed Services
                   </h3>
                   <button
@@ -280,18 +280,18 @@ export function GroupDeployToolbar({
                     </svg>
                   </button>
                 </div>
-                <div className='space-y-2 max-h-[200px] overflow-y-auto'>
+                <div className='space-y-1 max-h-[200px] overflow-y-auto px-1'>
                   {/* API 服务列表 */}
                   {deployedServices.apis.map(api => (
                     <div
                       key={api.api_id}
-                      className='flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]'
+                      className='flex items-center gap-2 px-3 py-2 rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]'
                       onClick={() =>
                         handleDeployedServiceClick('api', api.api_id)
                       }
                     >
                       {/* 服务类型图标 */}
-                      <div className='w-6 h-6 rounded-md border border-[#60A5FA] flex items-center justify-center flex-shrink-0'>
+                      <div className='w-5 h-5 rounded-md border border-[#60A5FA] flex items-center justify-center flex-shrink-0'>
                         <svg
                           className='w-3 h-3 text-[#60A5FA]'
                           fill='currentColor'
@@ -308,12 +308,12 @@ export function GroupDeployToolbar({
 
                       {/* 服务信息 */}
                       <div className='flex-1 min-w-0 text-left'>
-                        <div className='text-[#CDCDCD] text-[11px] font-medium group-hover:text-white text-left'>
+                        <div className='text-[#CDCDCD] text-[12px] font-medium group-hover:text-white text-left'>
                           {api.api_id.length > 12
                             ? `${api.api_id.substring(0, 12)}...`
                             : api.api_id}
                         </div>
-                        <div className='text-[9px] text-[#808080] mt-[1px] text-left'>
+                        <div className='text-[10px] text-[#808080] mt-[1px] text-left'>
                           API Service
                         </div>
                       </div>
@@ -321,7 +321,7 @@ export function GroupDeployToolbar({
                       {/* 删除按钮 */}
                       <button
                         onClick={e => handleDeleteApi(api.api_id, e)}
-                        className='flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200 mr-[8px]'
+                        className='flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200'
                         title='Delete API'
                       >
                         <svg
@@ -344,7 +344,7 @@ export function GroupDeployToolbar({
                   {deployedServices.chatbots.map(chatbot => (
                     <div
                       key={chatbot.chatbot_id}
-                      className='flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer  hover:bg-[#2A2A2A]'
+                      className='flex items-center gap-2 px-3 py-2 rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]'
                       onClick={() =>
                         handleDeployedServiceClick(
                           'chatbot',
@@ -353,7 +353,7 @@ export function GroupDeployToolbar({
                       }
                     >
                       {/* 服务类型图标 */}
-                      <div className='w-6 h-6 rounded-md border border-[#A78BFA] flex items-center justify-center flex-shrink-0'>
+                      <div className='w-5 h-5 rounded-md border border-[#A78BFA] flex items-center justify-center flex-shrink-0'>
                         <svg
                           className='w-3 h-3 text-[#A78BFA]'
                           fill='currentColor'
@@ -367,12 +367,12 @@ export function GroupDeployToolbar({
 
                       {/* 服务信息 */}
                       <div className='flex-1 min-w-0 text-left'>
-                        <div className='text-[#CDCDCD] text-[11px] font-medium group-hover:text-white text-left'>
+                        <div className='text-[#CDCDCD] text-[12px] font-medium group-hover:text-white text-left'>
                           {chatbot.chatbot_id.length > 12
                             ? `${chatbot.chatbot_id.substring(0, 12)}...`
                             : chatbot.chatbot_id}
                         </div>
-                        <div className='text-[9px] text-[#808080] mt-[1px] text-left'>
+                        <div className='text-[10px] text-[#808080] mt-[1px] text-left'>
                           Chatbot Service
                         </div>
                       </div>
@@ -382,7 +382,7 @@ export function GroupDeployToolbar({
                         onClick={e =>
                           handleDeleteChatbot(chatbot.chatbot_id, e)
                         }
-                        className='flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200 mr-[8px]'
+                        className='flex items-center justify-center w-[24px] h-[24px] text-[#E74C3C] rounded-[4px] hover:bg-[#E74C3C]/20 transition-colors duration-200'
                         title='Delete Chatbot'
                       >
                         <svg
@@ -406,20 +406,20 @@ export function GroupDeployToolbar({
 
             {/* 新建部署选项 */}
             <div
-              className={`${deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0 ? 'border-t border-[#404040] pt-4' : ''}`}
+              className={`${deployedServices.apis.length > 0 || deployedServices.chatbots.length > 0 ? 'border-t border-[#404040] pt-2' : ''}`}
             >
-              <h3 className='text-[#808080] text-[14px] font-normal mb-4 text-left'>
+              <h3 className='text-[#808080] text-[12px] font-normal mb-2 text-left px-3'>
                 Create New Deployment
               </h3>
-              <div className='space-y-2'>
+              <div className='space-y-1 px-1'>
                 {deploymentOptions.map(option => (
                   <div
                     key={option.id}
-                    className='flex items-center gap-[12px] py-[12px] pl-[12px] pr-[8px] rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]'
+                    className='flex items-center gap-2 px-3 py-2 rounded-md border border-[#404040] transition-colors group cursor-pointer hover:bg-[#2A2A2A]'
                     onClick={() => setActivePanel(option.id)}
                   >
                     {/* 服务类型图标 */}
-                    <div className='w-6 h-6 rounded-md border border-[#606060] flex items-center justify-center flex-shrink-0'>
+                    <div className='w-5 h-5 rounded-md border border-[#606060] flex items-center justify-center flex-shrink-0'>
                       {option.id === 'api' ? (
                         <svg
                           className='w-3 h-3 text-[#606060]'
@@ -448,16 +448,16 @@ export function GroupDeployToolbar({
 
                     {/* 服务信息 */}
                     <div className='flex-1 min-w-0 text-left'>
-                      <div className='text-[#CDCDCD] text-[11px] font-medium group-hover:text-white text-left'>
+                      <div className='text-[#CDCDCD] text-[12px] font-medium group-hover:text-white text-left'>
                         {option.label}
                       </div>
-                      <div className='text-[9px] text-[#808080] mt-[1px] text-left'>
+                      <div className='text-[10px] text-[#808080] mt-[1px] text-left'>
                         {option.description}
                       </div>
                     </div>
 
                     {/* 右侧加号图标 */}
-                    <div className='flex items-center justify-center w-[24px] h-[24px] text-[#606060] group-hover:text-[#CDCDCD] transition-colors duration-200 mr-[8px]'>
+                    <div className='flex items-center justify-center w-[24px] h-[24px] text-[#606060] group-hover:text-[#CDCDCD] transition-colors duration-200'>
                       <svg
                         className='w-4 h-4'
                         fill='none'
@@ -483,7 +483,7 @@ export function GroupDeployToolbar({
   };
 
   return (
-    <div className='w-[380px] rounded-xl bg-[#1E1E1E] shadow-xl border border-[#404040] overflow-hidden'>
+    <div className='w-[380px] rounded-[8px] bg-[#232323] shadow-none border border-[#404040] overflow-hidden p-1'>
       {renderActivePanel()}
     </div>
   );

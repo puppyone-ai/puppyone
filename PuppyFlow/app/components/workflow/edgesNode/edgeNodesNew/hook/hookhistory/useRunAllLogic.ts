@@ -19,6 +19,8 @@ export interface BaseEdgeNodeLogicReturn {
   handleDataSubmit: (...args: any[]) => Promise<void>;
 }
 
+// 🔒 DEPRECATED: This hook uses legacy client-side authentication patterns
+// Use runAllNodesExecutor.ts with proxy-based authentication instead
 export function useBaseEdgeNodeLogic({
   constructJsonData: customConstructJsonData,
   onComplete,
@@ -28,6 +30,9 @@ export function useBaseEdgeNodeLogic({
   onComplete?: () => void;
   onStart?: () => void;
 } = {}): BaseEdgeNodeLogicReturn {
+  console.warn(
+    '⚠️ DEPRECATED: useRunAllLogic uses legacy authentication. Use runAllNodesExecutor instead.'
+  );
   console.log(`🔄 [useBaseEdgeNodeLogic - useRunAllLogic] Hook初始化`);
 
   // Basic hooks
@@ -39,7 +44,7 @@ export function useBaseEdgeNodeLogic({
     resetLoadingUI,
   } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
-  const { getAuthHeaders } = useAppSettings();
+  const {} = useAppSettings();
 
   // Add hooks for JSON building
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
@@ -129,9 +134,9 @@ export function useBaseEdgeNodeLogic({
 
       const response = await fetch(`${backend_IP_address_for_sendingData}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          ...getAuthHeaders(),
         },
         body: JSON.stringify(jsonData),
       });

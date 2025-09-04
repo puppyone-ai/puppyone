@@ -292,20 +292,7 @@
 }
 
 /* 可选：添加hover效果 */
-.react-flow__edge:hover .react-flow__edge-path,
-.react-flow__edge:hover #custom-arrow-default path {
-  /* hover时的边颜色 */
-  stroke-dasharray: 8, 8;
-  animation: flow 6s linear infinite;
-  /* fill: #FFA73D !important; */
-}
-
-/* 修改选中边的样式 */
-.react-flow__edge.selected .react-flow__edge-path {
-  stroke: #ffa73d !important; /* 选中时的边颜色 */
-  stroke-dasharray: 8, 8;
-  animation: flow 6s linear infinite;
-}
+/* moved edge hover/selected styles into edge components */
 
 /* 根据节点尺寸区分 Block Node 和 Edge Node */
 
@@ -876,11 +863,11 @@ input[type='number']::-webkit-outer-spin-button {
 }
 
 .react-flow__controls-custom {
-  background: #252525;
-  border: 1px solid #3e3e41;
-  border-radius: 8px;
-  padding: 4px;
-  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  height: 36px; /* match toolbar button height */
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -890,7 +877,7 @@ input[type='number']::-webkit-outer-spin-button {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
+  gap: 2px; /* tighter */
 }
 
 /* 重新排序按钮 */
@@ -908,8 +895,8 @@ input[type='number']::-webkit-outer-spin-button {
 
 /* 按钮基础样式 */
 .react-flow__controls-custom button {
-  width: 28px;
-  height: 28px;
+  width: 24px; /* smaller */
+  height: 24px; /* smaller */
   background: transparent;
   border: none;
   color: #6d7177;
@@ -921,13 +908,21 @@ input[type='number']::-webkit-outer-spin-button {
 
 /* hover 样式 */
 .react-flow__controls-custom button:hover {
-  background: #3e3e41;
+  background: #444444; /* clearer hover */
+  border-radius: 4px;
+  color: #cdcdcd;
+}
+
+.react-flow__controls-custom button:active {
+  background: #505050; /* active press */
   border-radius: 4px;
   color: #cdcdcd;
 }
 
 /* 确保 SVG 图标颜色跟随按钮颜色变化 */
 .react-flow__controls-custom button svg {
+  width: 14px; /* slightly smaller icon */
+  height: 14px; /* slightly smaller icon */
   fill: #6d7177;
 }
 

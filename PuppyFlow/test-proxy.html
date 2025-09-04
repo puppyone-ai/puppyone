@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Proxy Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔒 Server API Proxy Test Suite</h1>
+    <p>这个页面帮助测试我们新实现的Server API代理的安全性和功能性。</p>
+
+    <div class="test-section">
+        <h2>📋 测试前检查</h2>
+        <button onclick="checkCookies()">检查认证 Cookie</button>
+        <button onclick="checkProxyEndpoint()">检查代理端点</button>
+        <div id="precheck-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔐 认证安全测试</h2>
+        <button onclick="testWithoutAuth()">测试无认证请求</button>
+        <button onclick="testWithAuth()">测试有认证请求</button>
+        <div id="auth-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>📡 API 功能测试</h2>
+        <button onclick="testDeployments()">获取部署列表</button>
+        <button onclick="testCreateAPI()">创建 API 服务</button>
+        <button onclick="testCreateChatbot()">创建 Chatbot</button>
+        <div id="api-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>🛡️ 安全验证</h2>
+        <button onclick="checkNetworkSecurity()">检查网络安全</button>
+        <button onclick="checkHeaderSafety()">检查请求头安全</button>
+        <div id="security-results"></div>
+    </div>
+
+    <script>
+        function log(elementId, message, type = 'info') {
+            const element = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            element.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+        }
+
+        function logJSON(elementId, data, title = 'Response') {
+            const element = document.getElementById(elementId);
+            element.innerHTML += `<pre><strong>${title}:</strong>\n${JSON.stringify(data, null, 2)}</pre>`;
+        }
+
+        async function checkCookies() {
+            log('precheck-results', '检查认证 cookies...', 'info');
+            const cookies = document.cookie;
+            
+            if (cookies.includes('access_token')) {
+                log('precheck-results', '✅ 找到 access_token cookie', 'success');
+            } else {
+                log('precheck-results', '⚠️ 未找到 access_token cookie - 某些测试可能失败', 'error');
+            }
+            
+            log('precheck-results', `Cookies: ${cookies || '(无cookie)'}`, 'info');
+        }
+
+        async function checkProxyEndpoint() {
+            log('precheck-results', '检查代理端点...', 'info');
+            
+            try {
+                const response = await fetch('/api/server/health', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                if (response.status === 404) {
+                    log('precheck-results', '✅ 代理端点存在 (404是预期的，因为后端可能没有health端点)', 'success');
+                } else {
+                    log('precheck-results', `✅ 代理端点响应: ${response.status}`, 'success');
+                }
+            } catch (error) {
+                log('precheck-results', `❌ 代理端点错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testWithoutAuth() {
+            log('auth-results', '测试无认证请求...', 'info');
+            
+            try {
+                const response = await fetch('/api/server/deployments', {
+                    method: 'GET',
+                    // 不包含 credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    log('auth-results', `✅ 无认证请求被正确拒绝: ${response.status}`, 'success');
+                    logJSON('auth-results', data, 'Error Response');
+                } else {
+                    log('auth-results', '⚠️ 无认证请求意外成功 - 可能有安全风险', 'error');
+                }
+            } catch (error) {
+                log('auth-results', `网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testWithAuth() {
+            log('auth-results', '测试有认证请求...', 'info');
+            
+            try {
+                const response = await fetch('/api/server/deployments', {
+                    method: 'GET',
+                    credentials: 'include' // 包含认证 cookie
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('auth-results', '✅ 有认证请求成功', 'success');
+                    logJSON('auth-results', data, 'Success Response');
+                } else {
+                    log('auth-results', `认证请求失败: ${response.status}`, 'error');
+                    logJSON('auth-results', data, 'Error Response');
+                }
+            } catch (error) {
+                log('auth-results', `网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDeployments() {
+            log('api-results', '测试获取部署列表...', 'info');
+            
+            try {
+                const response = await fetch('/api/server/deployments?include_details=true&include_keys=true', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('api-results', '✅ 部署列表获取成功', 'success');
+                    logJSON('api-results', data, 'Deployments');
+                } else {
+                    log('api-results', `部署列表获取失败: ${response.status}`, 'error');
+                    logJSON('api-results', data);
+                }
+            } catch (error) {
+                log('api-results', `网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCreateAPI() {
+            log('api-results', '测试创建 API 服务...', 'info');
+            
+            const testData = {
+                workspace_id: 'test-workspace-id',
+                inputs: ['input1', 'input2'],
+                outputs: ['output1']
+            };
+            
+            try {
+                const response = await fetch('/api/server/create_api', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('api-results', '✅ API 创建成功', 'success');
+                    logJSON('api-results', data, 'Created API');
+                } else {
+                    log('api-results', `API 创建失败: ${response.status}`, 'error');
+                    logJSON('api-results', data);
+                }
+            } catch (error) {
+                log('api-results', `网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function testCreateChatbot() {
+            log('api-results', '测试创建 Chatbot...', 'info');
+            
+            const testData = {
+                workspace_id: 'test-workspace-id',
+                input: 'user_input',
+                output: 'assistant_output',
+                multi_turn_enabled: true
+            };
+            
+            try {
+                const response = await fetch('/api/server/create_chatbot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(testData)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('api-results', '✅ Chatbot 创建成功', 'success');
+                    logJSON('api-results', data, 'Created Chatbot');
+                } else {
+                    log('api-results', `Chatbot 创建失败: ${response.status}`, 'error');
+                    logJSON('api-results', data);
+                }
+            } catch (error) {
+                log('api-results', `网络错误: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkNetworkSecurity() {
+            log('security-results', '检查网络请求安全性...', 'info');
+            log('security-results', '请打开浏览器开发工具的 Network 面板，然后重新运行 API 测试', 'info');
+            log('security-results', '⚠️ 确认以下安全要点:', 'info');
+            log('security-results', '1. 请求不应包含 Authorization header (由客户端发送)', 'info');
+            log('security-results', '2. 请求不应包含 API keys 或 tokens', 'info');
+            log('security-results', '3. 只应该包含 Cookie header 用于认证', 'info');
+        }
+
+        async function checkHeaderSafety() {
+            log('security-results', '检查请求头安全性...', 'info');
+            
+            // 尝试发送恶意的 Authorization header
+            try {
+                const response = await fetch('/api/server/deployments', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': 'Bearer malicious-token-attempt'
+                    },
+                    credentials: 'include'
+                });
+                
+                log('security-results', '✅ 测试完成 - 检查代理是否正确过滤了恶意 Authorization header', 'success');
+                
+                if (response.ok) {
+                    log('security-results', '✅ 代理正确使用了服务端认证，忽略了客户端 header', 'success');
+                } else {
+                    log('security-results', `代理响应: ${response.status}`, 'info');
+                }
+            } catch (error) {
+                log('security-results', `网络错误: ${error.message}`, 'error');
+            }
+        }
+    </script>
+</body>
+</html>

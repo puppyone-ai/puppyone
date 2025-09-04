@@ -4,6 +4,7 @@
 """
 
 import json
+import os
 from typing import Iterator, Dict, Any, List, Optional, Union
 from io import StringIO
 import asyncio
@@ -24,7 +25,7 @@ class StreamingJSONHandler:
         """
         self.mode = mode
         self.buffer = StringIO()
-        self.chunk_size = 1024 * 1024  # 1MB per chunk
+        self.chunk_size = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))  # Configurable chunk size
         
     def split_to_jsonl(self, data: Union[List[Dict], Iterator[Dict]]) -> Iterator[bytes]:
         """

@@ -3,6 +3,7 @@ import { useReactFlow } from '@xyflow/react';
 
 // 定义两个常量数组来存储节点类型
 const EDGE_NODE_TYPES = [
+  'edgeMenu',
   'load',
   'chunk',
   'code',
@@ -25,6 +26,7 @@ const EDGE_NODE_TYPES = [
   'searchPerplexity',
   'llmnew',
   'ifelse',
+  'deepresearch',
 ] as const;
 
 const BLOCK_NODE_TYPES = [

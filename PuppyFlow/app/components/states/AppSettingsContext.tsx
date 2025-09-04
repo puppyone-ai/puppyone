@@ -40,7 +40,30 @@ import React, {
 import WarningToast from '../misc/WarningToast';
 import { useOllamaModels } from '../hooks/useOllamaModels';
 import { SYSTEM_URLS } from '@/config/urls';
-import Cookies from 'js-cookie';
+// import Cookies from 'js-cookie';
+
+// 定义用量数据类型
+export type UsageData = {
+  llm_calls: {
+    used: number;
+    total: number;
+    remaining: number;
+  };
+  runs: {
+    used: number;
+    total: number;
+    remaining: number;
+  };
+};
+
+// 定义套餐限制类型
+export type PlanLimits = {
+  workspaces: number;
+  deployedServices: number;
+  llm_calls: number;
+  runs: number;
+  fileStorage: string;
+};
 
 // 定义用户订阅状态类型
 export type UserSubscriptionStatus = {
@@ -78,6 +101,7 @@ type AppSettingsContextType = {
   cloudModels: Model[];
   localModels: Model[];
   availableModels: Model[];
+  // 部署类型
   isLocalDeployment: boolean;
   isLoadingLocalModels: boolean;
   ollamaConnected: boolean;
@@ -91,10 +115,7 @@ type AppSettingsContextType = {
   isLoadingSubscriptionStatus: boolean;
   fetchUserSubscriptionStatus: () => Promise<void>;
 
-  // 认证相关
-  getAuthHeaders: () => HeadersInit;
-  getUserToken: (forceLocal?: boolean) => string | undefined;
-  getCustomAuthHeaders: (headerName?: string) => Record<string, string>;
+  // 认证相关（全部由服务端处理，无需客户端headers）
 
   // 警告消息相关
   warns: WarnMessage[];
@@ -102,6 +123,12 @@ type AppSettingsContextType = {
   removeWarn: (index: number) => void;
   clearWarns: () => void;
   toggleWarnExpand: (index: number) => void;
+
+  // 用量和套餐限制相关
+  usageData: UsageData | null;
+  planLimits: PlanLimits;
+  isLoadingUsage: boolean;
+  fetchUsageData: () => Promise<void>;
 };
 
 // 创建上下文
@@ -219,7 +246,7 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 }) => {
   // 检查部署类型
   const isLocalDeployment =
-    (process.env.NEXT_PUBLIC_DEPLOYMENT_TYPE || '').toLowerCase() === 'local';
+    (process.env.NEXT_PUBLIC_DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud';
 
   // 使用 Ollama hook
   const {
@@ -240,6 +267,17 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
   const [isLoadingSubscriptionStatus, setIsLoadingSubscriptionStatus] =
     useState<boolean>(false);
 
+  // 用量和套餐限制状态管理
+  const [usageData, setUsageData] = useState<UsageData | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+  const [planLimits, setPlanLimits] = useState<PlanLimits>({
+    workspaces: 1,
+    deployedServices: 1,
+    llm_calls: 50,
+    runs: 100,
+    fileStorage: '5M',
+  });
+
   // 模型状态管理
   const [cloudModels, setCloudModels] = useState<Model[]>(CLOUD_MODELS);
   const [localModels, setLocalModels] = useState<Model[]>([]);
@@ -250,20 +288,45 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 当 Ollama 模型更新时，更新本地模型列表
   useEffect(() => {
-    if (isLocalDeployment) {
-      if (ollamaModels.length > 0) {
-        setLocalModels(ollamaModels);
-      } else if (ollamaError && !isLoadingLocalModels) {
-        // 如果 Ollama 连接失败，使用后备模型
-        setLocalModels(FALLBACK_LOCAL_MODELS);
-        addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
-      }
+    if (ollamaModels.length > 0) {
+      setLocalModels(ollamaModels);
+    } else if (ollamaError && !isLoadingLocalModels) {
+      setLocalModels(FALLBACK_LOCAL_MODELS);
+      addWarn(`无法连接到 Ollama 服务: ${ollamaError}`);
     }
-  }, [ollamaModels, ollamaError, isLoadingLocalModels, isLocalDeployment]);
+  }, [ollamaModels, ollamaError, isLoadingLocalModels]);
+
+  // 根据部署类型/订阅状态计算套餐限制
+  useEffect(() => {
+    if (isLocalDeployment) {
+      setPlanLimits({
+        workspaces: Infinity as unknown as number,
+        deployedServices: Infinity as unknown as number,
+        llm_calls: Infinity as unknown as number,
+        runs: Infinity as unknown as number,
+        fileStorage: '∞',
+      });
+    } else if (userSubscriptionStatus?.is_premium) {
+      setPlanLimits({
+        workspaces: 20,
+        deployedServices: 10,
+        llm_calls: 200,
+        runs: 1000,
+        fileStorage: '50M',
+      });
+    } else {
+      setPlanLimits({
+        workspaces: 1,
+        deployedServices: 1,
+        llm_calls: 50,
+        runs: 100,
+        fileStorage: '5M',
+      });
+    }
+  }, [userSubscriptionStatus, isLocalDeployment]);
 
   // 刷新本地模型的函数
   const refreshLocalModels = async () => {
-    if (!isLocalDeployment) return;
     await refreshOllamaModels();
   };
 
@@ -296,14 +359,8 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
 
   // 根据部署类型更新可用模型
   useEffect(() => {
-    if (isLocalDeployment) {
-      // 在本地部署时，同时包含本地模型和云端模型
-      setAvailableModels([...localModels, ...cloudModels]);
-    } else {
-      // 在云端部署时，只包含云端模型
-      setAvailableModels([...cloudModels]);
-    }
-  }, [isLocalDeployment, cloudModels, localModels]);
+    setAvailableModels([...localModels, ...cloudModels]);
+  }, [cloudModels, localModels]);
 
   // 切换模型可用性
   const toggleModelAvailability = (id: string) => {
@@ -337,92 +394,69 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     setLocalModels(localModels.filter(model => model.id !== id));
   };
 
-  // 认证相关方法 - 获取认证headers
-  const getAuthHeaders = (): HeadersInit => {
-    // 在本地部署时，可能不需要认证或有不同的认证逻辑
-    if (isLocalDeployment) {
-      // 本地开发环境的逻辑（根据需要调整）
-      const token = Cookies.get('access_token');
-      return token ? { Authorization: `Bearer ${token}` } : {};
+  // 客户端不再提供任何 auth headers 函数，统一用 credentials: 'include'
+
+  // 获取用户用量数据
+  const fetchUsageData = async () => {
+    if (isLocalDeployment || !userSubscriptionStatus) return;
+
+    setIsLoadingUsage(true);
+    try {
+      const [llmResponse, runsResponse] = await Promise.all([
+        fetch(`/api/user-system/usage/check/llm_calls`, {
+          method: 'GET',
+          credentials: 'include', // 认证现在通过HttpOnly cookie处理
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }),
+        fetch(`/api/user-system/usage/check/runs`, {
+          method: 'GET',
+          credentials: 'include', // 认证现在通过HttpOnly cookie处理
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }),
+      ]);
+
+      if (llmResponse.ok && runsResponse.ok) {
+        const llmData = await llmResponse.json();
+        const runsData = await runsResponse.json();
+
+        setUsageData({
+          llm_calls: {
+            used: llmData.current_usage || 0,
+            total: llmData.base_limit + (llmData.extra_balance || 0),
+            remaining: llmData.available || 0,
+          },
+          runs: {
+            used: runsData.current_usage || 0,
+            total: runsData.base_limit + (runsData.extra_balance || 0),
+            remaining: runsData.available || 0,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching usage data:', error);
+      // 可选：在这里设置默认或错误状态的用量数据
+      setUsageData(null);
+    } finally {
+      setIsLoadingUsage(false);
     }
-
-    // 生产环境始终要求认证
-    const token = Cookies.get('access_token');
-    if (!token) {
-      console.warn('No access token found in production environment');
-      addWarn('认证令牌缺失，请重新登录');
-      return {};
-    }
-
-    return { Authorization: `Bearer ${token}` };
-  };
-
-  // 获取用户token的通用方法
-  const getUserToken = (forceLocal?: boolean): string | undefined => {
-    const useLocal = forceLocal !== undefined ? forceLocal : isLocalDeployment;
-
-    if (useLocal) {
-      return 'local-token';
-    }
-
-    const token = Cookies.get('access_token');
-    if (!token && !useLocal) {
-      console.warn('No access token found in production environment');
-      addWarn('认证令牌缺失，请重新登录');
-    }
-
-    return token;
-  };
-
-  // 获取带有自定义header名称的认证headers
-  const getCustomAuthHeaders = (
-    headerName: string = 'Authorization'
-  ): Record<string, string> => {
-    const token = getUserToken();
-    return token ? { [headerName]: `Bearer ${token}` } : {};
   };
 
   // 获取用户订阅状态
   const fetchUserSubscriptionStatus = async (): Promise<void> => {
-    if (isLocalDeployment) {
-      // 本地部署模式，设置默认的订阅状态，用量为99999
-      setUserSubscriptionStatus({
-        is_premium: true, // 本地部署默认为premium
-        subscription_plan: 'premium',
-        subscription_status: 'active',
-        subscription_period_start: new Date().toISOString(),
-        subscription_period_end: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(), // 一年后
-        effective_end_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        days_left: 99999, // 本地部署设置为99999天
-        expired_date: new Date(
-          Date.now() + 365 * 24 * 60 * 60 * 1000
-        ).toISOString(),
-      });
-      return;
-    }
-
-    // 云端部署模式
     setIsLoadingSubscriptionStatus(true);
 
     try {
-      const userAccessToken = getUserToken();
-      if (!userAccessToken) {
-        throw new Error('No user access token found');
-      }
-
-      const UserSystem_Backend_Base_Url = SYSTEM_URLS.USER_SYSTEM.BACKEND;
       const response = await fetch(
-        `${UserSystem_Backend_Base_Url}/user_subscription_status`,
+        `/api/user-system/user_subscription_status`,
         {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // Auth via HttpOnly cookie
           headers: {
             'Content-Type': 'application/json',
-            ...getAuthHeaders(),
           },
         }
       );
@@ -468,10 +502,19 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // 自动获取订阅状态
+  // 自动获取订阅状态 - 只在非本地部署模式下调用
   useEffect(() => {
-    fetchUserSubscriptionStatus();
+    if (!isLocalDeployment) {
+      fetchUserSubscriptionStatus();
+    }
   }, [isLocalDeployment]);
+
+  // 自动获取用量数据
+  useEffect(() => {
+    if (userSubscriptionStatus) {
+      fetchUsageData();
+    }
+  }, [userSubscriptionStatus]);
 
   return (
     <AppSettingsContext.Provider
@@ -489,14 +532,15 @@ export const AppSettingsProvider: React.FC<{ children: ReactNode }> = ({
         userSubscriptionStatus,
         isLoadingSubscriptionStatus,
         fetchUserSubscriptionStatus,
-        getAuthHeaders,
-        getUserToken,
-        getCustomAuthHeaders,
         warns,
         addWarn,
         removeWarn,
         clearWarns,
         toggleWarnExpand,
+        usageData,
+        planLimits,
+        isLoadingUsage,
+        fetchUsageData,
       }}
     >
       {children}

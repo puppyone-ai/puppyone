@@ -108,8 +108,16 @@ export default function useIndexingUtils() {
           };
 
           // 创建 chunk 对象并添加到 chunks 数组
+          // 确保 content 为字符串，符合后端 Pydantic 校验
+          const contentString =
+            indexContent === null || indexContent === undefined
+              ? ''
+              : typeof indexContent === 'string'
+                ? indexContent
+                : JSON.stringify(indexContent);
+
           chunks.push({
-            content: indexContent,
+            content: contentString,
             metadata: metadata,
           });
         }
@@ -144,7 +152,9 @@ export default function useIndexingUtils() {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                Accept: 'application/json',
               },
+              credentials: 'include',
               body: JSON.stringify(payloadData),
             }
           );
@@ -237,7 +247,9 @@ export default function useIndexingUtils() {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
+                Accept: 'application/json',
               },
+              credentials: 'include',
               body: JSON.stringify(deleteParams),
             }
           );

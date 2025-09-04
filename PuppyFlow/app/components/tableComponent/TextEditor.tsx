@@ -35,6 +35,10 @@ const textEditorThemeData: Monaco.editor.IStandaloneThemeData = {
     'editor.inactiveSelectionBackground': '#3A3D41',
     'editorIndentGuide.background': 'rgba(109, 113, 119, 0.3)',
     'editorIndentGuide.activeBackground': 'rgba(109, 113, 119, 0.6)',
+    // 禁用单词与符号高亮的背景色
+    'editor.wordHighlightBackground': '#00000000',
+    'editor.wordHighlightStrongBackground': '#00000000',
+    'editor.selectionHighlightBackground': '#00000000',
   },
 };
 
@@ -235,8 +239,15 @@ const TextEditor = ({
             verticalHasArrows: false,
             horizontalHasArrows: false,
           },
+          // 1) 关闭联想/自动补全
+          quickSuggestions: false,
+          suggestOnTriggerCharacters: false,
+          wordBasedSuggestions: 'off',
+          acceptSuggestionOnEnter: 'off',
+          parameterHints: { enabled: false },
+          tabCompletion: 'off',
           fontSize: 14,
-          lineHeight: 24,
+          lineHeight: 28,
           letterSpacing: 0,
           wordWrap: 'on',
           wordWrapColumn: 120,
@@ -253,6 +264,12 @@ const TextEditor = ({
           folding: false,
           renderLineHighlight: 'none',
           hideCursorInOverviewRuler: true,
+
+          // 2) 关闭相同词语的灰色高亮
+          occurrencesHighlight: 'off',
+          selectionHighlight: false,
+          // 3) 关闭缩进行
+          guides: { indentation: false, highlightActiveIndentation: false },
         }}
         onMount={handleEditorDidMount}
       />

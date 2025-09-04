@@ -6,6 +6,8 @@ It manages blocks, edges, and orchestrates the execution with concurrent prefetc
 """
 
 import asyncio
+import os
+import shutil
 import uuid
 from typing import Dict, Set, List, Any, AsyncGenerator, Optional, Tuple
 from datetime import datetime
@@ -132,6 +134,7 @@ class Env:
             
         except Exception as e:
             log_error(f"Env {self.id} execution failed: {str(e)}")
+            # No workflow-level usage event; usage is tracked per edge
             yield {
                 "event_type": "TASK_FAILED",
                 "env_id": self.id,
@@ -141,6 +144,20 @@ class Env:
                 "timestamp": datetime.utcnow().isoformat()
             }
             raise
+        finally:
+            # Best-effort cleanup of any local temp directories created during prefetch
+            try:
+                for block in self.blocks.values():
+                    external_meta = block.data.get('external_metadata') or {}
+                    local_dir = external_meta.get('local_dir')
+                    if local_dir and os.path.isdir(local_dir):
+                        try:
+                            shutil.rmtree(local_dir, ignore_errors=True)
+                            log_debug(f"Cleaned up local dir for block {block.id}: {local_dir}")
+                        except Exception as ce:
+                            log_warning(f"Failed to cleanup local dir {local_dir}: {ce}")
+            except Exception as ce:
+                log_warning(f"Env {self.id} cleanup encountered an error: {ce}")
     
     async def _start_prefetching(self):
         """Start concurrent prefetching for all external blocks"""
@@ -160,6 +177,11 @@ class Env:
         try:
             log_debug(f"Prefetching block {block.id}")
             await block.resolve(self.storage_client)
+            # After resolving, the block might now be considered processed
+            # if it has content. Let's update the planner.
+            if block.get_content() is not None and block.is_resolved:
+                self.planner.mark_blocks_processed({block.id})
+                log_debug(f"Block {block.id} marked as processed after prefetching.")
             log_debug(f"Successfully prefetched block {block.id}")
         except Exception as e:
             log_error(f"Failed to prefetch block {block.id}: {str(e)}")
@@ -195,6 +217,7 @@ class Env:
         
         # Prepare edge execution tasks
         edge_tasks = []
+        edge_start_times: Dict[str, float] = {}
         for edge_id in edge_ids:
             edge_info = self.edges[edge_id]
             block_configs = self._prepare_block_configs(edge_id)
@@ -207,6 +230,13 @@ class Env:
             )
             
             # Create execution task
+            # Record start time for execution duration calculation
+            try:
+                from time import perf_counter  # local import to avoid global namespace pollution
+            except Exception:
+                perf_counter = None  # type: ignore
+            if perf_counter:
+                edge_start_times[edge_id] = perf_counter()
             task = asyncio.create_task(self._execute_single_edge(edge_id, executor))
             edge_tasks.append((edge_id, task))
         
@@ -227,7 +257,15 @@ class Env:
                 
                 # Track edge usage if callback provided
                 if self.edge_usage_callback:
-                    await self._track_edge_usage(edge_id)
+                    # Compute execution time if possible
+                    execution_time = None
+                    try:
+                        from time import perf_counter
+                        if edge_id in edge_start_times:
+                            execution_time = max(0.0, perf_counter() - edge_start_times.get(edge_id, 0.0))
+                    except Exception:
+                        execution_time = None
+                    await self._track_edge_usage(edge_id, execution_success=True, execution_time=execution_time)
                     
             except Exception as e:
                 log_error(f"Edge {edge_id} execution failed: {str(e)}")
@@ -238,24 +276,112 @@ class Env:
                     "error_type": type(e).__name__,
                     "timestamp": datetime.utcnow().isoformat()
                 }
+                # Track failed edge usage event (amount=0 on consumer side)
+                if self.edge_usage_callback:
+                    execution_time = None
+                    try:
+                        from time import perf_counter
+                        if edge_id in edge_start_times:
+                            execution_time = max(0.0, perf_counter() - edge_start_times.get(edge_id, 0.0))
+                    except Exception:
+                        execution_time = None
+                    # Build structured error info for downstream debug collection (will be filtered by policy)
+                    error_text = str(e) if e else ""
+                    # Attempt to extract error category like [PUPPYENGINE_ERROR_XXXX]
+                    error_category = None
+                    try:
+                        import re
+                        m = re.search(r"\[(?P<code>[A-Z_0-9]+)\]", error_text)
+                        if m:
+                            error_category = m.group("code")
+                    except Exception:
+                        error_category = None
+                    # Truncate message to a safe length for debug mode; policy will filter as needed
+                    MAX_MSG = 256
+                    truncated_msg = error_text[:MAX_MSG]
+                    error_info = {
+                        "has_error": True,
+                        "error_type": type(e).__name__,
+                        "error_category": error_category or "engine_execution",
+                        "error_message": truncated_msg,
+                    }
+                    await self._track_edge_usage(
+                        edge_id,
+                        execution_success=False,
+                        execution_time=execution_time,
+                        error_info=error_info
+                    )
                 raise
         
-        # Update blocks with results and persist if needed
+        # Update blocks with results and persist before emitting BLOCK_UPDATED
+        v1_results = {}
         for block_id, content in results.items():
             block = self.blocks[block_id]
+            # Set content so persistence can read from it
             block.set_content(content)
+
+            # Determine storage strategy based on content length (1024 characters threshold)
+            content_length = 0
+            if content is not None:
+                if isinstance(content, str):
+                    content_length = len(content)
+                elif isinstance(content, (list, dict)):
+                    # For structured data, convert to JSON string to measure length
+                    import json
+                    try:
+                        content_length = len(json.dumps(content, ensure_ascii=False))
+                    except:
+                        content_length = 0
+                elif isinstance(content, bytes):
+                    content_length = len(content)
+                else:
+                    # For other types, try to convert to string
+                    try:
+                        content_length = len(str(content))
+                    except:
+                        content_length = 0
+
+            # Dynamic storage strategy decision
+            storage_threshold = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))
+            use_external_storage = content_length >= storage_threshold
             
-            # Yield BLOCK_UPDATED event
-            yield {
-                "event_type": "BLOCK_UPDATED",
-                "block_id": block_id,
-                "content": content,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-            
-            # Persist block (may yield stream events)
-            async for event in block.persist(self.storage_client, self.user_info['user_id']):
-                yield event
+            if use_external_storage:
+                # Force external storage for long content
+                block.storage_class = 'external'
+                # Persist block first (may yield STREAM_* events)
+                async for event in block.persist(self.storage_client, self.user_info['user_id']):
+                    yield event
+                
+                # External storage: do not include raw content
+                block_event = {
+                    "event_type": "BLOCK_UPDATED",
+                    "block_id": block_id,
+                    "storage_class": "external",
+                    "external_metadata": block.data.get("external_metadata"),
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                v1_results[block_id] = {
+                    "storage_class": "external",
+                    "external_metadata": block.data.get("external_metadata")
+                }
+            else:
+                # Force internal storage for short content
+                block.storage_class = 'internal'
+                # For internal storage, we don't need to persist to external storage
+                block.is_persisted = True
+                
+                # Internal storage: include complete content in event
+                block_event = {
+                    "event_type": "BLOCK_UPDATED",
+                    "block_id": block_id,
+                    "storage_class": "internal",
+                    "content": content,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                v1_results[block_id] = content
+
+            # Emit BLOCK_UPDATED after persist completes
+            yield block_event
         
         # Mark edges as completed and blocks as processed
         self.planner.mark_edges_completed(edge_ids)
@@ -271,7 +397,7 @@ class Env:
         
         # Yield block results for backward compatibility
         yield {
-            "data": results,
+            "data": v1_results,
             "is_complete": False,
             "yield_count": len(results)
         }
@@ -331,16 +457,21 @@ class Env:
         
         return block_configs
     
-    async def _track_edge_usage(self, edge_id: str):
+    async def _track_edge_usage(self, edge_id: str, execution_success: bool, execution_time: Optional[float] = None, error_info: Optional[Dict[str, Any]] = None):
         """Track edge usage through callback"""
         if self.edge_usage_callback:
             try:
                 edge_info = self.edges[edge_id]
-                await self.edge_usage_callback(
-                    user_id=self.user_info['user_id'],
-                    edge_type=edge_info.get('type'),
-                    edge_id=edge_id
-                )
+                edge_metadata = {
+                    "task_id": self.id,
+                    "edge_id": edge_id,
+                    "edge_type": edge_info.get('type'),
+                    "execution_time": execution_time if execution_time is not None else 0.0,
+                    "execution_success": execution_success,
+                }
+                if error_info:
+                    edge_metadata["error_info"] = error_info
+                await self.edge_usage_callback(edge_metadata)
             except Exception as e:
                 log_warning(f"Failed to track edge usage: {str(e)}")
     

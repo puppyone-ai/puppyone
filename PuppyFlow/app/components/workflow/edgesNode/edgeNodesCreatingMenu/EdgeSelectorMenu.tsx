@@ -24,6 +24,10 @@ type EdgeMenuProps = {
   position: Position;
   sourceNodeId: string;
   handleId: string | undefined;
+  // optional floating mode: render at (0,0) of its container and force visible
+  mode?: 'handle' | 'floating';
+  // optional override: when provided, do not create a new node; delegate to caller
+  onPick?: (edgeType: string, subMenuType?: string | null) => void;
 };
 
 export type menuNameType =
@@ -40,9 +44,15 @@ export type menuNameType =
   | 'ChooseSub1'
   | 'LoadSub1'
   | 'Retrievingsub1'
-  | 'Generatingsub1';
+  | 'Generatingsub1'
+  | 'DeepResearchsub1';
 
-function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
+function EdgeMenu1({
+  nodeType,
+  sourceNodeId,
+  mode = 'handle',
+  onPick,
+}: EdgeMenuProps) {
   // TextBlock menu onClick function
   // get source node info
   const {
@@ -77,20 +87,25 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
     clearAll,
   } = useNodesPerFlowContext();
   const [edgeMenuStyle, setEdgeMenuStyle] = useState<CSSProperties>({
-    height: '0px',
-    visibility: 'hidden',
-    border: 'none',
+    height: mode === 'floating' ? 'auto' : '0px',
+    visibility: mode === 'floating' ? 'visible' : 'hidden',
+    border: mode === 'floating' ? undefined : 'none',
   });
 
   useEffect(() => {
     const newEdgeMenuStyle = updateEdgeMenuStyle();
     setEdgeMenuStyle(newEdgeMenuStyle);
-  }, [activatedNode?.id, activatedNode?.HandlePosition]);
+  }, [activatedNode?.id, activatedNode?.HandlePosition, mode]);
 
   const createNewConnection = (
     edgeType: string,
     subMenuType: string | null = null
   ) => {
+    // floating override: delegate creation to caller (e.g., transform current floating menu node)
+    if (onPick) {
+      onPick(edgeType, subMenuType);
+      return;
+    }
     const sourceNode = getNode(sourceNodeId);
     // console.log(sourceNode)
     if (!sourceNode) return;
@@ -277,6 +292,13 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
   };
 
   const updateEdgeMenuStyle = (): CSSProperties => {
+    if (mode === 'floating') {
+      return {
+        left: '0px',
+        top: '0px',
+        visibility: 'visible',
+      };
+    }
     // const sourceNode = getNode(sourceNodeId)
     const node = getNode(sourceNodeId);
     // console.log(node?.measured)
@@ -465,6 +487,9 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
         break;
       case 'Generatingsub1':
         value = 12;
+        break;
+      case 'DeepResearchsub1':
+        value = 13;
         break;
       default:
         value = -1;
@@ -763,6 +788,58 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                   </div>
                   <div className='text-[14px] flex items-center justify-center h-full'>
                     Generate
+                  </div>
+                </div>
+              </button>
+            </li>
+
+            <li className='w-full relative'>
+              <button
+                className={`w-full h-[38px] ${selectedSubMenu === 13 ? 'bg-main-orange text-[#1C1D1F]' : 'bg-[#3E3E41] text-[#CDCDCD]'} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`}
+                onMouseEnter={() => manageTextNodeSubMenu('DeepResearchsub1')}
+                onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  createNewConnection('deepresearch');
+                }}
+              >
+                <div className='flex items-center gap-[11px] flex-1'>
+                  <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                    <svg
+                      width='14'
+                      height='14'
+                      viewBox='0 0 14 14'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path
+                        d='M7 2.5C7 2.5 4.5 1 2 3.5C2 3.5 1.5 6.5 4 7.5C4 7.5 6 8.5 7 11.5C7 11.5 8 8.5 10 7.5C10 7.5 12.5 6.5 12 3.5C12 3.5 9.5 1 7 2.5Z'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                        fill='none'
+                      />
+                      <circle
+                        cx='7'
+                        cy='7'
+                        r='2'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                        fill='none'
+                      />
+                      <path
+                        d='M6.5 5.5L7.5 6.5'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                      />
+                      <path
+                        d='M7.5 7.5L6.5 8.5'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                      />
+                    </svg>
+                  </div>
+                  <div className='text-[14px] flex items-center justify-center h-full'>
+                    Deep Research
                   </div>
                 </div>
               </button>
@@ -1184,6 +1261,58 @@ function EdgeMenu1({ nodeType, sourceNodeId }: EdgeMenuProps) {
                   </div>
                   <div className='text-[14px] flex items-center justify-center h-full'>
                     Generate
+                  </div>
+                </div>
+              </button>
+            </li>
+
+            <li className='w-full relative'>
+              <button
+                className={`w-full h-[38px] ${selectedSubMenu === 13 ? 'bg-main-orange text-[#1C1D1F]' : 'bg-[#3E3E41] text-[#CDCDCD]'} rounded-[8px] flex flex-row items-start gap-[11px] font-plus-jakarta-sans py-[4px] pl-[4px] cursor-pointer`}
+                onMouseEnter={() => manageTextNodeSubMenu('DeepResearchsub1')}
+                onClick={event => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  createNewConnection('deepresearch');
+                }}
+              >
+                <div className='flex items-center gap-[11px] flex-1'>
+                  <div className='w-[30px] h-[30px] bg-[#1C1D1F] flex items-center justify-center rounded-[5px]'>
+                    <svg
+                      width='14'
+                      height='14'
+                      viewBox='0 0 14 14'
+                      fill='none'
+                      xmlns='http://www.w3.org/2000/svg'
+                    >
+                      <path
+                        d='M7 2.5C7 2.5 4.5 1 2 3.5C2 3.5 1.5 6.5 4 7.5C4 7.5 6 8.5 7 11.5C7 11.5 8 8.5 10 7.5C10 7.5 12.5 6.5 12 3.5C12 3.5 9.5 1 7 2.5Z'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                        fill='none'
+                      />
+                      <circle
+                        cx='7'
+                        cy='7'
+                        r='2'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                        fill='none'
+                      />
+                      <path
+                        d='M6.5 5.5L7.5 6.5'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                      />
+                      <path
+                        d='M7.5 7.5L6.5 8.5'
+                        stroke='#CDCDCD'
+                        strokeWidth='1.5'
+                      />
+                    </svg>
+                  </div>
+                  <div className='text-[14px] flex items-center justify-center h-full'>
+                    Deep Research
                   </div>
                 </div>
               </button>

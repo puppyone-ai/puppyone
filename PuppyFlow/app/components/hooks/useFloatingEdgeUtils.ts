@@ -61,16 +61,16 @@ function getIntersectionPointCoordsByPosition(
   // get IntersectionPointCoordsByPosition , must connect to Node border
   switch (handlePosition) {
     case Position.Left:
-      x += 16 + handle.width; // 16 is the distance between handle and Node
+      x += 8 + handle.width; // 16 is the distance between handle and Node
       break;
     case Position.Right:
-      x -= 16 + handle.width;
+      x -= 8 + handle.width;
       break;
     case Position.Top:
-      y += 16 + handle.width;
+      y += 8 + handle.height;
       break;
     case Position.Bottom:
-      y -= 16 + handle.width;
+      y -= 8 + handle.height;
       break;
   }
 

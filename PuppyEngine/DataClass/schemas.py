@@ -13,9 +13,8 @@ Goals:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Literal
-from pydantic import BaseModel, Field
-from pydantic import model_validator, field_validator
+from typing import Any, Dict, List, Optional, Literal, Union
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 ALLOWED_EDGE_TYPES = (
@@ -131,7 +130,7 @@ class SearchDataSourceItem(BaseModel):
         return v
 
 
-class SearchEdgeData(EdgeCommonData):
+class VectorSearchModel(BaseModel):
     search_type: Literal["vector"]
     query_id: Dict[str, Any]
     doc_ids: Optional[List[str]] = None
@@ -146,9 +145,31 @@ class SearchEdgeData(EdgeCommonData):
         if not isinstance(v, dict) or len(v) == 0:
             raise ValueError("query_id must be a non-empty mapping of block_id -> {}")
         if len(v.keys()) != 1:
-            # current parser expects single query_id
             raise ValueError("query_id must contain exactly one block_id")
         return v
+
+
+class KeywordSearchModel(VectorSearchModel):
+    search_type: Literal["keyword"]
+
+
+class QASearchModel(BaseModel):
+    search_type: Literal["qa"]
+    sub_search_type: str
+    query_id: Dict[str, Any]
+    extra_configs: Optional[Dict[str, Any]] = None
+
+
+class WebSearchModel(BaseModel):
+    search_type: Literal["web"]
+    sub_search_type: str
+    top_k: Optional[int] = Field(default=5, ge=1)
+    extra_configs: Optional[Dict[str, Any]] = None
+
+
+SearchEdgeData = Union[
+    VectorSearchModel, KeywordSearchModel, QASearchModel, WebSearchModel
+]
 
 
 class EdgeModel(BaseModel):
@@ -190,7 +211,17 @@ class EdgeModel(BaseModel):
         elif etype == "deep_research":
             DeepResearchEdgeData(**data)
         elif etype == "search":
-            SearchEdgeData(**data)
+            search_type = data.get("search_type")
+            if search_type == "vector":
+                VectorSearchModel(**data)
+            elif search_type == "keyword":
+                KeywordSearchModel(**data)
+            elif search_type == "qa":
+                QASearchModel(**data)
+            elif search_type == "web":
+                WebSearchModel(**data)
+            else:
+                raise ValueError(f"Unknown search_type: {search_type}")
 
         # write back potentially normalized data
         self.data = data
@@ -254,7 +285,7 @@ def normalize_workflow_payload(raw_workflow: Dict[str, Any]) -> Dict[str, Any]:
             raise ValueError(f"Block {bid} must be an object")
         b = dict(b)
         b.setdefault("label", bid)
-        b.setdefault("storage_class", "internal")
+        b.setdefault("storage_class", "external")
         b.setdefault("data", {})
         normalized_blocks[bid] = b
 

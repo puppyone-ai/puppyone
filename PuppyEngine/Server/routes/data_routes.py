@@ -228,9 +228,9 @@ async def send_data(
                 "The 'blocks' field cannot be empty"
             )
         
-        # Usage预检查
+        # Usage预检查：runs ≈ 预计会执行的基础 edges 数（包含 llm）
         try:
-            estimated_runs = len(blocks)
+            estimated_runs = len(edges) or 1
             usage_check_result = await check_usage_limit(auth_result, estimated_runs)
             
         except UsageError as ue:

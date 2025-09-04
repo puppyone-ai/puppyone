@@ -8,9 +8,9 @@ import { useWorkspaces } from '../states/UserWorkspacesContext';
 import Dashboard from '../userDashBoard/DashBoardNew';
 import dynamic from 'next/dynamic';
 import DeployedServicesList from './DeployedServicesList';
-import DeploymentTypeLogo from './DeploymentTypeLogo';
 import { useAppSettings } from '../states/AppSettingsContext';
 import { useAllDeployedServices } from '../states/UserServersContext';
+import UsageDisplay from './UsageDisplay';
 
 type SidebarFullScreenProps = {
   setFlowFullScreen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -30,11 +30,8 @@ const DialogPortal = dynamic(
 
 function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   const { workspaces } = useWorkspaces();
-  const {
-    userSubscriptionStatus,
-    isLoadingSubscriptionStatus,
-    isLocalDeployment,
-  } = useAppSettings();
+  const { userSubscriptionStatus, isLoadingSubscriptionStatus } =
+    useAppSettings();
   const { apis, chatbots } = useAllDeployedServices();
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<
     string | null
@@ -51,21 +48,11 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
     }
   };
 
-  // Show Get Pro button for FREE users OR local deployment users
-  const shouldShowGetProButton =
-    userSubscriptionStatus &&
-    (!userSubscriptionStatus.is_premium || isLocalDeployment);
-
-  // Handle Get Pro button click
-  const handleGetProClick = () => {
-    window.open('https://www.puppyagent.com/pricing', '_blank');
-  };
-
   return (
     <div className='flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out'>
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className='flex flex-col items-start relative self-stretch w-full h-full overflow-hidden'>
-        <div className='w-full text-[#5D6065] text-[11px] font-semibold pt-[24px] pl-[16px] pr-[8px] font-plus-jakarta-sans'>
+        <div className='w-full text-[#5D6065] text-[11px] font-normal pt-[16px] pl-[12px] pr-[8px] font-plus-jakarta-sans'>
           <div className='mb-[16px] flex items-center gap-2'>
             <span>Workpaces</span>
             <div className='h-[1px] flex-grow bg-[#404040]'></div>
@@ -102,33 +89,15 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
           </div>
         )}
 
-        {/* 展开状态底部 - 包含图标、订阅状态和Get Pro按钮在同一行 */}
-        <div className='mt-[8px] px-[8px] py-[4px] flex items-center gap-2 self-stretch'>
-          <DeploymentTypeLogo />
-          {userSubscriptionStatus && (
-            <span className='text-[#8B8B8B] text-[10px] font-medium'>
-              {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
-            </span>
-          )}
-
-          {/* Get Pro Button for FREE users and LOCAL users */}
-          {shouldShowGetProButton && (
-            <button
-              onClick={handleGetProClick}
-              className='ml-auto border border-[#404040] hover:border-[#5A5A5A] text-[#8B8B8B] hover:text-[#CCCCCC] text-[10px] font-medium py-[3px] px-[6px] rounded-md transition-all duration-200 hover:bg-[#313131] flex items-center gap-1'
-            >
-              <span>Get Pro</span>
-              <span className='text-[10px]'>→</span>
-            </button>
-          )}
-        </div>
+        {/* Usage Display Component */}
+        <UsageDisplay isExpanded={true} />
       </div>
     </div>
   );
 }
 
 function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
-  const { userSubscriptionStatus, isLocalDeployment } = useAppSettings();
+  const { userSubscriptionStatus } = useAppSettings();
   const [showFlowMenu, setShowFlowMenu] = useState(false);
   const settingsDialogRef = useRef<HTMLDialogElement>(null);
   const [activeTab, setActiveTab] = useState<
@@ -176,18 +145,8 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
-  // Show Get Pro button for FREE users OR local deployment users
-  const shouldShowGetProButton =
-    userSubscriptionStatus &&
-    (!userSubscriptionStatus.is_premium || isLocalDeployment);
-
-  // Handle Get Pro button click
-  const handleGetProClick = () => {
-    window.open('https://www.puppyagent.com/pricing', '_blank');
-  };
-
   return (
-    <div className='w-[64px] h-screen bg-[#252525] flex flex-col items-center pt-[16px] gap-[16px] transition-all duration-300 ease-in-out relative'>
+    <div className='w-[64px] h-screen bg-[#252525] flex flex-col items-center pt-[16px] pb-[8px] gap-[16px] transition-all duration-300 ease-in-out relative'>
       <button
         className='w-[32px] h-[32px] flex items-center justify-center group transition-all duration-200'
         onClick={() => setFlowFullScreen(true)}
@@ -295,31 +254,8 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
       {/* Spacer */}
       <div className='flex-grow'></div>
 
-      {/* 收缩状态底部 - 包含订阅状态、图标和Get Pro按钮 */}
-      <div className='mb-[8px] flex flex-col items-center gap-1'>
-        {/* 订阅状态和Get Pro按钮在同一行 */}
-        <div className='flex items-center gap-1'>
-          {userSubscriptionStatus && (
-            <span className='text-[#8B8B8B] text-[9px] font-medium'>
-              {userSubscriptionStatus.is_premium ? 'PRO' : 'FREE'}
-            </span>
-          )}
-
-          {/* Get Pro Button for FREE users and LOCAL users */}
-          {shouldShowGetProButton && (
-            <button
-              onClick={handleGetProClick}
-              className='border border-[#404040] hover:border-[#5A5A5A] text-[#8B8B8B] hover:text-[#CCCCCC] text-[9px] font-medium py-[2px] px-[4px] rounded transition-all duration-200 hover:bg-[#313131] flex items-center gap-[2px]'
-            >
-              <span>Pro</span>
-              <span className='text-[9px]'>→</span>
-            </button>
-          )}
-        </div>
-
-        {/* Deployment Type Logo */}
-        <DeploymentTypeLogo />
-      </div>
+      {/* Usage Display Component */}
+      <UsageDisplay isExpanded={false} />
 
       <DialogPortal>
         <dialog
@@ -343,12 +279,49 @@ function Sidebar() {
   return (
     <div id='workspace-manage-panel' className='relative'>
       <div
-        className={`transition-all duration-150 ease-in-out ${flowFullScreen ? 'w-[240px]' : 'w-[64px]'}`}
+        className={`relative transition-all duration-150 ease-in-out ${flowFullScreen ? 'w-[240px]' : 'w-[8px] bg-[#252525] h-screen'}`}
       >
-        {flowFullScreen ? (
+        {flowFullScreen && (
           <SidebarFullScreen setFlowFullScreen={setFlowFullScreen} />
-        ) : (
-          <SidebarHidden setFlowFullScreen={setFlowFullScreen} />
+        )}
+
+        {!flowFullScreen && (
+          <button
+            className='absolute top-4 left-full ml-2 w-[32px] h-[32px] flex items-center justify-center group transition-opacity duration-200 z-50 opacity-0 hover:opacity-100 focus:opacity-100'
+            onClick={() => setFlowFullScreen(true)}
+            aria-label='Expand sidebar'
+            title='Expand'
+          >
+            <svg
+              width='32'
+              height='32'
+              viewBox='0 0 32 32'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+              className='group-hover:bg-[#313131] rounded-md'
+            >
+              <rect
+                width='32'
+                height='32'
+                rx='4'
+                className='fill-transparent group-hover:fill-[#313131]'
+              />
+              <rect
+                x='8.75'
+                y='10.75'
+                width='14.5'
+                height='10.5'
+                rx='1.25'
+                className='stroke-[#8B8B8B] group-hover:stroke-[#FFFFFF]'
+                strokeWidth='1.5'
+              />
+              <path
+                d='M14 11V21'
+                className='stroke-[#8B8B8B] group-hover:stroke-[#FFFFFF]'
+                strokeWidth='1.5'
+              />
+            </svg>
+          </button>
         )}
       </div>
     </div>
