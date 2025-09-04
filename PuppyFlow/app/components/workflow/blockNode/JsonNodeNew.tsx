@@ -841,7 +841,11 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}
                   placeholder='Create your JSON structure...'
-                  value={content || ''}
+                  value={
+                    typeof content === 'string'
+                      ? content
+                      : String(content || '')
+                  }
                   onChange={updateNodeContent}
                   widthStyle={0}
                   heightStyle={0}

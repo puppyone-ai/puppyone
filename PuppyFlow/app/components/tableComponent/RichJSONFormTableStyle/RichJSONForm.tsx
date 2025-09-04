@@ -93,18 +93,20 @@ const JSONViewer = ({
 
   // 解析JSON数据
   useEffect(() => {
-    if (!value || value.trim() === '') {
+    // 确保 value 是字符串类型
+    const stringValue = typeof value === 'string' ? value : String(value || '');
+    if (!stringValue || stringValue.trim() === '') {
       // Default empty input to null
       setParsedData(null);
       setIsValidJSON(true);
-      if (onChange && value?.trim() !== 'null') {
+      if (onChange && stringValue.trim() !== 'null') {
         onChange('null');
       }
       return;
     }
 
     try {
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(stringValue);
       setParsedData(parsed);
       setIsValidJSON(true);
     } catch (error) {
@@ -372,7 +374,9 @@ const JSONViewer = ({
   const actualHeight = heightStyle === 0 ? '100%' : heightStyle;
 
   // 如果没有数据，默认设为 null（上面的 effect 会触发写回）
-  if (!value || value.trim() === '') {
+  // 确保 value 是字符串类型
+  const stringValue = typeof value === 'string' ? value : String(value || '');
+  if (!stringValue || stringValue.trim() === '') {
     return null;
   }
 

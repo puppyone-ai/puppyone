@@ -316,6 +316,39 @@ const EditStructured: React.FC<ModifyConfigNodeProps> = React.memo(
       }
     }, [execMode, isOnGeneratingNewNode, id, setNodes]);
 
+    // 同步其他配置状态到 ReactFlow
+    useEffect(() => {
+      if (!isOnGeneratingNewNode && hasMountedRef.current) {
+        requestAnimationFrame(() => {
+          setNodes(prevNodes =>
+            prevNodes.map(node => {
+              if (node.id === id) {
+                return {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    paramv,
+                    sourceInput,
+                    templateInput,
+                    variableReplacePlugins,
+                  },
+                };
+              }
+              return node;
+            })
+          );
+        });
+      }
+    }, [
+      paramv,
+      sourceInput,
+      templateInput,
+      variableReplacePlugins,
+      isOnGeneratingNewNode,
+      id,
+      setNodes,
+    ]);
+
     // Function to flatten the tree structure into a path array - 使用 useCallback 缓存
     const flattenPathTree = useCallback(
       (nodes: PathNode[]): { key: string; value: string }[] => {
@@ -400,6 +433,9 @@ const EditStructured: React.FC<ModifyConfigNodeProps> = React.memo(
       id,
       execMode,
       paramv,
+      sourceInput,
+      templateInput,
+      variableReplacePlugins,
       handleDataSubmit,
     ]);
 
