@@ -1,4 +1,5 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react';
+import { createPortal } from 'react-dom';
 import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowContext';
 import React, {
   useState,
@@ -89,6 +90,8 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
+    const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+    const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
@@ -492,6 +495,45 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
       }
     }, []);
 
+    // Use a fixed-position portal so the menu does not scale with ReactFlow zoom
+    useEffect(() => {
+      if (!isMenuOpen) return;
+      let rafId: number | null = null;
+      const GAP = 16;
+
+      const positionMenu = () => {
+        const anchorEl = portalAnchorRef.current as HTMLElement | null;
+        const container = menuContainerRef.current as HTMLDivElement | null;
+        if (!container || !anchorEl) {
+          rafId = requestAnimationFrame(positionMenu);
+          return;
+        }
+        const rect = anchorEl.getBoundingClientRect();
+        const menuWidth = 448;
+        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const top = rect.bottom + GAP;
+
+        container.style.position = 'fixed';
+        container.style.left = `${left}px`;
+        container.style.top = `${top}px`;
+        container.style.zIndex = '2000000';
+        container.style.pointerEvents = 'auto';
+
+        rafId = requestAnimationFrame(positionMenu);
+      };
+
+      positionMenu();
+      const onScroll = () => positionMenu();
+      const onResize = () => positionMenu();
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', onResize);
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onResize);
+      };
+    }, [isMenuOpen]);
+
     // 更新数据同步函数 - 使用 useCallback 缓存
     const onModelAndProviderChange = useCallback(
       (newModelAndProvider: Model) => {
@@ -774,15 +816,27 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
           />
         </button>
 
-        {/* Configuration Menu - 恢复原来的详细配置界面 */}
-        {isMenuOpen && (
-          <ul
-            ref={menuRef}
-            className='absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
-            style={{
-              borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-            }}
-          >
+        {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+        <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
+
+        {/* Configuration Menu - render in a body-level fixed portal to avoid zoom scaling */}
+        {isMenuOpen &&
+          createPortal(
+            <div
+              ref={menuContainerRef}
+              style={{ position: 'fixed', zIndex: 2000000 }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+            >
+              <ul
+                ref={menuRef}
+                className='text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
+                style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+                onWheelCapture={e => e.stopPropagation()}
+                onWheel={e => e.stopPropagation()}
+                onTouchMoveCapture={e => e.stopPropagation()}
+                onTouchMove={e => e.stopPropagation()}
+              >
             {/* Title and Run button section */}
             <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
               <div className='flex flex-row gap-[12px]'>
@@ -1011,8 +1065,10 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
                 </div>
               )}
             </li>
-          </ul>
-        )}
+              </ul>
+            </div>,
+            document.body
+          )}
       </div>
     );
   }
