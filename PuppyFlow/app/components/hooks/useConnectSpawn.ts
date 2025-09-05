@@ -26,7 +26,6 @@ export default function useConnectSpawn() {
       let blockX = point.x - BLOCK_W / 2;
       let blockY = point.y - BLOCK_H / 2;
 
-
       if (
         sourceNode &&
         (sourceNode as any).measured?.width &&

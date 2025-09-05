@@ -66,9 +66,10 @@ export default function CustomConnectionLine({
       sourcePos = dx >= 0 ? Position.Right : Position.Left;
       targetPos = dx >= 0 ? Position.Left : Position.Right;
 
-      virtualSourceX = dx >= 0
-        ? sourceNode.position.x + (sourceNode as any).width + 8
-        : sourceNode.position.x - 8;
+      virtualSourceX =
+        dx >= 0
+          ? sourceNode.position.x + (sourceNode as any).width + 8
+          : sourceNode.position.x - 8;
 
       virtualSourceY = centerY;
     } else {
@@ -76,10 +77,10 @@ export default function CustomConnectionLine({
       targetPos = dy >= 0 ? Position.Top : Position.Bottom;
       virtualSourceX = centerX;
 
-      virtualSourceY = dy >= 0
-        ? sourceNode.position.y + (sourceNode as any).height + 8
-        : sourceNode.position.y - 8;
-
+      virtualSourceY =
+        dy >= 0
+          ? sourceNode.position.y + (sourceNode as any).height + 8
+          : sourceNode.position.y - 8;
     }
   } else {
     // 回退：无法取得节点尺寸时，仍根据相对位移切换方向
