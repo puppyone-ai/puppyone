@@ -54,7 +54,10 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
   return newHeaders;
 }
 
-async function proxy(request: Request, path: string[] | undefined): Promise<Response> {
+async function proxy(
+  request: Request,
+  path: string[] | undefined
+): Promise<Response> {
   const target = buildTargetUrl(request, path);
   const method = request.method;
   const headers = filterRequestHeaders(request.headers);
@@ -83,67 +86,103 @@ async function proxy(request: Request, path: string[] | undefined): Promise<Resp
   });
 }
 
-export async function GET(request: Request, ctx: { params: { path?: string[] } }) {
+export async function GET(
+  request: Request,
+  ctx: { params: { path?: string[] } }
+) {
   try {
     return await proxy(request, ctx.params.path);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'STORAGE_PROXY_ERROR', message: err?.message || 'storage proxy failed' }),
+      JSON.stringify({
+        error: 'STORAGE_PROXY_ERROR',
+        message: err?.message || 'storage proxy failed',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 }
 
-export async function POST(request: Request, ctx: { params: { path?: string[] } }) {
+export async function POST(
+  request: Request,
+  ctx: { params: { path?: string[] } }
+) {
   try {
     return await proxy(request, ctx.params.path);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'STORAGE_PROXY_ERROR', message: err?.message || 'storage proxy failed' }),
+      JSON.stringify({
+        error: 'STORAGE_PROXY_ERROR',
+        message: err?.message || 'storage proxy failed',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 }
 
-export async function PUT(request: Request, ctx: { params: { path?: string[] } }) {
+export async function PUT(
+  request: Request,
+  ctx: { params: { path?: string[] } }
+) {
   try {
     return await proxy(request, ctx.params.path);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'STORAGE_PROXY_ERROR', message: err?.message || 'storage proxy failed' }),
+      JSON.stringify({
+        error: 'STORAGE_PROXY_ERROR',
+        message: err?.message || 'storage proxy failed',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 }
 
-export async function PATCH(request: Request, ctx: { params: { path?: string[] } }) {
+export async function PATCH(
+  request: Request,
+  ctx: { params: { path?: string[] } }
+) {
   try {
     return await proxy(request, ctx.params.path);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'STORAGE_PROXY_ERROR', message: err?.message || 'storage proxy failed' }),
+      JSON.stringify({
+        error: 'STORAGE_PROXY_ERROR',
+        message: err?.message || 'storage proxy failed',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 }
 
-export async function DELETE(request: Request, ctx: { params: { path?: string[] } }) {
+export async function DELETE(
+  request: Request,
+  ctx: { params: { path?: string[] } }
+) {
   try {
     return await proxy(request, ctx.params.path);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'STORAGE_PROXY_ERROR', message: err?.message || 'storage proxy failed' }),
+      JSON.stringify({
+        error: 'STORAGE_PROXY_ERROR',
+        message: err?.message || 'storage proxy failed',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 }
 
-export async function OPTIONS(request: Request, ctx: { params: { path?: string[] } }) {
+export async function OPTIONS(
+  request: Request,
+  ctx: { params: { path?: string[] } }
+) {
   try {
     return await proxy(request, ctx.params.path);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'STORAGE_PROXY_ERROR', message: err?.message || 'storage proxy failed' }),
+      JSON.stringify({
+        error: 'STORAGE_PROXY_ERROR',
+        message: err?.message || 'storage proxy failed',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }

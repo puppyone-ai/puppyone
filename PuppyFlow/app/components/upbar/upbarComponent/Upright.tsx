@@ -36,39 +36,42 @@ export default function Upright() {
 
   // Keep menu logically open; visually collapse when there are no groups
 
-  const handleRunGroup = useCallback(async (groupId: string) => {
-    try {
-      await runGroupNode({
-        groupNodeId: groupId,
-        context: {
-          getNode,
-          getNodes,
-          setNodes,
-          getSourceNodeIdWithLabel,
-          getTargetNodeIdWithLabel,
-          clearAll,
-          streamResult,
-          streamResultForMultipleNodes,
-          reportError,
-          resetLoadingUI,
-          isLocalDeployment: false,
-        },
-      });
-    } catch (error) {
-      console.error('Failed to run group:', error);
-    }
-  }, [
-    getNode,
-    getNodes,
-    setNodes,
-    getSourceNodeIdWithLabel,
-    getTargetNodeIdWithLabel,
-    clearAll,
-    streamResult,
-    streamResultForMultipleNodes,
-    reportError,
-    resetLoadingUI,
-  ]);
+  const handleRunGroup = useCallback(
+    async (groupId: string) => {
+      try {
+        await runGroupNode({
+          groupNodeId: groupId,
+          context: {
+            getNode,
+            getNodes,
+            setNodes,
+            getSourceNodeIdWithLabel,
+            getTargetNodeIdWithLabel,
+            clearAll,
+            streamResult,
+            streamResultForMultipleNodes,
+            reportError,
+            resetLoadingUI,
+            isLocalDeployment: false,
+          },
+        });
+      } catch (error) {
+        console.error('Failed to run group:', error);
+      }
+    },
+    [
+      getNode,
+      getNodes,
+      setNodes,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      streamResultForMultipleNodes,
+      reportError,
+      resetLoadingUI,
+    ]
+  );
 
   return (
     <div className='will-change-auto bg-[#1E1E1E] rounded-[12px] border border-[#343434] ring-1 ring-black/20 shadow-xl shadow-black/30 backdrop-blur-md flex items-center gap-[8px] px-[8px] py-[6px] pointer-events-auto'>
@@ -77,7 +80,10 @@ export default function Upright() {
         showMenu={topRightMenu}
         showMenuHandler={setTopRightMenu}
       />
-      <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
+      <div
+        className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0'
+        aria-hidden
+      ></div>
       <Controls
         className='react-flow__controls-custom'
         showZoom={true}
@@ -86,7 +92,10 @@ export default function Upright() {
         orientation='horizontal'
         style={{ position: 'relative' }}
       />
-      <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
+      <div
+        className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0'
+        aria-hidden
+      ></div>
       <div className='relative'>
         <button
           className='inline-flex items-center gap-1.5 h-[36px] rounded-[8px] px-2 border border-[#2A2A2A] bg-transparent text-[#CDCDCD] hover:bg-[#444444]'
@@ -99,20 +108,70 @@ export default function Upright() {
             setAreGroupsOpen(v => !v);
           }}
         >
-          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-            <path d='M8 4V20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
-            <path d='M16 4V20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
-            <path d='M4 8H20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
-            <path d='M4 16H20' stroke='#CDCDCD' strokeWidth='1.8' strokeLinecap='round' />
+          <svg
+            width='12'
+            height='12'
+            viewBox='0 0 24 24'
+            fill='none'
+            xmlns='http://www.w3.org/2000/svg'
+          >
+            <path
+              d='M8 4V20'
+              stroke='#CDCDCD'
+              strokeWidth='1.8'
+              strokeLinecap='round'
+            />
+            <path
+              d='M16 4V20'
+              stroke='#CDCDCD'
+              strokeWidth='1.8'
+              strokeLinecap='round'
+            />
+            <path
+              d='M4 8H20'
+              stroke='#CDCDCD'
+              strokeWidth='1.8'
+              strokeLinecap='round'
+            />
+            <path
+              d='M4 16H20'
+              stroke='#CDCDCD'
+              strokeWidth='1.8'
+              strokeLinecap='round'
+            />
           </svg>
           <span className='text-[12px]'>Groups</span>
           {areGroupsOpen ? (
-            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-              <path d='M6 14L12 8L18 14' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
+            <svg
+              width='10'
+              height='10'
+              viewBox='0 0 24 24'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+            >
+              <path
+                d='M6 14L12 8L18 14'
+                stroke='#CDCDCD'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              />
             </svg>
           ) : (
-            <svg width='10' height='10' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-              <path d='M6 10L12 16L18 10' stroke='#CDCDCD' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round' />
+            <svg
+              width='10'
+              height='10'
+              viewBox='0 0 24 24'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+            >
+              <path
+                d='M6 10L12 16L18 10'
+                stroke='#CDCDCD'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              />
             </svg>
           )}
         </button>
@@ -150,7 +209,13 @@ export default function Upright() {
                           handleRunGroup(g.id);
                         }}
                       >
-                        <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+                        <svg
+                          width='12'
+                          height='12'
+                          viewBox='0 0 24 24'
+                          fill='currentColor'
+                          xmlns='http://www.w3.org/2000/svg'
+                        >
                           <path d='M8 5V19L19 12L8 5Z' />
                         </svg>
                         <span className='text-[12px]'>Run</span>
@@ -166,5 +231,3 @@ export default function Upright() {
     </div>
   );
 }
-
-

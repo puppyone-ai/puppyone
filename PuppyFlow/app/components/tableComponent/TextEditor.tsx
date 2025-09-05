@@ -270,7 +270,6 @@ const TextEditor = ({
           selectionHighlight: false,
           // 3) 关闭缩进行
           guides: { indentation: false, highlightActiveIndentation: false },
-
         }}
         onMount={handleEditorDidMount}
       />

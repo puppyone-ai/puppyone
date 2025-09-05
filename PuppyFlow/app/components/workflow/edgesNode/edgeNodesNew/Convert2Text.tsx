@@ -37,7 +37,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
 
   // 获取所有需要的依赖
   const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // 创建执行上下文
   const createExecutionContext = useCallback(
@@ -57,12 +57,12 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
       getNode,
       setNodes,
       setEdges,
-        getSourceNodeIdWithLabel,
-        getTargetNodeIdWithLabel,
-        clearAll,
-        streamResult,
-        reportError,
-        resetLoadingUI,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      reportError,
+      resetLoadingUI,
     ]
   );
 

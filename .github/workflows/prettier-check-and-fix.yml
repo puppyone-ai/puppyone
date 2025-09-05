@@ -1,0 +1,100 @@
+name: Prettier Auto Format
+
+on:
+  push:
+    branches: ["**"]
+    paths:
+      - "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}"
+      - ".prettierrc*"
+      - ".github/workflows/prettier-check-and-fix.yml"
+  pull_request:
+    branches: ["**"]
+    paths:
+      - "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}"
+      - ".prettierrc*"
+      - ".github/workflows/prettier-check-and-fix.yml"
+
+# Ensure only the latest run on the same branch remains to avoid concurrent push conflicts
+concurrency:
+  group: prettier-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  PRETTIER_GLOB: "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}"
+  PRETTIER_CONFIG: ".prettierrc"
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    name: Prettier Check & Auto-fix
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth 0 for potential future diff analysis based on history (can be kept)
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+            PuppyFlow/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm i
+          fi
+
+      - name: Prettier check
+        id: prettier_check
+        run: |
+          echo "Running check..."
+          set +e
+          npx prettier --check "$PRETTIER_GLOB" --config "$PRETTIER_CONFIG" --no-error-on-unmatched-pattern
+          CODE=$?
+          set -e
+          echo "exit_code=$CODE" >> "$GITHUB_OUTPUT"
+          if [ "$CODE" -ne 0 ]; then
+            echo "Formatting issues detected."
+          else
+            echo "Already formatted."
+          fi
+
+      - name: Auto fix (push + same-repo PR)
+        if: steps.prettier_check.outputs.exit_code != '0'
+        run: |
+          echo "Applying Prettier write..."
+          npx prettier --write "$PRETTIER_GLOB" --config "$PRETTIER_CONFIG" --no-error-on-unmatched-pattern
+
+          if git diff --quiet; then
+            echo "No changes produced by write (possible race or glob empty)."
+            exit 0
+          fi
+
+          # Pull once more to prevent edge cases where other steps just pushed (concurrency reduces risk)
+          git pull --rebase --autostash || true
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -u
+          git commit -m "style: prettier auto-format"
+          git push
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.prettier_check.outputs.exit_code }}" = "0" ]; then
+            echo "✅ Prettier: All files properly formatted"
+          else
+            echo "🛠 Auto-formatting applied and committed (if changes were made)"
+          fi

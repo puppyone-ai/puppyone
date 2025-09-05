@@ -13,7 +13,7 @@ export async function GET() {
     environment: {
       deploymentType,
       DEPLOYMENT_MODE: process.env.DEPLOYMENT_MODE || '(not set)',
-      NODE_ENV: process.env.NODE_ENV || '(not set)'
+      NODE_ENV: process.env.NODE_ENV || '(not set)',
     },
     serverEnvPresence: {
       USER_SYSTEM_FRONTEND_URL: !!process.env.USER_SYSTEM_FRONTEND_URL,
@@ -23,27 +23,28 @@ export async function GET() {
       API_SERVER_URL: !!process.env.API_SERVER_URL,
       SERVICE_KEY: !!process.env.SERVICE_KEY,
       ALLOW_VERIFY_WITHOUT_SERVICE_KEY:
-        (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true'
+        (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() ===
+        'true',
     },
     publicClientEnv: {
       NEXT_PUBLIC_FRONTEND_VERSION:
         process.env.NEXT_PUBLIC_FRONTEND_VERSION || '(not set)',
       NEXT_PUBLIC_OLLAMA_ENDPOINT:
-        process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT || '(not set)'
+        process.env.NEXT_PUBLIC_OLLAMA_ENDPOINT || '(not set)',
     },
-    serverTime: new Date().toISOString()
+    serverTime: new Date().toISOString(),
   } as const;
 
   console.log('🐶 [PuppyFlow] /api/health/env check:', {
     deploymentType,
-    hasBackend: !!process.env.USER_SYSTEM_BACKEND
+    hasBackend: !!process.env.USER_SYSTEM_BACKEND,
   });
 
   return new Response(JSON.stringify(payload), {
     status: 200,
     headers: {
       'content-type': 'application/json',
-      'cache-control': 'no-store, no-cache, must-revalidate'
-    }
+      'cache-control': 'no-store, no-cache, must-revalidate',
+    },
   });
 }
