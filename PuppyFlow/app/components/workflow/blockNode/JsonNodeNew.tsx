@@ -22,6 +22,11 @@ import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 import { useWorkspaceManagement } from '../../hooks/useWorkspaceManagement';
 import { useAppSettings } from '../../states/AppSettingsContext';
 import { syncBlockContent } from '../../workflow/utils/externalStorage';
+import {
+  handleDynamicStorageSwitch,
+  getStorageInfo,
+  CONTENT_LENGTH_THRESHOLD,
+} from '../../workflow/utils/dynamicStorageStrategy';
 import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
@@ -133,7 +138,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     } = useNodesPerFlowContext();
 
     const { setNodes, setEdges, getEdges, getNode } = useReactFlow();
-    const { } = useAppSettings();
+    const {} = useAppSettings();
 
     // 优化点 2: 将多个相关的 state 合并，减少 state 更新的复杂性
     const [nodeState, setNodeState] = useState({
@@ -288,7 +293,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       [id, setNodes]
     );
 
-    // 防抖保存 external storage（2s），structured
+    // 基于内容长度的动态存储策略切换（2s防抖），structured
     useEffect(() => {
       const node = getNode(id);
       if (!node) return;
@@ -306,15 +311,38 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                 : n
             )
           );
-          await syncBlockContent({
+
+          // 将内容转换为字符串用于长度判断和存储
+          const contentString =
+            typeof currentContent === 'string'
+              ? currentContent
+              : JSON.stringify(currentContent ?? []);
+
+          // 使用动态存储策略处理内容保存
+          await handleDynamicStorageSwitch({
             node,
-            content:
-              typeof currentContent === 'string'
-                ? currentContent
-                : JSON.stringify(currentContent ?? []),
+            content: contentString,
+            contentType: 'structured',
             getUserId: fetchUserId as any,
             setNodes: setNodes as any,
-            contentType: 'structured',
+          });
+
+          // 调试信息：显示存储策略状态
+          const storageInfo = getStorageInfo(node);
+          const chunkCount = Math.ceil(
+            contentString.length / CONTENT_LENGTH_THRESHOLD
+          );
+          console.log(`🏗️ Structured block ${id} saved:`, {
+            contentLength: contentString.length,
+            threshold: CONTENT_LENGTH_THRESHOLD,
+            storageClass: storageInfo.storageClass,
+            switched:
+              storageInfo.storageClass !==
+              (node.data?.storage_class || 'internal'),
+            estimatedChunks:
+              storageInfo.storageClass === 'external' ? chunkCount : 1,
+            resourceKey: storageInfo.resourceKey,
+            cleanupEnabled: storageInfo.storageClass === 'external',
           });
         } catch (e) {
           setNodes(prev =>
@@ -724,7 +752,14 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   strokeWidth='1.5'
                   strokeLinecap='round'
                 />
-                <rect x='4' y='7' width='8' height='6' rx='1' fill='currentColor' />
+                <rect
+                  x='4'
+                  y='7'
+                  width='8'
+                  height='6'
+                  rx='1'
+                  fill='currentColor'
+                />
               </svg>
               <span>LOCKED</span>
             </div>

@@ -77,8 +77,8 @@ interface FetchUserDeploymentsParams {
 export const useServerOperations = () => {
   // Route via same-origin API proxy - 所有请求现在通过我们的新代理处理
   const apiServerUrl = `/api/server`;
-  const { } = useAppSettings();
-  
+  const {} = useAppSettings();
+
   // 注意：不再需要 getUserToken 和 getCustomAuthHeaders，
   // 认证现在完全由服务端代理处理
 

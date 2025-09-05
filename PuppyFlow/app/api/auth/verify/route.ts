@@ -71,7 +71,8 @@ export async function GET(request: Request) {
     });
 
     const bodyText = await upstream.text();
-    const contentType = upstream.headers.get('content-type') || 'application/json';
+    const contentType =
+      upstream.headers.get('content-type') || 'application/json';
 
     return new Response(bodyText, {
       status: upstream.status,
@@ -89,4 +90,3 @@ export async function GET(request: Request) {
     );
   }
 }
-
