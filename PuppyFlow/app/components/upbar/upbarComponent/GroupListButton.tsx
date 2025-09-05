@@ -10,11 +10,18 @@ import useGetSourceTarget from '../../hooks/useGetSourceTarget';
 import { runGroupNode } from '../../workflow/edgesNode/edgeNodesNew/hook/runGroupNodeExecutor';
 
 export default function GroupListButton() {
-  const { isOnGeneratingNewNode, activateNode, clearAll } = useNodesPerFlowContext();
+  const { isOnGeneratingNewNode, activateNode, clearAll } =
+    useNodesPerFlowContext();
   const { getCurrentWorkspaceContent } = useWorkspaces();
   const { getNode, getNodes, setNodes } = useReactFlow();
-  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } = useGetSourceTarget();
-  const { streamResult, streamResultForMultipleNodes, reportError, resetLoadingUI } = useJsonConstructUtils();
+  const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
+    useGetSourceTarget();
+  const {
+    streamResult,
+    streamResultForMultipleNodes,
+    reportError,
+    resetLoadingUI,
+  } = useJsonConstructUtils();
 
   const content = getCurrentWorkspaceContent?.() ?? null;
 
@@ -42,39 +49,42 @@ export default function GroupListButton() {
     return counts;
   }, [content]);
 
-  const handleRunGroup = useCallback(async (groupId: string) => {
-    try {
-      await runGroupNode({
-        groupNodeId: groupId,
-        context: {
-          getNode,
-          getNodes,
-          setNodes,
-          getSourceNodeIdWithLabel,
-          getTargetNodeIdWithLabel,
-          clearAll,
-          streamResult,
-          streamResultForMultipleNodes,
-          reportError,
-          resetLoadingUI,
-          isLocalDeployment: false,
-        },
-      });
-    } catch (error) {
-      console.error('Failed to run group:', error);
-    }
-  }, [
-    getNode,
-    getNodes,
-    setNodes,
-    getSourceNodeIdWithLabel,
-    getTargetNodeIdWithLabel,
-    clearAll,
-    streamResult,
-    streamResultForMultipleNodes,
-    reportError,
-    resetLoadingUI,
-  ]);
+  const handleRunGroup = useCallback(
+    async (groupId: string) => {
+      try {
+        await runGroupNode({
+          groupNodeId: groupId,
+          context: {
+            getNode,
+            getNodes,
+            setNodes,
+            getSourceNodeIdWithLabel,
+            getTargetNodeIdWithLabel,
+            clearAll,
+            streamResult,
+            streamResultForMultipleNodes,
+            reportError,
+            resetLoadingUI,
+            isLocalDeployment: false,
+          },
+        });
+      } catch (error) {
+        console.error('Failed to run group:', error);
+      }
+    },
+    [
+      getNode,
+      getNodes,
+      setNodes,
+      getSourceNodeIdWithLabel,
+      getTargetNodeIdWithLabel,
+      clearAll,
+      streamResult,
+      streamResultForMultipleNodes,
+      reportError,
+      resetLoadingUI,
+    ]
+  );
 
   const renderListPanel = () => {
     return (
@@ -89,7 +99,11 @@ export default function GroupListButton() {
             </div>
           ) : (
             <div className='max-h-[260px] overflow-y-auto'>
-              <ul role='list' aria-label='Workspace groups' className='rounded-[8px] border border-[#343434] bg-[#232323] divide-y divide-[#2E2E2E]'>
+              <ul
+                role='list'
+                aria-label='Workspace groups'
+                className='rounded-[8px] border border-[#343434] bg-[#232323] divide-y divide-[#2E2E2E]'
+              >
                 {groups.map(g => (
                   <Menu.Item key={g.id}>
                     {({ active }) => (
@@ -106,16 +120,48 @@ export default function GroupListButton() {
                         >
                           <div className='flex items-center gap-2 min-w-0'>
                             <div className='w-5 h-5 flex items-center justify-center flex-shrink-0 rounded-[6px] bg-[#282828] border border-[#3A3A3A]'>
-                              <svg width='12' height='12' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'>
-                                <path d='M8 4V20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
-                                <path d='M16 4V20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
-                                <path d='M4 8H20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
-                                <path d='M4 16H20' stroke='#9B7EDB' strokeWidth='2' strokeLinecap='round' />
+                              <svg
+                                width='12'
+                                height='12'
+                                viewBox='0 0 24 24'
+                                fill='none'
+                                xmlns='http://www.w3.org/2000/svg'
+                              >
+                                <path
+                                  d='M8 4V20'
+                                  stroke='#9B7EDB'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                />
+                                <path
+                                  d='M16 4V20'
+                                  stroke='#9B7EDB'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                />
+                                <path
+                                  d='M4 8H20'
+                                  stroke='#9B7EDB'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                />
+                                <path
+                                  d='M4 16H20'
+                                  stroke='#9B7EDB'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                />
                               </svg>
                             </div>
-                            <div className='truncate text-[12px] text-[#E0E0E0]'>{g.name}</div>
+                            <div className='truncate text-[12px] text-[#E0E0E0]'>
+                              {g.name}
+                            </div>
                             <div className='text-[10px] text-[#666666] whitespace-nowrap'>
-                              ({groupCounts[g.id] ?? 0} {(groupCounts[g.id] ?? 0) === 1 ? 'node' : 'nodes'})
+                              ({groupCounts[g.id] ?? 0}{' '}
+                              {(groupCounts[g.id] ?? 0) === 1
+                                ? 'node'
+                                : 'nodes'}
+                              )
                             </div>
                           </div>
                           <button
@@ -128,7 +174,13 @@ export default function GroupListButton() {
                               handleRunGroup(g.id);
                             }}
                           >
-                            <svg width='12' height='12' viewBox='0 0 24 24' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+                            <svg
+                              width='12'
+                              height='12'
+                              viewBox='0 0 24 24'
+                              fill='currentColor'
+                              xmlns='http://www.w3.org/2000/svg'
+                            >
                               <path d='M8 5V19L19 12L8 5Z' />
                             </svg>
                           </button>
@@ -161,7 +213,13 @@ export default function GroupListButton() {
               title='New Group'
               aria-label='New Group'
             >
-              <svg width='12' height='12' viewBox='0 0 16 16' fill='currentColor' xmlns='http://www.w3.org/2000/svg'>
+              <svg
+                width='12'
+                height='12'
+                viewBox='0 0 16 16'
+                fill='currentColor'
+                xmlns='http://www.w3.org/2000/svg'
+              >
                 <polygon points='2,2 11,6 8,7 9,12 7,12 6,8 2,9' />
               </svg>
               <span>New Group</span>
@@ -199,10 +257,30 @@ export default function GroupListButton() {
         xmlns='http://www.w3.org/2000/svg'
         className='text-[#CDCDCD]'
       >
-        <path d='M8 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
-        <path d='M16 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
-        <path d='M4 8H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
-        <path d='M4 16H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+        <path
+          d='M8 4V20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
+        <path
+          d='M16 4V20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
+        <path
+          d='M4 8H20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
+        <path
+          d='M4 16H20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
       </svg>
     </button>
   );

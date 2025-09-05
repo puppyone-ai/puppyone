@@ -29,14 +29,20 @@ const Settings: React.FC = () => {
 
         {/* Preferences Section */}
         <div className='px-1'>
-          <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>Preferences</div>
+          <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>
+            Preferences
+          </div>
         </div>
         <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] overflow-hidden'>
           <div className='divide-y divide-[#2A2A2A]'>
             <div className='flex items-center justify-between px-4 py-3 hover:bg-[#101010]'>
               <div>
-                <div className='text-[13px] text-[#E5E5E5]'>Email notifications</div>
-                <div className='text-[12px] text-[#8B8B8B]'>Get product updates and alerts</div>
+                <div className='text-[13px] text-[#E5E5E5]'>
+                  Email notifications
+                </div>
+                <div className='text-[12px] text-[#8B8B8B]'>
+                  Get product updates and alerts
+                </div>
               </div>
               <div
                 onClick={() => setEmailNotifications(!emailNotifications)}

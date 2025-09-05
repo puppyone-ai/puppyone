@@ -26,7 +26,9 @@ export class FileWorkspaceStore implements IWorkspaceStore {
       await fsPromises.mkdir(saveDir, { recursive: true });
       return [];
     }
-    const directories = await fsPromises.readdir(saveDir, { withFileTypes: true });
+    const directories = await fsPromises.readdir(saveDir, {
+      withFileTypes: true,
+    });
     const workspaces: WorkspaceBasic[] = [];
     for (const dir of directories) {
       if (dir.isDirectory()) {
@@ -41,7 +43,10 @@ export class FileWorkspaceStore implements IWorkspaceStore {
             // ignore
           }
         }
-        workspaces.push({ workspace_id: dir.name, workspace_name: workspaceName });
+        workspaces.push({
+          workspace_id: dir.name,
+          workspace_name: workspaceName,
+        });
       }
     }
     return workspaces;
@@ -60,10 +65,17 @@ export class FileWorkspaceStore implements IWorkspaceStore {
     if (!fs.existsSync(latestFile)) {
       await fsPromises.writeFile(
         latestFile,
-        JSON.stringify({ workspaceName: payload.workspace_name, blocks: [], edges: [] }, null, 2)
+        JSON.stringify(
+          { workspaceName: payload.workspace_name, blocks: [], edges: [] },
+          null,
+          2
+        )
       );
     }
-    return { workspace_id: payload.workspace_id, workspace_name: payload.workspace_name };
+    return {
+      workspace_id: payload.workspace_id,
+      workspace_name: payload.workspace_name,
+    };
   }
 
   async deleteWorkspace(workspaceId: string): Promise<void> {
@@ -73,7 +85,10 @@ export class FileWorkspaceStore implements IWorkspaceStore {
     }
   }
 
-  async renameWorkspace(workspaceId: string, newName: string): Promise<WorkspaceBasic> {
+  async renameWorkspace(
+    workspaceId: string,
+    newName: string
+  ): Promise<WorkspaceBasic> {
     const workspaceDir = path.join(rootDir(), workspaceId);
     const latestFile = path.join(workspaceDir, 'latest.json');
     let current = { workspaceName: newName } as any;
@@ -101,10 +116,14 @@ export class FileWorkspaceStore implements IWorkspaceStore {
     await fsPromises.mkdir(workspaceDir, { recursive: true });
     const formattedTimestamp = formatTimestampForFilename(data.timestamp);
     const historyFile = path.join(workspaceDir, `${formattedTimestamp}.json`);
-    await fsPromises.writeFile(historyFile, JSON.stringify(data.history, null, 2));
+    await fsPromises.writeFile(
+      historyFile,
+      JSON.stringify(data.history, null, 2)
+    );
     const latestFile = path.join(workspaceDir, 'latest.json');
-    await fsPromises.writeFile(latestFile, JSON.stringify(data.history, null, 2));
+    await fsPromises.writeFile(
+      latestFile,
+      JSON.stringify(data.history, null, 2)
+    );
   }
 }
-
-

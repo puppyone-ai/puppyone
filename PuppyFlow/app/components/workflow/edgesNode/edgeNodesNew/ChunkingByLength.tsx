@@ -54,7 +54,7 @@ function ChunkingByLength({
 
   // 获取所有需要的依赖
   const { streamResult, reportError, resetLoadingUI } = useJsonConstructUtils();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // 状态管理
   const [subChunkMode, setSubChunkMode] = useState<'size' | 'tokenizer'>(
