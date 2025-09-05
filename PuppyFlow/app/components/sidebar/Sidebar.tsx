@@ -30,10 +30,8 @@ const DialogPortal = dynamic(
 
 function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   const { workspaces } = useWorkspaces();
-  const {
-    userSubscriptionStatus,
-    isLoadingSubscriptionStatus,
-  } = useAppSettings();
+  const { userSubscriptionStatus, isLoadingSubscriptionStatus } =
+    useAppSettings();
   const { apis, chatbots } = useAllDeployedServices();
   const [flowIdShowOperationMenu, setFlowIdShowOperationMenu] = useState<
     string | null

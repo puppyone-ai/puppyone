@@ -33,7 +33,8 @@ function NodeSettingsController({ nodeid }: NodeSettingsControllerProps) {
     const closeSettings = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       const clickedInsideButton = !!currRef && currRef.contains(target);
-      const clickedInsideMenu = !!menuContainerRef.current && menuContainerRef.current.contains(target);
+      const clickedInsideMenu =
+        !!menuContainerRef.current && menuContainerRef.current.contains(target);
       if (!clickedInsideButton && !clickedInsideMenu && isMenuOpen) {
         setIsMenuOpen(false);
       }

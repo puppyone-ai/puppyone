@@ -22,7 +22,7 @@ function DeployAsApi({ selectedFlowId, setActivePanel }: DeployAsApiProps) {
 
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // 简化的本地状态管理
   const [selectedInputs, setSelectedInputs] = useState<string[]>([]);

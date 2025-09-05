@@ -14,7 +14,11 @@ type menuNameType =
   | 'Filesub1'
   | 'Weblinksub1';
 
-function AddNodeButton({ showTriggerButton = true }: { showTriggerButton?: boolean }) {
+function AddNodeButton({
+  showTriggerButton = true,
+}: {
+  showTriggerButton?: boolean;
+}) {
   const [selectedMenu, setSelectedMenu] = useState(0);
   const {
     allowActivateOtherNodesWhenConnectEnd,
@@ -22,9 +26,10 @@ function AddNodeButton({ showTriggerButton = true }: { showTriggerButton?: boole
     isOnGeneratingNewNode,
   } = useNodesPerFlowContext();
   const { setNodes, getNodes } = useReactFlow();
-  const [externalCreate, setExternalCreate] = useState<
-    { nodeType: string; nonce: number } | null
-  >(null);
+  const [externalCreate, setExternalCreate] = useState<{
+    nodeType: string;
+    nonce: number;
+  } | null>(null);
 
   useEffect(() => {
     // define onClick action and click out action
@@ -54,7 +59,8 @@ function AddNodeButton({ showTriggerButton = true }: { showTriggerButton?: boole
       try {
         const e = evt as CustomEvent<any>;
         const preselect = e?.detail?.preselect as string | undefined;
-        const startDirect = (e?.detail?.startDirect as boolean | undefined) ?? false;
+        const startDirect =
+          (e?.detail?.startDirect as boolean | undefined) ?? false;
         if (isOnGeneratingNewNode) return;
         // Optionally open menu; or start directly when triggered externally
         if (!startDirect) {
@@ -93,7 +99,14 @@ function AddNodeButton({ showTriggerButton = true }: { showTriggerButton?: boole
               : 'bg-[#4599DF] text-black hover:bg-[#3A8BD9] active:bg-[#2F7EC9]'
           } ${isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'}`}
         >
-          <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 8 8' fill='none' className='text-current'>
+          <svg
+            xmlns='http://www.w3.org/2000/svg'
+            width='14'
+            height='14'
+            viewBox='0 0 8 8'
+            fill='none'
+            className='text-current'
+          >
             <path d='M4 0L4 8' stroke='currentColor' strokeWidth='1.5' />
             <path d='M0 4L8 4' stroke='currentColor' strokeWidth='1.5' />
           </svg>
@@ -236,14 +249,21 @@ function NodeMenu({
       setDraggedNodeType(null);
       clearAll();
     },
-    [isDragging, draggedNodeType, rectStart, rectEnd, screenToFlowPosition, setNodes]
+    [
+      isDragging,
+      draggedNodeType,
+      rectStart,
+      rectEnd,
+      screenToFlowPosition,
+      setNodes,
+    ]
   );
 
   // 右键点击取消
   const handleRightClick = useCallback(
     (event: MouseEvent) => {
       event.preventDefault();
-    if (isOnGeneratingNewNode) {
+      if (isOnGeneratingNewNode) {
         // 重置状态
         setIsDragging(false);
         setDraggedNodeType(null);
@@ -271,7 +291,13 @@ function NodeMenu({
       document.removeEventListener('mouseup', handleRectMouseUp as any);
       document.removeEventListener('contextmenu', handleRightClick as any);
     };
-  }, [isDragging, handlePaneMouseDown, handlePointerMove, handleRectMouseUp, handleRightClick]);
+  }, [
+    isDragging,
+    handlePaneMouseDown,
+    handlePointerMove,
+    handleRectMouseUp,
+    handleRightClick,
+  ]);
 
   const [selectedNodeMenuSubMenu, setSelectedNodeMenuSubMenu] = useState(-1);
 
@@ -320,7 +346,13 @@ function NodeMenu({
 
   // 渲染矩形选择覆盖层
   const renderSelectionOverlay = () => {
-    if (!isDragging || !draggedNodeType || !rectStart || !rectEnd || !isOnGeneratingNewNode)
+    if (
+      !isDragging ||
+      !draggedNodeType ||
+      !rectStart ||
+      !rectEnd ||
+      !isOnGeneratingNewNode
+    )
       return <></>;
 
     // no min size in overlay; show exactly what user dragged in SCREEN coords
@@ -384,17 +416,38 @@ function NodeMenu({
           return (
             <svg width='14' height='14' viewBox='0 0 24 24' fill='none'>
               <defs>
-                <linearGradient id='structuredSmall' x1='2' y1='2' x2='22' y2='22'>
+                <linearGradient
+                  id='structuredSmall'
+                  x1='2'
+                  y1='2'
+                  x2='22'
+                  y2='22'
+                >
                   <stop offset='0%' stopColor='#A78BFA' />
                   <stop offset='100%' stopColor='#7C3AED' />
                 </linearGradient>
               </defs>
-              <rect x='3' y='3' width='18' height='18' rx='3' stroke='url(#structuredSmall)' strokeWidth='2' />
+              <rect
+                x='3'
+                y='3'
+                width='18'
+                height='18'
+                rx='3'
+                stroke='url(#structuredSmall)'
+                strokeWidth='2'
+              />
             </svg>
           );
         case 'file':
           return (
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='url(#g1)' strokeWidth='2'>
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='url(#g1)'
+              strokeWidth='2'
+            >
               <defs>
                 <linearGradient id='g1' x1='0%' y1='0%' x2='100%' y2='100%'>
                   <stop offset='0%' stopColor='#22C55E' />
@@ -407,7 +460,14 @@ function NodeMenu({
           );
         case 'weblink':
           return (
-            <svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='url(#g2)' strokeWidth='2'>
+            <svg
+              width='14'
+              height='14'
+              viewBox='0 0 24 24'
+              fill='none'
+              stroke='url(#g2)'
+              strokeWidth='2'
+            >
               <defs>
                 <linearGradient id='g2' x1='0%' y1='0%' x2='100%' y2='100%'>
                   <stop offset='0%' stopColor='#F59E0B' />
@@ -475,169 +535,171 @@ function NodeMenu({
           onMouseLeave={() => manageNodeMenuSubMenu(null)}
         >
           {/* Nodes */}
-            <button
-              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
-              onMouseEnter={() => {
-                manageNodeMenuSubMenu('Textsub1');
-              }}
-              onMouseLeave={() => {
-                manageNodeMenuSubMenu(null);
-              }}
-              onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                handleMouseDown('text');
-              }}
-            >
-              <div className='absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center text-[20px] font-[500] rounded-[10px] shadow-inner relative'>
-                <span className='bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text group-hover:scale-110 transition-transform duration-200'>
-                  Aa
-                </span>
+          <button
+            className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+            onMouseEnter={() => {
+              manageNodeMenuSubMenu('Textsub1');
+            }}
+            onMouseLeave={() => {
+              manageNodeMenuSubMenu(null);
+            }}
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleMouseDown('text');
+            }}
+          >
+            <div className='absolute inset-0 bg-gradient-to-r from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+            <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center text-[20px] font-[500] rounded-[10px] shadow-inner relative'>
+              <span className='bg-gradient-to-r from-blue-400 to-blue-600 text-transparent bg-clip-text group-hover:scale-110 transition-transform duration-200'>
+                Aa
+              </span>
+            </div>
+            <div className='flex flex-col items-start relative'>
+              <div className='text-[12px] font-[600] text-white group-hover:text-white transition-colors'>
+                Text
               </div>
-              <div className='flex flex-col items-start relative'>
-                <div className='text-[12px] font-[600] text-white group-hover:text-white transition-colors'>
-                  Text
-                </div>
-                <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>
-                  Basic text node
-                </div>
+              <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200 transition-colors'>
+                Basic text node
               </div>
-            </button>
+            </div>
+          </button>
 
-            <button
-              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
-              onMouseEnter={() => {
-                manageNodeMenuSubMenu('StructuredTextsub1');
-              }}
-              onMouseLeave={() => {
-                manageNodeMenuSubMenu(null);
-              }}
-              onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                handleMouseDown('structured');
-              }}
-            >
-              <div className='absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[10px] shadow-inner relative'>
-                <svg
-                  width='24'
-                  height='24'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  xmlns='http://www.w3.org/2000/svg'
-                >
-                  <defs>
-                    <linearGradient
-                      id='structuredGradient'
-                      x1='2'
-                      y1='2'
-                      x2='22'
-                      y2='22'
-                    >
-                      <stop offset='0%' stopColor='#A78BFA' />
-                      <stop offset='100%' stopColor='#7C3AED' />
-                    </linearGradient>
-                  </defs>
-                  <rect
-                    x='2'
-                    y='2'
-                    width='20'
-                    height='20'
-                    rx='3'
-                    stroke='url(#structuredGradient)'
-                    strokeWidth='1.5'
-                    strokeOpacity='0.5'
-                  />
-                  <rect
-                    x='5'
-                    y='6'
-                    width='14'
-                    height='2.5'
-                    rx='1'
-                    fill='url(#structuredGradient)'
-                    fillOpacity='0.9'
-                  />
-                  <rect
-                    x='5'
-                    y='11'
-                    width='11'
-                    height='2.5'
-                    rx='1'
-                    fill='url(#structuredGradient)'
-                    fillOpacity='0.6'
-                  />
-                  <rect
-                    x='5'
-                    y='16'
-                    width='8'
-                    height='2.5'
-                    rx='1'
-                    fill='url(#structuredGradient)'
-                    fillOpacity='0.3'
-                  />
-                </svg>
+          <button
+            className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+            onMouseEnter={() => {
+              manageNodeMenuSubMenu('StructuredTextsub1');
+            }}
+            onMouseLeave={() => {
+              manageNodeMenuSubMenu(null);
+            }}
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleMouseDown('structured');
+            }}
+          >
+            <div className='absolute inset-0 bg-gradient-to-r from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+            <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[10px] shadow-inner relative'>
+              <svg
+                width='24'
+                height='24'
+                viewBox='0 0 24 24'
+                fill='none'
+                xmlns='http://www.w3.org/2000/svg'
+              >
+                <defs>
+                  <linearGradient
+                    id='structuredGradient'
+                    x1='2'
+                    y1='2'
+                    x2='22'
+                    y2='22'
+                  >
+                    <stop offset='0%' stopColor='#A78BFA' />
+                    <stop offset='100%' stopColor='#7C3AED' />
+                  </linearGradient>
+                </defs>
+                <rect
+                  x='2'
+                  y='2'
+                  width='20'
+                  height='20'
+                  rx='3'
+                  stroke='url(#structuredGradient)'
+                  strokeWidth='1.5'
+                  strokeOpacity='0.5'
+                />
+                <rect
+                  x='5'
+                  y='6'
+                  width='14'
+                  height='2.5'
+                  rx='1'
+                  fill='url(#structuredGradient)'
+                  fillOpacity='0.9'
+                />
+                <rect
+                  x='5'
+                  y='11'
+                  width='11'
+                  height='2.5'
+                  rx='1'
+                  fill='url(#structuredGradient)'
+                  fillOpacity='0.6'
+                />
+                <rect
+                  x='5'
+                  y='16'
+                  width='8'
+                  height='2.5'
+                  rx='1'
+                  fill='url(#structuredGradient)'
+                  fillOpacity='0.3'
+                />
+              </svg>
+            </div>
+            <div className='flex flex-col items-start relative'>
+              <div className='text-[12px] font-[600] text-white leading-tight'>
+                Structured Text
               </div>
-              <div className='flex flex-col items-start relative'>
-                <div className='text-[12px] font-[600] text-white leading-tight'>
-                  Structured Text
-                </div>
-                <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200'>
-                  JSON format
-                </div>
+              <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200'>
+                JSON format
               </div>
-            </button>
-            <button
-              className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
-              onMouseEnter={() => {
-                manageNodeMenuSubMenu('Filesub1');
-              }}
-              onMouseLeave={() => {
-                manageNodeMenuSubMenu(null);
-              }}
-              onClick={event => {
-                event.preventDefault();
-                event.stopPropagation();
-                handleMouseDown('file');
-              }}
-            >
-              <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
-              <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[10px] shadow-inner'>
-                <svg
-                  xmlns='http://www.w3.org/2000/svg'
-                  width='24'
-                  height='24'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='url(#gradientFileGreen)'
-                  strokeWidth='2'
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                >
-                  <defs>
-                    <linearGradient
-                      id='gradientFileGreen'
-                      x1='0%'
-                      y1='0%'
-                      x2='100%'
-                      y2='100%'
-                    >
-                      <stop offset='0%' stopColor='#22C55E' />
-                      <stop offset='100%' stopColor='#16A34A' />
-                    </linearGradient>
-                  </defs>
-                  <path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'></path>
-                  <polyline points='13 2 13 9 20 9'></polyline>
-                </svg>
+            </div>
+          </button>
+          <button
+            className={`group w-full h-[64px] bg-[#2A2A2A] border border-[#3e3e41] rounded-[12px] flex flex-row items-center gap-[16px] p-[8px] font-plus-jakarta-sans text-[#CDCDCD] cursor-pointer hover:bg-[#3A3A3A] hover:shadow-black/20 hover:shadow-lg transition-all duration-200 relative overflow-hidden`}
+            onMouseEnter={() => {
+              manageNodeMenuSubMenu('Filesub1');
+            }}
+            onMouseLeave={() => {
+              manageNodeMenuSubMenu(null);
+            }}
+            onClick={event => {
+              event.preventDefault();
+              event.stopPropagation();
+              handleMouseDown('file');
+            }}
+          >
+            <div className='absolute inset-0 bg-gradient-to-r from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200'></div>
+            <div className='w-[48px] h-[48px] bg-[#1C1D1F] flex items-center justify-center rounded-[10px] shadow-inner'>
+              <svg
+                xmlns='http://www.w3.org/2000/svg'
+                width='24'
+                height='24'
+                viewBox='0 0 24 24'
+                fill='none'
+                stroke='url(#gradientFileGreen)'
+                strokeWidth='2'
+                strokeLinecap='round'
+                strokeLinejoin='round'
+              >
+                <defs>
+                  <linearGradient
+                    id='gradientFileGreen'
+                    x1='0%'
+                    y1='0%'
+                    x2='100%'
+                    y2='100%'
+                  >
+                    <stop offset='0%' stopColor='#22C55E' />
+                    <stop offset='100%' stopColor='#16A34A' />
+                  </linearGradient>
+                </defs>
+                <path d='M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z'></path>
+                <polyline points='13 2 13 9 20 9'></polyline>
+              </svg>
+            </div>
+            <div className='flex flex-col items-start'>
+              <div className='text-[12px] font-[600] text-white transition-colors group-hover:text-white'>
+                File
               </div>
-              <div className='flex flex-col items-start'>
-                <div className='text-[12px] font-[600] text-white transition-colors group-hover:text-white'>File</div>
-                <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200'>
-                  Upload & Process
-                </div>
+              <div className='text-[10px] font-[400] text-gray-400 group-hover:text-gray-200'>
+                Upload & Process
               </div>
-            </button>
+            </div>
+          </button>
 
           {/* Group creation has been removed from menu UI */}
         </ul>

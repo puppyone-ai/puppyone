@@ -37,7 +37,7 @@ function DeployAsChatbot({
   const { addChatbotService, removeChatbotService } = useServers();
   const { configChatbotService } = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // 构建器 hooks
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();
@@ -130,7 +130,12 @@ function DeployAsChatbot({
         // ... existing code ...
       }
     }
-  }, [selectedFlowId, initializeNodeSelections, selectedInputs.length, selectedOutputs.length]);
+  }, [
+    selectedFlowId,
+    initializeNodeSelections,
+    selectedInputs.length,
+    selectedOutputs.length,
+  ]);
 
   // 修改：构建工作流 JSON - 使用新的 buildGroupNodeJson 函数
   const constructWorkflowJson = () => {
