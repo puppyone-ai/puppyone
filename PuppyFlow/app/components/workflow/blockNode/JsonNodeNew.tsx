@@ -293,6 +293,18 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       [id, setNodes]
     );
 
+    // 始终向 JSON 编辑器传入字符串，避免对非字符串执行 trim 报错
+    const contentString = useMemo(() => {
+      try {
+        // content 在运行时可能是对象/数组（例如结构化输出），需要字符串化
+        return typeof content === 'string'
+          ? content
+          : JSON.stringify(content ?? null, null, 2);
+      } catch (e) {
+        return String(content ?? '');
+      }
+    }, [content]);
+
     // 基于内容长度的动态存储策略切换（2s防抖），structured
     useEffect(() => {
       const node = getNode(id);
@@ -841,7 +853,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}
                   placeholder='Create your JSON structure...'
-                  value={content || ''}
+                  value={contentString}
                   onChange={updateNodeContent}
                   widthStyle={0}
                   heightStyle={0}
@@ -852,7 +864,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}
                   placeholder='{"key": "value"}'
-                  value={content || ''}
+                  value={contentString}
                   onChange={updateNodeContent}
                   widthStyle={0}
                   heightStyle={0}
