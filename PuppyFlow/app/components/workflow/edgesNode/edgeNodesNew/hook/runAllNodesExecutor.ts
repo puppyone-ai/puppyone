@@ -15,6 +15,8 @@ import {
   EdgeNodeBuilderContext,
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
+import { applyBlockUpdate, finalizeExternal } from '../../../blockNode/utils/blockUpdateApplier';
+import { ensurePollerStarted } from '../../../blockNode/utils/manifestPoller';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -53,7 +55,7 @@ interface Manifest {
   total_size: number;
 }
 
-// 新增：Manifest Poller 类
+// ManifestPoller moved to block-side utils; keep minimal state here if needed
 class ManifestPoller {
   private poller: NodeJS.Timeout | null = null;
   private knownChunks = new Set<string>();
@@ -711,70 +713,24 @@ async function sendDataToTargets(
                   }
                   break;
                 case 'STREAM_STARTED':
-                  if (data?.block_id) {
-                    // 若提供了resource_key（有的实现会包含），则启动poller
-                    if (data.resource_key) {
-                      const normalizedContentType =
-                        data.content_type === 'structured'
-                          ? 'structured'
-                          : 'text';
-                      console.log(
-                        `📥 [runAllNodes] 流式传输开始: ${data.resource_key} -> ${data.block_id}`
-                      );
-
-                      const pollerKey = `${data.resource_key}_${data.block_id}`;
-                      if (!pollers.has(pollerKey)) {
-                        const poller = new ManifestPoller(
-                          context,
-                          data.resource_key,
-                          data.block_id,
-                          normalizedContentType
-                        );
-                        pollers.set(pollerKey, poller);
-                        poller.start();
-                      }
-                    }
-
-                    // 设置该节点为等待状态
-                    context.setNodes(prevNodes =>
-                      prevNodes.map(node =>
-                        node.id === data.block_id
-                          ? {
-                              ...node,
-                              data: {
-                                ...node.data,
-                                isLoading: true,
-                                isWaitingForFlow: true,
-                              },
-                            }
-                          : node
-                      )
+                  if (data?.block_id && data?.resource_key) {
+                    const normalizedContentType =
+                      data.content_type === 'structured' ? 'structured' : 'text';
+                    ensurePollerStarted(
+                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      data.resource_key,
+                      data.block_id,
+                      normalizedContentType
                     );
                   }
                   break;
                 case 'STREAM_ENDED':
                   if (data?.resource_key && data?.block_id) {
-                    console.log(
-                      `📤 [runAllNodes] 流式传输结束: ${data.resource_key} -> ${data.block_id}`
+                    await finalizeExternal(
+                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      data.block_id,
+                      data.resource_key
                     );
-
-                    const pollerKey = `${data.resource_key}_${data.block_id}`;
-                    if (!pollers.has(pollerKey)) {
-                      // 未曾启动过poller（例如STREAM_STARTED未给resource_key），做一次性拉取
-                      const poller = new ManifestPoller(
-                        context,
-                        data.resource_key,
-                        data.block_id,
-                        'text'
-                      );
-                      pollers.set(pollerKey, poller);
-                      await poller.stop();
-                      pollers.delete(pollerKey);
-                    } else {
-                      // 停止对应的poller
-                      await pollers.get(pollerKey)?.stop();
-                      pollers.delete(pollerKey);
-                    }
                   }
                   break;
                 case 'EDGE_COMPLETED':
@@ -858,60 +814,14 @@ async function sendDataToTargets(
                       data.external_metadata !== undefined;
 
                     if (isExternalStorage) {
-                      const externalMetadata =
-                        data.external_metadata as ExternalMetadata;
-
-                      if (!externalMetadata || !externalMetadata.resource_key) {
-                        console.error(
-                          '❌ [runAllNodes] BLOCK_UPDATED: Missing external_metadata or resource_key',
-                          data
-                        );
-                        break;
-                      }
-
-                      // 更新节点为external存储模式（normalize content_type to text/structured only）
-                      const normalizedContentType =
-                        externalMetadata.content_type === 'structured'
-                          ? 'structured'
-                          : 'text';
-                      context.setNodes(prevNodes => {
-                        const updatedNodes = prevNodes.map(node => {
-                          if (node.id === data.block_id) {
-                            return {
-                              ...node,
-                              data: {
-                                ...node.data,
-                                storage_class: 'external',
-                                external_metadata: {
-                                  ...externalMetadata,
-                                  content_type: normalizedContentType,
-                                },
-                                // Keep loading until all chunks finalized
-                                isLoading: true,
-                                isWaitingForFlow: true,
-                                isExternalStorage: true,
-                                content: '',
-                              },
-                            };
-                          }
-                          return node;
-                        });
-                        return updatedNodes;
-                      });
-
-                      // 基于 external_metadata 启动一次性拉取（若未进行过）
-                      const pollerKey = `${externalMetadata.resource_key}_${data.block_id}`;
-                      if (!pollers.has(pollerKey)) {
-                        const poller = new ManifestPoller(
-                          context,
-                          externalMetadata.resource_key,
-                          data.block_id,
-                          normalizedContentType || 'text'
-                        );
-                        pollers.set(pollerKey, poller);
-                        await poller.stop();
-                        pollers.delete(pollerKey);
-                      }
+                      applyBlockUpdate(
+                        { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                        {
+                          block_id: data.block_id,
+                          storage_class: 'external',
+                          external_metadata: data.external_metadata,
+                        } as any
+                      );
                     } else {
                       if (data.content === undefined) {
                         console.error(
@@ -920,26 +830,15 @@ async function sendDataToTargets(
                         );
                         break;
                       }
-
-                      // Internal存储模式：直接使用content
-                      context.setNodes(prevNodes => {
-                        const updatedNodes = prevNodes.map(node => {
-                          if (node.id === data.block_id) {
-                            return {
-                              ...node,
-                              data: {
-                                ...node.data,
-                                content: data.content,
-                                isLoading: false,
-                                isWaitingForFlow: false,
-                                isExternalStorage: false,
-                              },
-                            };
-                          }
-                          return node;
-                        });
-                        return updatedNodes;
-                      });
+                      applyBlockUpdate(
+                        { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                        {
+                          block_id: data.block_id,
+                          storage_class: 'internal',
+                          type: data.type,
+                          content: data.content,
+                        } as any
+                      );
                     }
                   } catch (error) {
                     console.error(
