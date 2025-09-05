@@ -214,19 +214,22 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
     const updateNodeContent = useCallback(
       (newValue: string) => {
         setNodes(prevNodes =>
-          prevNodes.map(node =>
-            node.id === id
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    content: newValue,
-                    dirty: true,
-                    savingStatus: 'editing',
-                  },
-                }
-              : node
-          )
+          prevNodes.map(node => {
+            if (node.id !== id) return node;
+            const storageClass = node.data?.storage_class || 'internal';
+            const isExternal = storageClass === 'external';
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                content: newValue,
+                // 核心原则：仅 external 才使用 dirty 标记
+                dirty: isExternal ? true : false,
+                // 编辑中，等待防抖提交（internal 也先显示 editing，再在 effect 中置为 saved）
+                savingStatus: 'editing',
+              },
+            };
+          })
         );
       },
       [id, setNodes]
@@ -238,10 +241,14 @@ const TextBlockNode = React.memo<TextBlockNodeProps>(
       if (!node) return;
       const data = node.data || {};
       const currentContent = String(data.content ?? '');
+      const storageClass = data.storage_class || 'internal';
+      const isExternal = storageClass === 'external';
       const isDirty = !!data.dirty;
+      const isEditing = data.savingStatus === 'editing';
 
-      // 不在加载时且有变更才尝试防抖保存
-      if (!isDirty || data.isLoading) return;
+      // 外部存储：仅在 dirty=true 时触发；内部存储：仅在编辑中触发
+      const shouldProceed = isExternal ? isDirty : isEditing;
+      if (!shouldProceed || data.isLoading) return;
 
       const timer = setTimeout(async () => {
         try {
