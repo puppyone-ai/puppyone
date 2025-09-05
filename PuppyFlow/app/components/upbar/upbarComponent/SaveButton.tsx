@@ -71,7 +71,8 @@ function SaveButton() {
     return () => clearTimeout(timer);
   }, [saveState]);
 
-  const saveButtonText = saveState === 'idle' ? 'Save' : saveState === 'success' ? 'Saved' : 'Error';
+  const saveButtonText =
+    saveState === 'idle' ? 'Save' : saveState === 'success' ? 'Saved' : 'Error';
 
   return (
     <button
@@ -132,7 +133,15 @@ function SaveButton() {
           />
         </svg>
       )}
-      <span className={saveState === 'success' ? 'text-[12px] text-[#39bc66]' : saveState === 'error' ? 'text-[12px] text-[#f44336]' : 'text-[12px] text-[#CDCDCD]'}>
+      <span
+        className={
+          saveState === 'success'
+            ? 'text-[12px] text-[#39bc66]'
+            : saveState === 'error'
+              ? 'text-[12px] text-[#f44336]'
+              : 'text-[12px] text-[#CDCDCD]'
+        }
+      >
         {saveButtonText}
       </span>
     </button>

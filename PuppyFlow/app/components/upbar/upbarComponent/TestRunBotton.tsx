@@ -10,6 +10,7 @@ import { useAppSettings } from '@/app/components/states/AppSettingsContext';
 import useGetSourceTarget from '@/app/components/hooks/useGetSourceTarget';
 import { useWorkspaceManagement } from '@/app/components/hooks/useWorkspaceManagement';
 import { forceSyncDirtyNodes } from '@/app/components/workflow/utils/externalStorage';
+import { batchHandleStorageSwitch } from '@/app/components/workflow/utils/dynamicStorageStrategy';
 
 function TestRunBotton() {
   const [hovered, setHovered] = useState(false);
@@ -24,7 +25,7 @@ function TestRunBotton() {
     streamResultForMultipleNodes,
   } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
   const { fetchUserId } = useWorkspaceManagement();
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
@@ -47,8 +48,8 @@ function TestRunBotton() {
       // 设置为处理中
       setIsComplete(false);
 
-      // 运行前强制同步所有 dirty 节点（文本/结构化）
-      await forceSyncDirtyNodes({
+      // 运行前基于内容长度动态处理所有节点的存储策略
+      await batchHandleStorageSwitch({
         // 适配 NodeLike 签名
         getNodes: () => getNodes() as unknown as any[],
         setNodes: (updater: (nodes: any[]) => any[]) =>
@@ -93,7 +94,6 @@ function TestRunBotton() {
   return (
     <button
       className={`group inline-flex items-center gap-2 h-[36px] rounded-[8px] px-2.5 py-1.5 border border-[#2A2A2A] text-[14px] font-medium transition-colors active:scale-95 ${
-
         !isComplete
           ? 'bg-[#2A2A2A] text-[#39BC66] opacity-60 cursor-not-allowed'
           : 'bg-[#2A2A2A] text-[#39BC66] hover:bg-[#39BC66] hover:text-black'
@@ -134,11 +134,17 @@ function TestRunBotton() {
           xmlns='http://www.w3.org/2000/svg'
           className='transition-colors'
         >
-          <path d='M12 7L3 13V1L12 7Z' fill='currentColor' className='text-[#39BC66] group-hover:text-black' />
+          <path
+            d='M12 7L3 13V1L12 7Z'
+            fill='currentColor'
+            className='text-[#39BC66] group-hover:text-black'
+          />
         </svg>
       )}
-      <div className={`text-[14px] font-medium leading-normal`}> {!isComplete ? 'Processing...' : 'Run All'}</div>
-
+      <div className={`text-[14px] font-medium leading-normal`}>
+        {' '}
+        {!isComplete ? 'Processing...' : 'Run All'}
+      </div>
     </button>
   );
 }

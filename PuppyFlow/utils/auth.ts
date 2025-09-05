@@ -8,13 +8,16 @@ export async function verifyAndSetToken(
 ): Promise<{ isValid: boolean; status: number }> {
   try {
     // 🔒 安全修复：token验证完全通过服务端处理，避免客户端暴露
-    const response = await fetch(`/api/auth/verify?token=${encodeURIComponent(token)}`, {
-      method: 'GET',
-      credentials: 'include', // HttpOnly cookie自动管理
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const response = await fetch(
+      `/api/auth/verify?token=${encodeURIComponent(token)}`,
+      {
+        method: 'GET',
+        credentials: 'include', // HttpOnly cookie自动管理
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
 
     const result = {
       status: response.status,

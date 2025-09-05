@@ -17,6 +17,10 @@ from Blocks.BlockFactory import BlockFactory
 from Blocks.BaseBlock import BaseBlock
 from Server.ExecutionPlanner import ExecutionPlanner
 from ModularEdges.EdgeExecutor import EdgeExecutor
+from Server.HybridStoragePolicy import HybridStoragePolicy
+from Server.BlockUpdateService import BlockUpdateService
+from Server.EdgeResultMapper import EdgeResultMapper
+from Server.EventFactory import EventFactory
 from Utils.logger import log_info, log_error, log_warning, log_debug
 from Utils.puppy_exception import PuppyException
 
@@ -56,6 +60,11 @@ class Env:
         # Create execution planner
         self.planner = ExecutionPlanner(self.blocks, self.edges)
         
+        # Initialize service components
+        self.storage_policy = HybridStoragePolicy()
+        self.block_update_service = BlockUpdateService(self.storage_policy)
+        self.edge_result_mapper = EdgeResultMapper(self.edges, self.planner.edge_to_outputs_mapping)
+        
         # Prefetch task tracking
         self.prefetch_tasks = {}
         
@@ -77,13 +86,9 @@ class Env:
         """
         try:
             # Yield TASK_STARTED event (v2 naming)
-            yield {
-                "event_type": "TASK_STARTED",
-                "env_id": self.id,
-                "timestamp": self.start_time.isoformat(),
-                "total_blocks": len(self.blocks),
-                "total_edges": len(self.edges)
-            }
+            yield EventFactory.create_task_started_event(
+                self.id, self.start_time, len(self.blocks), len(self.edges)
+            )
             
             # Start concurrent prefetching for all external blocks
             await self._start_prefetching()
@@ -114,35 +119,20 @@ class Env:
                 
                 # Yield progress update
                 progress = self.planner.get_progress()
-                yield {
-                    "event_type": "PROGRESS_UPDATE",
-                    "env_id": self.id,
-                    "progress": progress,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                yield EventFactory.create_progress_update_event(self.id, progress)
             
             # Yield TASK_COMPLETED event (v2 naming)
             progress = self.planner.get_progress()
-            yield {
-                "event_type": "TASK_COMPLETED",
-                "env_id": self.id,
-                "timestamp": datetime.utcnow().isoformat(),
-                "duration": (datetime.utcnow() - self.start_time).total_seconds(),
-                "total_blocks_processed": progress["blocks"]["processed"],
-                "total_edges_completed": progress["edges"]["completed"]
-            }
+            yield EventFactory.create_task_completed_event(
+                self.id, self.start_time, 
+                progress["blocks"]["processed"], 
+                progress["edges"]["completed"]
+            )
             
         except Exception as e:
             log_error(f"Env {self.id} execution failed: {str(e)}")
             # No workflow-level usage event; usage is tracked per edge
-            yield {
-                "event_type": "TASK_FAILED",
-                "env_id": self.id,
-                "error_message": str(e),
-                "error_type": type(e).__name__,
-                "traceback": traceback.format_exc(),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            yield EventFactory.create_task_failed_event(self.id, e)
             raise
         finally:
             # Best-effort cleanup of any local temp directories created during prefetch
@@ -208,12 +198,8 @@ class Env:
         
         # Yield EDGE_STARTED events for each edge
         for edge_id in edge_ids:
-            yield {
-                "event_type": "EDGE_STARTED",
-                "edge_id": edge_id,
-                "edge_type": self.edges[edge_id].get("type"),
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            edge_type = self.edge_result_mapper.get_edge_type(edge_id)
+            yield EventFactory.create_edge_started_event(edge_id, edge_type)
         
         # Prepare edge execution tasks
         edge_tasks = []
@@ -248,12 +234,9 @@ class Env:
                 results.update(edge_results)
                 
                 # Yield EDGE_COMPLETED event
-                yield {
-                    "event_type": "EDGE_COMPLETED",
-                    "edge_id": edge_id,
-                    "output_blocks": list(edge_results.keys()),
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                yield EventFactory.create_edge_completed_event(
+                    edge_id, list(edge_results.keys())
+                )
                 
                 # Track edge usage if callback provided
                 if self.edge_usage_callback:
@@ -269,13 +252,7 @@ class Env:
                     
             except Exception as e:
                 log_error(f"Edge {edge_id} execution failed: {str(e)}")
-                yield {
-                    "event_type": "EDGE_ERROR",
-                    "edge_id": edge_id,
-                    "error_message": str(e),
-                    "error_type": type(e).__name__,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
+                yield EventFactory.create_edge_error_event(edge_id, e)
                 # Track failed edge usage event (amount=0 on consumer side)
                 if self.edge_usage_callback:
                     execution_time = None
@@ -313,65 +290,25 @@ class Env:
                     )
                 raise
         
-        # Update blocks with results and persist before emitting BLOCK_UPDATED
+        # Update blocks with results using BlockUpdateService
         v1_results = {}
-        for block_id, content in results.items():
-            block = self.blocks[block_id]
-            # Set content so persistence can read from it
-            block.set_content(content)
-
-            # Persist block first (may yield STREAM_* events)
-            async for event in block.persist(self.storage_client, self.user_info['user_id']):
-                yield event
-
-            # Decide payload based on storage class after persist
-            storage_class = getattr(block, 'storage_class', 'internal')
-            has_external = False
-            try:
-                has_external = bool(block.has_external_data())
-            except Exception:
-                has_external = False
-
-            block_event = {
-                "event_type": "BLOCK_UPDATED",
-                "block_id": block_id,
-                "storage_class": storage_class,
-                "timestamp": datetime.utcnow().isoformat()
-            }
-
-            if storage_class == 'external' or has_external:
-                # External storage: do not include raw content
-                block_event["external_metadata"] = block.data.get("external_metadata")
-                v1_results[block_id] = {
-                    "storage_class": storage_class,
-                    "external_metadata": block.data.get("external_metadata")
-                }
+        async for event in self.block_update_service.update_blocks_with_results(
+            self.blocks, results, self.storage_client, self.user_info['user_id']
+        ):
+            if "v1_results" in event:
+                v1_results = event["v1_results"]
             else:
-                # Internal storage: safe to include content
-                block_event["content"] = content
-                v1_results[block_id] = content
-
-            # Emit BLOCK_UPDATED after persist completes
-            yield block_event
+                yield event
         
         # Mark edges as completed and blocks as processed
         self.planner.mark_edges_completed(edge_ids)
         self.planner.mark_blocks_processed(set(results.keys()))
         
         # Yield batch result
-        yield {
-            "event_type": "BATCH_COMPLETED",
-            "edge_ids": list(edge_ids),
-            "output_blocks": list(results.keys()),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        yield EventFactory.create_batch_completed_event(edge_ids, list(results.keys()))
         
         # Yield block results for backward compatibility
-        yield {
-            "data": v1_results,
-            "is_complete": False,
-            "yield_count": len(results)
-        }
+        yield EventFactory.create_v1_compatibility_event(v1_results)
     
     async def _execute_single_edge(self, edge_id: str, executor: EdgeExecutor) -> Dict[str, Any]:
         """Execute a single edge in a thread"""
@@ -385,26 +322,9 @@ class Env:
         if edge_task.error:
             raise edge_task.error
         
-        # Map edge result to output blocks
+        # Map edge result to output blocks using EdgeResultMapper
         edge_result = edge_task.result
-        results = {}
-        
-        # Get output block IDs for this edge
-        output_block_ids = self.planner.edge_to_outputs_mapping.get(edge_id, set())
-        
-        # Handle different edge types
-        edge_type = self.edges.get(edge_id, {}).get("type")
-        
-        if edge_type == "ifelse" and isinstance(edge_result, dict):
-            # For ifelse edges, result is already a dict of block_id -> content
-            for block_id, content in edge_result.items():
-                if block_id in output_block_ids:
-                    results[block_id] = content
-        else:
-            # For other edges, assign result to all output blocks
-            for block_id in output_block_ids:
-                results[block_id] = edge_result
-                log_info(f"Block {block_id} updated with result type: {type(edge_result)}")
+        results = self.edge_result_mapper.map_edge_result_to_blocks(edge_id, edge_result)
         
         return results
     
