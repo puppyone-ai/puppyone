@@ -7,8 +7,10 @@ It supports dynamic switching between memory and external storage based on conte
 
 from typing import Any, Dict, AsyncGenerator
 import sys
+import os
 from .BaseBlock import BaseBlock
 from Persistence import MemoryStrategy, ExternalStorageStrategy
+from Server.HybridStoragePolicy import HybridStoragePolicy
 from Utils.logger import log_info, log_debug
 
 
@@ -20,9 +22,6 @@ class GenericBlock(BaseBlock):
     strategies based on content size or explicit configuration.
     """
     
-    # Default size threshold for external storage (1MB)
-    SIZE_THRESHOLD = 1024 * 1024
-    
     def __init__(self, block_id: str, block_data: Dict[str, Any], persistence_strategy=None):
         """
         Initialize a GenericBlock
@@ -33,6 +32,9 @@ class GenericBlock(BaseBlock):
             persistence_strategy: Optional initial persistence strategy
         """
         super().__init__(block_id, block_data)
+        
+        # Initialize storage policy
+        self.storage_policy = HybridStoragePolicy()
         
         # Set initial persistence strategy
         if persistence_strategy:
@@ -101,39 +103,9 @@ class GenericBlock(BaseBlock):
         if self.has_external_data():
             return True
         
-        # Check content size
+        # Use storage policy to determine if external storage is needed
         content = self.get_content()
-        if content is None:
-            return False
-        
-        content_size = self._calculate_content_size(content)
-        return content_size > self.SIZE_THRESHOLD
-    
-    def _calculate_content_size(self, content: Any) -> int:
-        """
-        Calculate the approximate size of content in bytes
-        
-        Args:
-            content: The content to measure
-            
-        Returns:
-            int: Approximate size in bytes
-        """
-        if isinstance(content, (str, bytes)):
-            if isinstance(content, str):
-                return len(content.encode('utf-8'))
-            return len(content)
-        elif isinstance(content, (list, dict)):
-            # For structured data, use sys.getsizeof for approximation
-            # This is not perfect but good enough for threshold comparison
-            return sys.getsizeof(content)
-        else:
-            # For other types, try to get size
-            try:
-                return sys.getsizeof(content)
-            except:
-                # If we can't determine size, assume it's small
-                return 0
+        return self.storage_policy.should_use_external_storage(content)
     
     def to_dict(self) -> Dict[str, Any]:
         """

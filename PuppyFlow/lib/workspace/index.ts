@@ -40,7 +40,8 @@ export function getWorkspaceStore(): IWorkspaceStore {
     }
 
     const allowWithoutServiceKey =
-      (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true';
+      (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() ===
+      'true';
     const hasServiceKey = !!process.env.SERVICE_KEY;
     if (!hasServiceKey && !allowWithoutServiceKey) {
       throw new Error(
@@ -52,8 +53,8 @@ export function getWorkspaceStore(): IWorkspaceStore {
   } catch (err: any) {
     // Surface a clear error for cloud misconfiguration
     const message = err?.message || String(err);
-    throw new Error(`[PuppyFlow] Failed to initialize cloud workspace store: ${message}`);
+    throw new Error(
+      `[PuppyFlow] Failed to initialize cloud workspace store: ${message}`
+    );
   }
 }
-
-

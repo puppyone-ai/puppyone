@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React from 'react';
 import { useSelection } from './ComponentRenderer';
 import { setClipboard, getClipboard } from './ClipboardStore';
@@ -49,7 +49,10 @@ function setValueAtPath(root: any, path: string, value: any): any {
       newArray[idx] = setRecursive(baseArray[idx], index + 1);
       return newArray;
     } else {
-      const baseObj = current && typeof current === 'object' && !Array.isArray(current) ? current : {};
+      const baseObj =
+        current && typeof current === 'object' && !Array.isArray(current)
+          ? current
+          : {};
       return {
         ...baseObj,
         [part]: setRecursive(baseObj[part], index + 1),
@@ -70,7 +73,12 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return !!editable;
 }
 
-const ClipboardManager: React.FC<ClipboardManagerProps> = ({ containerRef, getRootData, setRootData, readonly }) => {
+const ClipboardManager: React.FC<ClipboardManagerProps> = ({
+  containerRef,
+  getRootData,
+  setRootData,
+  readonly,
+}) => {
   const { selectedPath } = useSelection();
   const internalClipboardRef = React.useRef<any | null>(null);
 
@@ -87,7 +95,7 @@ const ClipboardManager: React.FC<ClipboardManagerProps> = ({ containerRef, getRo
       if (!meta) return;
 
       // Copy -> trigger native copy event to leverage onCopy handler
-      if ((e.key === 'c' || e.key === 'C')) {
+      if (e.key === 'c' || e.key === 'C') {
         document.execCommand('copy');
         e.preventDefault();
         e.stopPropagation();
@@ -102,9 +110,10 @@ const ClipboardManager: React.FC<ClipboardManagerProps> = ({ containerRef, getRo
     const onCopy = (e: ClipboardEvent) => {
       // If copying inside an editable (Text component), capture selection into app clipboard
       if (isEditableTarget(e.target)) {
-        const selectedText = (typeof window !== 'undefined' && window.getSelection)
-          ? (window.getSelection()?.toString() ?? '')
-          : '';
+        const selectedText =
+          typeof window !== 'undefined' && window.getSelection
+            ? (window.getSelection()?.toString() ?? '')
+            : '';
         if (selectedText) {
           // Try to parse JSON; if fails, keep plain text
           let payload: any = selectedText;
@@ -129,7 +138,10 @@ const ClipboardManager: React.FC<ClipboardManagerProps> = ({ containerRef, getRo
       }
       setClipboard(internalClipboardRef.current);
       try {
-        e.clipboardData?.setData('text/plain', '__RJF__' + JSON.stringify(value));
+        e.clipboardData?.setData(
+          'text/plain',
+          '__RJF__' + JSON.stringify(value)
+        );
         e.preventDefault();
         e.stopPropagation();
       } catch {

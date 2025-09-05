@@ -61,7 +61,7 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { } = useAppSettings();
+    const {} = useAppSettings();
 
     // 使用 useRef 跟踪是否已挂载
     const hasMountedRef = useRef(false);
@@ -79,13 +79,13 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
         getNode,
         setNodes,
         setEdges,
-      getSourceNodeIdWithLabel,
-      getTargetNodeIdWithLabel,
-      clearAll,
-      streamResult,
-      reportError,
-      resetLoadingUI,
-      isLocalDeployment: false,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
+        isLocalDeployment: false,
       }),
       [
         getNode,
@@ -269,7 +269,10 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
     );
 
     // 缓存模型选项 - 使用 useMemo 缓存
-    const modelOptions = useMemo(() => ['sonar', 'sonar-pro', 'sonar-reasoning-pro'], []);
+    const modelOptions = useMemo(
+      () => ['sonar', 'sonar-pro', 'sonar-reasoning-pro'],
+      []
+    );
 
     // 缓存菜单按钮样式 - 使用 useMemo 缓存
     const menuRunButtonStyle = useMemo(

@@ -96,7 +96,9 @@ const DeployedServers: React.FC = () => {
     <div className='space-y-4 max-h-[500px] pr-2 text-[13px] text-[#D4D4D4]'>
       {/* 标题栏 */}
       <div className='flex items-center justify-between sticky top-0 z-10 bg-[#2A2A2A] border-b border-[#343434] py-2'>
-        <h3 className='text-[16px] font-semibold text-[#E5E5E5]'>Deployed Servers</h3>
+        <h3 className='text-[16px] font-semibold text-[#E5E5E5]'>
+          Deployed Servers
+        </h3>
       </div>
 
       <div className='py-[8px] overflow-y-auto'>
@@ -246,11 +248,18 @@ const DeployedServers: React.FC = () => {
           </div>
         ) : (
           <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-            <div className='text-[12px] text-[#888888] mb-1'>No deployed servers found</div>
+            <div className='text-[12px] text-[#888888] mb-1'>
+              No deployed servers found
+            </div>
             {apis.length === 0 && chatbots.length === 0 ? (
-              <div className='text-[#666666] text-[12px]'>No services deployed across any workspace</div>
+              <div className='text-[#666666] text-[12px]'>
+                No services deployed across any workspace
+              </div>
             ) : (
-              <div className='text-[#666666] text-[12px]'>No services deployed across {apis.length + chatbots.length} services</div>
+              <div className='text-[#666666] text-[12px]'>
+                No services deployed across {apis.length + chatbots.length}{' '}
+                services
+              </div>
             )}
           </div>
         )}
