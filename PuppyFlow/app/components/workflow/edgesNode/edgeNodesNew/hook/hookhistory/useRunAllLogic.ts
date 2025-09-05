@@ -30,7 +30,9 @@ export function useBaseEdgeNodeLogic({
   onComplete?: () => void;
   onStart?: () => void;
 } = {}): BaseEdgeNodeLogicReturn {
-  console.warn('⚠️ DEPRECATED: useRunAllLogic uses legacy authentication. Use runAllNodesExecutor instead.');
+  console.warn(
+    '⚠️ DEPRECATED: useRunAllLogic uses legacy authentication. Use runAllNodesExecutor instead.'
+  );
   console.log(`🔄 [useBaseEdgeNodeLogic - useRunAllLogic] Hook初始化`);
 
   // Basic hooks
@@ -42,7 +44,7 @@ export function useBaseEdgeNodeLogic({
     resetLoadingUI,
   } = useJsonConstructUtils();
   const { clearAll } = useNodesPerFlowContext();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // Add hooks for JSON building
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();

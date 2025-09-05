@@ -42,7 +42,7 @@ export function useBaseEdgeNodeLogic({
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
   const { clearAll } = useNodesPerFlowContext();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // Add hooks for JSON building
   const { buildEdgeNodeJson } = useEdgeNodeBackEndJsonBuilder();

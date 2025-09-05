@@ -19,7 +19,9 @@ export default function AddGroupButton() {
         );
       }}
       className={`group inline-flex items-center gap-2 h-[36px] w-[90px] rounded-[8px] px-2.5 py-1.5 border text-[14px] font-medium transition-colors bg-[#2A2A2A] border-[#2A2A2A] text-[#CDCDCD] hover:bg-[#3A3A3A] ${
-        isOnGeneratingNewNode ? 'pointer-events-none opacity-60' : 'pointer-events-auto'
+        isOnGeneratingNewNode
+          ? 'pointer-events-none opacity-60'
+          : 'pointer-events-auto'
       }`}
       title='Group'
       aria-label='Group'
@@ -32,10 +34,30 @@ export default function AddGroupButton() {
         xmlns='http://www.w3.org/2000/svg'
         className='text-current'
       >
-        <path d='M8 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
-        <path d='M16 4V20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
-        <path d='M4 8H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
-        <path d='M4 16H20' stroke='currentColor' strokeWidth='1.8' strokeLinecap='round' />
+        <path
+          d='M8 4V20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
+        <path
+          d='M16 4V20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
+        <path
+          d='M4 8H20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
+        <path
+          d='M4 16H20'
+          stroke='currentColor'
+          strokeWidth='1.8'
+          strokeLinecap='round'
+        />
       </svg>
       <span>Group</span>
     </button>

@@ -105,7 +105,9 @@ const Usage: React.FC = () => {
         </h3>
         <div className='py-[8px] overflow-y-auto'>
           <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-            <span className='text-[#8B8B8B] text-[12px]'>Unable to load usage information</span>
+            <span className='text-[#8B8B8B] text-[12px]'>
+              Unable to load usage information
+            </span>
           </div>
         </div>
       </div>
@@ -120,10 +122,12 @@ const Usage: React.FC = () => {
         Usage
       </h3>
 
-        <div className='py-[8px] overflow-y-auto space-y-4'>
+      <div className='py-[8px] overflow-y-auto space-y-4'>
         {/* Subscription Status */}
         <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-          <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>Subscription</div>
+          <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>
+            Subscription
+          </div>
           <div className='space-y-2 divide-y divide-[#2A2A2A]'>
             <div className='flex items-center justify-between pb-2'>
               <span className='text-[12px] text-[#E5E5E5]'>Plan</span>
@@ -136,7 +140,8 @@ const Usage: React.FC = () => {
               >
                 {isLocalDeployment
                   ? 'LOCAL'
-                  : userSubscriptionStatus.subscription_plan?.toUpperCase() || 'FREE'}
+                  : userSubscriptionStatus.subscription_plan?.toUpperCase() ||
+                    'FREE'}
               </span>
             </div>
             <div className='flex items-center justify-between py-2'>
@@ -174,7 +179,9 @@ const Usage: React.FC = () => {
         {!isLocalDeployment &&
           userSubscriptionStatus.subscription_period_start && (
             <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
-              <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>Billing period</div>
+              <div className='text-[12px] font-semibold text-[#9CA3AF] mb-2'>
+                Billing period
+              </div>
               <div className='space-y-2'>
                 <div className='flex items-center justify-between'>
                   <span className='text-[12px] text-[#E5E5E5]'>Start</span>
@@ -199,7 +206,9 @@ const Usage: React.FC = () => {
         {/* Usage Limits */}
         <div className='rounded-lg border border-[#2A2A2A] bg-[#141414] p-4'>
           <div className='flex items-center justify-between mb-2'>
-            <div className='text-[12px] font-semibold text-[#9CA3AF]'>Usage this month</div>
+            <div className='text-[12px] font-semibold text-[#9CA3AF]'>
+              Usage this month
+            </div>
             {!isLocalDeployment && (
               <button
                 onClick={fetchUsageData}
@@ -217,11 +226,12 @@ const Usage: React.FC = () => {
             {userSubscriptionStatus.is_premium ? (
               isLocalDeployment ? (
                 <div className='py-2'>
-                  <div className='text-[12px] text-[#16A34A]'>Unlimited usage on local deployment</div>
+                  <div className='text-[12px] text-[#16A34A]'>
+                    Unlimited usage on local deployment
+                  </div>
                 </div>
               ) : (
                 <>
-
                   {usageData ? (
                     <div className='space-y-4 pt-1'>
                       {renderUsageBar(
@@ -242,12 +252,12 @@ const Usage: React.FC = () => {
                     </div>
                   ) : (
                     <div className='text-[12px] text-[#888888]'>
-                      Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs
+                      Monthly limits: {planLimits.llm_calls} LLM calls,{' '}
+                      {planLimits.runs} runs
                     </div>
                   )}
- </>
+                </>
               )
-
             ) : (
               <>
                 {usageData ? (
@@ -270,7 +280,8 @@ const Usage: React.FC = () => {
                   </div>
                 ) : (
                   <div className='text-[12px] text-[#888888]'>
-                    Monthly limits: {planLimits.llm_calls} LLM calls, {planLimits.runs} runs
+                    Monthly limits: {planLimits.llm_calls} LLM calls,{' '}
+                    {planLimits.runs} runs
                   </div>
                 )}
               </>

@@ -1076,7 +1076,8 @@ input[type='number']::-webkit-outer-spin-button {
   scrollbar-color: #7a7a7a transparent !important; /* thumb + transparent track */
 }
 .menu-scroll::-webkit-scrollbar {
-  width: 6px; height: 6px;
+  width: 6px;
+  height: 6px;
   background: transparent !important;
   background-color: transparent !important;
 }
@@ -1088,13 +1089,17 @@ input[type='number']::-webkit-outer-spin-button {
 .menu-scroll::-webkit-scrollbar-corner {
   background: transparent !important;
 }
-.menu-scroll::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.menu-scroll::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
 .menu-scroll::-webkit-scrollbar-thumb {
-  background: rgba(120,120,120,0.95) !important;
+  background: rgba(120, 120, 120, 0.95) !important;
   border-radius: 8px;
   border: 1px solid transparent;
   background-clip: padding-box;
 }
 .menu-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(160,160,160,1) !important;
+  background: rgba(160, 160, 160, 1) !important;
 }

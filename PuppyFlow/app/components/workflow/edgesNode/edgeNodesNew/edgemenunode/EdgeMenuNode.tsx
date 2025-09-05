@@ -1,6 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Handle, NodeProps, Node, Position, useReactFlow } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../../../states/NodesPerFlowContext';
 import { UI_COLORS } from '@/app/utils/colors';
@@ -108,7 +114,11 @@ function ShellHandles({
   );
 }
 
-const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable }) => {
+const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({
+  id,
+  data,
+  isConnectable,
+}) => {
   const { getNode, setNodes, setEdges } = useReactFlow();
   const { isOnConnect } = useNodesPerFlowContext();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -122,7 +132,9 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
 
   const removeSelf = useCallback(() => {
     const nodeId = id;
-    setEdges(prev => prev.filter(e => e.source !== nodeId && e.target !== nodeId));
+    setEdges(prev =>
+      prev.filter(e => e.source !== nodeId && e.target !== nodeId)
+    );
     setNodes(prev => prev.filter(n => n.id !== nodeId));
   }, [id, setEdges, setNodes]);
 
@@ -156,18 +168,21 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({ id, data, isConnectable
     [id, setNodes]
   );
 
-  const handleStyle = useMemo(() => ({
-    position: 'absolute' as const,
-    width: 'calc(100%)',
-    height: 'calc(100%)',
-    top: '0',
-    left: '0',
-    borderRadius: '0',
-    transform: 'translate(0px, 0px)',
-    background: 'transparent',
-    border: '3px solid transparent',
-    zIndex: !isOnConnect ? '-1' : '1',
-  }), [isOnConnect]);
+  const handleStyle = useMemo(
+    () => ({
+      position: 'absolute' as const,
+      width: 'calc(100%)',
+      height: 'calc(100%)',
+      top: '0',
+      left: '0',
+      borderRadius: '0',
+      transform: 'translate(0px, 0px)',
+      background: 'transparent',
+      border: '3px solid transparent',
+      zIndex: !isOnConnect ? '-1' : '1',
+    }),
+    [isOnConnect]
+  );
 
   return (
     <div ref={containerRef} className='p-[3px] w-[80px] h-[48px] relative'>

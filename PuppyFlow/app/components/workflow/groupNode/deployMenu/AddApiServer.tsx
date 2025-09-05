@@ -34,7 +34,7 @@ function DeployAsApi({
 
   const serverOperations = useServerOperations();
   const { workspaces } = useWorkspaces();
-  const { } = useAppSettings();
+  const {} = useAppSettings();
 
   // 添加必要的hooks
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
@@ -163,9 +163,9 @@ function DeployAsApi({
 
       const { api_id, api_key } = await res.json();
       // 🔒 安全修复：移除API密钥的日志输出，防止敏感信息泄露
-      console.log('✅ API部署成功，返回结果:', { 
-        api_id, 
-        api_key: '***REDACTED***' 
+      console.log('✅ API部署成功，返回结果:', {
+        api_id,
+        api_key: '***REDACTED***',
       });
 
       // 如果是重新部署，先移除旧的 API
