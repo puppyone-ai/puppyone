@@ -8,6 +8,7 @@ It handles both uploading (persist) and downloading (resolve) of block content.
 from typing import Any, Dict, AsyncGenerator, Tuple, TYPE_CHECKING
 import json
 import uuid
+import os
 from datetime import datetime
 from Utils.logger import log_info, log_error, log_debug, log_warning
 from Utils.file_type import decide_file_type
@@ -29,7 +30,7 @@ class ExternalStorageStrategy:
     
     def __init__(self):
         self.json_handler = StreamingJSONHandler(mode="jsonl")
-        self.chunk_size = 1024 * 1024  # 1MB default chunk size
+        self.chunk_size = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))  # Configurable chunk size
     
     async def resolve(self, storage_client: Any, block: 'BaseBlock') -> None:
         """

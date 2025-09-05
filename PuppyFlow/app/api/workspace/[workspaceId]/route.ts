@@ -16,7 +16,10 @@ export async function DELETE(
     }
     const store = getWorkspaceStore();
     await store.deleteWorkspace(workspaceId);
-    return NextResponse.json({ success: true, message: 'Workspace deleted successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Workspace deleted successfully',
+    });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: 'Failed to delete workspace' },

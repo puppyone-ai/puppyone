@@ -49,18 +49,24 @@ function filterRequestHeaders(headers: Headers): HeadersInit {
     }
   } catch (error) {
     // Cookie读取失败时的处理
-    console.warn('Failed to read access_token cookie for user-system proxy:', error);
+    console.warn(
+      'Failed to read access_token cookie for user-system proxy:',
+      error
+    );
   }
 
   // 服务间认证密钥
   if (SERVER_ENV.SERVICE_KEY) {
     newHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   }
-  
+
   return newHeaders;
 }
 
-async function proxy(request: Request, params: Params['params']): Promise<Response> {
+async function proxy(
+  request: Request,
+  params: Params['params']
+): Promise<Response> {
   const target = buildTargetUrl(request, params.path);
   const method = request.method;
   const headers = filterRequestHeaders(request.headers);
@@ -90,7 +96,10 @@ export async function GET(request: Request, ctx: Params) {
     return await proxy(request, ctx.params);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      JSON.stringify({
+        error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED',
+        message: err?.message || 'missing backend base',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
@@ -101,7 +110,10 @@ export async function POST(request: Request, ctx: Params) {
     return await proxy(request, ctx.params);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      JSON.stringify({
+        error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED',
+        message: err?.message || 'missing backend base',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
@@ -112,7 +124,10 @@ export async function PUT(request: Request, ctx: Params) {
     return await proxy(request, ctx.params);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      JSON.stringify({
+        error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED',
+        message: err?.message || 'missing backend base',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
@@ -123,7 +138,10 @@ export async function PATCH(request: Request, ctx: Params) {
     return await proxy(request, ctx.params);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      JSON.stringify({
+        error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED',
+        message: err?.message || 'missing backend base',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
@@ -134,7 +152,10 @@ export async function DELETE(request: Request, ctx: Params) {
     return await proxy(request, ctx.params);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      JSON.stringify({
+        error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED',
+        message: err?.message || 'missing backend base',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
@@ -145,10 +166,11 @@ export async function OPTIONS(request: Request, ctx: Params) {
     return await proxy(request, ctx.params);
   } catch (err: any) {
     return new Response(
-      JSON.stringify({ error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED', message: err?.message || 'missing backend base' }),
+      JSON.stringify({
+        error: 'USER_SYSTEM_BACKEND_NOT_CONFIGURED',
+        message: err?.message || 'missing backend base',
+      }),
       { status: 500, headers: { 'content-type': 'application/json' } }
     );
   }
 }
-
-

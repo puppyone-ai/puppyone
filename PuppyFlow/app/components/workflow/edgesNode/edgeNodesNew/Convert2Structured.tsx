@@ -63,7 +63,7 @@ const Convert2Structured: React.FC<ModifyConfigNodeProps> = React.memo(
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
       useJsonConstructUtils();
-    const { } = useAppSettings();
+    const {} = useAppSettings();
 
     // 使用 useRef 跟踪是否已挂载
     const hasMountedRef = useRef(false);
@@ -146,13 +146,13 @@ const Convert2Structured: React.FC<ModifyConfigNodeProps> = React.memo(
         getNode,
         setNodes,
         setEdges,
-      getSourceNodeIdWithLabel,
-      getTargetNodeIdWithLabel,
-      clearAll,
-      streamResult,
-      reportError,
-      resetLoadingUI,
-      isLocalDeployment: false,
+        getSourceNodeIdWithLabel,
+        getTargetNodeIdWithLabel,
+        clearAll,
+        streamResult,
+        reportError,
+        resetLoadingUI,
+        isLocalDeployment: false,
       }),
       [
         getNode,

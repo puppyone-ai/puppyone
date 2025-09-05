@@ -9,14 +9,21 @@ type FileNodeSettingsControllerProps = {
   nodeid: string;
 };
 
-function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps) {
+function FileNodeSettingsController({
+  nodeid,
+}: FileNodeSettingsControllerProps) {
   const [isHovered, setHovered] = useState(false);
   const settingControllerRef = useRef<HTMLButtonElement | null>(null);
   const componentRef = useRef<HTMLDivElement | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
-  const { activatedNode, setHandleActivated, setNodeEditable, preventInactivateNode } = useNodesPerFlowContext();
+  const {
+    activatedNode,
+    setHandleActivated,
+    setNodeEditable,
+    preventInactivateNode,
+  } = useNodesPerFlowContext();
   const { getNode, setNodes, setEdges } = useReactFlow();
 
   useEffect(() => {
@@ -25,7 +32,8 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
     const closeSettings = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       const clickedInsideButton = !!currRef && currRef.contains(target);
-      const clickedInsideMenu = !!menuContainerRef.current && menuContainerRef.current.contains(target);
+      const clickedInsideMenu =
+        !!menuContainerRef.current && menuContainerRef.current.contains(target);
       if (!clickedInsideButton && !clickedInsideMenu && isMenuOpen) {
         setIsMenuOpen(false);
       }
@@ -185,7 +193,10 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
   const fillColor = isHovered || isMenuOpen ? '#BEBEBE' : '#6D7177';
 
   return (
-    <div ref={componentRef} style={{ position: 'relative', isolation: 'isolate' }}>
+    <div
+      ref={componentRef}
+      style={{ position: 'relative', isolation: 'isolate' }}
+    >
       <button
         ref={settingControllerRef}
         className={`flex items-center justify-center ${isHovered || isMenuOpen ? 'bg-[#3E3E41]' : ''} w-[24px] h-[24px] rounded-[8px]`}
@@ -194,7 +205,13 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
         onClick={manageSettings}
         title='Settings'
       >
-        <svg xmlns='http://www.w3.org/2000/svg' width='11' height='2' viewBox='0 0 11 2' fill='none'>
+        <svg
+          xmlns='http://www.w3.org/2000/svg'
+          width='11'
+          height='2'
+          viewBox='0 0 11 2'
+          fill='none'
+        >
           <path d='M0 0H2V2H0V0Z' fill={fillColor} />
           <path d='M9 0H11V2H9V0Z' fill={fillColor} />
           <path d='M4.5 0H6.5V2H4.5V0Z' fill={fillColor} />
@@ -206,5 +223,3 @@ function FileNodeSettingsController({ nodeid }: FileNodeSettingsControllerProps)
 }
 
 export default FileNodeSettingsController;
-
-
