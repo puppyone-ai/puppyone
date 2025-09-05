@@ -1,5 +1,11 @@
 'use client';
-import React, { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { Menu, Transition } from '@headlessui/react';
 import { useReactFlow } from '@xyflow/react';
 import useJsonConstructUtils from '../../hooks/useJsonConstructUtils';
@@ -207,7 +213,12 @@ function MoreOptionsButtonMenu({
           onChange={handleInputChange}
           onClick={e => e.stopPropagation()}
           className='opacity-0 absolute top-0 left-0 w-[1px] h-[1px]'
-          style={{ position: 'fixed', top: '-100%', left: '-100%', zIndex: 9999 }}
+          style={{
+            position: 'fixed',
+            top: '-100%',
+            left: '-100%',
+            zIndex: 9999,
+          }}
         />
       )}
     </>

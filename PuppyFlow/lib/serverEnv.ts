@@ -40,13 +40,14 @@ export const SERVER_ENV = {
     mode === 'cloud'
       ? normalizeUrlBase(requireEnv('USER_SYSTEM_BACKEND'))
       : hasBackend
-      ? normalizeUrlBase(process.env.USER_SYSTEM_BACKEND as string)
-      : '',
+        ? normalizeUrlBase(process.env.USER_SYSTEM_BACKEND as string)
+        : '',
   // Optional service key for S2S auth; not all routes need it
   SERVICE_KEY: process.env.SERVICE_KEY || '',
   // Allow bypassing service key for local/dev verification only
   ALLOW_VERIFY_WITHOUT_SERVICE_KEY:
-    (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() === 'true',
+    (process.env.ALLOW_VERIFY_WITHOUT_SERVICE_KEY || '').toLowerCase() ===
+    'true',
   // Backend bases for internal proxies (server-only when provided)
   // Prefer server-only envs; fall back to public envs for local/dev convenience
   PUPPY_ENGINE_BACKEND: (() => {
@@ -62,5 +63,3 @@ export const SERVER_ENV = {
     return normalizeUrlBase(server as string);
   })(),
 };
-
-

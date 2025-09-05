@@ -390,7 +390,14 @@ const FileNode = React.memo<FileNodeProps>(
                   strokeWidth='1.5'
                   strokeLinecap='round'
                 />
-                <rect x='4' y='7' width='8' height='6' rx='1' fill='currentColor' />
+                <rect
+                  x='4'
+                  y='7'
+                  width='8'
+                  height='6'
+                  rx='1'
+                  fill='currentColor'
+                />
               </svg>
               <span>LOCKED</span>
             </div>

@@ -163,21 +163,27 @@ function filterValidEdgeNodes(
     const outputNodeIds = outputNodes.map(node => node.id);
 
     // 检查input和output节点的组内情况
-    const inputInGroupCount = inputNodeIds.filter(id => groupBlockNodeSet.has(id)).length;
-    const outputInGroupCount = outputNodeIds.filter(id => groupBlockNodeSet.has(id)).length;
+    const inputInGroupCount = inputNodeIds.filter(id =>
+      groupBlockNodeSet.has(id)
+    ).length;
+    const outputInGroupCount = outputNodeIds.filter(id =>
+      groupBlockNodeSet.has(id)
+    ).length;
     const totalInputCount = inputNodeIds.length;
     const totalOutputCount = outputNodeIds.length;
 
     // 新的验证规则：
     // 1. 输入和输出都有组内节点 → 有效
-    // 2. 所有输入在组内且输出无组内节点 → 有效  
+    // 2. 所有输入在组内且输出无组内节点 → 有效
     // 3. 输入无组内节点且所有输出在组内 → 有效
     // 4. 输入输出都无组内节点 → 无效
-    
+
     const hasInputInGroup = inputInGroupCount > 0;
     const hasOutputInGroup = outputInGroupCount > 0;
-    const allInputsInGroup = inputInGroupCount === totalInputCount && totalInputCount > 0;
-    const allOutputsInGroup = outputInGroupCount === totalOutputCount && totalOutputCount > 0;
+    const allInputsInGroup =
+      inputInGroupCount === totalInputCount && totalInputCount > 0;
+    const allOutputsInGroup =
+      outputInGroupCount === totalOutputCount && totalOutputCount > 0;
 
     let isValid = false;
     let validationReason = '';
@@ -509,7 +515,9 @@ async function sendGroupDataToTargets(
       } else if (outputNodeIds.has(node.id)) {
         // 所有输出节点（包括组外节点）设为isLoading
         const isGroupNode = groupBlockNodes.some(gb => gb.id === node.id);
-        console.log(`⏳ 设置node ${node.id} 为加载状态 (${isGroupNode ? '组内' : '组外'})`);
+        console.log(
+          `⏳ 设置node ${node.id} 为加载状态 (${isGroupNode ? '组内' : '组外'})`
+        );
         return {
           ...node,
           data: { ...node.data, content: '', isLoading: true },
@@ -564,12 +572,14 @@ async function sendGroupDataToTargets(
           // 清空所有相关节点的状态（包括组内和组外节点）
           const allGroupBlockNodeIds = groupBlockNodes.map(node => node.id);
           const allRelatedNodeIds = Object.keys(jsonData.blocks);
-          
+
           context.setNodes(prevNodes =>
             prevNodes.map(node => {
               if (allRelatedNodeIds.includes(node.id)) {
                 const isGroupNode = allGroupBlockNodeIds.includes(node.id);
-                console.log(`🧹 清除节点 ${node.id} 的状态 (${isGroupNode ? '组内' : '组外'})`);
+                console.log(
+                  `🧹 清除节点 ${node.id} 的状态 (${isGroupNode ? '组内' : '组外'})`
+                );
                 return {
                   ...node,
                   data: {
