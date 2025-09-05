@@ -47,7 +47,12 @@ export type menuNameType =
   | 'Generatingsub1'
   | 'DeepResearchsub1';
 
-function EdgeMenu1({ nodeType, sourceNodeId, mode = 'handle', onPick }: EdgeMenuProps) {
+function EdgeMenu1({
+  nodeType,
+  sourceNodeId,
+  mode = 'handle',
+  onPick,
+}: EdgeMenuProps) {
   // TextBlock menu onClick function
   // get source node info
   const {

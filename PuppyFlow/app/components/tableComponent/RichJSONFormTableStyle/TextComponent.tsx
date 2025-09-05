@@ -47,7 +47,8 @@ const TextComponent = React.memo(
     const accentColor = isSelected ? '#5AB6F2' : '#4AA6EC';
 
     const [menuOpen, setMenuOpen] = useState(false);
-    const { registerOverflowElement, unregisterOverflowElement } = useOverflowContext();
+    const { registerOverflowElement, unregisterOverflowElement } =
+      useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
 
     React.useEffect(() => {
@@ -66,43 +67,63 @@ const TextComponent = React.memo(
 
         registerOverflowElement(
           menuId,
-          (
-            <div style={{ position: 'fixed', top, left, transform: 'translateX(-100%)' }}>
-              <TextActionMenu
-                value={data || ''}
-                onClear={() => { onEdit(path, ''); setMenuOpen(false); }}
-                onTransferToList={() => { onReplace && onReplace([null, null]); setMenuOpen(false); }}
-                onTransferToDict={() => { onReplace && onReplace({ key1: null, key2: null }); setMenuOpen(false); }}
-                onPaste={async () => {
-                  try {
-                    const text = await navigator.clipboard.readText();
-                    if (text?.startsWith('__RJF__')) {
-                      const parsed = JSON.parse(text.slice('__RJF__'.length));
-                      if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
+          <div
+            style={{
+              position: 'fixed',
+              top,
+              left,
+              transform: 'translateX(-100%)',
+            }}
+          >
+            <TextActionMenu
+              value={data || ''}
+              onClear={() => {
+                onEdit(path, '');
+                setMenuOpen(false);
+              }}
+              onTransferToList={() => {
+                onReplace && onReplace([null, null]);
+                setMenuOpen(false);
+              }}
+              onTransferToDict={() => {
+                onReplace && onReplace({ key1: null, key2: null });
+                setMenuOpen(false);
+              }}
+              onPaste={async () => {
+                try {
+                  const text = await navigator.clipboard.readText();
+                  if (text?.startsWith('__RJF__')) {
+                    const parsed = JSON.parse(text.slice('__RJF__'.length));
+                    if (
+                      Array.isArray(parsed) ||
+                      (parsed && typeof parsed === 'object')
+                    ) {
+                      onReplace && onReplace(parsed);
+                    } else if (typeof parsed === 'string') {
+                      onEdit(path, parsed);
+                    }
+                  } else {
+                    // Try parse as JSON
+                    try {
+                      const parsed = JSON.parse(text);
+                      if (
+                        Array.isArray(parsed) ||
+                        (parsed && typeof parsed === 'object')
+                      ) {
                         onReplace && onReplace(parsed);
                       } else if (typeof parsed === 'string') {
                         onEdit(path, parsed);
                       }
-                    } else {
-                      // Try parse as JSON
-                      try {
-                        const parsed = JSON.parse(text);
-                        if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
-                          onReplace && onReplace(parsed);
-                        } else if (typeof parsed === 'string') {
-                          onEdit(path, parsed);
-                        }
-                      } catch {
-                        // plain text
-                        onEdit(path, text);
-                      }
+                    } catch {
+                      // plain text
+                      onEdit(path, text);
                     }
-                  } catch {}
-                  setMenuOpen(false);
-                }}
-              />
-            </div>
-          ),
+                  }
+                } catch {}
+                setMenuOpen(false);
+              }}
+            />
+          </div>,
           handleRef.current
         );
       };
@@ -134,48 +155,77 @@ const TextComponent = React.memo(
         window.removeEventListener('scroll', onScroll, true);
         window.removeEventListener('resize', onResize);
       };
-    }, [menuOpen, data, onEdit, path, onReplace, registerOverflowElement, unregisterOverflowElement]);
+    }, [
+      menuOpen,
+      data,
+      onEdit,
+      path,
+      onReplace,
+      registerOverflowElement,
+      unregisterOverflowElement,
+    ]);
 
-  // Ensure only one menu is open globally
-  React.useEffect(() => {
-    const onCloseAll = () => setMenuOpen(false);
-    window.addEventListener('rjft:close-all-menus', onCloseAll as EventListener);
-    return () => window.removeEventListener('rjft:close-all-menus', onCloseAll as EventListener);
-  }, []);
+    // Ensure only one menu is open globally
+    React.useEffect(() => {
+      const onCloseAll = () => setMenuOpen(false);
+      window.addEventListener(
+        'rjft:close-all-menus',
+        onCloseAll as EventListener
+      );
+      return () =>
+        window.removeEventListener(
+          'rjft:close-all-menus',
+          onCloseAll as EventListener
+        );
+    }, []);
 
     return (
-      <div className={`bg-[#252525] shadow-sm relative group p-[2px]`}
-           style={{ outline: 'none', boxShadow: isSelected ? 'inset 0 0 0 2px #388EC9' : 'none' }}
-           onClick={(e) => { e.stopPropagation(); setSelectedPath(path); }}
-           onMouseEnter={() => setIsHovered(true)}
-           onMouseLeave={() => setIsHovered(false)}
+      <div
+        className={`bg-[#252525] shadow-sm relative group p-[2px]`}
+        style={{
+          outline: 'none',
+          boxShadow: isSelected ? 'inset 0 0 0 2px #388EC9' : 'none',
+        }}
+        onClick={e => {
+          e.stopPropagation();
+          setSelectedPath(path);
+        }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
-        <div 
-          className="absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20"
-        >
+        <div className='absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20'>
           {(isSelected || isHovered || menuOpen) && (
-            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
               <div
-
-                className="w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto"
+                className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
                 style={{ borderColor: accentColor }}
                 aria-hidden
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   setSelectedPath(path);
                   if (menuOpen) {
                     setMenuOpen(false);
                   } else {
-                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                    window.dispatchEvent(
+                      new CustomEvent('rjft:close-all-menus')
+                    );
                     setMenuOpen(true);
                   }
-
                 }}
                 ref={handleRef}
               >
-                <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
-                <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
-                <div className="w-0.5 h-0.5 rounded-full" style={{ backgroundColor: accentColor }}></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
               </div>
             </div>
           )}

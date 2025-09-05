@@ -14,7 +14,10 @@ export async function POST(request: Request) {
       );
     }
     const store = getWorkspaceStore();
-    const created = await store.createWorkspace(userId, { workspace_id, workspace_name });
+    const created = await store.createWorkspace(userId, {
+      workspace_id,
+      workspace_name,
+    });
     return NextResponse.json(created, { status: 200 });
   } catch (error) {
     return NextResponse.json(
@@ -23,5 +26,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
-

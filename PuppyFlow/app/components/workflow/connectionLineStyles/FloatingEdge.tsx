@@ -28,7 +28,6 @@ function FloatingEdge({
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
 
-
   // apply selected style (moved from global css): orange, dashed, animated
   const appliedStyle = selected
     ? {
@@ -62,7 +61,6 @@ function FloatingEdge({
     targetNode
   );
 
-
   if (data.connectionType === 'STC') {
     const [edgePath] = getSmoothStepPath({
       sourceX: sx,
@@ -75,8 +73,16 @@ function FloatingEdge({
     });
 
     return (
-      <g onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-        <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={finalStyle} />
+      <g
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <BaseEdge
+          id={id}
+          path={edgePath}
+          markerEnd={markerEnd}
+          style={finalStyle}
+        />
       </g>
     );
   } else if (data.connectionType === 'CTT') {
@@ -107,7 +113,10 @@ function FloatingEdge({
     });
 
     return (
-      <g onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+      <g
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
         <defs>
           {/* 默认箭头 */}
           <marker
