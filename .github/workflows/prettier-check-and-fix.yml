@@ -1,16 +1,27 @@
 name: Prettier Auto Format
 
 on:
+  workflow_dispatch:
   push:
     branches: ["**"]
     paths:
-      - "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}"
+      - "PuppyFlow/**/*.ts"
+      - "PuppyFlow/**/*.tsx"
+      - "PuppyFlow/**/*.js"
+      - "PuppyFlow/**/*.jsx"
+      - "PuppyFlow/**/*.css"
+      - "PuppyFlow/**/*.scss"
       - ".prettierrc*"
       - ".github/workflows/prettier-check-and-fix.yml"
   pull_request:
     branches: ["**"]
     paths:
-      - "PuppyFlow/**/*.{ts,tsx,js,jsx,css,scss}"
+      - "PuppyFlow/**/*.ts"
+      - "PuppyFlow/**/*.tsx"
+      - "PuppyFlow/**/*.js"
+      - "PuppyFlow/**/*.jsx"
+      - "PuppyFlow/**/*.css"
+      - "PuppyFlow/**/*.scss"
       - ".prettierrc*"
       - ".github/workflows/prettier-check-and-fix.yml"
 
