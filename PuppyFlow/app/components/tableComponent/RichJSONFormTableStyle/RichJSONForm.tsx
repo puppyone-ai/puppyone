@@ -91,6 +91,26 @@ const JSONViewer = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const { isOnGeneratingNewNode } = useNodesPerFlowContext();
 
+  // Ensure inner scroll doesn't bubble to ReactFlow (native capture)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const stopWheel = (e: WheelEvent) => {
+      e.stopPropagation();
+    };
+    const stopTouchMove = (e: TouchEvent) => {
+      e.stopPropagation();
+    };
+    el.addEventListener('wheel', stopWheel, { capture: true });
+    el.addEventListener('touchmove', stopTouchMove as any, { capture: true });
+    return () => {
+      el.removeEventListener('wheel', stopWheel, { capture: true } as any);
+      el.removeEventListener('touchmove', stopTouchMove as any, {
+        capture: true,
+      } as any);
+    };
+  }, []);
+
   // 解析JSON数据
   useEffect(() => {
     if (!value || value.trim() === '') {
@@ -421,9 +441,21 @@ const JSONViewer = ({
           />
           <div
             ref={containerRef}
-            className={`relative bg-transparent overflow-auto scrollbar-hide pt-[4px] pl-[8px] pr-[4px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+            className={`relative bg-transparent overflow-auto overscroll-contain scrollbar-hide pt-[4px] pl-[8px] pr-[4px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
             style={{ width: actualWidth, height: actualHeight }}
             data-rich-json-form='true'
+            onWheel={e => {
+              e.stopPropagation();
+            }}
+            onWheelCapture={e => {
+              e.stopPropagation();
+            }}
+            onTouchMove={e => {
+              e.stopPropagation();
+            }}
+            onTouchMoveCapture={e => {
+              e.stopPropagation();
+            }}
           >
             <div className='border-t border-b border-[#3A3D41]'>
               {renderMainContent()}
