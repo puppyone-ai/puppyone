@@ -15,6 +15,7 @@ import traceback
 
 from Blocks.BlockFactory import BlockFactory
 from Blocks.BaseBlock import BaseBlock
+from Blocks.BlockNormalization import normalize_block_content
 from Server.ExecutionPlanner import ExecutionPlanner
 from ModularEdges.EdgeExecutor import EdgeExecutor
 from Server.HybridStoragePolicy import HybridStoragePolicy
@@ -338,9 +339,10 @@ class Env:
         for block_id in input_block_ids:
             block = self.blocks.get(block_id)
             if block:
+                normalized_content = normalize_block_content(block)
                 block_configs[block_id] = {
                     "label": block.label,
-                    "content": block.get_content(),
+                    "content": normalized_content,
                     "embedding_view": [],  # Not used in new architecture
                     "looped": False,  # Not used in new architecture
                     "collection_configs": {}  # Not used in new architecture
