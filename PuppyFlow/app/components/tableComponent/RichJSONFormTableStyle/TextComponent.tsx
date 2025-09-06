@@ -196,7 +196,7 @@ const TextComponent = React.memo(
       >
         <div className='absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20'>
           {(isSelected || isHovered || menuOpen) && (
-            <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
+            <div className='absolute left-1/2 top-2 transform -translate-x-1/2 pointer-events-none'>
               <div
                 className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
                 style={{ borderColor: accentColor }}
