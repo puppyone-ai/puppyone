@@ -127,6 +127,7 @@ const ListComponent = ({
 
   const accentColor = isSelected ? '#E4B66E' : '#D7A85A';
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { registerOverflowElement, unregisterOverflowElement } =
     useOverflowContext();
   const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -203,6 +204,8 @@ const ListComponent = ({
               }
               setMenuOpen(false);
             }}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={() => setIsCollapsed(prev => !prev)}
           />
         </div>,
         handleRef.current
@@ -242,6 +245,7 @@ const ListComponent = ({
     path,
     registerOverflowElement,
     unregisterOverflowElement,
+    isCollapsed,
   ]);
 
   // Ensure only one menu is open globally
@@ -390,7 +394,20 @@ const ListComponent = ({
       </div>
       {/* menu rendered via portal */}
       <div className={`space-y-0 transition-all duration-200`}>
-        {data.length === 0 ? (
+        {isCollapsed ? (
+          <div
+            className='w-full px-[12px] h-[40px] bg-transparent rounded-md overflow-hidden flex items-center'
+            title={`list with ${Array.isArray(data) ? data.length : 0} items`}
+          >
+            <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
+              <span className='text-[#C18E4C]'>list</span>
+              <span className='text-[#6D7177]'>•</span>
+              <span className='text-[#CDCDCD]'>
+                {Array.isArray(data) ? data.length : 0} items
+              </span>
+            </div>
+          </div>
+        ) : data.length === 0 ? (
           // Empty state - 不显示“click + to add”，仅提示为空
           <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
             <div className='flex items-center h-[24px]'>
@@ -504,7 +521,7 @@ const ListComponent = ({
           </>
         )}
         {/* Add New Item - 仅在 hover/选中/菜单打开时显示（只读除外） */}
-        {!readonly && (
+        {!readonly && !isCollapsed && (
           <div className='absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2'>
             <button
               onClick={addEmptyItem}

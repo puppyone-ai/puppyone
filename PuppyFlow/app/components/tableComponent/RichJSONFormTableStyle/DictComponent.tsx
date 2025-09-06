@@ -253,6 +253,7 @@ const DictComponent = ({
   const accentColor = isSelected ? '#D65E98' : '#D474A8';
 
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { registerOverflowElement, unregisterOverflowElement } =
     useOverflowContext();
   const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -460,6 +461,8 @@ const DictComponent = ({
               }
               setMenuOpen(false);
             }}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={() => setIsCollapsed(prev => !prev)}
           />
         </div>,
         handleRef.current
@@ -499,6 +502,7 @@ const DictComponent = ({
     path,
     registerOverflowElement,
     unregisterOverflowElement,
+    isCollapsed,
   ]);
 
   // Ensure only one menu is open globally
@@ -566,7 +570,18 @@ const DictComponent = ({
       </div>
       {/* menu rendered via portal */}
       <div className={`space-y-0 transition-all duration-200`}>
-        {keys.length === 0 ? (
+        {isCollapsed ? (
+          <div
+            className='w-full px-[12px] h-[40px] bg-transparent rounded-md overflow-hidden flex items-center'
+            title={`object with ${keys.length} keys`}
+          >
+            <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
+              <span className='text-[#C74F8A]'>object</span>
+              <span className='text-[#6D7177]'>•</span>
+              <span className='text-[#CDCDCD]'>{keys.length} keys</span>
+            </div>
+          </div>
+        ) : keys.length === 0 ? (
           <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
             <div className='flex items-center h-[24px]'>
               <div className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
@@ -674,7 +689,7 @@ const DictComponent = ({
         )}
       </div>
       {/* Add New Key Button at bottom - visible on hover/selected/menuOpen or when empty */}
-      {!readonly && (
+      {!readonly && !isCollapsed && (
         <div className='absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2'>
           <button
             onClick={addEmptyKey}

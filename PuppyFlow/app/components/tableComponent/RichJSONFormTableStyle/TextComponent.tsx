@@ -47,6 +47,7 @@ const TextComponent = React.memo(
     const accentColor = isSelected ? '#5AB6F2' : '#4AA6EC';
 
     const [menuOpen, setMenuOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const { registerOverflowElement, unregisterOverflowElement } =
       useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -123,6 +124,8 @@ const TextComponent = React.memo(
                 } catch {}
                 setMenuOpen(false);
               }}
+              isCollapsed={isCollapsed}
+              onToggleCollapse={() => setIsCollapsed(prev => !prev)}
             />
           </div>,
           handleRef.current
@@ -232,17 +235,32 @@ const TextComponent = React.memo(
           )}
           {/* menu rendered via portal */}
         </div>
-        <div className='w-full px-[16px] py-[6px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
-          <TextEditor
-            preventParentDrag={preventParentDrag}
-            allowParentDrag={allowParentDrag}
-            value={data}
-            onChange={handleEditChange}
-            placeholder='Enter text content...'
-            widthStyle={0}
-            autoHeight={true}
-          />
-        </div>
+        {isCollapsed ? (
+          <div
+            className='w-full px-[12px] h-[40px] bg-transparent rounded-md overflow-hidden flex items-center'
+            title={`text length ${typeof data === 'string' ? data.length : 0}`}
+          >
+            <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
+              <span className='text-[#4AA6EC]'>text</span>
+              <span className='text-[#6D7177]'>•</span>
+              <span className='text-[#CDCDCD]'>
+                {typeof data === 'string' ? data.length : 0} chars
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className='w-full px-[16px] py-[6px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+            <TextEditor
+              preventParentDrag={preventParentDrag}
+              allowParentDrag={allowParentDrag}
+              value={data}
+              onChange={handleEditChange}
+              placeholder='Enter text content...'
+              widthStyle={0}
+              autoHeight={true}
+            />
+          </div>
+        )}
       </div>
     );
   },
