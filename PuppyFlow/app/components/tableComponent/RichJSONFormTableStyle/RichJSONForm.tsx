@@ -334,6 +334,7 @@ const JSONViewer = ({
             path=''
             readonly={readonly}
             onEdit={handleTextEdit}
+            onReplace={updateData}
             preventParentDrag={preventParentDrag}
             allowParentDrag={allowParentDrag}
           />

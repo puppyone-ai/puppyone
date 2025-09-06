@@ -78,7 +78,8 @@ const TextComponent = React.memo(
             <TextActionMenu
               value={data || ''}
               onClear={() => {
-                onEdit(path, '');
+                // Clear should set value to null (like list component)
+                onReplace && onReplace(null);
                 setMenuOpen(false);
               }}
               onTransferToList={() => {
