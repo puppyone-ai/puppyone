@@ -347,6 +347,7 @@ const JSONViewer = ({
             readonly={readonly}
             isNested={false}
             onUpdate={updateData}
+            onReplace={updateData}
             preventParentDrag={preventParentDrag}
             allowParentDrag={allowParentDrag}
           />
@@ -359,6 +360,7 @@ const JSONViewer = ({
             readonly={readonly}
             isNested={false}
             onUpdate={updateData}
+            onReplace={updateData}
             preventParentDrag={preventParentDrag}
             allowParentDrag={allowParentDrag}
           />
