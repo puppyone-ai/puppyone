@@ -16,7 +16,7 @@ import {
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
 import { applyBlockUpdate, finalizeExternal } from '../../../blockNode/utils/blockUpdateApplier';
-import { ensurePollerStarted } from '../../../blockNode/utils/manifestPoller';
+import { ensurePollerStarted, stopAllPollers } from '../../../blockNode/utils/manifestPoller';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -55,269 +55,7 @@ interface Manifest {
   total_size: number;
 }
 
-// ManifestPoller moved to block-side utils; keep minimal state here if needed
-class ManifestPoller {
-  private poller: NodeJS.Timeout | null = null;
-  private knownChunks = new Set<string>();
-  private context: RunAllNodesContext;
-  private resource_key: string;
-  private block_id: string;
-  private content_type: string;
-  private chunks: string[] = [];
-  private isStopped = false;
-  // Structured content incremental parsing state
-  private parsedRecords: any[] = [];
-  private leftoverPartialLine: string = '';
-  private totalRecords: number = 0;
-  private parseErrors: number = 0;
-
-  constructor(
-    context: RunAllNodesContext,
-    resource_key: string,
-    block_id: string,
-    content_type: string = 'text'
-  ) {
-    this.context = context;
-    this.resource_key = resource_key;
-    this.block_id = block_id;
-    this.content_type = content_type;
-  }
-
-  start() {
-    console.log(
-      `[ManifestPoller] Starting for ${this.resource_key}, content_type: ${this.content_type}`
-    );
-    this.context.setNodes(prevNodes =>
-      prevNodes.map(node =>
-        node.id === this.block_id
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                content: '',
-                isLoading: true,
-                isExternalStorage: true,
-                external_metadata: {
-                  resource_key: this.resource_key,
-                  content_type: this.content_type,
-                },
-              },
-            }
-          : node
-      )
-    );
-    this.poll();
-  }
-
-  private poll() {
-    if (this.isStopped) return;
-
-    this.poller = setTimeout(async () => {
-      await this.fetchManifestAndChunks();
-      if (!this.isStopped) {
-        this.poll();
-      }
-    }, 1000); // 轮询间隔
-  }
-
-  async stop() {
-    console.log(`[ManifestPoller] Stopping for ${this.resource_key}`);
-    this.isStopped = true;
-
-    if (this.poller) {
-      clearTimeout(this.poller);
-      this.poller = null;
-    }
-    // 最后再拉取一次，确保数据完整
-    await this.fetchManifestAndChunks();
-    if (this.content_type === 'structured') {
-      this.finalizeStructuredParsing();
-      const finalContent = this.reconstructContent({
-        chunks: [],
-        content_type: this.content_type,
-        total_size: 0,
-      });
-      this.context.resetLoadingUI(this.block_id);
-      this.context.setNodes(prevNodes =>
-        prevNodes.map(node =>
-          node.id === this.block_id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  content: finalContent,
-                  isLoading: false,
-                  isExternalStorage: true,
-                  external_metadata: {
-                    ...(node.data?.external_metadata || {}),
-                    resource_key: this.resource_key,
-                    content_type: this.content_type,
-                    loadedChunks: this.chunks.length,
-                    totalRecords: this.totalRecords,
-                    parsedRecords: this.parsedRecords.length,
-                    parseErrors: this.parseErrors,
-                  },
-                },
-              }
-            : node
-        )
-      );
-    }
-    this.context.resetLoadingUI(this.block_id);
-  }
-
-  private async fetchManifestAndChunks() {
-    try {
-      const manifestUrl = await this.getDownloadUrl(
-        `${this.resource_key}/manifest.json`
-      );
-      const manifestResponse = await fetch(manifestUrl);
-      if (!manifestResponse.ok) return;
-
-      const manifest: Manifest = await manifestResponse.json();
-      const newChunks = manifest.chunks
-        .filter(
-          chunk => !this.knownChunks.has(chunk.name) && chunk.state === 'done'
-        )
-        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
-
-      if (newChunks.length === 0) return;
-
-      console.log(
-        `[ManifestPoller] Found ${newChunks.length} new chunks for ${this.resource_key}`
-      );
-
-      for (const chunkInfo of newChunks) {
-        this.knownChunks.add(chunkInfo.name);
-        const chunkUrl = await this.getDownloadUrl(
-          `${this.resource_key}/${chunkInfo.name}`
-        );
-        const chunkResponse = await fetch(chunkUrl);
-        const chunkData = await chunkResponse.text();
-
-        this.chunks.push(chunkData);
-        if (this.content_type === 'structured') {
-          this.parseStructuredChunk(chunkData, chunkInfo.name);
-        }
-      }
-
-      // 根据content_type处理数据
-      const reconstructedContent = this.reconstructContent(manifest);
-
-      this.context.setNodes(prevNodes =>
-        prevNodes.map(node =>
-          node.id === this.block_id
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  content: reconstructedContent,
-                  // Keep loading true during progressive updates
-                  isLoading: true,
-                  isExternalStorage: true,
-                  external_metadata: {
-                    resource_key: this.resource_key,
-                    content_type: this.content_type,
-                    totalChunks: manifest.chunks.length,
-                    loadedChunks: this.chunks.length,
-                    totalRecords: this.totalRecords,
-                    parsedRecords: this.parsedRecords.length,
-                    parseErrors: this.parseErrors,
-                  },
-                },
-              }
-            : node
-        )
-      );
-    } catch (error) {
-      console.error(
-        '[ManifestPoller] Error fetching manifest or chunk:',
-        error
-      );
-    }
-  }
-
-  private reconstructContent(manifest: Manifest): string {
-    if (this.content_type === 'structured') {
-      try {
-        return JSON.stringify(this.parsedRecords, null, 2);
-      } catch (e) {
-        console.warn('[ManifestPoller] Failed to stringify parsed records:', e);
-        return '[]';
-      }
-    } else {
-      return this.chunks.join('');
-    }
-  }
-
-  // Incrementally parse JSONL
-  private parseStructuredChunk(chunkText: string, chunkName: string) {
-    let dataToProcess = (this.leftoverPartialLine || '') + chunkText;
-    this.leftoverPartialLine = '';
-
-    const lines = dataToProcess.split(/\r?\n/);
-    const possibleLeftover = lines.pop() ?? '';
-
-    for (let i = 0; i < lines.length; i++) {
-      const rawLine = lines[i];
-      const line = rawLine.trim();
-      if (!line) continue;
-      this.totalRecords += 1;
-      try {
-        const parsed = JSON.parse(line);
-        this.parsedRecords.push(parsed);
-      } catch (err) {
-        this.parseErrors += 1;
-        console.warn(
-          `[ManifestPoller] JSONL parse error in ${chunkName} at record #${this.totalRecords}:`,
-          err
-        );
-        console.warn(
-          '[ManifestPoller] Offending line (truncated):',
-          rawLine.slice(0, 500)
-        );
-      }
-    }
-
-    this.leftoverPartialLine = possibleLeftover;
-  }
-
-  // Flush leftover at end
-  private finalizeStructuredParsing() {
-    const leftover = this.leftoverPartialLine.trim();
-    if (!leftover) {
-      this.leftoverPartialLine = '';
-      return;
-    }
-    this.totalRecords += 1;
-    try {
-      const parsed = JSON.parse(leftover);
-      this.parsedRecords.push(parsed);
-    } catch (err) {
-      this.parseErrors += 1;
-      console.warn('[ManifestPoller] Final leftover JSONL parse error:', err);
-      console.warn(
-        '[ManifestPoller] Offending leftover (truncated):',
-        leftover.slice(0, 500)
-      );
-    } finally {
-      this.leftoverPartialLine = '';
-    }
-  }
-
-  private async getDownloadUrl(key: string): Promise<string> {
-    const response = await fetch(
-      `/api/storage/download/url?key=${encodeURIComponent(key)}`
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to get download URL for ${key}`);
-    }
-    const data = await response.json();
-    return data.download_url;
-  }
-}
-
-const pollers = new Map<string, ManifestPoller>();
+// Removed legacy inline ManifestPoller and local pollers.
 
 // 全局运行所有节点执行上下文接口
 export interface RunAllNodesContext {
@@ -887,21 +625,15 @@ async function sendDataToTargets(
                       );
                     });
 
-                    // 清理所有 pollers
-                    pollers.forEach(async (poller, key) => {
-                      await poller.stop();
-                    });
-                    pollers.clear();
+                    // 统一清理所有共享轮询器
+                    await stopAllPollers();
                   }
                   break;
                 case 'TASK_COMPLETED':
                   console.log(`🎉 [runAllNodes] 任务完成!`);
 
-                  // 清理所有 pollers
-                  pollers.forEach(async (poller, key) => {
-                    await poller.stop();
-                  });
-                  pollers.clear();
+                  // 统一清理所有共享轮询器
+                  await stopAllPollers();
 
                   // 确保所有结果节点的加载状态被重置
                   resultNodes.forEach(node => {

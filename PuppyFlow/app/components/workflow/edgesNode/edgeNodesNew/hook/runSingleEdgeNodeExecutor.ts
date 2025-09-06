@@ -19,7 +19,7 @@ import {
 import { SYSTEM_URLS } from '@/config/urls';
 import { syncBlockContent } from '../../../../../components/workflow/utils/externalStorage';
 import { applyBlockUpdate, finalizeExternal } from '../../../blockNode/utils/blockUpdateApplier';
-import { ensurePollerStarted } from '../../../blockNode/utils/manifestPoller';
+import { ensurePollerStarted, stopAllPollers } from '../../../blockNode/utils/manifestPoller';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -480,7 +480,7 @@ async function sendDataToTargets(
                   });
                 }
                 break;
-              case 'TASK_FAILED':
+                case 'TASK_FAILED':
                 if (data?.error_message) {
                   targetNodeIdWithLabelGroup.forEach(targetNode => {
                     context.reportError(targetNode.id, data.error_message);
@@ -502,19 +502,13 @@ async function sendDataToTargets(
                     );
                   });
 
-                  // 清理所有 pollers
-                  pollers.forEach(async (poller, key) => {
-                    await poller.stop();
-                  });
-                  pollers.clear();
+                  // 统一清理所有共享轮询器
+                  await stopAllPollers();
                 }
                 break;
               case 'TASK_COMPLETED':
-                // 清理所有 pollers
-                pollers.forEach(async (poller, key) => {
-                  await poller.stop();
-                });
-                pollers.clear();
+                // 统一清理所有共享轮询器
+                await stopAllPollers();
 
                 // 确保所有目标节点的加载状态被重置
                 targetNodeIdWithLabelGroup.forEach(targetNode => {

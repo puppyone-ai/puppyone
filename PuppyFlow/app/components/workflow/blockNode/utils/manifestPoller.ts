@@ -288,3 +288,17 @@ export async function ensurePollerStoppedAndFinalize(
   await poller.stop();
   pollers.delete(key);
 }
+
+// Stop and finalize all active pollers (used on TASK_COMPLETED/FAILED)
+export async function stopAllPollers(): Promise<void> {
+  const entries = Array.from(pollers.entries());
+  for (const [key, poller] of entries) {
+    try {
+      await poller.stop();
+    } catch (err) {
+      console.warn('[ManifestPoller] Failed stopping poller', key, err);
+    } finally {
+      pollers.delete(key);
+    }
+  }
+}
