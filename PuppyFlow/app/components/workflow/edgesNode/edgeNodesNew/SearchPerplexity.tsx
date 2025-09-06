@@ -53,7 +53,7 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
     const { getNode, setNodes, setEdges } = useReactFlow();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
     const portalAnchorRef = useRef<HTMLDivElement | null>(null);

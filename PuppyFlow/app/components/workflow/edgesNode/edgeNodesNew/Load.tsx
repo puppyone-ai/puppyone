@@ -49,7 +49,7 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
   } = useNodesPerFlowContext();
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false);
   const { getNode, setNodes, setEdges } = useReactFlow();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();

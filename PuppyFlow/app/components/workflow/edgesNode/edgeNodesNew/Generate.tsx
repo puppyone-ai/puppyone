@@ -108,7 +108,7 @@ const Generate: React.FC<GenerateNodeProps> = memo(
     const { getNode, setNodes, setEdges } = useReactFlow();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(true);
     const [isHovered, setIsHovered] = useState(false);
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
