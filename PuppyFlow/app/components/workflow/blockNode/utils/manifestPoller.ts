@@ -219,6 +219,28 @@ class ManifestPoller {
     this.leftoverPartialLine = possibleLeftover;
   }
 
+  private finalizeStructuredParsing(): void {
+    // Flush any leftover partial line(s) into parsed records
+    const tail = this.leftoverPartialLine;
+    this.leftoverPartialLine = '';
+    if (!tail) return;
+    const lines = tail.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const rawLine = lines[i];
+      const line = rawLine.trim();
+      if (!line) continue;
+      this.totalRecords += 1;
+      try {
+        const parsed = JSON.parse(line);
+        this.parsedRecords.push(parsed);
+      } catch (err) {
+        this.parseErrors += 1;
+        console.warn('[ManifestPoller] JSONL final parse error at record #' + this.totalRecords + ':', err);
+        console.warn('[ManifestPoller] Offending tail line:', rawLine.slice(0, 500));
+      }
+    }
+  }
+
   private async getDownloadUrl(key: string): Promise<string> {
     const response = await fetch(
       `/api/storage/download/url?key=${encodeURIComponent(key)}`
