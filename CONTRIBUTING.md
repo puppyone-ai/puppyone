@@ -21,6 +21,7 @@ Branch naming
 - `feature/<short-slug>`
 - `fix/<short-slug>`
 - `perf/<short-slug>`
+- `docs/<short-slug>`
 - `chore/<short-slug>`
 - `temp/<short-slug>` (may be auto-cleaned once merged and idle >14 days)
 - `revert-<sha-or-slug>`
@@ -34,10 +35,10 @@ CI checks you will see
 - Build and Test Check: runs on push to any branch; additionally runs on PRs that target `qubits`.
 - Prettier Auto Format: runs on push/PR for frontend files; if formatting differs it will push a "style: prettier auto-format" commit to your branch.
 - Secret scanning (Gitleaks): runs on all PRs, on push to `main`, weekly on schedule, and via manual dispatch.
-- Branch housekeeping: weekly job may delete remote branches that are merged into `main`, idle >14 days, and named with `temp/`, `feature/`, `fix/`, `feat/`, `perf/`, or `revert-`. Protected branches: `main`, `qubits`, `convergency`.
+- Branch housekeeping: weekly job may delete remote branches that are merged into `main`, idle >14 days, and named with `temp/`, `feature/`, `fix/`, `feat/`, `perf/`, `docs/`, or `revert-`. Protected branches: `main`, `qubits`, `convergency`.
 
 Commit/PR
-- Use concise commit messages (scope: summary). Conventional prefixes like `feat`, `fix`, `chore`, `perf` are welcome.
+- Use concise commit messages (scope: summary). Conventional prefixes like `feat`, `fix`, `chore`, `perf`, `docs` are welcome.
 - Default PR target is `qubits` (dev). Use `convergency` for stage promotion and `main` for production releases.
 - Include a clear description and test plan in PRs. Note any rollout or migration steps.
 - Link related issues when applicable.
