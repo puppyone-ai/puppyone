@@ -38,3 +38,7 @@ Briefly describe the feature and the problem it solves.
 - [ ] Docs updated (README/CHANGELOG/migration notes)
 - [ ] Backward compatible (or migration provided)
 - [ ] Security/privacy reviewed (if applicable)
+
+---
+Have feedback about this template? Open a Template Feedback issue:
+https://github.com/${OWNER}/${REPO}/issues/new?template=template-feedback.yml&labels=template%3Afeedback%2Cdocs&title=Template+feedback%3A+feature

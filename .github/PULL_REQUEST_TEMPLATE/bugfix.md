@@ -35,3 +35,7 @@ Describe the bug in one or two sentences.
 - [ ] Regression coverage
 - [ ] Monitoring/alerts in place (if relevant)
 - [ ] Rollback verified
+
+---
+Have feedback about this template? Open a Template Feedback issue:
+https://github.com/${OWNER}/${REPO}/issues/new?template=template-feedback.yml&labels=template%3Afeedback%2Cdocs&title=Template+feedback%3A+bugfix

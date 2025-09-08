@@ -41,3 +41,7 @@
 - [ ] Benchmarks added or updated
 - [ ] Load test executed and results attached
 - [ ] Monitoring/alerts updated to catch regressions
+
+---
+Have feedback about this template? Open a Template Feedback issue:
+https://github.com/${OWNER}/${REPO}/issues/new?template=template-feedback.yml&labels=template%3Afeedback%2Cdocs&title=Template+feedback%3A+perf

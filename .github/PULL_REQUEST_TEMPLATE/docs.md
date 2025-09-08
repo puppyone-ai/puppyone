@@ -30,3 +30,7 @@
 - [ ] Cross-references and links valid
 - [ ] Examples tested
 - [ ] Changelog/Release notes updated if needed
+
+---
+Have feedback about this template? Open a Template Feedback issue:
+https://github.com/${OWNER}/${REPO}/issues/new?template=template-feedback.yml&labels=template%3Afeedback%2Cdocs&title=Template+feedback%3A+docs

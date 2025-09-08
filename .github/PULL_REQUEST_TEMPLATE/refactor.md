@@ -25,3 +25,7 @@
 - [ ] No functional changes (or explicitly documented)
 - [ ] Tests still pass and cover new structure
 - [ ] Docs/internal references updated (import paths, diagrams)
+
+---
+Have feedback about this template? Open a Template Feedback issue:
+https://github.com/${OWNER}/${REPO}/issues/new?template=template-feedback.yml&labels=template%3Afeedback%2Cdocs&title=Template+feedback%3A+refactor

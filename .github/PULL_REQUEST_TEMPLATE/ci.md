@@ -27,3 +27,7 @@
 - [ ] Required secrets documented and present
 - [ ] Cache keys/versioning considered
 - [ ] Concurrency/cancellation configured appropriately
+
+---
+Have feedback about this template? Open a Template Feedback issue:
+https://github.com/${OWNER}/${REPO}/issues/new?template=template-feedback.yml&labels=template%3Afeedback%2Cdocs&title=Template+feedback%3A+ci
