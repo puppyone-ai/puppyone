@@ -20,6 +20,7 @@ Branches and environments
 Branch naming
 - `feature/<short-slug>`
 - `fix/<short-slug>`
+- `perf/<short-slug>`
 - `chore/<short-slug>`
 - `temp/<short-slug>` (may be auto-cleaned once merged and idle >14 days)
 - `revert-<sha-or-slug>`
@@ -36,10 +37,12 @@ CI checks you will see
 - Branch housekeeping: weekly job may delete remote branches that are merged into `main`, idle >14 days, and named with `temp/`, `feature/`, `fix/`, `feat/`, or `revert-`. Protected branches: `main`, `qubits`, `convergency`.
 
 Commit/PR
-- Use concise commit messages (scope: summary). Conventional prefixes like `feat`, `fix`, `chore` are welcome.
+- Use concise commit messages (scope: summary). Conventional prefixes like `feat`, `fix`, `chore`, `perf` are welcome.
 - Default PR target is `qubits` (dev). Use `convergency` for stage promotion and `main` for production releases.
 - Include a clear description and test plan in PRs. Note any rollout or migration steps.
 - Link related issues when applicable.
+
+- Choose a PR template that matches the purpose: Feature, Bugfix, Perf, Refactor, or CI.
 
 Security
 - Never commit real secrets or `.env` files
