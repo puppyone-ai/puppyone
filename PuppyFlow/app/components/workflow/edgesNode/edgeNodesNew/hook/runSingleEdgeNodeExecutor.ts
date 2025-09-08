@@ -85,12 +85,11 @@ async function preRunSyncInvolvedNodes(
       const type = node.type || '';
       if (type !== 'text' && type !== 'structured') continue;
       const data = node.data || {};
+      const storageClass = data.storage_class || 'internal';
+      const isExternal = storageClass === 'external';
       const isDirty = !!data.dirty;
-      const needsInit = !(
-        data.storage_class === 'external' &&
-        data.external_metadata?.resource_key
-      );
-      if (!isDirty && !needsInit) continue;
+      // 核心原则：仅当 external 且 dirty=true 时进行运行前同步
+      if (!(isExternal && isDirty)) continue;
 
       const contentStr =
         type === 'structured'
