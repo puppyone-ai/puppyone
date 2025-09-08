@@ -38,6 +38,15 @@ jobs:
             const title = pr.title || '';
             const head = pr.head.ref || '';
             const isDraft = !!pr.draft;
+            const base = pr.base.ref || '';
+            // Define protected branches: update if your policy changes
+            const protectedBranches = ['main', 'qubits', 'convergency'];
+            const isHeadProtected = protectedBranches.includes(head);
+            // Enforce only when head (source) is non-protected
+            if (isHeadProtected) {
+              core.setOutput('skip', 'true');
+              return;
+            }
 
             // Optional bypass by label
             const { data: issue } = await github.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number });
