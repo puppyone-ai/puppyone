@@ -40,6 +40,7 @@ class ExecutionPlanner:
         # Build dependency mappings
         self.edge_to_inputs_mapping = {}
         self.edge_to_outputs_mapping = {}
+        self.block_to_producing_edges = {}  # 🔧 新增：块到生产它的边的映射
         self._build_dependency_mappings()
         
         # Initialize states
@@ -53,6 +54,9 @@ class ExecutionPlanner:
     
     def _build_dependency_mappings(self):
         """Build input/output mappings for edges"""
+        # Initialize block to producing edges mapping
+        self.block_to_producing_edges = {bid: set() for bid in self.blocks.keys()}
+        
         for edge_id, edge_info in self.edges.items():
             edge_data = edge_info.get("data", {})
             
@@ -64,6 +68,11 @@ class ExecutionPlanner:
             outputs = edge_data.get("outputs", {})
             self.edge_to_outputs_mapping[edge_id] = set(outputs.keys())
             
+            # 🔧 构建反向映射：记录哪些边会生产这些块
+            for block_id in outputs.keys():
+                if block_id in self.block_to_producing_edges:
+                    self.block_to_producing_edges[block_id].add(edge_id)
+            
             log_debug(f"Edge {edge_id}: inputs={inputs.keys()}, outputs={outputs.keys()}")
     
     def _mark_initial_blocks(self):
@@ -72,12 +81,16 @@ class ExecutionPlanner:
             # A block is considered initially processed only if:
             # 1. It has internal content.
             # 2. It does NOT have unresolved external data.
+            # 3. 🔧 It is NOT produced by any edge (i.e., it's a source block)
             has_content = block.get_content() is not None
             needs_resolving = block.has_external_data() and not block.is_resolved
+            is_produced_by_edge = len(self.block_to_producing_edges.get(block_id, set())) > 0
             
-            if has_content and not needs_resolving:
+            if has_content and not needs_resolving and not is_produced_by_edge:
                 self.block_states[block_id] = "processed"
-                log_debug(f"Marked block {block_id} as initially processed (has content, no pending resolve)")
+                log_debug(f"Marked source block {block_id} as initially processed (has content, no pending resolve, no producing edges)")
+            elif is_produced_by_edge:
+                log_debug(f"Block {block_id} is produced by edges {self.block_to_producing_edges[block_id]}, marked as pending")
             elif needs_resolving:
                 log_debug(f"Block {block_id} needs resolving, marked as pending.")
             else:
