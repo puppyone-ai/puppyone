@@ -452,11 +452,10 @@ export async function forceSyncDirtyNodes({
   for (const n of candidates) {
     const data = n.data || {};
     const isDirty = !!data.dirty;
-    // Also force sync if not marked external but has content
-    const needsInit = !(
-      data.storage_class === 'external' && data.external_metadata?.resource_key
-    );
-    if (!isDirty && !needsInit) continue;
+    const storageClass = data.storage_class || 'internal';
+    const isExternal = storageClass === 'external';
+    // 核心原则：仅 external 且 dirty=true 才需要强制同步
+    if (!(isExternal && isDirty)) continue;
     const content = String(data.content ?? '');
     const contentType: ContentType =
       n.type === 'structured' ? 'structured' : 'text';
