@@ -275,19 +275,21 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     const updateNodeContent = useCallback(
       (newValue: string) => {
         setNodes(prevNodes =>
-          prevNodes.map(node =>
-            node.id === id
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    content: newValue,
-                    dirty: true,
-                    savingStatus: 'editing',
-                  },
-                }
-              : node
-          )
+          prevNodes.map(node => {
+            if (node.id !== id) return node;
+            const storageClass = node.data?.storage_class || 'internal';
+            const isExternal = storageClass === 'external';
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                content: newValue,
+                // 仅 external 使用 dirty 标记
+                dirty: isExternal ? true : false,
+                savingStatus: 'editing',
+              },
+            };
+          })
         );
       },
       [id, setNodes]
@@ -311,8 +313,13 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       if (!node) return;
       const data = node.data || {};
       const currentContent = data.content;
+      const storageClass = data.storage_class || 'internal';
+      const isExternal = storageClass === 'external';
       const isDirty = !!data.dirty;
-      if (!isDirty || data.isLoading) return;
+      const isEditing = data.savingStatus === 'editing';
+      // 外部存储：仅在 dirty=true 时触发；内部存储：仅在编辑中触发
+      const shouldProceed = isExternal ? isDirty : isEditing;
+      if (!shouldProceed || data.isLoading) return;
 
       const timer = setTimeout(async () => {
         try {
