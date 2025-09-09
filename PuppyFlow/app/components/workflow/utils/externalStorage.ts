@@ -54,10 +54,16 @@ function jsonToJsonl(input: any): string {
 
 // Default chunk size for byte-level splitting (configurable via environment variable)
 // Note: This is for byte-level chunking, different from character-level threshold
-const DEFAULT_CHUNK_SIZE = parseInt(
+export let EXTERNAL_CHUNK_SIZE = parseInt(
   process.env.NEXT_PUBLIC_STORAGE_CHUNK_SIZE || '1024',
   10
 );
+
+export function setExternalChunkSize(bytes: number) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return;
+  EXTERNAL_CHUNK_SIZE = Math.floor(n);
+}
 
 function encodeUtf8(input: string): Uint8Array {
   return new TextEncoder().encode(input);
@@ -65,7 +71,7 @@ function encodeUtf8(input: string): Uint8Array {
 
 function splitBytes(
   data: Uint8Array,
-  chunkSize: number = DEFAULT_CHUNK_SIZE
+  chunkSize: number = EXTERNAL_CHUNK_SIZE
 ): Uint8Array[] {
   const parts: Uint8Array[] = [];
   for (let i = 0; i < data.length; i += chunkSize) {
@@ -102,7 +108,7 @@ function buildChunkDescriptors(
     for (const line of lines) {
       const lineBytes = encodeUtf8(line);
       const lineSize = lineBytes.byteLength;
-      if (lineSize > DEFAULT_CHUNK_SIZE) {
+      if (lineSize > EXTERNAL_CHUNK_SIZE) {
         if (bufferBytes > 0) {
           parts.push(encodeUtf8(buffer.join('')));
           buffer = [];
@@ -111,7 +117,7 @@ function buildChunkDescriptors(
         parts.push(lineBytes);
         continue;
       }
-      if (bufferBytes + lineSize > DEFAULT_CHUNK_SIZE && bufferBytes > 0) {
+      if (bufferBytes + lineSize > EXTERNAL_CHUNK_SIZE && bufferBytes > 0) {
         parts.push(encodeUtf8(buffer.join('')));
         buffer = [];
         bufferBytes = 0;

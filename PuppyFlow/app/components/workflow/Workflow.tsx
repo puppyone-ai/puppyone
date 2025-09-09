@@ -316,7 +316,7 @@ function Workflow() {
           n?.data?.external_metadata || n?.external_metadata;
         const hasResourceKey = externalMetadata?.resource_key;
 
-        // 必须是external存储且有resource_key
+        // 必须是external存储且有resource_key（仅以 storage_class 为准）
         return storageClass === 'external' && hasResourceKey;
       }
     ) as any[];

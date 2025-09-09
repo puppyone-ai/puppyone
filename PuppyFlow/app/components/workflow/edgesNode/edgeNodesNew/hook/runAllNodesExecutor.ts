@@ -15,6 +15,8 @@ import {
   EdgeNodeBuilderContext,
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
+import { setExternalChunkSize } from '../../../utils/externalStorage';
+import { setStorageChunkSize } from '../../../utils/dynamicStorageStrategy';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -682,6 +684,17 @@ async function sendDataToTargets(
               switch (event_type) {
                 case 'TASK_STARTED':
                   if (data?.task_id) {
+                    // Align FE chunk size with BE signaled threshold when present
+                    const threshold =
+                      (data && typeof data.storage_threshold_bytes === 'number'
+                        ? data.storage_threshold_bytes
+                        : (eventData as any)?.storage_threshold_bytes) as
+                        | number
+                        | undefined;
+                    if (typeof threshold === 'number' && isFinite(threshold) && threshold > 0) {
+                      setStorageChunkSize(threshold);
+                      setExternalChunkSize(threshold);
+                    }
                     console.log(`🚀 [runAllNodes] 任务开始: ${data.task_id}`);
                     // 设置所有结果节点为初始等待状态
                     resultNodes.forEach(node => {
@@ -853,9 +866,7 @@ async function sendDataToTargets(
                     }
 
                     // 检查是否为external存储模式
-                    const isExternalStorage =
-                      data.storage_class === 'external' ||
-                      data.external_metadata !== undefined;
+                    const isExternalStorage = data.storage_class === 'external';
 
                     if (isExternalStorage) {
                       const externalMetadata =

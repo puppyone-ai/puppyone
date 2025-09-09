@@ -17,7 +17,8 @@ import {
   EdgeNodeBuilderContext,
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
-import { syncBlockContent } from '../../../../../components/workflow/utils/externalStorage';
+import { syncBlockContent, setExternalChunkSize } from '../../../../../components/workflow/utils/externalStorage';
+import { setStorageChunkSize } from '../../../../../components/workflow/utils/dynamicStorageStrategy';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -621,6 +622,17 @@ async function sendDataToTargets(
             switch (event_type) {
               case 'TASK_STARTED':
                 if (data?.task_id) {
+                  // Align FE chunk size with BE signaled threshold when present
+                  const threshold =
+                    (data && typeof data.storage_threshold_bytes === 'number'
+                      ? data.storage_threshold_bytes
+                      : (eventData as any)?.storage_threshold_bytes) as
+                      | number
+                      | undefined;
+                  if (typeof threshold === 'number' && isFinite(threshold) && threshold > 0) {
+                    setStorageChunkSize(threshold);
+                    setExternalChunkSize(threshold);
+                  }
                   // 设置所有目标节点为初始等待状态
                   targetNodeIdWithLabelGroup.forEach(targetNode => {
                     context.setNodes(prevNodes =>
@@ -795,9 +807,7 @@ async function sendDataToTargets(
                   }
 
                   // 检查是否为external存储模式
-                  const isExternalStorage =
-                    data.storage_class === 'external' ||
-                    data.external_metadata !== undefined;
+                  const isExternalStorage = data.storage_class === 'external';
 
                   if (isExternalStorage) {
                     // External存储模式：使用external_metadata
