@@ -358,15 +358,34 @@ function Workflow() {
           if (!manifestRes.ok) continue;
           const manifest = await manifestRes.json();
 
+          // Helper to extract numeric index from chunk name like "chunk_000123.jsonl"
+          const extractIndex = (fileName: string): number => {
+            const m = fileName.match(/chunk_(\d+)\./);
+            return m ? parseInt(m[1], 10) : 0;
+          };
+
+          // Normalize, filter done chunks, and ensure deterministic ordering
+          const manifestChunks = (manifest.chunks || [])
+            .filter((c: any) => {
+              if (typeof c === 'object') {
+                if (c.state && c.state !== 'done') return false;
+                if (c.size === 0) return false;
+              }
+              return true;
+            })
+            .sort((a: any, b: any) => {
+              const aName = typeof a === 'string' ? a : a.name;
+              const bName = typeof b === 'string' ? b : b.name;
+              const aIdx = typeof a === 'object' && typeof a.index === 'number' ? a.index : extractIndex(aName || '');
+              const bIdx = typeof b === 'object' && typeof b.index === 'number' ? b.index : extractIndex(bName || '');
+              return aIdx - bIdx;
+            });
+
           const chunks: string[] = [];
-          for (const chunk of manifest.chunks || []) {
+          for (const chunk of manifestChunks) {
             if (canceled) break;
             const name = typeof chunk === 'string' ? chunk : chunk.name;
             if (!name) continue;
-            if (typeof chunk === 'object') {
-              if (chunk.state && chunk.state !== 'done') continue;
-              if (chunk.size === 0) continue;
-            }
 
             const urlResp = await fetch(
               `/api/storage/download/url?key=${encodeURIComponent(
@@ -385,7 +404,49 @@ function Workflow() {
           }
 
           if (canceled) break;
-          const content = chunks.join('');
+          // Reconstruct content based on content_type. For structured (JSONL) chunks,
+          // assemble a valid JSON array string instead of concatenated JSONL.
+          let content: string;
+          if (contentType === 'structured') {
+            let parsedRecords: any[] = [];
+            let leftoverPartialLine = '';
+            let totalRecords = 0;
+            let parseErrors = 0;
+            for (const chunkText of chunks) {
+              if (canceled) break;
+              const dataToProcess = (leftoverPartialLine || '') + chunkText;
+              const lines = dataToProcess.split(/\r?\n/);
+              leftoverPartialLine = lines.pop() || '';
+              for (const rawLine of lines) {
+                const line = rawLine.trim();
+                if (!line) continue;
+                totalRecords += 1;
+                try {
+                  parsedRecords.push(JSON.parse(line));
+                } catch {
+                  parseErrors += 1;
+                }
+              }
+            }
+            if (!canceled) {
+              const leftover = leftoverPartialLine.trim();
+              if (leftover) {
+                totalRecords += 1;
+                try {
+                  parsedRecords.push(JSON.parse(leftover));
+                } catch {
+                  parseErrors += 1;
+                }
+              }
+            }
+            try {
+              content = JSON.stringify(parsedRecords, null, 2);
+            } catch {
+              content = '[]';
+            }
+          } else {
+            content = chunks.join('');
+          }
           setUnsortedNodes(prev =>
             prev.map(node => {
               if (node.id !== n.id) return node;
@@ -396,7 +457,7 @@ function Workflow() {
                 ...node,
                 data: {
                   ...node.data,
-                  content: contentType === 'structured' ? content : content,
+                  content,
                   isExternalStorage: true,
                   external_metadata: external,
                 },
