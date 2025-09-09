@@ -15,15 +15,6 @@ on:
       - ".github/workflows/prettier-check-and-fix.yml"
   pull_request:
     branches: ["**"]
-    paths:
-      - "PuppyFlow/**/*.ts"
-      - "PuppyFlow/**/*.tsx"
-      - "PuppyFlow/**/*.js"
-      - "PuppyFlow/**/*.jsx"
-      - "PuppyFlow/**/*.css"
-      - "PuppyFlow/**/*.scss"
-      - ".prettierrc*"
-      - ".github/workflows/prettier-check-and-fix.yml"
 
 # Ensure only the latest run on the same branch remains to avoid concurrent push conflicts
 concurrency:

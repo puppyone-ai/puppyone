@@ -235,8 +235,16 @@ class ManifestPoller {
         this.parsedRecords.push(parsed);
       } catch (err) {
         this.parseErrors += 1;
-        console.warn('[ManifestPoller] JSONL final parse error at record #' + this.totalRecords + ':', err);
-        console.warn('[ManifestPoller] Offending tail line:', rawLine.slice(0, 500));
+        console.warn(
+          '[ManifestPoller] JSONL final parse error at record #' +
+            this.totalRecords +
+            ':',
+          err
+        );
+        console.warn(
+          '[ManifestPoller] Offending tail line:',
+          rawLine.slice(0, 500)
+        );
       }
     }
   }
@@ -254,7 +262,8 @@ class ManifestPoller {
 }
 
 const pollers = new Map<string, ManifestPoller>();
-const makeKey = (resourceKey: string, blockId: string) => `${resourceKey}_${blockId}`;
+const makeKey = (resourceKey: string, blockId: string) =>
+  `${resourceKey}_${blockId}`;
 
 export function ensurePollerStarted(
   context: PollerContext,
@@ -278,7 +287,12 @@ export async function ensurePollerStoppedAndFinalize(
   const key = makeKey(resourceKey, blockId);
   if (!pollers.has(key)) {
     // one-shot fetch/finalize
-    const poller = new ManifestPoller(context, resourceKey, blockId, contentType);
+    const poller = new ManifestPoller(
+      context,
+      resourceKey,
+      blockId,
+      contentType
+    );
     pollers.set(key, poller);
     await poller.stop();
     pollers.delete(key);
