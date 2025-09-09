@@ -276,23 +276,37 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     const updateNodeContent = useCallback(
       (newValue: string) => {
         setNodes(prevNodes =>
-          prevNodes.map(node =>
-            node.id === id
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    content: newValue,
-                    dirty: true,
-                    savingStatus: 'editing',
-                  },
-                }
-              : node
-          )
+          prevNodes.map(node => {
+            if (node.id !== id) return node;
+            const storageClass = node.data?.storage_class || 'internal';
+            const isExternal = storageClass === 'external';
+            return {
+              ...node,
+              data: {
+                ...node.data,
+                content: newValue,
+                // 仅 external 使用 dirty 标记
+                dirty: isExternal ? true : false,
+                savingStatus: 'editing',
+              },
+            };
+          })
         );
       },
       [id, setNodes]
     );
+
+    // 始终向 JSON 编辑器传入字符串，避免对非字符串执行 trim 报错
+    const contentString = useMemo(() => {
+      try {
+        // content 在运行时可能是对象/数组（例如结构化输出），需要字符串化
+        return typeof content === 'string'
+          ? content
+          : JSON.stringify(content ?? null, null, 2);
+      } catch (e) {
+        return String(content ?? '');
+      }
+    }, [content]);
 
     // 基于内容长度的动态存储策略切换（2s防抖），structured
     useEffect(() => {
@@ -300,8 +314,13 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       if (!node) return;
       const data = node.data || {};
       const currentContent = data.content;
+      const storageClass = data.storage_class || 'internal';
+      const isExternal = storageClass === 'external';
       const isDirty = !!data.dirty;
-      if (!isDirty || data.isLoading) return;
+      const isEditing = data.savingStatus === 'editing';
+      // 外部存储：仅在 dirty=true 时触发；内部存储：仅在编辑中触发
+      const shouldProceed = isExternal ? isDirty : isEditing;
+      if (!shouldProceed || data.isLoading) return;
 
       const timer = setTimeout(async () => {
         try {
@@ -878,7 +897,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}
                   placeholder='Create your JSON structure...'
-                  value={content || ''}
+                  value={contentString}
                   onChange={updateNodeContent}
                   widthStyle={0}
                   heightStyle={0}
@@ -889,7 +908,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}
                   placeholder='{"key": "value"}'
-                  value={content || ''}
+                  value={contentString}
                   onChange={updateNodeContent}
                   widthStyle={0}
                   heightStyle={0}
