@@ -10,6 +10,10 @@ import { FileNodeData } from '../workflow/blockNode/FileNode';
 import { TextBlockNodeData } from '../workflow/blockNode/TextBlockNode';
 import { SYSTEM_URLS } from '@/config/urls';
 import { useAppSettings } from '../states/AppSettingsContext';
+import {
+  ensurePollerStarted,
+  stopAllPollers,
+} from '../workflow/blockNode/utils/manifestPoller';
 // import {WarnsContext,WarnsContainer} from "puppyui"
 
 // all sourceNodes type connected to edgeNodes (except for load type), 所有可以进行处理的node的type都是json或者text
@@ -52,11 +56,46 @@ export interface FileData {
   };
 }
 
+// External storage summary item from backend (v1 compatibility)
+export interface ExternalResultData {
+  storage_class: 'external' | string;
+  external_metadata: {
+    resource_key: string;
+    content_type?: 'text' | 'structured' | string;
+    [key: string]: any;
+  };
+  // Optional fields if backend also includes them
+  type?: string;
+  data?: any;
+}
+
+export type ResultItem = FileData | ExternalResultData | string;
+
 export type ProcessingData = {
-  // data: FileData[],
-  data: { [key: string]: FileData };
+  // data can be FileData-like, external summary object, or direct content string
+  data: { [key: string]: ResultItem };
   is_complete: boolean;
 };
+
+function isExternalResult(item: ResultItem): item is ExternalResultData {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'storage_class' in item &&
+    (item as any).storage_class === 'external' &&
+    'external_metadata' in item
+  );
+}
+
+function isFileDataItem(item: ResultItem): item is FileData {
+  return (
+    typeof item === 'object' &&
+    item !== null &&
+    'data' in item &&
+    'type' in item &&
+    (item as any).data !== undefined
+  );
+}
 
 function useJsonConstructUtils() {
   const { getEdges, getNode, setNodes, getNodes, getViewport } = useReactFlow();
@@ -312,6 +351,12 @@ function useJsonConstructUtils() {
                   // 检查是否收到完成信号
                   if (data.is_complete === true) {
                     console.log('Processing completed');
+                    // 任务完成时，停止并终结所有外部轮询器，确保不留无限循环
+                    try {
+                      await stopAllPollers();
+                    } catch (e) {
+                      console.warn('Failed to stop pollers on complete', e);
+                    }
                     if (timeoutId) clearTimeout(timeoutId);
                     resolve(true);
                     return;
@@ -449,6 +494,13 @@ function useJsonConstructUtils() {
                       })
                     );
 
+                    // 任务完成时，停止并终结所有外部轮询器，确保不留无限循环
+                    try {
+                      await stopAllPollers();
+                    } catch (e) {
+                      console.warn('Failed to stop pollers on complete', e);
+                    }
+
                     if (timeoutId) clearTimeout(timeoutId);
                     resolve(true);
                     return;
@@ -525,24 +577,64 @@ function useJsonConstructUtils() {
         // })
 
         if (item) {
-          setNodes(prevNodes =>
-            prevNodes.map(node =>
-              node.id === resultNode
-                ? {
-                    ...node,
-                    type: item.type ?? node.type,
-                    data: {
-                      ...node.data,
-                      content:
-                        (item.type ?? node.type) === 'structured'
-                          ? JSON.stringify(item.data.content)
-                          : item.data.content,
-                      isLoading: false,
-                    },
-                  }
-                : node
-            )
-          );
+          const isExternal = isExternalResult(item);
+
+          if (isExternal) {
+            const resourceKey = item.external_metadata?.resource_key;
+            const contentType =
+              item.external_metadata?.content_type === 'structured'
+                ? 'structured'
+                : 'text';
+            if (resourceKey) {
+              ensurePollerStarted(
+                { setNodes, resetLoadingUI },
+                resourceKey,
+                resultNode,
+                contentType
+              );
+            }
+            // 只更新外部标识，不写入content
+            setNodes(prevNodes =>
+              prevNodes.map(node =>
+                node.id === resultNode
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        isLoading: true,
+                        isExternalStorage: true,
+                        external_metadata: {
+                          ...(node.data?.external_metadata || {}),
+                          ...(item.external_metadata || {}),
+                        },
+                      },
+                    }
+                  : node
+              )
+            );
+          } else {
+            setNodes(prevNodes =>
+              prevNodes.map(node =>
+                node.id === resultNode
+                  ? {
+                      ...node,
+                      type: isFileDataItem(item)
+                        ? (item.type ?? node.type)
+                        : node.type,
+                      data: {
+                        ...node.data,
+                        content: isFileDataItem(item)
+                          ? (item.type ?? node.type) === 'structured'
+                            ? JSON.stringify(item.data?.content)
+                            : item.data?.content
+                          : item,
+                        isLoading: false,
+                      },
+                    }
+                  : node
+              )
+            );
+          }
           setTimeout(() => {
             console.log('currentnodes', getNodes());
           }, 1000);
@@ -575,7 +667,17 @@ function useJsonConstructUtils() {
     async (jsonResult: ProcessingData, resultNodes: string[]) => {
       // 将jsonResult.data 转换为 Map
       console.log(jsonResult, 'jsonResult from backend');
-      const data = new Map(Object.entries(jsonResult.data));
+
+      // 🔧 修复：处理双层嵌套的data结构
+      let resultData: { [key: string]: any } = jsonResult.data || {};
+
+      // 检查是否有双层data嵌套（后端可能返回 {data: {data: {...}}} 结构）
+      if (resultData.data && typeof resultData.data === 'object') {
+        console.log('检测到双层data嵌套，使用内层data');
+        resultData = resultData.data;
+      }
+
+      const data = new Map(Object.entries(resultData));
 
       if (!resultNodes.length) return;
       const targets = resultNodes.filter(resultNode => getNode(resultNode));
@@ -594,25 +696,68 @@ function useJsonConstructUtils() {
         const item = data.get(resultNode);
         console.log(item, 'item found in data from backend');
         if (item) {
-          setNodes(prevNodes =>
-            prevNodes.map(node =>
-              node.id === resultNode
-                ? {
-                    ...node,
-                    type: item.type ?? node.type,
-                    data: {
-                      ...node.data,
-                      content:
-                        (item.type ?? node.type) === 'structured'
-                          ? JSON.stringify(item.data.content)
-                          : item.data.content,
-                      isLoading: false,
-                      isWaitingForFlow: true, // 从loading变为等待flow完成
-                    },
-                  }
-                : node
-            )
-          );
+          // 如果是external存储结果，启动轮询器，不直接把元数据写入content
+          const isExternal = isExternalResult(item);
+
+          if (isExternal) {
+            const resourceKey = item.external_metadata?.resource_key;
+            const contentType =
+              item.external_metadata?.content_type === 'structured'
+                ? 'structured'
+                : 'text';
+            if (resourceKey) {
+              ensurePollerStarted(
+                { setNodes, resetLoadingUI },
+                resourceKey,
+                resultNode,
+                contentType
+              );
+            }
+            // 只更新外部标识，不写入content
+            setNodes(prevNodes =>
+              prevNodes.map(node =>
+                node.id === resultNode
+                  ? {
+                      ...node,
+                      data: {
+                        ...node.data,
+                        isLoading: true,
+                        isExternalStorage: true,
+                        external_metadata: {
+                          ...(node.data?.external_metadata || {}),
+                          ...(item.external_metadata || {}),
+                        },
+                      },
+                    }
+                  : node
+              )
+            );
+          } else {
+            // 内部存储或直接内容，正常写入content
+            setNodes(prevNodes =>
+              prevNodes.map(node =>
+                node.id === resultNode
+                  ? {
+                      ...node,
+                      // 🔧 处理简单字符串内容和复杂对象内容
+                      type: isFileDataItem(item)
+                        ? (item.type ?? node.type)
+                        : node.type,
+                      data: {
+                        ...node.data,
+                        content: isFileDataItem(item)
+                          ? (item.type ?? node.type) === 'structured'
+                            ? JSON.stringify(item.data?.content)
+                            : item.data?.content
+                          : item,
+                        isLoading: false,
+                        isWaitingForFlow: true, // 从loading变为等待flow完成
+                      },
+                    }
+                  : node
+              )
+            );
+          }
         }
       }
       // for (let item of data) {
