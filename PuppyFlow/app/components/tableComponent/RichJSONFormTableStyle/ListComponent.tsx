@@ -359,37 +359,62 @@ const ListComponent = ({
     >
       <div className='absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20'>
         {(isSelected || isHovered || menuOpen) && (
-          <div className='absolute left-1/2 top-2 transform -translate-x-1/2 pointer-events-none'>
-            <div
-              className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
-              style={{ borderColor: accentColor }}
-              aria-hidden
-              onClick={e => {
-                e.stopPropagation();
-                setSelectedPath(path);
-                if (menuOpen) {
-                  setMenuOpen(false);
-                } else {
-                  window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                  setMenuOpen(true);
-                }
-              }}
-              ref={handleRef}
-            >
+          <>
+            <div className='absolute left-1/2 top-1 transform -translate-x-1/2 pointer-events-none'>
               <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
-              <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
-              <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
+                className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
+                style={{ borderColor: accentColor }}
+                aria-hidden
+                onClick={e => {
+                  e.stopPropagation();
+                  setSelectedPath(path);
+                  if (menuOpen) {
+                    setMenuOpen(false);
+                  } else {
+                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                    setMenuOpen(true);
+                  }
+                }}
+                ref={handleRef}
+              >
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+              </div>
             </div>
-          </div>
+            <div
+              className='absolute left-1/2 pointer-events-none transform -translate-x-1/2'
+              style={{ top: '36px' }}
+            >
+              <button
+                className='h-[18px] w-[18px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center pointer-events-auto'
+                title={isCollapsed ? 'Expand' : 'Collapse'}
+                onClick={e => {
+                  e.stopPropagation();
+                  setIsCollapsed(prev => !prev);
+                }}
+              >
+                <svg
+                  className='w-3 h-3 text-[#E5E7EB]'
+                  viewBox='0 0 20 20'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='1.6'
+                >
+                  <path d={isCollapsed ? 'M6 8l4 4 4-4' : 'M6 12l4-4 4 4'} strokeLinecap='round' strokeLinejoin='round' />
+                </svg>
+              </button>
+            </div>
+          </>
         )}
       </div>
       {/* menu rendered via portal */}
@@ -450,7 +475,7 @@ const ListComponent = ({
                       {/* Index Badge - display only */}
                       <div className='flex-shrink-0 flex justify-center'>
                         <div
-                          className='relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center'
+                          className='relative w-[96px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center'
                           onMouseEnter={() => handleIndexHover(index, true)}
                           onMouseLeave={() => handleIndexHover(index, false)}
                           onClick={e => {

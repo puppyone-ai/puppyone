@@ -359,7 +359,7 @@ function ScrollList({
   return (
     <ul
       ref={listRef}
-      className={`max-h-[360px] overflow-y-auto overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0  items-start ${
+      className={`max-h-[360px] overflow-y-auto overflow-x-hidden menu-scroll flex flex-col gap-[8px] py-0 items-start ${
         topShadow ? 'scroll-shadow-top' : ''
       } ${bottomShadow ? 'scroll-shadow-bottom' : ''} ${className ?? ''}`}
       onScroll={onScroll}
@@ -717,7 +717,7 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onReque
     >
       <div
         ref={menuRef}
-        className='bg-[#181818] text-[#CDCDCD] border-[2px] border-[#3E3E41] rounded-[16px] pl-[8px] pr-0 pt-[8px] pb-[8px] shadow-lg text-sm overflow-visible outline-none menu-container'
+        className='bg-[#181818] text-[#CDCDCD] border-[2px] border-[#3E3E41] rounded-[16px] pl-[8px] pr-[8px] pt-[8px] pb-[8px] shadow-lg text-sm overflow-visible outline-none menu-container'
         style={{ width: menuDims.width }}
         onWheelCapture={(e) => { e.stopPropagation(); }}
         onWheel={(e) => { e.stopPropagation(); }}
@@ -766,9 +766,10 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onReque
         <style jsx>{`
         :global(.menu-scroll) {
           -ms-overflow-style: auto; /* IE and Edge */
-          scrollbar-width: thin; /* Firefox */
+          scrollbar-width: thin; /* Firefox: thin track */
           scrollbar-color: rgb(92, 92, 92) transparent !important; /* Firefox: thumb + transparent track */
           overscroll-behavior: contain;
+          /* Do not reserve extra gutter so content width is unaffected */
           color-scheme: dark; /* Hint OS/engine to use dark overlay scrollbars */
           /* Use dark background to avoid white gutter/track on some WebKit */
           background-color: #181818 !important;
@@ -776,7 +777,7 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({ sourceType, onPick, onReque
         }
         /* WebKit: enforce transparent/dark visuals on all parts */
         :global(.menu-scroll::-webkit-scrollbar) {
-          width: 6px; height: 6px;
+          width: 5px; height: 5px;
           background: transparent !important;
           background-color: transparent !important;
         }

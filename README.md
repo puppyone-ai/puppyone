@@ -29,7 +29,7 @@
   </a>
 </p>
 
-<p align="center">Automate your knowledge bases with agents</p>
+<p align="center"> The new base for your agent</p>
 
 
 

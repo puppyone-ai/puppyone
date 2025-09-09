@@ -48,11 +48,30 @@ export const OverflowProvider: React.FC<{ children: React.ReactNode }> = ({
     });
   }, []);
 
+  const GlobalMenuCloser: React.FC = () => {
+    React.useEffect(() => {
+      const onPointerDown = (e: Event) => {
+        const target = e.target as HTMLElement | null;
+        if (!target) return;
+        if (target.closest('.rjft-action-menu')) return;
+        if (target.closest('.rjft-handle')) return;
+        window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+      };
+      document.addEventListener('pointerdown', onPointerDown, true);
+      return () => {
+        document.removeEventListener('pointerdown', onPointerDown, true);
+      };
+    }, []);
+    return null;
+  };
+
   return (
     <OverflowContext.Provider
       value={{ registerOverflowElement, unregisterOverflowElement }}
     >
       {children}
+      {/* 全局外部点击监听：点击非菜单与非把手区域时，关闭所有菜单 */}
+      <GlobalMenuCloser />
       {/* 渲染所有需要超出边界的元素 */}
       {Array.from(overflowElements.values()).map(({ id, element }) =>
         createPortal(
