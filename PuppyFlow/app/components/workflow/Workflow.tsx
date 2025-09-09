@@ -308,6 +308,9 @@ function Workflow() {
     if (!currentWorkspaceContent || !selectedFlowId) return;
     if (didExternalPrefetchRef.current === selectedFlowId) return;
 
+    // 提前设置防重入标记，避免在下载期间因保存引发的依赖变化而重入
+    didExternalPrefetchRef.current = selectedFlowId;
+
     // 只处理真正的external存储block，必须有storage_class='external'且有resource_key
     const externalBlocks = (currentWorkspaceContent.blocks || []).filter(
       (n: any) => {
@@ -322,12 +325,14 @@ function Workflow() {
     ) as any[];
 
     if (externalBlocks.length === 0) {
-      didExternalPrefetchRef.current = selectedFlowId;
       return;
     }
 
+    let canceled = false;
+
     (async () => {
       for (const n of externalBlocks) {
+        if (canceled) break;
         try {
           const external =
             n?.data?.external_metadata ||
@@ -355,6 +360,7 @@ function Workflow() {
 
           const chunks: string[] = [];
           for (const chunk of manifest.chunks || []) {
+            if (canceled) break;
             const name = typeof chunk === 'string' ? chunk : chunk.name;
             if (!name) continue;
             if (typeof chunk === 'object') {
@@ -378,29 +384,34 @@ function Workflow() {
             chunks.push(text);
           }
 
+          if (canceled) break;
           const content = chunks.join('');
           setUnsortedNodes(prev =>
-            prev.map(node =>
-              node.id === n.id
-                ? {
-                    ...node,
-                    data: {
-                      ...node.data,
-                      content: contentType === 'structured' ? content : content,
-                      isExternalStorage: true,
-                      external_metadata: external,
-                    },
-                  }
-                : node
-            )
+            prev.map(node => {
+              if (node.id !== n.id) return node;
+              const prevContent = (node as any)?.data?.content;
+              // 仅在内容变化时写入，减少无谓的保存和触发
+              if (prevContent === content) return node;
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  content: contentType === 'structured' ? content : content,
+                  isExternalStorage: true,
+                  external_metadata: external,
+                },
+              } as any;
+            })
           );
         } catch (e) {
           // 忽略单块失败
         }
       }
-
-      didExternalPrefetchRef.current = selectedFlowId;
     })();
+
+    return () => {
+      canceled = true;
+    };
   }, [currentWorkspaceContent, selectedFlowId, setUnsortedNodes]);
 
   // 定期保存 ReactFlow 状态到工作区
