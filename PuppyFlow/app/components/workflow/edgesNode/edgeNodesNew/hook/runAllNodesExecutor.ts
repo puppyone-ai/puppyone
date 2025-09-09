@@ -431,13 +431,16 @@ async function sendDataToTargets(
                 case 'TASK_STARTED':
                   if (data?.task_id) {
                     // Align FE chunk size with BE signaled threshold when present
-                    const threshold =
-                      (data && typeof data.storage_threshold_bytes === 'number'
+                    const threshold = (
+                      data && typeof data.storage_threshold_bytes === 'number'
                         ? data.storage_threshold_bytes
-                        : (eventData as any)?.storage_threshold_bytes) as
-                        | number
-                        | undefined;
-                    if (typeof threshold === 'number' && isFinite(threshold) && threshold > 0) {
+                        : (eventData as any)?.storage_threshold_bytes
+                    ) as number | undefined;
+                    if (
+                      typeof threshold === 'number' &&
+                      isFinite(threshold) &&
+                      threshold > 0
+                    ) {
                       setStorageChunkSize(threshold);
                       setExternalChunkSize(threshold);
                     }

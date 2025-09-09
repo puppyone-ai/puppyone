@@ -376,8 +376,14 @@ function Workflow() {
             .sort((a: any, b: any) => {
               const aName = typeof a === 'string' ? a : a.name;
               const bName = typeof b === 'string' ? b : b.name;
-              const aIdx = typeof a === 'object' && typeof a.index === 'number' ? a.index : extractIndex(aName || '');
-              const bIdx = typeof b === 'object' && typeof b.index === 'number' ? b.index : extractIndex(bName || '');
+              const aIdx =
+                typeof a === 'object' && typeof a.index === 'number'
+                  ? a.index
+                  : extractIndex(aName || '');
+              const bIdx =
+                typeof b === 'object' && typeof b.index === 'number'
+                  ? b.index
+                  : extractIndex(bName || '');
               return aIdx - bIdx;
             });
 
