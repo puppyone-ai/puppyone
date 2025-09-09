@@ -39,7 +39,7 @@ class GenericBlock(BaseBlock):
         # Set initial persistence strategy
         if persistence_strategy:
             self.persistence = persistence_strategy
-        elif self.storage_class == 'external' or self.has_external_data():
+        elif self.storage_class == 'external':
             self.persistence = ExternalStorageStrategy()
             log_debug(f"Block {block_id} initialized with ExternalStorageStrategy")
         else:

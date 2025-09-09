@@ -78,15 +78,16 @@ class ExecutionPlanner:
     def _mark_initial_blocks(self):
         """Mark blocks with initial content as processed"""
         for block_id, block in self.blocks.items():
-            # A block is considered initially processed only if:
-            # 1. It has internal content.
-            # 2. It does NOT have unresolved external data.
-            # 3. 🔧 It is NOT produced by any edge (i.e., it's a source block)
+            # Authoritative: use storage_class to decide resolution needs.
+            # internal: processed if has content
+            # external: pending unless already resolved
+            # Do not auto-mark blocks produced by edges as processed
             has_content = block.get_content() is not None
-            needs_resolving = block.has_external_data() and not block.is_resolved
+            is_external = getattr(block, 'storage_class', 'internal') == 'external'
+            needs_resolving = is_external and not block.is_resolved
             is_produced_by_edge = len(self.block_to_producing_edges.get(block_id, set())) > 0
-            
-            if has_content and not needs_resolving and not is_produced_by_edge:
+
+            if not is_external and has_content and not needs_resolving and not is_produced_by_edge:
                 self.block_states[block_id] = "processed"
                 log_debug(f"Marked source block {block_id} as initially processed (has content, no pending resolve, no producing edges)")
             elif is_produced_by_edge:
@@ -105,7 +106,8 @@ class ExecutionPlanner:
         """
         candidates = []
         for block_id, block in self.blocks.items():
-            if block.has_external_data() and not block.is_resolved:
+            is_external = getattr(block, 'storage_class', 'internal') == 'external'
+            if is_external and not block.is_resolved:
                 candidates.append(block_id)
         
         log_info(f"Found {len(candidates)} blocks for prefetching")
