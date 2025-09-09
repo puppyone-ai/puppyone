@@ -4,16 +4,21 @@ import GroupListButton from './upbarComponent/GroupListButton';
 import Upright from './upbarComponent/Upright';
 
 function Upbar() {
-  const [openMenu, setOpenMenu] = React.useState<null | 'text' | 'structured' | 'file' | 'group'>(null);
+  const [openMenu, setOpenMenu] = React.useState<
+    null | 'text' | 'structured' | 'file' | 'group'
+  >(null);
   const closeTimeoutRef = React.useRef<number | null>(null);
 
-  const openWithCancel = React.useCallback((menuKey: 'text' | 'structured' | 'file' | 'group') => {
-    if (closeTimeoutRef.current != null) {
-      window.clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-    setOpenMenu(menuKey);
-  }, []);
+  const openWithCancel = React.useCallback(
+    (menuKey: 'text' | 'structured' | 'file' | 'group') => {
+      if (closeTimeoutRef.current != null) {
+        window.clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
+      setOpenMenu(menuKey);
+    },
+    []
+  );
 
   const scheduleClose = React.useCallback(() => {
     if (closeTimeoutRef.current != null) {
@@ -73,10 +78,21 @@ function Upbar() {
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>Text Block</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Add a freeform text block. Click and drag to draw its size and type your content.</div>
-              <a href='https://www.youtube.com/watch?v=wa9KiyFApVU' target='_blank' rel='noreferrer' className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'>Learn how to use ↗</a>
-
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
+                Text Block
+              </div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
+                Add a freeform text block. Click and drag to draw its size and
+                type your content.
+              </div>
+              <a
+                href='https://www.youtube.com/watch?v=wa9KiyFApVU'
+                target='_blank'
+                rel='noreferrer'
+                className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'
+              >
+                Learn how to use ↗
+              </a>
             </div>
           </div>
         </div>
@@ -170,9 +186,13 @@ function Upbar() {
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>Structured Block</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Add a structured JSON-style block. Drag to size, then define key-value content.</div>
-
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
+                Structured Block
+              </div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
+                Add a structured JSON-style block. Drag to size, then define
+                key-value content.
+              </div>
             </div>
           </div>
         </div>
@@ -193,10 +213,17 @@ function Upbar() {
             title='Add File'
             aria-label='Add File'
           >
-
-            <svg width='24' height='24' viewBox='0 0 20 20' fill='none' xmlns='http://www.w3.org/2000/svg'>
-              <path d='M8.79297 5.5L10.793 7.5H15.5V14.5H4.5V5.5H8.79297Z' stroke='#CDCDCD'/>
-
+            <svg
+              width='24'
+              height='24'
+              viewBox='0 0 20 20'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+            >
+              <path
+                d='M8.79297 5.5L10.793 7.5H15.5V14.5H4.5V5.5H8.79297Z'
+                stroke='#CDCDCD'
+              />
             </svg>
           </button>
           <div
@@ -207,9 +234,13 @@ function Upbar() {
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>File Block</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Add a file block for documents. Drag to size, then upload files to process.</div>
-
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
+                File Block
+              </div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
+                Add a file block for documents. Drag to size, then upload files
+                to process.
+              </div>
             </div>
           </div>
         </div>
@@ -219,13 +250,15 @@ function Upbar() {
         **/}
         {/* Vertical divider moved to Upbar level */}
 
-        <div className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0' aria-hidden></div>
+        <div
+          className='w-px h-[36px] bg-[#3e3e41] opacity-90 mx-0'
+          aria-hidden
+        ></div>
         <div
           className='relative'
           onMouseEnter={() => openWithCancel('group')}
           onMouseLeave={scheduleClose}
         >
-
           <GroupListButton />
           <div
             className={`pointer-events-auto absolute left-1/2 -translate-x-1/2 top-full mt-2 z-[10001] ${openMenu === 'group' ? 'block' : 'hidden'}`}
@@ -235,9 +268,13 @@ function Upbar() {
             <div className='relative bg-[#1E1E1E] border border-[#343434] rounded-[10px] px-[12px] py-[10px] shadow-2xl text-left w-[220px]'>
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
-              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>Group</div>
-              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>Click to draw an area and create a group of nodes you can run or deploy together.</div>
-
+              <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
+                Group
+              </div>
+              <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
+                Click to draw an area and create a group of nodes you can run or
+                deploy together.
+              </div>
             </div>
           </div>
         </div>

@@ -556,7 +556,7 @@ export const useWorkspaceManagement = () => {
               isLocal: false,
             },
           },
-          
+
           selected: false,
           dragging: false,
           style: {
@@ -580,7 +580,7 @@ export const useWorkspaceManagement = () => {
             isWaitingForFlow: false,
           },
           type: 'text',
-          
+
           width: 240,
           height: 176,
           style: {
@@ -606,7 +606,7 @@ export const useWorkspaceManagement = () => {
           },
           width: 240,
           height: 176,
-          
+
           type: 'text',
           style: {
             zIndex: 1125,

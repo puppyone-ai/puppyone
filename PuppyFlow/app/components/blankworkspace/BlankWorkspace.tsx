@@ -31,7 +31,11 @@ const BlankWorkspace = () => {
 
     const optimistic = createEmptyWorkspace(newWorkspaceId, newWorkspaceName);
     addWorkspace(optimistic);
-    setShowingItem({ type: 'workspace', id: newWorkspaceId, name: newWorkspaceName });
+    setShowingItem({
+      type: 'workspace',
+      id: newWorkspaceId,
+      name: newWorkspaceName,
+    });
     switchToWorkspace();
 
     try {
@@ -224,9 +228,12 @@ const BlankWorkspace = () => {
                       </svg>
                     </div>
                     <div className='flex-1'>
-                      <div className='text-[#D6D6D6] text-[12px] font-medium'>{t.title}</div>
-                      <div className='text-[#8B8B8B] text-[11px] mt-[2px]'>{t.description}</div>
-
+                      <div className='text-[#D6D6D6] text-[12px] font-medium'>
+                        {t.title}
+                      </div>
+                      <div className='text-[#8B8B8B] text-[11px] mt-[2px]'>
+                        {t.description}
+                      </div>
                     </div>
                   </div>
                 </button>

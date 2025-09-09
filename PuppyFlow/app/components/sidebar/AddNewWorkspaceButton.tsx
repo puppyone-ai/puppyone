@@ -39,7 +39,11 @@ function AddNewWorkspaceButton() {
       addWorkspace(newWorkspace);
 
       // 立即切换到该工作区（先设置显示项，再切换显示模式）
-      setShowingItem({ type: 'workspace', id: newWorkspaceId, name: newWorkspaceName });
+      setShowingItem({
+        type: 'workspace',
+        id: newWorkspaceId,
+        name: newWorkspaceName,
+      });
       switchToWorkspace();
 
       // 异步创建工作区到数据库

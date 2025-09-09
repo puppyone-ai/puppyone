@@ -20,7 +20,6 @@ export type EdgeMenuTempNodeData = {
 
 type EdgeMenuTempNodeProps = NodeProps<Node<EdgeMenuTempNodeData>>;
 
-
 function ShellHandles({
   id,
   handleStyle,
@@ -115,7 +114,6 @@ function ShellHandles({
   );
 }
 
-
 const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({
   id,
   data,
@@ -170,19 +168,21 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({
     [id, setNodes]
   );
 
-
-  const handleStyle = useMemo(() => ({
-    position: 'absolute' as const,
-    width: 'calc(100%)',
-    height: 'calc(100%)',
-    top: '0',
-    left: '0',
-    borderRadius: '0',
-    transform: 'translate(0px, 0px)',
-    background: 'transparent',
-    border: '3px solid transparent',
-    zIndex: !isOnConnect ? '-1' : '1',
-  }), [isOnConnect]);
+  const handleStyle = useMemo(
+    () => ({
+      position: 'absolute' as const,
+      width: 'calc(100%)',
+      height: 'calc(100%)',
+      top: '0',
+      left: '0',
+      borderRadius: '0',
+      transform: 'translate(0px, 0px)',
+      background: 'transparent',
+      border: '3px solid transparent',
+      zIndex: !isOnConnect ? '-1' : '1',
+    }),
+    [isOnConnect]
+  );
 
   return (
     <div ref={containerRef} className='p-[3px] w-[80px] h-[48px] relative'>
@@ -202,7 +202,6 @@ const EdgeMenuNode: React.FC<EdgeMenuTempNodeProps> = ({
         onRequestClose={removeSelf}
         anchorRef={portalAnchorRef}
       />
-
     </div>
   );
 };
