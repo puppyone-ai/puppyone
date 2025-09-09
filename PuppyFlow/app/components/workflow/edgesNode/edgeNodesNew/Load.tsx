@@ -153,7 +153,10 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
       }
       const rect = anchorEl.getBoundingClientRect();
       const menuWidth = 352; // matches w-[352px]
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
       const top = rect.bottom + GAP;
 
       container.style.position = 'fixed';
@@ -362,90 +365,93 @@ function LoadEdgeNode({ isConnectable, id }: LoadConfigNodeProps) {
               onTouchMoveCapture={e => e.stopPropagation()}
               onTouchMove={e => e.stopPropagation()}
             >
-          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            <div className='flex flex-row gap-[12px]'>
-              <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    width='13'
-                    height='10'
-                    viewBox='0 0 13 10'
-                    fill='none'
+              <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                  <div className='flex flex-row gap-[8px] justify-center items-center'>
+                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                      <svg
+                        xmlns='http://www.w3.org/2000/svg'
+                        width='13'
+                        height='10'
+                        viewBox='0 0 13 10'
+                        fill='none'
+                      >
+                        <rect
+                          x='0.75'
+                          y='0.75'
+                          width='5.5'
+                          height='8.5'
+                          stroke='#D9D9D9'
+                          strokeWidth='1.5'
+                        />
+                        <path
+                          d='M13 5L9 2.6906V7.3094L13 5ZM9 5.4H9.4V4.6H9V5.4Z'
+                          fill='#D9D9D9'
+                        />
+                        <path d='M6 5H10' stroke='#D9D9D9' strokeWidth='1.5' />
+                      </svg>
+                    </div>
+                    <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
+                      Load
+                    </div>
+                  </div>
+                </div>
+                <div className='flex flex-row gap-[8px] items-center justify-center'>
+                  <button
+                    className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                    onClick={handleDataSubmit}
+                    disabled={isLoading}
                   >
-                    <rect
-                      x='0.75'
-                      y='0.75'
-                      width='5.5'
-                      height='8.5'
-                      stroke='#D9D9D9'
-                      strokeWidth='1.5'
-                    />
-                    <path
-                      d='M13 5L9 2.6906V7.3094L13 5ZM9 5.4H9.4V4.6H9V5.4Z'
-                      fill='#D9D9D9'
-                    />
-                    <path d='M6 5H10' stroke='#D9D9D9' strokeWidth='1.5' />
-                  </svg>
+                    <span>
+                      {isLoading ? (
+                        <svg
+                          className='animate-spin h-4 w-4'
+                          viewBox='0 0 24 24'
+                        >
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='8'
+                          height='10'
+                          viewBox='0 0 8 10'
+                          fill='none'
+                        >
+                          <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                        </svg>
+                      )}
+                    </span>
+                    <span>{isLoading ? '' : 'Run'}</span>
+                  </button>
                 </div>
-                <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                  Load
-                </div>
-              </div>
-            </div>
-            <div className='flex flex-row gap-[8px] items-center justify-center'>
-              <button
-                className='w-[57px] h-[24px] rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                onClick={handleDataSubmit}
-                disabled={isLoading}
-              >
-                <span>
-                  {isLoading ? (
-                    <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                      <circle
-                        className='opacity-25'
-                        cx='12'
-                        cy='12'
-                        r='10'
-                        stroke='currentColor'
-                        strokeWidth='4'
-                      ></circle>
-                      <path
-                        className='opacity-75'
-                        fill='currentColor'
-                        d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-                      ></path>
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='8'
-                      height='10'
-                      viewBox='0 0 8 10'
-                      fill='none'
-                    >
-                      <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                    </svg>
-                  )}
-                </span>
-                <span>{isLoading ? '' : 'Run'}</span>
-              </button>
-            </div>
-          </li>
+              </li>
 
-          {/* Input/Output display */}
-          <li>
-            <InputOutputDisplay
-              parentId={id}
-              getNode={getNode}
-              getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-              getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-              supportedInputTypes={['file']}
-              supportedOutputTypes={['structured']}
-              inputNodeCategory='blocknode'
-              outputNodeCategory='blocknode'
-            />
-          </li>
+              {/* Input/Output display */}
+              <li>
+                <InputOutputDisplay
+                  parentId={id}
+                  getNode={getNode}
+                  getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                  getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                  supportedInputTypes={['file']}
+                  supportedOutputTypes={['structured']}
+                  inputNodeCategory='blocknode'
+                  outputNodeCategory='blocknode'
+                />
+              </li>
             </ul>
           </div>,
           document.body

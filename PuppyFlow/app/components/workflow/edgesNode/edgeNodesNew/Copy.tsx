@@ -162,7 +162,10 @@ function CopyEdgeNode({
       }
       const rect = anchorEl.getBoundingClientRect();
       const menuWidth = 320; // matches w-[320px]
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
       const top = rect.bottom + GAP;
 
       container.style.position = 'fixed';
@@ -370,93 +373,96 @@ function CopyEdgeNode({
               onTouchMoveCapture={e => e.stopPropagation()}
               onTouchMove={e => e.stopPropagation()}
             >
-          {/* Title and Run button section */}
-          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            <div className='flex flex-row gap-[12px]'>
-              <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    width='12'
-                    height='12'
-                    viewBox='0 0 12 12'
-                    fill='none'
+              {/* Title and Run button section */}
+              <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                  <div className='flex flex-row gap-[8px] justify-center items-center'>
+                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                      <svg
+                        xmlns='http://www.w3.org/2000/svg'
+                        width='12'
+                        height='12'
+                        viewBox='0 0 12 12'
+                        fill='none'
+                      >
+                        <path
+                          d='M8 1H2C1.45 1 1 1.45 1 2V8'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                        />
+                        <rect
+                          x='4'
+                          y='4'
+                          width='7'
+                          height='7'
+                          rx='1'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                        />
+                      </svg>
+                    </div>
+                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                      Copy
+                    </div>
+                  </div>
+                </div>
+                <div className='w-[57px] h-[26px]'>
+                  <button
+                    className='w-full h-full rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                    onClick={handleDataSubmit}
+                    disabled={isLoading}
                   >
-                    <path
-                      d='M8 1H2C1.45 1 1 1.45 1 2V8'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                    />
-                    <rect
-                      x='4'
-                      y='4'
-                      width='7'
-                      height='7'
-                      rx='1'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                    />
-                  </svg>
+                    <span>
+                      {isLoading ? (
+                        <svg
+                          className='animate-spin h-4 w-4'
+                          viewBox='0 0 24 24'
+                        >
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='8'
+                          height='10'
+                          viewBox='0 0 8 10'
+                          fill='none'
+                        >
+                          <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                        </svg>
+                      )}
+                    </span>
+                    <span>{isLoading ? '' : 'Run'}</span>
+                  </button>
                 </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                  Copy
-                </div>
-              </div>
-            </div>
-            <div className='w-[57px] h-[26px]'>
-              <button
-                className='w-full h-full rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                onClick={handleDataSubmit}
-                disabled={isLoading}
-              >
-                <span>
-                  {isLoading ? (
-                    <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                      <circle
-                        className='opacity-25'
-                        cx='12'
-                        cy='12'
-                        r='10'
-                        stroke='currentColor'
-                        strokeWidth='4'
-                      ></circle>
-                      <path
-                        className='opacity-75'
-                        fill='currentColor'
-                        d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-                      ></path>
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='8'
-                      height='10'
-                      viewBox='0 0 8 10'
-                      fill='none'
-                    >
-                      <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                    </svg>
-                  )}
-                </span>
-                <span>{isLoading ? '' : 'Run'}</span>
-              </button>
-            </div>
-          </li>
+              </li>
 
-          {/* Input/Output display */}
-          <li>
-            <InputOutputDisplay
-              parentId={id}
-              getNode={getNode}
-              getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-              getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-              supportedInputTypes={['text', 'structured']}
-              supportedOutputTypes={['text', 'structured']}
-              inputNodeCategory='blocknode'
-              outputNodeCategory='blocknode'
-            />
-          </li>
+              {/* Input/Output display */}
+              <li>
+                <InputOutputDisplay
+                  parentId={id}
+                  getNode={getNode}
+                  getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                  getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                  supportedInputTypes={['text', 'structured']}
+                  supportedOutputTypes={['text', 'structured']}
+                  inputNodeCategory='blocknode'
+                  outputNodeCategory='blocknode'
+                />
+              </li>
             </ul>
           </div>,
           document.body

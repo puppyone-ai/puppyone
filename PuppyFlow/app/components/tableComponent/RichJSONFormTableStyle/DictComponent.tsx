@@ -547,7 +547,9 @@ const DictComponent = ({
                   if (menuOpen) {
                     setMenuOpen(false);
                   } else {
-                    window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
+                    window.dispatchEvent(
+                      new CustomEvent('rjft:close-all-menus')
+                    );
                     setMenuOpen(true);
                   }
                 }}
@@ -586,7 +588,11 @@ const DictComponent = ({
                   stroke='currentColor'
                   strokeWidth='1.6'
                 >
-                  <path d={isCollapsed ? 'M6 8l4 4 4-4' : 'M6 12l4-4 4 4'} strokeLinecap='round' strokeLinejoin='round' />
+                  <path
+                    d={isCollapsed ? 'M6 8l4 4 4-4' : 'M6 12l4-4 4 4'}
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  />
                 </svg>
               </button>
             </div>

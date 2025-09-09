@@ -760,9 +760,13 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       el.addEventListener('touchmove', stopTouchMove as any, { capture: true });
       return () => {
         el.removeEventListener('wheel', stopWheel, { capture: true } as any);
-        el.removeEventListener('touchmove', stopTouchMove as any, {
-          capture: true,
-        } as any);
+        el.removeEventListener(
+          'touchmove',
+          stopTouchMove as any,
+          {
+            capture: true,
+          } as any
+        );
       };
     }, []);
 

@@ -152,7 +152,10 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
         }
         const rect = anchorEl.getBoundingClientRect();
         const menuWidth = 320; // matches w-[320px]
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
         const top = rect.bottom + GAP;
 
         container.style.position = 'fixed';
@@ -445,7 +448,10 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
         </button>
 
         {/* Invisible fixed-position anchor to tether the portal menu to this node */}
-        <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
         {/* Configuration Menu */}
         {isMenuOpen &&
@@ -465,79 +471,84 @@ const SearchPerplexity: React.FC<SearchPerplexityNodeProps> = memo(
                 onTouchMoveCapture={e => e.stopPropagation()}
                 onTouchMove={e => e.stopPropagation()}
               >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <img src='/Perplexity.svg' alt='Perplexity icon' />
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                        <img src='/Perplexity.svg' alt='Perplexity icon' />
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Perplexity
+                      </div>
+                    </div>
                   </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Perplexity
+                  <div className='w-[57px] h-[26px]'>
+                    <button
+                      className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={menuRunButtonStyle}
+                      onClick={isLoading ? onStopExecution : onDataSubmit}
+                      disabled={false}
+                    >
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
+                    </button>
                   </div>
-                </div>
-              </div>
-              <div className='w-[57px] h-[26px]'>
-                <button
-                  className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={menuRunButtonStyle}
-                  onClick={isLoading ? onStopExecution : onDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns='http://www.w3.org/2000/svg'
-                        width='8'
-                        height='10'
-                        viewBox='0 0 8 10'
-                        fill='none'
-                      >
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
+                </li>
 
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text']}
-                supportedOutputTypes={['structured']}
-                inputNodeCategory='blocknode'
-                outputNodeCategory='blocknode'
-              />
-            </li>
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text']}
+                    supportedOutputTypes={['structured']}
+                    inputNodeCategory='blocknode'
+                    outputNodeCategory='blocknode'
+                  />
+                </li>
 
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Model
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={modelOptions}
-                  selectedValue={model}
-                  onSelect={handleModelSelect}
-                  buttonHeight='32px'
-                  buttonBgColor='transparent'
-                  menuBgColor='#1A1A1A'
-                  listWidth='100%'
-                  containerClassnames='w-full'
-                />
-              </div>
-            </li>
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Model
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={modelOptions}
+                      selectedValue={model}
+                      onSelect={handleModelSelect}
+                      buttonHeight='32px'
+                      buttonBgColor='transparent'
+                      menuBgColor='#1A1A1A'
+                      listWidth='100%'
+                      containerClassnames='w-full'
+                    />
+                  </div>
+                </li>
               </ul>
             </div>,
             document.body

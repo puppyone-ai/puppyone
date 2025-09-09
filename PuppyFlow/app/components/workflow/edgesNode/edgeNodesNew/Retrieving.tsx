@@ -235,7 +235,10 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
         }
         const rect = anchorEl.getBoundingClientRect();
         const menuWidth = 320; // matches w-[320px]
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
         const top = rect.bottom + GAP;
 
         container.style.position = 'fixed';
@@ -666,7 +669,10 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
         </button>
 
         {/* Invisible fixed-position anchor to tether the portal menu to this node */}
-        <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
         {/* Configuration Menu (render via portal to avoid zoom scaling) */}
         {isMenuOpen &&
@@ -686,312 +692,329 @@ const Retrieving: React.FC<RetrievingConfigNodeProps> = memo(
                 onTouchMoveCapture={e => e.stopPropagation()}
                 onTouchMove={e => e.stopPropagation()}
               >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='14'
-                      height='14'
-                      fill='none'
-                      viewBox='0 0 14 14'
-                    >
-                      <path
-                        fill='#CDCDCD'
-                        d='m0 14 4.597-.446-2.684-3.758L0 14Zm6.768-5.325-4.071 2.907.465.651 4.07-2.908-.465-.65Z'
-                      />
-                      <path stroke='#CDCDCD' strokeWidth='1.5' d='M7 9V2' />
-                      <path fill='#CDCDCD' d='M7 0 4.69 4h4.62L7 0Z' />
-                      <path stroke='#CDCDCD' strokeWidth='1.5' d='m7 9-5 3.5' />
-                      <path
-                        fill='#CDCDCD'
-                        d='m14 14-4.597-.446 2.684-3.758L14 14ZM7.232 8.675l4.071 2.907-.465.651-4.07-2.908.465-.65Z'
-                      />
-                      <path stroke='#CDCDCD' strokeWidth='1.5' d='m7 9 5 3.5' />
-                    </svg>
-                  </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Retrieve by Vector
-                  </div>
-                </div>
-              </div>
-              <div className='w-[57px] h-[26px]'>
-                <button
-                  className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={isLoading ? onStopExecution : onDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns='http://www.w3.org/2000/svg'
-                        width='8'
-                        height='10'
-                        viewBox='0 0 8 10'
-                        fill='none'
-                      >
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
-
-            {/* Input/Output display */}
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text', 'structured']}
-                supportedOutputTypes={['structured']}
-                inputNodeCategory='blocknode'
-                outputNodeCategory='blocknode'
-              />
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Query
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={queryOptions}
-                  selectedValue={
-                    query.id ? { id: query.id, label: query.label } : null
-                  }
-                  onSelect={(value: { id: string; label: string }) => {
-                    setQuery({ id: value.id, label: value.label });
-                  }}
-                  buttonHeight='32px'
-                  buttonBgColor='transparent'
-                  menuBgColor='#1A1A1A'
-                  listWidth='100%'
-                  containerClassnames='w-full'
-                  mapValueTodisplay={(value: any) =>
-                    value && value.label ? (
-                      <span className='text-[#3B9BFF] text-[12px] font-medium'>{`{{${value.label}}}`}</span>
-                    ) : (
-                      <span className='text-[#6D7177] text-[12px]'>
-                        Select a query
-                      </span>
-                    )
-                  }
-                  renderOption={(option: { id: string; label: string }) => (
-                    <div className='text-[#3B9BFF] text-[12px] font-medium'>{`{{${option.label}}}`}</div>
-                  )}
-                />
-              </div>
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Indexed Structured Data
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-
-              {/* start of node labels */}
-              <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
-                  {dataSource.map((item, index) => (
-                    <div
-                      key={index}
-                      className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
-                                                                                                       border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 
-                                                    transition-colors group'
-                    >
-                      <span className='text-[10px] text-[#9B7EDB] font-medium'>
-                        {item.label}
-                      </span>
-                      <button
-                        onClick={() => removeNodeLabel(index)}
-                        className='ml-2 text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
-                                                        opacity-0 group-hover:opacity-100'
-                      >
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                         <svg
                           xmlns='http://www.w3.org/2000/svg'
-                          width='10'
-                          height='10'
-                          viewBox='0 0 24 24'
+                          width='14'
+                          height='14'
                           fill='none'
-                          stroke='currentColor'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
+                          viewBox='0 0 14 14'
                         >
-                          <line x1='18' y1='6' x2='6' y2='18'></line>
-                          <line x1='6' y1='6' x2='18' y2='18'></line>
+                          <path
+                            fill='#CDCDCD'
+                            d='m0 14 4.597-.446-2.684-3.758L0 14Zm6.768-5.325-4.071 2.907.465.651 4.07-2.908-.465-.65Z'
+                          />
+                          <path stroke='#CDCDCD' strokeWidth='1.5' d='M7 9V2' />
+                          <path fill='#CDCDCD' d='M7 0 4.69 4h4.62L7 0Z' />
+                          <path
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                            d='m7 9-5 3.5'
+                          />
+                          <path
+                            fill='#CDCDCD'
+                            d='m14 14-4.597-.446 2.684-3.758L14 14ZM7.232 8.675l4.071 2.907-.465.651-4.07-2.908.465-.65Z'
+                          />
+                          <path
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                            d='m7 9 5 3.5'
+                          />
                         </svg>
-                      </button>
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Retrieve by Vector
+                      </div>
                     </div>
-                  ))}
+                  </div>
+                  <div className='w-[57px] h-[26px]'>
+                    <button
+                      className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
+                      }}
+                      onClick={isLoading ? onStopExecution : onDataSubmit}
+                      disabled={false}
+                    >
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
+                    </button>
+                  </div>
+                </li>
 
-                  {flattenedIndexItems.length > 0 && (
-                    <div className='relative'>
-                      <button
-                        onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                        className='w-[24px] h-[24px] flex items-center justify-center rounded-md
+                {/* Input/Output display */}
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text', 'structured']}
+                    supportedOutputTypes={['structured']}
+                    inputNodeCategory='blocknode'
+                    outputNodeCategory='blocknode'
+                  />
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Query
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={queryOptions}
+                      selectedValue={
+                        query.id ? { id: query.id, label: query.label } : null
+                      }
+                      onSelect={(value: { id: string; label: string }) => {
+                        setQuery({ id: value.id, label: value.label });
+                      }}
+                      buttonHeight='32px'
+                      buttonBgColor='transparent'
+                      menuBgColor='#1A1A1A'
+                      listWidth='100%'
+                      containerClassnames='w-full'
+                      mapValueTodisplay={(value: any) =>
+                        value && value.label ? (
+                          <span className='text-[#3B9BFF] text-[12px] font-medium'>{`{{${value.label}}}`}</span>
+                        ) : (
+                          <span className='text-[#6D7177] text-[12px]'>
+                            Select a query
+                          </span>
+                        )
+                      }
+                      renderOption={(option: { id: string; label: string }) => (
+                        <div className='text-[#3B9BFF] text-[12px] font-medium'>{`{{${option.label}}}`}</div>
+                      )}
+                    />
+                  </div>
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Indexed Structured Data
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+
+                  {/* start of node labels */}
+                  <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
+                      {dataSource.map((item, index) => (
+                        <div
+                          key={index}
+                          className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
+                                                                                                       border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 
+                                                    transition-colors group'
+                        >
+                          <span className='text-[10px] text-[#9B7EDB] font-medium'>
+                            {item.label}
+                          </span>
+                          <button
+                            onClick={() => removeNodeLabel(index)}
+                            className='ml-2 text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
+                                                        opacity-0 group-hover:opacity-100'
+                          >
+                            <svg
+                              xmlns='http://www.w3.org/2000/svg'
+                              width='10'
+                              height='10'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            >
+                              <line x1='18' y1='6' x2='6' y2='18'></line>
+                              <line x1='6' y1='6' x2='18' y2='18'></line>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+
+                      {flattenedIndexItems.length > 0 && (
+                        <div className='relative'>
+                          <button
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                                         bg-[#252525] border border-[#6D7177]/30 
                                                         text-[#6D7177] 
                                                         hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
                                                         transition-colors'
-                      >
-                        <svg
-                          width='12'
-                          height='12'
-                          viewBox='0 0 24 24'
-                          fill='none'
-                          stroke='currentColor'
-                        >
-                          <path
-                            d='M12 5v14M5 12h14'
-                            strokeWidth='2'
-                            strokeLinecap='round'
-                          />
-                        </svg>
-                      </button>
-
-                      {isDropdownOpen && (
-                        <div
-                          className='absolute top-full left-0 mt-1 w-[240px] bg-[#1A1A1A] 
-                                                        border border-[#6D7177]/30 rounded-[8px] shadow-lg z-10 max-h-[200px] overflow-y-auto'
-                        >
-                          {flattenedIndexItems.map((item, index) => (
-                            <button
-                              key={index}
-                              onClick={() => {
-                                addNodeLabel(item);
-                                setIsDropdownOpen(false);
-                              }}
-                              className='w-full text-left px-3 py-2 text-[11px] text-[#CDCDCD] 
-                                                            hover:bg-[#252525] transition-colors border-b border-[#6D7177]/20 last:border-b-0'
+                          >
+                            <svg
+                              width='12'
+                              height='12'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
                             >
-                              <div className='font-medium text-[#9B7EDB]'>
-                                {item.nodeLabel}
-                              </div>
-                              <div className='text-[#6D7177] text-[10px] mt-1'>
-                                Index: {item.indexItem.index_name}
-                              </div>
-                            </button>
-                          ))}
+                              <path
+                                d='M12 5v14M5 12h14'
+                                strokeWidth='2'
+                                strokeLinecap='round'
+                              />
+                            </svg>
+                          </button>
+
+                          {isDropdownOpen && (
+                            <div
+                              className='absolute top-full left-0 mt-1 w-[240px] bg-[#1A1A1A] 
+                                                        border border-[#6D7177]/30 rounded-[8px] shadow-lg z-10 max-h-[200px] overflow-y-auto'
+                            >
+                              {flattenedIndexItems.map((item, index) => (
+                                <button
+                                  key={index}
+                                  onClick={() => {
+                                    addNodeLabel(item);
+                                    setIsDropdownOpen(false);
+                                  }}
+                                  className='w-full text-left px-3 py-2 text-[11px] text-[#CDCDCD] 
+                                                            hover:bg-[#252525] transition-colors border-b border-[#6D7177]/20 last:border-b-0'
+                                >
+                                  <div className='font-medium text-[#9B7EDB]'>
+                                    {item.nodeLabel}
+                                  </div>
+                                  <div className='text-[#6D7177] text-[10px] mt-1'>
+                                    Index: {item.indexItem.index_name}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              </div>
-            </li>
+                  </div>
+                </li>
 
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Top K
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <input
-                ref={topkRef}
-                value={top_k || ''}
-                onChange={e => setTop_k(Number(e.target.value) || undefined)}
-                type='number'
-                min='1'
-                max='100'
-                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Top K
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <input
+                    ref={topkRef}
+                    value={top_k || ''}
+                    onChange={e =>
+                      setTop_k(Number(e.target.value) || undefined)
+                    }
+                    type='number'
+                    min='1'
+                    max='100'
+                    className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
                                         text-[#CDCDCD] text-[12px] font-medium appearance-none 
                                         hover:border-[#6D7177]/50 transition-colors'
-                autoComplete='off'
-                onMouseDownCapture={onFocus}
-                onBlur={onBlur}
-              />
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Threshold
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <input
-                ref={thresholdRef}
-                value={threshold || ''}
-                onChange={e =>
-                  setThreshold(Number(e.target.value) || undefined)
-                }
-                type='number'
-                min='0'
-                max='1'
-                step='0.1'
-                className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
-                                        text-[#CDCDCD] text-[12px] font-medium appearance-none 
-                                        hover:border-[#6D7177]/50 transition-colors'
-                autoComplete='off'
-                onMouseDownCapture={onFocus}
-                onBlur={onBlur}
-              />
-            </li>
-
-            {/* Settings toggle */}
-            <li className='flex items-center justify-between'>
-              <label className='text-[13px] font-semibold text-[#6D7177]'>
-                Advanced Settings
-              </label>
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className={`w-[40px] h-[20px] rounded-full border transition-colors ${
-                  showSettings
-                    ? 'bg-[#39BC66] border-[#39BC66]'
-                    : 'bg-[#252525] border-[#6D7177]/30'
-                }`}
-              >
-                <div
-                  className={`w-[16px] h-[16px] bg-white rounded-full transition-transform ${
-                    showSettings ? 'translate-x-[22px]' : 'translate-x-[2px]'
-                  }`}
-                />
-              </button>
-            </li>
-
-            {showSettings && (
-              <li className='flex flex-col gap-2'>
-                <div className='flex items-center gap-2'>
-                  <label className='text-[13px] font-semibold text-[#6D7177]'>
-                    Model
-                  </label>
-                </div>
-                <div className='flex gap-2 bg-[#252525] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                  <PuppyDropdown
-                    options={[
-                      'llama-3.1-sonar-small-128k-online',
-                      'llama-3.1-sonar-large-128k-online',
-                      'llama-3.1-sonar-huge-128k-online',
-                    ]}
-                    onSelect={(option: string) => {
-                      // Handle model selection if needed
-                      console.log('Selected model:', option);
-                    }}
-                    selectedValue={'llama-3.1-sonar-small-128k-online'}
-                    listWidth={'200px'}
+                    autoComplete='off'
+                    onMouseDownCapture={onFocus}
+                    onBlur={onBlur}
                   />
-                </div>
-              </li>
-            )}
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Threshold
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <input
+                    ref={thresholdRef}
+                    value={threshold || ''}
+                    onChange={e =>
+                      setThreshold(Number(e.target.value) || undefined)
+                    }
+                    type='number'
+                    min='0'
+                    max='1'
+                    step='0.1'
+                    className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                                        text-[#CDCDCD] text-[12px] font-medium appearance-none 
+                                        hover:border-[#6D7177]/50 transition-colors'
+                    autoComplete='off'
+                    onMouseDownCapture={onFocus}
+                    onBlur={onBlur}
+                  />
+                </li>
+
+                {/* Settings toggle */}
+                <li className='flex items-center justify-between'>
+                  <label className='text-[13px] font-semibold text-[#6D7177]'>
+                    Advanced Settings
+                  </label>
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className={`w-[40px] h-[20px] rounded-full border transition-colors ${
+                      showSettings
+                        ? 'bg-[#39BC66] border-[#39BC66]'
+                        : 'bg-[#252525] border-[#6D7177]/30'
+                    }`}
+                  >
+                    <div
+                      className={`w-[16px] h-[16px] bg-white rounded-full transition-transform ${
+                        showSettings
+                          ? 'translate-x-[22px]'
+                          : 'translate-x-[2px]'
+                      }`}
+                    />
+                  </button>
+                </li>
+
+                {showSettings && (
+                  <li className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                      <label className='text-[13px] font-semibold text-[#6D7177]'>
+                        Model
+                      </label>
+                    </div>
+                    <div className='flex gap-2 bg-[#252525] rounded-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                      <PuppyDropdown
+                        options={[
+                          'llama-3.1-sonar-small-128k-online',
+                          'llama-3.1-sonar-large-128k-online',
+                          'llama-3.1-sonar-huge-128k-online',
+                        ]}
+                        onSelect={(option: string) => {
+                          // Handle model selection if needed
+                          console.log('Selected model:', option);
+                        }}
+                        selectedValue={'llama-3.1-sonar-small-128k-online'}
+                        listWidth={'200px'}
+                      />
+                    </div>
+                  </li>
+                )}
               </ul>
             </div>,
             document.body

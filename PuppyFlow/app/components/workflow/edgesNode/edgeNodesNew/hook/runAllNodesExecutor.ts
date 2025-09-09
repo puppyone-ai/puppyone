@@ -15,8 +15,14 @@ import {
   EdgeNodeBuilderContext,
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
-import { applyBlockUpdate, finalizeExternal } from '../../../blockNode/utils/blockUpdateApplier';
-import { ensurePollerStarted, stopAllPollers } from '../../../blockNode/utils/manifestPoller';
+import {
+  applyBlockUpdate,
+  finalizeExternal,
+} from '../../../blockNode/utils/blockUpdateApplier';
+import {
+  ensurePollerStarted,
+  stopAllPollers,
+} from '../../../blockNode/utils/manifestPoller';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -453,9 +459,14 @@ async function sendDataToTargets(
                 case 'STREAM_STARTED':
                   if (data?.block_id && data?.resource_key) {
                     const normalizedContentType =
-                      data.content_type === 'structured' ? 'structured' : 'text';
+                      data.content_type === 'structured'
+                        ? 'structured'
+                        : 'text';
                     ensurePollerStarted(
-                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      {
+                        setNodes: context.setNodes,
+                        resetLoadingUI: context.resetLoadingUI,
+                      },
                       data.resource_key,
                       data.block_id,
                       normalizedContentType
@@ -465,7 +476,10 @@ async function sendDataToTargets(
                 case 'STREAM_ENDED':
                   if (data?.resource_key && data?.block_id) {
                     await finalizeExternal(
-                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      {
+                        setNodes: context.setNodes,
+                        resetLoadingUI: context.resetLoadingUI,
+                      },
                       data.block_id,
                       data.resource_key
                     );
@@ -553,7 +567,10 @@ async function sendDataToTargets(
 
                     if (isExternalStorage) {
                       applyBlockUpdate(
-                        { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                        {
+                          setNodes: context.setNodes,
+                          resetLoadingUI: context.resetLoadingUI,
+                        },
                         {
                           block_id: data.block_id,
                           storage_class: 'external',
@@ -569,7 +586,10 @@ async function sendDataToTargets(
                         break;
                       }
                       applyBlockUpdate(
-                        { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                        {
+                          setNodes: context.setNodes,
+                          resetLoadingUI: context.resetLoadingUI,
+                        },
                         {
                           block_id: data.block_id,
                           storage_class: 'internal',

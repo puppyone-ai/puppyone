@@ -174,7 +174,10 @@ const EditText: React.FC<ModifyConfigNodeProps> = React.memo(
         }
         const rect = anchorEl.getBoundingClientRect();
         const menuWidth = 448; // matches w-[448px]
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
         const top = rect.bottom + GAP;
 
         container.style.position = 'fixed';
@@ -468,7 +471,10 @@ const EditText: React.FC<ModifyConfigNodeProps> = React.memo(
         </button>
 
         {/* Invisible fixed-position anchor to tether the portal menu to this node */}
-        <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
         {/* Configuration Menu - render in portal to avoid zoom scaling */}
         {isMenuOpen &&
@@ -488,132 +494,146 @@ const EditText: React.FC<ModifyConfigNodeProps> = React.memo(
                 onTouchMoveCapture={e => e.stopPropagation()}
                 onTouchMove={e => e.stopPropagation()}
               >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='12'
-                      height='12'
-                      viewBox='0 0 12 12'
-                      fill='none'
-                    >
-                      <path d='M2 10H10' stroke='#CDCDCD' strokeWidth='1.5' />
-                      <path
-                        d='M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                      />
-                    </svg>
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='12'
+                          height='12'
+                          viewBox='0 0 12 12'
+                          fill='none'
+                        >
+                          <path
+                            d='M2 10H10'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M8.5 2L9.5 3L5 7.5L3 8L3.5 6L8 1.5L9 2.5'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                        </svg>
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Edit Text
+                      </div>
+                    </div>
                   </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Edit Text
-                  </div>
-                </div>
-              </div>
-              <div className='w-[57px] h-[26px]'>
-                <button
-                  className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={isLoading ? onStopExecution : onDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg width='8' height='10' viewBox='0 0 8 10' fill='none'>
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
-
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text']}
-                supportedOutputTypes={['text']}
-                inputNodeCategory='blocknode'
-                outputNodeCategory='blocknode'
-              />
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Return Text
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='bg-[#252525] rounded-[8px] p-3 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <textarea
-                  value={textContent}
-                  onChange={e => {
-                    setTextContent(e.target.value);
-                  }}
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                  placeholder={`use {{}} and id to reference input content 
-example: hello, {{parent_nodeid}}`}
-                  className='w-full h-[140px] bg-transparent text-[#CDCDCD] text-[12px] resize-none outline-none p-1'
-                />
-              </div>
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Return Mode
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={[RET_ALL, RET_FN, RET_LN, EX_FN, EX_LN]}
-                  onSelect={(option: string) => {
-                    setRetMode(option);
-                  }}
-                  selectedValue={retMode}
-                  listWidth={'200px'}
-                  containerClassnames='w-full'
-                />
-
-                {retMode !== RET_ALL && (
-                  <div className='flex items-center gap-2'>
-                    <input
-                      value={configNum}
-                      onChange={e => {
-                        setConfigNum(parseInt(e.target.value));
+                  <div className='w-[57px] h-[26px]'>
+                    <button
+                      className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
                       }}
-                      className='w-[80px] h-[32px] px-3 bg-[#252525] rounded-[6px] 
+                      onClick={isLoading ? onStopExecution : onDataSubmit}
+                      disabled={false}
+                    >
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
+                    </button>
+                  </div>
+                </li>
+
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text']}
+                    supportedOutputTypes={['text']}
+                    inputNodeCategory='blocknode'
+                    outputNodeCategory='blocknode'
+                  />
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Return Text
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='bg-[#252525] rounded-[8px] p-3 border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <textarea
+                      value={textContent}
+                      onChange={e => {
+                        setTextContent(e.target.value);
+                      }}
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                      placeholder={`use {{}} and id to reference input content 
+example: hello, {{parent_nodeid}}`}
+                      className='w-full h-[140px] bg-transparent text-[#CDCDCD] text-[12px] resize-none outline-none p-1'
+                    />
+                  </div>
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Return Mode
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='flex items-center gap-2 h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={[RET_ALL, RET_FN, RET_LN, EX_FN, EX_LN]}
+                      onSelect={(option: string) => {
+                        setRetMode(option);
+                      }}
+                      selectedValue={retMode}
+                      listWidth={'200px'}
+                      containerClassnames='w-full'
+                    />
+
+                    {retMode !== RET_ALL && (
+                      <div className='flex items-center gap-2'>
+                        <input
+                          value={configNum}
+                          onChange={e => {
+                            setConfigNum(parseInt(e.target.value));
+                          }}
+                          className='w-[80px] h-[32px] px-3 bg-[#252525] rounded-[6px] 
                                                     border-[1px] border-[#6D7177]/30 
                                                     text-[12px] text-[#CDCDCD] 
                                                     hover:border-[#6D7177]/50 transition-colors'
-                      type='number'
-                      onMouseDownCapture={onFocus}
-                      onBlur={onBlur}
-                    />
-                    <span className='text-[12px] text-[#CDCDCD]'>
-                      {retMode.includes('first') || retMode.includes('last')
-                        ? 'items'
-                        : 'characters'}
-                    </span>
+                          type='number'
+                          onMouseDownCapture={onFocus}
+                          onBlur={onBlur}
+                        />
+                        <span className='text-[12px] text-[#CDCDCD]'>
+                          {retMode.includes('first') || retMode.includes('last')
+                            ? 'items'
+                            : 'characters'}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </li>
+                </li>
               </ul>
             </div>,
             document.body

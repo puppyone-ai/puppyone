@@ -18,8 +18,14 @@ import {
 } from './edgeNodeJsonBuilders';
 import { SYSTEM_URLS } from '@/config/urls';
 import { syncBlockContent } from '../../../../../components/workflow/utils/externalStorage';
-import { applyBlockUpdate, finalizeExternal } from '../../../blockNode/utils/blockUpdateApplier';
-import { ensurePollerStarted, stopAllPollers } from '../../../blockNode/utils/manifestPoller';
+import {
+  applyBlockUpdate,
+  finalizeExternal,
+} from '../../../blockNode/utils/blockUpdateApplier';
+import {
+  ensurePollerStarted,
+  stopAllPollers,
+} from '../../../blockNode/utils/manifestPoller';
 
 // 导入NodeCategory类型定义
 type NodeCategory =
@@ -342,7 +348,10 @@ async function sendDataToTargets(
                   // 启动外部内容轮询，标记节点状态
                   targetNodeIdWithLabelGroup.forEach(targetNode => {
                     ensurePollerStarted(
-                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      {
+                        setNodes: context.setNodes,
+                        resetLoadingUI: context.resetLoadingUI,
+                      },
                       data.resource_key,
                       targetNode.id,
                       normalizedContentType
@@ -355,7 +364,10 @@ async function sendDataToTargets(
                   // 完成所有目标节点的外部内容拉取并最终写回
                   for (const targetNode of targetNodeIdWithLabelGroup) {
                     await finalizeExternal(
-                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      {
+                        setNodes: context.setNodes,
+                        resetLoadingUI: context.resetLoadingUI,
+                      },
                       targetNode.id,
                       data.resource_key
                     );
@@ -430,12 +442,16 @@ async function sendDataToTargets(
 
                   // 检查是否为external存储模式
                   const isExternalStorage =
-                    data.storage_class === 'external' || data.external_metadata !== undefined;
+                    data.storage_class === 'external' ||
+                    data.external_metadata !== undefined;
 
                   if (isExternalStorage) {
                     // 交给 block 适配层处理 external 指针并启动轮询
                     applyBlockUpdate(
-                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      {
+                        setNodes: context.setNodes,
+                        resetLoadingUI: context.resetLoadingUI,
+                      },
                       {
                         block_id: data.block_id,
                         storage_class: 'external',
@@ -452,7 +468,10 @@ async function sendDataToTargets(
                     }
                     // 交给 block 适配层做类型归一（对象/数组→字符串）
                     applyBlockUpdate(
-                      { setNodes: context.setNodes, resetLoadingUI: context.resetLoadingUI },
+                      {
+                        setNodes: context.setNodes,
+                        resetLoadingUI: context.resetLoadingUI,
+                      },
                       {
                         block_id: data.block_id,
                         storage_class: 'internal',
@@ -475,7 +494,7 @@ async function sendDataToTargets(
                   });
                 }
                 break;
-                case 'TASK_FAILED':
+              case 'TASK_FAILED':
                 if (data?.error_message) {
                   targetNodeIdWithLabelGroup.forEach(targetNode => {
                     context.reportError(targetNode.id, data.error_message);
