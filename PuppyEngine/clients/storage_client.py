@@ -55,6 +55,9 @@ class StorageClient:
         self.base_url = storage_server_url or os.getenv("STORAGE_SERVER_URL", "http://localhost:8002")
         
         # Set up default headers
+        # NOTE:
+        # - Use application/json only for JSON requests (manifests, control APIs)
+        # - For raw chunk uploads we will override to application/octet-stream per-request
         self.headers = {
             "Authorization": f"Bearer {jwt_token}",
             "Content-Type": "application/json"
@@ -293,10 +296,13 @@ class StorageClient:
                 url += f"&version_id={version_id}"
             
             # Use new direct upload API with server-side key generation
+            # IMPORTANT: override Content-Type for binary payloads; do NOT reuse JSON header
+            binary_headers = dict(self.headers)
+            binary_headers["Content-Type"] = "application/octet-stream"
             response = await self.client.post(
                 url,
                 content=chunk_data,
-                headers=self.headers
+                headers=binary_headers
             )
             
             if response.status_code != 200:

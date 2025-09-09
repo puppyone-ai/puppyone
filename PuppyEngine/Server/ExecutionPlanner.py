@@ -69,13 +69,14 @@ class ExecutionPlanner:
     def _mark_initial_blocks(self):
         """Mark blocks with initial content as processed"""
         for block_id, block in self.blocks.items():
-            # A block is considered initially processed only if:
-            # 1. It has internal content.
-            # 2. It does NOT have unresolved external data.
+            # Authoritative: use storage_class to decide resolution needs.
+            # internal: processed if has content
+            # external: pending unless already resolved
             has_content = block.get_content() is not None
-            needs_resolving = block.has_external_data() and not block.is_resolved
-            
-            if has_content and not needs_resolving:
+            is_external = getattr(block, 'storage_class', 'internal') == 'external'
+            needs_resolving = is_external and not block.is_resolved
+
+            if not is_external and has_content and not needs_resolving:
                 self.block_states[block_id] = "processed"
                 log_debug(f"Marked block {block_id} as initially processed (has content, no pending resolve)")
             elif needs_resolving:
@@ -92,7 +93,8 @@ class ExecutionPlanner:
         """
         candidates = []
         for block_id, block in self.blocks.items():
-            if block.has_external_data() and not block.is_resolved:
+            is_external = getattr(block, 'storage_class', 'internal') == 'external'
+            if is_external and not block.is_resolved:
                 candidates.append(block_id)
         
         log_info(f"Found {len(candidates)} blocks for prefetching")
