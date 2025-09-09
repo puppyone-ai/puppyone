@@ -1,7 +1,11 @@
 // Block-side adapter to apply internal/external block updates
 // Ensures content is normalized for UI (string for editors)
 
-import { ensurePollerStarted, ensurePollerStoppedAndFinalize, ContentType } from './manifestPoller';
+import {
+  ensurePollerStarted,
+  ensurePollerStoppedAndFinalize,
+  ContentType,
+} from './manifestPoller';
 
 export type NodesSetter = (updater: (nodes: any[]) => any[]) => void;
 
@@ -33,7 +37,9 @@ export function applyBlockUpdate(
   ctx: BlockApplierContext,
   update: BlockUpdateInternal | BlockUpdateExternal
 ) {
-  const isExternal = (update as BlockUpdateExternal).external_metadata !== undefined || update.storage_class === 'external';
+  const isExternal =
+    (update as BlockUpdateExternal).external_metadata !== undefined ||
+    update.storage_class === 'external';
   if (isExternal) {
     const u = update as BlockUpdateExternal;
     const normalizedContentType: ContentType =
@@ -73,13 +79,16 @@ export function applyBlockUpdate(
 
   // Internal: normalize content to string for UI
   const u = update as BlockUpdateInternal;
-  const contentType: ContentType = u.type === 'structured' ? 'structured' : 'text';
+  const contentType: ContentType =
+    u.type === 'structured' ? 'structured' : 'text';
 
   let stringContent: string;
   try {
     if (contentType === 'structured') {
       stringContent =
-        typeof u.content === 'string' ? u.content : JSON.stringify(u.content ?? null, null, 2);
+        typeof u.content === 'string'
+          ? u.content
+          : JSON.stringify(u.content ?? null, null, 2);
     } else {
       stringContent = String(u.content ?? '');
     }
