@@ -89,10 +89,6 @@ export function useBaseEdgeNodeLogic({
       },
       width: 240,
       height: 176,
-      measured: {
-        width: 240,
-        height: 176,
-      },
       type: 'text',
     };
 

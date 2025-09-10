@@ -66,10 +66,6 @@
         },
         "type": "structured",
         "looped": false,
-        "measured": {
-            "width": 288,
-            "height": 304
-        },
         "selected": false,
         "width": 288,
         "height": 304,

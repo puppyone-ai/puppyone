@@ -21,10 +21,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "width": 260,
                     "height": 196,
                     "selected": false
@@ -60,10 +56,6 @@
                             "isLocal": false
                         }
                     },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
-                    },
                     "selected": false,
                     "dragging": false,
                     "style": {
@@ -88,10 +80,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125
@@ -150,10 +138,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "width": 260,
                     "height": 196,
                     "selected": false
@@ -189,10 +173,6 @@
                             "isLocal": false
                         }
                     },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
-                    },
                     "selected": false,
                     "dragging": false,
                     "style": {
@@ -217,10 +197,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125
@@ -279,10 +255,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "width": 260,
                     "height": 196,
                     "selected": false
@@ -318,10 +290,6 @@
                             "isLocal": false
                         }
                     },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
-                    },
                     "selected": false,
                     "dragging": false,
                     "style": {
@@ -346,10 +314,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125
@@ -408,10 +372,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 280,
-                        "height": 220
-                    },
                     "width": 280,
                     "height": 220,
                     "selected": false
@@ -447,10 +407,6 @@
                             "isLocal": false
                         }
                     },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
-                    },
                     "selected": false,
                     "dragging": false,
                     "style": {
@@ -475,10 +431,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125

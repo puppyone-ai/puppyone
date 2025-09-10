@@ -411,7 +411,10 @@ function Workflow() {
     if (!selectedFlowId) return;
 
     const currentState = {
-      blocks: nodes,
+      blocks: nodes.map((n: any) => {
+        const { measured, ...rest } = n || {};
+        return rest;
+      }),
       edges: edges,
       viewport: getViewport(),
       version: '1.0.0',

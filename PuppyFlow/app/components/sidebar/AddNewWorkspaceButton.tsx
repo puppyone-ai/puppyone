@@ -1,5 +1,6 @@
 import React from 'react';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
 import { v4 as uuidv4 } from 'uuid';
 import { useAppSettings } from '../states/AppSettingsContext';
 import Tippy from '@tippyjs/react';
@@ -10,9 +11,10 @@ function AddNewWorkspaceButton() {
     workspaceManagement,
     addWorkspace,
     createEmptyWorkspace,
-    setShowingWorkspace,
+    setShowingItem,
     workspaces,
   } = useWorkspaces();
+  const { switchToWorkspace } = useDisplaySwitch();
   const { planLimits } = useAppSettings();
 
   const isWorkspaceLimitReached =
@@ -36,8 +38,13 @@ function AddNewWorkspaceButton() {
       );
       addWorkspace(newWorkspace);
 
-      // 设置为当前显示的工作区
-      setShowingWorkspace(newWorkspaceId);
+      // 立即切换到该工作区（先设置显示项，再切换显示模式）
+      setShowingItem({
+        type: 'workspace',
+        id: newWorkspaceId,
+        name: newWorkspaceName,
+      });
+      switchToWorkspace();
 
       // 异步创建工作区到数据库
       const createdWorkspace = await workspaceManagement.createWorkspace(
