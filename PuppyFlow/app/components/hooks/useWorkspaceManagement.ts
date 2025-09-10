@@ -214,42 +214,34 @@ export const useWorkspaceManagement = () => {
     userId?: string
   ): Promise<WorkspaceBasicInfo | undefined> => {
     try {
-      if (isLocalDeployment) {
-        // 本地部署模式：直接返回workspace信息，目录会在保存时创建
-        return {
+      // 统一走服务端 API，由服务端依据 DEPLOYMENT_MODE 决定走文件或用户系统后端
+      const response = await fetch(`/api/workspace/create`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           workspace_id: workspaceId,
           workspace_name: workspaceName,
-        };
-      } else {
-        // 云端部署模式：统一走内部创建接口（服务端解析用户）
-        const response = await fetch(`/api/workspace/create`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            workspace_id: workspaceId,
-            workspace_name: workspaceName,
-          }),
-        });
+        }),
+      });
 
-        if (!response.ok) {
-          const error_data: { error?: string } = await response
-            .json()
-            .catch(() => ({}) as any);
-          throw new Error(
-            `HTTP error! status: ${response.status}, error message: ${error_data?.error || response.statusText}`
-          );
-        }
-
-        const data: { workspace_id: string; workspace_name: string } =
-          await response.json();
-        return {
-          workspace_id: data.workspace_id,
-          workspace_name: data.workspace_name,
-        };
+      if (!response.ok) {
+        const error_data: { error?: string } = await response
+          .json()
+          .catch(() => ({}) as any);
+        throw new Error(
+          `HTTP error! status: ${response.status}, error message: ${error_data?.error || response.statusText}`
+        );
       }
+
+      const data: { workspace_id: string; workspace_name: string } =
+        await response.json();
+      return {
+        workspace_id: data.workspace_id,
+        workspace_name: data.workspace_name,
+      };
     } catch (error) {
       console.error('Error creating workspace:', error);
     }
