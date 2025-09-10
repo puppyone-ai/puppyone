@@ -508,11 +508,25 @@ function Workflow() {
       version: '1.0.0',
     };
 
-    // 检查内容是否有变化（忽略视口变化，防止切换/缩放误判）
-    const currentStateString = JSON.stringify({
-      blocks: currentState.blocks,
-      edges: currentState.edges,
-    });
+    // 检查内容是否有变化：仅比较对保存有意义的字段（忽略视口/样式/选择等临时状态）
+    const comparable = {
+      blocks: (currentState.blocks || []).map((n: any) => ({
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        data: n.data,
+      })),
+      edges: (currentState.edges || []).map((e: any) => ({
+        id: e.id,
+        type: e.type,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        data: e.data,
+      })),
+    };
+    const currentStateString = JSON.stringify(comparable);
     if (currentStateString === lastSavedContent.current) {
       return; // 没有变化，不需要保存
     }
