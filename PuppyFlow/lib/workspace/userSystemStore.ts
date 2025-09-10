@@ -111,7 +111,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
         credentials: 'include',
         body: JSON.stringify({
           history: data.history,
-          timestep: data.timestamp,
+          timestamp: data.timestamp,
         }),
       }
     );
