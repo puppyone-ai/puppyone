@@ -32,24 +32,17 @@ const BlankWorkspace = () => {
     setShowingWorkspace(newWorkspaceId);
 
     try {
-      if (initialContent) {
-        const result = await workspaceManagement.createWorkspaceWithContent(
-          newWorkspaceId,
-          newWorkspaceName,
-          initialContent
-        );
-        if (result?.success && result.content) {
-          updateWorkspace(newWorkspaceId, {
-            content: result.content,
-            pullFromDatabase: true,
-            pushToDatabase: false,
-          });
-        }
-      } else {
-        await workspaceManagement.createWorkspace(
-          newWorkspaceId,
-          newWorkspaceName
-        );
+      const result = await workspaceManagement.createWorkspaceWithContent(
+        newWorkspaceId,
+        newWorkspaceName,
+        initialContent || getBlankTemplate()
+      );
+      if (result?.success && result.content) {
+        updateWorkspace(newWorkspaceId, {
+          content: result.content,
+          pullFromDatabase: true,
+          pushToDatabase: false,
+        });
       }
     } catch (error) {
       console.error('Failed to create workspace:', error);

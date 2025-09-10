@@ -511,7 +511,7 @@ function Workflow() {
     lastSavedContent.current = currentStateString;
   }, [selectedFlowId, nodes, edges, getViewport, updateWorkspaceContent]);
 
-  // 设置定期保存
+  // 设置定期保存（2s 防抖，仅在内容变化时触发）
   useEffect(() => {
     if (!selectedFlowId) return;
 
@@ -520,10 +520,10 @@ function Workflow() {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // 设置新的定时器
+    // 设置新的定时器（2秒）
     saveTimeoutRef.current = setTimeout(() => {
       saveCurrentState();
-    }, 500); // 0.5秒后保存
+    }, 2000);
 
     // 清理函数
     return () => {
