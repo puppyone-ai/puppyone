@@ -256,13 +256,22 @@ class ExternalStorageStrategy:
                 # Use StreamingJSONHandler for structured data
                 chunk_index = 0
                 if isinstance(content, list):
-                    for chunk_data in self.json_handler.split_to_jsonl(content):
+                    # Filter out None items to avoid generating 'null' JSONL lines
+                    filtered_items = [item for item in content if item is not None]
+                    for chunk_data in self.json_handler.split_to_jsonl(filtered_items):
+                        # Guard: skip accidental empty buffers
+                        if not chunk_data:
+                            continue
                         yield f"chunk_{chunk_index:06d}.jsonl", chunk_data
                         chunk_index += 1
                 else:
-                    # Single object as JSONL
+                    # Single object as JSONL; skip if content is None
+                    if content is None:
+                        log_warning("Structured content is None; skipping upload of empty JSONL chunk")
+                        return
                     chunk_data = json.dumps(content, ensure_ascii=False).encode('utf-8') + b'\n'
-                    yield "chunk_000000.jsonl", chunk_data
+                    if chunk_data:
+                        yield "chunk_000000.jsonl", chunk_data
                     
             elif content_type == 'text':
                 # Text content chunking
@@ -288,6 +297,9 @@ class ExternalStorageStrategy:
         if isinstance(content, (list, dict)):
             return 'structured'
         elif isinstance(content, str):
+            return 'text'
+        elif isinstance(content, (int, float, bool)):
+            # Persist simple scalars as text to avoid binary slicing issues
             return 'text'
         else:
             return 'binary'

@@ -15,14 +15,24 @@ import {
   ContentType,
 } from './externalStorage';
 
-// 内容长度阈值和分块大小：从环境变量获取，确保与后端一致
-const STORAGE_CHUNK_SIZE = parseInt(
+// 内容长度阈值和分块大小：默认来自环境变量，可在运行期由后端事件覆盖
+let STORAGE_CHUNK_SIZE_DEFAULT = parseInt(
   process.env.NEXT_PUBLIC_STORAGE_CHUNK_SIZE || '1024',
   10
 );
 
-export const CONTENT_LENGTH_THRESHOLD = STORAGE_CHUNK_SIZE;
-export const CHUNK_SIZE = STORAGE_CHUNK_SIZE;
+// 使用 let 导出以便在运行期调整，保持与后端 TASK_STARTED 的 storage_threshold_bytes 一致
+export let CONTENT_LENGTH_THRESHOLD = STORAGE_CHUNK_SIZE_DEFAULT;
+export let CHUNK_SIZE = STORAGE_CHUNK_SIZE_DEFAULT;
+
+// 从后端运行时信号更新分块/阈值（单位：字节/字符，前后端保持一致的度量）
+export function setStorageChunkSize(bytes: number) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return;
+  const value = Math.floor(n);
+  CONTENT_LENGTH_THRESHOLD = value;
+  CHUNK_SIZE = value;
+}
 
 // 清理配置
 export const CLEANUP_CONFIG = {
