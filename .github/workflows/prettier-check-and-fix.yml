@@ -36,8 +36,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          # Ensure we checkout the actual branch to avoid detached HEAD
+          ref: ${{ github.head_ref || github.ref_name }}
           # fetch-depth 0 for potential future diff analysis based on history (can be kept)
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -90,7 +93,18 @@ jobs:
 
           git add -u
           git commit -m "style: prettier auto-format"
-          git push
+          # Push only if we are on a branch (not detached HEAD)
+          CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+          echo "Current HEAD ref: ${CURRENT_BRANCH}"
+          if [ "${CURRENT_BRANCH}" = "HEAD" ]; then
+            echo "Not on a branch. Skipping push."
+            exit 0
+          fi
+
+          # In GitHub Actions the checkout can still be detached in edge cases. Push HEAD explicitly to the branch name.
+          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          echo "Pushing to branch: ${BRANCH}"
+          git push origin HEAD:"${BRANCH}"
 
       - name: Summary
         if: always()
