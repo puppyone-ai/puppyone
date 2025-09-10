@@ -80,13 +80,14 @@ export function applyBlockUpdate(
   // Internal: normalize content to string for UI
   const u = update as BlockUpdateInternal;
   // Prefer explicit type; fallback to runtime inference to be robust
-  let contentType: ContentType = u.type === 'structured' ? 'structured' : 'text';
+  let contentType: ContentType =
+    u.type === 'structured' ? 'structured' : 'text';
   if (!u.type) {
     const value = u.content;
     const isStructured =
-      value !== null && typeof value === 'object' && !(
-        typeof (value as any).toISOString === 'function'
-      );
+      value !== null &&
+      typeof value === 'object' &&
+      !(typeof (value as any).toISOString === 'function');
     if (isStructured) contentType = 'structured';
   }
 
