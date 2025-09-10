@@ -98,10 +98,22 @@ class EventFactory:
     @staticmethod
     def create_block_updated_event_internal(block_id: str, content: Any) -> Dict[str, Any]:
         """Create BLOCK_UPDATED event for internal storage"""
+        # Determine semantic content type for clients to render correctly
+        # - list/dict => structured
+        # - others (str/number/bool/None) => text
+        try:
+            if isinstance(content, (list, dict)):
+                content_type = "structured"
+            else:
+                content_type = "text"
+        except Exception:
+            content_type = "text"
+
         return {
             "event_type": "BLOCK_UPDATED",
             "block_id": block_id,
             "storage_class": "internal",
+            "type": content_type,
             "content": content,
             "timestamp": datetime.utcnow().isoformat()
         }
