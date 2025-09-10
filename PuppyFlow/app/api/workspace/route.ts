@@ -49,14 +49,18 @@ export async function POST(request: Request) {
     } catch (e: any) {
       // 若后端返回404（工作区不存在），先尝试创建再重试一次保存
       const message = (e?.message || '').toString();
-      const isNotFound = message.includes('404') || /not\s*exist/i.test(message);
+      const isNotFound =
+        message.includes('404') || /not\s*exist/i.test(message);
       if (!isNotFound) {
         throw e;
       }
-
+      
       // 兜底创建并重试一次保存
       const userId = await getCurrentUserId(request);
-      const name = (json?.workspaceName as string) || workspaceName || 'Untitled Workspace';
+      const name =
+        (json?.workspaceName as string) ||
+        workspaceName ||
+        'Untitled Workspace';
       await store.createWorkspace(
         userId,
         {
