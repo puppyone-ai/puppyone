@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
 import { cookies } from 'next/headers';
+import { getCurrentUserId } from '@/lib/auth/serverUser';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,7 @@ function getAuthHeaderFromRequest(request: Request): string | undefined {
 export async function POST(request: Request) {
   try {
     const requestBody = await request.json();
-    const { flowId, json, timestamp } = requestBody;
+    const { flowId, json, timestamp, workspaceName } = requestBody;
 
     // 验证必要字段
     if (!flowId || !json || !timestamp) {
@@ -37,11 +38,43 @@ export async function POST(request: Request) {
     }
     const store = getWorkspaceStore();
     const authHeader = getAuthHeaderFromRequest(request);
-    await store.addHistory(
-      flowId,
-      { history: json, timestamp },
-      authHeader ? { authHeader } : undefined
-    );
+
+    try {
+      // 第一次尝试保存
+      await store.addHistory(
+        flowId,
+        { history: json, timestamp },
+        authHeader ? { authHeader } : undefined
+      );
+    } catch (e: any) {
+      // 若后端返回404（工作区不存在），先尝试创建再重试一次保存
+      const message = (e?.message || '').toString();
+      const isNotFound =
+        message.includes('404') || /not\s*exist/i.test(message);
+      if (!isNotFound) {
+        throw e;
+      }
+
+      // 兜底创建并重试一次保存
+      const userId = await getCurrentUserId(request);
+      const name =
+        (json?.workspaceName as string) ||
+        workspaceName ||
+        'Untitled Workspace';
+      await store.createWorkspace(
+        userId,
+        {
+          workspace_id: flowId,
+          workspace_name: name,
+        },
+        authHeader ? { authHeader } : undefined
+      );
+      await store.addHistory(
+        flowId,
+        { history: json, timestamp },
+        authHeader ? { authHeader } : undefined
+      );
+    }
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('[API:/api/workspace] Failed to save:', {
