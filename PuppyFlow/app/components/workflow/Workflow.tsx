@@ -286,6 +286,16 @@ function Workflow() {
       setUnsortedNodes(currentWorkspaceContent.blocks || []);
       setEdges(currentWorkspaceContent.edges || []);
 
+      // 重置脏标基线（忽略视口），避免纯切换被判定为需要保存
+      try {
+        lastSavedContent.current = JSON.stringify({
+          blocks: currentWorkspaceContent.blocks || [],
+          edges: currentWorkspaceContent.edges || [],
+        });
+      } catch {
+        lastSavedContent.current = JSON.stringify({ blocks: [], edges: [] });
+      }
+
       // 更新视口（如果有的话）
       if (currentWorkspaceContent.viewport) {
         setTimeout(() => {
@@ -300,6 +310,9 @@ function Workflow() {
       );
       setUnsortedNodes([]);
       setEdges([]);
+
+      // 空内容也需要更新基线
+      lastSavedContent.current = JSON.stringify({ blocks: [], edges: [] });
     }
   }, [currentWorkspaceContent, selectedFlowId]);
 
@@ -495,8 +508,11 @@ function Workflow() {
       version: '1.0.0',
     };
 
-    // 检查内容是否有变化
-    const currentStateString = JSON.stringify(currentState);
+    // 检查内容是否有变化（忽略视口变化，防止切换/缩放误判）
+    const currentStateString = JSON.stringify({
+      blocks: currentState.blocks,
+      edges: currentState.edges,
+    });
     if (currentStateString === lastSavedContent.current) {
       return; // 没有变化，不需要保存
     }
