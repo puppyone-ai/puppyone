@@ -102,7 +102,7 @@ const ListActionMenu: React.FC<ListActionMenuProps> = ({
 }) => {
   return (
     <div
-      className={`rjft-action-menu absolute right-full top-0 mr-2 z-[2000000] bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col w-[128px] ${className}`}
+      className={`rjft-action-menu absolute right-full top-0 mr-2 z-[2000000] bg-[#252525] p-[8px] border-[1px] border-[#2a2a2a] rounded-[8px] gap-[4px] flex flex-col w-[128px] ${className}`}
       onClick={e => e.stopPropagation()}
     >
       <button
@@ -142,7 +142,7 @@ const ListActionMenu: React.FC<ListActionMenuProps> = ({
         <IconTrash />
         <span>Clear</span>
       </button>
-      <div className='h-px bg-[#3A3D45] my-1'></div>
+      <div className='h-px bg-[#2a2a2a] my-1'></div>
 
       <div className='px-[4px] pb-[2px] text-[10px] tracking-[0.5px] uppercase text-[#9CA3AF]'>
         Transfer

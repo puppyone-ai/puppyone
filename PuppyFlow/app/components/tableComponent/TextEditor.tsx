@@ -28,7 +28,7 @@ const textEditorThemeData: Monaco.editor.IStandaloneThemeData = {
   rules: [],
   colors: {
     'editor.background': '#00000000', // 完全透明的背景
-    'editor.foreground': '#CDCDCD',
+    'editor.foreground': '#B9BEC6',
     'editorLineNumber.foreground': '#6D7177',
     'editorLineNumber.activeForeground': '#CDCDCD',
     'editor.selectionBackground': '#264F78',
@@ -201,11 +201,11 @@ const TextEditor = ({
   return (
     <div
       ref={textEditorRef}
-      className={`relative flex justify-start items-center rounded-[4px] cursor-pointer`}
+      className={`relative flex justify-start items-start rounded-[4px] cursor-pointer`}
       style={{ width: actualWidth, height: actualHeight }}
     >
       {isEmpty && (
-        <div className='absolute w-full h-full flex items-start justify-start text-center text-[#6D7177] text-[12px] italic leading-normal pointer-events-none z-[10] font-plus-jakarta-sans'>
+        <div className='absolute w-full h-full flex items-start justify-start text-left text-[#6D7177] text-[12px] italic leading-normal pointer-events-none z-[10] font-plus-jakarta-sans'>
           {placeholder}
         </div>
       )}
@@ -246,8 +246,8 @@ const TextEditor = ({
           acceptSuggestionOnEnter: 'off',
           parameterHints: { enabled: false },
           tabCompletion: 'off',
-          fontSize: 14,
-          lineHeight: 28,
+          fontSize: 12,
+          lineHeight: 24,
           letterSpacing: 0,
           wordWrap: 'on',
           wordWrapColumn: 120,

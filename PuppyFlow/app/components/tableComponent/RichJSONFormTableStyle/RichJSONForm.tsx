@@ -441,7 +441,7 @@ const JSONViewer = ({
           />
           <div
             ref={containerRef}
-            className={`relative bg-transparent overflow-auto overscroll-contain scrollbar-hide pt-[4px] pl-[8px] pr-[4px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
+            className={`relative bg-[#252525] overflow-auto overscroll-contain scrollbar-hide pt-[4px] pl-[8px] pr-[4px] ${isOnGeneratingNewNode ? 'pointer-events-none opacity-70' : ''}`}
             style={{ width: actualWidth, height: actualHeight }}
             data-rich-json-form='true'
             onWheel={e => {
@@ -457,7 +457,7 @@ const JSONViewer = ({
               e.stopPropagation();
             }}
           >
-            <div className='border-t border-b border-[#3A3D41]'>
+            <div className='border-t border-b border-r border-[#4A4D54]'>
               {renderMainContent()}
             </div>
           </div>

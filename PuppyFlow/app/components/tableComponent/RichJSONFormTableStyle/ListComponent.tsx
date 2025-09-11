@@ -345,10 +345,9 @@ const ListComponent = ({
 
   return (
     <div
-      className={`bg-[#252525] shadow-sm relative group group/list p-[2px]`}
+      className={`bg-[#252525] shadow-sm relative group group/list`}
       style={{
         outline: 'none',
-        boxShadow: isSelected ? 'inset 0 0 0 2px #C18E4C' : 'none',
       }}
       onClick={e => {
         e.stopPropagation();
@@ -357,7 +356,13 @@ const ListComponent = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className='absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20'>
+      <div
+        className='absolute left-0 top-0 bottom-0 w-px z-20'
+        style={{
+          backgroundColor:
+            isSelected || isHovered || menuOpen ? '#9A713C' : '#4A4D54',
+        }}
+      >
         {(isSelected || isHovered || menuOpen) && (
           <>
             <div className='absolute left-1/2 top-1 transform -translate-x-1/2 pointer-events-none'>
@@ -396,7 +401,7 @@ const ListComponent = ({
               style={{ top: '36px' }}
             >
               <button
-                className='h-[18px] w-[18px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#6D7177]/40 flex items-center justify-center pointer-events-auto'
+                className='h-[18px] w-[18px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#2a2a2a] flex items-center justify-center pointer-events-auto'
                 title={isCollapsed ? 'Expand' : 'Collapse'}
                 onClick={e => {
                   e.stopPropagation();
@@ -416,12 +421,13 @@ const ListComponent = ({
             </div>
           </>
         )}
+        {/* selection outline rendered via CSS outline */}
       </div>
       {/* menu rendered via portal */}
       <div className={`space-y-0 transition-all duration-200`}>
         {isCollapsed ? (
           <div
-            className='w-full px-[12px] h-[40px] bg-transparent rounded-md overflow-hidden flex items-center'
+            className='w-full px-[12px] h-[40px] bg-[#0F0F0F] rounded-md overflow-hidden flex items-center'
             title={`list with ${Array.isArray(data) ? data.length : 0} items`}
           >
             <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
@@ -434,7 +440,7 @@ const ListComponent = ({
           </div>
         ) : data.length === 0 ? (
           // Empty state - 不显示“click + to add”，仅提示为空
-          <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+          <div className='w-full px-[16px] py-[8px] bg-[#0F0F0F] rounded-md overflow-hidden transition-colors duration-200'>
             <div className='flex items-center h-[24px]'>
               <div className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
                 empty list
@@ -473,9 +479,9 @@ const ListComponent = ({
                   >
                     <div className='flex items-stretch'>
                       {/* Index Badge - display only */}
-                      <div className='flex-shrink-0 flex justify-center'>
+                      <div className='flex-shrink-0 flex justify-start'>
                         <div
-                          className='relative w-[96px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center'
+                          className='relative w-[96px] h-full px-[10px] py-[8px] bg-[#252525] overflow-visible transition-colors duration-200 flex items-center justify-start'
                           onMouseEnter={() => handleIndexHover(index, true)}
                           onMouseLeave={() => handleIndexHover(index, false)}
                           onClick={e => {
@@ -493,14 +499,14 @@ const ListComponent = ({
                             }
                           }}
                         >
-                          <div className='absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none'></div>
+                          {/* remove inner separator line to avoid double line in dict/list items */}
                           <span
-                            className={`text-[10px] leading-[28px] font-plus-jakarta-sans not-italic inline-block mt-[2px] transition-colors duration-200
-                                                            ${
-                                                              isIndexHovered
-                                                                ? 'text-[#A8773A]'
-                                                                : 'text-[#C18E4C] hover:text-[#D5A262]'
-                                                            }`}
+                            className='block w-full h-full text-[12px] leading-[20px] font-plus-jakarta-sans not-italic transition-colors duration-200'
+                            style={{
+                              color: (isSelected || isIndexHovered)
+                                ? '#C18E4C'
+                                : '#9FA3A9',
+                            }}
                           >
                             {index}
                           </span>
@@ -536,7 +542,7 @@ const ListComponent = ({
 
                   {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
                   {index < data.length - 1 && (
-                    <div className='w-full h-[1px] bg-[#3A3D41] my-[4px]'></div>
+                    <div className='w-full h-[1px] bg-[#4A4D54] my-[4px]'></div>
                   )}
                 </React.Fragment>
               );
@@ -571,6 +577,13 @@ const ListComponent = ({
           </div>
         )}
       </div>
+      {isSelected && (
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 z-[100]'
+          style={{ boxShadow: 'inset 0 0 0 2px #C18E4C' }}
+        />
+      )}
     </div>
   );
 };
