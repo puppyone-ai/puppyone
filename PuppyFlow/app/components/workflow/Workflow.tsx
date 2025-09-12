@@ -286,6 +286,16 @@ function Workflow() {
       setUnsortedNodes(currentWorkspaceContent.blocks || []);
       setEdges(currentWorkspaceContent.edges || []);
 
+      // 重置脏标基线（忽略视口），避免纯切换被判定为需要保存
+      try {
+        lastSavedContent.current = JSON.stringify({
+          blocks: currentWorkspaceContent.blocks || [],
+          edges: currentWorkspaceContent.edges || [],
+        });
+      } catch {
+        lastSavedContent.current = JSON.stringify({ blocks: [], edges: [] });
+      }
+
       // 更新视口（如果有的话）
       if (currentWorkspaceContent.viewport) {
         setTimeout(() => {
@@ -300,6 +310,9 @@ function Workflow() {
       );
       setUnsortedNodes([]);
       setEdges([]);
+
+      // 空内容也需要更新基线
+      lastSavedContent.current = JSON.stringify({ blocks: [], edges: [] });
     }
   }, [currentWorkspaceContent, selectedFlowId]);
 
@@ -495,8 +508,25 @@ function Workflow() {
       version: '1.0.0',
     };
 
-    // 检查内容是否有变化
-    const currentStateString = JSON.stringify(currentState);
+    // 检查内容是否有变化：仅比较对保存有意义的字段（忽略视口/样式/选择等临时状态）
+    const comparable = {
+      blocks: (currentState.blocks || []).map((n: any) => ({
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        data: n.data,
+      })),
+      edges: (currentState.edges || []).map((e: any) => ({
+        id: e.id,
+        type: e.type,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        data: e.data,
+      })),
+    };
+    const currentStateString = JSON.stringify(comparable);
     if (currentStateString === lastSavedContent.current) {
       return; // 没有变化，不需要保存
     }
@@ -511,7 +541,7 @@ function Workflow() {
     lastSavedContent.current = currentStateString;
   }, [selectedFlowId, nodes, edges, getViewport, updateWorkspaceContent]);
 
-  // 设置定期保存
+  // 设置定期保存（2s 防抖，仅在内容变化时触发）
   useEffect(() => {
     if (!selectedFlowId) return;
 
@@ -520,10 +550,10 @@ function Workflow() {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // 设置新的定时器
+    // 设置新的定时器（2秒）
     saveTimeoutRef.current = setTimeout(() => {
       saveCurrentState();
-    }, 500); // 0.5秒后保存
+    }, 2000);
 
     // 清理函数
     return () => {

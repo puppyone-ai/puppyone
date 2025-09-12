@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
+import { cookies } from 'next/headers';
 
 export async function PUT(
   request: Request,
@@ -16,7 +17,22 @@ export async function PUT(
       );
     }
     const store = getWorkspaceStore();
-    const updated = await store.renameWorkspace(workspaceId, newName);
+    let authHeader = request.headers.get('authorization') || undefined;
+    if (!authHeader) {
+      try {
+        const token = cookies().get('access_token')?.value;
+        if (token) authHeader = `Bearer ${token}`;
+      } catch {
+        const rawCookie = request.headers.get('cookie') || '';
+        const match = rawCookie.match(/(?:^|;\s*)access_token=([^;]+)/);
+        if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
+      }
+    }
+    const updated = await store.renameWorkspace(
+      workspaceId,
+      newName,
+      authHeader ? { authHeader } : undefined
+    );
     return NextResponse.json({
       msg: 'Workspace name updated',
       workspace_id: updated.workspace_id,

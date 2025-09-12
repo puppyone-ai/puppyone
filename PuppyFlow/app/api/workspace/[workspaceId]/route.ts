@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
+import { cookies } from 'next/headers';
 
 // 删除工作区
 export async function DELETE(
@@ -15,7 +16,21 @@ export async function DELETE(
       );
     }
     const store = getWorkspaceStore();
-    await store.deleteWorkspace(workspaceId);
+    let authHeader = request.headers.get('authorization') || undefined;
+    if (!authHeader) {
+      try {
+        const token = cookies().get('access_token')?.value;
+        if (token) authHeader = `Bearer ${token}`;
+      } catch {
+        const rawCookie = request.headers.get('cookie') || '';
+        const match = rawCookie.match(/(?:^|;\s*)access_token=([^;]+)/);
+        if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
+      }
+    }
+    await store.deleteWorkspace(
+      workspaceId,
+      authHeader ? { authHeader } : undefined
+    );
     return NextResponse.json({
       success: true,
       message: 'Workspace deleted successfully',

@@ -1,17 +1,16 @@
 import { IWorkspaceStore, WorkspaceBasic } from './store';
-import { SERVER_ENV } from '@/lib/serverEnv';
 
 function authHeaders(authHeader?: string): HeadersInit {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (authHeader) headers['Authorization'] = authHeader;
-  if (SERVER_ENV.SERVICE_KEY) headers['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   return headers;
 }
 
 export class UserSystemWorkspaceStore implements IWorkspaceStore {
-  private base = SERVER_ENV.USER_SYSTEM_BACKEND.replace(/\/$/, '');
+  // Route through internal proxy so networking/auth is unified and future-localizable
+  private base = '/api/user-system';
 
   async listWorkspaces(
     userId: string,
@@ -111,7 +110,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
         credentials: 'include',
         body: JSON.stringify({
           history: data.history,
-          timestep: data.timestamp,
+          timestamp: data.timestamp,
         }),
       }
     );
