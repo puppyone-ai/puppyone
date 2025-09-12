@@ -312,7 +312,10 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     const isParsableStructured = useMemo(() => {
       try {
         const parsed = JSON.parse(contentString);
-        return parsed !== null && (Array.isArray(parsed) || typeof parsed === 'object');
+        return (
+          parsed !== null &&
+          (Array.isArray(parsed) || typeof parsed === 'object')
+        );
       } catch {
         return false;
       }
@@ -355,7 +358,9 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
               typeof currentContent === 'string'
                 ? JSON.parse(currentContent)
                 : currentContent;
-            useStructured = parsed !== null && (Array.isArray(parsed) || typeof parsed === 'object');
+            useStructured =
+              parsed !== null &&
+              (Array.isArray(parsed) || typeof parsed === 'object');
           } catch {
             useStructured = false;
           }
