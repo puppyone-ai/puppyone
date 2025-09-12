@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
+import { NextResponse } from 'next/server';
+import { getWorkspaceStore } from '@/lib/workspace';
 import { extractAuthHeader } from '@/lib/auth/http';
-import { SERVER_ENV } from '@/lib/serverEnv';
 
 export async function PUT(
   request: Request,
