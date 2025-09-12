@@ -1,5 +1,5 @@
 import { SERVER_ENV } from '@/lib/serverEnv';
-import { cookies } from 'next/headers';
+import { filterRequestHeadersAndInjectAuth } from '@/lib/auth/http';
 
 /**
  * Server API Proxy - 处理对PuppyAgent Server的所有API调用
@@ -23,64 +23,11 @@ function buildTargetUrl(request: Request, path: string[] | undefined): string {
   return `${base}${suffix}${query}`;
 }
 
-function filterRequestHeaders(headers: Headers): Record<string, string> {
-  const newHeaders: Record<string, string> = {};
-
-  headers.forEach((value, key) => {
-    const lower = key.toLowerCase();
-
-    // 过滤掉不应该转发的headers
-    if (
-      [
-        'host',
-        'connection',
-        'keep-alive',
-        'transfer-encoding',
-        'te',
-        'encoding',
-        'upgrade',
-        'content-length',
-        'cookie', // 重要：过滤cookie以防止客户端直接传递
-        'authorization', // 重要：过滤客户端的authorization，我们会在服务端重新注入
-      ].includes(lower)
-    ) {
-      return;
-    }
-
-    newHeaders[key] = value;
+function filterRequestHeaders(request: Request, headers: Headers): Record<string, string> {
+  return filterRequestHeadersAndInjectAuth(request, headers, {
+    includeServiceKey: true,
+    localFallback: true,
   });
-
-  // 从HttpOnly cookie中获取用户token并注入Authorization header
-  let authHeader: string | undefined;
-  try {
-    const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
-    if (token) {
-      authHeader = `Bearer ${token}`;
-    }
-  } catch (error) {
-    // Cookie读取失败，可能是在某些边缘情况下
-    console.warn('Failed to read auth cookie:', error);
-  }
-
-  // 注入用户认证token
-  if (authHeader) {
-    newHeaders['authorization'] = authHeader;
-  }
-
-  // 在非云模式下提供本地开发的fallback认证
-  const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
-  if (!newHeaders['authorization'] && mode !== 'cloud') {
-    // 仅在服务端提供本地开发fallback
-    newHeaders['authorization'] = 'Bearer local-dev';
-    console.warn('Using local-dev fallback auth for server API proxy');
-  }
-
-  // 如果配置了service key，添加服务间认证
-  if (SERVER_ENV.SERVICE_KEY) {
-    newHeaders['x-service-key'] = SERVER_ENV.SERVICE_KEY;
-  }
-
-  return newHeaders;
 }
 
 async function proxy(
@@ -89,7 +36,7 @@ async function proxy(
 ): Promise<Response> {
   const target = buildTargetUrl(request, path);
   const method = request.method;
-  const headers = filterRequestHeaders(request.headers);
+  const headers = filterRequestHeaders(request, request.headers);
   const hasBody = !['GET', 'HEAD'].includes(method.toUpperCase());
 
   try {

@@ -2,6 +2,7 @@
 // Matches /api/user-system/* and forwards to SERVER_ENV.USER_SYSTEM_BACKEND
 
 import { SERVER_ENV } from '@/lib/serverEnv';
+import { filterRequestHeadersAndInjectAuth } from '@/lib/auth/http';
 
 type Params = { params: { path?: string[] } };
 
@@ -17,50 +18,11 @@ function buildTargetUrl(request: Request, path: string[] | undefined): string {
   return `${base}${suffix}${query}`;
 }
 
-function filterRequestHeaders(headers: Headers): HeadersInit {
-  const newHeaders: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    const lower = key.toLowerCase();
-    if (
-      [
-        'host',
-        'connection',
-        'keep-alive',
-        'transfer-encoding',
-        'te',
-        'encoding',
-        'upgrade',
-        'content-length',
-        'cookie', // 🔒 过滤cookie防止客户端直接传递
-        'authorization', // 🔒 过滤客户端authorization，由服务端重新注入
-      ].includes(lower)
-    ) {
-      return;
-    }
-    newHeaders[key] = value;
+function filterRequestHeaders(request: Request, headers: Headers): HeadersInit {
+  return filterRequestHeadersAndInjectAuth(request, headers, {
+    includeServiceKey: true,
+    localFallback: true,
   });
-
-  // 🔒 安全增强：从HttpOnly cookie中自动注入认证
-  try {
-    const { cookies } = require('next/headers');
-    const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
-    if (token) {
-      newHeaders['authorization'] = `Bearer ${token}`;
-    }
-  } catch (error) {
-    // Cookie读取失败时的处理
-    console.warn(
-      'Failed to read auth cookie for user-system proxy:',
-      error
-    );
-  }
-
-  // 服务间认证密钥
-  if (SERVER_ENV.SERVICE_KEY) {
-    newHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
-  }
-
-  return newHeaders;
 }
 
 async function proxy(
@@ -69,7 +31,7 @@ async function proxy(
 ): Promise<Response> {
   const target = buildTargetUrl(request, params.path);
   const method = request.method;
-  const headers = filterRequestHeaders(request.headers);
+  const headers = filterRequestHeaders(request, request.headers);
   const hasBody = !['GET', 'HEAD'].includes(method.toUpperCase());
 
   try {
