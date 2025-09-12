@@ -1,5 +1,5 @@
 import { SERVER_ENV } from '@/lib/serverEnv';
-import { cookies } from 'next/headers';
+import { filterRequestHeadersAndInjectAuth } from '@/lib/auth/http';
 
 function buildTargetUrl(request: Request, path: string[] | undefined): string {
   const subPath = Array.isArray(path) ? path.join('/') : '';
@@ -10,48 +10,11 @@ function buildTargetUrl(request: Request, path: string[] | undefined): string {
   return `${base}${suffix}${query}`;
 }
 
-function filterRequestHeaders(headers: Headers): Record<string, string> {
-  const newHeaders: Record<string, string> = {};
-  headers.forEach((value, key) => {
-    const lower = key.toLowerCase();
-    if (
-      [
-        'host',
-        'connection',
-        'keep-alive',
-        'transfer-encoding',
-        'te',
-        'encoding',
-        'upgrade',
-        'content-length',
-        'cookie',
-      ].includes(lower)
-    ) {
-      return;
-    }
-    newHeaders[key] = value;
+function filterRequestHeaders(request: Request, headers: Headers): Record<string, string> {
+  return filterRequestHeadersAndInjectAuth(request, headers, {
+    includeServiceKey: false,
+    localFallback: true,
   });
-
-  // Inject Authorization from cookie if available
-  let authHeader: string | undefined;
-  try {
-    const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
-    if (token) authHeader = `Bearer ${token}`;
-  } catch {
-    // ignore
-  }
-
-  if (!newHeaders['authorization'] && authHeader) {
-    newHeaders['authorization'] = authHeader;
-  }
-
-  // In non-cloud mode, allow a local dev fallback auth on server-side only
-  const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
-  if (!newHeaders['authorization'] && mode !== 'cloud') {
-    newHeaders['authorization'] = 'Bearer local-dev';
-  }
-
-  return newHeaders;
 }
 
 async function proxy(
@@ -60,7 +23,7 @@ async function proxy(
 ): Promise<Response> {
   const target = buildTargetUrl(request, path);
   const method = request.method;
-  const headers = filterRequestHeaders(request.headers);
+  const headers = filterRequestHeaders(request, request.headers);
   const hasBody = !['GET', 'HEAD'].includes(method.toUpperCase());
 
   const upstreamResponse = await fetch(target, {
