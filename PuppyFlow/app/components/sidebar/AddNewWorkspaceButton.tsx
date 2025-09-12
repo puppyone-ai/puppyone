@@ -46,16 +46,13 @@ function AddNewWorkspaceButton() {
       });
       switchToWorkspace();
 
-      // 异步创建工作区到数据库
-      const createdWorkspace = await workspaceManagement.createWorkspace(
+      // 异步创建工作区并立即写入初始内容（空模板）
+      const result = await workspaceManagement.createWorkspaceWithContent(
         newWorkspaceId,
         newWorkspaceName
       );
-
-      if (!createdWorkspace) {
-        // 如果创建失败，从状态中移除
-        console.error('Failed to create workspace');
-        // 这里可以添加错误处理，比如显示错误消息
+      if (!result?.success) {
+        console.error('Failed to create workspace with initial content');
       }
     } catch (error) {
       console.error('Error creating new workspace:', error);

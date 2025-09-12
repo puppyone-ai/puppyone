@@ -72,23 +72,35 @@ async function proxy(
   const headers = filterRequestHeaders(request.headers);
   const hasBody = !['GET', 'HEAD'].includes(method.toUpperCase());
 
-  const upstreamResponse = await fetch(target, {
-    method,
-    headers,
-    body: hasBody ? request.body : undefined,
-    redirect: 'manual',
-  });
+  try {
+    const upstreamResponse = await fetch(target, {
+      method,
+      headers,
+      body: hasBody ? request.body : undefined,
+      redirect: 'manual',
+    });
 
-  const resHeaders = new Headers();
-  const contentType = upstreamResponse.headers.get('content-type');
-  if (contentType) resHeaders.set('content-type', contentType);
-  const cacheControl = upstreamResponse.headers.get('cache-control');
-  if (cacheControl) resHeaders.set('cache-control', cacheControl);
+    const resHeaders = new Headers();
+    const contentType = upstreamResponse.headers.get('content-type');
+    if (contentType) resHeaders.set('content-type', contentType);
+    const cacheControl = upstreamResponse.headers.get('cache-control');
+    if (cacheControl) resHeaders.set('cache-control', cacheControl);
 
-  return new Response(upstreamResponse.body, {
-    status: upstreamResponse.status,
-    headers: resHeaders,
-  });
+    return new Response(upstreamResponse.body, {
+      status: upstreamResponse.status,
+      headers: resHeaders,
+    });
+  } catch (err: any) {
+    // 返回结构化错误，便于定位网络/证书/域解析问题
+    return new Response(
+      JSON.stringify({
+        error: 'UPSTREAM_FETCH_FAILED',
+        message: err?.message || 'fetch failed',
+        target,
+      }),
+      { status: 502, headers: { 'content-type': 'application/json' } }
+    );
+  }
 }
 
 export async function GET(request: Request, ctx: Params) {

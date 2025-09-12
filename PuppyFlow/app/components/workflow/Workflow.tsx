@@ -286,6 +286,16 @@ function Workflow() {
       setUnsortedNodes(currentWorkspaceContent.blocks || []);
       setEdges(currentWorkspaceContent.edges || []);
 
+      // 重置脏标基线（忽略视口），避免纯切换被判定为需要保存
+      try {
+        lastSavedContent.current = JSON.stringify({
+          blocks: currentWorkspaceContent.blocks || [],
+          edges: currentWorkspaceContent.edges || [],
+        });
+      } catch {
+        lastSavedContent.current = JSON.stringify({ blocks: [], edges: [] });
+      }
+
       // 更新视口（如果有的话）
       if (currentWorkspaceContent.viewport) {
         setTimeout(() => {
@@ -300,6 +310,9 @@ function Workflow() {
       );
       setUnsortedNodes([]);
       setEdges([]);
+
+      // 空内容也需要更新基线
+      lastSavedContent.current = JSON.stringify({ blocks: [], edges: [] });
     }
   }, [currentWorkspaceContent, selectedFlowId]);
 
@@ -307,6 +320,9 @@ function Workflow() {
   useEffect(() => {
     if (!currentWorkspaceContent || !selectedFlowId) return;
     if (didExternalPrefetchRef.current === selectedFlowId) return;
+
+    // 提前设置防重入标记，避免在下载期间因保存引发的依赖变化而重入
+    didExternalPrefetchRef.current = selectedFlowId;
 
     // 只处理真正的external存储block，必须有storage_class='external'且有resource_key
     const externalBlocks = (currentWorkspaceContent.blocks || []).filter(
@@ -316,18 +332,20 @@ function Workflow() {
           n?.data?.external_metadata || n?.external_metadata;
         const hasResourceKey = externalMetadata?.resource_key;
 
-        // 必须是external存储且有resource_key
+        // 必须是external存储且有resource_key（仅以 storage_class 为准）
         return storageClass === 'external' && hasResourceKey;
       }
     ) as any[];
 
     if (externalBlocks.length === 0) {
-      didExternalPrefetchRef.current = selectedFlowId;
       return;
     }
 
+    let canceled = false;
+
     (async () => {
       for (const n of externalBlocks) {
+        if (canceled) break;
         try {
           const external =
             n?.data?.external_metadata ||
@@ -353,14 +371,40 @@ function Workflow() {
           if (!manifestRes.ok) continue;
           const manifest = await manifestRes.json();
 
+          // Helper to extract numeric index from chunk name like "chunk_000123.jsonl"
+          const extractIndex = (fileName: string): number => {
+            const m = fileName.match(/chunk_(\d+)\./);
+            return m ? parseInt(m[1], 10) : 0;
+          };
+
+          // Normalize, filter done chunks, and ensure deterministic ordering
+          const manifestChunks = (manifest.chunks || [])
+            .filter((c: any) => {
+              if (typeof c === 'object') {
+                if (c.state && c.state !== 'done') return false;
+                if (c.size === 0) return false;
+              }
+              return true;
+            })
+            .sort((a: any, b: any) => {
+              const aName = typeof a === 'string' ? a : a.name;
+              const bName = typeof b === 'string' ? b : b.name;
+              const aIdx =
+                typeof a === 'object' && typeof a.index === 'number'
+                  ? a.index
+                  : extractIndex(aName || '');
+              const bIdx =
+                typeof b === 'object' && typeof b.index === 'number'
+                  ? b.index
+                  : extractIndex(bName || '');
+              return aIdx - bIdx;
+            });
+
           const chunks: string[] = [];
-          for (const chunk of manifest.chunks || []) {
+          for (const chunk of manifestChunks) {
+            if (canceled) break;
             const name = typeof chunk === 'string' ? chunk : chunk.name;
             if (!name) continue;
-            if (typeof chunk === 'object') {
-              if (chunk.state && chunk.state !== 'done') continue;
-              if (chunk.size === 0) continue;
-            }
 
             const urlResp = await fetch(
               `/api/storage/download/url?key=${encodeURIComponent(
@@ -378,29 +422,76 @@ function Workflow() {
             chunks.push(text);
           }
 
-          const content = chunks.join('');
+          if (canceled) break;
+          // Reconstruct content based on content_type. For structured (JSONL) chunks,
+          // assemble a valid JSON array string instead of concatenated JSONL.
+          let content: string;
+          if (contentType === 'structured') {
+            let parsedRecords: any[] = [];
+            let leftoverPartialLine = '';
+            let totalRecords = 0;
+            let parseErrors = 0;
+            for (const chunkText of chunks) {
+              if (canceled) break;
+              const dataToProcess = (leftoverPartialLine || '') + chunkText;
+              const lines = dataToProcess.split(/\r?\n/);
+              leftoverPartialLine = lines.pop() || '';
+              for (const rawLine of lines) {
+                const line = rawLine.trim();
+                if (!line) continue;
+                totalRecords += 1;
+                try {
+                  parsedRecords.push(JSON.parse(line));
+                } catch {
+                  parseErrors += 1;
+                }
+              }
+            }
+            if (!canceled) {
+              const leftover = leftoverPartialLine.trim();
+              if (leftover) {
+                totalRecords += 1;
+                try {
+                  parsedRecords.push(JSON.parse(leftover));
+                } catch {
+                  parseErrors += 1;
+                }
+              }
+            }
+            try {
+              content = JSON.stringify(parsedRecords, null, 2);
+            } catch {
+              content = '[]';
+            }
+          } else {
+            content = chunks.join('');
+          }
           setUnsortedNodes(prev =>
-            prev.map(node =>
-              node.id === n.id
-                ? {
-                    ...node,
-                    data: {
-                      ...node.data,
-                      content: contentType === 'structured' ? content : content,
-                      isExternalStorage: true,
-                      external_metadata: external,
-                    },
-                  }
-                : node
-            )
+            prev.map(node => {
+              if (node.id !== n.id) return node;
+              const prevContent = (node as any)?.data?.content;
+              // 仅在内容变化时写入，减少无谓的保存和触发
+              if (prevContent === content) return node;
+              return {
+                ...node,
+                data: {
+                  ...node.data,
+                  content,
+                  isExternalStorage: true,
+                  external_metadata: external,
+                },
+              } as any;
+            })
           );
         } catch (e) {
           // 忽略单块失败
         }
       }
-
-      didExternalPrefetchRef.current = selectedFlowId;
     })();
+
+    return () => {
+      canceled = true;
+    };
   }, [currentWorkspaceContent, selectedFlowId, setUnsortedNodes]);
 
   // 定期保存 ReactFlow 状态到工作区
@@ -420,8 +511,25 @@ function Workflow() {
       version: '1.0.0',
     };
 
-    // 检查内容是否有变化
-    const currentStateString = JSON.stringify(currentState);
+    // 检查内容是否有变化：仅比较对保存有意义的字段（忽略视口/样式/选择等临时状态）
+    const comparable = {
+      blocks: (currentState.blocks || []).map((n: any) => ({
+        id: n.id,
+        type: n.type,
+        position: n.position,
+        data: n.data,
+      })),
+      edges: (currentState.edges || []).map((e: any) => ({
+        id: e.id,
+        type: e.type,
+        source: e.source,
+        target: e.target,
+        sourceHandle: e.sourceHandle,
+        targetHandle: e.targetHandle,
+        data: e.data,
+      })),
+    };
+    const currentStateString = JSON.stringify(comparable);
     if (currentStateString === lastSavedContent.current) {
       return; // 没有变化，不需要保存
     }
@@ -436,7 +544,7 @@ function Workflow() {
     lastSavedContent.current = currentStateString;
   }, [selectedFlowId, nodes, edges, getViewport, updateWorkspaceContent]);
 
-  // 设置定期保存
+  // 设置定期保存（2s 防抖，仅在内容变化时触发）
   useEffect(() => {
     if (!selectedFlowId) return;
 
@@ -445,10 +553,10 @@ function Workflow() {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    // 设置新的定时器
+    // 设置新的定时器（2秒）
     saveTimeoutRef.current = setTimeout(() => {
       saveCurrentState();
-    }, 500); // 0.5秒后保存
+    }, 2000);
 
     // 清理函数
     return () => {
