@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
 import { getCurrentUserId } from '@/lib/auth/serverUser';
-import { cookies } from 'next/headers';
+import { extractAuthHeader } from '@/lib/auth/http';
 
 export async function POST(request: Request) {
   try {
@@ -15,18 +15,7 @@ export async function POST(request: Request) {
       );
     }
     const store = getWorkspaceStore();
-    let authHeader = request.headers.get('authorization') || undefined;
-    if (!authHeader) {
-      try {
-        const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
-        if (token) authHeader = `Bearer ${token}`;
-      } catch {
-        const rawCookie = request.headers.get('cookie') || '';
-        const name = SERVER_ENV.AUTH_COOKIE_NAME.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-        const match = rawCookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
-        if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
-      }
-    }
+    const authHeader = extractAuthHeader(request);
     const created = await store.createWorkspace(
       userId,
       {
