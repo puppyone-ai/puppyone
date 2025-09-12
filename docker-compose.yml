@@ -1,24 +1,65 @@
 version: '3.9'
 
 services:
+  minio:
+    image: minio/minio:latest
+    container_name: puppy_minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minio
+      - MINIO_ROOT_PASSWORD=minio12345
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  createbuckets:
+    image: minio/mc:latest
+    container_name: puppy_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minio minio12345;
+      mc mb -p local/puppy || true;
+      mc anonymous set download local/puppy || true;
+      exit 0;
+      "
+
+  db:
+    image: postgres:15-alpine
+    container_name: puppy_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=puppy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
   storage:
     build:
       context: ./PuppyStorage
       dockerfile: Dockerfile
     container_name: puppy_storage
     environment:
-      - DEPLOYMENT_TYPE=local
+      - DEPLOYMENT_TYPE=remote
       - AXIOM_TOKEN
       - AXIOM_ORG_ID
       - AXIOM_DATASET
       - OPENAI_API_KEY
       - SUPABASE_URL
-      - CLOUDFLARE_R2_ENDPOINT
-      - CLOUDFLARE_R2_ACCESS_KEY_ID
-      - CLOUDFLARE_R2_SECRET_ACCESS_KEY
-      - CLOUDFLARE_R2_BUCKET
+      - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
+      - CLOUDFLARE_R2_ACCESS_KEY_ID=minio
+      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minio12345
+      - CLOUDFLARE_R2_BUCKET=puppy
     ports:
       - "8002:8002"
+    depends_on:
+      - minio
+      - createbuckets
 
   engine:
     build:
@@ -27,7 +68,7 @@ services:
     container_name: puppy_engine
     environment:
       - DEPLOYMENT_TYPE=local
-      - USER_SYSTEM_URL=http://host.docker.internal:8000
+      - USER_SYSTEM_URL=http://usersystem:8000
       - STORAGE_SERVER_URL=http://storage:8002
       - SERVICE_KEY
       - OPENROUTER_API_KEY
@@ -53,6 +94,7 @@ services:
       - "8001:8001"
     depends_on:
       - storage
+      - usersystem
 
   flow:
     image: node:18-alpine
@@ -62,10 +104,10 @@ services:
       - ./PuppyFlow:/app
     environment:
       - NODE_ENV=development
-      - USER_SYSTEM_BACKEND=http://host.docker.internal:8000
+      - USER_SYSTEM_BACKEND=http://usersystem:8000
       - PUPPYENGINE_URL=http://engine:8001
       - PUPPYSTORAGE_URL=http://storage:8002
-      - API_SERVER_URL=http://host.docker.internal:8004
+      - API_SERVER_URL=http://api:8004
       - SERVICE_KEY
       - NEXT_PUBLIC_FRONTEND_VERSION=0.1.0
     command: sh -c "npm install && npm run dev"
@@ -74,3 +116,32 @@ services:
     depends_on:
       - engine
       - storage
+
+  usersystem:
+    build:
+      context: ../../PuppyUserSystem
+      dockerfile: Dockerfile
+    container_name: puppy_user_system
+    environment:
+      - PORT=8000
+      - SUPABASE_DATABASE_URL=postgresql://postgres:postgres@db:5432/puppy
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  api:
+    build:
+      context: ../../PuppyAgent-API
+      dockerfile: Dockerfile
+    container_name: puppy_api
+    environment:
+      - SUPABASE_DATABASE_URL=postgresql://postgres:postgres@db:5432/puppy
+    ports:
+      - "8004:8004"
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
+  minio_data:
