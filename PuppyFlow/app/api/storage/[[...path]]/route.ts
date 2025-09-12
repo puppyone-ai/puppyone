@@ -36,7 +36,7 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
   const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
   if (mode === 'cloud') {
     try {
-      const token = cookies().get('access_token')?.value;
+      const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
       if (token) newHeaders['authorization'] = `Bearer ${token}`;
     } catch {}
   }

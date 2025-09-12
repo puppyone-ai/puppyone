@@ -43,14 +43,14 @@ function filterRequestHeaders(headers: Headers): HeadersInit {
   // 🔒 安全增强：从HttpOnly cookie中自动注入认证
   try {
     const { cookies } = require('next/headers');
-    const token = cookies().get('access_token')?.value;
+    const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
     if (token) {
       newHeaders['authorization'] = `Bearer ${token}`;
     }
   } catch (error) {
     // Cookie读取失败时的处理
     console.warn(
-      'Failed to read access_token cookie for user-system proxy:',
+      'Failed to read auth cookie for user-system proxy:',
       error
     );
   }

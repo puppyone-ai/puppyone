@@ -35,7 +35,7 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
   // Inject Authorization from cookie if available
   let authHeader: string | undefined;
   try {
-    const token = cookies().get('access_token')?.value;
+    const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
     if (token) authHeader = `Bearer ${token}`;
   } catch {
     // ignore

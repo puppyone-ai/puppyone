@@ -53,13 +53,13 @@ function filterRequestHeaders(headers: Headers): Record<string, string> {
   // 从HttpOnly cookie中获取用户token并注入Authorization header
   let authHeader: string | undefined;
   try {
-    const token = cookies().get('access_token')?.value;
+    const token = cookies().get(SERVER_ENV.AUTH_COOKIE_NAME)?.value;
     if (token) {
       authHeader = `Bearer ${token}`;
     }
   } catch (error) {
     // Cookie读取失败，可能是在某些边缘情况下
-    console.warn('Failed to read access_token cookie:', error);
+    console.warn('Failed to read auth cookie:', error);
   }
 
   // 注入用户认证token
