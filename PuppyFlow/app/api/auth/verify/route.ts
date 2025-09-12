@@ -40,7 +40,10 @@ export async function GET(request: Request) {
     } catch {
       // Edge 兜底：从请求头里解析 cookie
       const rawCookie = hdrs.get('cookie') || '';
-      const name = SERVER_ENV.AUTH_COOKIE_NAME.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+      const name = SERVER_ENV.AUTH_COOKIE_NAME.replace(
+        /[-[\]{}()*+?.,\\^$|#\s]/g,
+        '\\$&'
+      );
       const match = rawCookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
       if (match) {
         authHeader = `Bearer ${decodeURIComponent(match[1])}`;
