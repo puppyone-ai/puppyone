@@ -23,7 +23,10 @@ function buildTargetUrl(request: Request, path: string[] | undefined): string {
   return `${base}${suffix}${query}`;
 }
 
-function filterRequestHeaders(request: Request, headers: Headers): Record<string, string> {
+function filterRequestHeaders(
+  request: Request,
+  headers: Headers
+): Record<string, string> {
   return filterRequestHeadersAndInjectAuth(request, headers, {
     includeServiceKey: true,
     localFallback: true,

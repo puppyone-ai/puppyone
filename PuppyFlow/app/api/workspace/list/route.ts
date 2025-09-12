@@ -17,7 +17,10 @@ export async function GET(request: Request) {
         if (token) authHeader = `Bearer ${token}`;
       } catch {
         const rawCookie = request.headers.get('cookie') || '';
-        const name = SERVER_ENV.AUTH_COOKIE_NAME.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+        const name = SERVER_ENV.AUTH_COOKIE_NAME.replace(
+          /[-[\]{}()*+?.,\\^$|#\s]/g,
+          '\\$&'
+        );
         const match = rawCookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
         if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
       }
