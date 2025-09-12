@@ -41,7 +41,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   const userPageUrl = SYSTEM_URLS.USER_SYSTEM.FRONTEND;
-  const token = request.cookies.get('access_token')?.value;
+  const cookieName = SERVER_ENV.AUTH_COOKIE_NAME;
+  const cookiePath = SERVER_ENV.AUTH_COOKIE_PATH || '/';
+  const token = request.cookies.get(cookieName)?.value;
   const url = new URL(request.url);
 
   // 检查环境变量以决定是否跳过中间件
