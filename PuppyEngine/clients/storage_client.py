@@ -23,6 +23,7 @@ from typing import Dict, List, Optional, AsyncGenerator, Tuple, Any
 from datetime import datetime
 import httpx
 from Utils.logger import log_info, log_error, log_warning, log_debug
+from urllib.parse import urlparse, urlunparse, urljoin
 
 
 class StorageException(Exception):
@@ -97,16 +98,30 @@ class StorageClient:
             if not download_url:
                 raise StorageException("No download URL returned from storage service")
             
-            # Step 2: Download directly from URL (OSS or local stream)
-            if download_url.startswith(("http://", "https://")):
-                # Direct download from presigned URL
-                download_response = await self.client.get(download_url)
-            else:
-                # Local streaming endpoint (for development)
-                download_response = await self.client.get(
-                    download_url,
-                    headers=self.headers  # Include auth for local streaming
-                )
+            # Step 2: Normalize URL for containerized/local envs
+            # - If storage returns localhost/127.0.0.1, rewrite to use our configured base_url host
+            # - If a relative path is returned, join it with base_url
+            try:
+                base = urlparse(self.base_url)
+                dl = urlparse(download_url)
+                if not dl.scheme:
+                    # Relative path like "/download/stream/..."
+                    download_url = urljoin(self.base_url.rstrip('/') + '/', download_url.lstrip('/'))
+                elif dl.hostname in {"localhost", "127.0.0.1", "::1", "host.docker.internal"}:
+                    # Replace host:port with storage base for cross-container access
+                    download_url = urlunparse((
+                        base.scheme or dl.scheme,
+                        base.netloc or dl.netloc,
+                        dl.path,
+                        dl.params,
+                        dl.query,
+                        dl.fragment,
+                    ))
+            except Exception as e:
+                log_warning(f"Failed to normalize download URL '{download_url}': {e}")
+            
+            # Step 3: Download
+            download_response = await self.client.get(download_url)
             
             if download_response.status_code != 200:
                 raise StorageException(f"Failed to download resource: {download_response.status_code}")

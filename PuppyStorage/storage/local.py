@@ -20,7 +20,11 @@ from storage.exceptions import ConditionFailedError, FileNotFoundError as Storag
 
 # 使用新的路径管理系统获取存储路径
 LOCAL_STORAGE_PATH = config.get_path("STORAGE_ROOT")
-LOCAL_SERVER_URL = config.get("LOCAL_SERVER_URL", "http://localhost:8002")
+# 优先使用 LOCAL_SERVER_URL；未配置时回退到 STORAGE_SERVER_URL，再退回 localhost
+LOCAL_SERVER_URL = (
+    config.get("LOCAL_SERVER_URL")
+    or config.get("STORAGE_SERVER_URL", "http://localhost:8002")
+)
 
 class LocalStorageAdapter(StorageAdapter):
     def __init__(self):
