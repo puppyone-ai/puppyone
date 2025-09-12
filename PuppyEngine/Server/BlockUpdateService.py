@@ -6,7 +6,8 @@ application, persistence, and event generation. It encapsulates the complex logi
 of block updates and reduces coupling in the main execution flow.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, Tuple
+import json
 from .HybridStoragePolicy import HybridStoragePolicy
 from .EventFactory import EventFactory
 from Blocks.BaseBlock import BaseBlock
@@ -56,12 +57,18 @@ class BlockUpdateService:
         
         for block_id, content in results.items():
             block = blocks[block_id]
-            
+
+            # Normalize content according to target block type to ensure
+            # consistent semantic type across storage and events
+            normalized_content, semantic_type = self._classify_and_normalize(
+                desired_block_type=block.type, value=content
+            )
+
             # Set content so persistence can read from it
-            block.set_content(content)
+            block.set_content(normalized_content)
             
             # Apply storage strategy
-            storage_metadata = self.storage_policy.get_storage_metadata(content)
+            storage_metadata = self.storage_policy.get_storage_metadata(normalized_content)
             use_external_storage = storage_metadata["use_external_storage"]
             
             if use_external_storage:
@@ -80,11 +87,11 @@ class BlockUpdateService:
                 
             else:
                 # Apply internal storage strategy
-                self._handle_internal_storage_update(block, content, v1_results)
+                self._handle_internal_storage_update(block, normalized_content, v1_results)
                 
                 # Generate BLOCK_UPDATED event for internal storage
                 block_event = EventFactory.create_block_updated_event_internal(
-                    block_id, content
+                    block_id, normalized_content
                 )
                 yield block_event
         
@@ -157,3 +164,49 @@ class BlockUpdateService:
             The storage policy instance
         """
         return self.storage_policy
+
+    # --- Helpers ---
+    def _classify_and_normalize(self, desired_block_type: str, value: Any) -> Tuple[Any, str]:
+        """
+        Classify content into semantic type (text/structured) and normalize the value
+        to avoid UI/storage mismatches.
+
+        Rules:
+        - desired structured:
+          * dict/list -> keep, structured
+          * str -> try json.loads to dict/list; on fail, wrap as {"value": str}
+          * others -> wrap as {"value": str(value)}
+        - desired text:
+          * dict/list -> json.dumps(..., ensure_ascii=False), text
+          * others -> str(value or ''), text
+        """
+        desired = (desired_block_type or 'text').lower()
+
+        # Structured target
+        if desired == 'structured':
+            if isinstance(value, (dict, list)):
+                return value, 'structured'
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, (dict, list)):
+                        return parsed, 'structured'
+                except Exception:
+                    pass
+                return {"value": value}, 'structured'
+            # others
+            try:
+                return {"value": str(value)}, 'structured'
+            except Exception:
+                return {"value": ""}, 'structured'
+
+        # Text target (default)
+        if isinstance(value, (dict, list)):
+            try:
+                return json.dumps(value, ensure_ascii=False), 'text'
+            except Exception:
+                return str(value), 'text'
+        try:
+            return "" if value is None else str(value), 'text'
+        except Exception:
+            return "", 'text'
