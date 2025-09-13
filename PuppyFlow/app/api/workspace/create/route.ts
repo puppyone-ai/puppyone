@@ -5,7 +5,6 @@ import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
-    const url = new URL(request.url);
     const userId = await getCurrentUserId(request);
     const body = await request.json();
     const { workspace_id, workspace_name } = body || {};
@@ -33,7 +32,7 @@ export async function POST(request: Request) {
         workspace_id,
         workspace_name,
       },
-      { authHeader, origin: url.origin }
+      { authHeader }
     );
     return NextResponse.json(created, { status: 200 });
   } catch (error) {
