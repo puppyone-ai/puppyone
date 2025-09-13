@@ -48,8 +48,13 @@ export function applyBlockUpdate(
     ctx.setNodes(prev =>
       prev.map(node => {
         if (node.id !== u.block_id) return node;
-        const typeByNode: ContentType = node?.type === 'structured' ? 'structured' : 'text';
-        chosenContentType = typeByNode || (u.external_metadata.content_type === 'structured' ? 'structured' : 'text');
+        const typeByNode: ContentType =
+          node?.type === 'structured' ? 'structured' : 'text';
+        chosenContentType =
+          typeByNode ||
+          (u.external_metadata.content_type === 'structured'
+            ? 'structured'
+            : 'text');
         return {
           ...node,
           data: {
