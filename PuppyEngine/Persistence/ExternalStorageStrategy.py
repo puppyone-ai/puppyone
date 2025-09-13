@@ -60,27 +60,41 @@ class ExternalStorageStrategy:
             manifest_key = f"{resource_key}/manifest.json"
             manifest = await storage_client.get_manifest(manifest_key)
 
-            # Determine content handling strategy, with auto-detection fallback
+            # Determine content handling strategy, with conservative auto-detection fallback
             content_type = external_metadata.get('content_type', 'text')
 
-            # Heuristic: if manifest chunks look like end-user file uploads (have file_name
-            # or non "chunk_*.{ext}" names), treat as files even if front-end omitted content_type
+            # Heuristic: detect end-user file uploads only when chunk naming clearly indicates files.
+            # Rules (avoid false-positives for structured/text chunking):
+            # - DO NOT treat presence of file_name alone as files (structured uploads also include it)
+            # - Consider as files when:
+            #   a) chunk.name does NOT start with "chunk_" (typical user file names), OR
+            #   b) file_name exists AND file_name != name (explicitly carries original filename)
             def _looks_like_file_uploads(mani: dict) -> bool:
                 try:
                     chunks = mani.get('chunks', [])
                     for ch in chunks:
-                        if isinstance(ch, dict):
-                            name = ch.get('name', '')
-                            if ch.get('file_name'):
+                        if not isinstance(ch, dict):
+                            # String entries (legacy) that don't follow chunk_ pattern also imply files
+                            if isinstance(ch, str) and not ch.startswith('chunk_'):
                                 return True
-                            if name and not name.startswith('chunk_'):
-                                return True
+                            continue
+                        name = ch.get('name', '') or ''
+                        file_name = ch.get('file_name')
+                        # Condition (b): explicit original filename different from storage name
+                        if file_name and file_name != name:
+                            return True
+                        # Condition (a): storage name doesn't follow standard chunk_* pattern
+                        if name and not name.startswith('chunk_'):
+                            return True
                     return False
                 except Exception:
                     return False
 
+            # Only apply auto-detection when current type is not already 'files'
             if content_type != 'files' and _looks_like_file_uploads(manifest):
-                log_warning("external_metadata.content_type missing or incorrect; auto-detected 'files' based on manifest")
+                log_warning(
+                    "external_metadata.content_type missing or incorrect; auto-detected 'files' based on manifest"
+                )
                 content_type = 'files'
 
             if content_type == 'files':
