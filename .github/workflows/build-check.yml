@@ -8,6 +8,8 @@ on:
   pull_request:
     branches:
       - 'qubits'
+      - 'convergency'
+      - 'main'
 
 # Define the jobs
 jobs:
