@@ -42,37 +42,37 @@ export function applyBlockUpdate(
     update.storage_class === 'external';
   if (isExternal) {
     const u = update as BlockUpdateExternal;
-    const normalizedContentType: ContentType =
-      u.external_metadata.content_type === 'structured' ? 'structured' : 'text';
 
-    // Mark node as external and start/refresh poller
+    // Prefer the current node type to decide semantic content type (robust against BE mislabeling)
+    let chosenContentType: ContentType = 'text';
     ctx.setNodes(prev =>
-      prev.map(node =>
-        node.id === u.block_id
-          ? {
-              ...node,
-              data: {
-                ...node.data,
-                storage_class: 'external',
-                external_metadata: {
-                  ...u.external_metadata,
-                  content_type: normalizedContentType,
-                },
-                isLoading: true,
-                isWaitingForFlow: true,
-                isExternalStorage: true,
-                content: '',
-              },
-            }
-          : node
-      )
+      prev.map(node => {
+        if (node.id !== u.block_id) return node;
+        const typeByNode: ContentType = node?.type === 'structured' ? 'structured' : 'text';
+        chosenContentType = typeByNode || (u.external_metadata.content_type === 'structured' ? 'structured' : 'text');
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            storage_class: 'external',
+            external_metadata: {
+              ...u.external_metadata,
+              content_type: chosenContentType,
+            },
+            isLoading: true,
+            isWaitingForFlow: true,
+            isExternalStorage: true,
+            content: '',
+          },
+        };
+      })
     );
 
     ensurePollerStarted(
       { setNodes: ctx.setNodes, resetLoadingUI: ctx.resetLoadingUI },
       u.external_metadata.resource_key,
       u.block_id,
-      normalizedContentType
+      chosenContentType
     );
     return;
   }
