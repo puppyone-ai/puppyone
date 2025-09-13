@@ -8,6 +8,7 @@ export async function DELETE(
   { params }: { params: { workspaceId: string } }
 ) {
   try {
+    const url = new URL(request.url);
     const { workspaceId } = params;
     if (!workspaceId) {
       return NextResponse.json(
@@ -27,10 +28,7 @@ export async function DELETE(
         if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
       }
     }
-    await store.deleteWorkspace(
-      workspaceId,
-      authHeader ? { authHeader } : undefined
-    );
+    await store.deleteWorkspace(workspaceId, { authHeader, origin: url.origin });
     return NextResponse.json({
       success: true,
       message: 'Workspace deleted successfully',

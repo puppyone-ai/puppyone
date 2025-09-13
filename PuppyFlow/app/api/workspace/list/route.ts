@@ -8,6 +8,7 @@ export const runtime = 'nodejs';
 
 export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
     const userId = await getCurrentUserId(request);
     const store = getWorkspaceStore();
     let authHeader = request.headers.get('authorization') || undefined;
@@ -21,10 +22,10 @@ export async function GET(request: Request) {
         if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
       }
     }
-    const workspaces = await store.listWorkspaces(
-      userId,
-      authHeader ? { authHeader } : undefined
-    );
+    const workspaces = await store.listWorkspaces(userId, {
+      authHeader,
+      origin: url.origin,
+    });
     return NextResponse.json({ workspaces });
   } catch (error) {
     // Log the underlying error for server-side diagnostics
