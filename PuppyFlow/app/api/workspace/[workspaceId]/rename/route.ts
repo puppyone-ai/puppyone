@@ -7,7 +7,6 @@ export async function PUT(
   { params }: { params: { workspaceId: string } }
 ) {
   try {
-    const url = new URL(request.url);
     const { workspaceId } = params;
     const body = await request.json();
     const newName = body?.new_name;
@@ -31,7 +30,6 @@ export async function PUT(
     }
     const updated = await store.renameWorkspace(workspaceId, newName, {
       authHeader,
-      origin: url.origin,
     });
     return NextResponse.json({
       msg: 'Workspace name updated',

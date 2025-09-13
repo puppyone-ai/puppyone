@@ -15,12 +15,9 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
 
   async listWorkspaces(
     userId: string,
-    opts: { authHeader?: string; origin: string }
+    opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic[]> {
-    const url = new URL(
-      `${this.base}/get_user_workspaces/${userId}`,
-      opts.origin
-    );
+    const url = `${this.base}/get_user_workspaces/${userId}`;
     const res = await fetch(url, {
       method: 'GET',
       headers: authHeaders(opts?.authHeader),
@@ -34,9 +31,9 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
   async createWorkspace(
     userId: string,
     payload: { workspace_id: string; workspace_name: string },
-    opts: { authHeader?: string; origin: string }
+    opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
-    const url = new URL(`${this.base}/create_workspace/${userId}`, opts.origin);
+    const url = `${this.base}/create_workspace/${userId}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: authHeaders(opts?.authHeader),
@@ -53,12 +50,9 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
 
   async deleteWorkspace(
     workspaceId: string,
-    opts: { authHeader?: string; origin: string }
+    opts?: { authHeader?: string }
   ): Promise<void> {
-    const url = new URL(
-      `${this.base}/delete_workspace/${workspaceId}`,
-      opts.origin
-    );
+    const url = `${this.base}/delete_workspace/${workspaceId}`;
     const res = await fetch(url, {
       method: 'DELETE',
       headers: authHeaders(opts?.authHeader),
@@ -70,12 +64,9 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
   async renameWorkspace(
     workspaceId: string,
     newName: string,
-    opts: { authHeader?: string; origin: string }
+    opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
-    const url = new URL(
-      `${this.base}/update_workspace_name/${workspaceId}`,
-      opts.origin
-    );
+    const url = `${this.base}/update_workspace_name/${workspaceId}`;
     const res = await fetch(url, {
       method: 'PUT',
       headers: authHeaders(opts?.authHeader),
@@ -92,12 +83,9 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
 
   async getLatestHistory(
     workspaceId: string,
-    opts: { authHeader?: string; origin: string }
+    opts?: { authHeader?: string }
   ): Promise<any | null> {
-    const url = new URL(
-      `${this.base}/get_latest_workspace_history/${workspaceId}`,
-      opts.origin
-    );
+    const url = `${this.base}/get_latest_workspace_history/${workspaceId}`;
     const res = await fetch(url, {
       method: 'GET',
       headers: authHeaders(opts?.authHeader),
@@ -112,12 +100,9 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
   async addHistory(
     workspaceId: string,
     data: { history: any; timestamp: string },
-    opts: { authHeader?: string; origin: string }
+    opts?: { authHeader?: string }
   ): Promise<void> {
-    const url = new URL(
-      `${this.base}/add_workspace_history/${workspaceId}`,
-      opts.origin
-    );
+    const url = `${this.base}/add_workspace_history/${workspaceId}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: authHeaders(opts?.authHeader),
