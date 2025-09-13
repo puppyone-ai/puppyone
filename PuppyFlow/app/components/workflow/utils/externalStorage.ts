@@ -169,7 +169,7 @@ async function uploadChunkList(
 > {
   const results: Array<{
     name: string;
-    file_name: string;
+    file_name?: string;
     mime_type: string;
     size: number;
     etag: string;
@@ -187,7 +187,7 @@ async function uploadChunkList(
     );
     results.push({
       name: c.name,
-      file_name: c.name,
+      // For structured/text chunking, omit file_name to avoid BE misclassification as 'files'
       mime_type: c.mime,
       size,
       etag,
