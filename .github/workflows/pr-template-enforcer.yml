@@ -26,7 +26,7 @@ jobs:
             const prNumberInput = core.getInput('pr_number');
             let pr = context.payload.pull_request || null;
             if (!pr && prNumberInput) {
-              const { data } = await github.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: Number(prNumberInput) });
+              const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: Number(prNumberInput) });
               pr = data;
             }
             if (!pr) {
@@ -49,7 +49,7 @@ jobs:
             }
 
             // Optional bypass by label
-            const { data: issue } = await github.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number });
+            const { data: issue } = await github.rest.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number });
             const hasSkipLabel = (issue.labels || []).some(l => (typeof l === 'string' ? l : l.name) === 'template:skip');
             if (hasSkipLabel) {
               core.setOutput('skip', 'true');
@@ -128,20 +128,20 @@ jobs:
             const reviewBody = `<!-- PR_TEMPLATE_ENFORCER -->\nHi @${pr.user.login} — please update the PR description to follow the ${expected} template.\n\nTemplate: ${templateLink}\n\nMissing sections:\n${missing.map(h => `- ${h}`).join('\n')}\n\nOnce updated, please re-request review.`;
 
             // Upsert guidance comment
-            const { data: comments } = await github.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, per_page: 100 });
+            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, per_page: 100 });
             const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('PR_TEMPLATE_ENFORCER'));
             if (mine) {
-              await github.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: reviewBody });
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: reviewBody });
             } else {
-              await github.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, body: reviewBody });
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, body: reviewBody });
             }
 
             // Request changes even for bot-authored PRs; only skip if draft
             if (!isDraft) {
-              const { data: reviews } = await github.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
+              const { data: reviews } = await github.rest.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
               const existing = reviews.find(r => r.user.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
               if (!existing) {
-                await github.pulls.createReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, event: 'REQUEST_CHANGES', body: reviewBody });
+                await github.rest.pulls.createReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, event: 'REQUEST_CHANGES', body: reviewBody });
               }
             }
 
@@ -158,15 +158,15 @@ jobs:
             const missing = JSON.parse(`${{ steps.check.outputs.missing }}`);
 
             const hubTitle = 'Template Feedback Hub';
-            const { data: search } = await github.search.issuesAndPullRequests({ q: `repo:${owner}/${repo} is:issue in:title "${hubTitle}" state:open`, per_page: 1 });
+            const { data: search } = await github.rest.search.issuesAndPullRequests({ q: `repo:${owner}/${repo} is:issue in:title "${hubTitle}" state:open`, per_page: 1 });
             let hub = search.items && search.items[0];
             if (!hub) {
-              const created = await github.issues.create({ owner, repo, title: hubTitle, labels: ['template:feedback','docs'], body: 'Central log for template feedback and analytics.' });
+              const created = await github.rest.issues.create({ owner, repo, title: hubTitle, labels: ['template:feedback','docs'], body: 'Central log for template feedback and analytics.' });
               hub = created.data;
             }
 
             const line = `<!-- PR_TEMPLATE_ENFORCER_LOG pr:${pr.number} --> PR #${pr.number} (${pr.head.ref}) missing for ${type}: ${missing.map(s => '\`'+s+'\`').join(', ')}`;
-            await github.issues.createComment({ owner, repo, issue_number: hub.number, body: line });
+            await github.rest.issues.createComment({ owner, repo, issue_number: hub.number, body: line });
 
       - name: Acknowledge when complete
         if: steps.check.outputs.needs_changes == 'false' && steps.check.outputs.skip != 'true'
@@ -175,8 +175,8 @@ jobs:
           script: |
             const pr = context.payload.pull_request;
             if (!pr) return;
-            const { data: comments } = await github.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, per_page: 100 });
+            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, per_page: 100 });
             const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('PR_TEMPLATE_ENFORCER'));
             if (mine) {
-              await github.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
             }
