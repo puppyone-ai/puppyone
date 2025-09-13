@@ -1,23 +1,20 @@
 # .github/workflows/build-check.yml
 
 # Name of the workflow
-name: 'Build and Test Check'
+name: 'Build and Test Check (pull_request)'
 
 # Events that trigger the workflow
 on:
   pull_request:
     branches:
       - 'qubits'
-  push:
-    branches:
-      - '**'         # 所有分支，或者指定开发分支
 
 # Define the jobs
 jobs:
   # Job ID, can be customized
   build:
     # Job name, displayed on GitHub PR page
-    name: 'NPM Build Check'
+    name: 'NPM Build Check (pull_request)'
     # Virtual machine environment to run the job
     runs-on: ubuntu-latest
 
