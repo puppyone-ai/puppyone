@@ -36,10 +36,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     payload: { workspace_id: string; workspace_name: string },
     opts: { authHeader?: string; origin: string }
   ): Promise<WorkspaceBasic> {
-    const url = new URL(
-      `${this.base}/create_workspace/${userId}`,
-      opts.origin
-    );
+    const url = new URL(`${this.base}/create_workspace/${userId}`, opts.origin);
     const res = await fetch(url, {
       method: 'POST',
       headers: authHeaders(opts?.authHeader),
