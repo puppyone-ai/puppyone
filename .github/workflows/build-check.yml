@@ -12,6 +12,11 @@ on:
     branches:
       - '**'         # 所有分支，或者指定开发分支
 
+# Avoid duplicate runs for push and PR on the same branch
+concurrency:
+  group: build-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 # Define the jobs
 jobs:
   # Job ID, can be customized

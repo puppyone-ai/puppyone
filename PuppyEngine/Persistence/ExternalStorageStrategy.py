@@ -60,8 +60,28 @@ class ExternalStorageStrategy:
             manifest_key = f"{resource_key}/manifest.json"
             manifest = await storage_client.get_manifest(manifest_key)
 
-            # Determine content handling strategy
+            # Determine content handling strategy, with auto-detection fallback
             content_type = external_metadata.get('content_type', 'text')
+
+            # Heuristic: if manifest chunks look like end-user file uploads (have file_name
+            # or non "chunk_*.{ext}" names), treat as files even if front-end omitted content_type
+            def _looks_like_file_uploads(mani: dict) -> bool:
+                try:
+                    chunks = mani.get('chunks', [])
+                    for ch in chunks:
+                        if isinstance(ch, dict):
+                            name = ch.get('name', '')
+                            if ch.get('file_name'):
+                                return True
+                            if name and not name.startswith('chunk_'):
+                                return True
+                    return False
+                except Exception:
+                    return False
+
+            if content_type != 'files' and _looks_like_file_uploads(manifest):
+                log_warning("external_metadata.content_type missing or incorrect; auto-detected 'files' based on manifest")
+                content_type = 'files'
 
             if content_type == 'files':
                 # Prefetch-only: download files to a local working directory and attach a file list
