@@ -10,8 +10,7 @@ on:
       - 'qubits'
   push:
     branches:
-      - 'main'
-      - 'qubits'
+      - '**'         # 所有分支，或者指定开发分支
 
 # Avoid duplicate runs for push and PR on the same branch
 concurrency:

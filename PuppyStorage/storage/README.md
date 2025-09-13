@@ -134,7 +134,7 @@ generate_download_url(key: str, expires_in: int = 86400) -> str
 ```bash
 # 可选：自定义存储路径（默认使用配置文件中的路径）
 export LOCAL_STORAGE_PATH=/path/to/storage
-export LOCAL_SERVER_URL=http://localhost:8002
+# Deprecated: LOCAL_SERVER_URL (use STORAGE_SERVER_URL instead)
 ```
 
 ### S3 存储配置
