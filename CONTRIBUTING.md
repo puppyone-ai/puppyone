@@ -27,9 +27,11 @@ Branch naming
 - `revert-<sha-or-slug>`
 
 Pull request flow
-1. Target dev first → open PR into `qubits`.
-2. Promote to stage → open PR from `qubits` to `convergency` after validation on dev.
-3. Release to production → open PR from `convergency` to `main`.
+1. Default (features and non-fix work): open PR into `qubits` (dev). After validation, promote `qubits` → `convergency` → `main`.
+2. Fixes:
+   - Not urgent: base `convergency` (stage). After validation, back-merge to `qubits` to keep dev aligned.
+   - Urgent (hotfix): base `main` (production). After release, back-merge to `convergency` and `qubits`.
+   - Maintainers may direct an alternative target depending on risk/rollout.
 
 CI checks you will see
 - Build and Test Check: runs on push to any branch; additionally runs on PRs that target `qubits`.
@@ -42,6 +44,45 @@ Commit/PR
 - Default PR target is `qubits` (dev). Use `convergency` for stage promotion and `main` for production releases.
 - Include a clear description and test plan in PRs. Note any rollout or migration steps.
 - Link related issues when applicable.
+- Choose a PR template that matches the purpose: Feature, Bugfix, Perf, Refactor, or CI.
+
+## Process governance (avoid infinite meta-optimization)
+- Single source of truth: only this file and the PR templates define how to write PRs. Do not create meta-docs about the docs.
+- Automation first, minimal guidance: prefer checks and one-line inline hints in templates over long explanations.
+- Complexity budget: if you add any required section or rule, remove one of equal weight to keep total complexity flat.
+
+- Hard caps
+  - Template types: max 6 (`feature`, `bugfix`, `perf`, `refactor`, `ci`, `docs`). New types require ≥5 misfit examples per week for 2 consecutive weeks before being proposed.
+  - Required sections per template: ≤6
+  - Guidance per section: ≤1 line
+
+- Change budget and time-boxing
+  - At most 1 template/process change per week; freeze during release weeks.
+  - Writing/implementing a change must take ≤15 minutes; otherwise postpone to the next cycle.
+
+- Data-gated changes (make changes only if at least one holds for the last 2 weeks)
+  - One-shot template pass rate (PR passes enforcer on first try) <70% and trending down
+  - Any section is in top-3 "missing sections" with share ≥20%
+  - ≥5 similar feedback items in two weeks, or TFFR/Merge-cycle degrades by ≥10%
+
+- Rollout and rollback
+  - Ship as a 2-week trial to a subset (e.g., label or branch prefix). If metrics do not improve, auto-rollback to the previous rule set.
+  - Enforcer noise guardrail: median bot comments per PR ≤0.4 and false-positive rate ≤5%; crossing either threshold triggers rollback.
+
+- Weekly digest includes only 3 signals: one-shot pass rate, top-3 missing sections, and TFFR/Merge-cycle change.
+
+- Decision record (max 10 lines, no long docs)
+  - Problem & evidence (1 line)
+  - Success metric (1 line)
+  - Change (≤3 lines) and equal removal to keep complexity flat
+  - Scope & trial cohort (1 line)
+  - Rollback condition & DRI (2 lines)
+
+- Escape hatches
+  - Keep the `template:skip` label, and allow `temp/` branches to pick the closest template.
+  - Do not add new template types unless the "new type" criterion above is met.
+
+- Change one thing at a time: do not modify both template structure and enforcer logic in the same week.
 
 - Choose a PR template that matches the purpose: Feature, Bugfix, Perf, Refactor, or CI.
 

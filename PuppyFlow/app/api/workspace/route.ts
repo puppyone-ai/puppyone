@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       await store.addHistory(
         flowId,
         { history: json, timestamp },
-        authHeader ? { authHeader } : undefined
+        { authHeader }
       );
     } catch (e: any) {
       // 若后端返回404（工作区不存在），先尝试创建再重试一次保存
@@ -56,12 +56,12 @@ export async function POST(request: Request) {
           workspace_id: flowId,
           workspace_name: name,
         },
-        authHeader ? { authHeader } : undefined
+        { authHeader }
       );
       await store.addHistory(
         flowId,
         { history: json, timestamp },
-        authHeader ? { authHeader } : undefined
+        { authHeader }
       );
     }
     return NextResponse.json({ success: true }, { status: 200 });
@@ -95,10 +95,7 @@ export async function GET(request: Request) {
     }
     const store = getWorkspaceStore();
     const authHeader = getAuthHeaderFromRequest(request);
-    const data = await store.getLatestHistory(
-      flowId,
-      authHeader ? { authHeader } : undefined
-    );
+    const data = await store.getLatestHistory(flowId, { authHeader });
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
