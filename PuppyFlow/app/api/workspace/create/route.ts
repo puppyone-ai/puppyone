@@ -32,7 +32,7 @@ export async function POST(request: Request) {
         workspace_id,
         workspace_name,
       },
-      authHeader ? { authHeader } : undefined
+      { authHeader }
     );
     return NextResponse.json(created, { status: 200 });
   } catch (error) {

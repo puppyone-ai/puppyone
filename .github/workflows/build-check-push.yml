@@ -1,0 +1,34 @@
+name: 'Build and Test Check (push)'
+
+on:
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  group: build-push-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 'NPM Build Check (push)'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./PuppyFlow
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: PuppyFlow/package-lock.json
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Build Script
+        run: npm run build

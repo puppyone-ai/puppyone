@@ -25,9 +25,11 @@ Branch naming
 - `revert-<sha-or-slug>`
 
 Pull request flow
-1. Target dev first → open PR into `qubits`.
-2. Promote to stage → open PR from `qubits` to `convergency` after validation on dev.
-3. Release to production → open PR from `convergency` to `main`.
+1. Features or non-fix work: open PR into `qubits` (dev). After validation, promote `qubits` → `convergency` → `main`.
+2. Fixes:
+   - Not urgent: base `convergency` (stage).
+   - Urgent: base `main` (production).
+   - Maintainers may direct an alternative target depending on risk/rollout.
 
 CI checks you will see
 - Build and Test Check: runs on push to any branch; additionally runs on PRs that target `qubits`.
@@ -37,7 +39,10 @@ CI checks you will see
 
 Commit/PR
 - Use concise commit messages (scope: summary). Conventional prefixes like `feat`, `fix`, `chore` are welcome.
-- Default PR target is `qubits` (dev). Use `convergency` for stage promotion and `main` for production releases.
+- Choose PR base by change type:
+  - Features/non-fix: `qubits`.
+  - Fixes (not urgent): `convergency`.
+  - Fixes (urgent): `main`.
 - Include a clear description and test plan in PRs. Note any rollout or migration steps.
 - Link related issues when applicable.
 

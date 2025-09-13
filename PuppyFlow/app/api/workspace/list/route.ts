@@ -21,10 +21,7 @@ export async function GET(request: Request) {
         if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
       }
     }
-    const workspaces = await store.listWorkspaces(
-      userId,
-      authHeader ? { authHeader } : undefined
-    );
+    const workspaces = await store.listWorkspaces(userId, { authHeader });
     return NextResponse.json({ workspaces });
   } catch (error) {
     // Log the underlying error for server-side diagnostics

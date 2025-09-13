@@ -1,22 +1,24 @@
 import { IWorkspaceStore, WorkspaceBasic } from './store';
+import { SERVER_ENV } from '@/lib/serverEnv';
 
 function authHeaders(authHeader?: string): HeadersInit {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (authHeader) headers['Authorization'] = authHeader;
+  if (SERVER_ENV.SERVICE_KEY) headers['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   return headers;
 }
 
 export class UserSystemWorkspaceStore implements IWorkspaceStore {
-  // Route through internal proxy so networking/auth is unified and future-localizable
-  private base = '/api/user-system';
+  private base = SERVER_ENV.USER_SYSTEM_BACKEND.replace(/\/$/, '');
 
   async listWorkspaces(
     userId: string,
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic[]> {
-    const res = await fetch(`${this.base}/get_user_workspaces/${userId}`, {
+    const url = `${this.base}/get_user_workspaces/${userId}`;
+    const res = await fetch(url, {
       method: 'GET',
       headers: authHeaders(opts?.authHeader),
       credentials: 'include',
@@ -31,7 +33,8 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     payload: { workspace_id: string; workspace_name: string },
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
-    const res = await fetch(`${this.base}/create_workspace/${userId}`, {
+    const url = `${this.base}/create_workspace/${userId}`;
+    const res = await fetch(url, {
       method: 'POST',
       headers: authHeaders(opts?.authHeader),
       credentials: 'include',
@@ -49,7 +52,8 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     workspaceId: string,
     opts?: { authHeader?: string }
   ): Promise<void> {
-    const res = await fetch(`${this.base}/delete_workspace/${workspaceId}`, {
+    const url = `${this.base}/delete_workspace/${workspaceId}`;
+    const res = await fetch(url, {
       method: 'DELETE',
       headers: authHeaders(opts?.authHeader),
       credentials: 'include',
@@ -62,15 +66,13 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     newName: string,
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
-    const res = await fetch(
-      `${this.base}/update_workspace_name/${workspaceId}`,
-      {
-        method: 'PUT',
-        headers: authHeaders(opts?.authHeader),
-        credentials: 'include',
-        body: JSON.stringify({ new_name: newName }),
-      }
-    );
+    const url = `${this.base}/update_workspace_name/${workspaceId}`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: authHeaders(opts?.authHeader),
+      credentials: 'include',
+      body: JSON.stringify({ new_name: newName }),
+    });
     if (!res.ok) throw new Error(`renameWorkspace failed: ${res.status}`);
     const json = await res.json();
     return {
@@ -83,14 +85,12 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     workspaceId: string,
     opts?: { authHeader?: string }
   ): Promise<any | null> {
-    const res = await fetch(
-      `${this.base}/get_latest_workspace_history/${workspaceId}`,
-      {
-        method: 'GET',
-        headers: authHeaders(opts?.authHeader),
-        credentials: 'include',
-      }
-    );
+    const url = `${this.base}/get_latest_workspace_history/${workspaceId}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: authHeaders(opts?.authHeader),
+      credentials: 'include',
+    });
     if (res.status === 204) return null;
     if (!res.ok) throw new Error(`getLatestHistory failed: ${res.status}`);
     const json = await res.json();
@@ -102,18 +102,16 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     data: { history: any; timestamp: string },
     opts?: { authHeader?: string }
   ): Promise<void> {
-    const res = await fetch(
-      `${this.base}/add_workspace_history/${workspaceId}`,
-      {
-        method: 'POST',
-        headers: authHeaders(opts?.authHeader),
-        credentials: 'include',
-        body: JSON.stringify({
-          history: data.history,
-          timestamp: data.timestamp,
-        }),
-      }
-    );
+    const url = `${this.base}/add_workspace_history/${workspaceId}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: authHeaders(opts?.authHeader),
+      credentials: 'include',
+      body: JSON.stringify({
+        history: data.history,
+        timestamp: data.timestamp,
+      }),
+    });
     if (!res.ok) throw new Error(`addHistory failed: ${res.status}`);
   }
 }
