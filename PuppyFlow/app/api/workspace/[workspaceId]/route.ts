@@ -28,7 +28,10 @@ export async function DELETE(
         if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
       }
     }
-    await store.deleteWorkspace(workspaceId, { authHeader, origin: url.origin });
+    await store.deleteWorkspace(workspaceId, {
+      authHeader,
+      origin: url.origin,
+    });
     return NextResponse.json({
       success: true,
       message: 'Workspace deleted successfully',
