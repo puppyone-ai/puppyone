@@ -388,7 +388,7 @@ async function syncBlockContentWithConsistentKey({
         node.id,
         versionId,
         oldManifest,
-        uploaded,
+        uploaded as any,
         userId
       );
     } else {
@@ -398,7 +398,7 @@ async function syncBlockContentWithConsistentKey({
           node.id,
           versionId,
           oldManifest,
-          uploaded,
+          uploaded as any,
           userId
         ),
         new Promise((_, reject) =>
