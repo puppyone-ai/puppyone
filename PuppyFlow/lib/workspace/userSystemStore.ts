@@ -1,23 +1,24 @@
 import { IWorkspaceStore, WorkspaceBasic } from './store';
+import { SERVER_ENV } from '@/lib/serverEnv';
 
 function authHeaders(authHeader?: string): HeadersInit {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (authHeader) headers['Authorization'] = authHeader;
+  if (SERVER_ENV.SERVICE_KEY) headers['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   return headers;
 }
 
 export class UserSystemWorkspaceStore implements IWorkspaceStore {
-  // Route through internal proxy; build absolute URL per request
-  private basePath = '/api/user-system';
+  private base = SERVER_ENV.USER_SYSTEM_BACKEND.replace(/\/$/, '');
 
   async listWorkspaces(
     userId: string,
     opts: { authHeader?: string; origin: string }
   ): Promise<WorkspaceBasic[]> {
     const url = new URL(
-      `${this.basePath}/get_user_workspaces/${userId}`,
+      `${this.base}/get_user_workspaces/${userId}`,
       opts.origin
     );
     const res = await fetch(url, {
@@ -36,7 +37,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     opts: { authHeader?: string; origin: string }
   ): Promise<WorkspaceBasic> {
     const url = new URL(
-      `${this.basePath}/create_workspace/${userId}`,
+      `${this.base}/create_workspace/${userId}`,
       opts.origin
     );
     const res = await fetch(url, {
@@ -58,7 +59,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     opts: { authHeader?: string; origin: string }
   ): Promise<void> {
     const url = new URL(
-      `${this.basePath}/delete_workspace/${workspaceId}`,
+      `${this.base}/delete_workspace/${workspaceId}`,
       opts.origin
     );
     const res = await fetch(url, {
@@ -75,7 +76,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     opts: { authHeader?: string; origin: string }
   ): Promise<WorkspaceBasic> {
     const url = new URL(
-      `${this.basePath}/update_workspace_name/${workspaceId}`,
+      `${this.base}/update_workspace_name/${workspaceId}`,
       opts.origin
     );
     const res = await fetch(url, {
@@ -97,7 +98,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     opts: { authHeader?: string; origin: string }
   ): Promise<any | null> {
     const url = new URL(
-      `${this.basePath}/get_latest_workspace_history/${workspaceId}`,
+      `${this.base}/get_latest_workspace_history/${workspaceId}`,
       opts.origin
     );
     const res = await fetch(url, {
@@ -117,7 +118,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     opts: { authHeader?: string; origin: string }
   ): Promise<void> {
     const url = new URL(
-      `${this.basePath}/add_workspace_history/${workspaceId}`,
+      `${this.base}/add_workspace_history/${workspaceId}`,
       opts.origin
     );
     const res = await fetch(url, {
