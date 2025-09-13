@@ -23,6 +23,7 @@ function getAuthHeaderFromRequest(request: Request): string | undefined {
 // 保存工作区数据
 export async function POST(request: Request) {
   try {
+    const url = new URL(request.url);
     const requestBody = await request.json();
     const { flowId, json, timestamp, workspaceName } = requestBody;
 
@@ -44,7 +45,7 @@ export async function POST(request: Request) {
       await store.addHistory(
         flowId,
         { history: json, timestamp },
-        authHeader ? { authHeader } : undefined
+        { authHeader, origin: url.origin }
       );
     } catch (e: any) {
       // 若后端返回404（工作区不存在），先尝试创建再重试一次保存
@@ -67,12 +68,12 @@ export async function POST(request: Request) {
           workspace_id: flowId,
           workspace_name: name,
         },
-        authHeader ? { authHeader } : undefined
+        { authHeader, origin: url.origin }
       );
       await store.addHistory(
         flowId,
         { history: json, timestamp },
-        authHeader ? { authHeader } : undefined
+        { authHeader, origin: url.origin }
       );
     }
     return NextResponse.json({ success: true }, { status: 200 });
@@ -94,6 +95,7 @@ export async function POST(request: Request) {
 // 获取工作区最新数据
 export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
     const { searchParams } = new URL(request.url);
     const flowId = searchParams.get('flowId');
     const timestamp = searchParams.get('timestamp');
@@ -106,10 +108,10 @@ export async function GET(request: Request) {
     }
     const store = getWorkspaceStore();
     const authHeader = getAuthHeaderFromRequest(request);
-    const data = await store.getLatestHistory(
-      flowId,
-      authHeader ? { authHeader } : undefined
-    );
+    const data = await store.getLatestHistory(flowId, {
+      authHeader,
+      origin: url.origin,
+    });
     return NextResponse.json({ data });
   } catch (error) {
     return NextResponse.json(
