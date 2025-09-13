@@ -11,6 +11,11 @@ on:
       - 'convergency'
       - 'main'
 
+# Ensure only one run per PR stays active; do not cancel other workflows
+concurrency:
+  group: build-pr-${{ github.event.pull_request.number || github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 # Define the jobs
 jobs:
   # Job ID, can be customized
