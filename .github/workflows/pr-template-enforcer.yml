@@ -1,0 +1,182 @@
+name: PR Template Enforcer
+
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to manually enforce'
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR body against expected template
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumberInput = core.getInput('pr_number');
+            let pr = context.payload.pull_request || null;
+            if (!pr && prNumberInput) {
+              const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: Number(prNumberInput) });
+              pr = data;
+            }
+            if (!pr) {
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            const body = pr.body || '';
+            const title = pr.title || '';
+            const head = pr.head.ref || '';
+            const isDraft = !!pr.draft;
+            const base = pr.base.ref || '';
+            // Define protected branches: update if your policy changes
+            const protectedBranches = ['main', 'qubits', 'convergency'];
+            const isHeadProtected = protectedBranches.includes(head);
+            // Enforce only when head (source) is non-protected
+            if (isHeadProtected) {
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            // Optional bypass by label
+            const { data: issue } = await github.rest.issues.get({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number });
+            const hasSkipLabel = (issue.labels || []).some(l => (typeof l === 'string' ? l : l.name) === 'template:skip');
+            if (hasSkipLabel) {
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            // Determine expected template type by branch prefix, with title override
+            const mapping = [
+              { re: /^feature\//i, type: 'feature' },
+              { re: /^fix\//i, type: 'bugfix' },
+              { re: /^perf\//i, type: 'perf' },
+              { re: /^(refactor|rfct)\//i, type: 'refactor' },
+              { re: /^ci\//i, type: 'ci' },
+              { re: /^docs\//i, type: 'docs' },
+              { re: /^temp\//i, type: 'feature' }, // default to feature; author can choose closest
+            ];
+            let expected = null;
+            for (const m of mapping) {
+              if (m.re.test(head)) { expected = m.type; break; }
+            }
+            const tl = title.toLowerCase();
+            const titlePrefix = [
+              { re: /^(feat|feature):/, type: 'feature' },
+              { re: /^fix:/, type: 'bugfix' },
+              { re: /^perf:/, type: 'perf' },
+              { re: /^refactor:/, type: 'refactor' },
+              { re: /^ci:/, type: 'ci' },
+              { re: /^docs:/, type: 'docs' },
+            ];
+            for (const p of titlePrefix) { if (p.re.test(tl)) expected = p.type; }
+
+            // If still unknown, skip enforcement
+            if (!expected) {
+              core.setOutput('skip', 'true');
+              return;
+            }
+
+            function hasHeading(h) {
+              const re = new RegExp(`^##\\s*${h.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')}\\s*$`, 'im');
+              return re.test(body);
+            }
+            function missing(list) { return (list || []).filter(h => !hasHeading(h)); }
+
+            const requiredByType = {
+              feature: ['Summary', 'Background & Motivation', 'Goals / Non-goals', 'Proposed Changes', 'UX / UI', 'Test Plan'],
+              bugfix: ['Issue Summary', 'Reproduction Steps', 'Root Cause Analysis', 'Fix Strategy', 'Verification', 'Risk & Mitigations'],
+              perf: ['Performance Problem Statement', 'Bottleneck Analysis', 'Optimization Strategy', 'Before/After Metrics', 'Risk & Guardrails', 'Test Plan'],
+              refactor: ['Motivation', 'Scope', 'Key Changes', 'Risk Assessment', 'Validation'],
+              ci: ['Change Summary', 'Motivation', 'Impact', 'Security & Permissions', 'Rollback Strategy', 'Validation'],
+              docs: ['Documentation Summary', 'Scope', 'Rationale', 'Accuracy & Consistency', 'Verification'],
+            };
+            const required = requiredByType[expected] || [];
+            const missingHeaders = missing(required);
+
+            core.setOutput('expected', expected);
+            core.setOutput('missing', JSON.stringify(missingHeaders));
+            core.setOutput('needs_changes', missingHeaders.length ? 'true' : 'false');
+            core.setOutput('is_draft', isDraft ? 'true' : 'false');
+
+      - name: Comment and request changes when missing
+        if: steps.check.outputs.needs_changes == 'true' && steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumberInput = core.getInput('pr_number');
+            let pr = context.payload.pull_request || null;
+            if (!pr && prNumberInput) {
+              const { data } = await github.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: Number(prNumberInput) });
+              pr = data;
+            }
+            if (!pr) return;
+            const expected = `${{ steps.check.outputs.expected }}`;
+            const missing = JSON.parse(`${{ steps.check.outputs.missing }}`);
+            const isDraft = `${{ steps.check.outputs.is_draft }}` === 'true';
+            const templateLink = `https://github.com/${context.repo.owner}/${context.repo.repo}/blob/qubits/.github/PULL_REQUEST_TEMPLATE/${expected}.md`;
+            const reviewBody = `<!-- PR_TEMPLATE_ENFORCER -->\nHi @${pr.user.login} — please update the PR description to follow the ${expected} template.\n\nTemplate: ${templateLink}\n\nMissing sections:\n${missing.map(h => `- ${h}`).join('\n')}\n\nOnce updated, please re-request review.`;
+
+            // Upsert guidance comment
+            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, per_page: 100 });
+            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('PR_TEMPLATE_ENFORCER'));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: reviewBody });
+            } else {
+              await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, body: reviewBody });
+            }
+
+            // Request changes even for bot-authored PRs; only skip if draft
+            if (!isDraft) {
+              const { data: reviews } = await github.rest.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
+              const existing = reviews.find(r => r.user.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+              if (!existing) {
+                await github.rest.pulls.createReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, event: 'REQUEST_CHANGES', body: reviewBody });
+              }
+            }
+
+      - name: Log missing sections to feedback hub
+        if: steps.check.outputs.needs_changes == 'true' && steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const type = `${{ steps.check.outputs.expected }}`;
+            const missing = JSON.parse(`${{ steps.check.outputs.missing }}`);
+
+            const hubTitle = 'Template Feedback Hub';
+            const { data: search } = await github.rest.search.issuesAndPullRequests({ q: `repo:${owner}/${repo} is:issue in:title "${hubTitle}" state:open`, per_page: 1 });
+            let hub = search.items && search.items[0];
+            if (!hub) {
+              const created = await github.rest.issues.create({ owner, repo, title: hubTitle, labels: ['template:feedback','docs'], body: 'Central log for template feedback and analytics.' });
+              hub = created.data;
+            }
+
+            const line = `<!-- PR_TEMPLATE_ENFORCER_LOG pr:${pr.number} --> PR #${pr.number} (${pr.head.ref}) missing for ${type}: ${missing.map(s => '\`'+s+'\`').join(', ')}`;
+            await github.rest.issues.createComment({ owner, repo, issue_number: hub.number, body: line });
+
+      - name: Acknowledge when complete
+        if: steps.check.outputs.needs_changes == 'false' && steps.check.outputs.skip != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            if (!pr) return;
+            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr.number, per_page: 100 });
+            const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('PR_TEMPLATE_ENFORCER'));
+            if (mine) {
+              await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
+            }

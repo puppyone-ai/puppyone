@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
-import { cookies } from 'next/headers';
+import { extractAuthHeader } from '@/lib/auth/http';
 import { getCurrentUserId } from '@/lib/auth/serverUser';
 
 export const runtime = 'nodejs';
 
 function getAuthHeaderFromRequest(request: Request): string | undefined {
-  let authHeader = request.headers.get('authorization') || undefined;
-  if (!authHeader) {
-    try {
-      const token = cookies().get('access_token')?.value;
-      if (token) authHeader = `Bearer ${token}`;
-    } catch {
-      const rawCookie = request.headers.get('cookie') || '';
-      const match = rawCookie.match(/(?:^|;\s*)access_token=([^;]+)/);
-      if (match) authHeader = `Bearer ${decodeURIComponent(match[1])}`;
-    }
-  }
-  return authHeader;
+  return extractAuthHeader(request);
 }
 
 // 保存工作区数据

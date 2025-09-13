@@ -64,6 +64,8 @@ class ManifestPoller {
                   resource_key: this.resource_key,
                   content_type: this.content_type,
                 },
+                // 记录语义类型，供渲染层选择视图
+                semantic_type: this.content_type,
               },
             }
           : node
@@ -113,6 +115,7 @@ class ManifestPoller {
                     parsedRecords: this.parsedRecords.length,
                     parseErrors: this.parseErrors,
                   },
+                  semantic_type: this.content_type,
                 },
               }
             : node
@@ -170,6 +173,7 @@ class ManifestPoller {
                     parsedRecords: this.parsedRecords.length,
                     parseErrors: this.parseErrors,
                   },
+                  semantic_type: this.content_type,
                 },
               }
             : node

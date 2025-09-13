@@ -16,6 +16,11 @@ concurrency:
   group: build-pr-${{ github.event.pull_request.number || github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+# Avoid duplicate runs for push and PR on the same branch
+concurrency:
+  group: build-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 # Define the jobs
 jobs:
   # Job ID, can be customized

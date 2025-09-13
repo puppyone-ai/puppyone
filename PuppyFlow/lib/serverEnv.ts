@@ -62,4 +62,7 @@ export const SERVER_ENV = {
     const server = process.env.API_SERVER_URL || 'http://localhost:8004';
     return normalizeUrlBase(server as string);
   })(),
+  // Auth cookie configuration from User System
+  AUTH_COOKIE_NAME: (process.env.AUTH_COOKIE_NAME || 'access_token').trim(),
+  AUTH_COOKIE_PATH: (process.env.AUTH_COOKIE_PATH || '/').trim(),
 };

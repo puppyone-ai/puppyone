@@ -186,10 +186,6 @@ async function createNewTargetNode(
     },
     width: 240,
     height: 176,
-    measured: {
-      width: 240,
-      height: 176,
-    },
     type: targetNodeType,
   };
 

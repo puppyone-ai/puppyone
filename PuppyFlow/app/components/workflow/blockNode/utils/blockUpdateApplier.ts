@@ -116,6 +116,8 @@ export function applyBlockUpdate(
               isLoading: false,
               isWaitingForFlow: false,
               isExternalStorage: false,
+              // 将后端的语义类型记录在前端，供渲染层使用
+              semantic_type: contentType,
             },
           }
         : node

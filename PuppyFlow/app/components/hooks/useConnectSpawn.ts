@@ -35,6 +35,7 @@ export default function useConnectSpawn() {
           sourceNode.position.x + (sourceNode as any).measured.width / 2;
         const centerY =
           sourceNode.position.y + (sourceNode as any).measured.height / 2;
+
         const dx = point.x - centerX;
         const dy = point.y - centerY;
 
@@ -106,7 +107,8 @@ export default function useConnectSpawn() {
             isOutput: false,
             editable: false,
           },
-          measured: { width: 240, height: 176 },
+          width: 240,
+          height: 176,
         } as any;
 
         setNodes(prev => prev.concat(newTextNode));
@@ -180,10 +182,10 @@ export default function useConnectSpawn() {
       const target = getNode(targetId);
       if (!source || !target) return false;
 
-      const sW = (source as any).measured?.width ?? 240;
-      const sH = (source as any).measured?.height ?? 176;
-      const tW = (target as any).measured?.width ?? 240;
-      const tH = (target as any).measured?.height ?? 176;
+      const sW = (source as any).width ?? 240;
+      const sH = (source as any).height ?? 176;
+      const tW = (target as any).width ?? 240;
+      const tH = (target as any).height ?? 176;
 
       const sCX = source.position.x + sW / 2;
       const sCY = source.position.y + sH / 2;

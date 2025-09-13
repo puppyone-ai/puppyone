@@ -15,12 +15,11 @@ const BANNED_FORWARD_HEADERS = new Set<string>([
 ]);
 
 export function getAuthCookieName(): string {
-  // Fallback to legacy name if not configured
-  return (SERVER_ENV as any).AUTH_COOKIE_NAME || 'access_token';
+  return SERVER_ENV.AUTH_COOKIE_NAME;
 }
 
 export function getAuthCookiePath(): string {
-  return (SERVER_ENV as any).AUTH_COOKIE_PATH || '/';
+  return SERVER_ENV.AUTH_COOKIE_PATH || '/';
 }
 
 function buildCookieMatchRegex(name: string): RegExp {
@@ -32,12 +31,12 @@ export function extractAuthHeader(request: Request): string | undefined {
   let authHeader = request.headers.get('authorization') || undefined;
   if (authHeader) return authHeader;
 
-  // Try HttpOnly cookie first via next/headers
+  // Try HttpOnly cookie
   try {
     const token = cookies().get(getAuthCookieName())?.value;
     if (token) return `Bearer ${token}`;
   } catch {
-    // ignore, fallback to raw cookie parsing below
+    // ignore, fallback to raw header parsing
   }
 
   const rawCookie = request.headers.get('cookie') || '';
@@ -73,8 +72,8 @@ export function filterRequestHeadersAndInjectAuth(
     }
   }
 
-  if (options?.includeServiceKey && (SERVER_ENV as any).SERVICE_KEY) {
-    newHeaders['x-service-key'] = (SERVER_ENV as any).SERVICE_KEY;
+  if (options?.includeServiceKey && SERVER_ENV.SERVICE_KEY) {
+    newHeaders['x-service-key'] = SERVER_ENV.SERVICE_KEY;
   }
 
   return newHeaders;

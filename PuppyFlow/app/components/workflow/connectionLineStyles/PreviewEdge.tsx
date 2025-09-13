@@ -54,30 +54,32 @@ export default function CustomConnectionLine({
   const sourceNode = sourceNodeId ? getNode(sourceNodeId) : undefined;
   if (
     sourceNode &&
-    (sourceNode as any).measured?.width &&
-    (sourceNode as any).measured?.height
+    typeof (sourceNode as any).width === 'number' &&
+    typeof (sourceNode as any).height === 'number'
   ) {
-    const measured = (sourceNode as any).measured;
-    const centerX = sourceNode.position.x + measured.width / 2;
-    const centerY = sourceNode.position.y + measured.height / 2;
+    const centerX = sourceNode.position.x + (sourceNode as any).width / 2;
+    const centerY = sourceNode.position.y + (sourceNode as any).height / 2;
     const dx = toX - centerX;
     const dy = toY - centerY;
 
     if (Math.abs(dx) > Math.abs(dy)) {
       sourcePos = dx >= 0 ? Position.Right : Position.Left;
       targetPos = dx >= 0 ? Position.Left : Position.Right;
+
       virtualSourceX =
         dx >= 0
-          ? sourceNode.position.x + measured.width + 8
+          ? sourceNode.position.x + (sourceNode as any).width + 8
           : sourceNode.position.x - 8;
+
       virtualSourceY = centerY;
     } else {
       sourcePos = dy >= 0 ? Position.Bottom : Position.Top;
       targetPos = dy >= 0 ? Position.Top : Position.Bottom;
       virtualSourceX = centerX;
+
       virtualSourceY =
         dy >= 0
-          ? sourceNode.position.y + measured.height + 8
+          ? sourceNode.position.y + (sourceNode as any).height + 8
           : sourceNode.position.y - 8;
     }
   } else {
