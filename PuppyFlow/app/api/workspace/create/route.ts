@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
 import { getCurrentUserId } from '@/lib/auth/serverUser';
+import { extractAuthHeader } from '@/lib/auth/http';
 
 export async function POST(request: Request) {
   try {
@@ -14,12 +15,21 @@ export async function POST(request: Request) {
       );
     }
     const store = getWorkspaceStore();
-    const created = await store.createWorkspace(userId, {
-      workspace_id,
-      workspace_name,
-    });
+    const authHeader = extractAuthHeader(request);
+    const created = await store.createWorkspace(
+      userId,
+      {
+        workspace_id,
+        workspace_name,
+      },
+      { authHeader }
+    );
     return NextResponse.json(created, { status: 200 });
   } catch (error) {
+    console.error('[API:/api/workspace/create] Failed:', {
+      message: (error as any)?.message,
+      stack: (error as any)?.stack,
+    });
     return NextResponse.json(
       { error: 'Failed to create workspace' },
       { status: 500 }

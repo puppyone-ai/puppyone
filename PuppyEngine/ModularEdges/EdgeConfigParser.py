@@ -253,6 +253,27 @@ class LLMConfigParser(EdgeConfigParser):
             } for message in chat_histories]
         } for variable in variables]
 
+        # Normalize message contents to strings to satisfy LLM API schemas.
+        # If a placeholder was the entire message and mapped to a structured object
+        # (list/dict), replace_placeholders returns that object. The downstream
+        # chat completions require strings, so we serialize non-strings here.
+        import json
+        for cfg in init_configs:
+            msgs = cfg.get(variable_replace_field, [])
+            for m in msgs:
+                if not isinstance(m.get("content"), str):
+                    try:
+                        m["content"] = json.dumps(m.get("content"), ensure_ascii=False)
+                    except Exception:
+                        m["content"] = str(m.get("content"))
+            histories = cfg.get("chat_histories", [])
+            for m in histories:
+                if not isinstance(m.get("content"), str):
+                    try:
+                        m["content"] = json.dumps(m.get("content"), ensure_ascii=False)
+                    except Exception:
+                        m["content"] = str(m.get("content"))
+
         is_loop = len(variables) > 1
         if is_loop:
             extra_configs = [{}] * len(variables)

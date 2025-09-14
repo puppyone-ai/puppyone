@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
+import { extractAuthHeader } from '@/lib/auth/http';
 
 export async function PUT(
   request: Request,
@@ -16,7 +17,12 @@ export async function PUT(
       );
     }
     const store = getWorkspaceStore();
-    const updated = await store.renameWorkspace(workspaceId, newName);
+    const authHeader = extractAuthHeader(request);
+    const updated = await store.renameWorkspace(
+      workspaceId,
+      newName,
+      authHeader ? { authHeader } : undefined
+    );
     return NextResponse.json({
       msg: 'Workspace name updated',
       workspace_id: updated.workspace_id,

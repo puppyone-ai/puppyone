@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
+import { extractAuthHeader } from '@/lib/auth/http';
 
 // 删除工作区
 export async function DELETE(
@@ -15,7 +16,11 @@ export async function DELETE(
       );
     }
     const store = getWorkspaceStore();
-    await store.deleteWorkspace(workspaceId);
+    const authHeader = extractAuthHeader(request);
+    await store.deleteWorkspace(
+      workspaceId,
+      authHeader ? { authHeader } : undefined
+    );
     return NextResponse.json({
       success: true,
       message: 'Workspace deleted successfully',

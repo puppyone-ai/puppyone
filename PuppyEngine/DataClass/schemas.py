@@ -285,7 +285,8 @@ def normalize_workflow_payload(raw_workflow: Dict[str, Any]) -> Dict[str, Any]:
             raise ValueError(f"Block {bid} must be an object")
         b = dict(b)
         b.setdefault("label", bid)
-        b.setdefault("storage_class", "external")
+        # Authoritative switch: default to internal unless explicitly external
+        b.setdefault("storage_class", "internal")
         b.setdefault("data", {})
         normalized_blocks[bid] = b
 
