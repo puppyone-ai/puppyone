@@ -8,6 +8,7 @@ import AdvancedPathEditor from '../../components/TreePathEditorMini';
 import { useDataPathProcessor } from '../hooks/useDataPathProcessor';
 import { useAppSettings } from '../../../states/AppSettingsContext';
 import { PuppyDropdown } from '../../../misc/PuppyDropDown';
+import NodeIndexingManagement from './NodeIndexingManagement';
 
 // 在文件顶部添加 PathSegment 接口定义
 interface PathSegment {
@@ -61,9 +62,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
 }) => {
   // 子页面状态控制
   const [showSubPage, setShowSubPage] = useState(false);
-  const [indexType, setIndexType] = useState<'default' | 'vector' | 'graph'>(
-    'default'
-  );
+  const [indexType, setIndexType] = useState<'default' | 'vector'>('default');
   const [indexName, setIndexName] = useState('');
 
   // 新的路径状态 - 使用扁平数组
@@ -163,17 +162,30 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
     setValuePath([]);
   };
 
-  // 处理添加索引按钮点击
-  const handleAddIndexClick = (e: React.MouseEvent) => {
+  // 处理添加索引按钮点击（支持不同类型）
+  const handleAddIndexClick = (
+    e: React.MouseEvent,
+    optionType?: 'vector' | 'create' | 'update'
+  ) => {
     e.stopPropagation();
-    setShowSubPage(true);
-    setIndexType('vector'); // 默认选择vector类型
-    setIndexName('');
+    if (optionType === 'vector') {
+      setShowSubPage(true);
+      setIndexType('vector');
+      setIndexName('');
+      setTimeout(() => {
+        initializeDefaultPaths();
+      }, 100);
+      return;
+    }
 
-    // 调用初始化函数
-    setTimeout(() => {
-      initializeDefaultPaths();
-    }, 100);
+    if (optionType === 'create' || optionType === 'update' || !optionType) {
+      const newItem: OtherIndexingItem = {
+        type: 'other',
+      };
+      onAddIndex(newItem);
+      onClose();
+      return;
+    }
   };
 
   // 处理返回主页面
@@ -271,309 +283,16 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
       leaveTo='transform opacity-0 translate-y-[-10px]'
     >
       <div
-        className={`${!showSubPage ? ' w-[360px]' : ' w-[420px]'} p-[8px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] shadow-lg shadow-black/20 z-[20000] flex flex-col gap-3`}
+        className={`${!showSubPage ? ' w-[380px]' : ' w-[520px]'} p-[12px] bg-[#252525] border-[1px] border-[#404040] rounded-[8px] shadow-lg shadow-black/20 z-[20000] flex flex-col gap-3`}
       >
         {/* 主页面 */}
         {!showSubPage ? (
-          <>
-            <div className='flex items-center justify-between h-[32px] pl-[8px]  border-b border-[#6D7177]/30'>
-              <span className='text-[12px] font-medium text-[#9B9B9B]'>
-                Index Management
-              </span>
-              <button
-                onClick={onClose}
-                className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#CDCDCD] rounded-full hover:bg-[#3A3A3A] transition-colors'
-              >
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                >
-                  <path
-                    d='M18 6L6 18M6 6l12 12'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <div className='flex flex-col gap-3'>
-              {indexingList.length === 0 ? (
-                <div className='flex flex-col items-center gap-3 py-6 px-3'>
-                  <p className='text-[12px] text-[#9B9B9B] text-center mb-[4px]'>
-                    Add an index to organize and retrieve content
-                  </p>
-                  <button
-                    onClick={handleAddIndexClick}
-                    className='w-full h-[36px] flex items-center justify-center gap-2 rounded-[6px] 
-                                        bg-[#39BC66] hover:bg-[#45D277] text-white text-[13px] font-medium 
-                                        transition-colors'
-                  >
-                    <svg
-                      width='12'
-                      height='12'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='currentColor'
-                    >
-                      <path
-                        d='M12 5v14M5 12h14'
-                        strokeWidth='2'
-                        strokeLinecap='round'
-                      />
-                    </svg>
-                    Add New Index
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className='mb-1 flex justify-between items-center'>
-                    <span className='text-[12px] text-[#9B9B9B]'>
-                      {indexingList.length}{' '}
-                      {indexingList.length === 1 ? 'index' : 'indices'}
-                    </span>
-                    <button
-                      onClick={handleAddIndexClick}
-                      className='px-2 h-[28px] flex items-center gap-1.5 rounded-[6px] 
-                                                bg-[#39BC66] hover:bg-[#45D277] text-white text-[12px] 
-                                                 transition-colors'
-                    >
-                      <svg
-                        width='10'
-                        height='10'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                      >
-                        <path
-                          d='M12 5v14M5 12h14'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
-                      Add Index
-                    </button>
-                  </div>
-
-                  <div className='overflow-auto max-h-[420px] pr-1 -mr-1'>
-                    {indexingList.map((item, index) => (
-                      <div
-                        key={index}
-                        className='relative group mb-3 last:mb-0 bg-[#1E1E1E] rounded-[6px] overflow-hidden hover:bg-[#1E1E1E]/90 transition-colors'
-                      >
-                        <div className='flex items-center gap-2 p-2'>
-                          {/* 左侧状态指示条，根据状态改变颜色 */}
-                          <div
-                            className={`w-[4px] h-[calc(100%-12px)] absolute left-2 top-[6px] rounded-sm 
-                                                        ${
-                                                          (
-                                                            item as VectorIndexingItem
-                                                          ).status === 'error'
-                                                            ? 'bg-[#E53935]'
-                                                            : (
-                                                                  item as VectorIndexingItem
-                                                                ).status ===
-                                                                'processing'
-                                                              ? 'bg-[#FFC107]'
-                                                              : (
-                                                                    item as VectorIndexingItem
-                                                                  ).status ===
-                                                                  'deleting'
-                                                                ? 'bg-[#FF9800]'
-                                                                : (
-                                                                      item as VectorIndexingItem
-                                                                    ).status ===
-                                                                    'done'
-                                                                  ? 'bg-[#39BC66]'
-                                                                  : 'bg-[#39BC66]'
-                                                        }`}
-                          ></div>
-
-                          <div className='flex-1 pl-4'>
-                            <div className='flex items-center'>
-                              <div
-                                className={`text-[10px] font-medium max-w-[140px] truncate
-                                                                ${
-                                                                  item.type ===
-                                                                    'vector' &&
-                                                                  (
-                                                                    item as VectorIndexingItem
-                                                                  ).status ===
-                                                                    'error'
-                                                                    ? 'text-[#E53935]'
-                                                                    : item.type ===
-                                                                          'vector' &&
-                                                                        (
-                                                                          item as VectorIndexingItem
-                                                                        )
-                                                                          .status ===
-                                                                          'processing'
-                                                                      ? 'text-[#FFC107]'
-                                                                      : 'text-[#39BC66]'
-                                                                }`}
-                              >
-                                {(item as VectorIndexingItem).index_name}
-                              </div>
-
-                              {/* 状态指示器标签 - 使用图标+文字的组合呈现 */}
-                              {(item as VectorIndexingItem).status !==
-                                'notStarted' && (
-                                <div
-                                  className={`ml-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium
-                                                                    ${
-                                                                      (
-                                                                        item as VectorIndexingItem
-                                                                      )
-                                                                        .status ===
-                                                                      'processing'
-                                                                        ? 'bg-[#FFC107]/10 text-[#FFC107]'
-                                                                        : (
-                                                                              item as VectorIndexingItem
-                                                                            )
-                                                                              .status ===
-                                                                            'deleting'
-                                                                          ? 'bg-[#FF9800]/10 text-[#FF9800]'
-                                                                          : (
-                                                                                item as VectorIndexingItem
-                                                                              )
-                                                                                .status ===
-                                                                              'error'
-                                                                            ? 'bg-[#E53935]/10 text-[#E53935]'
-                                                                            : 'bg-[#39BC66]/10 text-[#39BC66]'
-                                                                    }`}
-                                >
-                                  {/* 状态图标 */}
-                                  {(item as VectorIndexingItem).status ===
-                                    'processing' && (
-                                    <svg
-                                      width='8'
-                                      height='8'
-                                      viewBox='0 0 24 24'
-                                      fill='none'
-                                      stroke='currentColor'
-                                      className='animate-spin'
-                                      style={{ animationDuration: '1.5s' }}
-                                    >
-                                      <path
-                                        d='M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83'
-                                        strokeWidth='3'
-                                        strokeLinecap='round'
-                                      />
-                                    </svg>
-                                  )}
-                                  {(item as VectorIndexingItem).status ===
-                                    'deleting' && (
-                                    <svg
-                                      width='8'
-                                      height='8'
-                                      viewBox='0 0 24 24'
-                                      fill='none'
-                                      stroke='currentColor'
-                                      className='animate-spin'
-                                      style={{ animationDuration: '1.5s' }}
-                                    >
-                                      <path
-                                        d='M18 6L6 18M6 6l12 12'
-                                        strokeWidth='3'
-                                        strokeLinecap='round'
-                                        strokeLinejoin='round'
-                                      />
-                                    </svg>
-                                  )}
-                                  {(item as VectorIndexingItem).status ===
-                                    'error' && (
-                                    <svg
-                                      width='8'
-                                      height='8'
-                                      viewBox='0 0 24 24'
-                                      fill='none'
-                                      stroke='currentColor'
-                                    >
-                                      <path
-                                        d='M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
-                                        strokeWidth='2'
-                                        strokeLinecap='round'
-                                      />
-                                    </svg>
-                                  )}
-                                  {(item as VectorIndexingItem).status ===
-                                    'done' && (
-                                    <svg
-                                      width='8'
-                                      height='8'
-                                      viewBox='0 0 24 24'
-                                      fill='none'
-                                      stroke='currentColor'
-                                    >
-                                      <path
-                                        d='M5 13l4 4L19 7'
-                                        strokeWidth='3'
-                                        strokeLinecap='round'
-                                        strokeLinejoin='round'
-                                      />
-                                    </svg>
-                                  )}
-
-                                  {/* 状态文本 */}
-                                  <span>
-                                    {(item as VectorIndexingItem).status ===
-                                      'processing' && 'Processing'}
-                                    {(item as VectorIndexingItem).status ===
-                                      'deleting' && 'Deleting'}
-                                    {(item as VectorIndexingItem).status ===
-                                      'error' && 'Error'}
-                                    {(item as VectorIndexingItem).status ===
-                                      'done' && 'Complete'}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className='flex items-center'>
-                            {/* 类型标签 - 使用更简洁、不那么突兀的设计 */}
-                            <div
-                              className={`h-[18px] flex items-center px-2 rounded-[4px] mr-2
-                                                            bg-[#1A1A1A] border border-[#505050]/30`}
-                            >
-                              <div className='text-[9px] font-medium text-[#CDCDCD]'>
-                                {item.type}
-                              </div>
-                            </div>
-
-                            <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                onRemoveIndex(index);
-                              }}
-                              className='p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors rounded-full hover:bg-[#252525]'
-                            >
-                              <svg
-                                width='14'
-                                height='14'
-                                viewBox='0 0 24 24'
-                                fill='none'
-                                stroke='currentColor'
-                              >
-                                <path
-                                  d='M18 6L6 18M6 6l12 12'
-                                  strokeWidth='2'
-                                  strokeLinecap='round'
-                                />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </>
+          <NodeIndexingManagement
+            indexingList={indexingList}
+            onClose={onClose}
+            onAddIndexClick={handleAddIndexClick}
+            onRemoveIndex={onRemoveIndex}
+          />
         ) : (
           /* 子页面：添加新索引 */
           <>
@@ -937,7 +656,7 @@ const IndexingMenu: React.FC<IndexingMenuProps> = ({
                     strokeLinejoin='round'
                   />
                 </svg>
-                Create Index
+                Create Interaction
               </button>
             </div>
           </>

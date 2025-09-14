@@ -32,7 +32,7 @@ import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
 import JSONForm from '../../tableComponent/JSONForm';
 
-import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu';
+import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingAddMenu';
 import useIndexingUtils from './hooks/useIndexingUtils';
 import NodeSettingsController from './JsonNodeTopSettingBar/NodeSettingsButton';
 import NodeIndexingButton from './JsonNodeTopSettingBar/NodeIndexingButton';

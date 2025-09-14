@@ -1207,7 +1207,7 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({
     >
       <div
         ref={menuRef}
-        className='bg-[#181818] text-[#CDCDCD] border-[2px] border-[#3E3E41] rounded-[16px] pl-[8px] pr-[8px] pt-[8px] pb-[8px] shadow-lg text-sm overflow-visible outline-none menu-container'
+        className='bg-[#181818] text-[#CDCDCD] border-[2px] border-[#3E3E41] rounded-[16px] pl-[8px] pr-[1px] pt-[8px] pb-[8px] shadow-lg text-sm overflow-visible outline-none menu-container'
         style={{ width: menuDims.width }}
         onWheelCapture={e => {
           e.stopPropagation();
