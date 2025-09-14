@@ -174,7 +174,10 @@ const SearchGoogle: React.FC<SearchConfigNodeProps> = React.memo(
         }
         const rect = anchorEl.getBoundingClientRect();
         const menuWidth = 320; // matches w-[320px]
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
         const top = rect.bottom + GAP;
 
         container.style.position = 'fixed';
@@ -427,7 +430,10 @@ const SearchGoogle: React.FC<SearchConfigNodeProps> = React.memo(
         </button>
 
         {/* Invisible fixed-position anchor to tether the portal menu to this node */}
-        <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
         {/* Configuration Menu */}
         {isMenuOpen &&
@@ -447,123 +453,128 @@ const SearchGoogle: React.FC<SearchConfigNodeProps> = React.memo(
                 onTouchMoveCapture={e => e.stopPropagation()}
                 onTouchMove={e => e.stopPropagation()}
               >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <FontAwesomeIcon
-                      icon={faGoogle}
-                      className='text-main-grey w-[14px] h-[14px]'
-                    />
-                  </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Google
-                  </div>
-                </div>
-              </div>
-              <div className='w-[57px] h-[26px]'>
-                <button
-                  className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={isLoading ? onStopExecution : onDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns='http://www.w3.org/2000/svg'
-                        width='8'
-                        height='10'
-                        viewBox='0 0 8 10'
-                        fill='none'
-                      >
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
-
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text']}
-                supportedOutputTypes={['structured']}
-                inputNodeCategory='blocknode'
-                outputNodeCategory='blocknode'
-              />
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Settings
-                </label>
-                <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className='ml-auto text-[12px] font-medium text-[#6D7177] hover:text-[#CDCDCD] transition-colors flex items-center gap-1'
-                >
-                  {showSettings ? 'Hide' : 'Show'}
-                  <svg
-                    className={`w-4 h-4 transition-transform duration-200 ${showSettings ? 'rotate-180' : ''}`}
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      fill='none'
-                      stroke='currentColor'
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth='2'
-                      d='M19 9l-7 7-7-7'
-                    />
-                  </svg>
-                </button>
-              </div>
-              {showSettings && (
-                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                  <div className='flex flex-col gap-2'>
-                    <div className='flex items-center gap-2'>
-                      <label className='text-[12px] font-medium text-[#6D7177]'>
-                        Result Number
-                      </label>
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                        <FontAwesomeIcon
+                          icon={faGoogle}
+                          className='text-main-grey w-[14px] h-[14px]'
+                        />
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Google
+                      </div>
                     </div>
-                    <input
-                      ref={topkRef}
-                      value={top_k}
-                      onChange={() => {
-                        if (topkRef.current) {
-                          setTop_k(
-                            topkRef.current.value === ''
-                              ? undefined
-                              : Number(topkRef.current.value)
-                          );
-                        }
+                  </div>
+                  <div className='w-[57px] h-[26px]'>
+                    <button
+                      className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
                       }}
-                      type='number'
-                      className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
+                      onClick={isLoading ? onStopExecution : onDataSubmit}
+                      disabled={false}
+                    >
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
+                    </button>
+                  </div>
+                </li>
+
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text']}
+                    supportedOutputTypes={['structured']}
+                    inputNodeCategory='blocknode'
+                    outputNodeCategory='blocknode'
+                  />
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Settings
+                    </label>
+                    <div className='w-2 h-2 rounded-full bg-[#6D7177]'></div>
+                    <button
+                      onClick={() => setShowSettings(!showSettings)}
+                      className='ml-auto text-[12px] font-medium text-[#6D7177] hover:text-[#CDCDCD] transition-colors flex items-center gap-1'
+                    >
+                      {showSettings ? 'Hide' : 'Show'}
+                      <svg
+                        className={`w-4 h-4 transition-transform duration-200 ${showSettings ? 'rotate-180' : ''}`}
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          fill='none'
+                          stroke='currentColor'
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth='2'
+                          d='M19 9l-7 7-7-7'
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  {showSettings && (
+                    <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                      <div className='flex flex-col gap-2'>
+                        <div className='flex items-center gap-2'>
+                          <label className='text-[12px] font-medium text-[#6D7177]'>
+                            Result Number
+                          </label>
+                        </div>
+                        <input
+                          ref={topkRef}
+                          value={top_k}
+                          onChange={() => {
+                            if (topkRef.current) {
+                              setTop_k(
+                                topkRef.current.value === ''
+                                  ? undefined
+                                  : Number(topkRef.current.value)
+                              );
+                            }
+                          }}
+                          type='number'
+                          className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 
                                             text-[#CDCDCD] text-[12px] font-medium appearance-none cursor-pointer 
                                             hover:border-[#6D7177]/50 transition-colors'
-                      autoComplete='off'
-                      required
-                      onMouseDownCapture={onFocus}
-                      onBlur={onBlur}
-                    />
-                  </div>
-                </div>
-              )}
-            </li>
+                          autoComplete='off'
+                          required
+                          onMouseDownCapture={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </li>
               </ul>
             </div>,
             document.body

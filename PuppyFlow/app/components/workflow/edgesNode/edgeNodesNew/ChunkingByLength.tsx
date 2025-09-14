@@ -45,7 +45,7 @@ function ChunkingByLength({
   } = useNodesPerFlowContext();
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false);
   const { getNode, getInternalNode, setNodes, setEdges } = useReactFlow();
-  const [isMenuOpen, setIsMenuOpen] = useState(true); 
+  const [isMenuOpen, setIsMenuOpen] = useState(true);
   const [isHovered, setIsHovered] = useState(false);
   const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -189,7 +189,10 @@ function ChunkingByLength({
       }
       const rect = anchorEl.getBoundingClientRect();
       const menuWidth = 320;
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
       const top = rect.bottom + GAP;
 
       container.style.position = 'fixed';
@@ -398,8 +401,15 @@ function ChunkingByLength({
                         fill='none'
                         viewBox='0 0 16 10'
                       >
-                        <path stroke='#CDCDCD' d='m10 3 2 2-2 2M6 3 4 5l2 2M4 5h7.5' />
-                        <path stroke='#CDCDCD' strokeWidth='1.5' d='M1 10V0m14 10V0' />
+                        <path
+                          stroke='#CDCDCD'
+                          d='m10 3 2 2-2 2M6 3 4 5l2 2M4 5h7.5'
+                        />
+                        <path
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                          d='M1 10V0m14 10V0'
+                        />
                       </svg>
                     </div>
                     <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -415,12 +425,32 @@ function ChunkingByLength({
                   >
                     <span>
                       {isLoading ? (
-                        <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                          <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4'></circle>
-                          <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'></path>
+                        <svg
+                          className='animate-spin h-4 w-4'
+                          viewBox='0 0 24 24'
+                        >
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
                         </svg>
                       ) : (
-                        <svg xmlns='http://www.w3.org/2000/svg' width='8' height='10' viewBox='0 0 8 10' fill='none'>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='8'
+                          height='10'
+                          viewBox='0 0 8 10'
+                          fill='none'
+                        >
                           <path d='M8 5L0 10V0L8 5Z' fill='black' />
                         </svg>
                       )}
@@ -463,7 +493,9 @@ function ChunkingByLength({
                     menuBgColor='#1A1A1A'
                     listWidth='100%'
                     containerClassnames='w-full'
-                    mapValueTodisplay={(v: string) => (v === 'size' ? 'by size' : v)}
+                    mapValueTodisplay={(v: string) =>
+                      v === 'size' ? 'by size' : v
+                    }
                   />
                 </div>
               </li>
@@ -481,8 +513,18 @@ function ChunkingByLength({
                     className='text-[12px] text-[#6D7177] hover:text-[#39BC66] transition-colors flex items-center gap-1'
                   >
                     {showSettings ? 'Hide' : 'Show'}
-                    <svg className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`} fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                      <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M19 9l-7 7-7-7' />
+                    <svg
+                      className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`}
+                      fill='none'
+                      viewBox='0 0 24 24'
+                      stroke='currentColor'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M19 9l-7 7-7-7'
+                      />
                     </svg>
                   </button>
                 </div>
@@ -497,7 +539,9 @@ function ChunkingByLength({
                         value={chunkSize}
                         onChange={e =>
                           setChunkSize(
-                            e.target.value === '' ? undefined : Number(e.target.value)
+                            e.target.value === ''
+                              ? undefined
+                              : Number(e.target.value)
                           )
                         }
                         type='number'
@@ -505,12 +549,16 @@ function ChunkingByLength({
                       />
                     </div>
                     <div className='flex flex-col gap-1'>
-                      <label className='text-[12px] text-[#6D7177]'>Overlap</label>
+                      <label className='text-[12px] text-[#6D7177]'>
+                        Overlap
+                      </label>
                       <input
                         value={overlap}
                         onChange={e =>
                           setOverlap(
-                            e.target.value === '' ? undefined : Number(e.target.value)
+                            e.target.value === ''
+                              ? undefined
+                              : Number(e.target.value)
                           )
                         }
                         type='number'
@@ -523,7 +571,9 @@ function ChunkingByLength({
                       </label>
                       <select
                         value={handleHalfWord ? 'True' : 'False'}
-                        onChange={e => setHandleHalfWord(e.target.value === 'True')}
+                        onChange={e =>
+                          setHandleHalfWord(e.target.value === 'True')
+                        }
                         className='w-full h-[32px] px-3 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 text-[12px] text-[#CDCDCD] appearance-none cursor-pointer hover:border-[#6D7177]/50 transition-colors'
                       >
                         <option value='True'>True</option>
