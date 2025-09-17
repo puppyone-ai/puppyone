@@ -20,7 +20,7 @@ export type ChunkingConfigNodeData = {
   sub_chunking_mode: 'size' | 'tokenizer' | undefined;
   content: string | null;
   extra_configs: {
-    model: 'gpt-4o' | 'gpt-4-turbo' | 'gpt-4o-mini' | undefined;
+    model: 'openai/gpt-5' | undefined;
     chunk_size: number | undefined;
     overlap: number | undefined;
     handle_half_word: boolean | undefined;
