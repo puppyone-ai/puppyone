@@ -66,13 +66,15 @@ def _normalize_structured(block_like: Any, content: Any) -> Any:
     if _is_list_of_strings(content):
         content = _parse_list_elements_when_possible(content)
 
-    # 3) Preserve list semantics even for single-element lists.
-    # Historically we unwrapped non-loop, single-element lists here, but that
-    # breaks structured operations like `get` with path indices (e.g., [0]).
-    # Keeping the list intact ensures downstream edges (edit_structured) can
-    # index into the list reliably regardless of length.
-    # If unwrapping behavior is desired for other edges, it should be handled
-    # explicitly in those parsers rather than at normalization time.
+    # 3) Non-loop, single-element list -> unwrap to unit
+    is_looped = False
+    try:
+        is_looped = bool(getattr(block_like, "data", {}).get("looped", False))
+    except Exception:
+        is_looped = False
+
+    if not is_looped and isinstance(content, list) and len(content) == 1:
+        return content[0]
 
     return content
 
