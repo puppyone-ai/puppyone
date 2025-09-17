@@ -25,13 +25,13 @@
   </a>
   &nbsp;
   <a href="mailto:guantum@puppyagent.com">
-    <img src="https://img.shields.io/badge/Support-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
+    <img src="https://img.shields.io/badge/FounderSupport-guantum@puppyagent.com-F44336?style=flat&logo=gmail&logoColor=white" alt="Support" height="22" />
   </a>
 </p>
 
-<p align="center">Automate your knowledge bases with agents</p>
+<p align="center"> The new base for your agent</p>
 
-<p align="center"><b>License and acceptable use</b>: Personal or internal single-tenant use is permitted under the PuppyAgent Sustainable Use License (SUL). Managed/hosted multi-tenant services to third parties, paid redistribution, and use of PuppyAgent trademarks/logos are not granted. For commercial or multi-tenant use, contact guantum@puppyagent.com. See LICENSE.</p>
+
 
 ## What is PuppyAgent
 

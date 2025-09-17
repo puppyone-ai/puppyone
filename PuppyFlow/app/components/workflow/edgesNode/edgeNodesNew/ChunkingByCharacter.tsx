@@ -7,6 +7,7 @@ import React, {
   useMemo,
   memo,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useReactFlow } from '@xyflow/react';
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext';
 import InputOutputDisplay from './components/InputOutputDisplay';
@@ -53,6 +54,8 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
+    const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+    const menuContainerRef = useRef<HTMLDivElement | null>(null);
     const newDelimiterRef = useRef<HTMLInputElement>(null);
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
@@ -374,6 +377,48 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
       [isLoading, isHovered]
     );
 
+    // Use a fixed-position portal so the menu does not scale with ReactFlow zoom
+    useEffect(() => {
+      if (!isMenuOpen) return;
+      let rafId: number | null = null;
+      const GAP = 16;
+
+      const positionMenu = () => {
+        const anchorEl = portalAnchorRef.current as HTMLElement | null;
+        const container = menuContainerRef.current as HTMLDivElement | null;
+        if (!container || !anchorEl) {
+          rafId = requestAnimationFrame(positionMenu);
+          return;
+        }
+        const rect = anchorEl.getBoundingClientRect();
+        const menuWidth = 448;
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
+        const top = rect.bottom + GAP;
+
+        container.style.position = 'fixed';
+        container.style.left = `${left}px`;
+        container.style.top = `${top}px`;
+        container.style.zIndex = '2000000';
+        container.style.pointerEvents = 'auto';
+
+        rafId = requestAnimationFrame(positionMenu);
+      };
+
+      positionMenu();
+      const onScroll = () => positionMenu();
+      const onResize = () => positionMenu();
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', onResize);
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onResize);
+      };
+    }, [isMenuOpen]);
+
     return (
       <div className='p-[3px] w-[80px] h-[48px] relative'>
         {/* Invisible hover area between node and run button */}
@@ -511,203 +556,214 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
           />
         </button>
 
-        {/* Configuration Menu (integrated directly) */}
-        {isMenuOpen && (
-          <ul
-            ref={menuRef}
-            className='absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg'
-            style={{
-              borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-            }}
-          >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='12'
-                      height='12'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                    >
-                      <path
-                        d='M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-6-6z'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                      />
-                      <path d='M13 3v6h6' stroke='#CDCDCD' strokeWidth='1.5' />
-                      <path
-                        d='M9 14h6'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                        strokeLinecap='round'
-                      />
-                    </svg>
-                  </div>
-                  <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Chunk By Character
-                  </div>
-                </div>
-              </div>
-              <div className='flex flex-row gap-[8px] items-center justify-between'>
-                <button
-                  className='w-[57px] h-[24px] rounded-[8px] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={isLoading ? onStopExecution : handleDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns='http://www.w3.org/2000/svg'
-                        width='8'
-                        height='10'
-                        viewBox='0 0 8 10'
-                        fill='none'
-                      >
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
+        {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
-            {/* Input/Output display */}
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text']}
-                supportedOutputTypes={['structured']}
-                inputNodeCategory='blocknode'
-                outputNodeCategory='blocknode'
-              />
-            </li>
-
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[12px] font-semibold text-[#6D7177]'>
-                  Delimiters
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-
-              <div className='bg-[#1E1E1E] rounded-[8px] p-[5px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <div className='flex flex-wrap gap-2 items-center'>
-                  {delimiters.map((delimiter, index) => (
-                    <div
-                      key={index}
-                      className='flex items-center bg-[#252525] rounded-md 
-                                                    border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 
-                                                    transition-colors group'
-                    >
-                      <span className='text-[10px] text-[#FF9B4D] px-2 py-1'>
-                        {delimiterDisplay(delimiter)}
-                      </span>
-                      <button
-                        onClick={() => removeDelimiter(index)}
-                        className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
-                                                        px-1 py-1 opacity-0 group-hover:opacity-100'
-                      >
+        {/* Configuration Menu - render in a body-level fixed portal to avoid zoom scaling */}
+        {isMenuOpen &&
+          createPortal(
+            <div
+              ref={menuContainerRef}
+              style={{ position: 'fixed', zIndex: 2000000 }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+            >
+              <ul
+                ref={menuRef}
+                className='text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg'
+                style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+                onWheelCapture={e => e.stopPropagation()}
+                onWheel={e => e.stopPropagation()}
+                onTouchMoveCapture={e => e.stopPropagation()}
+                onTouchMove={e => e.stopPropagation()}
+              >
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
                         <svg
                           xmlns='http://www.w3.org/2000/svg'
-                          width='10'
-                          height='10'
+                          width='12'
+                          height='12'
                           viewBox='0 0 24 24'
                           fill='none'
-                          stroke='currentColor'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
                         >
-                          <line x1='18' y1='6' x2='6' y2='18'></line>
-                          <line x1='6' y1='6' x2='18' y2='18'></line>
+                          <path
+                            d='M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-6-6z'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M13 3v6h6'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M9 14h6'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                          />
                         </svg>
-                      </button>
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Chunk By Character
+                      </div>
                     </div>
-                  ))}
-
-                  {showDelimiterInput ? (
-                    <div
-                      className='h-[24px] bg-[#252525] rounded-md 
-                                                    border border-[#FF9B4D]/30 
-                                                    flex items-center'
+                  </div>
+                  <div className='flex flex-row gap-[8px] items-center justify-between'>
+                    <button
+                      className='w-[57px] h-[24px] rounded-[8px] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
+                      }}
+                      onClick={isLoading ? onStopExecution : handleDataSubmit}
+                      disabled={false}
                     >
-                      <input
-                        ref={newDelimiterRef}
-                        type='text'
-                        placeholder='Type...'
-                        className='w-[80px] h-full bg-transparent border-none outline-none px-2
-                                                        text-[10px] text-[#CDCDCD]'
-                        onKeyDown={handleCustomDelimiterInput}
-                        onBlur={() => setShowDelimiterInput(false)}
-                        onFocus={onFocus}
-                      />
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
+                    </button>
+                  </div>
+                </li>
+
+                {/* Input/Output display */}
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text']}
+                    supportedOutputTypes={['structured']}
+                    inputNodeCategory='blocknode'
+                    outputNodeCategory='blocknode'
+                  />
+                </li>
+
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>
+                      Delimiters
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+
+                  <div className='bg-[#1E1E1E] rounded-[8px] p-[5px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <div className='flex flex-wrap gap-2 items-center'>
+                      {delimiters.map((delimiter, index) => (
+                        <div
+                          key={index}
+                          className='flex items-center bg-[#252525] rounded-md border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 transition-colors group'
+                        >
+                          <span className='text-[10px] text-[#FF9B4D] px-2 py-1'>
+                            {delimiterDisplay(delimiter)}
+                          </span>
+                          <button
+                            onClick={() => removeDelimiter(index)}
+                            className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors px-1 py-1 opacity-0 group-hover:opacity-100'
+                          >
+                            <svg
+                              xmlns='http://www.w3.org/2000/svg'
+                              width='10'
+                              height='10'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            >
+                              <line x1='18' y1='6' x2='6' y2='18'></line>
+                              <line x1='6' y1='6' x2='18' y2='18'></line>
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+
+                      {showDelimiterInput ? (
+                        <div className='h-[24px] bg-[#252525] rounded-md border border-[#FF9B4D]/30 flex items-center'>
+                          <input
+                            ref={newDelimiterRef}
+                            type='text'
+                            placeholder='Type...'
+                            className='w-[80px] h-full bg-transparent border-none outline-none px-2 text-[10px] text-[#CDCDCD]'
+                            onKeyDown={handleCustomDelimiterInput}
+                            onBlur={() => setShowDelimiterInput(false)}
+                            onFocus={onFocus}
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setShowDelimiterInput(true)}
+                          className='w-[24px] h-[24px] flex items-center justify-center rounded-md bg-[#252525] border border-[#6D7177]/30 text-[#6D7177] hover:border-[#6D7177]/50 hover:bg-[#252525]/80 transition-colors'
+                        >
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                          >
+                            <path
+                              d='M12 5v14M5 12h14'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                        </button>
+                      )}
                     </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowDelimiterInput(true)}
-                      className='w-[24px] h-[24px] flex items-center justify-center rounded-md
-                                                    bg-[#252525] border border-[#6D7177]/30 
-                                                    text-[#6D7177] 
-                                                    hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
-                                                    transition-colors'
-                    >
-                      <svg
-                        width='12'
-                        height='12'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                      >
-                        <path
-                          d='M12 5v14M5 12h14'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              <div className='mt-1'>
-                <div className='text-[10px] text-[#6D7177] mb-2'>
-                  Common delimiters:
-                </div>
-                <div className='flex flex-wrap gap-2'>
-                  {commonDelimiters.map(delimiter => (
-                    <button
-                      key={delimiter.value}
-                      onClick={() => addDelimiter(delimiter.value)}
-                      className={`px-2 py-1 rounded-md text-[10px] transition-colors
-                                                    ${
-                                                      delimiters.includes(
-                                                        delimiter.value
-                                                      )
-                                                        ? 'bg-[#252525] text-[#CDCDCD] border border-[#6D7177]/50'
-                                                        : 'bg-[#1E1E1E] text-[#6D7177] border border-[#6D7177]/30 hover:bg-[#252525] hover:text-[#CDCDCD]'
-                                                    }`}
-                    >
-                      {delimiter.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </li>
-          </ul>
-        )}
+                  <div className='mt-1'>
+                    <div className='text-[10px] text-[#6D7177] mb-2'>
+                      Common delimiters:
+                    </div>
+                    <div className='flex flex-wrap gap-2'>
+                      {commonDelimiters.map(delimiter => (
+                        <button
+                          key={delimiter.value}
+                          onClick={() => addDelimiter(delimiter.value)}
+                          className={`px-2 py-1 rounded-md text-[10px] transition-colors ${
+                            delimiters.includes(delimiter.value)
+                              ? 'bg-[#252525] text-[#CDCDCD] border border-[#6D7177]/50'
+                              : 'bg-[#1E1E1E] text-[#6D7177] border border-[#6D7177]/30 hover:bg-[#252525] hover:text-[#CDCDCD]'
+                          }`}
+                        >
+                          {delimiter.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </li>
+              </ul>
+            </div>,
+            document.body
+          )}
       </div>
     );
   }

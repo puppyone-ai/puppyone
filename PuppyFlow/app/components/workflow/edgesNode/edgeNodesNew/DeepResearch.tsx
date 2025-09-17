@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
+import { createPortal } from 'react-dom';
 import InputOutputDisplay from './components/InputOutputDisplay';
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown';
 import { UI_COLORS } from '@/app/utils/colors';
@@ -136,6 +137,8 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const menuRef = useRef<HTMLUListElement>(null);
+  const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
 
@@ -810,6 +813,48 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
     [isOnConnect]
   );
 
+  // Use body-level fixed portal so menu does not scale with zoom
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    let rafId: number | null = null;
+    const GAP = 16;
+
+    const positionMenu = () => {
+      const anchorEl = portalAnchorRef.current as HTMLElement | null;
+      const container = menuContainerRef.current as HTMLDivElement | null;
+      if (!container || !anchorEl) {
+        rafId = requestAnimationFrame(positionMenu);
+        return;
+      }
+      const rect = anchorEl.getBoundingClientRect();
+      const menuWidth = 448; // matches w-[448px]
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
+      const top = rect.bottom + GAP;
+
+      container.style.position = 'fixed';
+      container.style.left = `${left}px`;
+      container.style.top = `${top}px`;
+      container.style.zIndex = '2000000';
+      container.style.pointerEvents = 'auto';
+
+      rafId = requestAnimationFrame(positionMenu);
+    };
+
+    positionMenu();
+    const onScroll = () => positionMenu();
+    const onResize = () => positionMenu();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [isMenuOpen]);
+
   return (
     <div className='relative p-[3px] w-[80px] h-[48px]'>
       {/* Invisible hover area between node and run button */}
@@ -952,749 +997,783 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
         />
       </button>
 
-      {/* Configuration Menu - 恢复原来的详细配置界面 */}
-      {isMenuOpen && (
-        <ul
-          ref={menuRef}
-          className='absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
-          style={{
-            borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-          }}
-        >
-          {/* Title and Run button section */}
-          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            <div className='flex flex-row gap-[12px]'>
-              <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                  <svg
-                    width='10'
-                    height='10'
-                    viewBox='0 0 14 14'
-                    fill='none'
-                    xmlns='http://www.w3.org/2000/svg'
-                  >
-                    <path
-                      d='M7 2.5C7 2.5 4.5 1 2 3.5C2 3.5 1.5 6.5 4 7.5C4 7.5 6 8.5 7 11.5C7 11.5 8 8.5 10 7.5C10 7.5 12.5 6.5 12 3.5C12 3.5 9.5 1 7 2.5Z'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                      fill='none'
-                    />
-                    <circle
-                      cx='7'
-                      cy='7'
-                      r='2'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                      fill='none'
-                    />
-                    <path
-                      d='M6.5 5.5L7.5 6.5'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                    />
-                    <path
-                      d='M7.5 7.5L6.5 8.5'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                    />
-                  </svg>
-                </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                  Deep Research
-                </div>
-              </div>
-            </div>
-            <div className='w-[57px] h-[26px]'>
-              <button
-                className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                style={{
-                  backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                }}
-                onClick={isLoading ? onStopExecution : onDataSubmit}
-                disabled={false}
-              >
-                <span>
-                  {isLoading ? (
-                    <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                      <rect width='8' height='8' fill='currentColor' />
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='8'
-                      height='10'
-                      viewBox='0 0 8 10'
-                      fill='none'
-                    >
-                      <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                    </svg>
-                  )}
-                </span>
-                <span>{isLoading ? 'Stop' : 'Run'}</span>
-              </button>
-            </div>
-          </li>
+      {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+      <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
 
-          {/* Input/Output display */}
-          <li>
-            <InputOutputDisplay
-              parentId={id}
-              getNode={getNode}
-              getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-              getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-              supportedInputTypes={['text', 'structured']}
-              supportedOutputTypes={['structured']}
-              inputNodeCategory='blocknode'
-              outputNodeCategory='blocknode'
-            />
-          </li>
-
-          {/* Model Selection */}
-          <li className='flex flex-col gap-2'>
-            <div className='flex items-center gap-2'>
-              <label className='text-[13px] font-semibold text-[#6D7177]'>
-                Model & Provider
-              </label>
-              <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-            </div>
-            <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-              <PuppyDropdown
-                options={activeModels}
-                selectedValue={selectedModelAndProvider}
-                onSelect={(selectedModel: Model) =>
-                  setSelectedModelAndProvider(selectedModel)
-                }
-                buttonHeight='32px'
-                buttonBgColor='transparent'
-                menuBgColor='#1A1A1A'
-                listWidth='100%'
-                containerClassnames='w-full'
-                onFocus={onFocus}
-                onBlur={onBlur}
-                mapValueTodisplay={mapModelToDisplay}
-                renderOption={renderModelOption}
-              />
-            </div>
-            {/* 显示当前选择的模型详细信息 */}
-            {selectedModelAndProvider && (
-              <div className='text-[11px] text-[#6D7177] flex items-center gap-2'>
-                <span>Provider: {selectedModelAndProvider.provider}</span>
-                <span>•</span>
-                <span>
-                  {selectedModelAndProvider.isLocal ? 'Local' : 'Cloud'}
-                </span>
-                <span>•</span>
-                <span>ID: {selectedModelAndProvider.id}</span>
-              </div>
-            )}
-          </li>
-
-          {/* General Settings */}
-          <li className='flex flex-col gap-2'>
-            <div className='flex items-center gap-2'>
-              <label className='text-[13px] font-semibold text-[#6D7177]'>
-                General Settings
-              </label>
-              <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
-            </div>
-            <div className='grid grid-cols-2 gap-2'>
-              <div className='flex flex-col gap-1'>
-                <label className='text-[11px] text-[#6D7177]'>
-                  Max Iterations
-                </label>
-                <input
-                  ref={maxRoundsRef}
-                  type='number'
-                  value={maxRounds}
-                  onChange={e => setMaxRounds(parseInt(e.target.value) || 3)}
-                  min='1'
-                  max='10'
-                  className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                />
-              </div>
-              <div className='flex flex-col gap-1'>
-                <label className='text-[11px] text-[#6D7177]'>Max Tokens</label>
-                <input
-                  type='number'
-                  value={maxTokens}
-                  min='1'
-                  max='32000'
-                  onChange={e => setMaxTokens(parseInt(e.target.value) || 1)}
-                  className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                />
-              </div>
-            </div>
-            <div className='grid grid-cols-2 gap-2'>
-              <div className='flex flex-col gap-1'>
-                <label className='text-[11px] text-[#6D7177]'>
-                  Temperature
-                </label>
-                <input
-                  type='number'
-                  value={temperature}
-                  min='0'
-                  max='2'
-                  step='0.1'
-                  onChange={e =>
-                    setTemperature(parseFloat(e.target.value) || 0)
-                  }
-                  className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                />
-              </div>
-            </div>
-          </li>
-
-          {/* Google Search Settings */}
-          <li className='flex flex-col gap-2'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Google Search
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
-              </div>
-              <button
-                onClick={() => setShowGoogleSettings(!showGoogleSettings)}
-                className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
-              >
-                {showGoogleSettings ? 'Hide' : 'Show'}
-              </button>
-            </div>
-
-            {showGoogleSettings && (
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center gap-2'>
-                  <input
-                    type='checkbox'
-                    checked={googleEnabled}
-                    onChange={e => handleGoogleEnabledChange(e.target.checked)}
-                    className='w-4 h-4'
-                    onFocus={onFocus}
-                    onBlur={onBlur}
-                  />
-                  <label className='text-[11px] text-[#6D7177]'>
-                    Enable Google Search
-                  </label>
-                </div>
-                <div className='grid grid-cols-2 gap-2'>
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Sub Type
-                    </label>
-                    <div
-                      className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
-                        googleEnabled
-                          ? 'bg-[#252525] hover:border-[#6D7177]/50'
-                          : 'bg-[#1A1A1A] cursor-not-allowed'
-                      } transition-colors`}
-                    >
-                      <PuppyDropdown
-                        options={GOOGLE_SEARCH_TYPES}
-                        selectedValue={
-                          GOOGLE_SEARCH_TYPES.find(
-                            type => type.id === googleSubType
-                          ) || GOOGLE_SEARCH_TYPES[0]
-                        }
-                        onSelect={(selectedType: {
-                          id: string;
-                          name: string;
-                        }) => setGoogleSubType(selectedType.id)}
-                        buttonHeight='28px'
-                        buttonBgColor='transparent'
-                        menuBgColor='#1A1A1A'
-                        listWidth='100%'
-                        containerClassnames='w-full'
-                        onFocus={onFocus}
-                        onBlur={onBlur}
-                        disabled={!googleEnabled}
-                        mapValueTodisplay={(
-                          type: { id: string; name: string } | null
-                        ) => type?.name || 'Select Type'}
-                      />
+      {/* Configuration Menu - render in portal to avoid zoom scaling */}
+      {isMenuOpen &&
+        createPortal(
+          <div
+            ref={menuContainerRef}
+            style={{ position: 'fixed', zIndex: 2000000 }}
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+          >
+            <ul
+              ref={menuRef}
+              className='text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
+              style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+              onWheelCapture={e => e.stopPropagation()}
+              onWheel={e => e.stopPropagation()}
+              onTouchMoveCapture={e => e.stopPropagation()}
+              onTouchMove={e => e.stopPropagation()}
+            >
+              {/* Title and Run button section */}
+              <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                  <div className='flex flex-row gap-[8px] justify-center items-center'>
+                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                      <svg
+                        width='10'
+                        height='10'
+                        viewBox='0 0 14 14'
+                        fill='none'
+                        xmlns='http://www.w3.org/2000/svg'
+                      >
+                        <path
+                          d='M7 2.5C7 2.5 4.5 1 2 3.5C2 3.5 1.5 6.5 4 7.5C4 7.5 6 8.5 7 11.5C7 11.5 8 8.5 10 7.5C10 7.5 12.5 6.5 12 3.5C12 3.5 9.5 1 7 2.5Z'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                          fill='none'
+                        />
+                        <circle
+                          cx='7'
+                          cy='7'
+                          r='2'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                          fill='none'
+                        />
+                        <path
+                          d='M6.5 5.5L7.5 6.5'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                        />
+                        <path
+                          d='M7.5 7.5L6.5 8.5'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                        />
+                      </svg>
+                    </div>
+                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                      Deep Research
                     </div>
                   </div>
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Top K Results
-                    </label>
-                    <input
-                      ref={webTopKRef}
-                      type='number'
-                      value={webTopK}
-                      onChange={e => setWebTopK(parseInt(e.target.value) || 5)}
-                      disabled={!googleEnabled}
-                      min='1'
-                      max='20'
-                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
-                        googleEnabled
-                          ? 'bg-[#252525] text-white'
-                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
-                      }`}
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                  </div>
                 </div>
-                <div className='grid grid-cols-2 gap-2'>
-                  <div className='flex items-center gap-2'>
-                    <input
-                      type='checkbox'
-                      checked={googleFilterUnreachable}
-                      onChange={e =>
-                        setGoogleFilterUnreachable(e.target.checked)
-                      }
-                      disabled={!googleEnabled}
-                      className='w-4 h-4'
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Filter Unreachable
-                    </label>
-                  </div>
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Wait For (s)
-                    </label>
-                    <input
-                      type='number'
-                      value={firecrawlWaitFor}
-                      onChange={e =>
-                        setFirecrawlWaitFor(parseInt(e.target.value) || 0)
-                      }
-                      disabled={!googleEnabled}
-                      min='0'
-                      max='120'
-                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
-                        googleEnabled
-                          ? 'bg-[#252525] text-white'
-                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
-                      }`}
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                  </div>
-                </div>
-                <div className='flex flex-col gap-1'>
-                  <label className='text-[11px] text-[#6D7177]'>
-                    Firecrawl Formats
-                  </label>
-                  <div
-                    className={`min-h-[28px] p-2 border-[1px] border-[#6D7177]/30 rounded-[4px] ${
-                      googleEnabled
-                        ? 'bg-[#252525]'
-                        : 'bg-[#1A1A1A] cursor-not-allowed'
-                    } transition-colors`}
+                <div className='w-[57px] h-[26px]'>
+                  <button
+                    className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                    style={{
+                      backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
+                    }}
+                    onClick={isLoading ? onStopExecution : onDataSubmit}
+                    disabled={false}
                   >
-                    <div className='flex flex-wrap gap-2'>
-                      {FIRECRAWL_FORMATS.map(format => (
-                        <button
-                          key={format.id}
-                          type='button'
-                          onClick={() => handleFormatToggle(format.id)}
-                          disabled={!googleEnabled}
-                          className={`px-2 py-1 text-[10px] rounded-[4px] border transition-colors ${
-                            firecrawlFormats.includes(format.id)
-                              ? 'bg-[#39BC66] border-[#39BC66] text-black font-semibold'
-                              : googleEnabled
-                                ? 'bg-[#1A1A1A] border-[#6D7177]/30 text-[#6D7177] hover:border-[#6D7177]/50'
-                                : 'bg-[#1A1A1A] border-[#6D7177]/20 text-[#6D7177]/50 cursor-not-allowed'
-                          }`}
+                    <span>
+                      {isLoading ? (
+                        <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
+                          <rect width='8' height='8' fill='currentColor' />
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='8'
+                          height='10'
+                          viewBox='0 0 8 10'
+                          fill='none'
                         >
-                          {format.name}
-                        </button>
-                      ))}
-                    </div>
-                    <div className='text-[9px] text-[#6D7177] mt-1'>
-                      Selected: {firecrawlFormats.join(', ')}
-                    </div>
-                  </div>
+                          <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                        </svg>
+                      )}
+                    </span>
+                    <span>{isLoading ? 'Stop' : 'Run'}</span>
+                  </button>
                 </div>
-                <div className='grid grid-cols-2 gap-2'>
-                  <div className='flex items-center gap-2'>
-                    <input
-                      type='checkbox'
-                      checked={firecrawlIsOnlyMainContent}
-                      onChange={e =>
-                        setFirecrawlIsOnlyMainContent(e.target.checked)
-                      }
-                      disabled={!googleEnabled}
-                      className='w-4 h-4'
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Only Main Content
-                    </label>
-                  </div>
-                  <div className='flex items-center gap-2'>
-                    <input
-                      type='checkbox'
-                      checked={firecrawlSkipTls}
-                      onChange={e => setFirecrawlSkipTls(e.target.checked)}
-                      disabled={!googleEnabled}
-                      className='w-4 h-4'
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Skip TLS Verification
-                    </label>
-                  </div>
-                </div>
+              </li>
+
+              {/* Input/Output display */}
+              <li>
+                <InputOutputDisplay
+                  parentId={id}
+                  getNode={getNode}
+                  getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                  getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                  supportedInputTypes={['text', 'structured']}
+                  supportedOutputTypes={['structured']}
+                  inputNodeCategory='blocknode'
+                  outputNodeCategory='blocknode'
+                />
+              </li>
+
+              {/* Model Selection */}
+              <li className='flex flex-col gap-2'>
                 <div className='flex items-center gap-2'>
-                  <input
-                    type='checkbox'
-                    checked={firecrawlRemoveBase64}
-                    onChange={e => setFirecrawlRemoveBase64(e.target.checked)}
-                    disabled={!googleEnabled}
-                    className='w-4 h-4'
-                    onFocus={onFocus}
-                    onBlur={onBlur}
-                  />
-                  <label className='text-[11px] text-[#6D7177]'>
-                    Remove Base64 Images
+                  <label className='text-[13px] font-semibold text-[#6D7177]'>
+                    Model & Provider
                   </label>
+                  <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
                 </div>
-              </div>
-            )}
-          </li>
-
-          {/* Perplexity Search Settings */}
-          <li className='flex flex-col gap-2'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Perplexity Search
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
-              </div>
-              <button
-                onClick={() =>
-                  setShowPerplexitySettings(!showPerplexitySettings)
-                }
-                className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
-              >
-                {showPerplexitySettings ? 'Hide' : 'Show'}
-              </button>
-            </div>
-
-            {showPerplexitySettings && (
-              <div className='flex flex-col gap-2'>
-                <div className='flex items-center gap-2'>
-                  <input
-                    type='checkbox'
-                    checked={perplexityEnabled}
-                    onChange={e =>
-                      handlePerplexityEnabledChange(e.target.checked)
+                <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                  <PuppyDropdown
+                    options={activeModels}
+                    selectedValue={selectedModelAndProvider}
+                    onSelect={(selectedModel: Model) =>
+                      setSelectedModelAndProvider(selectedModel)
                     }
-                    className='w-4 h-4'
+                    buttonHeight='32px'
+                    buttonBgColor='transparent'
+                    menuBgColor='#1A1A1A'
+                    listWidth='100%'
+                    containerClassnames='w-full'
                     onFocus={onFocus}
                     onBlur={onBlur}
+                    mapValueTodisplay={mapModelToDisplay}
+                    renderOption={renderModelOption}
                   />
-                  <label className='text-[11px] text-[#6D7177]'>
-                    Enable Perplexity Search
+                </div>
+                {/* 显示当前选择的模型详细信息 */}
+                {selectedModelAndProvider && (
+                  <div className='text-[11px] text-[#6D7177] flex items-center gap-2'>
+                    <span>Provider: {selectedModelAndProvider.provider}</span>
+                    <span>•</span>
+                    <span>
+                      {selectedModelAndProvider.isLocal ? 'Local' : 'Cloud'}
+                    </span>
+                    <span>•</span>
+                    <span>ID: {selectedModelAndProvider.id}</span>
+                  </div>
+                )}
+              </li>
+
+              {/* General Settings */}
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center gap-2'>
+                  <label className='text-[13px] font-semibold text-[#6D7177]'>
+                    General Settings
                   </label>
+                  <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
                 </div>
                 <div className='grid grid-cols-2 gap-2'>
                   <div className='flex flex-col gap-1'>
                     <label className='text-[11px] text-[#6D7177]'>
-                      Sub Type
+                      Max Iterations
                     </label>
-                    <div
-                      className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
-                        perplexityEnabled
-                          ? 'bg-[#252525] hover:border-[#6D7177]/50'
-                          : 'bg-[#1A1A1A] cursor-not-allowed'
-                      } transition-colors`}
-                    >
-                      <PuppyDropdown
-                        options={PERPLEXITY_SEARCH_TYPES}
-                        selectedValue={
-                          PERPLEXITY_SEARCH_TYPES.find(
-                            type => type.id === perplexitySubType
-                          ) || PERPLEXITY_SEARCH_TYPES[0]
-                        }
-                        onSelect={(selectedType: {
-                          id: string;
-                          name: string;
-                        }) => setPerplexitySubType(selectedType.id)}
-                        buttonHeight='28px'
-                        buttonBgColor='transparent'
-                        menuBgColor='#1A1A1A'
-                        listWidth='100%'
-                        containerClassnames='w-full'
-                        onFocus={onFocus}
-                        onBlur={onBlur}
-                        disabled={!perplexityEnabled}
-                        mapValueTodisplay={(
-                          type: { id: string; name: string } | null
-                        ) => type?.name || 'Select Type'}
-                      />
-                    </div>
+                    <input
+                      ref={maxRoundsRef}
+                      type='number'
+                      value={maxRounds}
+                      onChange={e =>
+                        setMaxRounds(parseInt(e.target.value) || 3)
+                      }
+                      min='1'
+                      max='10'
+                      className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
+                      onFocus={onFocus}
+                      onBlur={onBlur}
+                    />
                   </div>
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>Model</label>
-                    <div
-                      className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
-                        perplexityEnabled
-                          ? 'bg-[#252525] hover:border-[#6D7177]/50'
-                          : 'bg-[#1A1A1A] cursor-not-allowed'
-                      } transition-colors`}
-                    >
-                      <PuppyDropdown
-                        options={PERPLEXITY_MODELS}
-                        selectedValue={
-                          PERPLEXITY_MODELS.find(
-                            model => model.id === perplexityModel
-                          ) || PERPLEXITY_MODELS[0]
-                        }
-                        onSelect={(selectedModel: {
-                          id: string;
-                          name: string;
-                        }) => setPerplexityModel(selectedModel.id)}
-                        buttonHeight='28px'
-                        buttonBgColor='transparent'
-                        menuBgColor='#1A1A1A'
-                        listWidth='100%'
-                        containerClassnames='w-full'
-                        onFocus={onFocus}
-                        onBlur={onBlur}
-                        disabled={!perplexityEnabled}
-                        mapValueTodisplay={(
-                          model: { id: string; name: string } | null
-                        ) => model?.name || 'Select Model'}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className='grid grid-cols-2 gap-2'>
                   <div className='flex flex-col gap-1'>
                     <label className='text-[11px] text-[#6D7177]'>
                       Max Tokens
                     </label>
                     <input
                       type='number'
-                      value={perplexityMaxTokens}
+                      value={maxTokens}
+                      min='1'
+                      max='32000'
                       onChange={e =>
-                        setPerplexityMaxTokens(parseInt(e.target.value) || 0)
+                        setMaxTokens(parseInt(e.target.value) || 1)
                       }
-                      disabled={!perplexityEnabled}
-                      min='0'
-                      max='16000'
-                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
-                        perplexityEnabled
-                          ? 'bg-[#252525] text-white'
-                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
-                      }`}
+                      className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
                       onFocus={onFocus}
                       onBlur={onBlur}
                     />
                   </div>
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
                   <div className='flex flex-col gap-1'>
                     <label className='text-[11px] text-[#6D7177]'>
                       Temperature
                     </label>
                     <input
                       type='number'
-                      value={perplexityTemperature}
-                      onChange={e =>
-                        setPerplexityTemperature(
-                          parseFloat(e.target.value) || 0
-                        )
-                      }
-                      disabled={!perplexityEnabled}
+                      value={temperature}
                       min='0'
                       max='2'
                       step='0.1'
-                      className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
-                        perplexityEnabled
-                          ? 'bg-[#252525] text-white'
-                          : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
-                      }`}
+                      onChange={e =>
+                        setTemperature(parseFloat(e.target.value) || 0)
+                      }
+                      className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
                       onFocus={onFocus}
                       onBlur={onBlur}
                     />
                   </div>
                 </div>
-              </div>
-            )}
-          </li>
+              </li>
 
-          {/* Vector Search Settings */}
-          <li className='flex flex-col gap-2'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Vector Search
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
-              </div>
-              <button
-                onClick={() => setShowVectorSettings(!showVectorSettings)}
-                className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
-              >
-                {showVectorSettings ? 'Hide' : 'Show'}
-              </button>
-            </div>
-
-            {showVectorSettings && (
-              <div className='flex flex-col gap-2'>
-                <div className='grid grid-cols-2 gap-2'>
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Top K Results
+              {/* Google Search Settings */}
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Google Search
                     </label>
-                    <input
-                      ref={vectorTopKRef}
-                      type='number'
-                      value={vectorTopK}
-                      onChange={e =>
-                        setVectorTopK(parseInt(e.target.value) || 5)
-                      }
-                      min='1'
-                      max='20'
-                      className='h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none bg-[#252525] text-white'
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
                   </div>
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Similarity Threshold
-                    </label>
-                    <input
-                      ref={vectorThresholdRef}
-                      type='number'
-                      value={vectorThreshold}
-                      onChange={e =>
-                        setVectorThreshold(parseFloat(e.target.value) || 0.5)
-                      }
-                      min='0'
-                      max='1'
-                      step='0.1'
-                      className='h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none bg-[#252525] text-white'
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                  </div>
+                  <button
+                    onClick={() => setShowGoogleSettings(!showGoogleSettings)}
+                    className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
+                  >
+                    {showGoogleSettings ? 'Hide' : 'Show'}
+                  </button>
                 </div>
 
-                {/* Indexed Structured Data Selection */}
-                <div className='flex flex-col gap-2'>
-                  <label className='text-[11px] text-[#6D7177]'>
-                    Indexed Structured Data
-                  </label>
-
-                  {/* start of node labels */}
-                  <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                    <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
-                      {dataSource.map((item, index) => (
+                {showGoogleSettings && (
+                  <div className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                      <input
+                        type='checkbox'
+                        checked={googleEnabled}
+                        onChange={e =>
+                          handleGoogleEnabledChange(e.target.checked)
+                        }
+                        className='w-4 h-4'
+                        onFocus={onFocus}
+                        onBlur={onBlur}
+                      />
+                      <label className='text-[11px] text-[#6D7177]'>
+                        Enable Google Search
+                      </label>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Sub Type
+                        </label>
                         <div
-                          key={index}
-                          className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
+                          className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
+                            googleEnabled
+                              ? 'bg-[#252525] hover:border-[#6D7177]/50'
+                              : 'bg-[#1A1A1A] cursor-not-allowed'
+                          } transition-colors`}
+                        >
+                          <PuppyDropdown
+                            options={GOOGLE_SEARCH_TYPES}
+                            selectedValue={
+                              GOOGLE_SEARCH_TYPES.find(
+                                type => type.id === googleSubType
+                              ) || GOOGLE_SEARCH_TYPES[0]
+                            }
+                            onSelect={(selectedType: {
+                              id: string;
+                              name: string;
+                            }) => setGoogleSubType(selectedType.id)}
+                            buttonHeight='28px'
+                            buttonBgColor='transparent'
+                            menuBgColor='#1A1A1A'
+                            listWidth='100%'
+                            containerClassnames='w-full'
+                            onFocus={onFocus}
+                            onBlur={onBlur}
+                            disabled={!googleEnabled}
+                            mapValueTodisplay={(
+                              type: { id: string; name: string } | null
+                            ) => type?.name || 'Select Type'}
+                          />
+                        </div>
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Top K Results
+                        </label>
+                        <input
+                          ref={webTopKRef}
+                          type='number'
+                          value={webTopK}
+                          onChange={e =>
+                            setWebTopK(parseInt(e.target.value) || 5)
+                          }
+                          disabled={!googleEnabled}
+                          min='1'
+                          max='20'
+                          className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                            googleEnabled
+                              ? 'bg-[#252525] text-white'
+                              : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                          }`}
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='flex items-center gap-2'>
+                        <input
+                          type='checkbox'
+                          checked={googleFilterUnreachable}
+                          onChange={e =>
+                            setGoogleFilterUnreachable(e.target.checked)
+                          }
+                          disabled={!googleEnabled}
+                          className='w-4 h-4'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Filter Unreachable
+                        </label>
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Wait For (s)
+                        </label>
+                        <input
+                          type='number'
+                          value={firecrawlWaitFor}
+                          onChange={e =>
+                            setFirecrawlWaitFor(parseInt(e.target.value) || 0)
+                          }
+                          disabled={!googleEnabled}
+                          min='0'
+                          max='120'
+                          className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                            googleEnabled
+                              ? 'bg-[#252525] text-white'
+                              : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                          }`}
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                    </div>
+                    <div className='flex flex-col gap-1'>
+                      <label className='text-[11px] text-[#6D7177]'>
+                        Firecrawl Formats
+                      </label>
+                      <div
+                        className={`min-h-[28px] p-2 border-[1px] border-[#6D7177]/30 rounded-[4px] ${
+                          googleEnabled
+                            ? 'bg-[#252525]'
+                            : 'bg-[#1A1A1A] cursor-not-allowed'
+                        } transition-colors`}
+                      >
+                        <div className='flex flex-wrap gap-2'>
+                          {FIRECRAWL_FORMATS.map(format => (
+                            <button
+                              key={format.id}
+                              type='button'
+                              onClick={() => handleFormatToggle(format.id)}
+                              disabled={!googleEnabled}
+                              className={`px-2 py-1 text-[10px] rounded-[4px] border transition-colors ${
+                                firecrawlFormats.includes(format.id)
+                                  ? 'bg-[#39BC66] border-[#39BC66] text-black font-semibold'
+                                  : googleEnabled
+                                    ? 'bg-[#1A1A1A] border-[#6D7177]/30 text-[#6D7177] hover:border-[#6D7177]/50'
+                                    : 'bg-[#1A1A1A] border-[#6D7177]/20 text-[#6D7177]/50 cursor-not-allowed'
+                              }`}
+                            >
+                              {format.name}
+                            </button>
+                          ))}
+                        </div>
+                        <div className='text-[9px] text-[#6D7177] mt-1'>
+                          Selected: {firecrawlFormats.join(', ')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='flex items-center gap-2'>
+                        <input
+                          type='checkbox'
+                          checked={firecrawlIsOnlyMainContent}
+                          onChange={e =>
+                            setFirecrawlIsOnlyMainContent(e.target.checked)
+                          }
+                          disabled={!googleEnabled}
+                          className='w-4 h-4'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Only Main Content
+                        </label>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <input
+                          type='checkbox'
+                          checked={firecrawlSkipTls}
+                          onChange={e => setFirecrawlSkipTls(e.target.checked)}
+                          disabled={!googleEnabled}
+                          className='w-4 h-4'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Skip TLS Verification
+                        </label>
+                      </div>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <input
+                        type='checkbox'
+                        checked={firecrawlRemoveBase64}
+                        onChange={e =>
+                          setFirecrawlRemoveBase64(e.target.checked)
+                        }
+                        disabled={!googleEnabled}
+                        className='w-4 h-4'
+                        onFocus={onFocus}
+                        onBlur={onBlur}
+                      />
+                      <label className='text-[11px] text-[#6D7177]'>
+                        Remove Base64 Images
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </li>
+
+              {/* Perplexity Search Settings */}
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Perplexity Search
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+                  </div>
+                  <button
+                    onClick={() =>
+                      setShowPerplexitySettings(!showPerplexitySettings)
+                    }
+                    className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
+                  >
+                    {showPerplexitySettings ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                {showPerplexitySettings && (
+                  <div className='flex flex-col gap-2'>
+                    <div className='flex items-center gap-2'>
+                      <input
+                        type='checkbox'
+                        checked={perplexityEnabled}
+                        onChange={e =>
+                          handlePerplexityEnabledChange(e.target.checked)
+                        }
+                        className='w-4 h-4'
+                        onFocus={onFocus}
+                        onBlur={onBlur}
+                      />
+                      <label className='text-[11px] text-[#6D7177]'>
+                        Enable Perplexity Search
+                      </label>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Sub Type
+                        </label>
+                        <div
+                          className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
+                            perplexityEnabled
+                              ? 'bg-[#252525] hover:border-[#6D7177]/50'
+                              : 'bg-[#1A1A1A] cursor-not-allowed'
+                          } transition-colors`}
+                        >
+                          <PuppyDropdown
+                            options={PERPLEXITY_SEARCH_TYPES}
+                            selectedValue={
+                              PERPLEXITY_SEARCH_TYPES.find(
+                                type => type.id === perplexitySubType
+                              ) || PERPLEXITY_SEARCH_TYPES[0]
+                            }
+                            onSelect={(selectedType: {
+                              id: string;
+                              name: string;
+                            }) => setPerplexitySubType(selectedType.id)}
+                            buttonHeight='28px'
+                            buttonBgColor='transparent'
+                            menuBgColor='#1A1A1A'
+                            listWidth='100%'
+                            containerClassnames='w-full'
+                            onFocus={onFocus}
+                            onBlur={onBlur}
+                            disabled={!perplexityEnabled}
+                            mapValueTodisplay={(
+                              type: { id: string; name: string } | null
+                            ) => type?.name || 'Select Type'}
+                          />
+                        </div>
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Model
+                        </label>
+                        <div
+                          className={`relative h-[28px] rounded-[4px] border-[1px] border-[#6D7177]/30 ${
+                            perplexityEnabled
+                              ? 'bg-[#252525] hover:border-[#6D7177]/50'
+                              : 'bg-[#1A1A1A] cursor-not-allowed'
+                          } transition-colors`}
+                        >
+                          <PuppyDropdown
+                            options={PERPLEXITY_MODELS}
+                            selectedValue={
+                              PERPLEXITY_MODELS.find(
+                                model => model.id === perplexityModel
+                              ) || PERPLEXITY_MODELS[0]
+                            }
+                            onSelect={(selectedModel: {
+                              id: string;
+                              name: string;
+                            }) => setPerplexityModel(selectedModel.id)}
+                            buttonHeight='28px'
+                            buttonBgColor='transparent'
+                            menuBgColor='#1A1A1A'
+                            listWidth='100%'
+                            containerClassnames='w-full'
+                            onFocus={onFocus}
+                            onBlur={onBlur}
+                            disabled={!perplexityEnabled}
+                            mapValueTodisplay={(
+                              model: { id: string; name: string } | null
+                            ) => model?.name || 'Select Model'}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Max Tokens
+                        </label>
+                        <input
+                          type='number'
+                          value={perplexityMaxTokens}
+                          onChange={e =>
+                            setPerplexityMaxTokens(
+                              parseInt(e.target.value) || 0
+                            )
+                          }
+                          disabled={!perplexityEnabled}
+                          min='0'
+                          max='16000'
+                          className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                            perplexityEnabled
+                              ? 'bg-[#252525] text-white'
+                              : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                          }`}
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Temperature
+                        </label>
+                        <input
+                          type='number'
+                          value={perplexityTemperature}
+                          onChange={e =>
+                            setPerplexityTemperature(
+                              parseFloat(e.target.value) || 0
+                            )
+                          }
+                          disabled={!perplexityEnabled}
+                          min='0'
+                          max='2'
+                          step='0.1'
+                          className={`h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none ${
+                            perplexityEnabled
+                              ? 'bg-[#252525] text-white'
+                              : 'bg-[#1A1A1A] text-[#6D7177] cursor-not-allowed'
+                          }`}
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </li>
+
+              {/* Vector Search Settings */}
+              <li className='flex flex-col gap-2'>
+                <div className='flex items-center justify-between'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Vector Search
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#6D7177]'></div>
+                  </div>
+                  <button
+                    onClick={() => setShowVectorSettings(!showVectorSettings)}
+                    className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
+                  >
+                    {showVectorSettings ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+
+                {showVectorSettings && (
+                  <div className='flex flex-col gap-2'>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Top K Results
+                        </label>
+                        <input
+                          ref={vectorTopKRef}
+                          type='number'
+                          value={vectorTopK}
+                          onChange={e =>
+                            setVectorTopK(parseInt(e.target.value) || 5)
+                          }
+                          min='1'
+                          max='20'
+                          className='h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none bg-[#252525] text-white'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Similarity Threshold
+                        </label>
+                        <input
+                          ref={vectorThresholdRef}
+                          type='number'
+                          value={vectorThreshold}
+                          onChange={e =>
+                            setVectorThreshold(
+                              parseFloat(e.target.value) || 0.5
+                            )
+                          }
+                          min='0'
+                          max='1'
+                          step='0.1'
+                          className='h-[28px] px-2 border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] focus:border-[#6D7177]/50 focus:outline-none bg-[#252525] text-white'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Indexed Structured Data Selection */}
+                    <div className='flex flex-col gap-2'>
+                      <label className='text-[11px] text-[#6D7177]'>
+                        Indexed Structured Data
+                      </label>
+
+                      {/* start of node labels */}
+                      <div className='bg-[#1E1E1E] rounded-[8px] p-[8px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                        <div className='flex flex-wrap gap-2 items-center min-h-[12px]'>
+                          {dataSource.map((item, index) => (
+                            <div
+                              key={index}
+                              className='flex items-center bg-[#252525] rounded-[4px] h-[26px] p-[6px]
                                      border border-[#9B7EDB]/30 hover:border-[#9B7EDB]/50 
                                      transition-colors group'
-                        >
-                          <span className='text-[10px] text-[#9B7EDB] font-medium'>
-                            {item.label}
-                          </span>
-                          <button
-                            onClick={() => removeNodeLabel(index)}
-                            className='ml-2 text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
-                                       opacity-0 group-hover:opacity-100'
-                          >
-                            <svg
-                              xmlns='http://www.w3.org/2000/svg'
-                              width='10'
-                              height='10'
-                              viewBox='0 0 24 24'
-                              fill='none'
-                              stroke='currentColor'
-                              strokeWidth='2'
-                              strokeLinecap='round'
-                              strokeLinejoin='round'
                             >
-                              <line x1='18' y1='6' x2='6' y2='18'></line>
-                              <line x1='6' y1='6' x2='18' y2='18'></line>
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
+                              <span className='text-[10px] text-[#9B7EDB] font-medium'>
+                                {item.label}
+                              </span>
+                              <button
+                                onClick={() => removeNodeLabel(index)}
+                                className='ml-2 text-[#6D7177] hover:text-[#ff6b6b] transition-colors 
+                                       opacity-0 group-hover:opacity-100'
+                              >
+                                <svg
+                                  xmlns='http://www.w3.org/2000/svg'
+                                  width='10'
+                                  height='10'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                  strokeWidth='2'
+                                  strokeLinecap='round'
+                                  strokeLinejoin='round'
+                                >
+                                  <line x1='18' y1='6' x2='6' y2='18'></line>
+                                  <line x1='6' y1='6' x2='18' y2='18'></line>
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
 
-                      {flattenedIndexItems.length > 0 && (
-                        <div className='relative'>
-                          <button
-                            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                            className='w-[24px] h-[24px] flex items-center justify-center rounded-md
+                          {flattenedIndexItems.length > 0 && (
+                            <div className='relative'>
+                              <button
+                                onClick={() =>
+                                  setIsDropdownOpen(!isDropdownOpen)
+                                }
+                                className='w-[24px] h-[24px] flex items-center justify-center rounded-md
                                        bg-[#252525] border border-[#6D7177]/30 
                                        text-[#6D7177] 
                                        hover:border-[#6D7177]/50 hover:bg-[#252525]/80 
                                        transition-colors'
-                          >
-                            <svg
-                              width='12'
-                              height='12'
-                              viewBox='0 0 24 24'
-                              fill='none'
-                              stroke='currentColor'
-                            >
-                              <path
-                                d='M12 5v14M5 12h14'
-                                strokeWidth='2'
-                                strokeLinecap='round'
-                              />
-                            </svg>
-                          </button>
+                              >
+                                <svg
+                                  width='12'
+                                  height='12'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                >
+                                  <path
+                                    d='M12 5v14M5 12h14'
+                                    strokeWidth='2'
+                                    strokeLinecap='round'
+                                  />
+                                </svg>
+                              </button>
 
-                          {isDropdownOpen && (
-                            <div
-                              className='absolute top-full left-0 mt-1 w-[240px] bg-[#1A1A1A] 
+                              {isDropdownOpen && (
+                                <div
+                                  className='absolute top-full left-0 mt-1 w-[240px] bg-[#1A1A1A] 
                                          border border-[#6D7177]/30 rounded-[8px] shadow-lg z-10 max-h-[200px] overflow-y-auto'
-                            >
-                              {flattenedIndexItems
-                                .filter(
-                                  item =>
-                                    !dataSource.some(
-                                      ds => ds.id === item.nodeId
+                                >
+                                  {flattenedIndexItems
+                                    .filter(
+                                      item =>
+                                        !dataSource.some(
+                                          ds => ds.id === item.nodeId
+                                        )
                                     )
-                                )
-                                .map((item, index) => (
-                                  <button
-                                    key={index}
-                                    onClick={() => {
-                                      addNodeLabel(item);
-                                      setIsDropdownOpen(false);
-                                    }}
-                                    className='w-full text-left px-3 py-2 text-[11px] text-[#CDCDCD] 
+                                    .map((item, index) => (
+                                      <button
+                                        key={index}
+                                        onClick={() => {
+                                          addNodeLabel(item);
+                                          setIsDropdownOpen(false);
+                                        }}
+                                        className='w-full text-left px-3 py-2 text-[11px] text-[#CDCDCD] 
                                                hover:bg-[#252525] transition-colors border-b border-[#6D7177]/20 last:border-b-0'
-                                  >
-                                    <div className='font-medium text-[#9B7EDB]'>
-                                      {item.nodeLabel}
-                                    </div>
-                                    <div className='text-[#6D7177] text-[10px] mt-1'>
-                                      Index: {item.indexItem.index_name}
-                                    </div>
-                                  </button>
-                                ))}
+                                      >
+                                        <div className='font-medium text-[#9B7EDB]'>
+                                          {item.nodeLabel}
+                                        </div>
+                                        <div className='text-[#6D7177] text-[10px] mt-1'>
+                                          Index: {item.indexItem.index_name}
+                                        </div>
+                                      </button>
+                                    ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            )}
-          </li>
-        </ul>
-      )}
+                )}
+              </li>
+            </ul>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

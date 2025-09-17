@@ -8,6 +8,7 @@ import React, {
   useCallback,
   memo,
 } from 'react';
+import { createPortal } from 'react-dom';
 import InputOutputDisplay from './components/InputOutputDisplay';
 import { PuppyDropdown } from '../../../misc/PuppyDropDown';
 import {
@@ -112,6 +113,8 @@ const Generate: React.FC<GenerateNodeProps> = memo(
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
+    const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+    const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
@@ -282,6 +285,48 @@ const Generate: React.FC<GenerateNodeProps> = memo(
         curRef.classList.remove('nodrag');
       }
     }, []);
+
+    // Use body-level fixed portal so menu does not scale with zoom
+    useEffect(() => {
+      if (!isMenuOpen) return;
+      let rafId: number | null = null;
+      const GAP = 16;
+
+      const positionMenu = () => {
+        const anchorEl = portalAnchorRef.current as HTMLElement | null;
+        const container = menuContainerRef.current as HTMLDivElement | null;
+        if (!container || !anchorEl) {
+          rafId = requestAnimationFrame(positionMenu);
+          return;
+        }
+        const rect = anchorEl.getBoundingClientRect();
+        const menuWidth = 448; // matches w-[448px]
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
+        const top = rect.bottom + GAP;
+
+        container.style.position = 'fixed';
+        container.style.left = `${left}px`;
+        container.style.top = `${top}px`;
+        container.style.zIndex = '2000000';
+        container.style.pointerEvents = 'auto';
+
+        rafId = requestAnimationFrame(positionMenu);
+      };
+
+      positionMenu();
+      const onScroll = () => positionMenu();
+      const onResize = () => positionMenu();
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', onResize);
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onResize);
+      };
+    }, [isMenuOpen]);
 
     const copyToClipboard = useCallback((text: string) => {
       navigator.clipboard
@@ -521,298 +566,324 @@ const Generate: React.FC<GenerateNodeProps> = memo(
           />
         </button>
 
-        {isMenuOpen && (
-          <ul
-            ref={menuRef}
-            className='absolute top-[64px] text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
-            style={{
-              borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-            }}
-          >
-            {/* Header */}
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg
-                      width='14'
-                      height='14'
-                      viewBox='0 0 24 24'
-                      fill='none'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                    >
-                      <path d='M12 3v18M3 12h18M5 5l14 14M19 5L5 19' />
-                    </svg>
+        {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
+
+        {isMenuOpen &&
+          createPortal(
+            <div
+              ref={menuContainerRef}
+              style={{ position: 'fixed', zIndex: 2000000 }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+            >
+              <ul
+                ref={menuRef}
+                className='text-white w-[448px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
+                style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+                onWheelCapture={e => e.stopPropagation()}
+                onWheel={e => e.stopPropagation()}
+                onTouchMoveCapture={e => e.stopPropagation()}
+                onTouchMove={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                        <svg
+                          width='14'
+                          height='14'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                        >
+                          <path d='M12 3v18M3 12h18M5 5l14 14M19 5L5 19' />
+                        </svg>
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Generate
+                      </div>
+                    </div>
                   </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Generate
-                  </div>
-                </div>
-              </div>
-              <div className='w-[57px] h-[26px]'>
-                <button
-                  className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={handleDataSubmit}
-                  disabled={isLoading}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg
-                        className='animate-spin h-3 w-3 text-black'
-                        xmlns='http://www.w3.org/2000/svg'
-                        fill='none'
-                        viewBox='0 0 24 24'
-                      >
-                        <circle
-                          className='opacity-25'
-                          cx='12'
-                          cy='12'
-                          r='10'
-                          stroke='currentColor'
-                          strokeWidth='4'
-                        ></circle>
-                        <path
-                          className='opacity-75'
-                          fill='currentColor'
-                          d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-                        ></path>
-                      </svg>
-                    ) : (
-                      <svg width='8' height='10' viewBox='0 0 8 10' fill='none'>
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
-
-            {/* Input/Output display */}
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text', 'structured']}
-                supportedOutputTypes={['text']}
-                inputNodeCategory='blocknode'
-                outputNodeCategory='blocknode'
-              />
-            </li>
-
-            {/* Queries 下拉选项 */}
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Queries
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={getSourceNodeIdWithLabel(id).map(node => node.label)}
-                  selectedValue={
-                    (getNode(id)?.data as GenerateConfigNodeData)?.query_ids
-                      ?.label
-                  }
-                  onSelect={(value: string) => {
-                    const selectedNode = getSourceNodeIdWithLabel(id).find(
-                      node => node.label === value
-                    );
-                    setNodes(prevNodes =>
-                      prevNodes.map(node => {
-                        if (node.id === id) {
-                          return {
-                            ...node,
-                            data: {
-                              ...node.data,
-                              query_ids: selectedNode,
-                            },
-                          };
-                        }
-                        return node;
-                      })
-                    );
-                  }}
-                  buttonHeight='32px'
-                  buttonBgColor='transparent'
-                  menuBgColor='#1A1A1A'
-                  listWidth='100%'
-                  containerClassnames='w-full'
-                />
-              </div>
-            </li>
-
-            {/* Documents 下拉选项 */}
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Documents
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={getSourceNodeIdWithLabel(id).map(node => node.label)}
-                  selectedValue={
-                    (getNode(id)?.data as GenerateConfigNodeData)?.document_ids
-                      ?.label || 'Choose Document'
-                  }
-                  onSelect={(value: string) => {
-                    const selectedNode = getSourceNodeIdWithLabel(id).find(
-                      node => node.label === value
-                    );
-                    setNodes(prevNodes =>
-                      prevNodes.map(node => {
-                        if (node.id === id) {
-                          return {
-                            ...node,
-                            data: {
-                              ...node.data,
-                              document_ids: selectedNode,
-                            },
-                          };
-                        }
-                        return node;
-                      })
-                    );
-                  }}
-                  buttonHeight='32px'
-                  buttonBgColor='transparent'
-                  menuBgColor='#1A1A1A'
-                  listWidth='100%'
-                  containerClassnames='w-full'
-                />
-              </div>
-            </li>
-
-            {/* Prompt Template 下拉选择 */}
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Prompt Template
-                </label>
-                <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-              </div>
-              <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={
-                    Object.keys(PROMPT_TEMPLATES) as PromptTemplateType[]
-                  }
-                  selectedValue={selectedTemplate}
-                  onSelect={(value: string) => {
-                    setSelectedTemplate(value as PromptTemplateType);
-                  }}
-                  buttonHeight='32px'
-                  buttonBgColor='transparent'
-                  menuBgColor='#1A1A1A'
-                  listWidth='100%'
-                  containerClassnames='w-full'
-                  mapValueTodisplay={(v: string) =>
-                    v
-                      .replace(/_/g, ' ')
-                      .replace(/\b\w/g, (l: string) => l.toUpperCase())
-                  }
-                />
-              </div>
-            </li>
-
-            {/* Prompt Template 预览区域 */}
-            <li className='flex flex-col gap-2'>
-              <div className=' text-[10px] text-[#6D7177]'>
-                {PROMPT_TEMPLATES[selectedTemplate]}
-              </div>
-            </li>
-
-            {/* Model Selection */}
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center gap-2'>
-                <label className='text-[13px] font-semibold text-[#6D7177]'>
-                  Model & Provider
-                </label>
-              </div>
-              <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
-                <PuppyDropdown
-                  options={activeModels}
-                  selectedValue={model}
-                  onSelect={(selectedModel: Model) =>
-                    setModel(selectedModel.id)
-                  }
-                  valueKey='id'
-                  listWidth='100%'
-                  containerClassnames='w-full'
-                  mapValueTodisplay={mapModelToDisplay}
-                  renderOption={renderModelOption}
-                />
-              </div>
-            </li>
-
-            {/* Settings section */}
-            <li className='flex flex-col gap-2'>
-              <div className='flex items-center justify-between'>
-                <div className='flex items-center gap-2'>
-                  <label className='text-[13px] font-semibold text-[#6D7177]'>
-                    Advanced Settings
-                  </label>
-                </div>
-                <button
-                  onClick={() => setShowSettings(!showSettings)}
-                  className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
-                >
-                  {showSettings ? 'Hide' : 'Show'}
-                </button>
-              </div>
-
-              {showSettings && (
-                <div className='flex flex-col gap-3 p-2 bg-[#252525] rounded-md'>
-                  {/* Base URL */}
-                  <div className='flex flex-col gap-1'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Base URL (optional)
-                    </label>
-                    <input
-                      type='text'
-                      value={baseUrl}
-                      onChange={e => setBaseUrl(e.target.value)}
-                      placeholder='https://api.example.com/v1'
-                      className='h-[28px] px-2 bg-[#1E1E1E] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white placeholder-[#6D7177] focus:border-[#6D7177]/50 focus:outline-none'
-                      onFocus={onFocus}
-                      onBlur={onBlur}
-                    />
-                  </div>
-                  {/* Structured Output */}
-                  <div className='flex items-center justify-between'>
-                    <label className='text-[11px] text-[#6D7177]'>
-                      Structured Output (JSON)
-                    </label>
+                  <div className='w-[57px] h-[26px]'>
                     <button
-                      onClick={() => setStructuredOutput(!structuredOutput)}
-                      className={`w-[40px] h-[20px] rounded-full border transition-colors ${
-                        structuredOutput
-                          ? 'bg-[#39BC66] border-[#39BC66]'
-                          : 'bg-[#1E1E1E] border-[#6D7177]/30'
-                      }`}
+                      className='w-full h-full rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
+                      }}
+                      onClick={handleDataSubmit}
+                      disabled={isLoading}
                     >
-                      <div
-                        className={`w-[16px] h-[16px] bg-white rounded-full transition-transform ${
-                          structuredOutput
-                            ? 'translate-x-[22px]'
-                            : 'translate-x-[2px]'
-                        }`}
-                      />
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            className='animate-spin h-3 w-3 text-black'
+                            xmlns='http://www.w3.org/2000/svg'
+                            fill='none'
+                            viewBox='0 0 24 24'
+                          >
+                            <circle
+                              className='opacity-25'
+                              cx='12'
+                              cy='12'
+                              r='10'
+                              stroke='currentColor'
+                              strokeWidth='4'
+                            ></circle>
+                            <path
+                              className='opacity-75'
+                              fill='currentColor'
+                              d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                            ></path>
+                          </svg>
+                        ) : (
+                          <svg
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
                     </button>
                   </div>
-                </div>
-              )}
-            </li>
-          </ul>
-        )}
+                </li>
+
+                {/* Input/Output display */}
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text', 'structured']}
+                    supportedOutputTypes={['text']}
+                    inputNodeCategory='blocknode'
+                    outputNodeCategory='blocknode'
+                  />
+                </li>
+
+                {/* Queries 下拉选项 */}
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Queries
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={getSourceNodeIdWithLabel(id).map(
+                        node => node.label
+                      )}
+                      selectedValue={
+                        (getNode(id)?.data as GenerateConfigNodeData)?.query_ids
+                          ?.label
+                      }
+                      onSelect={(value: string) => {
+                        const selectedNode = getSourceNodeIdWithLabel(id).find(
+                          node => node.label === value
+                        );
+                        setNodes(prevNodes =>
+                          prevNodes.map(node => {
+                            if (node.id === id) {
+                              return {
+                                ...node,
+                                data: {
+                                  ...node.data,
+                                  query_ids: selectedNode,
+                                },
+                              };
+                            }
+                            return node;
+                          })
+                        );
+                      }}
+                      buttonHeight='32px'
+                      buttonBgColor='transparent'
+                      menuBgColor='#1A1A1A'
+                      listWidth='100%'
+                      containerClassnames='w-full'
+                    />
+                  </div>
+                </li>
+
+                {/* Documents 下拉选项 */}
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Documents
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={getSourceNodeIdWithLabel(id).map(
+                        node => node.label
+                      )}
+                      selectedValue={
+                        (getNode(id)?.data as GenerateConfigNodeData)
+                          ?.document_ids?.label || 'Choose Document'
+                      }
+                      onSelect={(value: string) => {
+                        const selectedNode = getSourceNodeIdWithLabel(id).find(
+                          node => node.label === value
+                        );
+                        setNodes(prevNodes =>
+                          prevNodes.map(node => {
+                            if (node.id === id) {
+                              return {
+                                ...node,
+                                data: {
+                                  ...node.data,
+                                  document_ids: selectedNode,
+                                },
+                              };
+                            }
+                            return node;
+                          })
+                        );
+                      }}
+                      buttonHeight='32px'
+                      buttonBgColor='transparent'
+                      menuBgColor='#1A1A1A'
+                      listWidth='100%'
+                      containerClassnames='w-full'
+                    />
+                  </div>
+                </li>
+
+                {/* Prompt Template 下拉选择 */}
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Prompt Template
+                    </label>
+                    <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                  </div>
+                  <div className='relative h-[32px] p-0 bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={
+                        Object.keys(PROMPT_TEMPLATES) as PromptTemplateType[]
+                      }
+                      selectedValue={selectedTemplate}
+                      onSelect={(value: string) => {
+                        setSelectedTemplate(value as PromptTemplateType);
+                      }}
+                      buttonHeight='32px'
+                      buttonBgColor='transparent'
+                      menuBgColor='#1A1A1A'
+                      listWidth='100%'
+                      containerClassnames='w-full'
+                      mapValueTodisplay={(v: string) =>
+                        v
+                          .replace(/_/g, ' ')
+                          .replace(/\b\w/g, (l: string) => l.toUpperCase())
+                      }
+                    />
+                  </div>
+                </li>
+
+                {/* Prompt Template 预览区域 */}
+                <li className='flex flex-col gap-2'>
+                  <div className=' text-[10px] text-[#6D7177]'>
+                    {PROMPT_TEMPLATES[selectedTemplate]}
+                  </div>
+                </li>
+
+                {/* Model Selection */}
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center gap-2'>
+                    <label className='text-[13px] font-semibold text-[#6D7177]'>
+                      Model & Provider
+                    </label>
+                  </div>
+                  <div className='relative h-[32px] bg-[#252525] rounded-[6px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
+                    <PuppyDropdown
+                      options={activeModels}
+                      selectedValue={model}
+                      onSelect={(selectedModel: Model) =>
+                        setModel(selectedModel.id)
+                      }
+                      valueKey='id'
+                      listWidth='100%'
+                      containerClassnames='w-full'
+                      mapValueTodisplay={mapModelToDisplay}
+                      renderOption={renderModelOption}
+                    />
+                  </div>
+                </li>
+
+                {/* Settings section */}
+                <li className='flex flex-col gap-2'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-2'>
+                      <label className='text-[13px] font-semibold text-[#6D7177]'>
+                        Advanced Settings
+                      </label>
+                    </div>
+                    <button
+                      onClick={() => setShowSettings(!showSettings)}
+                      className='text-[11px] text-[#6D7177] hover:text-white transition-colors'
+                    >
+                      {showSettings ? 'Hide' : 'Show'}
+                    </button>
+                  </div>
+
+                  {showSettings && (
+                    <div className='flex flex-col gap-3 p-2 bg-[#252525] rounded-md'>
+                      {/* Base URL */}
+                      <div className='flex flex-col gap-1'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Base URL (optional)
+                        </label>
+                        <input
+                          type='text'
+                          value={baseUrl}
+                          onChange={e => setBaseUrl(e.target.value)}
+                          placeholder='https://api.example.com/v1'
+                          className='h-[28px] px-2 bg-[#1E1E1E] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white placeholder-[#6D7177] focus:border-[#6D7177]/50 focus:outline-none'
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      </div>
+                      {/* Structured Output */}
+                      <div className='flex items-center justify-between'>
+                        <label className='text-[11px] text-[#6D7177]'>
+                          Structured Output (JSON)
+                        </label>
+                        <button
+                          onClick={() => setStructuredOutput(!structuredOutput)}
+                          className={`w-[40px] h-[20px] rounded-full border transition-colors ${
+                            structuredOutput
+                              ? 'bg-[#39BC66] border-[#39BC66]'
+                              : 'bg-[#1E1E1E] border-[#6D7177]/30'
+                          }`}
+                        >
+                          <div
+                            className={`w-[16px] h-[16px] bg-white rounded-full transition-transform ${
+                              structuredOutput
+                                ? 'translate-x-[22px]'
+                                : 'translate-x-[2px]'
+                            }`}
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              </ul>
+            </div>,
+            document.body
+          )}
       </div>
     );
   }

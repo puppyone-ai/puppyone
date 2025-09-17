@@ -5,7 +5,7 @@ import { useNodesPerFlowContext } from '@/app/components/states/NodesPerFlowCont
 import React, { useState, useRef, useEffect } from 'react';
 import { useReactFlow } from '@xyflow/react';
 import { VectorIndexingItem, IndexingItem } from '../JsonNodeNew';
-import IndexingMenu from './NodeIndexingMenu';
+import IndexingMenu from './NodeIndexingAddMenu';
 import { createPortal } from 'react-dom';
 
 type NodeIndexingButtonProps = {
@@ -94,7 +94,7 @@ function NodeIndexingButton({
       }
       const rect = btn.getBoundingClientRect();
       const GAP = 8;
-      const containerWidth = container.offsetWidth || 420; // 估算，首次渲染后会被真实宽度覆盖
+      const containerWidth = container.offsetWidth || 560; // 估算，首次渲染后会被真实宽度覆盖
       const top = rect.bottom + GAP;
       let left = rect.left; // 左对齐按钮
       left = Math.max(
@@ -126,6 +126,7 @@ function NodeIndexingButton({
 
   // 设置悬浮效果对应的颜色
   const fillColor = isHovered ? '#BEBEBE' : '#6D7177';
+  const iconColor = indexingList.length > 0 ? '#39BC66' : fillColor;
 
   return (
     <div
@@ -139,46 +140,51 @@ function NodeIndexingButton({
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onClick={handleIndexClick}
-        title='Manage Indexing'
+        title='Manage Interactions'
       >
-        {/* 索引图标 - 使用不同于设置按钮的图标 */}
+        {/* paw logo icon */}
         <svg
           width='16'
           height='16'
-          viewBox='0 0 16 16'
+          viewBox='0 0 57 45'
           fill='none'
           xmlns='http://www.w3.org/2000/svg'
         >
-          <rect
-            x='2.75'
-            y='1.75'
-            width='10.5'
-            height='12.5'
-            rx='2.25'
-            stroke={indexingList.length > 0 ? '#39BC66' : fillColor}
-            strokeWidth='1.5'
+          <ellipse
+            cx='48.515'
+            cy='19.2436'
+            rx='6'
+            ry='7'
+            transform='rotate(14 48.515 19.2436)'
+            fill={iconColor}
+          />
+          <ellipse
+            cx='19.9854'
+            cy='8.26189'
+            rx='6'
+            ry='7.5'
+            transform='rotate(-8 19.9854 8.26189)'
+            fill={iconColor}
+          />
+          <ellipse
+            cx='35.9857'
+            cy='8.26205'
+            rx='6'
+            ry='7.5'
+            transform='rotate(8 35.9857 8.26205)'
+            fill={iconColor}
+          />
+          <ellipse
+            cx='7.51523'
+            cy='19.2439'
+            rx='6'
+            ry='7'
+            transform='rotate(-14 7.51523 19.2439)'
+            fill={iconColor}
           />
           <path
-            d='M3 6H12.5'
-            stroke={indexingList.length > 0 ? '#39BC66' : fillColor}
-            strokeWidth='1.5'
-          />
-          <path
-            d='M3 10H13'
-            stroke={indexingList.length > 0 ? '#39BC66' : fillColor}
-            strokeWidth='1.5'
-          />
-          <path
-            d='M4.5 3.5H5.5V4.5H4.5V3.5Z'
-            fill={indexingList.length > 0 ? '#39BC66' : fillColor}
-          />
-          <path
-            d='M4.5 7.5H5.5V8.5H4.5V7.5Z'
-            fill={indexingList.length > 0 ? '#39BC66' : fillColor}
-          />
-          <path
-            d='M4.5 11.5H5.5V12.5H4.5V11.5Z'
-            fill={indexingList.length > 0 ? '#39BC66' : fillColor}
+            d='M26.8105 20.1118C27.7267 19.9626 27.7962 19.9628 28.7124 20.112C30.3514 20.379 31.1832 21.0044 32.5181 21.9713C35.334 24.011 34.7603 26.0934 37.2751 28.4795C38.608 29.7441 40.3591 30.8111 41.5574 32.1984C43.0053 33.8746 43.7401 35.1267 43.9359 37.312C44.1012 39.1563 44.0006 40.3981 42.9845 41.9606C41.9881 43.4929 40.9513 44.2061 39.1789 44.7499C37.5836 45.2393 36.565 44.8691 34.8975 44.7499C32.0632 44.5472 30.6034 43.3172 27.7619 43.3552C25.1022 43.3909 23.7531 44.5385 21.102 44.7499C19.4355 44.8827 18.4158 45.2393 16.8206 44.7499C15.0481 44.2061 14.0113 43.4929 13.0149 41.9606C11.9988 40.3981 11.8989 39.1559 12.0642 37.3116C12.26 35.1264 13.1525 33.9939 14.4421 32.1984C15.6495 30.5172 16.8619 30.0237 18.2477 28.4795C20.355 26.1311 20.4199 23.8084 23.0048 21.9713C24.3486 21.0162 25.1714 20.3788 26.8105 20.1118Z'
+            fill={iconColor}
           />
         </svg>
       </button>

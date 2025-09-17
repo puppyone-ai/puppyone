@@ -127,6 +127,7 @@ const ListComponent = ({
 
   const accentColor = isSelected ? '#E4B66E' : '#D7A85A';
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { registerOverflowElement, unregisterOverflowElement } =
     useOverflowContext();
   const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -203,6 +204,8 @@ const ListComponent = ({
               }
               setMenuOpen(false);
             }}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={() => setIsCollapsed(prev => !prev)}
           />
         </div>,
         handleRef.current
@@ -242,6 +245,7 @@ const ListComponent = ({
     path,
     registerOverflowElement,
     unregisterOverflowElement,
+    isCollapsed,
   ]);
 
   // Ensure only one menu is open globally
@@ -341,10 +345,9 @@ const ListComponent = ({
 
   return (
     <div
-      className={`bg-[#252525] shadow-sm relative group group/list p-[2px]`}
+      className={`bg-[#252525] shadow-sm relative group group/list`}
       style={{
         outline: 'none',
-        boxShadow: isSelected ? 'inset 0 0 0 2px #C18E4C' : 'none',
       }}
       onClick={e => {
         e.stopPropagation();
@@ -353,46 +356,97 @@ const ListComponent = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className='absolute left-0 top-1 bottom-1 w-px bg-[#9A713C] rounded-full z-20'>
+      <div
+        className='absolute left-0 top-0 bottom-0 w-px z-20'
+        style={{
+          backgroundColor:
+            isSelected || isHovered || menuOpen ? '#9A713C' : '#4A4D54',
+        }}
+      >
         {(isSelected || isHovered || menuOpen) && (
-          <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
-            <div
-              className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
-              style={{ borderColor: accentColor }}
-              aria-hidden
-              onClick={e => {
-                e.stopPropagation();
-                setSelectedPath(path);
-                if (menuOpen) {
-                  setMenuOpen(false);
-                } else {
-                  window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                  setMenuOpen(true);
-                }
-              }}
-              ref={handleRef}
-            >
+          <>
+            <div className='absolute left-1/2 top-1 transform -translate-x-1/2 pointer-events-none'>
               <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
-              <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
-              <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
+                className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
+                style={{ borderColor: accentColor }}
+                aria-hidden
+                onClick={e => {
+                  e.stopPropagation();
+                  setSelectedPath(path);
+                  if (menuOpen) {
+                    setMenuOpen(false);
+                  } else {
+                    window.dispatchEvent(
+                      new CustomEvent('rjft:close-all-menus')
+                    );
+                    setMenuOpen(true);
+                  }
+                }}
+                ref={handleRef}
+              >
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+              </div>
             </div>
-          </div>
+            <div
+              className='absolute left-1/2 pointer-events-none transform -translate-x-1/2'
+              style={{ top: '36px' }}
+            >
+              <button
+                className='h-[18px] w-[18px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#2a2a2a] flex items-center justify-center pointer-events-auto'
+                title={isCollapsed ? 'Expand' : 'Collapse'}
+                onClick={e => {
+                  e.stopPropagation();
+                  setIsCollapsed(prev => !prev);
+                }}
+              >
+                <svg
+                  className='w-3 h-3 text-[#E5E7EB]'
+                  viewBox='0 0 20 20'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='1.6'
+                >
+                  <path
+                    d={isCollapsed ? 'M6 8l4 4 4-4' : 'M6 12l4-4 4 4'}
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  />
+                </svg>
+              </button>
+            </div>
+          </>
         )}
+        {/* selection outline rendered via CSS outline */}
       </div>
       {/* menu rendered via portal */}
       <div className={`space-y-0 transition-all duration-200`}>
-        {data.length === 0 ? (
+        {isCollapsed ? (
+          <div
+            className='w-full px-[12px] h-[40px] bg-[#0F0F0F] rounded-md overflow-hidden flex items-center'
+            title={`list with ${Array.isArray(data) ? data.length : 0} items`}
+          >
+            <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
+              <span className='text-[#C18E4C]'>list</span>
+              <span className='text-[#6D7177]'>•</span>
+              <span className='text-[#CDCDCD]'>
+                {Array.isArray(data) ? data.length : 0} items
+              </span>
+            </div>
+          </div>
+        ) : data.length === 0 ? (
           // Empty state - 不显示“click + to add”，仅提示为空
-          <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+          <div className='w-full px-[16px] py-[8px] bg-[#0F0F0F] rounded-md overflow-hidden transition-colors duration-200'>
             <div className='flex items-center h-[24px]'>
               <div className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
                 empty list
@@ -431,9 +485,9 @@ const ListComponent = ({
                   >
                     <div className='flex items-stretch'>
                       {/* Index Badge - display only */}
-                      <div className='flex-shrink-0 flex justify-center'>
+                      <div className='flex-shrink-0 flex justify-start'>
                         <div
-                          className='relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center'
+                          className='relative w-[96px] h-full px-[10px] py-[8px] bg-[#252525] overflow-visible transition-colors duration-200 flex items-center justify-start'
                           onMouseEnter={() => handleIndexHover(index, true)}
                           onMouseLeave={() => handleIndexHover(index, false)}
                           onClick={e => {
@@ -451,14 +505,15 @@ const ListComponent = ({
                             }
                           }}
                         >
-                          <div className='absolute right-0 top-1 bottom-1 w-px bg-[#2A2B2E] z-10 pointer-events-none'></div>
+                          {/* remove inner separator line to avoid double line in dict/list items */}
                           <span
-                            className={`text-[10px] leading-[28px] font-plus-jakarta-sans not-italic inline-block mt-[2px] transition-colors duration-200
-                                                            ${
-                                                              isIndexHovered
-                                                                ? 'text-[#A8773A]'
-                                                                : 'text-[#C18E4C] hover:text-[#D5A262]'
-                                                            }`}
+                            className='block w-full h-full text-[12px] leading-[20px] font-plus-jakarta-sans not-italic transition-colors duration-200'
+                            style={{
+                              color:
+                                isSelected || isIndexHovered
+                                  ? '#C18E4C'
+                                  : '#9FA3A9',
+                            }}
                           >
                             {index}
                           </span>
@@ -494,7 +549,7 @@ const ListComponent = ({
 
                   {/* Horizontal Divider Line - 在元素之间添加水平分隔线 */}
                   {index < data.length - 1 && (
-                    <div className='w-full h-[1px] bg-[#3A3D41] my-[4px]'></div>
+                    <div className='w-full h-[1px] bg-[#4A4D54] my-[4px]'></div>
                   )}
                 </React.Fragment>
               );
@@ -504,7 +559,7 @@ const ListComponent = ({
           </>
         )}
         {/* Add New Item - 仅在 hover/选中/菜单打开时显示（只读除外） */}
-        {!readonly && (
+        {!readonly && !isCollapsed && (
           <div className='absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2'>
             <button
               onClick={addEmptyItem}
@@ -529,6 +584,13 @@ const ListComponent = ({
           </div>
         )}
       </div>
+      {isSelected && (
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 z-[100]'
+          style={{ boxShadow: 'inset 0 0 0 2px #C18E4C' }}
+        />
+      )}
     </div>
   );
 };

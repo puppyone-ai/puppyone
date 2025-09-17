@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
+import { createPortal } from 'react-dom';
 import InputOutputDisplay from './components/InputOutputDisplay';
 import { PuppyDropdown } from '../../../misc/PuppyDropDown';
 import { nanoid } from 'nanoid';
@@ -62,6 +63,8 @@ const EditStructured: React.FC<ModifyConfigNodeProps> = React.memo(
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
+    const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+    const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
     // 获取所有需要的依赖
     const { streamResult, reportError, resetLoadingUI } =
@@ -261,6 +264,48 @@ const EditStructured: React.FC<ModifyConfigNodeProps> = React.memo(
         curRef.classList.remove('nodrag');
       }
     }, []);
+
+    // Use body-level fixed portal so menu does not scale with zoom
+    useEffect(() => {
+      if (!isMenuOpen) return;
+      let rafId: number | null = null;
+      const GAP = 16;
+
+      const positionMenu = () => {
+        const anchorEl = portalAnchorRef.current as HTMLElement | null;
+        const container = menuContainerRef.current as HTMLDivElement | null;
+        if (!container || !anchorEl) {
+          rafId = requestAnimationFrame(positionMenu);
+          return;
+        }
+        const rect = anchorEl.getBoundingClientRect();
+        const menuWidth = 416; // matches w-[416px]
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
+        const top = rect.bottom + GAP;
+
+        container.style.position = 'fixed';
+        container.style.left = `${left}px`;
+        container.style.top = `${top}px`;
+        container.style.zIndex = '2000000';
+        container.style.pointerEvents = 'auto';
+
+        rafId = requestAnimationFrame(positionMenu);
+      };
+
+      positionMenu();
+      const onScroll = () => positionMenu();
+      const onResize = () => positionMenu();
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', onResize);
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onResize);
+      };
+    }, [isMenuOpen]);
 
     // 状态同步到 ReactFlow - 使用 requestAnimationFrame 延迟执行，避免在节点创建时干扰
     useEffect(() => {
@@ -553,157 +598,179 @@ const EditStructured: React.FC<ModifyConfigNodeProps> = React.memo(
           />
         </button>
 
-        {/* Configuration Menu */}
-        {isMenuOpen && (
-          <ul
-            ref={menuRef}
-            className='absolute top-[64px] text-white w-[416px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
-            style={{
-              borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-            }}
-          >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='14'
-                      height='14'
-                      viewBox='0 0 14 14'
-                      fill='none'
-                    >
-                      <path
-                        d='M8.5 2.5L11.5 5.5L5 12H2V9L8.5 2.5Z'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                      />
-                      <path
-                        d='M8.5 2.5L9.5 1.5L12.5 4.5L11.5 5.5'
-                        stroke='#CDCDCD'
-                        strokeWidth='1.5'
-                      />
-                    </svg>
+        {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
+
+        {/* Configuration Menu - render in portal to avoid zoom scaling */}
+        {isMenuOpen &&
+          createPortal(
+            <div
+              ref={menuContainerRef}
+              style={{ position: 'fixed', zIndex: 2000000 }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+            >
+              <ul
+                ref={menuRef}
+                className='text-white w-[416px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
+                style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+                onWheelCapture={e => e.stopPropagation()}
+                onWheel={e => e.stopPropagation()}
+                onTouchMoveCapture={e => e.stopPropagation()}
+                onTouchMove={e => e.stopPropagation()}
+              >
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='14'
+                          height='14'
+                          viewBox='0 0 14 14'
+                          fill='none'
+                        >
+                          <path
+                            d='M8.5 2.5L11.5 5.5L5 12H2V9L8.5 2.5Z'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M8.5 2.5L9.5 1.5L12.5 4.5L11.5 5.5'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                        </svg>
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        Edit Structured
+                      </div>
+                    </div>
                   </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    Edit Structured
-                  </div>
-                </div>
-              </div>
-              <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <button
-                  className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={isLoading ? onStopExecution : onDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns='http://www.w3.org/2000/svg'
-                        width='8'
-                        height='10'
-                        viewBox='0 0 8 10'
-                        fill='none'
-                      >
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
-
-            {/* Input/Output display */}
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['structured']}
-                supportedOutputTypes={['structured']}
-              />
-            </li>
-
-            {/* Mode Selection */}
-            <li className='flex flex-col gap-[8px]'>
-              <label className='text-[12px] font-semibold text-[#6D7177]'>
-                Mode
-              </label>
-              <div className='flex flex-row gap-[8px]'>
-                <PuppyDropdown
-                  options={[
-                    MODIFY_GET_TYPE,
-                    MODIFY_DEL_TYPE,
-                    MODIFY_REPL_TYPE,
-                    MODIFY_GET_ALL_KEYS,
-                    MODIFY_GET_ALL_VAL,
-                  ]}
-                  onSelect={(option: string) => {
-                    setExecMode(option);
-                  }}
-                  selectedValue={execMode}
-                  optionBadge={false}
-                  listWidth='200px'
-                  buttonHeight='32px'
-                  buttonBgColor='#252525'
-                  containerClassnames='w-full'
-                  showDropdownIcon={true}
-                />
-              </div>
-            </li>
-
-            {/* Path Configuration */}
-            {(execMode === MODIFY_GET_TYPE ||
-              execMode === MODIFY_DEL_TYPE ||
-              execMode === MODIFY_REPL_TYPE) && (
-              <li className='flex flex-col gap-[8px]'>
-                <label className='text-[12px] font-semibold text-[#6D7177]'>
-                  Path
-                </label>
-                <div className='flex flex-col gap-[4px] p-[8px] bg-[#252525] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                  {pathTree.map((node, index) => (
-                    <PathTreeComponent
-                      key={node.id}
-                      node={node}
-                      onUpdate={updatedNode => {
-                        setPathTree([updatedNode]);
+                  <div className='flex flex-row gap-[8px] items-center justify-center'>
+                    <button
+                      className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
                       }}
+                      onClick={isLoading ? onStopExecution : onDataSubmit}
+                      disabled={false}
+                    >
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
+                    </button>
+                  </div>
+                </li>
+
+                {/* Input/Output display */}
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['structured']}
+                    supportedOutputTypes={['structured']}
+                  />
+                </li>
+
+                {/* Mode Selection */}
+                <li className='flex flex-col gap-[8px]'>
+                  <label className='text-[12px] font-semibold text-[#6D7177]'>
+                    Mode
+                  </label>
+                  <div className='flex flex-row gap-[8px]'>
+                    <PuppyDropdown
+                      options={[
+                        MODIFY_GET_TYPE,
+                        MODIFY_DEL_TYPE,
+                        MODIFY_REPL_TYPE,
+                        MODIFY_GET_ALL_KEYS,
+                        MODIFY_GET_ALL_VAL,
+                      ]}
+                      onSelect={(option: string) => {
+                        setExecMode(option);
+                      }}
+                      selectedValue={execMode}
+                      optionBadge={false}
+                      listWidth='200px'
+                      buttonHeight='32px'
+                      buttonBgColor='#252525'
+                      containerClassnames='w-full'
+                      showDropdownIcon={true}
+                    />
+                  </div>
+                </li>
+
+                {/* Path Configuration */}
+                {(execMode === MODIFY_GET_TYPE ||
+                  execMode === MODIFY_DEL_TYPE ||
+                  execMode === MODIFY_REPL_TYPE) && (
+                  <li className='flex flex-col gap-[8px]'>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>
+                      Path
+                    </label>
+                    <div className='flex flex-col gap-[4px] p-[8px] bg-[#252525] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                      {pathTree.map((node, index) => (
+                        <PathTreeComponent
+                          key={node.id}
+                          node={node}
+                          onUpdate={updatedNode => {
+                            setPathTree([updatedNode]);
+                          }}
+                          onFocus={onFocus}
+                          onBlur={onBlur}
+                        />
+                      ))}
+                    </div>
+                  </li>
+                )}
+
+                {/* Replace Value Input */}
+                {execMode === MODIFY_REPL_TYPE && (
+                  <li className='flex flex-col gap-[8px]'>
+                    <label className='text-[12px] font-semibold text-[#6D7177]'>
+                      Replace Value
+                    </label>
+                    <input
+                      type='text'
+                      value={paramv}
+                      onChange={e => setParamv(e.target.value)}
+                      className='w-full h-[32px] px-[12px] bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[8px] text-[#CDCDCD] text-[12px] placeholder-[#6D7177] outline-none focus:border-[#6D7177]/50'
+                      placeholder='Enter replacement value...'
                       onFocus={onFocus}
                       onBlur={onBlur}
                     />
-                  ))}
-                </div>
-              </li>
-            )}
-
-            {/* Replace Value Input */}
-            {execMode === MODIFY_REPL_TYPE && (
-              <li className='flex flex-col gap-[8px]'>
-                <label className='text-[12px] font-semibold text-[#6D7177]'>
-                  Replace Value
-                </label>
-                <input
-                  type='text'
-                  value={paramv}
-                  onChange={e => setParamv(e.target.value)}
-                  className='w-full h-[32px] px-[12px] bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[8px] text-[#CDCDCD] text-[12px] placeholder-[#6D7177] outline-none focus:border-[#6D7177]/50'
-                  placeholder='Enter replacement value...'
-                  onFocus={onFocus}
-                  onBlur={onBlur}
-                />
-              </li>
-            )}
-          </ul>
-        )}
+                  </li>
+                )}
+              </ul>
+            </div>,
+            document.body
+          )}
       </div>
     );
   }

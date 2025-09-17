@@ -7,6 +7,7 @@ import React, {
   useCallback,
   useMemo,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { markerEnd } from '../../connectionLineStyles/ConfigToTargetEdge';
 import InputOutputDisplay from './components/InputOutputDisplay';
 import { PuppyDropdown } from '@/app/components/misc/PuppyDropDown';
@@ -106,6 +107,8 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
+    const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+    const menuContainerRef = useRef<HTMLDivElement | null>(null);
     const [isHovered, setIsHovered] = useState(false);
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
 
@@ -355,6 +358,48 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         curRef.classList.remove('nodrag');
       }
     }, []);
+
+    // Use a body-level fixed portal to prevent zoom scaling
+    useEffect(() => {
+      if (!isMenuOpen) return;
+      let rafId: number | null = null;
+      const GAP = 16; // node bottom to menu gap
+
+      const positionMenu = () => {
+        const anchorEl = portalAnchorRef.current as HTMLElement | null;
+        const container = menuContainerRef.current as HTMLDivElement | null;
+        if (!container || !anchorEl) {
+          rafId = requestAnimationFrame(positionMenu);
+          return;
+        }
+        const rect = anchorEl.getBoundingClientRect();
+        const menuWidth = 535; // matches w-[535px]
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
+        const top = rect.bottom + GAP;
+
+        container.style.position = 'fixed';
+        container.style.left = `${left}px`;
+        container.style.top = `${top}px`;
+        container.style.zIndex = '2000000';
+        container.style.pointerEvents = 'auto';
+
+        rafId = requestAnimationFrame(positionMenu);
+      };
+
+      positionMenu();
+      const onScroll = () => positionMenu();
+      const onResize = () => positionMenu();
+      window.addEventListener('scroll', onScroll, true);
+      window.addEventListener('resize', onResize);
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+        window.removeEventListener('scroll', onScroll, true);
+        window.removeEventListener('resize', onResize);
+      };
+    }, [isMenuOpen]);
 
     // Data synchronization functions - 使用 useCallback 缓存
     const onSwitchValueChange = useCallback(
@@ -801,401 +846,433 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
           />
         </button>
 
-        {/* Configuration Menu (integrated directly) */}
-        {isMenuOpen && (
-          <ul
-            ref={menuRef}
-            className='w-[535px] absolute top-[64px] text-white rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
-            style={{
-              borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-            }}
-          >
-            <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-              <div className='flex flex-row gap-[12px]'>
-                <div className='flex flex-row gap-[8px] justify-center items-center'>
-                  <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='12'
-                      height='12'
-                      viewBox='0 0 12 12'
-                      fill='none'
-                    >
-                      <path d='M6 12V7' stroke='#D9D9D9' strokeWidth='2' />
-                      <path
-                        d='M10 2V7L2 7V2'
-                        stroke='#D9D9D9'
-                        strokeWidth='1.5'
-                      />
-                      <path
-                        d='M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z'
-                        fill='#D9D9D9'
-                        stroke='#D9D9D9'
-                      />
-                      <path
-                        d='M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z'
-                        fill='#D9D9D9'
-                        stroke='#D9D9D9'
-                      />
-                    </svg>
-                  </div>
-                  <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                    If/Else
-                  </div>
-                </div>
-              </div>
-              <div className='flex flex-row gap-[8px] items-center justify-center'>
-                <button
-                  className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                  style={{
-                    backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
-                  }}
-                  onClick={isLoading ? onStopExecution : onDataSubmit}
-                  disabled={false}
-                >
-                  <span>
-                    {isLoading ? (
-                      <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
-                        <rect width='8' height='8' fill='currentColor' />
-                      </svg>
-                    ) : (
-                      <svg
-                        xmlns='http://www.w3.org/2000/svg'
-                        width='8'
-                        height='10'
-                        viewBox='0 0 8 10'
-                        fill='none'
-                      >
-                        <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                      </svg>
-                    )}
-                  </span>
-                  <span>{isLoading ? 'Stop' : 'Run'}</span>
-                </button>
-              </div>
-            </li>
+        {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
-            {/* Input/Output display */}
-            <li>
-              <InputOutputDisplay
-                parentId={id}
-                getNode={getNode}
-                getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-                getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-                supportedInputTypes={['text', 'structured']}
-                supportedOutputTypes={['text', 'structured']}
-              />
-            </li>
-
-            {cases.map((case_value, case_index) => (
-              <li key={case_index} className='flex flex-col gap-2'>
-                {/* Case Header - 使用类似 LLM 配置菜单的样式 */}
-                <div className='flex items-center gap-2'>
-                  <label className='text-[13px] font-semibold text-[#6D7177]'>
-                    Case {case_index + 1}
-                  </label>
-                  <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
-                  {/* Delete Case Button */}
-                  {cases.length > 1 && (
+        {/* Configuration Menu - render in a body-level fixed portal to avoid zoom scaling */}
+        {isMenuOpen &&
+          createPortal(
+            <div
+              ref={menuContainerRef}
+              style={{ position: 'fixed', zIndex: 2000000 }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+            >
+              <ul
+                ref={menuRef}
+                className='w-[535px] text-white rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] shadow-lg'
+                style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+                onWheelCapture={e => e.stopPropagation()}
+                onWheel={e => e.stopPropagation()}
+                onTouchMoveCapture={e => e.stopPropagation()}
+                onTouchMove={e => e.stopPropagation()}
+              >
+                <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                  <div className='flex flex-row gap-[12px]'>
+                    <div className='flex flex-row gap-[8px] justify-center items-center'>
+                      <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='12'
+                          height='12'
+                          viewBox='0 0 12 12'
+                          fill='none'
+                        >
+                          <path d='M6 12V7' stroke='#D9D9D9' strokeWidth='2' />
+                          <path
+                            d='M10 2V7L2 7V2'
+                            stroke='#D9D9D9'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M0.934259 2.5L2 0.901388L3.06574 2.5H0.934259Z'
+                            fill='#D9D9D9'
+                            stroke='#D9D9D9'
+                          />
+                          <path
+                            d='M8.93426 2.5L10 0.901388L11.0657 2.5H8.93426Z'
+                            fill='#D9D9D9'
+                            stroke='#D9D9D9'
+                          />
+                        </svg>
+                      </div>
+                      <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                        If/Else
+                      </div>
+                    </div>
+                  </div>
+                  <div className='flex flex-row gap-[8px] items-center justify-center'>
                     <button
-                      onClick={() => {
-                        onCaseDelete(case_index);
+                      className='w-[57px] h-[26px] rounded-[8px] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
                       }}
-                      className='ml-auto p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                      onClick={isLoading ? onStopExecution : onDataSubmit}
+                      disabled={false}
                     >
-                      <svg
-                        width='14'
-                        height='14'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                      >
-                        <path
-                          d='M18 6L6 18M6 6l12 12'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
+                      <span>
+                        {isLoading ? (
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
+                            <rect width='8' height='8' fill='currentColor' />
+                          </svg>
+                        ) : (
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
+                            <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                          </svg>
+                        )}
+                      </span>
+                      <span>{isLoading ? 'Stop' : 'Run'}</span>
                     </button>
-                  )}
-                </div>
+                  </div>
+                </li>
 
-                {/* Case Content Container */}
-                <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
-                  {/* 保持现有的 IF/THEN 内容不变，稍后我们会继续优化这部分 */}
-                  <div className='flex flex-col w-full gap-[8px] p-3'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>
-                      Condition
-                    </label>
-                    {case_value.conditions.map(
-                      (condition_value, conditions_index) => (
-                        <React.Fragment key={conditions_index}>
-                          <div className='inline-flex space-x-[12px] items-center justify-start w-full'>
-                            <ul
-                              key={conditions_index}
-                              className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'
-                            >
-                              <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
-                                {/* 第一个元素：节点选择 */}
-                                <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
-                                  <PuppyDropdown
-                                    options={getSourceNodeIdWithLabel(id)}
-                                    onSelect={(node: {
-                                      id: string;
-                                      label: string;
-                                    }) => {
-                                      const cases_clone = [...cases];
-                                      cases_clone[case_index].conditions[
-                                        conditions_index
-                                      ] = {
-                                        ...cases_clone[case_index].conditions[
-                                          conditions_index
-                                        ],
-                                        id: node.id,
-                                        label: node.label,
-                                        type: getNode(node.id)?.type,
-                                      };
-                                      onCasesChange(cases_clone);
-                                    }}
-                                    selectedValue={condition_value.id}
-                                    optionBadge={false}
-                                    listWidth='200px'
-                                    buttonHeight='24px'
-                                    buttonBgColor='transparent'
-                                    containerClassnames='w-fit'
-                                    mapValueTodisplay={(
-                                      value:
-                                        | string
-                                        | { id: string; label: string }
-                                    ) => {
-                                      if (typeof value === 'string') {
-                                        const nodeType = getNode(value)?.type;
-                                        const label =
-                                          getNode(value)?.data?.label || value;
-                                        const displayText = `{{${label}}}`;
+                {/* Input/Output display */}
+                <li>
+                  <InputOutputDisplay
+                    parentId={id}
+                    getNode={getNode}
+                    getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                    getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                    supportedInputTypes={['text', 'structured']}
+                    supportedOutputTypes={['text', 'structured']}
+                  />
+                </li>
 
-                                        if (nodeType === 'text') {
-                                          return (
-                                            <span className='text-[#3B9BFF]'>
-                                              {displayText}
-                                            </span>
+                {cases.map((case_value, case_index) => (
+                  <li key={case_index} className='flex flex-col gap-2'>
+                    {/* Case Header - 使用类似 LLM 配置菜单的样式 */}
+                    <div className='flex items-center gap-2'>
+                      <label className='text-[13px] font-semibold text-[#6D7177]'>
+                        Case {case_index + 1}
+                      </label>
+                      <div className='w-[5px] h-[5px] rounded-full bg-[#FF4D4D]'></div>
+                      {/* Delete Case Button */}
+                      {cases.length > 1 && (
+                        <button
+                          onClick={() => {
+                            onCaseDelete(case_index);
+                          }}
+                          className='ml-auto p-0.5 w-6 h-6 flex items-center justify-center text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                        >
+                          <svg
+                            width='14'
+                            height='14'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                          >
+                            <path
+                              d='M18 6L6 18M6 6l12 12'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Case Content Container */}
+                    <div className='flex flex-col gap-2 p-2 bg-[#1E1E1E] rounded-[8px] border-[1px] border-[#6D7177]/30'>
+                      {/* 保持现有的 IF/THEN 内容不变，稍后我们会继续优化这部分 */}
+                      <div className='flex flex-col w-full gap-[8px] p-3'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>
+                          Condition
+                        </label>
+                        {case_value.conditions.map(
+                          (condition_value, conditions_index) => (
+                            <React.Fragment key={conditions_index}>
+                              <div className='inline-flex space-x-[12px] items-center justify-start w-full'>
+                                <ul
+                                  key={conditions_index}
+                                  className='flex-col border-[#6D7177] rounded-[4px] w-full bg-black'
+                                >
+                                  <li className='flex gap-1 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] min-w-[280px]'>
+                                    {/* 第一个元素：节点选择 */}
+                                    <div className='flex flex-row flex-wrap gap-[10px] items-center justify-start px-[10px]'>
+                                      <PuppyDropdown
+                                        options={getSourceNodeIdWithLabel(id)}
+                                        onSelect={(node: {
+                                          id: string;
+                                          label: string;
+                                        }) => {
+                                          const cases_clone = [...cases];
+                                          cases_clone[case_index].conditions[
+                                            conditions_index
+                                          ] = {
+                                            ...cases_clone[case_index]
+                                              .conditions[conditions_index],
+                                            id: node.id,
+                                            label: node.label,
+                                            type: getNode(node.id)?.type,
+                                          };
+                                          onCasesChange(cases_clone);
+                                        }}
+                                        selectedValue={condition_value.id}
+                                        optionBadge={false}
+                                        listWidth='200px'
+                                        buttonHeight='24px'
+                                        buttonBgColor='transparent'
+                                        containerClassnames='w-fit'
+                                        mapValueTodisplay={(
+                                          value:
+                                            | string
+                                            | { id: string; label: string }
+                                        ) => {
+                                          if (typeof value === 'string') {
+                                            const nodeType =
+                                              getNode(value)?.type;
+                                            const label =
+                                              getNode(value)?.data?.label ||
+                                              value;
+                                            const displayText = `{{${label}}}`;
+
+                                            if (nodeType === 'text') {
+                                              return (
+                                                <span className='text-[#3B9BFF]'>
+                                                  {displayText}
+                                                </span>
+                                              );
+                                            } else if (
+                                              nodeType === 'structured'
+                                            ) {
+                                              return (
+                                                <span className='text-[#9B7EDB]'>
+                                                  {displayText}
+                                                </span>
+                                              );
+                                            }
+                                            return displayText;
+                                          }
+
+                                          const nodeType = getNode(
+                                            value.id
+                                          )?.type;
+                                          const displayText = `{{${value.label || value.id}}}`;
+
+                                          if (nodeType === 'text') {
+                                            return (
+                                              <span className='text-[#3B9BFF]'>
+                                                {displayText}
+                                              </span>
+                                            );
+                                          } else if (
+                                            nodeType === 'structured'
+                                          ) {
+                                            return (
+                                              <span className='text-[#9B7EDB]'>
+                                                {displayText}
+                                              </span>
+                                            );
+                                          }
+                                          return displayText;
+                                        }}
+                                        showDropdownIcon={false}
+                                      />
+                                    </div>
+
+                                    {/* 第二个元素：条件选择 */}
+                                    <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
+                                      <PuppyDropdown
+                                        options={getConditionSelections(
+                                          condition_value.type || 'text'
+                                        )}
+                                        onSelect={(option: string) => {
+                                          updateCondition(
+                                            case_index,
+                                            conditions_index,
+                                            'condition',
+                                            option
                                           );
-                                        } else if (nodeType === 'structured') {
-                                          return (
-                                            <span className='text-[#9B7EDB]'>
-                                              {displayText}
-                                            </span>
-                                          );
+                                        }}
+                                        selectedValue={
+                                          condition_value.condition
                                         }
-                                        return displayText;
-                                      }
+                                        optionBadge={false}
+                                        listWidth='200px'
+                                        buttonHeight='24px'
+                                        buttonBgColor='transparent'
+                                        containerClassnames='w-fit'
+                                        showDropdownIcon={false}
+                                      />
+                                    </div>
 
-                                      const nodeType = getNode(value.id)?.type;
-                                      const displayText = `{{${value.label || value.id}}}`;
-
-                                      if (nodeType === 'text') {
-                                        return (
-                                          <span className='text-[#3B9BFF]'>
-                                            {displayText}
-                                          </span>
-                                        );
-                                      } else if (nodeType === 'structured') {
-                                        return (
-                                          <span className='text-[#9B7EDB]'>
-                                            {displayText}
-                                          </span>
-                                        );
-                                      }
-                                      return displayText;
-                                    }}
-                                    showDropdownIcon={false}
-                                  />
-                                </div>
-
-                                {/* 第二个元素：条件选择 */}
-                                <div className='h-[30px] border-r-[1px] border-l-[1px] px-[8px] border-[#6D7177]/30 flex items-center justify-start'>
-                                  <PuppyDropdown
-                                    options={getConditionSelections(
-                                      condition_value.type || 'text'
+                                    {/* 第三个元素：条件值输入 */}
+                                    {(condition_value.condition ===
+                                      'contains' ||
+                                      condition_value.condition ===
+                                        "doesn't contain" ||
+                                      condition_value.condition ===
+                                        'is greater than [N] characters' ||
+                                      condition_value.condition ===
+                                        'is less than [N] characters') && (
+                                      <div className='flex-1 px-[8px]'>
+                                        <input
+                                          type='text'
+                                          value={condition_value.cond_v}
+                                          onChange={e => {
+                                            updateCondition(
+                                              case_index,
+                                              conditions_index,
+                                              'cond_v',
+                                              e.target.value
+                                            );
+                                          }}
+                                          className='w-full h-[24px] bg-transparent border-none outline-none text-[#CDCDCD] text-[12px] placeholder-[#6D7177]'
+                                          placeholder='Enter value...'
+                                          onFocus={onFocus}
+                                          onBlur={onBlur}
+                                        />
+                                      </div>
                                     )}
-                                    onSelect={(option: string) => {
-                                      updateCondition(
-                                        case_index,
-                                        conditions_index,
-                                        'condition',
-                                        option
-                                      );
-                                    }}
-                                    selectedValue={condition_value.condition}
-                                    optionBadge={false}
-                                    listWidth='200px'
-                                    buttonHeight='24px'
-                                    buttonBgColor='transparent'
-                                    containerClassnames='w-fit'
-                                    showDropdownIcon={false}
-                                  />
-                                </div>
 
-                                {/* 第三个元素：条件值输入 */}
-                                {(condition_value.condition === 'contains' ||
-                                  condition_value.condition ===
-                                    "doesn't contain" ||
-                                  condition_value.condition ===
-                                    'is greater than [N] characters' ||
-                                  condition_value.condition ===
-                                    'is less than [N] characters') && (
-                                  <div className='flex-1 px-[8px]'>
-                                    <input
-                                      type='text'
-                                      value={condition_value.cond_v}
-                                      onChange={e => {
-                                        updateCondition(
+                                    {/* 删除条件按钮 */}
+                                    {case_value.conditions.length > 1 && (
+                                      <button
+                                        onClick={onConditionDelete(
                                           case_index,
-                                          conditions_index,
-                                          'cond_v',
-                                          e.target.value
-                                        );
-                                      }}
-                                      className='w-full h-[24px] bg-transparent border-none outline-none text-[#CDCDCD] text-[12px] placeholder-[#6D7177]'
-                                      placeholder='Enter value...'
-                                      onFocus={onFocus}
-                                      onBlur={onBlur}
-                                    />
-                                  </div>
-                                )}
+                                          conditions_index
+                                        )}
+                                        className='p-1 text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                                      >
+                                        <svg
+                                          width='12'
+                                          height='12'
+                                          viewBox='0 0 24 24'
+                                          fill='none'
+                                          stroke='currentColor'
+                                        >
+                                          <path
+                                            d='M18 6L6 18M6 6l12 12'
+                                            strokeWidth='2'
+                                            strokeLinecap='round'
+                                          />
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </li>
+                                </ul>
 
-                                {/* 删除条件按钮 */}
-                                {case_value.conditions.length > 1 && (
+                                {/* AND/OR 切换按钮 */}
+                                {conditions_index <
+                                  case_value.conditions.length - 1 && (
                                   <button
-                                    onClick={onConditionDelete(
+                                    onClick={onAndOrSwitch(
                                       case_index,
                                       conditions_index
                                     )}
-                                    className='p-1 text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                                    className='px-2 py-1 text-[10px] font-medium rounded border border-[#6D7177]/30 bg-[#252525] text-[#CDCDCD] hover:border-[#6D7177]/50 transition-colors'
                                   >
-                                    <svg
-                                      width='12'
-                                      height='12'
-                                      viewBox='0 0 24 24'
-                                      fill='none'
-                                      stroke='currentColor'
-                                    >
-                                      <path
-                                        d='M18 6L6 18M6 6l12 12'
-                                        strokeWidth='2'
-                                        strokeLinecap='round'
-                                      />
-                                    </svg>
+                                    {condition_value.operation}
                                   </button>
                                 )}
-                              </li>
-                            </ul>
+                              </div>
+                            </React.Fragment>
+                          )
+                        )}
 
-                            {/* AND/OR 切换按钮 */}
-                            {conditions_index <
-                              case_value.conditions.length - 1 && (
-                              <button
-                                onClick={onAndOrSwitch(
-                                  case_index,
-                                  conditions_index
-                                )}
-                                className='px-2 py-1 text-[10px] font-medium rounded border border-[#6D7177]/30 bg-[#252525] text-[#CDCDCD] hover:border-[#6D7177]/50 transition-colors'
-                              >
-                                {condition_value.operation}
-                              </button>
-                            )}
-                          </div>
-                        </React.Fragment>
-                      )
-                    )}
-
-                    {/* 添加条件按钮 */}
-                    <button
-                      onClick={onConditionAdd(case_index)}
-                      className='flex items-center gap-2 px-3 py-2 text-[12px] text-[#6D7177] hover:text-[#CDCDCD] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md bg-[#252525] hover:bg-[#2A2A2A] transition-colors'
-                    >
-                      <svg
-                        width='12'
-                        height='12'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                      >
-                        <path
-                          d='M12 5v14M5 12h14'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
-                      Add Condition
-                    </button>
-                  </div>
-
-                  {/* THEN 部分 */}
-                  <div className='flex flex-col w-full gap-[8px] p-3 border-t border-[#6D7177]/30'>
-                    <label className='text-[11px] font-regular text-[#6D7177] ml-1'>
-                      Then
-                    </label>
-                    {case_value.actions.map((action, action_index) => (
-                      <div
-                        key={action_index}
-                        className='flex gap-2 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] px-3'
-                      >
-                        <span className='text-[12px] text-[#CDCDCD]'>
-                          Output to connected nodes
-                        </span>
+                        {/* 添加条件按钮 */}
+                        <button
+                          onClick={onConditionAdd(case_index)}
+                          className='flex items-center gap-2 px-3 py-2 text-[12px] text-[#6D7177] hover:text-[#CDCDCD] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md bg-[#252525] hover:bg-[#2A2A2A] transition-colors'
+                        >
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                          >
+                            <path
+                              d='M12 5v14M5 12h14'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                          Add Condition
+                        </button>
                       </div>
-                    ))}
 
-                    {/* 添加 Action 按钮 */}
-                    <button
-                      onClick={onActionAdd(case_index)}
-                      className='flex items-center gap-2 px-3 py-2 text-[12px] text-[#6D7177] hover:text-[#CDCDCD] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md bg-[#252525] hover:bg-[#2A2A2A] transition-colors'
+                      {/* THEN 部分 */}
+                      <div className='flex flex-col w-full gap-[8px] p-3 border-t border-[#6D7177]/30'>
+                        <label className='text-[11px] font-regular text-[#6D7177] ml-1'>
+                          Then
+                        </label>
+                        {case_value.actions.map((action, action_index) => (
+                          <div
+                            key={action_index}
+                            className='flex gap-2 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] px-3'
+                          >
+                            <span className='text-[12px] text-[#CDCDCD]'>
+                              Output to connected nodes
+                            </span>
+                          </div>
+                        ))}
+
+                        {/* 添加 Action 按钮 */}
+                        <button
+                          onClick={onActionAdd(case_index)}
+                          className='flex items-center gap-2 px-3 py-2 text-[12px] text-[#6D7177] hover:text-[#CDCDCD] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md bg-[#252525] hover:bg-[#2A2A2A] transition-colors'
+                        >
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                          >
+                            <path
+                              d='M12 5v14M5 12h14'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                          Add Action
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+
+                {/* 添加新 Case 按钮 */}
+                <li>
+                  <button
+                    onClick={onCaseAdd}
+                    className='w-full flex items-center justify-center gap-2 px-4 py-3 text-[13px] font-medium text-[#6D7177] hover:text-[#CDCDCD] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md bg-[#1E1E1E] hover:bg-[#252525] transition-colors'
+                  >
+                    <svg
+                      width='14'
+                      height='14'
+                      viewBox='0 0 24 24'
+                      fill='none'
+                      stroke='currentColor'
                     >
-                      <svg
-                        width='12'
-                        height='12'
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                      >
-                        <path
-                          d='M12 5v14M5 12h14'
-                          strokeWidth='2'
-                          strokeLinecap='round'
-                        />
-                      </svg>
-                      Add Action
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-
-            {/* 添加新 Case 按钮 */}
-            <li>
-              <button
-                onClick={onCaseAdd}
-                className='w-full flex items-center justify-center gap-2 px-4 py-3 text-[13px] font-medium text-[#6D7177] hover:text-[#CDCDCD] border border-[#6D7177]/30 hover:border-[#6D7177]/50 rounded-md bg-[#1E1E1E] hover:bg-[#252525] transition-colors'
-              >
-                <svg
-                  width='14'
-                  height='14'
-                  viewBox='0 0 24 24'
-                  fill='none'
-                  stroke='currentColor'
-                >
-                  <path
-                    d='M12 5v14M5 12h14'
-                    strokeWidth='2'
-                    strokeLinecap='round'
-                  />
-                </svg>
-                Add New Case
-              </button>
-            </li>
-          </ul>
-        )}
+                      <path
+                        d='M12 5v14M5 12h14'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                      />
+                    </svg>
+                    Add New Case
+                  </button>
+                </li>
+              </ul>
+            </div>,
+            document.body
+          )}
       </div>
     );
   }
