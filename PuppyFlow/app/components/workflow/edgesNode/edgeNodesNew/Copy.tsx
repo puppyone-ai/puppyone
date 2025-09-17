@@ -56,7 +56,7 @@ function CopyEdgeNode({
   } = useNodesPerFlowContext();
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false);
   const { getNode, getInternalNode, setNodes, setEdges } = useReactFlow();
-  const [isMenuOpen, setIsMenuOpen] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

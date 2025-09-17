@@ -54,7 +54,7 @@ const SearchGoogle: React.FC<SearchConfigNodeProps> = React.memo(
     const { getNode, setNodes, setEdges } = useReactFlow();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
-    const [isMenuOpen, setIsMenuOpen] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const menuRef = useRef<HTMLUListElement>(null);
     const portalAnchorRef = useRef<HTMLDivElement | null>(null);

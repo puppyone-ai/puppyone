@@ -28,7 +28,7 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
     clearAll,
   } = useNodesPerFlowContext();
   const [isTargetHandleTouched, setIsTargetHandleTouched] = useState(false);
-  const [isMenuOpen, setIsMenuOpen] = useState(true);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);

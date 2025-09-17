@@ -58,7 +58,7 @@ const EditStructured: React.FC<ModifyConfigNodeProps> = React.memo(
     const { getNode, getInternalNode, setNodes, setEdges } = useReactFlow();
     const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
       useGetSourceTarget();
-    const [isMenuOpen, setIsMenuOpen] = useState(true);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
     const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
