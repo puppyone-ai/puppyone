@@ -1269,45 +1269,58 @@ const EdgeTypeMenu: React.FC<EdgeTypeMenuProps> = ({
         )}
 
         <style jsx>{`
-        :global(.menu-scroll) {
-          -ms-overflow-style: auto; /* IE and Edge */
-          scrollbar-width: thin; /* Firefox: thin track */
-          scrollbar-color: rgb(92, 92, 92) transparent !important; /* Firefox: thumb + transparent track */
-          overscroll-behavior: contain;
-          /* Do not reserve extra gutter so content width is unaffected */
-          color-scheme: dark; /* Hint OS/engine to use dark overlay scrollbars */
-          /* Use dark background to avoid white gutter/track on some WebKit */
-          background-color: #181818 !important;
-          -webkit-overflow-scrolling: touch;
-        }
-        /* WebKit: enforce transparent/dark visuals on all parts */
-        :global(.menu-scroll::-webkit-scrollbar) {
-          width: 5px; height: 5px;
-          background: transparent !important;
-          background-color: transparent !important;
-        }
-        :global(.menu-scroll::-webkit-scrollbar-track),
-        :global(.menu-scroll::-webkit-scrollbar-track-piece) {
-          /* Prefer transparent; if ignored, a dark color prevents white */
-          background: #181818 !important;
-          background-color: #181818 !important;
-        }
-        :global(.menu-scroll::-webkit-scrollbar-corner) {
-          background: transparent !important;
-        }
-        :global(.menu-scroll::-webkit-scrollbar-button) { display: none; height: 0; width: 0; }
-        :global(.menu-scroll::-webkit-scrollbar-thumb) {
-          background: rgba(130, 130, 130, 0.9) !important; /* dark thumb */
-          border-radius: 8px;
-          border: 1px solid transparent; /* keep slim look */
-          background-clip: padding-box;
-          box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04);
-        }
-        :global(.menu-scroll::-webkit-scrollbar-thumb:hover) { background: rgba(160, 160, 160, 1) !important; }
-        :global(.menu-container) { overscroll-behavior: contain; color-scheme: dark; }
-        :global(.scroll-shadow-top) { box-shadow: inset 0 8px 8px -8px rgba(0,0,0,0.35); }
-        :global(.scroll-shadow-bottom) { box-shadow: inset 0 -8px 8px -8px rgba(0,0,0,0.35); }
-
+          :global(.menu-scroll) {
+            -ms-overflow-style: auto; /* IE and Edge */
+            scrollbar-width: thin; /* Firefox: thin track */
+            scrollbar-color: rgb(92, 92, 92) transparent !important; /* Firefox: thumb + transparent track */
+            overscroll-behavior: contain;
+            /* Do not reserve extra gutter so content width is unaffected */
+            color-scheme: dark; /* Hint OS/engine to use dark overlay scrollbars */
+            /* Use dark background to avoid white gutter/track on some WebKit */
+            background-color: #181818 !important;
+            -webkit-overflow-scrolling: touch;
+          }
+          /* WebKit: enforce transparent/dark visuals on all parts */
+          :global(.menu-scroll::-webkit-scrollbar) {
+            width: 5px;
+            height: 5px;
+            background: transparent !important;
+            background-color: transparent !important;
+          }
+          :global(.menu-scroll::-webkit-scrollbar-track),
+          :global(.menu-scroll::-webkit-scrollbar-track-piece) {
+            /* Prefer transparent; if ignored, a dark color prevents white */
+            background: #181818 !important;
+            background-color: #181818 !important;
+          }
+          :global(.menu-scroll::-webkit-scrollbar-corner) {
+            background: transparent !important;
+          }
+          :global(.menu-scroll::-webkit-scrollbar-button) {
+            display: none;
+            height: 0;
+            width: 0;
+          }
+          :global(.menu-scroll::-webkit-scrollbar-thumb) {
+            background: rgba(130, 130, 130, 0.9) !important; /* dark thumb */
+            border-radius: 8px;
+            border: 1px solid transparent; /* keep slim look */
+            background-clip: padding-box;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+          }
+          :global(.menu-scroll::-webkit-scrollbar-thumb:hover) {
+            background: rgba(160, 160, 160, 1) !important;
+          }
+          :global(.menu-container) {
+            overscroll-behavior: contain;
+            color-scheme: dark;
+          }
+          :global(.scroll-shadow-top) {
+            box-shadow: inset 0 8px 8px -8px rgba(0, 0, 0, 0.35);
+          }
+          :global(.scroll-shadow-bottom) {
+            box-shadow: inset 0 -8px 8px -8px rgba(0, 0, 0, 0.35);
+          }
         `}</style>
       </div>
     </div>,

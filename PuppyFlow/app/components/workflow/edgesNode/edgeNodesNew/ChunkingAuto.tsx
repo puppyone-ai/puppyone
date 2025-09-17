@@ -150,7 +150,10 @@ function ChunkingAuto({
       }
       const rect = anchorEl.getBoundingClientRect();
       const menuWidth = 320;
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
       const top = rect.bottom + GAP;
 
       container.style.position = 'fixed';
@@ -353,7 +356,13 @@ function ChunkingAuto({
                 <div className='flex flex-row gap-[12px]'>
                   <div className='flex flex-row gap-[8px] justify-center items-center'>
                     <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                      <svg xmlns='http://www.w3.org/2000/svg' width='16' height='15' fill='none' viewBox='0 0 16 15'>
+                      <svg
+                        xmlns='http://www.w3.org/2000/svg'
+                        width='16'
+                        height='15'
+                        fill='none'
+                        viewBox='0 0 16 15'
+                      >
                         <path
                           fill='#CDCDCD'
                           d='M1.953.64v.61h-.68v4.292h.68v.612H.483V.641h1.47Zm4.585 3.472h-1.59l-.3.888h-.943L5.246.682h1.02L7.795 5h-.979l-.278-.888Zm-.252-.744L5.747 1.67l-.557 1.7h1.096Zm4.614-.032V.682h.917v2.654c0 .459-.07.816-.213 1.072-.266.469-.773.703-1.521.703-.748 0-1.256-.234-1.523-.703-.143-.256-.214-.613-.214-1.072V.682h.917v2.654c0 .297.035.514.105.65.11.243.348.364.715.364.365 0 .602-.121.712-.364.07-.136.105-.353.105-.65Zm3.812 2.206V1.238h-.68V.641h1.47v5.513h-1.47v-.612h.68Z'
@@ -374,12 +383,32 @@ function ChunkingAuto({
                   >
                     <span>
                       {isLoading ? (
-                        <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                          <circle className='opacity-25' cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='4'></circle>
-                          <path className='opacity-75' fill='currentColor' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'></path>
+                        <svg
+                          className='animate-spin h-4 w-4'
+                          viewBox='0 0 24 24'
+                        >
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
                         </svg>
                       ) : (
-                        <svg xmlns='http://www.w3.org/2000/svg' width='8' height='10' viewBox='0 0 8 10' fill='none'>
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='8'
+                          height='10'
+                          viewBox='0 0 8 10'
+                          fill='none'
+                        >
                           <path d='M8 5L0 10V0L8 5Z' fill='black' />
                         </svg>
                       )}

@@ -392,7 +392,10 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
         }
         const rect = anchorEl.getBoundingClientRect();
         const menuWidth = 448;
-        const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+        const left = Math.max(
+          8,
+          Math.min(rect.left, window.innerWidth - menuWidth - 8)
+        );
         const top = rect.bottom + GAP;
 
         container.style.position = 'fixed';
@@ -554,7 +557,10 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
         </button>
 
         {/* Invisible fixed-position anchor to tether the portal menu to this node */}
-        <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
+        <div
+          ref={portalAnchorRef}
+          className='absolute left-0 top-full h-0 w-0'
+        />
 
         {/* Configuration Menu - render in a body-level fixed portal to avoid zoom scaling */}
         {isMenuOpen &&
@@ -578,10 +584,29 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
                   <div className='flex flex-row gap-[12px]'>
                     <div className='flex flex-row gap-[8px] justify-center items-center'>
                       <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                        <svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none'>
-                          <path d='M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-6-6z' stroke='#CDCDCD' strokeWidth='1.5' />
-                          <path d='M13 3v6h6' stroke='#CDCDCD' strokeWidth='1.5' />
-                          <path d='M9 14h6' stroke='#CDCDCD' strokeWidth='1.5' strokeLinecap='round' />
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='12'
+                          height='12'
+                          viewBox='0 0 24 24'
+                          fill='none'
+                        >
+                          <path
+                            d='M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9l-6-6z'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M13 3v6h6'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                          />
+                          <path
+                            d='M9 14h6'
+                            stroke='#CDCDCD'
+                            strokeWidth='1.5'
+                            strokeLinecap='round'
+                          />
                         </svg>
                       </div>
                       <div className='flex items-center justify-center text-[14px] font-[600] text-main-grey font-plus-jakarta-sans leading-normal'>
@@ -592,17 +617,30 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
                   <div className='flex flex-row gap-[8px] items-center justify-between'>
                     <button
                       className='w-[57px] h-[24px] rounded-[8px] text-[#000] text-[12px] font-[600] font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                      style={{ backgroundColor: isLoading ? '#FFA73D' : '#39BC66' }}
+                      style={{
+                        backgroundColor: isLoading ? '#FFA73D' : '#39BC66',
+                      }}
                       onClick={isLoading ? onStopExecution : handleDataSubmit}
                       disabled={false}
                     >
                       <span>
                         {isLoading ? (
-                          <svg width='8' height='8' viewBox='0 0 8 8' fill='none'>
+                          <svg
+                            width='8'
+                            height='8'
+                            viewBox='0 0 8 8'
+                            fill='none'
+                          >
                             <rect width='8' height='8' fill='currentColor' />
                           </svg>
                         ) : (
-                          <svg xmlns='http://www.w3.org/2000/svg' width='8' height='10' viewBox='0 0 8 10' fill='none'>
+                          <svg
+                            xmlns='http://www.w3.org/2000/svg'
+                            width='8'
+                            height='10'
+                            viewBox='0 0 8 10'
+                            fill='none'
+                          >
                             <path d='M8 5L0 10V0L8 5Z' fill='black' />
                           </svg>
                         )}
@@ -637,12 +675,28 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
                   <div className='bg-[#1E1E1E] rounded-[8px] p-[5px] border-[1px] border-[#6D7177]/30 hover:border-[#6D7177]/50 transition-colors'>
                     <div className='flex flex-wrap gap-2 items-center'>
                       {delimiters.map((delimiter, index) => (
-                        <div key={index} className='flex items-center bg-[#252525] rounded-md border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 transition-colors group'>
+                        <div
+                          key={index}
+                          className='flex items-center bg-[#252525] rounded-md border border-[#FF9B4D]/30 hover:border-[#FF9B4D]/50 transition-colors group'
+                        >
                           <span className='text-[10px] text-[#FF9B4D] px-2 py-1'>
                             {delimiterDisplay(delimiter)}
                           </span>
-                          <button onClick={() => removeDelimiter(index)} className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors px-1 py-1 opacity-0 group-hover:opacity-100'>
-                            <svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' strokeLinecap='round' strokeLinejoin='round'>
+                          <button
+                            onClick={() => removeDelimiter(index)}
+                            className='text-[#6D7177] hover:text-[#ff6b6b] transition-colors px-1 py-1 opacity-0 group-hover:opacity-100'
+                          >
+                            <svg
+                              xmlns='http://www.w3.org/2000/svg'
+                              width='10'
+                              height='10'
+                              viewBox='0 0 24 24'
+                              fill='none'
+                              stroke='currentColor'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                              strokeLinejoin='round'
+                            >
                               <line x1='18' y1='6' x2='6' y2='18'></line>
                               <line x1='6' y1='6' x2='18' y2='18'></line>
                             </svg>
@@ -667,8 +721,18 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
                           onClick={() => setShowDelimiterInput(true)}
                           className='w-[24px] h-[24px] flex items-center justify-center rounded-md bg-[#252525] border border-[#6D7177]/30 text-[#6D7177] hover:border-[#6D7177]/50 hover:bg-[#252525]/80 transition-colors'
                         >
-                          <svg width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor'>
-                            <path d='M12 5v14M5 12h14' strokeWidth='2' strokeLinecap='round' />
+                          <svg
+                            width='12'
+                            height='12'
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                          >
+                            <path
+                              d='M12 5v14M5 12h14'
+                              strokeWidth='2'
+                              strokeLinecap='round'
+                            />
                           </svg>
                         </button>
                       )}
@@ -676,7 +740,9 @@ const ChunkingByCharacter: React.FC<ChunkingByCharacterProps> = memo(
                   </div>
 
                   <div className='mt-1'>
-                    <div className='text-[10px] text-[#6D7177] mb-2'>Common delimiters:</div>
+                    <div className='text-[10px] text-[#6D7177] mb-2'>
+                      Common delimiters:
+                    </div>
                     <div className='flex flex-wrap gap-2'>
                       {commonDelimiters.map(delimiter => (
                         <button

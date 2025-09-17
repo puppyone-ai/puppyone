@@ -158,7 +158,10 @@ function Convert2Text({ isConnectable, id }: Convert2TextNodeProps) {
       }
       const rect = anchorEl.getBoundingClientRect();
       const menuWidth = 320;
-      const left = Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8));
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
       const top = rect.bottom + GAP;
 
       container.style.position = 'fixed';
