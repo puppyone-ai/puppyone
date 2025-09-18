@@ -186,8 +186,7 @@ function DeepResearch({ data, isConnectable, id }: DeepResearchNodeProps) {
               }
             : undefined),
         extra_configs: {
-          model:
-            existingExtra?.model || defaultModel?.id || 'openai/gpt-5',
+          model: existingExtra?.model || defaultModel?.id || 'openai/gpt-5',
           temperature: existingExtra?.temperature ?? 0.1,
           max_tokens: existingExtra?.max_tokens ?? 10000,
           max_iterations: existingExtra?.max_iterations ?? 3,
