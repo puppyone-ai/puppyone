@@ -170,8 +170,12 @@ class BlockUpdateService:
         """
         Classify content into semantic type (text/structured) and normalize the value
         to avoid UI/storage mismatches.
+        
+        Enhanced to support intelligent type degradation from edge results.
 
         Rules:
+        - If value is a dict with 'type' and 'content' keys (intelligent degradation format):
+          * Use the specified type and content directly
         - desired structured:
           * dict/list -> keep, structured
           * str -> try json.loads to dict/list; on fail, wrap as {"value": str}
@@ -180,6 +184,19 @@ class BlockUpdateService:
           * dict/list -> json.dumps(..., ensure_ascii=False), text
           * others -> str(value or ''), text
         """
+        # Check for intelligent type degradation format
+        if isinstance(value, dict) and 'type' in value and 'content' in value:
+            # This is a result from intelligent type degradation
+            degraded_type = value['type']
+            degraded_content = value['content']
+            
+            if degraded_type == 'text':
+                # Force text type regardless of desired_block_type
+                return str(degraded_content), 'text'
+            elif degraded_type == 'structured':
+                # Keep as structured
+                return degraded_content, 'structured'
+        
         desired = (desired_block_type or 'text').lower()
 
         # Structured target

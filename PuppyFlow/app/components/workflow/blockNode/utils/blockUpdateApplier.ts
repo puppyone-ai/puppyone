@@ -51,6 +51,8 @@ export function applyBlockUpdate(
         node.id === u.block_id
           ? {
               ...node,
+              // Update node type based on external content type
+              type: normalizedContentType === 'structured' ? 'structured' : 'text',
               data: {
                 ...node.data,
                 storage_class: 'external',
@@ -62,6 +64,8 @@ export function applyBlockUpdate(
                 isWaitingForFlow: true,
                 isExternalStorage: true,
                 content: '',
+                // Record semantic type for external storage too
+                semantic_type: normalizedContentType,
               },
             }
           : node
@@ -110,6 +114,8 @@ export function applyBlockUpdate(
       node.id === u.block_id
         ? {
             ...node,
+            // Update node type if semantic type differs from current node type
+            type: contentType === 'structured' ? 'structured' : 'text',
             data: {
               ...node.data,
               content: stringContent,
