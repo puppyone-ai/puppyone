@@ -18,14 +18,14 @@ def get_open_router_models(
         ]
     except Exception as e:
         logging.error(f"Error getting open router models: {e}")
-        valid_models = ["openai/gpt-4o-mini"]
+        # Leave empty to avoid false negatives when validating availability
+        valid_models = []
 
     return valid_models
 
 open_router_models = get_open_router_models()
-open_router_supported_models = [
-    "openai/gpt-5",
-]
+# Restrict exposed model list to only GPT-5
+open_router_supported_models = ["openai/gpt-5"]
 
 local_supported_models = [
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",

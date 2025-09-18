@@ -21,7 +21,7 @@ class EventsList(BaseModel):
     events: list[CalendarEvent]
 
 resp = lite_llm_chat(
-    model="gpt-4o-2024-08-06",
+    model="openai/gpt-5",
     messages=messages,
     response_format=EventsList,
     api_key=os.environ.get("DEEPBRICKS_API_KEY")
@@ -30,7 +30,7 @@ print(resp, type(resp), eval(resp))
 
 # JSON Schema
 resp = lite_llm_chat(
-  model="gpt-4o-2024-08-06",
+  model="openai/gpt-5",
   response_format={
       "type": "json_schema",
       "json_schema": {

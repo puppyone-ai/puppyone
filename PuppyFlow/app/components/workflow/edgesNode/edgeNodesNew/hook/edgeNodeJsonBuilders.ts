@@ -1286,7 +1286,7 @@ function buildDeepResearchNodeJson(
   } as any;
 
   const extra_configs = {
-    model: ec?.model || nodeData?.modelAndProvider?.id || 'gpt-4o-2024-08-06',
+    model: ec?.model || nodeData?.modelAndProvider?.id || 'openai/gpt-5',
     temperature: ec?.temperature ?? 0.1,
     max_tokens: ec?.max_tokens ?? 10000,
     max_iterations: ec?.max_iterations ?? 3,
