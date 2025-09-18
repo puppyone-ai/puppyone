@@ -190,11 +190,13 @@ jobs:
               await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
             }
 
-            // Auto-approve to clear prior bot "changes requested" state
-            // This only acts on the bot's own enforcer review and avoids duplicating approvals
+            // Auto-dismiss prior bot "changes requested" review (GitHub Actions cannot approve PRs)
             const { data: reviews } = await github.rest.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
-            const hasBotChangesRequested = reviews.some(r => r.user?.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
-            const hasBotApproved = reviews.some(r => r.user?.type === 'Bot' && r.state === 'APPROVED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
-            if (hasBotChangesRequested && !hasBotApproved) {
-              await github.rest.pulls.createReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, event: 'APPROVE', body: '<!-- PR_TEMPLATE_ENFORCER -->Template check passed.' });
+            const botChangeReviews = reviews.filter(r => r.user?.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+            for (const r of botChangeReviews) {
+              try {
+                await github.rest.pulls.dismissReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, review_id: r.id, message: '<!-- PR_TEMPLATE_ENFORCER -->Template check passed; dismissing previous changes request.' });
+              } catch (e) {
+                core.warning(`Failed to dismiss review ${r.id}: ${e?.message || e}`);
+              }
             }
