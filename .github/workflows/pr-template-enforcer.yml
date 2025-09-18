@@ -184,3 +184,12 @@ jobs:
             if (mine) {
               await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
             }
+
+            // Auto-approve to clear prior bot "changes requested" state
+            // This only acts on the bot's own enforcer review and avoids duplicating approvals
+            const { data: reviews } = await github.rest.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
+            const hasBotChangesRequested = reviews.some(r => r.user?.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+            const hasBotApproved = reviews.some(r => r.user?.type === 'Bot' && r.state === 'APPROVED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+            if (hasBotChangesRequested && !hasBotApproved) {
+              await github.rest.pulls.createReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, event: 'APPROVE', body: '<!-- PR_TEMPLATE_ENFORCER -->Template check passed.' });
+            }
