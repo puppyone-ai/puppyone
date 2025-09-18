@@ -1084,7 +1084,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
         }
       | undefined;
 
-  let modelString = 'openai/gpt-5'; // 默认值
+    let modelString = 'openai/gpt-5'; // 默认值
 
     if (
       modelAndProvider &&
@@ -1208,7 +1208,7 @@ export function useEdgeNodeBackEndJsonBuilder() {
 
     // 获取其他必要参数
     const promptTemplate = (nodeData?.promptTemplate as string) || 'default';
-  const model = (nodeData?.model as string) || 'openai/gpt-5';
+    const model = (nodeData?.model as string) || 'openai/gpt-5';
     const structuredOutput = !!nodeData?.structured_output;
     const baseUrl = (nodeData?.base_url as string) || undefined;
 

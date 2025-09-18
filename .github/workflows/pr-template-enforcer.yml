@@ -14,6 +14,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: pr-template-enforcer-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
 jobs:
   enforce:
     runs-on: ubuntu-latest
@@ -150,7 +154,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
+            const prNumberInput = core.getInput('pr_number');
+            let pr = context.payload.pull_request || null;
+            if (!pr && prNumberInput) {
+              const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: Number(prNumberInput) });
+              pr = data;
+            }
             if (!pr) return;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -179,4 +188,13 @@ jobs:
             const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('PR_TEMPLATE_ENFORCER'));
             if (mine) {
               await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
+            }
+
+            // Auto-approve to clear prior bot "changes requested" state
+            // This only acts on the bot's own enforcer review and avoids duplicating approvals
+            const { data: reviews } = await github.rest.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
+            const hasBotChangesRequested = reviews.some(r => r.user?.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+            const hasBotApproved = reviews.some(r => r.user?.type === 'Bot' && r.state === 'APPROVED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+            if (hasBotChangesRequested && !hasBotApproved) {
+              await github.rest.pulls.createReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, event: 'APPROVE', body: '<!-- PR_TEMPLATE_ENFORCER -->Template check passed.' });
             }
