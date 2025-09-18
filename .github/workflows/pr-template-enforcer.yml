@@ -14,6 +14,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: pr-template-enforcer-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
 jobs:
   enforce:
     runs-on: ubuntu-latest
