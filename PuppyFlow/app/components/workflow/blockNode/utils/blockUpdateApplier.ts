@@ -52,7 +52,8 @@ export function applyBlockUpdate(
           ? {
               ...node,
               // Update node type based on external content type
-              type: normalizedContentType === 'structured' ? 'structured' : 'text',
+              type:
+                normalizedContentType === 'structured' ? 'structured' : 'text',
               data: {
                 ...node.data,
                 storage_class: 'external',
