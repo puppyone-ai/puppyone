@@ -4,9 +4,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import re
-import json
-import logging
-from typing import Any, List, Tuple, Union, Optional, Callable, Dict
+from typing import Any, List, Tuple, Union, Optional, Callable
 from ModularEdges.ModifyEdge.modify_strategy import ModifyStrategy
 from Utils.puppy_exception import PuppyException, global_exception_handler
 
@@ -19,12 +17,6 @@ class ModifyEditStructured(ModifyStrategy):
     def modify(
         self,
     ) -> Any:
-        """Execute structured operations and apply intelligent type degradation."""
-        result = self._execute_operations()
-        return self._apply_intelligent_type_degradation(result)
-    
-    def _execute_operations(self) -> Any:
-        """Execute the actual structured operations without type checking."""
         operations = self.extra_configs.get("operations", [])
         result = self.content
 
@@ -336,142 +328,6 @@ class ModifyEditStructured(ModifyStrategy):
         # Start the recursive replacement from the root
         self.content = replace_value(self.content)
         return self.content
-
-    def _apply_intelligent_type_degradation(self, result: Any) -> Dict[str, Any]:
-        """
-        Apply intelligent type degradation based on structured content requirements.
-        
-        Returns a dict with:
-        - type: 'structured' or 'text'
-        - content: the actual content (structured or string)
-        - metadata: degradation tracking info (if degraded)
-        """
-        # Check if result should be degraded to text
-        degradation_info = self._should_degrade_to_text(result)
-        
-        if degradation_info["should_degrade"]:
-            # Log the degradation
-            self._log_degradation(degradation_info)
-            
-            # Convert to text representation
-            text_content = self._convert_to_text_representation(result)
-            
-            return {
-                "type": "text",
-                "content": text_content,
-                "metadata": {
-                    "converted_from": "structured",
-                    "edge_id": "edge-modify-edit_structured",
-                    "reason": degradation_info["reason"],
-                    "trace_id": f"trace-edit-{id(self)}"
-                }
-            }
-        
-        # Keep as structured
-        return {
-            "type": "structured", 
-            "content": result
-        }
-    
-    def _should_degrade_to_text(self, result: Any) -> Dict[str, Any]:
-        """
-        Determine if the result should be degraded to text type.
-        
-        Returns:
-            Dict with 'should_degrade' (bool) and 'reason' (str)
-        """
-        # Check for empty output
-        if result is None or (isinstance(result, str) and result.strip() == ""):
-            return {"should_degrade": True, "reason": "empty_output"}
-        
-        # Check for scalar output (non-structured)
-        if isinstance(result, (str, int, float, bool)):
-            return {"should_degrade": True, "reason": "scalar_output"}
-        
-        # Check if it's a valid structured type (dict or list)
-        if not isinstance(result, (dict, list)):
-            return {"should_degrade": True, "reason": "mixed_content"}
-        
-        # For dict: check if it has the minimum structured requirements
-        if isinstance(result, dict):
-            # Check if it's a valid structured block format
-            if not self._is_valid_structured_dict(result):
-                return {"should_degrade": True, "reason": "schema_validation_failed"}
-        
-        # For list: check if it contains valid structured elements
-        if isinstance(result, list):
-            if not self._is_valid_structured_list(result):
-                return {"should_degrade": True, "reason": "schema_validation_failed"}
-        
-        return {"should_degrade": False, "reason": ""}
-    
-    def _is_valid_structured_dict(self, data: dict) -> bool:
-        """Check if a dict meets structured block requirements."""
-        # Empty dict is not considered valid structured content
-        if not data:
-            return False
-            
-        # Check for mixed content (dict with both structured and non-structured elements)
-        # A structured dict should have consistent data types
-        try:
-            # Try to serialize to ensure it's JSON-compatible
-            json.dumps(data)
-            return True
-        except (TypeError, ValueError):
-            return False
-    
-    def _is_valid_structured_list(self, data: list) -> bool:
-        """Check if a list meets structured block requirements."""
-        # Empty list is considered valid structured content
-        if not data:
-            return True
-            
-        try:
-            # Try to serialize to ensure it's JSON-compatible
-            json.dumps(data)
-            
-            # Check if list contains consistent data types
-            # A structured list should contain similar types of elements
-            if len(data) > 0:
-                first_type = type(data[0])
-                # Allow some variation but prefer consistency
-                return True
-                
-        except (TypeError, ValueError):
-            return False
-            
-        return True
-    
-    def _convert_to_text_representation(self, result: Any) -> str:
-        """Convert any result to a stable text representation."""
-        if result is None:
-            return ""
-        
-        if isinstance(result, str):
-            return result
-        
-        if isinstance(result, (int, float, bool)):
-            return str(result)
-        
-        if isinstance(result, (dict, list)):
-            try:
-                # Use stable JSON serialization
-                return json.dumps(result, ensure_ascii=False, separators=(',', ':'))
-            except (TypeError, ValueError):
-                return str(result)
-        
-        return str(result)
-    
-    def _log_degradation(self, degradation_info: Dict[str, Any]) -> None:
-        """Log the degradation event for monitoring."""
-        try:
-            logging.warning(
-                f"Structured content degraded to text - Reason: {degradation_info['reason']} "
-                f"- Edge: edit_structured - Trace: trace-edit-{id(self)}"
-            )
-        except Exception:
-            # Silently fail if logging is not available
-            pass
 
 
 if __name__ == "__main__":

@@ -90,8 +90,9 @@ class BlockUpdateService:
                 self._handle_internal_storage_update(block, normalized_content, v1_results)
                 
                 # Generate BLOCK_UPDATED event for internal storage
+                # Pass the semantic type determined by _classify_and_normalize
                 block_event = EventFactory.create_block_updated_event_internal(
-                    block_id, normalized_content
+                    block_id, normalized_content, semantic_type
                 )
                 yield block_event
         
@@ -171,59 +172,39 @@ class BlockUpdateService:
         Classify content into semantic type (text/structured) and normalize the value
         to avoid UI/storage mismatches.
         
-        Enhanced to support intelligent type degradation from edge results.
+        Centralized type determination logic - content-driven approach:
+        - Determine semantic type based on actual content, not desired type
+        - This allows frontend to dynamically update node types
+        - Normalize content appropriately for the determined type
 
         Rules:
-        - If value is a dict with 'type' and 'content' keys (intelligent degradation format):
-          * Use the specified type and content directly
-        - desired structured:
-          * dict/list -> keep, structured
-          * str -> try json.loads to dict/list; on fail, wrap as {"value": str}
-          * others -> wrap as {"value": str(value)}
-        - desired text:
-          * dict/list -> json.dumps(..., ensure_ascii=False), text
-          * others -> str(value or ''), text
+        - Any scalar (str/int/float/bool/None) -> always text
+        - Any non-serializable object -> always text  
+        - Valid dict/list -> always structured
+        - Content type drives the semantic type, not desired_block_type
         """
-        # Check for intelligent type degradation format
-        if isinstance(value, dict) and 'type' in value and 'content' in value:
-            # This is a result from intelligent type degradation
-            degraded_type = value['type']
-            degraded_content = value['content']
-            
-            if degraded_type == 'text':
-                # Force text type regardless of desired_block_type
-                return str(degraded_content), 'text'
-            elif degraded_type == 'structured':
-                # Keep as structured
-                return degraded_content, 'structured'
         
-        desired = (desired_block_type or 'text').lower()
-
-        # Structured target
-        if desired == 'structured':
-            if isinstance(value, (dict, list)):
-                return value, 'structured'
-            if isinstance(value, str):
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed, (dict, list)):
-                        return parsed, 'structured'
-                except Exception:
-                    pass
-                return {"value": value}, 'structured'
-            # others
+        # First, determine if the value is inherently structured (dict/list)
+        is_structured_value = isinstance(value, (dict, list))
+        
+        # If value is not structured (scalar, None, or other types), always treat as text
+        if not is_structured_value:
             try:
-                return {"value": str(value)}, 'structured'
+                return "" if value is None else str(value), 'text'
             except Exception:
-                return {"value": ""}, 'structured'
-
-        # Text target (default)
-        if isinstance(value, (dict, list)):
-            try:
-                return json.dumps(value, ensure_ascii=False), 'text'
-            except Exception:
-                return str(value), 'text'
+                return "", 'text'
+        
+        # Value is dict/list - check if it's valid structured content
         try:
-            return "" if value is None else str(value), 'text'
-        except Exception:
-            return "", 'text'
+            # Ensure it's JSON-serializable
+            json.dumps(value)
+        except (TypeError, ValueError):
+            # Not serializable, treat as text
+            try:
+                return str(value), 'text'
+            except Exception:
+                return "", 'text'
+        
+        # Value is valid dict/list - always return as structured
+        # Let the frontend handle node type conversion if needed
+        return value, 'structured'
