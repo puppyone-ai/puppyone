@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
 import { useAppSettings } from '../states/AppSettingsContext';
 import workspaceTemplates from '@/lib/templates/workspaceTemplates.json';
 import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
+import CreateWorkspaceModal from './CreateWorkspaceModal';
 
 const BlankWorkspace = () => {
   const {
@@ -16,6 +17,7 @@ const BlankWorkspace = () => {
   } = useWorkspaces();
   const { planLimits } = useAppSettings();
   const { switchToWorkspace } = useDisplaySwitch();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const isWorkspaceLimitReached =
     workspaces && workspaces.length >= planLimits.workspaces;
@@ -115,12 +117,7 @@ const BlankWorkspace = () => {
             {/* Create Button */}
             <div className='w-full max-w-[340px] flex justify-start gap-3'>
               <button
-                onClick={() =>
-                  createNewWorkspace(
-                    (workspaceTemplates as any).onboarding_guide.content,
-                    'Getting Started'
-                  )
-                }
+                onClick={() => setIsModalOpen(true)}
                 disabled={isWorkspaceLimitReached}
                 className={`h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center
                   ${isWorkspaceLimitReached 
@@ -132,8 +129,7 @@ const BlankWorkspace = () => {
               </button>
               <button
                 onClick={() => {
-                  // Add documentation link or action here
-                  window.open('/docs', '_blank');
+                  window.open('https://doc.puppyagent.com/', '_blank');
                 }}
                 className='h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center bg-[#2A2A2A] hover:bg-[#333333] text-[#CDCDCD] border border-[#404040] hover:border-[#505050]'
               >
@@ -150,6 +146,14 @@ const BlankWorkspace = () => {
 
         </div>
       </div>
+
+      {/* Create Workspace Modal */}
+      <CreateWorkspaceModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onCreateWorkspace={createNewWorkspace}
+        workspaceTemplates={workspaceTemplates}
+      />
     </div>
   );
 };
