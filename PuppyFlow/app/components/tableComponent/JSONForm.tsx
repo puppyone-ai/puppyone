@@ -132,13 +132,15 @@ const JSONForm = ({
   // 添加清理 useEffect
   useEffect(() => {
     return () => {
+      // 确保在组件卸载时恢复拖拽功能
+      allowParentDrag();
       // 清理 Monaco Editor 监听器
       editorDisposablesRef.current.forEach(disposable => {
         disposable.dispose();
       });
       editorDisposablesRef.current = [];
     };
-  }, []);
+  }, [allowParentDrag]);
 
   // 计算实际的宽高样式
   const actualWidth = widthStyle === 0 ? '100%' : widthStyle;
