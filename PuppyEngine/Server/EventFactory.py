@@ -103,18 +103,20 @@ class EventFactory:
         }
     
     @staticmethod
-    def create_block_updated_event_internal(block_id: str, content: Any) -> Dict[str, Any]:
+    def create_block_updated_event_internal(block_id: str, content: Any, semantic_type: str = None) -> Dict[str, Any]:
         """Create BLOCK_UPDATED event for internal storage"""
-        # Determine semantic content type for clients to render correctly
-        # - list/dict => structured
-        # - others (str/number/bool/None) => text
-        try:
-            if isinstance(content, (list, dict)):
-                content_type = "structured"
-            else:
+        # Use explicit semantic type if provided, otherwise infer from content
+        if semantic_type:
+            content_type = semantic_type
+        else:
+            # Fallback to runtime inference for backward compatibility
+            try:
+                if isinstance(content, (list, dict)):
+                    content_type = "structured"
+                else:
+                    content_type = "text"
+            except Exception:
                 content_type = "text"
-        except Exception:
-            content_type = "text"
 
         return {
             "event_type": "BLOCK_UPDATED",
