@@ -783,7 +783,7 @@ function Workflow() {
   // 移除了与 parentId 相关的复杂排序逻辑，因为不再使用 ReactFlow 的 parentId 机制
 
   return (
-    <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
+    <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#202020]'>
       <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
         <ReactFlow
           id='flowChart'

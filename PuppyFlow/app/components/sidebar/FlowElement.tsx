@@ -77,11 +77,11 @@ function FlowElement({
   return (
     <li
       className={`
-      flex items-center justify-center pl-[12px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[6px] cursor-pointer relative
+      flex items-center justify-center pl-[12px] pr-[4px] h-[32px] w-full gap-[10px] rounded-[8px] cursor-pointer relative
       ${
         isSelected || flowIdShowOperationMenu === FlowId
-          ? 'bg-[#454545] hover:bg-[#454545] transition-colors duration-200'
-          : 'hover:bg-[#313131] transition-colors duration-200'
+          ? 'bg-[#2C2C2C] hover:bg-[#2C2C2C] transition-colors duration-200'
+          : 'hover:bg-[#2C2C2C] transition-colors duration-200'
       }
     `}
       onMouseEnter={() => setIsHover(true)}
@@ -93,8 +93,8 @@ function FlowElement({
       }}
     >
       <div
-        className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-plus-jakarta-sans 
-      ${isSelected ? 'text-white' : 'text-[#CDCDCD]'}
+        className={`flex items-center justify-start min-h-[32px] text-left text-[12px] w-full font-plus-jakarta-sans  font-medium
+      ${isSelected ? 'text-[#F0EFED]' : 'text-[#9B9B9B]'}
       FlowElementInput border-none outline-none bg-transparent`}
       >
         <div
@@ -117,7 +117,7 @@ function FlowElement({
         {/* 添加固定宽度的容器 */}
         <button
           ref={buttonRef}
-          className='flex items-center justify-center w-[24px] h-[24px] text-[#CDCDCD] rounded-[4px] hover:bg-[#5C5D5E] transition-colors duration-200'
+          className='flex items-center justify-center w-[24px] h-[24px] text-[#CDCDCD] rounded-[6px] hover:bg-[#5C5D5E] transition-colors duration-200'
           onClick={e => {
             e.preventDefault();
             e.stopPropagation();
