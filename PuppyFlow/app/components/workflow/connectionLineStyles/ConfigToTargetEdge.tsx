@@ -43,30 +43,6 @@ export default function ConfigToTargetEdge({
   const newTargetX = targetX;
   const newTargetY = targetY + 29;
 
-  // const defaultTargetWidth = 256
-
-  // resolving prob: targetNode possibly undefined!
-  // let targetWidth = targetNode?.measured?.width ?? defaultTargetWidth
-  // let targetHeight = targetNode?.measured?.height ?? 24
-  // const defaultTargetX = sourceX
-  // const defaultTargetY = targetY + 6
-
-  // use States to manage targetX, targetY
-  // const [dynamicTargetX, setDynamicTargetX] = useState(defaultTargetX)
-  // const [dynamicTargetY, setDynamicTargetY] = useState(defaultTargetY)
-
-  // dynamically update the targetX, targetY
-  // useEffect(() => {
-
-  // if (targetNode && targetNode.measured?.height && targetNode.measured.width) {
-
-  //   const newTargetX = targetNode.position.x + targetNode.measured.width / 2
-  //   const newTargetY = targetNode.position.y + 6
-
-  //   setDynamicTargetX(newTargetX);
-  //   setDynamicTargetY(newTargetY);
-  // }
-  // }, [getNode, targetNode?.position.x, sourceNode?.position.x, targetNode?.position.y, sourceNode?.position.y, targetNode?.measured?.height, targetNode?.measured?.width]);
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,

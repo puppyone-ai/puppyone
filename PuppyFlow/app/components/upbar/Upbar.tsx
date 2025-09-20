@@ -193,6 +193,14 @@ function Upbar() {
                 Add a structured JSON-style block. Drag to size, then define
                 key-value content.
               </div>
+              <a
+                href='https://www.youtube.com/watch?v=y5fztdcHY00'
+                target='_blank'
+                rel='noreferrer'
+                className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'
+              >
+                Learn how to use ↗
+              </a>
             </div>
           </div>
         </div>
@@ -241,6 +249,14 @@ function Upbar() {
                 Add a file block for documents. Drag to size, then upload files
                 to process.
               </div>
+              <a
+                href='https://www.youtube.com/watch?v=yTC-WcxI5Cg'
+                target='_blank'
+                rel='noreferrer'
+                className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'
+              >
+                Learn how to use ↗
+              </a>
             </div>
           </div>
         </div>

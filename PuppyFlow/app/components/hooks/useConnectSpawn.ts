@@ -26,15 +26,11 @@ export default function useConnectSpawn() {
       let blockX = point.x - BLOCK_W / 2;
       let blockY = point.y - BLOCK_H / 2;
 
-      if (
-        sourceNode &&
-        (sourceNode as any).measured?.width &&
-        (sourceNode as any).measured?.height
-      ) {
+      if (sourceNode && (sourceNode as any).width && (sourceNode as any).height) {
         const centerX =
-          sourceNode.position.x + (sourceNode as any).measured.width / 2;
+          sourceNode.position.x + ((sourceNode as any).width as number) / 2;
         const centerY =
-          sourceNode.position.y + (sourceNode as any).measured.height / 2;
+          sourceNode.position.y + ((sourceNode as any).height as number) / 2;
 
         const dx = point.x - centerX;
         const dy = point.y - centerY;
@@ -138,6 +134,8 @@ export default function useConnectSpawn() {
             sourceNodeId: sourceId,
             sourceNodeType: sourceNode?.type || 'text',
           },
+          width: 80,
+          height: 48,
         } as any;
 
         setNodes(prev => prev.concat(newNode));
@@ -204,6 +202,8 @@ export default function useConnectSpawn() {
           sourceNodeId: sourceId,
           sourceNodeType: source.type || 'text',
         },
+        width: 80,
+        height: 48,
       } as any;
 
       setNodes(prev => prev.concat(edgeMenuNode));

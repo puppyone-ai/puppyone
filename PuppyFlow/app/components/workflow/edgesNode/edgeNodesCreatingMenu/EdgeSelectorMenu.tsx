@@ -197,39 +197,24 @@ function EdgeMenu1({
                         ? 176
                         : 176;
 
-    if (
-      sourceNode &&
-      sourceNode.measured?.height &&
-      sourceNode.measured.width
-    ) {
-      //  xshift =
-      // handlePosition === Position.Top || handlePosition === Position.Bottom ? sourceNode.measured.width / 2 - defaultTargetWidth / 2:
-      // handlePosition === Position.Left ? -sourceNode.measured.width / 2 - defaultTargetWidth :
-      // handlePosition === Position.Right ? sourceNode.measured.width * 3 / 2 :
-      // 0;
-
-      //  yshift =
-      // handlePosition === Position.Left || handlePosition === Position.Right ? sourceNode.measured.height / 2 - defaultTargetHeight / 2:
-      // handlePosition === Position.Top ? - sourceNode.measured.height / 2 - defaultTargetHeight / 2 :
-      // handlePosition === Position.Bottom ? sourceNode.measured.height * 3 / 2 :
-      // 0;
+    if (sourceNode && (sourceNode as any).width && (sourceNode as any).height) {
 
       xshift =
         handlePosition === Position.Top || handlePosition === Position.Bottom
-          ? sourceNode.measured.width / 2 - defaultTargetWidth / 2
+          ? ((sourceNode as any).width as number) / 2 - defaultTargetWidth / 2
           : handlePosition === Position.Left
             ? -80 - defaultTargetWidth
             : handlePosition === Position.Right
-              ? sourceNode.measured.width + 80
+              ? ((sourceNode as any).width as number) + 80
               : 0;
 
       yshift =
         handlePosition === Position.Left || handlePosition === Position.Right
-          ? sourceNode.measured.height / 2 - defaultTargetHeight / 2
+          ? ((sourceNode as any).height as number) / 2 - defaultTargetHeight / 2
           : handlePosition === Position.Top
             ? -80 - defaultTargetHeight / 2
             : handlePosition === Position.Bottom
-              ? sourceNode.measured.height + 80
+              ? ((sourceNode as any).height as number) + 80
               : 0;
     } else {
       xshift =
@@ -301,7 +286,6 @@ function EdgeMenu1({
     }
     // const sourceNode = getNode(sourceNodeId)
     const node = getNode(sourceNodeId);
-    // console.log(node?.measured)
     const defaultNodeWidth =
       node?.type === 'text'
         ? 240
@@ -392,9 +376,9 @@ function EdgeMenu1({
         border: 'none',
       };
     if (activatedNode?.HandlePosition === Position.Top) {
-      return node.measured?.width && node.measured.height
+      return (node as any)?.width && (node as any)?.height
         ? {
-            left: `${node.measured.width / 2 - 29}px`,
+            left: `${((node as any).width as number) / 2 - 29}px`,
             top: `${-40 - menuHeight}px`,
           }
         : {
@@ -403,9 +387,9 @@ function EdgeMenu1({
           };
     }
     if (activatedNode?.HandlePosition === Position.Bottom) {
-      return node.measured?.width && node.measured.height
+      return (node as any)?.width && (node as any)?.height
         ? {
-            left: `${node.measured.width / 2 - 29}px`,
+            left: `${((node as any).width as number) / 2 - 29}px`,
             bottom: `${-40 - menuHeight}px`,
           }
         : {
@@ -414,10 +398,10 @@ function EdgeMenu1({
           };
     }
     if (activatedNode?.HandlePosition === Position.Left) {
-      return node.measured?.width && node.measured.height
+      return (node as any)?.width && (node as any)?.height
         ? {
             left: `${-32 - menuWidth}px`,
-            top: `${node.measured.height / 2 - 51}px`,
+            top: `${((node as any).height as number) / 2 - 51}px`,
           }
         : {
             left: `${-32 - menuWidth}px`,
@@ -425,10 +409,10 @@ function EdgeMenu1({
           };
     }
     if (activatedNode?.HandlePosition === Position.Right) {
-      return node.measured?.width && node.measured.height
+      return (node as any)?.width && (node as any)?.height
         ? {
             right: `${-32 - menuWidth}px`,
-            top: `${node.measured.height / 2 - 51}px`,
+            top: `${((node as any).height as number) / 2 - 51}px`,
           }
         : {
             right: `${-32 - menuWidth}px`,

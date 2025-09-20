@@ -197,8 +197,9 @@ function NodeMenu({
 
       const getMinSize = (nodeType: string) => {
         switch (nodeType) {
-          case 'text':
           case 'structured':
+            return { width: 304, height: 176 };
+          case 'text':
           case 'file':
           case 'weblink':
           default:
