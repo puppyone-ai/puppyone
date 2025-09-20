@@ -93,7 +93,7 @@ function FlowElement({
       }}
     >
       <div
-        className={`flex items-center justify-start min-h-[32px] text-left text-[13px] rounded-[6px] w-full font-plus-jakarta-sans 
+        className={`flex items-center justify-start min-h-[32px] text-left text-[12px] rounded-[6px] w-full font-plus-jakarta-sans  font-medium
       ${isSelected ? 'text-white' : 'text-[#CDCDCD]'}
       FlowElementInput border-none outline-none bg-transparent`}
       >

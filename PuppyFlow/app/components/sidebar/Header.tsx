@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
 import Dashboard from '../userDashBoard/DashBoardNew';
@@ -20,29 +20,74 @@ const DialogPortal = dynamic(
 
 function Header({ setFlowFullScreen }: HeaderProps) {
   const { userName } = useWorkspaces();
-  const settingsDialogRef = useRef<HTMLDialogElement>(null);
+  const userInitial = (userName && userName.trim().length > 0)
+    ? userName.trim()[0].toUpperCase()
+    : 'Y';
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<
     'settings' | 'models' | 'billing' | 'servers' | 'usage'
   >('settings');
 
   const handleCloseDialog = () => {
-    settingsDialogRef.current?.close();
+    setIsAnimating(true);
+    setIsVisible(false);
+    setTimeout(() => {
+      setIsDashboardOpen(false);
+      setIsAnimating(false);
+    }, 300);
   };
 
   const handleSettingsClick = () => {
-    settingsDialogRef.current?.showModal();
+    setIsDashboardOpen(true);
+    setIsAnimating(true);
+    setIsVisible(false);
+    requestAnimationFrame(() => {
+      setIsVisible(true);
+      setTimeout(() => setIsAnimating(false), 300);
+    });
   };
+
+  const canInteract = isVisible && !isAnimating;
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCloseDialog();
+    };
+    const handleMouseDown = (e: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        handleCloseDialog();
+      }
+    };
+    if (isDashboardOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.addEventListener('mousedown', handleMouseDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isDashboardOpen]);
 
   return (
     <>
       <div className='flex w-full items-center justify-between h-[32px] pl-[16px] relative self-stretch border-sidebar-grey'>
         {/* Left section */}
 
-        <input
-          className='HeaderTitle relative flex items-center justify-start h-[29px] font-plus-jakarta-sans font-bold text-[#cccccc] text-[14px] tracking-[0px] leading-[normal] whitespace-nowrap bg-transparent w-auto max-w-[80px] overflow-hidden'
-          value={`${userName ?? 'Your'}`}
-          readOnly
-        />
+        <div className='flex items-center gap-[8px]'>
+          <div className='w-[20px] h-[20px] rounded-[6px] bg-[#3A3A3A] text-[#cccccc] flex items-center justify-center text-[11px] font-plus-jakarta-sans font-bold'>
+            {userInitial}
+          </div>
+          <input
+            className='HeaderTitle relative flex items-center justify-start h-[29px] font-plus-jakarta-sans font-bold text-[#cccccc] text-[12px] tracking-[0px] leading-[normal] whitespace-nowrap bg-transparent w-auto max-w-[80px] overflow-hidden'
+            value={`${userName ?? 'PuppyAgent'}`}
+            readOnly
+          />
+        </div>
 
         <div className='flex items-center gap-2'>
           <button
@@ -112,16 +157,21 @@ function Header({ setFlowFullScreen }: HeaderProps) {
         </div>
 
         <DialogPortal>
-          <dialog
-            ref={settingsDialogRef}
-            className='bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'
-          >
-            <Dashboard
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              onClose={handleCloseDialog}
-            />
-          </dialog>
+          {isDashboardOpen && (
+            <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+              <div className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm" />
+              <div
+                ref={modalRef}
+                className={`relative bg-[#2A2A2A] rounded-[12px] shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] transition-all duration-300 ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} ${canInteract ? 'pointer-events-auto' : 'pointer-events-none'}`}
+              >
+                <Dashboard
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  onClose={handleCloseDialog}
+                />
+              </div>
+            </div>
+          )}
         </DialogPortal>
       </div>
     </>

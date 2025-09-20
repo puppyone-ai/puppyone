@@ -15,17 +15,41 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   workspaceTemplates,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Handle fade in/out animation
+  useEffect(() => {
+    setIsAnimating(true);
+    if (isOpen) {
+      setIsVisible(true);
+    } else {
+      setIsVisible(false);
+    }
+    const timer = setTimeout(() => setIsAnimating(false), 300);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  const handleClose = () => {
+    setIsAnimating(true);
+    setIsVisible(false);
+    setTimeout(() => {
+      onClose();
+    }, 300); // Wait for fade out animation to complete
+  };
+
+  const canInteract = isVisible && !isAnimating;
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        handleClose();
       }
     };
 
     const handleClickOutside = (e: MouseEvent) => {
       if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-        onClose();
+        handleClose();
       }
     };
 
@@ -59,7 +83,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
       default:
         onCreateWorkspace();
     }
-    onClose();
+    handleClose();
   };
 
   const mainOption = {
@@ -113,31 +137,15 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 flex items-center justify-center z-[9999]">
+    <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black bg-opacity-80 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm" />
       
       {/* Modal */}
       <div
         ref={modalRef}
-        className="relative bg-[#2A2A2A] rounded-[12px] shadow-2xl border border-[#404040] max-w-[800px] w-full mx-6 max-h-[600px] overflow-hidden flex flex-col"
+        className={`relative bg-[#2A2A2A] rounded-[12px] shadow-2xl border border-[#404040] max-w-[800px] w-full mx-6 max-h-[600px] overflow-hidden flex flex-col transition-all duration-300 ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} ${canInteract ? 'pointer-events-auto' : 'pointer-events-none'}`}
       >
-        {/* Header - Close button only */}
-        <div className="absolute top-4 right-4 z-10">
-          <button
-            onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center text-[#9CA3AF] hover:text-[#E5E5E5] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path
-                d="M13 1L1 13M1 1L13 13"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
 
         {/* Fixed Top Section - Main Option */}
         <div className="flex-shrink-0 text-[13px] text-[#D4D4D4] flex justify-center pt-16 pb-6">
@@ -145,7 +153,8 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
             <div className="w-1/3">
               <button
                 onClick={() => handleCreateOption('empty')}
-                className="w-full flex flex-col items-start gap-3 px-[16px] py-[18px] bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 group"
+                disabled={!canInteract}
+                className="w-full flex flex-col items-start gap-3 px-[16px] py-[18px] bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 group disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none"
               >
                 <div className="text-[#9CA3AF] group-hover:text-[#E5E5E5] transition-colors">
                   {mainOption.icon}
@@ -177,8 +186,9 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                 {suggestedTemplates.map((template) => (
                 <button
                   key={template.id}
-                  onClick={() => handleCreateOption('template', template.template, template.name)}
-                  className="flex flex-col p-4 bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 text-left group h-[120px]"
+                onClick={() => handleCreateOption('template', template.template, template.name)}
+                disabled={!canInteract}
+                className="flex flex-col p-4 bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 text-left group h-[120px] disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none"
                 >
                   <div className="mb-[4px]">
                     <div className="text-[12px] font-medium text-[#E5E5E5]">

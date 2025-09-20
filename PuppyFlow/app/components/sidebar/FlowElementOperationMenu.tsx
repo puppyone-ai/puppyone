@@ -19,9 +19,13 @@ function FlowElementOperationMenu({
 }: FlowElementOperationMenuProps) {
   const { removeWorkspace, updateWorkspace, workspaceManagement } =
     useWorkspaces();
-  const renameDialogRef = useRef<HTMLDialogElement>(null);
+  const renameModalRef = useRef<HTMLDivElement>(null);
   const newNameInputRef = useRef<HTMLInputElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [isRenameVisible, setIsRenameVisible] = useState(false);
+  const [isRenameAnimating, setIsRenameAnimating] = useState(false);
+  const canRenameInteract = isRenameVisible && !isRenameAnimating;
 
   useEffect(() => {
     if (show && buttonRef.current) {
@@ -34,19 +38,45 @@ function FlowElementOperationMenu({
   }, [show, buttonRef]);
 
   const handleRenameDialogOpen = () => {
-    if (renameDialogRef.current) {
-      renameDialogRef.current.showModal();
-    }
+    setIsRenameOpen(true);
+    setIsRenameAnimating(true);
+    setIsRenameVisible(false);
+    requestAnimationFrame(() => {
+      setIsRenameVisible(true);
+      setTimeout(() => setIsRenameAnimating(false), 300);
+    });
   };
 
   const handleRenameDialogClose = () => {
-    if (renameDialogRef.current) {
-      if (newNameInputRef.current) {
-        newNameInputRef.current.value = '';
-      }
-      renameDialogRef.current.close();
-    }
+    setIsRenameAnimating(true);
+    setIsRenameVisible(false);
+    setTimeout(() => {
+      if (newNameInputRef.current) newNameInputRef.current.value = '';
+      setIsRenameOpen(false);
+      setIsRenameAnimating(false);
+    }, 300);
   };
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleRenameDialogClose();
+    };
+    const handleMouseDown = (e: MouseEvent) => {
+      if (renameModalRef.current && !renameModalRef.current.contains(e.target as Node)) {
+        handleRenameDialogClose();
+      }
+    };
+    if (isRenameOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.addEventListener('mousedown', handleMouseDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isRenameOpen]);
 
   const handleRename = async (e: React.MouseEvent<HTMLButtonElement>) => {
     try {
@@ -167,45 +197,47 @@ function FlowElementOperationMenu({
       )}
 
       {ReactDOM.createPortal(
-        <dialog
-          ref={renameDialogRef}
-          className='bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] p-6 w-[400px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'
-        >
-          <div className='flex flex-col gap-6'>
-            <h2 className='text-[#FFFFFF] text-xl font-semibold'>
-              New Workspace Name
-            </h2>
+        isRenameOpen ? (
+          <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isRenameVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <div className='absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm' />
+            <div
+              ref={renameModalRef}
+              className={`relative bg-[#2A2A2A] rounded-[12px] shadow-2xl border border-[#404040] p-6 w-[400px] transition-all duration-300 ${isRenameVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} ${canRenameInteract ? 'pointer-events-auto' : 'pointer-events-none'}`}
+            >
+              <div className='flex flex-col gap-4 text-[12px] text-[#D4D4D4]'>
+                <h2 className='text-[12px] font-medium text-[#9CA3AF]'>
+                  New Workspace Name
+                </h2>
 
-            <div className='relative'>
-              <input
-                ref={newNameInputRef}
-                type='text'
-                placeholder='Enter new name'
-                className='w-full px-4 py-2 bg-[#363636] border border-[#404040] rounded-md
-                                         text-[#FFFFFF] placeholder-[#808080]
-                                         focus:outline-none focus:ring-2 focus:ring-[#5C5C5C]
-                                         transition duration-200'
-              />
-            </div>
+                <div className='relative'>
+                  <input
+                    ref={newNameInputRef}
+                    type='text'
+                    placeholder='Enter new name'
+                    className='w-full h-[32px] px-[12px] bg-[#363636] border border-[#404040] rounded-[6px] text-[13px] text-[#FFFFFF] placeholder-[#808080] focus:outline-none focus:ring-0 transition duration-200'
+                  />
+                </div>
 
-            <div className='flex justify-end gap-3 mt-2'>
-              <button
-                onClick={handleRenameDialogClose}
-                className='px-4 py-2 rounded-md text-[#BEBEBE] hover:bg-[#363636]
-                                         transition duration-200'
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRename}
-                className='px-4 py-2 bg-[#2B5C9B] hover:bg-[#1E4B8A] 
-                                         text-white rounded-md transition duration-200'
-              >
-                Save
-              </button>
+                <div className='flex justify-end gap-2 mt-2'>
+                  <button
+                    onClick={handleRenameDialogClose}
+                    disabled={!canRenameInteract}
+                    className='h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center bg-[#2A2A2A] hover:bg-[#333333] text-[#CDCDCD] border border-[#404040] hover:border-[#505050] disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none'
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleRename}
+                    disabled={!canRenameInteract}
+                    className='h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center bg-[#4599DF] hover:bg-[#3A85CC] text-white shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none'
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </dialog>,
+        ) : null,
         document.body
       )}
     </>

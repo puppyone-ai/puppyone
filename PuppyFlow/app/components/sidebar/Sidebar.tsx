@@ -99,18 +99,34 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
 function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
   const { userSubscriptionStatus } = useAppSettings();
   const [showFlowMenu, setShowFlowMenu] = useState(false);
-  const settingsDialogRef = useRef<HTMLDialogElement>(null);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<
     'settings' | 'models' | 'billing' | 'usage' | 'servers'
   >('settings');
 
   const handleCloseDialog = () => {
-    settingsDialogRef.current?.close();
+    setIsAnimating(true);
+    setIsVisible(false);
+    setTimeout(() => {
+      setIsDashboardOpen(false);
+      setIsAnimating(false);
+    }, 300);
   };
 
   const handleSettingsClick = () => {
-    settingsDialogRef.current?.showModal();
+    setIsDashboardOpen(true);
+    setIsAnimating(true);
+    setIsVisible(false);
+    requestAnimationFrame(() => {
+      setIsVisible(true);
+      setTimeout(() => setIsAnimating(false), 300);
+    });
   };
+
+  const canInteract = isVisible && !isAnimating;
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -144,6 +160,27 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, []);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleCloseDialog();
+    };
+    const handleMouseDown = (e: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        handleCloseDialog();
+      }
+    };
+    if (isDashboardOpen) {
+      document.addEventListener('keydown', handleEscape);
+      document.addEventListener('mousedown', handleMouseDown);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('mousedown', handleMouseDown);
+      document.body.style.overflow = 'unset';
+    };
+  }, [isDashboardOpen]);
 
   return (
     <div className='w-[64px] h-screen bg-[#252525] flex flex-col items-center pt-[16px] pb-[8px] gap-[16px] transition-all duration-300 ease-in-out relative'>
@@ -258,16 +295,21 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
       <UsageDisplay isExpanded={false} />
 
       <DialogPortal>
-        <dialog
-          ref={settingsDialogRef}
-          className='bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] backdrop-blur-sm fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2'
-        >
-          <Dashboard
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onClose={handleCloseDialog}
-          />
-        </dialog>
+        {isDashboardOpen && (
+          <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+            <div className='absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm' />
+            <div
+              ref={modalRef}
+              className={`relative bg-[#2A2A2A] rounded-lg shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] transition-all duration-300 ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} ${canInteract ? 'pointer-events-auto' : 'pointer-events-none'}`}
+            >
+              <Dashboard
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                onClose={handleCloseDialog}
+              />
+            </div>
+          </div>
+        )}
       </DialogPortal>
     </div>
   );
