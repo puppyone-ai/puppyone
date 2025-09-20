@@ -100,7 +100,6 @@ export default function SourceToConfigEdge({
   let targetWidth = (targetNode as any)?.width ?? defaultTargetWidth;
   let targetHeight = (targetNode as any)?.height ?? defaultTargetHeight;
 
-
   const getDefaultPosition = () => {
     switch (defaultTargetPosition) {
       case Position.Top:
@@ -143,28 +142,32 @@ export default function SourceToConfigEdge({
   // dynamically update the targetX, targetY
   // useEffect(() => {
 
-
-
   useEffect(() => {
     if (targetNode && (targetNode as any).width && (targetNode as any).height) {
       let newTargetX, newTargetY;
 
       switch (defaultTargetPosition) {
         case Position.Top:
-          newTargetX = targetNode.position.x + ((targetNode as any).width as number) / 2;
+          newTargetX =
+            targetNode.position.x + ((targetNode as any).width as number) / 2;
           newTargetY = targetNode.position.y;
           break;
         case Position.Bottom:
-          newTargetX = targetNode.position.x + ((targetNode as any).width as number) / 2;
-          newTargetY = targetNode.position.y + ((targetNode as any).height as number);
+          newTargetX =
+            targetNode.position.x + ((targetNode as any).width as number) / 2;
+          newTargetY =
+            targetNode.position.y + ((targetNode as any).height as number);
           break;
         case Position.Left:
           newTargetX = targetNode.position.x;
-          newTargetY = targetNode.position.y + ((targetNode as any).height as number) / 2;
+          newTargetY =
+            targetNode.position.y + ((targetNode as any).height as number) / 2;
           break;
         case Position.Right:
-          newTargetX = targetNode.position.x + ((targetNode as any).width as number);
-          newTargetY = targetNode.position.y + ((targetNode as any).height as number) / 2;
+          newTargetX =
+            targetNode.position.x + ((targetNode as any).width as number);
+          newTargetY =
+            targetNode.position.y + ((targetNode as any).height as number) / 2;
           break;
         default:
           newTargetX = targetX;

@@ -26,7 +26,11 @@ export default function useConnectSpawn() {
       let blockX = point.x - BLOCK_W / 2;
       let blockY = point.y - BLOCK_H / 2;
 
-      if (sourceNode && (sourceNode as any).width && (sourceNode as any).height) {
+      if (
+        sourceNode &&
+        (sourceNode as any).width &&
+        (sourceNode as any).height
+      ) {
         const centerX =
           sourceNode.position.x + ((sourceNode as any).width as number) / 2;
         const centerY =

@@ -198,7 +198,6 @@ function EdgeMenu1({
                         : 176;
 
     if (sourceNode && (sourceNode as any).width && (sourceNode as any).height) {
-
       xshift =
         handlePosition === Position.Top || handlePosition === Position.Bottom
           ? ((sourceNode as any).width as number) / 2 - defaultTargetWidth / 2

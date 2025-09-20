@@ -43,7 +43,6 @@ export default function ConfigToTargetEdge({
   const newTargetX = targetX;
   const newTargetY = targetY + 29;
 
-
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY: sourceY - 16,
