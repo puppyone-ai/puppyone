@@ -39,7 +39,7 @@ function Upbar() {
   }, []);
   return (
     <div className='w-full h-[48px] absolute top-[40px] left-0 z-[10000] pointer-events-none'>
-      <div className='pointer-events-auto will-change-auto bg-[#2A2A2A] rounded-[12px] border border-transparent ring-1 ring-black/30 shadow-2xl shadow-black/50 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[6px] absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'>
+      <div className='pointer-events-auto will-change-auto bg-[#2A2A2A] rounded-[12px] border border-transparent ring-1 ring-black/30 shadow-xl shadow-black/30 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[6px] absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'>
         {/* Inline +Add types (compact with per-button hover menu) */}
         <div
           className='relative'
