@@ -49,7 +49,7 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
   };
 
   return (
-    <div className='flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#252525] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out'>
+    <div className='flex-col font-normal px-[8px] pt-[16px] pb-[4px] w-[240px] h-screen items-start bg-[#202020] flex relative font-plus-jakarta-sans transition-all duration-300 ease-in-out'>
       <Header setFlowFullScreen={setFlowFullScreen} />
       <div className='flex flex-col items-start relative self-stretch w-full h-full overflow-hidden'>
         <div className='w-full text-[#5D6065] text-[11px] font-normal pt-[16px] pl-[12px] pr-[8px] font-plus-jakarta-sans'>
@@ -58,7 +58,7 @@ function SidebarFullScreen({ setFlowFullScreen }: SidebarFullScreenProps) {
             <div className='h-[1px] flex-grow bg-[#404040]'></div>
           </div>
         </div>
-        <ul className='flex flex-col gap-[8px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-320px)]'>
+        <ul className='flex flex-col gap-[4px] items-start relative w-full overflow-y-auto max-h-[calc(100vh-320px)]'>
           {workspaces.map(workspace => (
             <FlowElement
               key={workspace.workspace_id}
