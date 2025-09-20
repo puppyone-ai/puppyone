@@ -97,36 +97,8 @@ export default function SourceToConfigEdge({
                     : 48;
 
   // resolving prob: targetNode possibly undefined!
-  let targetWidth = targetNode?.measured?.width ?? defaultTargetWidth;
-  let targetHeight = targetNode?.measured?.height ?? defaultTargetHeight;
-
-  // console.log(targetWidth, targetHeight, targetNode?.type)
-  // console.log(sourceNode?.measured?.width ?? 0, sourceNode?.measured?.height ?? 0, sourceNode?.position.x, sourceNode?.position.y)
-
-  // initialize targetX, targetY
-  // switch (defaultTargetPosition) {
-  //   case Position.Top:
-  //     defaultTargetX = sourceX;
-  //     defaultTargetY = targetY;
-  //     break
-  //   case Position.Bottom:
-  //     defaultTargetX = sourceX
-  //     defaultTargetY = targetY + targetHeight;
-  //     break;
-  //   case Position.Left:
-  //     defaultTargetX = targetX - targetWidth / 2 ;
-  //     defaultTargetY = sourceY
-  //     break;
-  //   case Position.Right:
-  //     defaultTargetX = targetX + targetWidth / 2;
-  //     defaultTargetY = sourceY
-  //     break;
-  //   default:
-  //     // 处理未定义的位置情况
-  //     defaultTargetX = targetX
-  //     defaultTargetY = targetY
-  //     return;
-  // }
+  let targetWidth = (targetNode as any)?.width ?? defaultTargetWidth;
+  let targetHeight = (targetNode as any)?.height ?? defaultTargetHeight;
 
   const getDefaultPosition = () => {
     switch (defaultTargetPosition) {
@@ -170,63 +142,32 @@ export default function SourceToConfigEdge({
   // dynamically update the targetX, targetY
   // useEffect(() => {
 
-  // if (targetNode && targetNode.measured?.height && targetNode.measured.width) {
-
-  //   let newTargetX, newTargetY
-
-  //   switch (defaultTargetPosition) {
-  //     case Position.Top:
-  //       newTargetX = targetNode.position.x + targetNode.measured.width / 2
-  //       newTargetY = targetNode.position.y
-  //       break
-  //     case Position.Bottom:
-  //       newTargetX = targetNode.position.x + targetNode.measured.width / 2
-  //       newTargetY = targetNode.position.y + targetNode.measured.height
-  //       break
-  //     case Position.Left:
-  //       newTargetX = targetNode.position.x
-  //       newTargetY = targetNode.position.y + targetNode.measured.height / 2
-  //       break
-  //     case Position.Right:
-  //       newTargetX = targetNode.position.x + targetNode.measured.width
-  //       newTargetY = targetNode.position.y + targetNode.measured.height / 2
-  //       break
-  //     default:
-  //       // 处理未定义的位置情况
-  //       newTargetX = targetX
-  //       newTargetY = targetY
-  //       return
-  //   }
-
-  //   setDynamicTargetX(newTargetX);
-  //   setDynamicTargetY(newTargetY);
-  // }
-  // }, [getNode, targetNode?.position.x, sourceNode?.position.x, targetNode?.position.y, sourceNode?.position.y]);
-
   useEffect(() => {
-    if (
-      targetNode &&
-      targetNode.measured?.height &&
-      targetNode.measured.width
-    ) {
+    if (targetNode && (targetNode as any).width && (targetNode as any).height) {
       let newTargetX, newTargetY;
 
       switch (defaultTargetPosition) {
         case Position.Top:
-          newTargetX = targetNode.position.x + targetNode.measured.width / 2;
+          newTargetX =
+            targetNode.position.x + ((targetNode as any).width as number) / 2;
           newTargetY = targetNode.position.y;
           break;
         case Position.Bottom:
-          newTargetX = targetNode.position.x + targetNode.measured.width / 2;
-          newTargetY = targetNode.position.y + targetNode.measured.height;
+          newTargetX =
+            targetNode.position.x + ((targetNode as any).width as number) / 2;
+          newTargetY =
+            targetNode.position.y + ((targetNode as any).height as number);
           break;
         case Position.Left:
           newTargetX = targetNode.position.x;
-          newTargetY = targetNode.position.y + targetNode.measured.height / 2;
+          newTargetY =
+            targetNode.position.y + ((targetNode as any).height as number) / 2;
           break;
         case Position.Right:
-          newTargetX = targetNode.position.x + targetNode.measured.width;
-          newTargetY = targetNode.position.y + targetNode.measured.height / 2;
+          newTargetX =
+            targetNode.position.x + ((targetNode as any).width as number);
+          newTargetY =
+            targetNode.position.y + ((targetNode as any).height as number) / 2;
           break;
         default:
           newTargetX = targetX;
@@ -244,8 +185,8 @@ export default function SourceToConfigEdge({
     targetY,
     targetNode?.position.x,
     targetNode?.position.y,
-    targetNode?.measured?.width,
-    targetNode?.measured?.height,
+    (targetNode as any)?.width,
+    (targetNode as any)?.height,
   ]);
 
   const [edgePath, labelX, labelY] = getSmoothStepPath({

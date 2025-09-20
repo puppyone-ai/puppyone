@@ -26,64 +26,81 @@ function getIntersectionPointCoordsByPosition(
   node: InternalNode,
   handlePosition: Position
 ) {
-  // all handles are from type source, that's why we use handleBounds.source here
-  if (!node.internals.handleBounds?.source) return [0, 0];
-  const handle = node.internals.handleBounds.source.find(
-    h => h.position === handlePosition
-  );
+  // Prefer actual handle bounds when available
+  if (node.internals.handleBounds?.source) {
+    const handle = node.internals.handleBounds.source.find(
+      h => h.position === handlePosition
+    );
 
-  if (!handle) return [0, 0];
-  let offsetX = handle.width / 2;
-  let offsetY = handle.height / 2;
+    if (handle) {
+      let offsetX = handle.width / 2;
+      let offsetY = handle.height / 2;
+      switch (handlePosition) {
+        case Position.Left:
+          offsetX = 0;
+          break;
+        case Position.Right:
+          offsetX = handle.width;
+          break;
+        case Position.Top:
+          offsetY = 0;
+          break;
+        case Position.Bottom:
+          offsetY = handle.height;
+          break;
+      }
 
-  // this is a tiny detail to make the markerEnd of an edge visible.
-  // The handle position that gets calculated has the origin top-left, so depending which side we are using, we add a little offset
-  // when the handlePosition is Position.Right for example, we need to add an offset as big as the handle itself in order to get the correct position
-  switch (handlePosition) {
-    case Position.Left:
-      offsetX = 0;
-      break;
-    case Position.Right:
-      offsetX = handle.width;
-      break;
-    case Position.Top:
-      offsetY = 0;
-      break;
-    case Position.Bottom:
-      offsetY = handle.height;
-      break;
+      let x = node.internals.positionAbsolute.x + handle.x + offsetX;
+      let y = node.internals.positionAbsolute.y + handle.y + offsetY;
+
+      // tiny visual offset to move to node border rather than handle center
+      switch (handlePosition) {
+        case Position.Left:
+          x += 8 + handle.width;
+          break;
+        case Position.Right:
+          x -= 8 + handle.width;
+          break;
+        case Position.Top:
+          y += 8 + handle.height;
+          break;
+        case Position.Bottom:
+          y -= 8 + handle.height;
+          break;
+      }
+
+      return [x, y];
+    }
   }
 
-  // get HandleCoordsByPosition
-  let x = node.internals.positionAbsolute.x + handle.x + offsetX;
-  let y = node.internals.positionAbsolute.y + handle.y + offsetY;
+  // Fallback when handle bounds are not yet ready: derive from width/height
+  const width = (node as any)?.width as number | undefined;
+  const height = (node as any)?.height as number | undefined;
+  const pos = node.internals.positionAbsolute;
+  if (!width || !height) return [pos.x, pos.y];
 
-  // get IntersectionPointCoordsByPosition , must connect to Node border
   switch (handlePosition) {
     case Position.Left:
-      x += 8 + handle.width; // 16 is the distance between handle and Node
-      break;
+      return [pos.x, pos.y + height / 2];
     case Position.Right:
-      x -= 8 + handle.width;
-      break;
+      return [pos.x + width, pos.y + height / 2];
     case Position.Top:
-      y += 8 + handle.height;
-      break;
+      return [pos.x + width / 2, pos.y];
     case Position.Bottom:
-      y -= 8 + handle.height;
-      break;
+      return [pos.x + width / 2, pos.y + height];
   }
 
-  return [x, y];
+  return [pos.x, pos.y];
 }
 
 function getNodeCenter(node: InternalNode) {
-  if (!node.measured || !node.measured.width || !node.measured.height)
-    return { x: 0, y: 0 };
+  const width = (node as any)?.width;
+  const height = (node as any)?.height;
+  if (!width || !height) return { x: 0, y: 0 };
 
   return {
-    x: node.internals.positionAbsolute.x + node.measured.width / 2,
-    y: node.internals.positionAbsolute.y + node.measured.height / 2,
+    x: node.internals.positionAbsolute.x + (width as number) / 2,
+    y: node.internals.positionAbsolute.y + (height as number) / 2,
   };
 }
 

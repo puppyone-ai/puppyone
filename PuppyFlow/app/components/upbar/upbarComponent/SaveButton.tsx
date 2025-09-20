@@ -23,7 +23,10 @@ function SaveButton() {
     try {
       if (currentWorkspaceId && currentWorkspace) {
         // 获取当前工作区的完整数据
-        const nodes = getNodes();
+        const nodes = getNodes().map((n: any) => {
+          const { measured, ...rest } = n || {};
+          return rest;
+        });
         const edges = getEdges();
         const viewport = getViewport();
 
