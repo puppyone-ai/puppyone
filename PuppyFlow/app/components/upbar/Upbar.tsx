@@ -79,7 +79,7 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                Text Block
+                Add Text
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Add a freeform text block. Click and drag to draw its size and
@@ -187,7 +187,7 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                Structured Block
+                Add Structured Text
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Add a structured JSON-style block. Drag to size, then define
@@ -235,7 +235,7 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                File Block
+                Add File
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Add a file block for documents. Drag to size, then upload files
@@ -269,7 +269,7 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                Group
+                Add Group
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Click to draw an area and create a group of nodes you can run or

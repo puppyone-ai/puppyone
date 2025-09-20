@@ -413,7 +413,7 @@ const EmptyComponent = ({
         ) : (
           <div className='flex items-center h-[24px] space-x-2 opacity-0 group-hover/empty:opacity-100 transition-opacity duration-150'>
             <span className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
-              create a type
+              Choose a type
             </span>
             {types.map(typeInfo => (
               <button

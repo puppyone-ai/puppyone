@@ -219,7 +219,8 @@ function NodeMenu({
 
       // Build node data
       const newNodeId = nanoid(6);
-      const defaultNodeContent = '';
+      const defaultNodeContent =
+        draggedNodeType === 'structured' ? '["structured text", null]' : '';
       const nodeData: any = {
         content: defaultNodeContent,
         label: newNodeId,

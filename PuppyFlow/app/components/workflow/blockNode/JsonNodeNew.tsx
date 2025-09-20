@@ -31,7 +31,6 @@ import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
 import JSONForm from '../../tableComponent/JSONForm';
-import TextHugEditor from '../../tableComponent/RichJSONFormTableStyle/TextHugEditor';
 
 import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingAddMenu';
 import useIndexingUtils from './hooks/useIndexingUtils';
@@ -308,19 +307,6 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
         return String(content ?? '');
       }
     }, [content]);
-
-    // 当内容无法解析为对象/数组时，认为不具备结构化渲染条件
-    const isParsableStructured = useMemo(() => {
-      try {
-        const parsed = JSON.parse(contentString);
-        return (
-          parsed !== null &&
-          (Array.isArray(parsed) || typeof parsed === 'object')
-        );
-      } catch {
-        return false;
-      }
-    }, [contentString]);
 
     // 基于内容长度的动态存储策略切换（2s防抖），根据内容动态选择 structured/text
     useEffect(() => {
@@ -924,17 +910,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
                 e.stopPropagation();
               }}
             >
-              {!isParsableStructured ? (
-                <TextHugEditor
-                  preventParentDrag={onFocus}
-                  allowParentDrag={onBlur}
-                  placeholder='Text'
-                  value={contentString}
-                  onChange={updateNodeContent}
-                  isRoot={true}
-                  readonly={locked}
-                />
-              ) : nodeState.useRichEditor ? (
+              {nodeState.useRichEditor ? (
                 <RichJSONForm
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}
