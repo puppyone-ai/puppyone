@@ -109,8 +109,9 @@ const BlankWorkspace = () => {
                 PuppyAgent
               </h1>
               <p className='text-[13px] text-[#8B8B8B] leading-relaxed text-left'>
-                Create custom views using filters to show only the issues you want to see. 
-                You can save, share, and favorite these views for easy access and faster team collaboration.
+                Create custom views using filters to show only the issues you
+                want to see. You can save, share, and favorite these views for
+                easy access and faster team collaboration.
               </p>
             </div>
 
@@ -120,9 +121,10 @@ const BlankWorkspace = () => {
                 onClick={() => setIsModalOpen(true)}
                 disabled={isWorkspaceLimitReached}
                 className={`h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center
-                  ${isWorkspaceLimitReached 
-                    ? 'bg-[#232323] text-[#5A5A5A] cursor-not-allowed' 
-                    : 'bg-[#4599DF] hover:bg-[#3A85CC] text-white shadow-sm hover:shadow-md'
+                  ${
+                    isWorkspaceLimitReached
+                      ? 'bg-[#232323] text-[#5A5A5A] cursor-not-allowed'
+                      : 'bg-[#4599DF] hover:bg-[#3A85CC] text-white shadow-sm hover:shadow-md'
                   }`}
               >
                 Create new workspace
@@ -143,7 +145,6 @@ const BlankWorkspace = () => {
               </p>
             )}
           </div>
-
         </div>
       </div>
 

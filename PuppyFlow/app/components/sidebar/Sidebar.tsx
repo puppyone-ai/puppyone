@@ -296,7 +296,9 @@ function SidebarHidden({ setFlowFullScreen }: SidebarHiddenProps) {
 
       <DialogPortal>
         {isDashboardOpen && (
-          <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+          <div
+            className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+          >
             <div className='absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm' />
             <div
               ref={modalRef}

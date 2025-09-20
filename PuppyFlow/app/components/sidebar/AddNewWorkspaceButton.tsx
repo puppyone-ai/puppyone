@@ -41,7 +41,10 @@ function AddNewWorkspaceButton() {
     version: '0.0.1',
   });
 
-  const createNewWorkspace = async (initialContent?: any, workspaceNameOverride?: string) => {
+  const createNewWorkspace = async (
+    initialContent?: any,
+    workspaceNameOverride?: string
+  ) => {
     if (isWorkspaceLimitReached) return;
 
     const newWorkspaceId = uuidv4();

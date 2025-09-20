@@ -20,9 +20,10 @@ const DialogPortal = dynamic(
 
 function Header({ setFlowFullScreen }: HeaderProps) {
   const { userName } = useWorkspaces();
-  const userInitial = (userName && userName.trim().length > 0)
-    ? userName.trim()[0].toUpperCase()
-    : 'Y';
+  const userInitial =
+    userName && userName.trim().length > 0
+      ? userName.trim()[0].toUpperCase()
+      : 'Y';
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -158,8 +159,10 @@ function Header({ setFlowFullScreen }: HeaderProps) {
 
         <DialogPortal>
           {isDashboardOpen && (
-            <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-              <div className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm" />
+            <div
+              className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+            >
+              <div className='absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm' />
               <div
                 ref={modalRef}
                 className={`relative bg-[#2A2A2A] rounded-[12px] shadow-2xl border border-[#404040] pt-[32px] pb-[16px] px-[16px] w-[800px] transition-all duration-300 ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} ${canInteract ? 'pointer-events-auto' : 'pointer-events-none'}`}

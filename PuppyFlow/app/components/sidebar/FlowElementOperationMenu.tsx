@@ -62,7 +62,10 @@ function FlowElementOperationMenu({
       if (e.key === 'Escape') handleRenameDialogClose();
     };
     const handleMouseDown = (e: MouseEvent) => {
-      if (renameModalRef.current && !renameModalRef.current.contains(e.target as Node)) {
+      if (
+        renameModalRef.current &&
+        !renameModalRef.current.contains(e.target as Node)
+      ) {
         handleRenameDialogClose();
       }
     };
@@ -198,7 +201,9 @@ function FlowElementOperationMenu({
 
       {ReactDOM.createPortal(
         isRenameOpen ? (
-          <div className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isRenameVisible ? 'opacity-100' : 'opacity-0'}`}>
+          <div
+            className={`fixed inset-0 flex items-center justify-center z-[9999] transition-opacity duration-300 ${isRenameVisible ? 'opacity-100' : 'opacity-0'}`}
+          >
             <div className='absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm' />
             <div
               ref={renameModalRef}
