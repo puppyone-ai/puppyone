@@ -136,7 +136,7 @@
         },
         "base_url": "",
         "structured_output": true,
-        "max_tokens": 4096,
+        "max_tokens": 128000,
         "resultNode": "5YLEX0"
       },
       "width": 80,
