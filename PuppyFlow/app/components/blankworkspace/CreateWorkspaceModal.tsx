@@ -209,7 +209,9 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                     </div>
 
                     {/* Template Preview Area */}
-                    <div className={`mt-3 bg-[#1F1F1F] rounded-[12px] border border-[#333] flex items-center justify-center overflow-hidden w-[244px] ${template.id === 'rag-chatbot' || template.id === 'seo' || template.id === 'file content extraction' ? 'h-auto' : 'h-[130px]'} mx-auto`}>
+                    <div
+                      className={`mt-3 bg-[#1F1F1F] rounded-[12px] border border-[#333] flex items-center justify-center overflow-hidden w-[244px] ${template.id === 'rag-chatbot' || template.id === 'seo' || template.id === 'file content extraction' ? 'h-auto' : 'h-[130px]'} mx-auto`}
+                    >
                       {template.id === 'getting-started' ? (
                         <img
                           src={'/templetepicture/get started screen.png'}
