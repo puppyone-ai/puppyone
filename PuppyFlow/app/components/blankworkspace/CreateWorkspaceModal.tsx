@@ -1,5 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
+import emptyPageTemplate from './templete/emptypage.json';
+import finalGetStartedContent from './templete/finalgetstarted.json';
+import ragChatbotContent from './templete/RAG templete.json';
+import fileLoadContent from './templete/file load.json';
+import articleWriterContent from './templete/article_writer.json';
+import seoBlogContent from './templete/seo blog.json';
 
 interface CreateWorkspaceModalProps {
   isOpen: boolean;
@@ -69,16 +75,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
   const handleCreateOption = (type: string, template?: any, name?: string) => {
     switch (type) {
       case 'empty':
-        onCreateWorkspace(undefined, 'Untitled Workspace');
-        break;
-      case 'database':
-        onCreateWorkspace(undefined, 'Database Workspace');
-        break;
-      case 'ai':
-        onCreateWorkspace(
-          workspaceTemplates?.onboarding_guide?.content,
-          'AI Assistant'
-        );
+        onCreateWorkspace(emptyPageTemplate as any, 'Untitled Context Base');
         break;
       case 'template':
         onCreateWorkspace(template, name);
@@ -91,56 +88,48 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
 
   const mainOption = {
     id: 'empty',
-    icon: (
-      <svg
-        className='w-5 h-5'
-        viewBox='0 0 24 24'
-        fill='none'
-        stroke='currentColor'
-        strokeWidth='2'
-        strokeLinecap='round'
-        strokeLinejoin='round'
-      >
-        <path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z' />
-        <polyline points='14,2 14,8 20,8' />
-      </svg>
-    ),
-    title: 'Empty workspace',
-    description: 'Start with a blank workspace',
+    title: 'Empty context base',
+    description: 'Start with a blank context base',
   };
 
   const suggestedTemplates = [
     {
       id: 'getting-started',
-      icon: '🎓',
-      title: 'Getting Started',
-      description: 'Learn the basics with guided tutorials.',
-      template: workspaceTemplates?.onboarding_guide,
+      title: workspaceTemplates?.onboarding_guide?.title || 'Getting Started',
+      description:
+        workspaceTemplates?.onboarding_guide?.description ||
+        'Learn the basics with guided tutorials.',
+      content: finalGetStartedContent,
       name: 'Getting Started',
     },
     {
       id: 'rag-chatbot',
-      icon: '🤖',
-      title: 'RAG Chatbot',
-      description: 'AI assistant based on your documents.',
-      template: workspaceTemplates?.agentic_rag,
+      title: workspaceTemplates?.rag_chatbot?.title || 'for RAG Chatbot',
+      description:
+        workspaceTemplates?.rag_chatbot?.description ||
+        'AI assistant based on your documents.',
+      content: ragChatbotContent,
       name: 'RAG Chatbot',
     },
     {
-      id: 'cms-manager',
-      icon: '📝',
-      title: 'CMS Manager',
-      description: 'Simple content management system.',
-      template: workspaceTemplates?.article_writer,
-      name: 'CMS Manager',
+      id: 'file content extraction',
+      title:
+        workspaceTemplates?.file_content_extraction?.title ||
+        'for File Extraction and Ingestion',
+      description:
+        workspaceTemplates?.file_content_extraction?.description ||
+        'Extract file contents and ingest them into your knowledge base.',
+      content: fileLoadContent,
+      name: 'File Content Extraction',
     },
     {
-      id: 'personal-rss',
-      icon: '📡',
-      title: 'Personal RSS',
-      description: 'Your personalized news and content feed.',
-      template: workspaceTemplates?.personal_rss,
-      name: 'Personal RSS',
+      id: 'seo',
+      title: workspaceTemplates?.seo?.title || 'for SEO Blog Generator',
+      description:
+        workspaceTemplates?.seo?.description ||
+        'Generate and optimize SEO content with automated workflows.',
+      content: seoBlogContent,
+      name: 'SEO',
     },
   ];
 
@@ -167,10 +156,13 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                 disabled={!canInteract}
                 className='w-full flex flex-col items-start gap-3 px-[16px] py-[18px] bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 group disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none'
               >
-                <div className='text-[#9CA3AF] group-hover:text-[#E5E5E5] transition-colors'>
-                  {mainOption.icon}
-                </div>
                 <div className='text-left'>
+                  <img
+                    src={'/templetepicture/Group 1035.svg'}
+                    alt='Empty Context Base Icon'
+                    className='w-[16px] h-[16px] mb-4 opacity-100'
+                    draggable={false}
+                  />
                   <div className='text-[12px] font-medium text-[#E5E5E5]'>
                     {mainOption.title}
                   </div>
@@ -191,7 +183,7 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
           <div className='w-[576px] px-0'>
             <div className='pb-4'>
               <h3 className='text-[12px] font-medium text-[#9CA3AF] mb-4'>
-                Templates
+                Context Templates
               </h3>
               <div className='grid grid-cols-2 gap-4'>
                 {suggestedTemplates.map(template => (
@@ -200,12 +192,12 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                     onClick={() =>
                       handleCreateOption(
                         'template',
-                        template.template,
+                        template.content,
                         template.name
                       )
                     }
                     disabled={!canInteract}
-                    className='flex flex-col p-4 bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 text-left group h-[120px] disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none'
+                    className='flex flex-col p-4 bg-transparent hover:bg-[#1A1A1A] border border-[#404040] hover:border-[#505050] rounded-[12px] transition-all duration-200 text-left group disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none'
                   >
                     <div className='mb-[4px]'>
                       <div className='text-[12px] font-medium text-[#E5E5E5]'>
@@ -217,12 +209,46 @@ const CreateWorkspaceModal: React.FC<CreateWorkspaceModalProps> = ({
                     </div>
 
                     {/* Template Preview Area */}
-                    <div className='mt-3 h-8 bg-[#1F1F1F] rounded-[12px] border border-[#333] flex items-center justify-center'>
-                      <div className='flex gap-1'>
-                        <div className='w-1 h-1 bg-[#404040] rounded-full'></div>
-                        <div className='w-1 h-1 bg-[#404040] rounded-full'></div>
-                        <div className='w-1 h-1 bg-[#404040] rounded-full'></div>
-                      </div>
+                    <div className={`mt-3 bg-[#1F1F1F] rounded-[12px] border border-[#333] flex items-center justify-center overflow-hidden w-[244px] ${template.id === 'rag-chatbot' || template.id === 'seo' || template.id === 'file content extraction' ? 'h-auto' : 'h-[130px]'} mx-auto`}>
+                      {template.id === 'getting-started' ? (
+                        <img
+                          src={'/templetepicture/get started screen.png'}
+                          alt='Getting Started Preview'
+                          className='w-full h-full object-contain select-none'
+                          loading='lazy'
+                          draggable={false}
+                        />
+                      ) : template.id === 'rag-chatbot' ? (
+                        <img
+                          src={'/templetepicture/RAG.png'}
+                          alt='Agentic RAG Preview'
+                          className='w-full h-auto object-contain select-none'
+                          loading='lazy'
+                          draggable={false}
+                        />
+                      ) : template.id === 'seo' ? (
+                        <img
+                          src={'/templetepicture/SEO blog.png'}
+                          alt='SEO Blog Preview'
+                          className='w-full h-auto object-contain select-none'
+                          loading='lazy'
+                          draggable={false}
+                        />
+                      ) : template.id === 'file content extraction' ? (
+                        <img
+                          src={'/templetepicture/fileload.png'}
+                          alt='File Content Extraction Preview'
+                          className='w-full h-auto object-contain select-none'
+                          loading='lazy'
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className='flex gap-1'>
+                          <div className='w-1 h-1 bg-[#404040] rounded-full'></div>
+                          <div className='w-1 h-1 bg-[#404040] rounded-full'></div>
+                          <div className='w-1 h-1 bg-[#404040] rounded-full'></div>
+                        </div>
+                      )}
                     </div>
                   </button>
                 ))}
