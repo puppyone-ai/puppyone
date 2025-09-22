@@ -180,7 +180,7 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
     );
     const [showSettings, setShowSettings] = useState(false);
     const [maxTokens, setMaxTokens] = useState<number>(
-      () => (getNode(id)?.data?.max_tokens as number) || 4096
+      () => (getNode(id)?.data?.max_tokens as number) || 128000
     );
 
     // 在 LLMConfigMenu 组件中，增强 sourceNodeLabels 状态以包含类型信息
@@ -1064,10 +1064,10 @@ const LLM: React.FC<LLMConfigNodeProps> = React.memo(
                           type='number'
                           value={maxTokens}
                           onChange={e =>
-                            setMaxTokens(parseInt(e.target.value) || 4096)
+                            setMaxTokens(parseInt(e.target.value) || 128000)
                           }
                           min='1'
-                          max='32000'
+                          max='128000'
                           className='h-[28px] px-2 bg-[#252525] border-[1px] border-[#6D7177]/30 rounded-[4px] text-[12px] text-white focus:border-[#6D7177]/50 focus:outline-none'
                           onFocus={onFocus}
                           onBlur={onBlur}

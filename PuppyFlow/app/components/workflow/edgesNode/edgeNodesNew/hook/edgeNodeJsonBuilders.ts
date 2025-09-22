@@ -730,7 +730,7 @@ function buildLLMNodeJson(
   const llmBaseUrl =
     typeof llmNodeData?.base_url === 'string' ? llmNodeData.base_url : '';
   const llmStructuredOutput = !!llmNodeData?.structured_output; // 转换为布尔值
-  const maxTokens = (llmNodeData?.max_tokens as number) || 2000;
+  const maxTokens = (llmNodeData?.max_tokens as number) || 128000;
 
   // 过滤消息，只保留 system 和 user 角色的消息
   const filteredMessages = parsedMessages.filter(
