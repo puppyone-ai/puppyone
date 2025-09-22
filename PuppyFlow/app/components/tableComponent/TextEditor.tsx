@@ -169,26 +169,7 @@ const TextEditor = ({
     }
   };
 
-  const InputFallback = (e: any): string => {
-    // 处理不同类型的值
-    if (e === null || e === undefined) {
-      return '';
-    }
-
-    if (typeof e === 'object') {
-      try {
-        // 尝试使用 JSON.stringify 格式化对象
-        return JSON.stringify(e, null, 2);
-      } catch (error) {
-        console.error('JSON.stringify 失败:', error);
-        // 如果 JSON.stringify 失败，使用 toString 方法
-        return e.toString();
-      }
-    }
-
-    // 对于其他类型，直接转换为字符串
-    return String(e);
-  };
+  
 
   // 计算实际的宽高样式 - 类似 JSONForm 的处理
   const actualWidth = widthStyle === 0 ? '100%' : widthStyle;
@@ -216,7 +197,7 @@ const TextEditor = ({
         width={actualWidth}
         height={actualHeight}
         onChange={handleChange}
-        value={typeof value === 'string' ? value : InputFallback(value)}
+        value={typeof value === 'string' ? value : ''}
         options={{
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           unicodeHighlight: {
