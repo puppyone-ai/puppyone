@@ -169,8 +169,6 @@ const TextEditor = ({
     }
   };
 
-  
-
   // 计算实际的宽高样式 - 类似 JSONForm 的处理
   const actualWidth = widthStyle === 0 ? '100%' : widthStyle;
   const actualHeight = autoHeight
