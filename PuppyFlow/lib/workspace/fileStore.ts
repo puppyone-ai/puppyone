@@ -20,10 +20,10 @@ function formatTimestampForFilename(timestamp: string): string {
 const rootDir = () => path.join(process.cwd(), 'workspace_data');
 
 export class FileWorkspaceStore implements IWorkspaceStore {
-  async listWorkspaces(
-    userId: string,
-    _opts: { authHeader?: string; origin: string }
-  ): Promise<WorkspaceBasic[]> {
+  async listWorkspaces(_opts: {
+    authHeader?: string;
+    origin: string;
+  }): Promise<WorkspaceBasic[]> {
     const saveDir = rootDir();
     if (!fs.existsSync(saveDir)) {
       await fsPromises.mkdir(saveDir, { recursive: true });

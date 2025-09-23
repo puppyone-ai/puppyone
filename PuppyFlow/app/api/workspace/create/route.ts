@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
-import { getCurrentUserId } from '@/lib/auth/serverUser';
 import { extractAuthHeader } from '@/lib/auth/http';
 
 export async function POST(request: Request) {
   try {
-    const userId = await getCurrentUserId(request);
     const body = await request.json();
     const { workspace_id, workspace_name } = body || {};
     if (!workspace_id || !workspace_name) {
@@ -17,7 +15,6 @@ export async function POST(request: Request) {
     const store = getWorkspaceStore();
     const authHeader = extractAuthHeader(request);
     const created = await store.createWorkspace(
-      userId,
       {
         workspace_id,
         workspace_name,

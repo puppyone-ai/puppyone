@@ -13,11 +13,10 @@ function authHeaders(authHeader?: string): HeadersInit {
 export class UserSystemWorkspaceStore implements IWorkspaceStore {
   private base = SERVER_ENV.USER_SYSTEM_BACKEND.replace(/\/$/, '');
 
-  async listWorkspaces(
-    userId: string,
-    opts?: { authHeader?: string }
-  ): Promise<WorkspaceBasic[]> {
-    const url = `${this.base}/get_user_workspaces/${userId}`;
+  async listWorkspaces(opts?: {
+    authHeader?: string;
+  }): Promise<WorkspaceBasic[]> {
+    const url = `${this.base}/workspaces`;
     const res = await fetch(url, {
       method: 'GET',
       headers: authHeaders(opts?.authHeader),
@@ -29,11 +28,10 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
   }
 
   async createWorkspace(
-    userId: string,
     payload: { workspace_id: string; workspace_name: string },
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
-    const url = `${this.base}/create_workspace/${userId}`;
+    const url = `${this.base}/workspaces`;
     const res = await fetch(url, {
       method: 'POST',
       headers: authHeaders(opts?.authHeader),
@@ -66,7 +64,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     newName: string,
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
-    const url = `${this.base}/update_workspace_name/${workspaceId}`;
+    const url = `${this.base}/workspaces/${workspaceId}/name`;
     const res = await fetch(url, {
       method: 'PUT',
       headers: authHeaders(opts?.authHeader),

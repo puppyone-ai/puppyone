@@ -1,12 +1,8 @@
 export type WorkspaceBasic = { workspace_id: string; workspace_name: string };
 
 export interface IWorkspaceStore {
-  listWorkspaces(
-    userId: string,
-    opts?: { authHeader?: string }
-  ): Promise<WorkspaceBasic[]>;
+  listWorkspaces(opts?: { authHeader?: string }): Promise<WorkspaceBasic[]>;
   createWorkspace(
-    userId: string,
     payload: { workspace_id: string; workspace_name: string },
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic>;
