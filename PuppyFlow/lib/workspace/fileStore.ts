@@ -20,9 +20,8 @@ function formatTimestampForFilename(timestamp: string): string {
 const rootDir = () => path.join(process.cwd(), 'workspace_data');
 
 export class FileWorkspaceStore implements IWorkspaceStore {
-  async listWorkspaces(_opts: {
+  async listWorkspaces(_opts?: {
     authHeader?: string;
-    origin: string;
   }): Promise<WorkspaceBasic[]> {
     const saveDir = rootDir();
     if (!fs.existsSync(saveDir)) {
@@ -56,9 +55,8 @@ export class FileWorkspaceStore implements IWorkspaceStore {
   }
 
   async createWorkspace(
-    userId: string,
     payload: { workspace_id: string; workspace_name: string },
-    _opts: { authHeader?: string; origin: string }
+    _opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
     const saveDir = rootDir();
     await fsPromises.mkdir(saveDir, { recursive: true });
@@ -84,7 +82,7 @@ export class FileWorkspaceStore implements IWorkspaceStore {
 
   async deleteWorkspace(
     workspaceId: string,
-    _opts: { authHeader?: string; origin: string }
+    _opts?: { authHeader?: string }
   ): Promise<void> {
     const workspaceDir = path.join(rootDir(), workspaceId);
     if (fs.existsSync(workspaceDir)) {
@@ -95,7 +93,7 @@ export class FileWorkspaceStore implements IWorkspaceStore {
   async renameWorkspace(
     workspaceId: string,
     newName: string,
-    _opts: { authHeader?: string; origin: string }
+    _opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
     const workspaceDir = path.join(rootDir(), workspaceId);
     const latestFile = path.join(workspaceDir, 'latest.json');
@@ -111,7 +109,7 @@ export class FileWorkspaceStore implements IWorkspaceStore {
 
   async getLatestHistory(
     workspaceId: string,
-    _opts: { authHeader?: string; origin: string }
+    _opts?: { authHeader?: string }
   ): Promise<any | null> {
     const latestFile = path.join(rootDir(), workspaceId, 'latest.json');
     if (!fs.existsSync(latestFile)) return null;
@@ -122,7 +120,7 @@ export class FileWorkspaceStore implements IWorkspaceStore {
   async addHistory(
     workspaceId: string,
     data: { history: any; timestamp: string },
-    _opts: { authHeader?: string; origin: string }
+    _opts?: { authHeader?: string }
   ): Promise<void> {
     const workspaceDir = path.join(rootDir(), workspaceId);
     await fsPromises.mkdir(workspaceDir, { recursive: true });
