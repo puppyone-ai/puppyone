@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build:
     if: github.actor != 'github-actions[bot]'
-    name: 'NPM Build Check'
+    name: 'NPM Build Check (push)'
     runs-on: ubuntu-latest
     defaults:
       run:

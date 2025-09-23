@@ -21,7 +21,7 @@ jobs:
   # Job ID, can be customized
   build:
     # Job name, displayed on GitHub PR page
-    name: 'NPM Build Check'
+    name: 'NPM Build Check (pull_request)'
     # Virtual machine environment to run the job
     runs-on: ubuntu-latest
 
