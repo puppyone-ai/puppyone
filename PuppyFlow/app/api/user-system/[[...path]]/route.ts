@@ -54,14 +54,16 @@ async function proxy(
     });
   } catch (err: any) {
     // 返回结构化错误，便于定位网络/证书/域解析问题
-    return new Response(
-      JSON.stringify({
-        error: 'UPSTREAM_FETCH_FAILED',
-        message: err?.message || 'fetch failed',
-        target,
-      }),
-      { status: 502, headers: { 'content-type': 'application/json' } }
-    );
+    // 透传结构化错误，便于诊断
+    const body = {
+      error: 'UPSTREAM_FETCH_FAILED',
+      message: err?.message || 'fetch failed',
+      target,
+    };
+    return new Response(JSON.stringify(body), {
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+    });
   }
 }
 
