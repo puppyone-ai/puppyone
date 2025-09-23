@@ -62,8 +62,8 @@ jobs:
 
             // Determine expected template type by branch prefix, with title override
             const mapping = [
-              { re: /^feature\//i, type: 'feature' },
-              { re: /^fix\//i, type: 'bugfix' },
+              { re: /^(feat|feature)\//i, type: 'feature' },
+              { re: /^(fix|bugfix)\//i, type: 'bugfix' },
               { re: /^perf\//i, type: 'perf' },
               { re: /^(refactor|rfct)\//i, type: 'refactor' },
               { re: /^ci\//i, type: 'ci' },
@@ -76,12 +76,12 @@ jobs:
             }
             const tl = title.toLowerCase();
             const titlePrefix = [
-              { re: /^(feat|feature):/, type: 'feature' },
-              { re: /^fix:/, type: 'bugfix' },
-              { re: /^perf:/, type: 'perf' },
-              { re: /^refactor:/, type: 'refactor' },
-              { re: /^ci:/, type: 'ci' },
-              { re: /^docs:/, type: 'docs' },
+              { re: /^(feat|feature)(\([^)]*\))?:/, type: 'feature' },
+              { re: /^fix(\([^)]*\))?:/, type: 'bugfix' },
+              { re: /^perf(\([^)]*\))?:/, type: 'perf' },
+              { re: /^refactor(\([^)]*\))?:/, type: 'refactor' },
+              { re: /^ci(\([^)]*\))?:/, type: 'ci' },
+              { re: /^docs(\([^)]*\))?:/, type: 'docs' },
             ];
             for (const p of titlePrefix) { if (p.re.test(tl)) expected = p.type; }
 
