@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
 import { extractAuthHeader } from '@/lib/auth/http';
+import { normalizeError } from '@/lib/http/errors';
 
 // 删除工作区
 export async function DELETE(
@@ -26,9 +27,13 @@ export async function DELETE(
       message: 'Workspace deleted successfully',
     });
   } catch (error) {
+    const { status, message, details } = normalizeError(
+      error,
+      'Failed to delete workspace'
+    );
     return NextResponse.json(
-      { success: false, error: 'Failed to delete workspace' },
-      { status: 500 }
+      { success: false, error: 'Failed to delete workspace', message, details },
+      { status }
     );
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
 import { extractAuthHeader } from '@/lib/auth/http';
+import { normalizeError } from '@/lib/http/errors';
 
 export async function PUT(
   request: Request,
@@ -29,9 +30,13 @@ export async function PUT(
       workspace_name: updated.workspace_name,
     });
   } catch (error) {
+    const { status, message, details } = normalizeError(
+      error,
+      'Failed to rename workspace'
+    );
     return NextResponse.json(
-      { error: 'Failed to rename workspace' },
-      { status: 500 }
+      { error: 'Failed to rename workspace', message, details },
+      { status }
     );
   }
 }
