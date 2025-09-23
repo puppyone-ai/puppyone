@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getWorkspaceStore } from '@/lib/workspace';
 import { extractAuthHeader } from '@/lib/auth/http';
 import { getCurrentUserId } from '@/lib/auth/serverUser';
+import { normalizeError } from '@/lib/http/errors';
 
 export const runtime = 'nodejs';
 
@@ -66,16 +67,13 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
-    console.error('[API:/api/workspace] Failed to save:', {
-      message: (error as any)?.message,
-      stack: (error as any)?.stack,
-    });
+    const { status, message, details } = normalizeError(
+      error,
+      'Failed to save workspace'
+    );
     return NextResponse.json(
-      {
-        success: false,
-        error: `Failed to save workspace`,
-      },
-      { status: 500 }
+      { success: false, error: 'Failed to save workspace', message, details },
+      { status }
     );
   }
 }
@@ -98,11 +96,13 @@ export async function GET(request: Request) {
     const data = await store.getLatestHistory(flowId, { authHeader });
     return NextResponse.json({ data });
   } catch (error) {
+    const { status, message, details } = normalizeError(
+      error,
+      'Failed to read workspace'
+    );
     return NextResponse.json(
-      {
-        error: `Failed to read workspace`,
-      },
-      { status: 500 }
+      { error: 'Failed to read workspace', message, details },
+      { status }
     );
   }
 }

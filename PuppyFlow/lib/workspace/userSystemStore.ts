@@ -1,5 +1,6 @@
 import { IWorkspaceStore, WorkspaceBasic } from './store';
 import { SERVER_ENV } from '@/lib/serverEnv';
+import { ensureOk, HttpError } from '@/lib/http/errors';
 
 function authHeaders(authHeader?: string): HeadersInit {
   const headers: Record<string, string> = {
@@ -23,7 +24,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
       headers: authHeaders(opts?.authHeader),
       credentials: 'include',
     });
-    if (!res.ok) throw new Error(`listWorkspaces failed: ${res.status}`);
+    await ensureOk(res, { op: 'listWorkspaces', url });
     const json = await res.json();
     return (json.workspaces || []) as WorkspaceBasic[];
   }
@@ -40,7 +41,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
       credentials: 'include',
       body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error(`createWorkspace failed: ${res.status}`);
+    await ensureOk(res, { op: 'createWorkspace', url });
     const json = await res.json();
     return {
       workspace_id: json.workspace_id,
@@ -58,7 +59,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
       headers: authHeaders(opts?.authHeader),
       credentials: 'include',
     });
-    if (!res.ok) throw new Error(`deleteWorkspace failed: ${res.status}`);
+    await ensureOk(res, { op: 'deleteWorkspace', url });
   }
 
   async renameWorkspace(
@@ -73,7 +74,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
       credentials: 'include',
       body: JSON.stringify({ new_name: newName }),
     });
-    if (!res.ok) throw new Error(`renameWorkspace failed: ${res.status}`);
+    await ensureOk(res, { op: 'renameWorkspace', url });
     const json = await res.json();
     return {
       workspace_id: json.workspace_id,
@@ -92,7 +93,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
       credentials: 'include',
     });
     if (res.status === 204) return null;
-    if (!res.ok) throw new Error(`getLatestHistory failed: ${res.status}`);
+    await ensureOk(res, { op: 'getLatestHistory', url });
     const json = await res.json();
     return json.history ?? null;
   }
@@ -112,6 +113,6 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
         timestamp: data.timestamp,
       }),
     });
-    if (!res.ok) throw new Error(`addHistory failed: ${res.status}`);
+    await ensureOk(res, { op: 'addHistory', url });
   }
 }
