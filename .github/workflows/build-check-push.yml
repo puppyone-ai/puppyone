@@ -3,15 +3,22 @@ name: 'Build and Test Check (push)'
 on:
   push:
     branches:
-      - '**'
+      - 'feature/**'
+      - 'fix/**'
+      - 'perf/**'
+      - 'docs/**'
+      - 'chore/**'
+      - 'temp/**'
 
+# Concurrency: separate by event and ref to avoid contention with PR builds
 concurrency:
-  group: build-push-${{ github.ref_name }}
+  group: build-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: 'NPM Build Check (push)'
+    if: github.actor != 'github-actions[bot]'
+    name: 'NPM Build Check'
     runs-on: ubuntu-latest
     defaults:
       run:
