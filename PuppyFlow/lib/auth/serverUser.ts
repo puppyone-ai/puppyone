@@ -23,15 +23,15 @@ export async function getCurrentUserId(request: Request): Promise<string> {
     throw new Error('No auth token');
   }
 
-  // Cloud mode: Call internal verify endpoint
-  const url = new URL('/api/auth/verify', request.url).toString();
+  // Cloud mode: Verify token directly against User System backend to avoid
+  // relying on request.url origin (which can be misreported behind proxies)
+  const url = `${SERVER_ENV.USER_SYSTEM_BACKEND}/verify_token`;
   const verifyHeaders: Record<string, string> = {
     'content-type': 'application/json',
     authorization: authHeader,
   };
-  // Include service key for internal verification when configured
   if (SERVER_ENV.SERVICE_KEY) {
-    verifyHeaders['x-service-key'] = SERVER_ENV.SERVICE_KEY;
+    verifyHeaders['X-Service-Key'] = SERVER_ENV.SERVICE_KEY;
   }
 
   try {
@@ -41,7 +41,7 @@ export async function getCurrentUserId(request: Request): Promise<string> {
       mode: (process.env.DEPLOYMENT_MODE || '').toLowerCase(),
     });
     const res = await fetch(url, {
-      method: 'GET',
+      method: 'POST',
       headers: verifyHeaders,
     });
     if (!res.ok) throw new Error(`verify failed: ${res.status}`);
