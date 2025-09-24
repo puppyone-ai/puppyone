@@ -990,7 +990,7 @@ function buildIfElseNodeJson(
       (condition: any, condIndex: number) => {
         // Convert the frontend condition to backend condition format
         const backendCondition =
-          conditionMap[condition.cond_v] || condition.cond_v;
+          conditionMap[condition.condition] || condition.condition;
 
         // Operation should be "/" if it's the last condition in the group
         const isLastCondition = condIndex === caseItem.conditions.length - 1;
@@ -1002,7 +1002,7 @@ function buildIfElseNodeJson(
           block: condition.id,
           condition: backendCondition,
           parameters: {
-            value: condition.cond_input || '',
+            value: condition.cond_v || '',
           },
           operation: operation,
         };

@@ -310,7 +310,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
             ],
             actions: [
               {
-                from_id: id,
+                from_id: firstSourceNode?.id || id,
                 from_label: 'output',
                 outputs: [],
               },
@@ -323,6 +323,32 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     useEffect(() => {
       initializeCases();
     }, [initializeCases]);
+
+    // 添加修复现有cases的函数
+    const fixExistingCasesFromId = useCallback(() => {
+      if (cases.length > 0 && sourceNodeLabels.length > 0) {
+        const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
+        const needsUpdate = cases.some(caseItem => 
+          caseItem.actions.some(action => action.from_id === id)
+        );
+        
+        if (needsUpdate && firstSourceNode) {
+          setCases(prevCases => 
+            prevCases.map(caseItem => ({
+              ...caseItem,
+              actions: caseItem.actions.map(action => ({
+                ...action,
+                from_id: action.from_id === id ? firstSourceNode.id : action.from_id
+              }))
+            }))
+          );
+        }
+      }
+    }, [cases, sourceNodeLabels, getSourceNodeIdWithLabel, id]);
+
+    useEffect(() => {
+      fixExistingCasesFromId();
+    }, [fixExistingCasesFromId]);
 
     // UI interaction functions - 使用 useCallback 缓存
     const onClickButton = useCallback(() => {
@@ -470,13 +496,14 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     // Case manipulation functions - 使用 useCallback 缓存
     const onCaseAdd = useCallback(() => {
       setCases(prevCases => {
+        const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
         const newCases = [
           ...prevCases,
           {
             conditions: [
               {
-                id: nanoid(6),
-                label: sourceNodeLabels[0]?.label || '',
+                id: firstSourceNode?.id || nanoid(6),
+                label: firstSourceNode?.label || sourceNodeLabels[0]?.label || '',
                 condition: 'contains',
                 cond_v: '',
                 operation: 'AND',
@@ -484,7 +511,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
             ],
             actions: [
               {
-                from_id: id,
+                from_id: firstSourceNode?.id || id,
                 from_label: 'output',
                 outputs: [],
               },
@@ -494,7 +521,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         onCasesChange(newCases);
         return newCases;
       });
-    }, [sourceNodeLabels, id, onCasesChange]);
+    }, [sourceNodeLabels, id, onCasesChange, getSourceNodeIdWithLabel]);
 
     const onCaseDelete = useCallback(
       (caseIndex: number) => {
@@ -657,9 +684,10 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     const onActionAdd = useCallback(
       (caseIndex: number) => () => {
         setCases(prevCases => {
+          const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
           const newCases = [...prevCases];
           newCases[caseIndex].actions.push({
-            from_id: id,
+            from_id: firstSourceNode?.id || id,
             from_label: 'output',
             outputs: [],
           });
@@ -667,7 +695,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
           return newCases;
         });
       },
-      [id, onCasesChange]
+      [id, onCasesChange, getSourceNodeIdWithLabel]
     );
 
     // 添加停止函数 - 使用 useCallback 缓存
