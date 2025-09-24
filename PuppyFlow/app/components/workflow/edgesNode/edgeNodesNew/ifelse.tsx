@@ -328,18 +328,19 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     const fixExistingCasesFromId = useCallback(() => {
       if (cases.length > 0 && sourceNodeLabels.length > 0) {
         const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
-        const needsUpdate = cases.some(caseItem => 
+        const needsUpdate = cases.some(caseItem =>
           caseItem.actions.some(action => action.from_id === id)
         );
-        
+
         if (needsUpdate && firstSourceNode) {
-          setCases(prevCases => 
+          setCases(prevCases =>
             prevCases.map(caseItem => ({
               ...caseItem,
               actions: caseItem.actions.map(action => ({
                 ...action,
-                from_id: action.from_id === id ? firstSourceNode.id : action.from_id
-              }))
+                from_id:
+                  action.from_id === id ? firstSourceNode.id : action.from_id,
+              })),
             }))
           );
         }
@@ -503,7 +504,8 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
             conditions: [
               {
                 id: firstSourceNode?.id || nanoid(6),
-                label: firstSourceNode?.label || sourceNodeLabels[0]?.label || '',
+                label:
+                  firstSourceNode?.label || sourceNodeLabels[0]?.label || '',
                 condition: 'contains',
                 cond_v: '',
                 operation: 'AND',
