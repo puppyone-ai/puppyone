@@ -3,6 +3,8 @@ import { getWorkspaceStore } from '@/lib/workspace';
 import { getCurrentUserId } from '@/lib/auth/serverUser';
 import { extractAuthHeader } from '@/lib/auth/http';
 
+export const runtime = 'nodejs';
+
 export async function POST(request: Request) {
   try {
     const userId = await getCurrentUserId(request);

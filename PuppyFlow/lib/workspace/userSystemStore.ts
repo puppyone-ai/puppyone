@@ -23,6 +23,7 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
       headers: authHeaders(opts?.authHeader),
       credentials: 'include',
     });
+    if (res.status === 204) return [];
     if (!res.ok) throw new Error(`listWorkspaces failed: ${res.status}`);
     const json = await res.json();
     return (json.workspaces || []) as WorkspaceBasic[];
@@ -34,18 +35,35 @@ export class UserSystemWorkspaceStore implements IWorkspaceStore {
     opts?: { authHeader?: string }
   ): Promise<WorkspaceBasic> {
     const url = `${this.base}/create_workspace/${userId}`;
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: authHeaders(opts?.authHeader),
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error(`createWorkspace failed: ${res.status}`);
-    const json = await res.json();
-    return {
-      workspace_id: json.workspace_id,
-      workspace_name: json.workspace_name,
-    };
+    try {
+      const headersObj = authHeaders(opts?.authHeader);
+      // Minimal diagnostics (no sensitive values): log URL and header keys only
+      console.info('[WorkspaceStore] createWorkspace request', {
+        url,
+        headerKeys: Object.keys(headersObj || {}),
+      });
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: headersObj,
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error(`createWorkspace failed: ${res.status}`);
+      const json = await res.json();
+      return {
+        workspace_id: json.workspace_id,
+        workspace_name: json.workspace_name,
+      };
+    } catch (err: any) {
+      const code = err?.cause?.code || err?.code;
+      console.error('[WorkspaceStore] createWorkspace fetch failed', {
+        url,
+        code,
+        message: err?.message,
+      });
+      throw err;
+    }
   }
 
   async deleteWorkspace(
