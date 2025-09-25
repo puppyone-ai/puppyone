@@ -700,6 +700,37 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
       [id, onCasesChange, getSourceNodeIdWithLabel]
     );
 
+    const onActionDelete = useCallback(
+      (caseIndex: number, actionIndex: number) => () => {
+        setCases(prevCases => {
+          const newCases = [...prevCases];
+          if (newCases[caseIndex].actions.length > 1) {
+            newCases[caseIndex].actions.splice(actionIndex, 1);
+            onCasesChange(newCases);
+          }
+          return newCases;
+        });
+      },
+      [onCasesChange]
+    );
+
+    const updateAction = useCallback(
+      (
+        caseIndex: number,
+        actionIndex: number,
+        field: keyof Action,
+        value: string | string[]
+      ) => {
+        setCases(prevCases => {
+          const newCases = [...prevCases];
+          newCases[caseIndex].actions[actionIndex][field] = value as any;
+          onCasesChange(newCases);
+          return newCases;
+        });
+      },
+      [onCasesChange]
+    );
+
     // 添加停止函数 - 使用 useCallback 缓存
     const onStopExecution = useCallback(() => {
       console.log('Stop execution');
@@ -1287,11 +1318,181 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                         {case_value.actions.map((action, action_index) => (
                           <div
                             key={action_index}
-                            className='flex gap-2 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] px-3'
+                            className='flex gap-2 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525]'
                           >
-                            <span className='text-[12px] text-[#CDCDCD]'>
-                              Output to connected nodes
-                            </span>
+                            {/* 源节点选择 */}
+                            <div className='flex items-center px-2'>
+                              <PuppyDropdown
+                                options={getSourceNodeIdWithLabel(id)}
+                                onSelect={(node: {
+                                  id: string;
+                                  label: string;
+                                }) => {
+                                  updateAction(
+                                    case_index,
+                                    action_index,
+                                    'from_id',
+                                    node.id
+                                  );
+                                  updateAction(
+                                    case_index,
+                                    action_index,
+                                    'from_label',
+                                    node.label
+                                  );
+                                }}
+                                selectedValue={action.from_id}
+                                optionBadge={false}
+                                listWidth='150px'
+                                buttonHeight='24px'
+                                buttonBgColor='transparent'
+                                containerClassnames='w-fit'
+                                mapValueTodisplay={(
+                                  value:
+                                    | string
+                                    | { id: string; label: string }
+                                ) => {
+                                  if (typeof value === 'string') {
+                                    const nodeType = getNode(value)?.type;
+                                    const label =
+                                      getNode(value)?.data?.label || value;
+                                    const displayText = `{{${label}}}`;
+
+                                    if (nodeType === 'text') {
+                                      return (
+                                        <span className='text-[#3B9BFF]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    } else if (nodeType === 'structured') {
+                                      return (
+                                        <span className='text-[#9B7EDB]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    }
+                                    return displayText;
+                                  }
+
+                                  const nodeType = getNode(value.id)?.type;
+                                  const displayText = `{{${value.label || value.id}}}`;
+
+                                  if (nodeType === 'text') {
+                                    return (
+                                      <span className='text-[#3B9BFF]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  } else if (nodeType === 'structured') {
+                                    return (
+                                      <span className='text-[#9B7EDB]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  }
+                                  return displayText;
+                                }}
+                                showDropdownIcon={false}
+                              />
+                            </div>
+
+                            {/* "copy to" 文本 */}
+                            <div className='px-2 text-[12px] text-[#6D7177]'>
+                              copy to
+                            </div>
+
+                            {/* 目标节点选择 */}
+                            <div className='flex items-center px-2 flex-1'>
+                              <PuppyDropdown
+                                options={getTargetNodeIdWithLabel(id)}
+                                onSelect={(node: {
+                                  id: string;
+                                  label: string;
+                                }) => {
+                                  // 更新 outputs 数组，这里简化为单个目标
+                                  updateAction(
+                                    case_index,
+                                    action_index,
+                                    'outputs',
+                                    [node.id]
+                                  );
+                                }}
+                                selectedValue={action.outputs[0] || ''}
+                                optionBadge={false}
+                                listWidth='150px'
+                                buttonHeight='24px'
+                                buttonBgColor='transparent'
+                                containerClassnames='w-fit'
+                                mapValueTodisplay={(
+                                  value:
+                                    | string
+                                    | { id: string; label: string }
+                                ) => {
+                                  if (typeof value === 'string') {
+                                    const nodeType = getNode(value)?.type;
+                                    const label =
+                                      getNode(value)?.data?.label || value;
+                                    const displayText = `{{${label}}}`;
+
+                                    if (nodeType === 'text') {
+                                      return (
+                                        <span className='text-[#3B9BFF]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    } else if (nodeType === 'structured') {
+                                      return (
+                                        <span className='text-[#9B7EDB]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    }
+                                    return displayText;
+                                  }
+
+                                  const nodeType = getNode(value.id)?.type;
+                                  const displayText = `{{${value.label || value.id}}}`;
+
+                                  if (nodeType === 'text') {
+                                    return (
+                                      <span className='text-[#3B9BFF]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  } else if (nodeType === 'structured') {
+                                    return (
+                                      <span className='text-[#9B7EDB]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  }
+                                  return displayText;
+                                }}
+                                showDropdownIcon={false}
+                              />
+                            </div>
+
+                            {/* 删除 Action 按钮 */}
+                            {case_value.actions.length > 1 && (
+                              <button
+                                onClick={onActionDelete(case_index, action_index)}
+                                className='p-1 text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                              >
+                                <svg
+                                  width='12'
+                                  height='12'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                >
+                                  <path
+                                    d='M18 6L6 18M6 6l12 12'
+                                    strokeWidth='2'
+                                    strokeLinecap='round'
+                                  />
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         ))}
 
