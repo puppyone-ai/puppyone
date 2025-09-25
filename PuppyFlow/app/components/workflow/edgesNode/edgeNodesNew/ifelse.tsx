@@ -1151,18 +1151,47 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                                         'is less than [N] characters') && (
                                       <div className='flex-1 px-[8px]'>
                                         <input
-                                          type='text'
+                                          type={
+                                            condition_value.condition === 'is greater than [N] characters' ||
+                                            condition_value.condition === 'is less than [N] characters'
+                                              ? 'number'
+                                              : 'text'
+                                          }
                                           value={condition_value.cond_v}
                                           onChange={e => {
+                                            let value = e.target.value;
+                                            // 对于数字类型的条件，确保输入的是非负整数
+                                            if (
+                                              (condition_value.condition === 'is greater than [N] characters' ||
+                                               condition_value.condition === 'is less than [N] characters') &&
+                                              value !== ''
+                                            ) {
+                                              const numValue = parseInt(value, 10);
+                                              if (isNaN(numValue) || numValue < 0) {
+                                                return; // 忽略无效输入
+                                              }
+                                              value = numValue.toString();
+                                            }
                                             updateCondition(
                                               case_index,
                                               conditions_index,
                                               'cond_v',
-                                              e.target.value
+                                              value
                                             );
                                           }}
                                           className='w-full h-[24px] bg-transparent border-none outline-none text-[#CDCDCD] text-[12px] placeholder-[#6D7177]'
-                                          placeholder='Enter value...'
+                                          placeholder={
+                                            condition_value.condition === 'is greater than [N] characters' ||
+                                            condition_value.condition === 'is less than [N] characters'
+                                              ? 'Enter number...'
+                                              : 'Enter value...'
+                                          }
+                                          min={
+                                            condition_value.condition === 'is greater than [N] characters' ||
+                                            condition_value.condition === 'is less than [N] characters'
+                                              ? '0'
+                                              : undefined
+                                          }
                                           onFocus={onFocus}
                                           onBlur={onBlur}
                                         />
