@@ -1348,9 +1348,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                                 buttonBgColor='transparent'
                                 containerClassnames='w-fit'
                                 mapValueTodisplay={(
-                                  value:
-                                    | string
-                                    | { id: string; label: string }
+                                  value: string | { id: string; label: string }
                                 ) => {
                                   if (typeof value === 'string') {
                                     const nodeType = getNode(value)?.type;
@@ -1424,9 +1422,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                                 buttonBgColor='transparent'
                                 containerClassnames='w-fit'
                                 mapValueTodisplay={(
-                                  value:
-                                    | string
-                                    | { id: string; label: string }
+                                  value: string | { id: string; label: string }
                                 ) => {
                                   if (typeof value === 'string') {
                                     const nodeType = getNode(value)?.type;
@@ -1475,7 +1471,10 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                             {/* 删除 Action 按钮 */}
                             {case_value.actions.length > 1 && (
                               <button
-                                onClick={onActionDelete(case_index, action_index)}
+                                onClick={onActionDelete(
+                                  case_index,
+                                  action_index
+                                )}
                                 className='p-1 text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
                               >
                                 <svg
