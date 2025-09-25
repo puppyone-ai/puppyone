@@ -187,7 +187,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         const context = createExecutionContext();
         await runSingleEdgeNode({
           parentId: id,
-          targetNodeType: 'ifelse',
+          targetNodeType: 'text',
           context,
         });
       } catch (error) {
