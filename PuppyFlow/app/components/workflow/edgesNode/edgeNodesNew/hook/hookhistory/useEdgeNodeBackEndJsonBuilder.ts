@@ -1412,12 +1412,14 @@ export function useEdgeNodeBackEndJsonBuilder() {
 
           // 处理参数值的类型转换
           let parameterValue: string | number = condition.cond_v || '';
-          
+
           // 对于需要数字参数的条件，将字符串转换为数字
-          if (backendCondition === 'greater_than_n_chars' || 
-              backendCondition === 'less_than_n_chars' ||
-              backendCondition === 'greater_than_n' ||
-              backendCondition === 'less_than_n') {
+          if (
+            backendCondition === 'greater_than_n_chars' ||
+            backendCondition === 'less_than_n_chars' ||
+            backendCondition === 'greater_than_n' ||
+            backendCondition === 'less_than_n'
+          ) {
             const numValue = parseInt(condition.cond_v || '0', 10);
             parameterValue = isNaN(numValue) ? 0 : numValue;
           }
