@@ -39,15 +39,14 @@ class ConditionerFactory(EdgeFactoryBase):
 
             satisfied = instance._evaluate_conditions(conditions, content_blocks)
             if satisfied:
+                # 直接处理每个 then_clause，避免使用字典覆盖
                 for then_clause in then_clauses:
-                    results[then_clause.get("from")] = then_clause.get("to")
+                    from_block = then_clause.get("from")
+                    to_block = then_clause.get("to")
+                    if from_block and to_block:
+                        results[to_block] = content_blocks.get(from_block)
 
-        # Rearrange the results to contains the actual content
-        rearranged_results = {}
-        for from_block, to_block in results.items():
-            rearranged_results[to_block] = content_blocks.get(from_block)
-
-        return rearranged_results
+        return results
 
     @global_exception_handler(4102, "Error Evaluating Case Conditions")
     def _evaluate_conditions(

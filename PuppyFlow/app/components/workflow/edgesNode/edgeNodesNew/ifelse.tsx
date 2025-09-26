@@ -187,7 +187,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         const context = createExecutionContext();
         await runSingleEdgeNode({
           parentId: id,
-          targetNodeType: 'ifelse',
+          targetNodeType: 'text',
           context,
         });
       } catch (error) {
@@ -310,7 +310,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
             ],
             actions: [
               {
-                from_id: id,
+                from_id: firstSourceNode?.id || id,
                 from_label: 'output',
                 outputs: [],
               },
@@ -323,6 +323,33 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     useEffect(() => {
       initializeCases();
     }, [initializeCases]);
+
+    // 添加修复现有cases的函数
+    const fixExistingCasesFromId = useCallback(() => {
+      if (cases.length > 0 && sourceNodeLabels.length > 0) {
+        const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
+        const needsUpdate = cases.some(caseItem =>
+          caseItem.actions.some(action => action.from_id === id)
+        );
+
+        if (needsUpdate && firstSourceNode) {
+          setCases(prevCases =>
+            prevCases.map(caseItem => ({
+              ...caseItem,
+              actions: caseItem.actions.map(action => ({
+                ...action,
+                from_id:
+                  action.from_id === id ? firstSourceNode.id : action.from_id,
+              })),
+            }))
+          );
+        }
+      }
+    }, [cases, sourceNodeLabels, getSourceNodeIdWithLabel, id]);
+
+    useEffect(() => {
+      fixExistingCasesFromId();
+    }, [fixExistingCasesFromId]);
 
     // UI interaction functions - 使用 useCallback 缓存
     const onClickButton = useCallback(() => {
@@ -470,13 +497,15 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     // Case manipulation functions - 使用 useCallback 缓存
     const onCaseAdd = useCallback(() => {
       setCases(prevCases => {
+        const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
         const newCases = [
           ...prevCases,
           {
             conditions: [
               {
-                id: nanoid(6),
-                label: sourceNodeLabels[0]?.label || '',
+                id: firstSourceNode?.id || nanoid(6),
+                label:
+                  firstSourceNode?.label || sourceNodeLabels[0]?.label || '',
                 condition: 'contains',
                 cond_v: '',
                 operation: 'AND',
@@ -484,7 +513,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
             ],
             actions: [
               {
-                from_id: id,
+                from_id: firstSourceNode?.id || id,
                 from_label: 'output',
                 outputs: [],
               },
@@ -494,7 +523,7 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
         onCasesChange(newCases);
         return newCases;
       });
-    }, [sourceNodeLabels, id, onCasesChange]);
+    }, [sourceNodeLabels, id, onCasesChange, getSourceNodeIdWithLabel]);
 
     const onCaseDelete = useCallback(
       (caseIndex: number) => {
@@ -657,9 +686,10 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
     const onActionAdd = useCallback(
       (caseIndex: number) => () => {
         setCases(prevCases => {
+          const firstSourceNode = getSourceNodeIdWithLabel(id)[0];
           const newCases = [...prevCases];
           newCases[caseIndex].actions.push({
-            from_id: id,
+            from_id: firstSourceNode?.id || id,
             from_label: 'output',
             outputs: [],
           });
@@ -667,7 +697,38 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
           return newCases;
         });
       },
-      [id, onCasesChange]
+      [id, onCasesChange, getSourceNodeIdWithLabel]
+    );
+
+    const onActionDelete = useCallback(
+      (caseIndex: number, actionIndex: number) => () => {
+        setCases(prevCases => {
+          const newCases = [...prevCases];
+          if (newCases[caseIndex].actions.length > 1) {
+            newCases[caseIndex].actions.splice(actionIndex, 1);
+            onCasesChange(newCases);
+          }
+          return newCases;
+        });
+      },
+      [onCasesChange]
+    );
+
+    const updateAction = useCallback(
+      (
+        caseIndex: number,
+        actionIndex: number,
+        field: keyof Action,
+        value: string | string[]
+      ) => {
+        setCases(prevCases => {
+          const newCases = [...prevCases];
+          newCases[caseIndex].actions[actionIndex][field] = value as any;
+          onCasesChange(newCases);
+          return newCases;
+        });
+      },
+      [onCasesChange]
     );
 
     // 添加停止函数 - 使用 useCallback 缓存
@@ -1121,18 +1182,61 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                                         'is less than [N] characters') && (
                                       <div className='flex-1 px-[8px]'>
                                         <input
-                                          type='text'
+                                          type={
+                                            condition_value.condition ===
+                                              'is greater than [N] characters' ||
+                                            condition_value.condition ===
+                                              'is less than [N] characters'
+                                              ? 'number'
+                                              : 'text'
+                                          }
                                           value={condition_value.cond_v}
                                           onChange={e => {
+                                            let value = e.target.value;
+                                            // 对于数字类型的条件，确保输入的是非负整数
+                                            if (
+                                              (condition_value.condition ===
+                                                'is greater than [N] characters' ||
+                                                condition_value.condition ===
+                                                  'is less than [N] characters') &&
+                                              value !== ''
+                                            ) {
+                                              const numValue = parseInt(
+                                                value,
+                                                10
+                                              );
+                                              if (
+                                                isNaN(numValue) ||
+                                                numValue < 0
+                                              ) {
+                                                return; // 忽略无效输入
+                                              }
+                                              value = numValue.toString();
+                                            }
                                             updateCondition(
                                               case_index,
                                               conditions_index,
                                               'cond_v',
-                                              e.target.value
+                                              value
                                             );
                                           }}
                                           className='w-full h-[24px] bg-transparent border-none outline-none text-[#CDCDCD] text-[12px] placeholder-[#6D7177]'
-                                          placeholder='Enter value...'
+                                          placeholder={
+                                            condition_value.condition ===
+                                              'is greater than [N] characters' ||
+                                            condition_value.condition ===
+                                              'is less than [N] characters'
+                                              ? 'Enter number...'
+                                              : 'Enter value...'
+                                          }
+                                          min={
+                                            condition_value.condition ===
+                                              'is greater than [N] characters' ||
+                                            condition_value.condition ===
+                                              'is less than [N] characters'
+                                              ? '0'
+                                              : undefined
+                                          }
                                           onFocus={onFocus}
                                           onBlur={onBlur}
                                         />
@@ -1214,11 +1318,180 @@ const IfElse: React.FC<ChooseConfigNodeProps> = React.memo(
                         {case_value.actions.map((action, action_index) => (
                           <div
                             key={action_index}
-                            className='flex gap-2 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525] px-3'
+                            className='flex gap-2 h-[32px] items-center justify-start rounded-md border-[1px] border-[#6D7177]/30 bg-[#252525]'
                           >
-                            <span className='text-[12px] text-[#CDCDCD]'>
-                              Output to connected nodes
-                            </span>
+                            {/* 源节点选择 */}
+                            <div className='flex items-center px-2'>
+                              <PuppyDropdown
+                                options={getSourceNodeIdWithLabel(id)}
+                                onSelect={(node: {
+                                  id: string;
+                                  label: string;
+                                }) => {
+                                  updateAction(
+                                    case_index,
+                                    action_index,
+                                    'from_id',
+                                    node.id
+                                  );
+                                  updateAction(
+                                    case_index,
+                                    action_index,
+                                    'from_label',
+                                    node.label
+                                  );
+                                }}
+                                selectedValue={action.from_id}
+                                optionBadge={false}
+                                listWidth='150px'
+                                buttonHeight='24px'
+                                buttonBgColor='transparent'
+                                containerClassnames='w-fit'
+                                mapValueTodisplay={(
+                                  value: string | { id: string; label: string }
+                                ) => {
+                                  if (typeof value === 'string') {
+                                    const nodeType = getNode(value)?.type;
+                                    const label =
+                                      getNode(value)?.data?.label || value;
+                                    const displayText = `{{${label}}}`;
+
+                                    if (nodeType === 'text') {
+                                      return (
+                                        <span className='text-[#3B9BFF]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    } else if (nodeType === 'structured') {
+                                      return (
+                                        <span className='text-[#9B7EDB]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    }
+                                    return displayText;
+                                  }
+
+                                  const nodeType = getNode(value.id)?.type;
+                                  const displayText = `{{${value.label || value.id}}}`;
+
+                                  if (nodeType === 'text') {
+                                    return (
+                                      <span className='text-[#3B9BFF]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  } else if (nodeType === 'structured') {
+                                    return (
+                                      <span className='text-[#9B7EDB]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  }
+                                  return displayText;
+                                }}
+                                showDropdownIcon={false}
+                              />
+                            </div>
+
+                            {/* "copy to" 文本 */}
+                            <div className='px-2 text-[12px] text-[#6D7177]'>
+                              copy to
+                            </div>
+
+                            {/* 目标节点选择 */}
+                            <div className='flex items-center px-2 flex-1'>
+                              <PuppyDropdown
+                                options={getTargetNodeIdWithLabel(id)}
+                                onSelect={(node: {
+                                  id: string;
+                                  label: string;
+                                }) => {
+                                  // 更新 outputs 数组，这里简化为单个目标
+                                  updateAction(
+                                    case_index,
+                                    action_index,
+                                    'outputs',
+                                    [node.id]
+                                  );
+                                }}
+                                selectedValue={action.outputs[0] || ''}
+                                optionBadge={false}
+                                listWidth='150px'
+                                buttonHeight='24px'
+                                buttonBgColor='transparent'
+                                containerClassnames='w-fit'
+                                mapValueTodisplay={(
+                                  value: string | { id: string; label: string }
+                                ) => {
+                                  if (typeof value === 'string') {
+                                    const nodeType = getNode(value)?.type;
+                                    const label =
+                                      getNode(value)?.data?.label || value;
+                                    const displayText = `{{${label}}}`;
+
+                                    if (nodeType === 'text') {
+                                      return (
+                                        <span className='text-[#3B9BFF]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    } else if (nodeType === 'structured') {
+                                      return (
+                                        <span className='text-[#9B7EDB]'>
+                                          {displayText}
+                                        </span>
+                                      );
+                                    }
+                                    return displayText;
+                                  }
+
+                                  const nodeType = getNode(value.id)?.type;
+                                  const displayText = `{{${value.label || value.id}}}`;
+
+                                  if (nodeType === 'text') {
+                                    return (
+                                      <span className='text-[#3B9BFF]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  } else if (nodeType === 'structured') {
+                                    return (
+                                      <span className='text-[#9B7EDB]'>
+                                        {displayText}
+                                      </span>
+                                    );
+                                  }
+                                  return displayText;
+                                }}
+                                showDropdownIcon={false}
+                              />
+                            </div>
+
+                            {/* 删除 Action 按钮 */}
+                            {case_value.actions.length > 1 && (
+                              <button
+                                onClick={onActionDelete(
+                                  case_index,
+                                  action_index
+                                )}
+                                className='p-1 text-[#6D7177] hover:text-[#ff4d4d] transition-colors'
+                              >
+                                <svg
+                                  width='12'
+                                  height='12'
+                                  viewBox='0 0 24 24'
+                                  fill='none'
+                                  stroke='currentColor'
+                                >
+                                  <path
+                                    d='M18 6L6 18M6 6l12 12'
+                                    strokeWidth='2'
+                                    strokeLinecap='round'
+                                  />
+                                </svg>
+                              </button>
+                            )}
                           </div>
                         ))}
 
