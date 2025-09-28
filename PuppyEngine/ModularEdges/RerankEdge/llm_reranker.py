@@ -147,6 +147,6 @@ if __name__ == "__main__":
     query = "What is your name?"
     retrieval_chunks=["I am developer", "I am a human", "I am Jack", "Hello", "Working"]
     
-    reranker = LLMBasedReranker(model_name="gpt-4o-2024-08-06")
+    reranker = LLMBasedReranker(model_name="openai/gpt-5")
     result = reranker.rerank(query=query, retrieval_chunks=retrieval_chunks, top_k=3)
     print("LLM-Based Reranker Results:", result)

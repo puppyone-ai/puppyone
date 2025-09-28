@@ -58,7 +58,7 @@ class DeepResearcherEdge(EdgeFactoryBase):
             raise PuppyException(3802, "Missing query in init_configs")
         
         # Get configurations
-        model = extra_configs.get("model", "gpt-4o-2024-08-06")
+        model = extra_configs.get("model", "openai/gpt-5")
         temperature = extra_configs.get("temperature", 0.1)
         max_tokens = extra_configs.get("max_tokens", 10000)
         max_iterations = extra_configs.get("max_iterations", self.max_iterations)

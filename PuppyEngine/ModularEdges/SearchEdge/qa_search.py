@@ -105,7 +105,7 @@ class LLMQASearchStrategy(SearchStrategy):
         - mixtral-8x7b
         """
 
-        return DDGS().chat(self.query, self.extra_configs.get("model", "gpt-4o-mini"))
+        return DDGS().chat(self.query, self.extra_configs.get("model", "gpt-5"))
 
 
 if __name__ == "__main__":

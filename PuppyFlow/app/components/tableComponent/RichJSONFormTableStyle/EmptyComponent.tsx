@@ -140,7 +140,7 @@ const EmptyComponent = ({
             transform: 'translateX(-100%)',
           }}
         >
-          <div className='rjft-action-menu bg-[#252525] p-[8px] border-[1px] border-[#404040] rounded-[8px] gap-[4px] flex flex-col w-[128px]'>
+          <div className='rjft-action-menu bg-[#252525] p-[8px] border-[1px] border-[#2a2a2a] rounded-[8px] gap-[4px] flex flex-col w-[128px]'>
             <button
               className='px-[0px] rounded-[4px] bg-inherit hover:bg-[#3E3E41] w-full h-[26px] flex justify-start items-center text-[#E5E7EB] font-plus-jakarta-sans text-[12px] font-[400] tracking-[0.5px] cursor-pointer whitespace-nowrap gap-[8px]'
               onClick={() => {
@@ -249,7 +249,7 @@ const EmptyComponent = ({
   if (showAsSelected && selectedTypeInfo) {
     return (
       <div
-        className='bg-[#252525] shadow-sm relative group'
+        className='bg-[#0F0F0F] shadow-sm relative group'
         style={{
           outline: 'none',
           boxShadow: isSelected ? 'inset 0 0 0 2px #666666' : 'none',
@@ -261,11 +261,11 @@ const EmptyComponent = ({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className='absolute left-0 top-1 bottom-1 w-px bg-[#3A3D45] rounded-full z-20'>
+        <div className='absolute left-0 top-0 bottom-0 w-px bg-[#2a2a2a] z-20'>
           {(isSelected || isHovered || menuOpen) && (
             <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
               <div
-                className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
+                className='w-4 h-6 bg-[#0F0F0F] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
                 style={{ borderColor: accentColor }}
                 aria-hidden
                 onClick={e => {
@@ -298,7 +298,7 @@ const EmptyComponent = ({
             </div>
           )}
         </div>
-        <div className='w-full px-[16px] py-[6px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+        <div className='w-full px-[16px] py-[6px] bg-[#0F0F0F] rounded-md overflow-hidden transition-colors duration-200'>
           <button
             onClick={() => setIsOpen(!isOpen)}
             className='flex items-center justify-between w-full h-[24px] bg-[#2A2D35] hover:bg-[#3A3D45] border border-[#4B5563] rounded-lg px-3 py-1 transition-colors'
@@ -354,10 +354,9 @@ const EmptyComponent = ({
   // 默认的类型选择状态（空元素初始不显示，hover时显示创建提示）
   return (
     <div
-      className='bg-[#252525] shadow-sm relative group/empty p-[2px]'
+      className='bg-[#252525] shadow-sm relative group/empty'
       style={{
         outline: 'none',
-        boxShadow: isSelected ? 'inset 0 0 0 2px #6B7280' : 'none',
       }}
       onClick={e => {
         e.stopPropagation();
@@ -366,11 +365,11 @@ const EmptyComponent = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className='absolute left-0 top-1 bottom-1 w-px bg-[#6B7280] rounded-full z-20'>
+      <div className='absolute left-0 top-0 bottom-0 w-px bg-[#4A4D54] z-20'>
         {(isSelected || isHovered || menuOpen) && (
           <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
             <div
-              className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
+              className='w-4 h-6 bg-[#0F0F0F] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
               style={{ borderColor: accentColor }}
               aria-hidden
               onClick={e => {
@@ -401,13 +400,20 @@ const EmptyComponent = ({
           </div>
         )}
       </div>
-      <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+      {isSelected && (
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 z-10'
+          style={{ boxShadow: 'inset 0 0 0 2px #6B7280' }}
+        />
+      )}
+      <div className='w-full px-[16px] py-[8px] bg-[#252525] rounded-md overflow-hidden transition-colors duration-200'>
         {readonly ? (
           <div className='flex items-center h-[24px]'></div>
         ) : (
           <div className='flex items-center h-[24px] space-x-2 opacity-0 group-hover/empty:opacity-100 transition-opacity duration-150'>
             <span className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
-              create a type
+              Choose a type
             </span>
             {types.map(typeInfo => (
               <button

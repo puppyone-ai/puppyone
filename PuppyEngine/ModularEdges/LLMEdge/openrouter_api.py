@@ -89,7 +89,7 @@ def process_openrouter_response(
 
 def chat_with_openrouter(
     messages: List[Dict[str, Any]],
-    model: str = "openai/gpt-4o-mini",
+    model: str = "openai/gpt-5",
     max_tokens: int = 1000,
     temperature: float = 0.7,
     max_thinking_tokens: int = 8000

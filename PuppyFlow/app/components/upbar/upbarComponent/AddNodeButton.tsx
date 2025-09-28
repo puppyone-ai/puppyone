@@ -197,8 +197,9 @@ function NodeMenu({
 
       const getMinSize = (nodeType: string) => {
         switch (nodeType) {
-          case 'text':
           case 'structured':
+            return { width: 304, height: 176 };
+          case 'text':
           case 'file':
           case 'weblink':
           default:
@@ -219,7 +220,8 @@ function NodeMenu({
 
       // Build node data
       const newNodeId = nanoid(6);
-      const defaultNodeContent = '';
+      const defaultNodeContent =
+        draggedNodeType === 'structured' ? '["structured text", null]' : '';
       const nodeData: any = {
         content: defaultNodeContent,
         label: newNodeId,

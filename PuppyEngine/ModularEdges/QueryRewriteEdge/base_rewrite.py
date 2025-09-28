@@ -17,7 +17,7 @@ class QueryRewriteStrategy(ABC):
     def __init__(
         self,
         query: str,
-        model: str = "gpt-4o"
+        model: str = "openai/gpt-5"
     ):
         self.query = query
         self.model = model

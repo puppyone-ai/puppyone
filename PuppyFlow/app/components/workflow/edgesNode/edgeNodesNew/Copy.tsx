@@ -1,5 +1,6 @@
 import { Handle, Position, NodeProps, Node, useReactFlow } from '@xyflow/react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNodesPerFlowContext } from '../../../states/NodesPerFlowContext';
 import InputOutputDisplay from './components/InputOutputDisplay';
 import { UI_COLORS } from '@/app/utils/colors';
@@ -60,6 +61,8 @@ function CopyEdgeNode({
   const [isRunButtonHovered, setIsRunButtonHovered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const menuRef = useRef<HTMLUListElement>(null);
+  const portalAnchorRef = useRef<HTMLDivElement | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
   const { getSourceNodeIdWithLabel, getTargetNodeIdWithLabel } =
     useGetSourceTarget();
 
@@ -143,6 +146,48 @@ function CopyEdgeNode({
     border: '3px solid transparent',
     zIndex: !isOnConnect ? '-1' : '1',
   };
+
+  // Use body-level fixed portal so menu does not scale with zoom
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    let rafId: number | null = null;
+    const GAP = 16;
+
+    const positionMenu = () => {
+      const anchorEl = portalAnchorRef.current as HTMLElement | null;
+      const container = menuContainerRef.current as HTMLDivElement | null;
+      if (!container || !anchorEl) {
+        rafId = requestAnimationFrame(positionMenu);
+        return;
+      }
+      const rect = anchorEl.getBoundingClientRect();
+      const menuWidth = 320; // matches w-[320px]
+      const left = Math.max(
+        8,
+        Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      );
+      const top = rect.bottom + GAP;
+
+      container.style.position = 'fixed';
+      container.style.left = `${left}px`;
+      container.style.top = `${top}px`;
+      container.style.zIndex = '2000000';
+      container.style.pointerEvents = 'auto';
+
+      rafId = requestAnimationFrame(positionMenu);
+    };
+
+    positionMenu();
+    const onScroll = () => positionMenu();
+    const onResize = () => positionMenu();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onResize);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [isMenuOpen]);
 
   return (
     <div className='p-[3px] w-[80px] h-[48px] relative'>
@@ -307,104 +352,121 @@ function CopyEdgeNode({
         />
       </button>
 
-      {/* Configuration Menu (integrated directly) */}
-      {isMenuOpen && (
-        <ul
-          ref={menuRef}
-          className='absolute top-[64px] text-white w-[320px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg'
-          style={{
-            borderColor: UI_COLORS.EDGENODE_BORDER_GREY,
-          }}
-        >
-          {/* Title and Run button section */}
-          <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
-            <div className='flex flex-row gap-[12px]'>
-              <div className='flex flex-row gap-[8px] justify-center items-center'>
-                <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
-                  <svg
-                    xmlns='http://www.w3.org/2000/svg'
-                    width='12'
-                    height='12'
-                    viewBox='0 0 12 12'
-                    fill='none'
-                  >
-                    <path
-                      d='M8 1H2C1.45 1 1 1.45 1 2V8'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                      strokeLinecap='round'
-                    />
-                    <rect
-                      x='4'
-                      y='4'
-                      width='7'
-                      height='7'
-                      rx='1'
-                      stroke='#CDCDCD'
-                      strokeWidth='1.5'
-                    />
-                  </svg>
-                </div>
-                <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
-                  Copy
-                </div>
-              </div>
-            </div>
-            <div className='w-[57px] h-[26px]'>
-              <button
-                className='w-full h-full rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
-                onClick={handleDataSubmit}
-                disabled={isLoading}
-              >
-                <span>
-                  {isLoading ? (
-                    <svg className='animate-spin h-4 w-4' viewBox='0 0 24 24'>
-                      <circle
-                        className='opacity-25'
-                        cx='12'
-                        cy='12'
-                        r='10'
-                        stroke='currentColor'
-                        strokeWidth='4'
-                      ></circle>
-                      <path
-                        className='opacity-75'
-                        fill='currentColor'
-                        d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
-                      ></path>
-                    </svg>
-                  ) : (
-                    <svg
-                      xmlns='http://www.w3.org/2000/svg'
-                      width='8'
-                      height='10'
-                      viewBox='0 0 8 10'
-                      fill='none'
-                    >
-                      <path d='M8 5L0 10V0L8 5Z' fill='black' />
-                    </svg>
-                  )}
-                </span>
-                <span>{isLoading ? '' : 'Run'}</span>
-              </button>
-            </div>
-          </li>
+      {/* Invisible fixed-position anchor to tether the portal menu to this node */}
+      <div ref={portalAnchorRef} className='absolute left-0 top-full h-0 w-0' />
 
-          {/* Input/Output display */}
-          <li>
-            <InputOutputDisplay
-              parentId={id}
-              getNode={getNode}
-              getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
-              getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
-              supportedInputTypes={['text', 'structured']}
-              supportedOutputTypes={['text', 'structured']}
-              inputNodeCategory='blocknode'
-              outputNodeCategory='blocknode'
-            />
-          </li>
-        </ul>
-      )}
+      {/* Configuration Menu (render via portal to avoid zoom scaling) */}
+      {isMenuOpen &&
+        createPortal(
+          <div
+            ref={menuContainerRef}
+            style={{ position: 'fixed', zIndex: 2000000 }}
+            onMouseDown={e => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
+          >
+            <ul
+              ref={menuRef}
+              className='text-white w-[320px] rounded-[16px] border-[1px] bg-[#1A1A1A] p-[12px] font-plus-jakarta-sans flex flex-col gap-[16px] border-box shadow-lg'
+              style={{ borderColor: UI_COLORS.EDGENODE_BORDER_GREY }}
+              onWheelCapture={e => e.stopPropagation()}
+              onWheel={e => e.stopPropagation()}
+              onTouchMoveCapture={e => e.stopPropagation()}
+              onTouchMove={e => e.stopPropagation()}
+            >
+              {/* Title and Run button section */}
+              <li className='flex h-[28px] gap-1 items-center justify-between font-plus-jakarta-sans'>
+                <div className='flex flex-row gap-[12px]'>
+                  <div className='flex flex-row gap-[8px] justify-center items-center'>
+                    <div className='w-[24px] h-[24px] border-[1px] border-main-grey bg-main-black-theme rounded-[8px] flex items-center justify-center'>
+                      <svg
+                        xmlns='http://www.w3.org/2000/svg'
+                        width='12'
+                        height='12'
+                        viewBox='0 0 12 12'
+                        fill='none'
+                      >
+                        <path
+                          d='M8 1H2C1.45 1 1 1.45 1 2V8'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                        />
+                        <rect
+                          x='4'
+                          y='4'
+                          width='7'
+                          height='7'
+                          rx='1'
+                          stroke='#CDCDCD'
+                          strokeWidth='1.5'
+                        />
+                      </svg>
+                    </div>
+                    <div className='flex items-center justify-center text-[14px] font-semibold text-main-grey font-plus-jakarta-sans leading-normal'>
+                      Copy
+                    </div>
+                  </div>
+                </div>
+                <div className='w-[57px] h-[26px]'>
+                  <button
+                    className='w-full h-full rounded-[8px] bg-[#39BC66] text-[#000] text-[12px] font-semibold font-plus-jakarta-sans flex flex-row items-center justify-center gap-[7px]'
+                    onClick={handleDataSubmit}
+                    disabled={isLoading}
+                  >
+                    <span>
+                      {isLoading ? (
+                        <svg
+                          className='animate-spin h-4 w-4'
+                          viewBox='0 0 24 24'
+                        >
+                          <circle
+                            className='opacity-25'
+                            cx='12'
+                            cy='12'
+                            r='10'
+                            stroke='currentColor'
+                            strokeWidth='4'
+                          ></circle>
+                          <path
+                            className='opacity-75'
+                            fill='currentColor'
+                            d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                          ></path>
+                        </svg>
+                      ) : (
+                        <svg
+                          xmlns='http://www.w3.org/2000/svg'
+                          width='8'
+                          height='10'
+                          viewBox='0 0 8 10'
+                          fill='none'
+                        >
+                          <path d='M8 5L0 10V0L8 5Z' fill='black' />
+                        </svg>
+                      )}
+                    </span>
+                    <span>{isLoading ? '' : 'Run'}</span>
+                  </button>
+                </div>
+              </li>
+
+              {/* Input/Output display */}
+              <li>
+                <InputOutputDisplay
+                  parentId={id}
+                  getNode={getNode}
+                  getSourceNodeIdWithLabel={getSourceNodeIdWithLabel}
+                  getTargetNodeIdWithLabel={getTargetNodeIdWithLabel}
+                  supportedInputTypes={['text', 'structured']}
+                  supportedOutputTypes={['text', 'structured']}
+                  inputNodeCategory='blocknode'
+                  outputNodeCategory='blocknode'
+                />
+              </li>
+            </ul>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

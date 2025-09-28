@@ -33,6 +33,7 @@ services:
       - OPENROUTER_API_KEY
       - OPENROUTER_BASE_URL
       - OPENROUTER_CHAT_URL
+      - LLM_MODEL=openai/gpt-5
       - DEEPBRICKS_API_KEY
       - DEEPBRICKS_BASE_URL
       - HUGGINGFACE_API_KEY

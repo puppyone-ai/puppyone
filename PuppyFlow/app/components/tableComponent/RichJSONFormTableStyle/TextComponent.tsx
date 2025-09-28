@@ -47,6 +47,7 @@ const TextComponent = React.memo(
     const accentColor = isSelected ? '#5AB6F2' : '#4AA6EC';
 
     const [menuOpen, setMenuOpen] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(false);
     const { registerOverflowElement, unregisterOverflowElement } =
       useOverflowContext();
     const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -78,7 +79,8 @@ const TextComponent = React.memo(
             <TextActionMenu
               value={data || ''}
               onClear={() => {
-                onEdit(path, '');
+                // Clear should set value to null (like list component)
+                onReplace && onReplace(null);
                 setMenuOpen(false);
               }}
               onTransferToList={() => {
@@ -122,6 +124,8 @@ const TextComponent = React.memo(
                 } catch {}
                 setMenuOpen(false);
               }}
+              isCollapsed={isCollapsed}
+              onToggleCollapse={() => setIsCollapsed(prev => !prev)}
             />
           </div>,
           handleRef.current
@@ -181,10 +185,10 @@ const TextComponent = React.memo(
 
     return (
       <div
-        className={`bg-[#252525] shadow-sm relative group p-[2px]`}
+        className={`bg-[#252525] shadow-sm relative group`}
         style={{
-          outline: 'none',
-          boxShadow: isSelected ? 'inset 0 0 0 2px #388EC9' : 'none',
+          outline: isSelected ? '2px solid #388EC9' : 'none',
+          outlineOffset: '-2px',
         }}
         onClick={e => {
           e.stopPropagation();
@@ -193,11 +197,17 @@ const TextComponent = React.memo(
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div className='absolute left-0 top-1 bottom-1 w-px bg-[#2B6C9B] rounded-full z-20'>
+        <div
+          className='absolute left-0 top-0 bottom-0 w-px z-20'
+          style={{
+            backgroundColor:
+              isSelected || isHovered || menuOpen ? '#2B6C9B' : '#4A4D54',
+          }}
+        >
           {(isSelected || isHovered || menuOpen) && (
-            <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
+            <div className='absolute left-1/2 top-2 transform -translate-x-1/2 pointer-events-none'>
               <div
-                className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
+                className='w-4 h-6 bg-[#0F0F0F] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
                 style={{ borderColor: accentColor }}
                 aria-hidden
                 onClick={e => {
@@ -231,17 +241,33 @@ const TextComponent = React.memo(
           )}
           {/* menu rendered via portal */}
         </div>
-        <div className='w-full px-[16px] py-[6px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
-          <TextEditor
-            preventParentDrag={preventParentDrag}
-            allowParentDrag={allowParentDrag}
-            value={data}
-            onChange={handleEditChange}
-            placeholder='Enter text content...'
-            widthStyle={0}
-            autoHeight={true}
-          />
-        </div>
+        {isCollapsed ? (
+          <div
+            className='w-full px-[10px] h-[40px] bg-[#252525] rounded-md overflow-hidden flex items-center'
+            title={`text length ${typeof data === 'string' ? data.length : 0}`}
+          >
+            <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
+              <span className='text-[#4AA6EC]'>text</span>
+              <span className='text-[#6D7177]'>•</span>
+              <span className='text-[#CDCDCD]'>
+                {typeof data === 'string' ? data.length : 0} chars
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className='w-full px-[10px] py-[8px] bg-[#252525] rounded-md overflow-hidden transition-colors duration-200'>
+            <TextEditor
+              preventParentDrag={preventParentDrag}
+              allowParentDrag={allowParentDrag}
+              value={data}
+              onChange={handleEditChange}
+              placeholder='Enter text content...'
+              widthStyle={0}
+              autoHeight={true}
+            />
+          </div>
+        )}
+        {/* selection outline rendered via CSS outline */}
       </div>
     );
   },

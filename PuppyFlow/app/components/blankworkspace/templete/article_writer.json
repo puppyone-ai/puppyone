@@ -1,0 +1,113 @@
+{
+    "blocks": [
+        {
+            "id": "writer_brief",
+            "position": {
+                "x": -352,
+                "y": -64
+            },
+            "data": {
+                "content": "Topic: \nAudience: \nTone: authoritative, clear\nLength: 1200-1500 words\nOutline bullets…",
+                "label": "Brief",
+                "isLoading": false,
+                "locked": false,
+                "isInput": true,
+                "isOutput": false,
+                "editable": true,
+                "isWaitingForFlow": false
+            },
+            "type": "text",
+            "width": 260,
+            "height": 196,
+            "selected": false
+        },
+        {
+            "id": "writer_llm",
+            "type": "llmnew",
+            "position": {
+                "x": -16,
+                "y": 0
+            },
+            "data": {
+                "subMenuType": null,
+                "content": [
+                    {
+                        "role": "system",
+                        "content": "You are a senior tech writer. Produce a high-quality, well-structured article with an engaging intro, clear sections, examples, and a concise conclusion. Avoid fluff, ensure coherence, and maintain an authoritative yet friendly tone."
+                    },
+                    {
+                        "role": "user",
+                        "content": "Write the article based on the brief:\n{{Brief}}\nConstraints: markdown, headings, short paragraphs, and actionable insights."
+                    }
+                ],
+                "model": "openai/gpt-5",
+                "base_url": "",
+                "structured_output": false,
+                "max_tokens": 4096,
+                "resultNode": "writer_output",
+                "modelAndProvider": {
+                    "id": "openai/gpt-5",
+                    "name": "GPT-5",
+                    "provider": "OpenAI",
+                    "isLocal": false
+                }
+            },
+            "selected": false,
+            "dragging": false,
+            "style": {
+                "zIndex": 1122
+            }
+        },
+        {
+            "id": "writer_output",
+            "position": {
+                "x": 160,
+                "y": -64
+            },
+            "data": {
+                "content": "Your generated article will appear here.",
+                "label": "Draft",
+                "isLoading": false,
+                "locked": false,
+                "isInput": false,
+                "isOutput": true,
+                "editable": false,
+                "isWaitingForFlow": false
+            },
+            "width": 260,
+            "height": 196,
+            "type": "text",
+            "style": {
+                "zIndex": 1125
+            },
+            "selected": false,
+            "dragging": false
+        }
+    ],
+    "edges": [
+        {
+            "id": "conn-writer-1",
+            "source": "writer_brief",
+            "target": "writer_llm",
+            "type": "floating",
+            "data": {
+                "connectionType": "STC"
+            }
+        },
+        {
+            "id": "conn-writer-2",
+            "source": "writer_llm",
+            "target": "writer_output",
+            "type": "floating",
+            "data": {
+                "connectionType": "CTT"
+            }
+        }
+    ],
+    "viewport": {
+        "x": 915,
+        "y": 801,
+        "zoom": 1
+    },
+    "version": "0.0.1"
+}

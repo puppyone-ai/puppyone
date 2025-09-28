@@ -31,9 +31,8 @@ import { useWorkspaces } from '../../states/UserWorkspacesContext';
 import TreePathEditor, { PathNode } from '../components/TreePathEditor';
 import RichJSONForm from '../../tableComponent/RichJSONFormTableStyle/RichJSONForm';
 import JSONForm from '../../tableComponent/JSONForm';
-import TextHugEditor from '../../tableComponent/RichJSONFormTableStyle/TextHugEditor';
 
-import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingMenu';
+import IndexingMenu from './JsonNodeTopSettingBar/NodeIndexingAddMenu';
 import useIndexingUtils from './hooks/useIndexingUtils';
 import NodeSettingsController from './JsonNodeTopSettingBar/NodeSettingsButton';
 import NodeIndexingButton from './JsonNodeTopSettingBar/NodeIndexingButton';
@@ -157,6 +156,7 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
     // 使用 refs 来引用 DOM 元素，避免因引用变化导致重渲染
     const componentRef = useRef<HTMLDivElement | null>(null);
     const contentRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
     const labelContainerRef = useRef<HTMLDivElement | null>(null);
     const labelRef = useRef<HTMLInputElement | null>(null);
     // 优化点 3: 使用 ref 标记初始渲染，用于延迟计算
@@ -307,19 +307,6 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
         return String(content ?? '');
       }
     }, [content]);
-
-    // 当内容无法解析为对象/数组时，认为不具备结构化渲染条件
-    const isParsableStructured = useMemo(() => {
-      try {
-        const parsed = JSON.parse(contentString);
-        return (
-          parsed !== null &&
-          (Array.isArray(parsed) || typeof parsed === 'object')
-        );
-      } catch {
-        return false;
-      }
-    }, [contentString]);
 
     // 基于内容长度的动态存储策略切换（2s防抖），根据内容动态选择 structured/text
     useEffect(() => {
@@ -773,6 +760,30 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       };
     }, [nodeState.showSettingMenu]);
 
+    // Prevent wheel/touch scroll from bubbling to ReactFlow at native capture phase
+    useEffect(() => {
+      const el = scrollContainerRef.current;
+      if (!el) return;
+      const stopWheel = (e: WheelEvent) => {
+        e.stopPropagation();
+      };
+      const stopTouchMove = (e: TouchEvent) => {
+        e.stopPropagation();
+      };
+      el.addEventListener('wheel', stopWheel, { capture: true });
+      el.addEventListener('touchmove', stopTouchMove as any, { capture: true });
+      return () => {
+        el.removeEventListener('wheel', stopWheel, { capture: true } as any);
+        el.removeEventListener(
+          'touchmove',
+          stopTouchMove as any,
+          {
+            capture: true,
+          } as any
+        );
+      };
+    }, []);
+
     return (
       <div
         ref={componentRef}
@@ -877,23 +888,29 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
             <SkeletonLoadingIcon />
           ) : (
             <div
-              className={`flex-1 min-h-0 overflow-hidden`}
+              className={`flex-1 min-h-0 overflow-auto overscroll-contain scrollbar-hide`}
               style={{
                 background: 'transparent',
                 boxShadow: 'none',
               }}
+              ref={scrollContainerRef}
+              onWheel={e => {
+                e.stopPropagation();
+              }}
+              onWheelCapture={e => {
+                e.stopPropagation();
+              }}
+              onScroll={e => {
+                e.stopPropagation();
+              }}
+              onTouchMove={e => {
+                e.stopPropagation();
+              }}
+              onTouchMoveCapture={e => {
+                e.stopPropagation();
+              }}
             >
-              {!isParsableStructured ? (
-                <TextHugEditor
-                  preventParentDrag={onFocus}
-                  allowParentDrag={onBlur}
-                  placeholder='Text'
-                  value={contentString}
-                  onChange={updateNodeContent}
-                  isRoot={true}
-                  readonly={locked}
-                />
-              ) : nodeState.useRichEditor ? (
+              {nodeState.useRichEditor ? (
                 <RichJSONForm
                   preventParentDrag={onFocus}
                   allowParentDrag={onBlur}

@@ -253,6 +253,7 @@ const DictComponent = ({
   const accentColor = isSelected ? '#D65E98' : '#D474A8';
 
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
   const { registerOverflowElement, unregisterOverflowElement } =
     useOverflowContext();
   const handleRef = React.useRef<HTMLDivElement | null>(null);
@@ -460,6 +461,8 @@ const DictComponent = ({
               }
               setMenuOpen(false);
             }}
+            isCollapsed={isCollapsed}
+            onToggleCollapse={() => setIsCollapsed(prev => !prev)}
           />
         </div>,
         handleRef.current
@@ -499,6 +502,7 @@ const DictComponent = ({
     path,
     registerOverflowElement,
     unregisterOverflowElement,
+    isCollapsed,
   ]);
 
   // Ensure only one menu is open globally
@@ -517,10 +521,9 @@ const DictComponent = ({
 
   return (
     <div
-      className={`bg-[#252525] shadow-sm relative group group/dict p-[2px]`}
+      className={`bg-[#252525] shadow-sm relative group group/dict`}
       style={{
         outline: 'none',
-        boxShadow: isSelected ? 'inset 0 0 0 2px #C74F8A' : 'none',
       }}
       onClick={e => {
         e.stopPropagation();
@@ -529,45 +532,94 @@ const DictComponent = ({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className='absolute left-0 top-1 bottom-1 w-px bg-[#A23F70] rounded-full z-20'>
+      <div
+        className='absolute left-0 top-0 bottom-0 w-px z-20'
+        style={{
+          backgroundColor:
+            isSelected || isHovered || menuOpen ? '#A23F70' : '#4A4D54',
+        }}
+      >
         {(isSelected || isHovered || menuOpen) && (
-          <div className='absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none'>
-            <div
-              className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
-              style={{ borderColor: accentColor }}
-              aria-hidden
-              onClick={e => {
-                e.stopPropagation();
-                setSelectedPath(path);
-                if (menuOpen) {
-                  setMenuOpen(false);
-                } else {
-                  window.dispatchEvent(new CustomEvent('rjft:close-all-menus'));
-                  setMenuOpen(true);
-                }
-              }}
-              ref={handleRef}
-            >
+          <>
+            <div className='absolute left-1/2 top-1 transform -translate-x-1/2 pointer-events-none'>
               <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
-              <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
-              <div
-                className='w-0.5 h-0.5 rounded-full'
-                style={{ backgroundColor: accentColor }}
-              ></div>
+                className='w-4 h-6 bg-[#252525] border-2 rounded-[3px] flex flex-col items-center justify-center gap-0.5 shadow-lg cursor-pointer pointer-events-auto'
+                style={{ borderColor: accentColor }}
+                aria-hidden
+                onClick={e => {
+                  e.stopPropagation();
+                  setSelectedPath(path);
+                  if (menuOpen) {
+                    setMenuOpen(false);
+                  } else {
+                    window.dispatchEvent(
+                      new CustomEvent('rjft:close-all-menus')
+                    );
+                    setMenuOpen(true);
+                  }
+                }}
+                ref={handleRef}
+              >
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+                <div
+                  className='w-0.5 h-0.5 rounded-full'
+                  style={{ backgroundColor: accentColor }}
+                ></div>
+              </div>
             </div>
-          </div>
+            <div
+              className='absolute left-1/2 pointer-events-none transform -translate-x-1/2'
+              style={{ top: '36px' }}
+            >
+              <button
+                className='h-[18px] w-[18px] rounded-[4px] bg-[#2a2a2a] hover:bg-[#3E3E41] border border-[#2a2a2a] flex items-center justify-center pointer-events-auto'
+                title={isCollapsed ? 'Expand' : 'Collapse'}
+                onClick={e => {
+                  e.stopPropagation();
+                  setIsCollapsed(prev => !prev);
+                }}
+              >
+                <svg
+                  className='w-3 h-3 text-[#E5E7EB]'
+                  viewBox='0 0 20 20'
+                  fill='none'
+                  stroke='currentColor'
+                  strokeWidth='1.6'
+                >
+                  <path
+                    d={isCollapsed ? 'M6 8l4 4 4-4' : 'M6 12l4-4 4 4'}
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                  />
+                </svg>
+              </button>
+            </div>
+          </>
         )}
+        {/* selection outline rendered via CSS outline */}
       </div>
       {/* menu rendered via portal */}
       <div className={`space-y-0 transition-all duration-200`}>
-        {keys.length === 0 ? (
-          <div className='w-full px-[16px] py-[8px] bg-transparent rounded-md overflow-hidden transition-colors duration-200'>
+        {isCollapsed ? (
+          <div
+            className='w-full px-[12px] h-[40px] bg-[#0F0F0F] rounded-md overflow-hidden flex items-center'
+            title={`object with ${keys.length} keys`}
+          >
+            <div className='flex items-center gap-[8px] text-[#E5E7EB] text-[12px] font-plus-jakarta-sans'>
+              <span className='text-[#C74F8A]'>object</span>
+              <span className='text-[#6D7177]'>•</span>
+              <span className='text-[#CDCDCD]'>{keys.length} keys</span>
+            </div>
+          </div>
+        ) : keys.length === 0 ? (
+          <div className='w-full px-[16px] py-[8px] bg-[#0F0F0F] rounded-md overflow-hidden transition-colors duration-200'>
             <div className='flex items-center h-[24px]'>
               <div className='text-[#6D7177] text-[12px] italic leading-normal font-plus-jakarta-sans'>
                 empty object
@@ -604,20 +656,21 @@ const DictComponent = ({
                   >
                     <div className='flex items-stretch'>
                       {/* Key section - display only */}
-                      <div className='flex-shrink-0 flex justify-center'>
+                      <div className='flex-shrink-0 flex justify-start'>
                         <div
-                          className='relative w-[64px] h-full pt-[4px] bg-[#1C1D1F]/50 overflow-visible transition-colors duration-200 flex justify-center'
+                          className='relative w-[96px] h-full px-[10px] py-[8px] bg-[#252525] overflow-visible transition-colors duration-200 flex items-center justify-start'
                           onMouseEnter={() => handleKeyHover(key, true)}
                           onMouseLeave={() => handleKeyHover(key, false)}
                         >
                           <span
-                            className={`text-[10px] leading-[28px] font-plus-jakarta-sans truncate max-w-full not-italic inline-block mt-[2px] transition-colors duration-200
-                                                            ${
-                                                              isKeyHovered
-                                                                ? 'text-[#B1457A]'
-                                                                : 'text-[#C74F8A] hover:text-[#D96BA0]'
-                                                            }`}
+                            className='block w-full h-full text-[12px] leading-[20px] font-plus-jakarta-sans truncate max-w-full not-italic transition-colors duration-200'
                             title={key}
+                            style={{
+                              color:
+                                isSelected || isKeyHovered
+                                  ? '#C74F8A'
+                                  : '#9FA3A9',
+                            }}
                             ref={el => {
                               if (el) {
                                 keyAnchorMapRef.current.set(key, el);
@@ -665,7 +718,7 @@ const DictComponent = ({
 
                   {/* Horizontal Divider Line */}
                   {index < keys.length - 1 && (
-                    <div className='w-full h-[1px] bg-[#3A3D41] my-[4px]'></div>
+                    <div className='w-full h-[1px] bg-[#4A4D54] my-[4px]'></div>
                   )}
                 </React.Fragment>
               );
@@ -674,7 +727,7 @@ const DictComponent = ({
         )}
       </div>
       {/* Add New Key Button at bottom - visible on hover/selected/menuOpen or when empty */}
-      {!readonly && (
+      {!readonly && !isCollapsed && (
         <div className='absolute -bottom-3 left-[36px] z-30 transform -translate-x-1/2'>
           <button
             onClick={addEmptyKey}
@@ -697,6 +750,13 @@ const DictComponent = ({
             </svg>
           </button>
         </div>
+      )}
+      {isSelected && (
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-0 z-[100]'
+          style={{ boxShadow: 'inset 0 0 0 2px #C74F8A' }}
+        />
       )}
     </div>
   );

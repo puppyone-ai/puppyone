@@ -831,7 +831,10 @@ function useJsonConstructUtils() {
 
   // for saving to local json file , not for passing to backend
   const constructWholeJsonWorkflow = useCallback(() => {
-    const nodes = getNodes();
+    const nodes = getNodes().map((n: any) => {
+      const { measured, ...rest } = n || {};
+      return rest;
+    });
     const edges = getEdges();
     const viewport = getViewport();
 

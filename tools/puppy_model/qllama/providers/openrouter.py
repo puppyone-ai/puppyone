@@ -29,15 +29,9 @@ class OpenRouterProvider(Provider):
         # 获取 API URL
         self.base_url = os.environ.get("OPENROUTER_CHAT_URL", "https://openrouter.ai/api/v1/chat/completions")
         
-        # 常见模型列表
+        # 常见模型列表（仅保留 GPT-5）
         self.models = [
-            "openai/gpt-4o",
-            "openai/gpt-4o-mini",
-            "anthropic/claude-3-5-sonnet",
-            "anthropic/claude-3-opus",
-            "anthropic/claude-3-sonnet",
-            "anthropic/claude-3-haiku",
-            "meta-llama/llama-3-70b-instruct"
+            "openai/gpt-5",
         ]
     
     @classmethod
@@ -51,17 +45,11 @@ class OpenRouterProvider(Provider):
         try:
             # 这里我们使用一个静态列表，实际应用中可以调用 OpenRouter API 获取最新列表
             return [
-                "openai/gpt-4o",
-                "openai/gpt-4o-mini",
-                "anthropic/claude-3-5-sonnet",
-                "anthropic/claude-3-opus",
-                "anthropic/claude-3-sonnet",
-                "anthropic/claude-3-haiku",
-                "meta-llama/llama-3-70b-instruct"
+                "openai/gpt-5",
             ]
         except Exception as e:
             warnings.warn(f"获取 OpenRouter 模型列表失败: {e}")
-            return []
+            return ["openai/gpt-5"]
     
     def get_capabilities(self, model_id: str) -> ModelCapability:
         """

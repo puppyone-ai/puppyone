@@ -39,7 +39,7 @@ function Upbar() {
   }, []);
   return (
     <div className='w-full h-[48px] absolute top-[40px] left-0 z-[10000] pointer-events-none'>
-      <div className='pointer-events-auto will-change-auto bg-[#2A2A2A] rounded-[12px] border border-transparent ring-1 ring-black/30 shadow-2xl shadow-black/50 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[6px] absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'>
+      <div className='pointer-events-auto will-change-auto bg-[#2A2A2A] rounded-[12px] border border-transparent ring-1 ring-black/30 shadow-xl shadow-black/30 backdrop-blur-md flex flex-row items-center gap-[8px] px-[8px] py-[6px] absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2'>
         {/* Inline +Add types (compact with per-button hover menu) */}
         <div
           className='relative'
@@ -79,7 +79,7 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                Text Block
+                Add Text
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Add a freeform text block. Click and drag to draw its size and
@@ -187,12 +187,20 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                Structured Block
+                Add Structured Text
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Add a structured JSON-style block. Drag to size, then define
                 key-value content.
               </div>
+              <a
+                href='https://www.youtube.com/watch?v=y5fztdcHY00'
+                target='_blank'
+                rel='noreferrer'
+                className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'
+              >
+                Learn how to use ↗
+              </a>
             </div>
           </div>
         </div>
@@ -235,12 +243,20 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                File Block
+                Add File
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Add a file block for documents. Drag to size, then upload files
                 to process.
               </div>
+              <a
+                href='https://www.youtube.com/watch?v=yTC-WcxI5Cg'
+                target='_blank'
+                rel='noreferrer'
+                className='text-[11px] text-[#4599DF] hover:underline font-plus-jakarta-sans'
+              >
+                Learn how to use ↗
+              </a>
             </div>
           </div>
         </div>
@@ -269,7 +285,7 @@ function Upbar() {
               <div className='absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#1E1E1E] rotate-45 border-l border-t border-[#343434]' />
 
               <div className='text-[12px] font-semibold text-[#E6E6E6] mb-[4px] font-plus-jakarta-sans'>
-                Group
+                Add Group
               </div>
               <div className='text-[11px] leading-5 text-[#AFAFAF] mb-[6px] font-plus-jakarta-sans'>
                 Click to draw an area and create a group of nodes you can run or

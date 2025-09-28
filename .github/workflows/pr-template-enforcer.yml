@@ -14,6 +14,10 @@ permissions:
   pull-requests: write
   issues: write
 
+concurrency:
+  group: pr-template-enforcer-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
 jobs:
   enforce:
     runs-on: ubuntu-latest
@@ -58,8 +62,8 @@ jobs:
 
             // Determine expected template type by branch prefix, with title override
             const mapping = [
-              { re: /^feature\//i, type: 'feature' },
-              { re: /^fix\//i, type: 'bugfix' },
+              { re: /^(feat|feature)\//i, type: 'feature' },
+              { re: /^(fix|bugfix)\//i, type: 'bugfix' },
               { re: /^perf\//i, type: 'perf' },
               { re: /^(refactor|rfct)\//i, type: 'refactor' },
               { re: /^ci\//i, type: 'ci' },
@@ -72,12 +76,12 @@ jobs:
             }
             const tl = title.toLowerCase();
             const titlePrefix = [
-              { re: /^(feat|feature):/, type: 'feature' },
-              { re: /^fix:/, type: 'bugfix' },
-              { re: /^perf:/, type: 'perf' },
-              { re: /^refactor:/, type: 'refactor' },
-              { re: /^ci:/, type: 'ci' },
-              { re: /^docs:/, type: 'docs' },
+              { re: /^(feat|feature)(\([^)]*\))?:/, type: 'feature' },
+              { re: /^fix(\([^)]*\))?:/, type: 'bugfix' },
+              { re: /^perf(\([^)]*\))?:/, type: 'perf' },
+              { re: /^refactor(\([^)]*\))?:/, type: 'refactor' },
+              { re: /^ci(\([^)]*\))?:/, type: 'ci' },
+              { re: /^docs(\([^)]*\))?:/, type: 'docs' },
             ];
             for (const p of titlePrefix) { if (p.re.test(tl)) expected = p.type; }
 
@@ -150,7 +154,12 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
+            const prNumberInput = core.getInput('pr_number');
+            let pr = context.payload.pull_request || null;
+            if (!pr && prNumberInput) {
+              const { data } = await github.rest.pulls.get({ owner: context.repo.owner, repo: context.repo.repo, pull_number: Number(prNumberInput) });
+              pr = data;
+            }
             if (!pr) return;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -179,4 +188,15 @@ jobs:
             const mine = comments.find(c => c.user.type === 'Bot' && c.body?.includes('PR_TEMPLATE_ENFORCER'));
             if (mine) {
               await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: mine.id, body: '<!-- PR_TEMPLATE_ENFORCER -->Thanks! All required sections are present.' });
+            }
+
+            // Dismiss prior bot "changes requested" reviews to unblock merge (Actions cannot APPROVE)
+            const { data: reviews } = await github.rest.pulls.listReviews({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, per_page: 100 });
+            const botChangeRequests = reviews.filter(r => r.user?.type === 'Bot' && r.state === 'CHANGES_REQUESTED' && r.body?.includes('PR_TEMPLATE_ENFORCER'));
+            for (const r of botChangeRequests) {
+              try {
+                await github.rest.pulls.dismissReview({ owner: context.repo.owner, repo: context.repo.repo, pull_number: pr.number, review_id: r.id, message: '<!-- PR_TEMPLATE_ENFORCER -->Template sections present; dismissing prior changes requested.' });
+              } catch (e) {
+                core.warning(`Failed to dismiss review ${r.id}: ${e?.message || e}`);
+              }
             }

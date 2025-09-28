@@ -1,0 +1,712 @@
+{
+  "blocks": [
+    {
+      "id": "Lm-PbX",
+      "data": {
+        "label": "Text1",
+        "locked": false,
+        "content": "price?",
+        "isInput": true,
+        "editable": false,
+        "groupIds": [
+          "avCif-"
+        ],
+        "isOutput": false,
+        "isLoading": false,
+        "isWaitingForFlow": false
+      },
+      "type": "text",
+      "style": {
+        "zIndex": 1345
+      },
+      "width": 240,
+      "height": 176,
+      "dragging": false,
+      "position": {
+        "x": -496,
+        "y": -672
+      },
+      "resizing": false,
+      "selected": false
+    },
+    {
+      "id": "WzK6iT",
+      "data": {
+        "dirty": false,
+        "label": "WzK6iT",
+        "locked": false,
+        "looped": false,
+        "content": "[\n  {\n    \"question\": \"What is PuppyAgent?\",\n    \"answer\": \"PuppyAgent is a platform that automates knowledge bases using an agentic RAG (Retrieval-Augmented Generation) system, allowing users to connect to databases, process information, and deliver results powered by AI.\"\n  },\n  {\n    \"question\": \"Is PuppyAgent free to use? \",\n    \"answer\": \"The information regarding whether PuppyAgent is free to use is not specified on the webpage.\"\n  },\n  {\n    \"question\": \"What can PuppyAgent do?\",\n    \"answer\": \"PuppyAgent can connect to data sources, process information using AI, and deliver results. It also allows for rapid prototyping, flexible deployment, and enterprise-wide applications.\"\n  },\n  {\n    \"question\": \"What is the mission of PuppyAgent?\",\n    \"answer\": \"The mission of PuppyAgent is to provide an ideal solution for knowledge base needs through advanced RAG techniques without complex setup.\"\n  },\n  {\n    \"question\": \"How can I contact the PuppyAgent team?\",\n    \"answer\": \"You can contact the PuppyAgent team through their LinkedIn, Discord, or email.\"\n  }\n]",
+        "isInput": false,
+        "editable": false,
+        "groupIds": [],
+        "isOutput": false,
+        "isLoading": false,
+        "indexingList": [
+          {
+            "type": "vector",
+            "chunks": [
+              {
+                "content": "Where are you?",
+                "metadata": {
+                  "id": 0,
+                  "retrieval_content": {
+                    "answer": "PuppyAgent is based in Singapore, having 8 peoples",
+                    "question": "Where are you?"
+                  }
+                }
+              },
+              {
+                "content": "What is PuppyAgent?",
+                "metadata": {
+                  "id": 1,
+                  "retrieval_content": {
+                    "answer": "PuppyAgent is an automated AI knowledge builder that creates RAG pipelines based on your enterprise's own knowledge base, empowering businesses to automate workflows using their proprietary expertise.",
+                    "question": "What is PuppyAgent?"
+                  }
+                }
+              },
+              {
+                "content": "Is PuppyAgent free to use?",
+                "metadata": {
+                  "id": 2,
+                  "retrieval_content": {
+                    "answer": "PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month.",
+                    "question": "Is PuppyAgent free to use?"
+                  }
+                }
+              },
+              {
+                "content": "What can PuppyAgent do?",
+                "metadata": {
+                  "id": 3,
+                  "retrieval_content": {
+                    "answer": "PuppyAgent enables you to construct Retrieval-Augmented Generation (RAG) systems for your enterprise knowledge base. It can be applied to various use cases, including supports chatbots community chatbots, AI-powered search engine optimization strategies, spreadsheet automation, and various other applications.",
+                    "question": "What can PuppyAgent do?"
+                  }
+                }
+              },
+              {
+                "content": "What is the mission of PuppyAgent?",
+                "metadata": {
+                  "id": 4,
+                  "retrieval_content": {
+                    "answer": "PuppyAgent's mission is to reshape the world with AI agents. We are initiating this vision by focusing on knowledge base and Retrieval-Augmented Generation (RAG) technologies.",
+                    "question": "What is the mission of PuppyAgent?"
+                  }
+                }
+              },
+              {
+                "content": "What is your support link?",
+                "metadata": {
+                  "id": 5,
+                  "retrieval_content": {
+                    "answer": "support link is puppyteam@puppyagent.com",
+                    "question": "What is your support link?"
+                  }
+                }
+              },
+              {
+                "content": "What is your price?",
+                "metadata": {
+                  "id": 6,
+                  "retrieval_content": {
+                    "answer": "$25 for pro users, including more usages and storage",
+                    "question": "What is your price?"
+                  }
+                }
+              }
+            ],
+            "status": "done",
+            "key_path": [
+              {
+                "id": "NK-LPz",
+                "type": "key",
+                "value": "question"
+              }
+            ],
+            "index_name": "public5c46f906b960f098",
+            "value_path": [],
+            "collection_configs": {
+              "model": "text-embedding-ada-002",
+              "user_id": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181",
+              "set_name": "collection_WzK6iT_1753089836192",
+              "vdb_type": "pgvector",
+              "collection_name": "public5c46f906b960f098"
+            }
+          }
+        ],
+        "savingStatus": "saved",
+        "storage_class": "external",
+        "isWaitingForFlow": false,
+        "external_metadata": {
+          "version_id": "20250918-065632607907-5403dfc6",
+          "content_type": "structured",
+          "resource_key": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181/WzK6iT/20250918-065632607907-5403dfc6"
+        },
+        "isExternalStorage": false
+      },
+      "type": "structured",
+      "style": {
+        "zIndex": 1342
+      },
+      "width": 720,
+      "height": 368,
+      "looped": false,
+      "dragging": false,
+      "position": {
+        "x": -464,
+        "y": -64
+      },
+      "resizing": false,
+      "selected": false
+    },
+    {
+      "id": "avCif-",
+      "data": {
+        "label": "2. Chatbot RAG",
+        "locked": false,
+        "content": "",
+        "isInput": false,
+        "editable": false,
+        "isOutput": false,
+        "isLoading": false,
+        "backgroundColor": "rgba(68, 106, 91, 0.2)"
+      },
+      "type": "group",
+      "style": {
+        "zIndex": -1,
+        "borderColor": "#555555",
+        "borderWidth": "2.5px"
+      },
+      "width": 1776,
+      "height": 592,
+      "dragging": false,
+      "position": {
+        "x": -576,
+        "y": -768
+      },
+      "resizing": false,
+      "selected": false,
+      "className": ""
+    },
+    {
+      "id": "-DMqB-",
+      "data": {
+        "dirty": false,
+        "label": "-DMqB-",
+        "locked": false,
+        "content": "PuppyAgent\nDoc\nPricing\nArticle\nGet Started\nAutomate knowledge bases\nwith an agentic RAG\nConnect to database, process information, and deliver results,\nall powered by AI agents and RAG\n\nGet Started\nUser logo 1\nUser logo 2\nUser logo 3\nUser logo 4\nUser logo 5\nUser logo 1\nUser logo 2\nUser logo 3\nUser logo 4\nUser logo 5\nTrusted by users worldwide\n\nconnect_datasource\nConnect to\ndatasource\n\nprocess_information\nProcess information\nwith AI\n\ndistribute_result\nDeliver\nresults\n\nGive it a go!\nTry out our demo workflow below: A Basic RAG\nClick anywhere to start !\nActivate\n\nSelf-Evolving\nRAG Engine\nUpload data, score the result,\nimprove retrieving pipeline better and better\nprocess_information\nBuild Your Own\nRetrieving Pipeline\non-going,\nfast, easy, and integrate it into your enterprise\nprocess_information\nKey Features\nDiscover what makes PuppyAgent the ideal solution for your knowledge base needs\nRapid Prototyping\nCreate your\nRAG systems in just minutes\nwith intuitive interface\n\nRapid Prototyping\nFlexible Deployment\nDeploy RAG system into\nchatbots, APIs, or website bubbles\n\nFlexible Deployment\nEnterprise-wide Applications\nUse for customer support, SEO, training,\nand other knowledge use cases\n\nEnterprise-wide Applications\nGlobal LLMs\nAll major language models, including\nGPT-4, Claude, Deepseek, and more\n\nGlobal LLMs\nMultiple file types\nIngest, process and extract value from\nany document type in knowledge base\n\nMultiple file types\nAdvanced RAG\nAccess cutting-edge RAG techniques\nwithout complex setup\n\nAdvanced RAG\nAsk Puppy Questions\nWhat is PuppyAgent?\nIs PuppyAgent free to use?\nWhat can PuppyAgent do?\nWhat is the mission of PuppyAgent?\nHow can I contact the PuppyAgent team?\nAutomate Different ?\nGet Started\nTalk with founders\nPuppyAgent\nX\nLinkedIn\nDiscord\nEmail\nEnglish\nResources\n\nAbout us\n\nJoin us\n\nBlog\n\nFAQ\n\nPrivacy\n\nSecurity\n\nTerms\n\nBacklink Exchange\n\nFriends\n\nOpenAI\n\nAnthropic\n\nIdeaHunt\n\nLlamaGen\n\nResearchFlow\n\nLibrAI\n\nRingLink\n\nMiraclePlus\n\n© 2024 PuppyAgent Tech Pte Ltd All Rights Reserved.\n\n\n",
+        "isInput": true,
+        "editable": false,
+        "groupIds": [
+          "IRDR3a"
+        ],
+        "isOutput": false,
+        "isLoading": false,
+        "savingStatus": "saved",
+        "storage_class": "external",
+        "external_metadata": {
+          "version_id": "20250909-112022930566-bd2485a1",
+          "content_type": "text",
+          "resource_key": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181/-DMqB-/20250909-112022930566-bd2485a1"
+        },
+        "isExternalStorage": true
+      },
+      "type": "text",
+      "style": {
+        "zIndex": 1338
+      },
+      "width": 560,
+      "height": 304,
+      "dragging": false,
+      "position": {
+        "x": -2592,
+        "y": -32
+      },
+      "selected": false,
+      "resizing": false
+    },
+    {
+      "id": "Ow9efZ",
+      "data": {
+        "content": [
+          {
+            "role": "system",
+            "content": "You are an AI"
+          },
+          {
+            "role": "user",
+            "content": "根据这个网页的里面的信息提取出一组FAQ的pair: {{-DMqB-}}。你需要按照这个格式来提取：{{cQIBpi}}"
+          }
+        ],
+        "base_url": "",
+        "max_tokens": 4096,
+        "subMenuType": "llm",
+        "sourceNodeId": "-DMqB-",
+        "sourceNodeType": "text",
+        "modelAndProvider": {
+          "id": "openai/gpt-5",
+          "name": "GPT-5",
+          "provider": "OpenAI",
+          "isLocal": false
+        },
+        "structured_output": true
+      },
+      "type": "llmnew",
+      "style": {
+        "zIndex": 1315
+      },
+      "dragging": false,
+      "position": {
+        "x": -1824,
+        "y": 96
+      },
+      "selected": false,
+      "width": 240,
+      "height": 176
+    },
+    {
+      "id": "A-4un_",
+      "data": {
+        "dirty": false,
+        "label": "A-4un_",
+        "locked": false,
+        "content": "[\n  {\n    \"FAQ\": [\n      {\n        \"question\": \"What is PuppyAgent?\",\n        \"answer\": \"PuppyAgent is a platform that automates knowledge bases using an agentic RAG (Retrieval-Augmented Generation) system, allowing users to connect to databases, process information, and deliver results powered by AI.\"\n      },\n      {\n        \"question\": \"Is PuppyAgent free to use? \",\n        \"answer\": \"The information regarding whether PuppyAgent is free to use is not specified on the webpage.\"\n      },\n      {\n        \"question\": \"What can PuppyAgent do?\",\n        \"answer\": \"PuppyAgent can connect to data sources, process information using AI, and deliver results. It also allows for rapid prototyping, flexible deployment, and enterprise-wide applications.\"\n      },\n      {\n        \"question\": \"What is the mission of PuppyAgent?\",\n        \"answer\": \"The mission of PuppyAgent is to provide an ideal solution for knowledge base needs through advanced RAG techniques without complex setup.\"\n      },\n      {\n        \"question\": \"How can I contact the PuppyAgent team?\",\n        \"answer\": \"You can contact the PuppyAgent team through their LinkedIn, Discord, or email.\"\n      }\n    ]\n  }\n]",
+        "isInput": false,
+        "editable": false,
+        "groupIds": [
+          "IRDR3a"
+        ],
+        "isOutput": false,
+        "isLoading": false,
+        "savingStatus": "saved",
+        "storage_class": "external",
+        "isWaitingForFlow": false,
+        "external_metadata": {
+          "version_id": "20250909-112040010139-7f55ace5",
+          "parseErrors": 0,
+          "totalChunks": 2,
+          "content_type": "structured",
+          "loadedChunks": 2,
+          "resource_key": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181/A-4un_/20250909-112040010139-7f55ace5",
+          "totalRecords": 0,
+          "parsedRecords": 0
+        },
+        "isExternalStorage": true
+      },
+      "type": "structured",
+      "style": {
+        "zIndex": 1340
+      },
+      "width": 800,
+      "height": 368,
+      "dragging": false,
+      "position": {
+        "x": -1632,
+        "y": -64
+      },
+      "resizing": false,
+      "selected": false
+    },
+    {
+      "id": "cQIBpi",
+      "data": {
+        "dirty": false,
+        "label": "cQIBpi",
+        "locked": false,
+        "content": "[\n  {\n    \"FAQ\": [\n      {\n        \"question\": \"\",\n        \"answer\": \"\"\n      },\n      {\n        \"question\": \"\",\n        \"answer\": \"\"\n      }\n    ]\n  }\n]",
+        "isInput": true,
+        "editable": false,
+        "groupIds": [
+          "IRDR3a"
+        ],
+        "isOutput": false,
+        "isLoading": false,
+        "savingStatus": "saved",
+        "storage_class": "external",
+        "external_metadata": {
+          "version_id": "20250909-112153784054-da9795aa",
+          "content_type": "structured",
+          "resource_key": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181/cQIBpi/20250909-112153784054-da9795aa"
+        },
+        "isExternalStorage": true
+      },
+      "type": "structured",
+      "style": {
+        "zIndex": 1337
+      },
+      "width": 560,
+      "height": 240,
+      "dragging": false,
+      "position": {
+        "x": -2592,
+        "y": 320
+      },
+      "resizing": false,
+      "selected": false
+    },
+    {
+      "id": "_Sgz-w",
+      "data": {
+        "type": "get",
+        "subMenuType": "edit-structured",
+        "sourceNodeId": "A-4un_",
+        "getConfigData": [
+          {
+            "key": "num",
+            "value": "0"
+          },
+          {
+            "key": "key",
+            "value": "FAQ"
+          }
+        ],
+        "sourceNodeType": "structured",
+        "paramv": ""
+      },
+      "type": "editStructured",
+      "style": {
+        "zIndex": 1313
+      },
+      "dragging": false,
+      "position": {
+        "x": -640,
+        "y": 96
+      },
+      "selected": false,
+      "width": 240,
+      "height": 176
+    },
+    {
+      "id": "IRDR3a",
+      "data": {
+        "label": "1. FAQ cleaning",
+        "locked": false,
+        "content": "",
+        "isInput": false,
+        "editable": false,
+        "isOutput": false,
+        "isLoading": false,
+        "backgroundColor": "rgba(64, 101, 131, 0.2)"
+      },
+      "type": "group",
+      "style": {
+        "zIndex": -1
+      },
+      "width": 1952,
+      "height": 832,
+      "dragging": false,
+      "position": {
+        "x": -2688,
+        "y": -176
+      },
+      "resizing": false,
+      "selected": false
+    },
+    {
+      "id": "3YAeP8",
+      "data": {
+        "top_k": 3,
+        "query_id": {
+          "id": "Lm-PbX",
+          "label": "Text1"
+        },
+        "dataSource": [
+          {
+            "id": "WzK6iT",
+            "label": "WzK6iT",
+            "index_item": {
+              "index_name": "public5c46f906b960f098",
+              "collection_configs": {
+                "model": "text-embedding-ada-002",
+                "user_id": "8f3dbdc0-e742-4c6e-b041-a52fb32a2181",
+                "set_name": "collection_WzK6iT_1753089836192",
+                "vdb_type": "pgvector",
+                "collection_name": "public5c46f906b960f098"
+              }
+            }
+          }
+        ],
+        "resultNode": "m3bHrN",
+        "subMenuType": "retrieve",
+        "sourceNodeId": "Lm-PbX",
+        "extra_configs": {
+          "threshold": 0.7
+        },
+        "sourceNodeType": "text"
+      },
+      "type": "retrieving",
+      "style": {
+        "zIndex": 1300
+      },
+      "dragging": false,
+      "position": {
+        "x": -144,
+        "y": -400
+      },
+      "selected": false,
+      "width": 240,
+      "height": 176
+    },
+    {
+      "id": "m3bHrN",
+      "data": {
+        "label": "m3bHrN",
+        "locked": false,
+        "content": "[\n  {\n    \"answer\": \"$25 for pro users, including more usages and storage\",\n    \"question\": \"What is your price?\"\n  },\n  {\n    \"question\": \"How can I contact the PuppyAgent team?\",\n    \"answer\": \"You can contact the PuppyAgent team through their LinkedIn, Discord, or email.\"\n  }\n]",
+        "isInput": false,
+        "editable": false,
+        "groupIds": [
+          "avCif-"
+        ],
+        "isOutput": false,
+        "isLoading": false,
+        "isWaitingForFlow": false,
+        "isExternalStorage": false,
+        "dirty": false,
+        "savingStatus": "saved"
+      },
+      "type": "structured",
+      "style": {
+        "zIndex": 1353
+      },
+      "width": 496,
+      "height": 240,
+      "dragging": false,
+      "position": {
+        "x": 48,
+        "y": -496
+      },
+      "resizing": false,
+      "selected": false
+    },
+    {
+      "id": "huFp6J",
+      "data": {
+        "content": [
+          {
+            "role": "system",
+            "content": "You are an AI"
+          },
+          {
+            "role": "user",
+            "content": "Answer the question: {{Text1}}"
+          }
+        ],
+        "base_url": "",
+        "max_tokens": 4096,
+        "subMenuType": "llm",
+        "sourceNodeId": "Lm-PbX",
+        "sourceNodeType": "text",
+        "modelAndProvider": {
+          "id": "openai/gpt-5",
+          "name": "GPT-5",
+          "provider": "OpenAI",
+          "isLocal": false
+        },
+        "structured_output": false
+      },
+      "type": "llmnew",
+      "style": {
+        "zIndex": 1352
+      },
+      "dragging": false,
+      "position": {
+        "x": 688,
+        "y": -608
+      },
+      "selected": false,
+      "width": 240,
+      "height": 176
+    },
+    {
+      "id": "b9vr0c",
+      "data": {
+        "label": "b9vr0c",
+        "locked": false,
+        "content": "Could you please provide more context or specify what item or service you are inquiring about regarding the price?",
+        "isInput": false,
+        "editable": false,
+        "groupIds": [
+          "avCif-"
+        ],
+        "isOutput": true,
+        "isLoading": false,
+        "isWaitingForFlow": false,
+        "isExternalStorage": false
+      },
+      "type": "text",
+      "style": {
+        "zIndex": 1351
+      },
+      "width": 240,
+      "height": 176,
+      "dragging": false,
+      "position": {
+        "x": 864,
+        "y": -672
+      },
+      "resizing": false,
+      "selected": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "4UUbsu",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "-DMqB-",
+      "target": "Ow9efZ",
+      "selected": false
+    },
+    {
+      "id": "connection-1757416820454",
+      "data": {
+        "connectionType": "CTT"
+      },
+      "type": "floating",
+      "source": "Ow9efZ",
+      "target": "A-4un_",
+      "selected": false,
+      "markerEnd": {
+        "type": "arrowclosed",
+        "color": "#CDCDCD",
+        "width": 8,
+        "height": 20,
+        "strokeWidth": 0.1
+      },
+      "sourceHandle": "Ow9efZ-b",
+      "targetHandle": "A-4un_-d"
+    },
+    {
+      "id": "connection-1757416933044",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "cQIBpi",
+      "target": "Ow9efZ",
+      "selected": false,
+      "sourceHandle": "cQIBpi-a",
+      "targetHandle": "Ow9efZ-d"
+    },
+    {
+      "id": "AM8iiK",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "A-4un_",
+      "target": "_Sgz-w",
+      "selected": false
+    },
+    {
+      "id": "connection-1757417020687",
+      "data": {
+        "connectionType": "CTT"
+      },
+      "type": "floating",
+      "source": "_Sgz-w",
+      "target": "WzK6iT",
+      "selected": false,
+      "markerEnd": {
+        "type": "arrowclosed",
+        "color": "#CDCDCD",
+        "width": 8,
+        "height": 20,
+        "strokeWidth": 0.1
+      },
+      "sourceHandle": "_Sgz-w-d",
+      "targetHandle": "WzK6iT-d"
+    },
+    {
+      "id": "XfO5Q1",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "Lm-PbX",
+      "target": "3YAeP8",
+      "selected": false
+    },
+    {
+      "id": "connection-1758178451513",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "WzK6iT",
+      "target": "3YAeP8",
+      "selected": false,
+      "sourceHandle": "WzK6iT-a",
+      "targetHandle": "3YAeP8-d"
+    },
+    {
+      "id": "connection-1758178463162",
+      "data": {
+        "connectionType": "CTT"
+      },
+      "type": "floating",
+      "source": "3YAeP8",
+      "target": "m3bHrN",
+      "selected": false,
+      "markerEnd": {
+        "type": "arrowclosed",
+        "color": "#CDCDCD",
+        "width": 8,
+        "height": 20,
+        "strokeWidth": 0.1
+      }
+    },
+    {
+      "id": "9-8O4u",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "Lm-PbX",
+      "target": "huFp6J",
+      "selected": false
+    },
+    {
+      "id": "connection-1758178615080",
+      "data": {
+        "connectionType": "STC"
+      },
+      "type": "floating",
+      "source": "m3bHrN",
+      "target": "huFp6J",
+      "selected": false,
+      "sourceHandle": "m3bHrN-b",
+      "targetHandle": "huFp6J-d"
+    },
+    {
+      "id": "connection-1758178884437",
+      "data": {
+        "connectionType": "CTT"
+      },
+      "type": "floating",
+      "source": "huFp6J",
+      "target": "b9vr0c",
+      "selected": false,
+      "markerEnd": {
+        "type": "arrowclosed",
+        "color": "#CDCDCD",
+        "width": 8,
+        "height": 20,
+        "strokeWidth": 0.1
+      },
+      "sourceHandle": "huFp6J-b",
+      "targetHandle": "b9vr0c-d"
+    }
+  ],
+  "viewport": {
+    "x": 1669.2337556275093,
+    "y": 1002.5402474736907,
+    "zoom": 0.5074793060250296
+  },
+  "version": "0.1.0"
+}

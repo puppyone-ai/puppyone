@@ -147,6 +147,16 @@ function buildChunkDescriptors(
   }));
 }
 
+type ManifestChunk = {
+  name: string;
+  file_name?: string;
+  mime_type: string;
+  size: number;
+  etag: string;
+  index: number;
+  state: 'done';
+};
+
 async function uploadChunkList(
   blockId: string,
   versionId: string,
@@ -156,26 +166,8 @@ async function uploadChunkList(
     bytes: Uint8Array;
     index: number;
   }>
-): Promise<
-  Array<{
-    name: string;
-    file_name: string;
-    mime_type: string;
-    size: number;
-    etag: string;
-    index: number;
-    state: 'done';
-  }>
-> {
-  const results: Array<{
-    name: string;
-    file_name?: string;
-    mime_type: string;
-    size: number;
-    etag: string;
-    index: number;
-    state: 'done';
-  }> = [];
+): Promise<ManifestChunk[]> {
+  const results: ManifestChunk[] = [];
 
   for (const c of chunks) {
     const { etag, size } = await uploadChunkDirect(
