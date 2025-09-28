@@ -28,7 +28,7 @@ const textEditorThemeData: Monaco.editor.IStandaloneThemeData = {
   rules: [],
   colors: {
     'editor.background': '#00000000', // 完全透明的背景
-    'editor.foreground': '#CDCDCD',
+    'editor.foreground': '#B9BEC6',
     'editorLineNumber.foreground': '#6D7177',
     'editorLineNumber.activeForeground': '#CDCDCD',
     'editor.selectionBackground': '#264F78',
@@ -169,27 +169,6 @@ const TextEditor = ({
     }
   };
 
-  const InputFallback = (e: any): string => {
-    // 处理不同类型的值
-    if (e === null || e === undefined) {
-      return '';
-    }
-
-    if (typeof e === 'object') {
-      try {
-        // 尝试使用 JSON.stringify 格式化对象
-        return JSON.stringify(e, null, 2);
-      } catch (error) {
-        console.error('JSON.stringify 失败:', error);
-        // 如果 JSON.stringify 失败，使用 toString 方法
-        return e.toString();
-      }
-    }
-
-    // 对于其他类型，直接转换为字符串
-    return String(e);
-  };
-
   // 计算实际的宽高样式 - 类似 JSONForm 的处理
   const actualWidth = widthStyle === 0 ? '100%' : widthStyle;
   const actualHeight = autoHeight
@@ -201,11 +180,11 @@ const TextEditor = ({
   return (
     <div
       ref={textEditorRef}
-      className={`relative flex justify-start items-center rounded-[4px] cursor-pointer`}
+      className={`relative flex justify-start items-start rounded-[4px] cursor-pointer`}
       style={{ width: actualWidth, height: actualHeight }}
     >
       {isEmpty && (
-        <div className='absolute w-full h-full flex items-start justify-start text-center text-[#6D7177] text-[12px] italic leading-normal pointer-events-none z-[10] font-plus-jakarta-sans'>
+        <div className='absolute w-full h-full flex items-start justify-start text-left text-[#6D7177] text-[12px] italic leading-normal pointer-events-none z-[10] font-plus-jakarta-sans'>
           {placeholder}
         </div>
       )}
@@ -216,7 +195,7 @@ const TextEditor = ({
         width={actualWidth}
         height={actualHeight}
         onChange={handleChange}
-        value={typeof value === 'string' ? value : InputFallback(value)}
+        value={typeof value === 'string' ? value : ''}
         options={{
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           unicodeHighlight: {
@@ -246,8 +225,8 @@ const TextEditor = ({
           acceptSuggestionOnEnter: 'off',
           parameterHints: { enabled: false },
           tabCompletion: 'off',
-          fontSize: 14,
-          lineHeight: 28,
+          fontSize: 12,
+          lineHeight: 24,
           letterSpacing: 0,
           wordWrap: 'on',
           wordWrapColumn: 120,

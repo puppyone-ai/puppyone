@@ -401,7 +401,6 @@ export const useWorkspaceManagement = () => {
         label: node.data?.label || '',
         content: node.data?.content || '',
       },
-      measured: node.measured,
       selected: node.selected || false,
       dragging: node.dragging || false,
       width: node.width,
@@ -537,22 +536,19 @@ export const useWorkspaceManagement = () => {
                 content: 'Answer the question: {{Query}}',
               },
             ],
-            model: 'openai/gpt-4o-mini',
+            model: 'openai/gpt-5',
             base_url: '',
             structured_output: false,
             max_tokens: 4096,
             resultNode: 'response_default',
             modelAndProvider: {
-              id: 'openai/gpt-4o-mini',
-              name: 'GPT-4o Mini',
+              id: 'openai/gpt-5',
+              name: 'GPT-5',
               provider: 'OpenAI',
               isLocal: false,
             },
           },
-          measured: {
-            width: 80,
-            height: 48,
-          },
+
           selected: false,
           dragging: false,
           style: {
@@ -576,10 +572,7 @@ export const useWorkspaceManagement = () => {
             isWaitingForFlow: false,
           },
           type: 'text',
-          measured: {
-            width: 240,
-            height: 176,
-          },
+
           width: 240,
           height: 176,
           style: {
@@ -605,10 +598,7 @@ export const useWorkspaceManagement = () => {
           },
           width: 240,
           height: 176,
-          measured: {
-            width: 240,
-            height: 176,
-          },
+
           type: 'text',
           style: {
             zIndex: 1125,

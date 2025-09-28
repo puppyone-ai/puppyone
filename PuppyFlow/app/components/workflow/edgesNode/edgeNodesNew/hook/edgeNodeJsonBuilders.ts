@@ -717,7 +717,7 @@ function buildLLMNodeJson(
       }
     | undefined;
 
-  let modelString = 'openai/gpt-4o-mini'; // 默认值
+  let modelString = 'openai/gpt-5'; // 默认值
 
   if (
     modelAndProvider &&
@@ -730,7 +730,7 @@ function buildLLMNodeJson(
   const llmBaseUrl =
     typeof llmNodeData?.base_url === 'string' ? llmNodeData.base_url : '';
   const llmStructuredOutput = !!llmNodeData?.structured_output; // 转换为布尔值
-  const maxTokens = (llmNodeData?.max_tokens as number) || 2000;
+  const maxTokens = (llmNodeData?.max_tokens as number) || 128000;
 
   // 过滤消息，只保留 system 和 user 角色的消息
   const filteredMessages = parsedMessages.filter(
@@ -990,7 +990,7 @@ function buildIfElseNodeJson(
       (condition: any, condIndex: number) => {
         // Convert the frontend condition to backend condition format
         const backendCondition =
-          conditionMap[condition.cond_v] || condition.cond_v;
+          conditionMap[condition.condition] || condition.condition;
 
         // Operation should be "/" if it's the last condition in the group
         const isLastCondition = condIndex === caseItem.conditions.length - 1;
@@ -998,11 +998,25 @@ function buildIfElseNodeJson(
           ? '/'
           : condition.operation.toLowerCase();
 
+        // 处理参数值的类型转换
+        let parameterValue: string | number = condition.cond_v || '';
+
+        // 对于需要数字参数的条件，将字符串转换为数字
+        if (
+          backendCondition === 'greater_than_n_chars' ||
+          backendCondition === 'less_than_n_chars' ||
+          backendCondition === 'greater_than_n' ||
+          backendCondition === 'less_than_n'
+        ) {
+          const numValue = parseInt(condition.cond_v || '0', 10);
+          parameterValue = isNaN(numValue) ? 0 : numValue;
+        }
+
         return {
           block: condition.id,
           condition: backendCondition,
           parameters: {
-            value: condition.cond_input || '',
+            value: parameterValue,
           },
           operation: operation,
         };
@@ -1103,7 +1117,7 @@ function buildGenerateNodeJson(
 
   // 获取其他必要参数
   const promptTemplate = (nodeData?.promptTemplate as string) || 'default';
-  const model = (nodeData?.model as string) || 'openai/gpt-4o-mini';
+  const model = (nodeData?.model as string) || 'openai/gpt-5';
   const structuredOutput = !!nodeData?.structured_output;
   const baseUrl = (nodeData?.base_url as string) || undefined;
 
@@ -1286,7 +1300,7 @@ function buildDeepResearchNodeJson(
   } as any;
 
   const extra_configs = {
-    model: ec?.model || nodeData?.modelAndProvider?.id || 'gpt-4o-2024-08-06',
+    model: ec?.model || nodeData?.modelAndProvider?.id || 'openai/gpt-5',
     temperature: ec?.temperature ?? 0.1,
     max_tokens: ec?.max_tokens ?? 10000,
     max_iterations: ec?.max_iterations ?? 3,

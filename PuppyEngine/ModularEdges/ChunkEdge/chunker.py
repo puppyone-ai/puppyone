@@ -59,7 +59,7 @@ General AI, on the other hand, is a form of intelligence that can perform any in
 """
     print("LLM Chunking: ", ChunkerFactory.execute(
         init_configs={"chunking_mode": "llm", "doc": doc, "sub_chunking_mode": "llm"},
-        extra_configs={"prompt": None, "model": {"openai/gpt-4o-2024-11-20": {}}}
+        extra_configs={"prompt": None, "model": {"openai/gpt-5": {}}}
     ))
     print("Simple Chunking -- Text: ", ChunkerFactory.execute(init_configs={"chunking_mode": "simple", "doc": doc, "sub_chunking_mode": "simple"}, extra_configs={}))
 

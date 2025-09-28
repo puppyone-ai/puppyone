@@ -6,7 +6,8 @@ application, persistence, and event generation. It encapsulates the complex logi
 of block updates and reduces coupling in the main execution flow.
 """
 
-from typing import Dict, Any, AsyncGenerator
+from typing import Dict, Any, AsyncGenerator, Tuple
+import json
 from .HybridStoragePolicy import HybridStoragePolicy
 from .EventFactory import EventFactory
 from Blocks.BaseBlock import BaseBlock
@@ -56,12 +57,18 @@ class BlockUpdateService:
         
         for block_id, content in results.items():
             block = blocks[block_id]
-            
+
+            # Normalize content according to target block type to ensure
+            # consistent semantic type across storage and events
+            normalized_content, semantic_type = self._classify_and_normalize(
+                desired_block_type=block.type, value=content
+            )
+
             # Set content so persistence can read from it
-            block.set_content(content)
+            block.set_content(normalized_content)
             
             # Apply storage strategy
-            storage_metadata = self.storage_policy.get_storage_metadata(content)
+            storage_metadata = self.storage_policy.get_storage_metadata(normalized_content)
             use_external_storage = storage_metadata["use_external_storage"]
             
             if use_external_storage:
@@ -80,11 +87,12 @@ class BlockUpdateService:
                 
             else:
                 # Apply internal storage strategy
-                self._handle_internal_storage_update(block, content, v1_results)
+                self._handle_internal_storage_update(block, normalized_content, v1_results)
                 
                 # Generate BLOCK_UPDATED event for internal storage
+                # Pass the semantic type determined by _classify_and_normalize
                 block_event = EventFactory.create_block_updated_event_internal(
-                    block_id, content
+                    block_id, normalized_content, semantic_type
                 )
                 yield block_event
         
@@ -157,3 +165,46 @@ class BlockUpdateService:
             The storage policy instance
         """
         return self.storage_policy
+
+    # --- Helpers ---
+    def _classify_and_normalize(self, desired_block_type: str, value: Any) -> Tuple[Any, str]:
+        """
+        Classify content into semantic type (text/structured) and normalize the value
+        to avoid UI/storage mismatches.
+        
+        Centralized type determination logic - content-driven approach:
+        - Determine semantic type based on actual content, not desired type
+        - This allows frontend to dynamically update node types
+        - Normalize content appropriately for the determined type
+
+        Rules:
+        - Any scalar (str/int/float/bool/None) -> always text
+        - Any non-serializable object -> always text  
+        - Valid dict/list -> always structured
+        - Content type drives the semantic type, not desired_block_type
+        """
+        
+        # First, determine if the value is inherently structured (dict/list)
+        is_structured_value = isinstance(value, (dict, list))
+        
+        # If value is not structured (scalar, None, or other types), always treat as text
+        if not is_structured_value:
+            try:
+                return "" if value is None else str(value), 'text'
+            except Exception:
+                return "", 'text'
+        
+        # Value is dict/list - check if it's valid structured content
+        try:
+            # Ensure it's JSON-serializable
+            json.dumps(value)
+        except (TypeError, ValueError):
+            # Not serializable, treat as text
+            try:
+                return str(value), 'text'
+            except Exception:
+                return "", 'text'
+        
+        # Value is valid dict/list - always return as structured
+        # Let the frontend handle node type conversion if needed
+        return value, 'structured'

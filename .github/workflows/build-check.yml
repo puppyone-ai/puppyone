@@ -11,9 +11,9 @@ on:
       - 'convergency'
       - 'main'
 
-# Ensure only one run per PR stays active; do not cancel other workflows
+# Concurrency: differentiate by event and PR number/ref to avoid push/PR contention
 concurrency:
-  group: build-pr-${{ github.event.pull_request.number || github.head_ref || github.ref_name }}
+  group: build-${{ github.event_name }}-${{ github.event.pull_request.number || github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 # Define the jobs
@@ -21,7 +21,7 @@ jobs:
   # Job ID, can be customized
   build:
     # Job name, displayed on GitHub PR page
-    name: 'NPM Build Check (pull_request)'
+    name: 'NPM Build Check'
     # Virtual machine environment to run the job
     runs-on: ubuntu-latest
 

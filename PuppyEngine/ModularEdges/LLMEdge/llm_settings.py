@@ -18,31 +18,14 @@ def get_open_router_models(
         ]
     except Exception as e:
         logging.error(f"Error getting open router models: {e}")
-        valid_models = ["openai/gpt-4o-mini"]
+        # Leave empty to avoid false negatives when validating availability
+        valid_models = []
 
     return valid_models
 
 open_router_models = get_open_router_models()
-open_router_supported_models = [
-    "openai/o1-pro",
-    "openai/o3-mini-high",
-    "openai/o3-mini",
-    "openai/o1",
-    "openai/o1-mini",
-    "openai/gpt-4.5-preview",
-    "openai/gpt-4o-2024-11-20",
-    "openai/gpt-4o-mini",
-    "openai/gpt-4-turbo",
-    "deepseek/deepseek-chat-v3-0324:free",
-    "deepseek/deepseek-r1-zero:free",
-    "deepseek/deepseek-r1",
-    "anthropic/claude-3.5-haiku",
-    "anthropic/claude-3.5-sonnet",
-    "anthropic/claude-3.7-sonnet",
-    "perplexity/sonar",
-    "perplexity/sonar-pro",
-    "perplexity/sonar-reasoning-pro",
-]
+# Restrict exposed model list to only GPT-5
+open_router_supported_models = ["openai/gpt-5"]
 
 local_supported_models = [
     "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B",
@@ -54,10 +37,38 @@ def get_open_router_llm_settings(
     base_url: str = None,
     supported_models: List[str] = open_router_supported_models,
 ) -> Tuple[str, str, str]:
+    """Resolve OpenRouter settings and validate model support.
+
+    - Defaults to 'openai/gpt-5'
+    - Validates against dynamic OpenRouter model list fetched from /models
+    - Also restricts to our curated supported list (LLM-only)
+    """
     api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
     base_url = base_url or os.environ.get("OPENROUTER_BASE_URL")
-    if model not in supported_models:
-        raise PuppyException(3701, "Invalid Open Router Model")
+
+    # Normalize model id
+    model = model or "openai/gpt-5"
+    if model == "gpt-5":
+        model = "openai/gpt-5"
+
+    # First ensure it is part of our curated list (LLM-only)
+    if supported_models and model not in supported_models:
+        raise PuppyException(3701, f"Unsupported model '{model}'. Allowed: {supported_models}")
+
+    # Then verify OpenRouter actually advertises this model id
+    try:
+        dynamic_models = set(open_router_models or [])
+        if dynamic_models and model not in dynamic_models:
+            # Best-effort refresh in case cache is stale
+            refreshed = set(get_open_router_models())
+            if model not in refreshed:
+                # Provide a helpful error mentioning a few examples
+                sample = list(refreshed)[:5]
+                raise PuppyException(3701, f"Model '{model}' not available on OpenRouter /models. Examples: {sample}")
+    except Exception:
+        # If model listing fails, proceed and let the upstream API return the precise error
+        pass
+
     return api_key, base_url, model
 
 def get_lite_llm_settings(
@@ -66,21 +77,9 @@ def get_lite_llm_settings(
     base_url: str = None,
 ) -> Tuple[str, str, str]:
     valid_models = {
-        "gpt-4o": "openai/gpt-4o-2024-11-20",
-        "gpt-4o-mini": "openai/gpt-4o-mini-2024-07-18",
-        "gpt-4.5-preview": "openai/gpt-4.5-preview-2025-02-27",
-        "o1": "openai/o1-2024-12-17",
-        "o1-mini": "openai/o1-mini-2024-09-12",
-        "o3-mini": "openai/o3-mini-2025-01-31",
-        "claude-3.7-sonnet": "anthropic/claude-3-7-sonnet-latest",
-        "claude-3.7-sonnet-thinking": "anthropic/claude-3-7-sonnet-latest",
-        "claude-3.5-sonnet": "anthropic/claude-3-5-sonnet-latest",
-        "claude-3.5-haiku": "anthropic/claude-3-5-haiku-latest",
-        "claude-3-opus": "anthropic/claude-3-opus-latest",
-        "deepseek-v3": "deepseek/deepseek-chat",
-        "deepseek-r1": "deepseek/deepseek-reasoner",
+        "gpt-5": "openai/gpt-5",
     }
-    valid_model = valid_models.get(model, "openai/gpt-4o-2024-11-20")
+    valid_model = valid_models.get(model, "openai/gpt-5")
 
     if valid_model.startswith("openai"):
         key_name = "DEEPBRICKS_API_KEY"

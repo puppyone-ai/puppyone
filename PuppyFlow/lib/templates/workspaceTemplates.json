@@ -21,10 +21,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "width": 260,
                     "height": 196,
                     "selected": false
@@ -48,21 +44,17 @@
                                 "content": "Summarize today's items from these feeds:\n{{RSS Feeds}}"
                             }
                         ],
-                        "model": "openai/gpt-4o-mini",
+                        "model": "openai/gpt-5",
                         "base_url": "",
                         "structured_output": false,
                         "max_tokens": 4096,
                         "resultNode": "rss_output",
                         "modelAndProvider": {
-                            "id": "openai/gpt-4o-mini",
-                            "name": "GPT-4o Mini",
+                            "id": "openai/gpt-5",
+                            "name": "GPT-5",
                             "provider": "OpenAI",
                             "isLocal": false
                         }
-                    },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
                     },
                     "selected": false,
                     "dragging": false,
@@ -88,10 +80,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125
@@ -150,10 +138,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "width": 260,
                     "height": 196,
                     "selected": false
@@ -177,21 +161,17 @@
                                 "content": "Question: {{Query}}\nReturn: answer + sources."
                             }
                         ],
-                        "model": "openai/gpt-4o-mini",
+                        "model": "openai/gpt-5",
                         "base_url": "",
                         "structured_output": false,
                         "max_tokens": 4096,
                         "resultNode": "rag_output",
                         "modelAndProvider": {
-                            "id": "openai/gpt-4o-mini",
-                            "name": "GPT-4o Mini",
+                            "id": "openai/gpt-5",
+                            "name": "GPT-5",
                             "provider": "OpenAI",
                             "isLocal": false
                         }
-                    },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
                     },
                     "selected": false,
                     "dragging": false,
@@ -217,10 +197,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125
@@ -279,10 +255,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "width": 260,
                     "height": 196,
                     "selected": false
@@ -306,21 +278,17 @@
                                 "content": "Write the article based on the brief:\n{{Brief}}\nConstraints: markdown, headings, short paragraphs, and actionable insights."
                             }
                         ],
-                        "model": "openai/gpt-4o-mini",
+                        "model": "openai/gpt-5",
                         "base_url": "",
                         "structured_output": false,
                         "max_tokens": 4096,
                         "resultNode": "writer_output",
                         "modelAndProvider": {
-                            "id": "openai/gpt-4o-mini",
-                            "name": "GPT-4o Mini",
+                            "id": "openai/gpt-5",
+                            "name": "GPT-5",
                             "provider": "OpenAI",
                             "isLocal": false
                         }
-                    },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
                     },
                     "selected": false,
                     "dragging": false,
@@ -346,10 +314,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125
@@ -408,10 +372,6 @@
                         "isWaitingForFlow": false
                     },
                     "type": "text",
-                    "measured": {
-                        "width": 280,
-                        "height": 220
-                    },
                     "width": 280,
                     "height": 220,
                     "selected": false
@@ -435,21 +395,17 @@
                                 "content": "Respond briefly with the next step based on this note:\n{{Onboarding}}"
                             }
                         ],
-                        "model": "openai/gpt-4o-mini",
+                        "model": "openai/gpt-5",
                         "base_url": "",
                         "structured_output": false,
                         "max_tokens": 1024,
                         "resultNode": "guide_output",
                         "modelAndProvider": {
-                            "id": "openai/gpt-4o-mini",
-                            "name": "GPT-4o Mini",
+                            "id": "openai/gpt-5",
+                            "name": "GPT-5",
                             "provider": "OpenAI",
                             "isLocal": false
                         }
-                    },
-                    "measured": {
-                        "width": 80,
-                        "height": 48
                     },
                     "selected": false,
                     "dragging": false,
@@ -475,10 +431,6 @@
                     },
                     "width": 260,
                     "height": 196,
-                    "measured": {
-                        "width": 260,
-                        "height": 196
-                    },
                     "type": "text",
                     "style": {
                         "zIndex": 1125

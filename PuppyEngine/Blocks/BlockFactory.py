@@ -35,8 +35,10 @@ class BlockFactory:
         # Determine initial persistence strategy
         storage_class = block_data.get('storage_class', 'internal')
         has_external_metadata = bool(block_data.get('data', {}).get('external_metadata'))
-        
-        if storage_class == 'external' or has_external_metadata:
+
+        # Authoritative switch: storage_class decides. External metadata without
+        # explicit external storage_class must not switch strategy implicitly.
+        if storage_class == 'external':
             strategy = ExternalStorageStrategy()
             log_debug(f"Creating block {block_id} with ExternalStorageStrategy")
         else:

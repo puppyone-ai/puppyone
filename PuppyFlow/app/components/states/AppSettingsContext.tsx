@@ -136,97 +136,17 @@ const AppSettingsContext = createContext<AppSettingsContextType | undefined>(
   undefined
 );
 
-// 预定义的云端模型
+// 预定义的云端模型（仅保留 GPT-5）
 const CLOUD_MODELS: Model[] = [
   {
-    id: 'openai/gpt-4o-mini',
-    name: 'GPT-4o Mini',
+    id: 'openai/gpt-5',
+    name: 'GPT-5',
     provider: 'OpenAI',
     isLocal: false,
     active: true,
     type: 'llm',
   },
-  {
-    id: 'openai/gpt-4o-2024-11-20',
-    name: 'GPT-4o (2024-11-20)',
-    provider: 'OpenAI',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'openai/gpt-4.5-preview',
-    name: 'GPT-4.5 Preview',
-    provider: 'OpenAI',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'openai/o1',
-    name: 'o1',
-    provider: 'OpenAI',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'openai/o3-mini',
-    name: 'o3 Mini',
-    provider: 'OpenAI',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'deepseek/deepseek-chat-v3-0324:free',
-    name: 'DeepSeek Chat v3',
-    provider: 'DeepSeek',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'deepseek/deepseek-r1-zero:free',
-    name: 'DeepSeek R1 Zero',
-    provider: 'DeepSeek',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'deepseek/deepseek-r1',
-    name: 'DeepSeek R1',
-    provider: 'DeepSeek',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'anthropic/claude-3.5-haiku',
-    name: 'Claude 3.5 Haiku',
-    provider: 'Anthropic',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'anthropic/claude-3.5-sonnet',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'Anthropic',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  {
-    id: 'anthropic/claude-3.7-sonnet',
-    name: 'Claude 3.7 Sonnet',
-    provider: 'Anthropic',
-    isLocal: false,
-    active: true,
-    type: 'llm',
-  },
-  // 添加一些云端 embedding 模型示例
+  // 保留一个示例 embedding 模型
   {
     id: 'text-embedding-ada-002',
     name: 'Text Embedding Ada 002',

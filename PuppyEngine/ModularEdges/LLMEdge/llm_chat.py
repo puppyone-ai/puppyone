@@ -51,7 +51,7 @@ class ChatService:
         is_openrouter: bool = True,
         api_key: str = None,
         base_url: str = None,
-        model: str = "gpt-4o-2024-08-06",
+        model: str = "openai/gpt-5",
         messages: list = None,
         temperature: float = 0.1, 
         max_tokens: int = 10000,

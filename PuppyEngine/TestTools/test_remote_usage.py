@@ -8,7 +8,7 @@ ENGINE_URL = os.getenv("ENGINE_URL", "http://127.0.0.1:8001")
 USER_URL = os.getenv("USER_URL", "http://127.0.0.1:8000")
 SERVICE_KEY = os.getenv("SERVICE_KEY", "service_123")
 RUN_LLM_TEST = os.getenv("RUN_LLM_TEST", "0") == "1"
-LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-4o-mini")
+LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-5")
 
 
 def get_valid_token():

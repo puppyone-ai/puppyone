@@ -1,19 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useWorkspaces } from '../states/UserWorkspacesContext';
+import { useDisplaySwitch } from '../hooks/useDisplayWorkspcaeSwitching';
 import { v4 as uuidv4 } from 'uuid';
 import { useAppSettings } from '../states/AppSettingsContext';
 import Tippy from '@tippyjs/react';
 import 'tippy.js/dist/tippy.css';
+import CreateWorkspaceModal from '../blankworkspace/CreateWorkspaceModal';
+import workspaceTemplates from '@/lib/templates/workspaceTemplates.json';
 
 function AddNewWorkspaceButton() {
   const {
     workspaceManagement,
     addWorkspace,
     createEmptyWorkspace,
-    setShowingWorkspace,
+    setShowingItem,
+    updateWorkspace,
     workspaces,
   } = useWorkspaces();
+  const { switchToWorkspace } = useDisplaySwitch();
   const { planLimits } = useAppSettings();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const isWorkspaceLimitReached =
     workspaces && workspaces.length >= planLimits.workspaces;
@@ -24,32 +30,50 @@ function AddNewWorkspaceButton() {
       console.warn('Workspace limit reached. Cannot create more workspaces.');
       return;
     }
+    // 打开创建工作区的菜单
+    setIsModalOpen(true);
+  };
+
+  const getBlankTemplate = () => ({
+    blocks: [],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    version: '0.0.1',
+  });
+
+  const createNewWorkspace = async (
+    initialContent?: any,
+    workspaceNameOverride?: string
+  ) => {
+    if (isWorkspaceLimitReached) return;
+
+    const newWorkspaceId = uuidv4();
+    const newWorkspaceName = workspaceNameOverride || 'Untitled Workspace';
+
+    const optimistic = createEmptyWorkspace(newWorkspaceId, newWorkspaceName);
+    addWorkspace(optimistic);
+    setShowingItem({
+      type: 'workspace',
+      id: newWorkspaceId,
+      name: newWorkspaceName,
+    });
+    switchToWorkspace();
+
     try {
-      // 生成新的工作区 ID 和名称
-      const newWorkspaceId = uuidv4();
-      const newWorkspaceName = 'Untitled Workspace';
-
-      // 创建空的工作区对象并立即添加到状态中（乐观更新）
-      const newWorkspace = createEmptyWorkspace(
-        newWorkspaceId,
-        newWorkspaceName
-      );
-      addWorkspace(newWorkspace);
-
-      // 设置为当前显示的工作区
-      setShowingWorkspace(newWorkspaceId);
-
-      // 异步创建工作区并立即写入初始内容（空模板）
       const result = await workspaceManagement.createWorkspaceWithContent(
         newWorkspaceId,
-        newWorkspaceName
+        newWorkspaceName,
+        initialContent || getBlankTemplate()
       );
-      if (!result?.success) {
-        console.error('Failed to create workspace with initial content');
+      if (result?.success && result.content) {
+        updateWorkspace(newWorkspaceId, {
+          content: result.content,
+          pullFromDatabase: true,
+          pushToDatabase: false,
+        });
       }
     } catch (error) {
-      console.error('Error creating new workspace:', error);
-      // 这里可以添加错误处理
+      console.error('Failed to create workspace:', error);
     }
   };
 
@@ -118,6 +142,12 @@ function AddNewWorkspaceButton() {
       ) : (
         buttonContent
       )}
+      <CreateWorkspaceModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onCreateWorkspace={createNewWorkspace}
+        workspaceTemplates={workspaceTemplates as any}
+      />
     </div>
   );
 }

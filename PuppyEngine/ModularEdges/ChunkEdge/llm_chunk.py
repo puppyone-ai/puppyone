@@ -28,7 +28,7 @@ class LLMChunking(BaseChunk):
             case "llm":
                 return self.contents_to_chunks(self.llm_chunk(
                     prompt=extra_configs.get("prompt", None),
-                    model=extra_configs.get("model", {"openai/gpt-4o-2024-11-20": {}})
+                    model=extra_configs.get("model", {"openai/gpt-5": {}})
                 ))
             case _:
                 raise ValueError("Unsupported Sub Chunking Mode for LLM Chunk")
@@ -37,7 +37,7 @@ class LLMChunking(BaseChunk):
     def llm_chunk(
         self,
         prompt: str = None,
-        model: str = "openai/gpt-4o-2024-11-20"
+        model: str = "openai/gpt-5"
     ) -> List[str]:
         # System prompt guiding the LLM to understand the task
         sys_prompt = """

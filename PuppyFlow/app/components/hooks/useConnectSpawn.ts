@@ -28,13 +28,14 @@ export default function useConnectSpawn() {
 
       if (
         sourceNode &&
-        (sourceNode as any).measured?.width &&
-        (sourceNode as any).measured?.height
+        (sourceNode as any).width &&
+        (sourceNode as any).height
       ) {
         const centerX =
-          sourceNode.position.x + (sourceNode as any).measured.width / 2;
+          sourceNode.position.x + ((sourceNode as any).width as number) / 2;
         const centerY =
-          sourceNode.position.y + (sourceNode as any).measured.height / 2;
+          sourceNode.position.y + ((sourceNode as any).height as number) / 2;
+
         const dx = point.x - centerX;
         const dy = point.y - centerY;
 
@@ -106,7 +107,8 @@ export default function useConnectSpawn() {
             isOutput: false,
             editable: false,
           },
-          measured: { width: 240, height: 176 },
+          width: 240,
+          height: 176,
         } as any;
 
         setNodes(prev => prev.concat(newTextNode));
@@ -136,6 +138,8 @@ export default function useConnectSpawn() {
             sourceNodeId: sourceId,
             sourceNodeType: sourceNode?.type || 'text',
           },
+          width: 80,
+          height: 48,
         } as any;
 
         setNodes(prev => prev.concat(newNode));
@@ -180,10 +184,10 @@ export default function useConnectSpawn() {
       const target = getNode(targetId);
       if (!source || !target) return false;
 
-      const sW = (source as any).measured?.width ?? 240;
-      const sH = (source as any).measured?.height ?? 176;
-      const tW = (target as any).measured?.width ?? 240;
-      const tH = (target as any).measured?.height ?? 176;
+      const sW = (source as any).width ?? 240;
+      const sH = (source as any).height ?? 176;
+      const tW = (target as any).width ?? 240;
+      const tH = (target as any).height ?? 176;
 
       const sCX = source.position.x + sW / 2;
       const sCY = source.position.y + sH / 2;
@@ -202,6 +206,8 @@ export default function useConnectSpawn() {
           sourceNodeId: sourceId,
           sourceNodeType: source.type || 'text',
         },
+        width: 80,
+        height: 48,
       } as any;
 
       setNodes(prev => prev.concat(edgeMenuNode));

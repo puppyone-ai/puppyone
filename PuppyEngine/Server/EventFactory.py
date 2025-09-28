@@ -7,6 +7,7 @@ ensuring consistent event structure and reducing duplication across the system.
 
 from typing import Dict, Any, List, Set, Optional
 from datetime import datetime
+import os
 
 
 class EventFactory:
@@ -20,12 +21,18 @@ class EventFactory:
     @staticmethod
     def create_task_started_event(env_id: str, start_time: datetime, total_blocks: int, total_edges: int) -> Dict[str, Any]:
         """Create TASK_STARTED event"""
+        # Broadcast storage threshold to align FE/BE chunking decisions
+        try:
+            storage_threshold_bytes = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))
+        except Exception:
+            storage_threshold_bytes = 1024
         return {
             "event_type": "TASK_STARTED",
             "env_id": env_id,
             "timestamp": start_time.isoformat(),
             "total_blocks": total_blocks,
-            "total_edges": total_edges
+            "total_edges": total_edges,
+            "storage_threshold_bytes": storage_threshold_bytes,
         }
     
     @staticmethod
@@ -96,18 +103,20 @@ class EventFactory:
         }
     
     @staticmethod
-    def create_block_updated_event_internal(block_id: str, content: Any) -> Dict[str, Any]:
+    def create_block_updated_event_internal(block_id: str, content: Any, semantic_type: str = None) -> Dict[str, Any]:
         """Create BLOCK_UPDATED event for internal storage"""
-        # Determine semantic content type for clients to render correctly
-        # - list/dict => structured
-        # - others (str/number/bool/None) => text
-        try:
-            if isinstance(content, (list, dict)):
-                content_type = "structured"
-            else:
+        # Use explicit semantic type if provided, otherwise infer from content
+        if semantic_type:
+            content_type = semantic_type
+        else:
+            # Fallback to runtime inference for backward compatibility
+            try:
+                if isinstance(content, (list, dict)):
+                    content_type = "structured"
+                else:
+                    content_type = "text"
+            except Exception:
                 content_type = "text"
-        except Exception:
-            content_type = "text"
 
         return {
             "event_type": "BLOCK_UPDATED",

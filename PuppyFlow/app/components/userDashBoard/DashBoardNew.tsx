@@ -200,11 +200,11 @@ const Footer: React.FC = () => {
     <div className='flex justify-end gap-2 pt-6 border-t border-[#2A2A2A]'>
       <button
         onClick={onClose}
-        className='inline-flex items-center justify-center rounded-md text-[13px] font-medium px-2.5 py-1.5 text-[#E5E5E5] hover:bg-[#1A1A1A] transition-colors active:scale-95'
+        className='h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center bg-[#2A2A2A] hover:bg-[#333333] text-[#CDCDCD] border border-[#404040] hover:border-[#505050]'
       >
         Cancel
       </button>
-      <button className='inline-flex items-center justify-center rounded-md text-[13px] font-medium px-3 py-1.5 bg-[#4091FF] text-white hover:bg-[#3578E5] transition-colors active:scale-95'>
+      <button className='h-[28px] px-[14px] rounded-[6px] text-[12px] font-medium transition-all duration-200 flex items-center justify-center bg-[#4599DF] hover:bg-[#3A85CC] text-white shadow-sm hover:shadow-md'>
         Save Changes
       </button>
     </div>

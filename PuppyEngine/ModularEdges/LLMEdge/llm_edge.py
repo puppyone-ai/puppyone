@@ -223,7 +223,7 @@ Query: What's the name of the PuppyAgent's agent framework?
     response = remote_llm_chat(
         # free model for testing
         # model="google/gemini-flash-1.5-8b-exp",
-        model="openai/o3-mini-high",
+        model="openai/gpt-5",
         response_format=structure,
         messages=[
             {"role": "user", "content": user_prompt}

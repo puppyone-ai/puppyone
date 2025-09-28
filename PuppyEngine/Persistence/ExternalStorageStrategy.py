@@ -60,8 +60,42 @@ class ExternalStorageStrategy:
             manifest_key = f"{resource_key}/manifest.json"
             manifest = await storage_client.get_manifest(manifest_key)
 
-            # Determine content handling strategy
+            # Determine content handling strategy, with conservative auto-detection fallback
             content_type = external_metadata.get('content_type', 'text')
+
+            # Heuristic: detect end-user file uploads only when chunk naming clearly indicates files.
+            # Rules (avoid false-positives for structured/text chunking):
+            # - DO NOT treat presence of file_name alone as files (structured uploads also include it)
+            # - Consider as files when:
+            #   a) chunk.name does NOT start with "chunk_" (typical user file names), OR
+            #   b) file_name exists AND file_name != name (explicitly carries original filename)
+            def _looks_like_file_uploads(mani: dict) -> bool:
+                try:
+                    chunks = mani.get('chunks', [])
+                    for ch in chunks:
+                        if not isinstance(ch, dict):
+                            # String entries (legacy) that don't follow chunk_ pattern also imply files
+                            if isinstance(ch, str) and not ch.startswith('chunk_'):
+                                return True
+                            continue
+                        name = ch.get('name', '') or ''
+                        file_name = ch.get('file_name')
+                        # Condition (b): explicit original filename different from storage name
+                        if file_name and file_name != name:
+                            return True
+                        # Condition (a): storage name doesn't follow standard chunk_* pattern
+                        if name and not name.startswith('chunk_'):
+                            return True
+                    return False
+                except Exception:
+                    return False
+
+            # Only apply auto-detection when current type is not already 'files'
+            if content_type != 'files' and _looks_like_file_uploads(manifest):
+                log_warning(
+                    "external_metadata.content_type missing or incorrect; auto-detected 'files' based on manifest"
+                )
+                content_type = 'files'
 
             if content_type == 'files':
                 # Prefetch-only: download files to a local working directory and attach a file list
@@ -256,13 +290,22 @@ class ExternalStorageStrategy:
                 # Use StreamingJSONHandler for structured data
                 chunk_index = 0
                 if isinstance(content, list):
-                    for chunk_data in self.json_handler.split_to_jsonl(content):
+                    # Filter out None items to avoid generating 'null' JSONL lines
+                    filtered_items = [item for item in content if item is not None]
+                    for chunk_data in self.json_handler.split_to_jsonl(filtered_items):
+                        # Guard: skip accidental empty buffers
+                        if not chunk_data:
+                            continue
                         yield f"chunk_{chunk_index:06d}.jsonl", chunk_data
                         chunk_index += 1
                 else:
-                    # Single object as JSONL
+                    # Single object as JSONL; skip if content is None
+                    if content is None:
+                        log_warning("Structured content is None; skipping upload of empty JSONL chunk")
+                        return
                     chunk_data = json.dumps(content, ensure_ascii=False).encode('utf-8') + b'\n'
-                    yield "chunk_000000.jsonl", chunk_data
+                    if chunk_data:
+                        yield "chunk_000000.jsonl", chunk_data
                     
             elif content_type == 'text':
                 # Text content chunking
@@ -288,6 +331,9 @@ class ExternalStorageStrategy:
         if isinstance(content, (list, dict)):
             return 'structured'
         elif isinstance(content, str):
+            return 'text'
+        elif isinstance(content, (int, float, bool)):
+            # Persist simple scalars as text to avoid binary slicing issues
             return 'text'
         else:
             return 'binary'

@@ -19,7 +19,7 @@ def test_deep_researcher():
     }
     
     extra_configs = {
-        "model": "gpt-4o-2024-08-06",
+        "model": "openai/gpt-5",
         "temperature": 0.1,
         "max_tokens": 10000,
         "max_iterations": 3,
@@ -82,7 +82,7 @@ def test_query():
     }
     
     extra_configs = {
-        "model": "gpt-4o-2024-08-06",
+        "model": "openai/gpt-5",
         "temperature": 0.1,
         "max_tokens": 5000,
         "max_iterations": 2,

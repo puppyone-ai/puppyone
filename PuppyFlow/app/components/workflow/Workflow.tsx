@@ -282,8 +282,16 @@ function Workflow() {
       //   edgesCount: currentWorkspaceContent.edges?.length || 0,
       // });
 
-      // 更新节点和边
-      setUnsortedNodes(currentWorkspaceContent.blocks || []);
+      // 更新节点和边（确保有 width/height）
+      const sanitizedBlocks = (currentWorkspaceContent.blocks || []).map(
+        (n: any) => {
+          const rest = n || {};
+          const width = (rest as any).width ?? 240;
+          const height = (rest as any).height ?? 176;
+          return { ...rest, width, height };
+        }
+      );
+      setUnsortedNodes(sanitizedBlocks);
       setEdges(currentWorkspaceContent.edges || []);
 
       // 重置脏标基线（忽略视口），避免纯切换被判定为需要保存
@@ -332,7 +340,7 @@ function Workflow() {
           n?.data?.external_metadata || n?.external_metadata;
         const hasResourceKey = externalMetadata?.resource_key;
 
-        // 必须是external存储且有resource_key
+        // 必须是external存储且有resource_key（仅以 storage_class 为准）
         return storageClass === 'external' && hasResourceKey;
       }
     ) as any[];
@@ -502,7 +510,7 @@ function Workflow() {
     if (!selectedFlowId) return;
 
     const currentState = {
-      blocks: nodes,
+      blocks: nodes.map((n: any) => n || {}),
       edges: edges,
       viewport: getViewport(),
       version: '1.0.0',
@@ -780,7 +788,7 @@ function Workflow() {
   // 移除了与 parentId 相关的复杂排序逻辑，因为不再使用 ReactFlow 的 parentId 机制
 
   return (
-    <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#252525]'>
+    <div className='w-full h-full overflow-hidden pt-[8px] pb-[8px] pr-[8px] pl-[0px] bg-[#202020]'>
       <div className='w-full h-full border-[1px] border-[#303030] bg-[#181818] rounded-[8px]'>
         <ReactFlow
           id='flowChart'
