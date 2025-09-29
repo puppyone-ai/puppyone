@@ -519,10 +519,7 @@ export function useFileUpload({
         if (manifestResp.status === 409) {
           try {
             const text = await manifestResp.text();
-            console.log(
-              'Large file manifest update conflict, retrying:',
-              text
-            );
+            console.log('Large file manifest update conflict, retrying:', text);
 
             // 重置本地etag状态并重试
             updateManifestEtag(null);
@@ -599,7 +596,7 @@ export function useFileUpload({
           resource_key: fullKey,
         }),
       });
-      
+
       if (!response.ok) {
         addWarn(`Failed to delete file: ${file.fileName}`);
         return;
@@ -608,21 +605,24 @@ export function useFileUpload({
       // 更新manifest.json，移除对应的chunk记录
       if (versionIdRef.current) {
         try {
-          const manifestResp = await fetch(`/api/storage/upload/manifest/remove`, {
-            method: 'PUT',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: userIdVal,
-              block_id: nodeId,
-              version_id: versionIdRef.current,
-              expected_etag: manifestEtagRef.current,
-              chunk_to_remove: {
-                name: fullKey.split('/').pop() || file.fileName,
-                file_name: file.fileName,
-              },
-            }),
-          });
+          const manifestResp = await fetch(
+            `/api/storage/upload/manifest/remove`,
+            {
+              method: 'PUT',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                user_id: userIdVal,
+                block_id: nodeId,
+                version_id: versionIdRef.current,
+                expected_etag: manifestEtagRef.current,
+                chunk_to_remove: {
+                  name: fullKey.split('/').pop() || file.fileName,
+                  file_name: file.fileName,
+                },
+              }),
+            }
+          );
 
           if (manifestResp.ok) {
             const manifestData = await manifestResp.json();
