@@ -39,6 +39,27 @@ export function useFileUpload({
   const [manifestEtag, setManifestEtag] = useState<string | null>(null);
   const [resourceKey, setResourceKey] = useState<string | null>(null);
 
+  const versionIdRef = useRef<string | null>(null);
+  const manifestEtagRef = useRef<string | null>(null);
+
+  const updateVersionId = (value: string | null) => {
+    versionIdRef.current = value;
+    setVersionId(value);
+  };
+
+  const updateManifestEtag = (value: string | null) => {
+    manifestEtagRef.current = value;
+    setManifestEtag(value);
+  };
+
+  useEffect(() => {
+    versionIdRef.current = versionId;
+  }, [versionId]);
+
+  useEffect(() => {
+    manifestEtagRef.current = manifestEtag;
+  }, [manifestEtag]);
+
   // 每当文件列表更新时通知父组件
   useEffect(() => {
     if (onFilesChange) {
@@ -69,8 +90,10 @@ export function useFileUpload({
     console.log('Starting file upload from input...');
 
     try {
+      // 串行处理文件，避免并发更新manifest导致ETag冲突
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log(`Processing file ${i + 1}/${files.length}: ${file.name}`);
         await processFile(file, i === files.length - 1);
       }
     } catch (error) {
@@ -106,8 +129,10 @@ export function useFileUpload({
     console.log('Starting file upload from drop...');
 
     try {
+      // 串行处理文件，避免并发更新manifest导致ETag冲突
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log(`Processing file ${i + 1}/${files.length}: ${file.name}`);
         await processFile(file, i === files.length - 1);
       }
     } catch (error) {
@@ -179,7 +204,7 @@ export function useFileUpload({
           file_name: fileName,
           content_type: file.type || 'application/octet-stream',
         });
-        if (versionId) qs.set('version_id', versionId);
+        if (versionIdRef.current) qs.set('version_id', versionIdRef.current);
         // 🔒 安全修复：Route via same-origin API proxy
         const directUploadUrl = `/api/storage/upload/chunk/direct?${qs.toString()}`;
 
@@ -210,17 +235,19 @@ export function useFileUpload({
 
         // 设置 versionId 与 resourceKey（仅首次或保持一致）
         const newVersionId = directData.version_id;
-        if (!versionId) {
-          setVersionId(newVersionId);
+        if (!versionIdRef.current) {
+          updateVersionId(newVersionId);
         }
         const rk = `${userIdVal}/${nodeId}/${newVersionId}`;
         setResourceKey(rk);
 
         // 2) 增量更新 manifest（带乐观锁）
-        const isNewVersion = versionId === null || versionId !== newVersionId;
+        const isNewVersion =
+          versionIdRef.current === null ||
+          versionIdRef.current !== newVersionId;
         if (isNewVersion) {
           // 新版本开始时，重置本地 etag，避免抛 409
-          setManifestEtag(null);
+          updateManifestEtag(null);
         }
 
         // 使用存储返回的 key 获取已被服务端清理过的文件名，保证 manifest 的 name 能被后端正确下载
@@ -230,7 +257,7 @@ export function useFileUpload({
           user_id: userIdVal,
           block_id: nodeId,
           version_id: newVersionId,
-          expected_etag: isNewVersion ? null : manifestEtag,
+          expected_etag: isNewVersion ? null : manifestEtagRef.current,
           new_chunk: {
             // name 必须与对象存储中的实际对象名一致
             name: sanitizedName,
@@ -262,32 +289,50 @@ export function useFileUpload({
 
         let manifestResp = await tryUpdateManifest(baseManifestBody);
 
-        // 简单的冲突重试策略：若409且提示 current=None，降级 expected_etag 为 null 再试一次
+        // 改进的冲突重试策略：处理ETag不匹配的情况
         if (manifestResp.status === 409) {
           try {
             const text = await manifestResp.text();
-            if (text.includes('Current: None')) {
-              const resp2 = await tryUpdateManifest({
-                ...baseManifestBody,
-                expected_etag: null,
-              });
-              manifestResp = resp2;
+            console.log(
+              'Manifest update conflict, retrying with null etag:',
+              text
+            );
+
+            // 重置本地etag状态并重试
+            updateManifestEtag(null);
+            const retryBody = {
+              ...baseManifestBody,
+              expected_etag: null,
+            };
+            const resp2 = await tryUpdateManifest(retryBody);
+            manifestResp = resp2;
+
+            // 如果还是失败，再试一次获取最新的etag
+            if (manifestResp.status === 409) {
+              console.log('Second retry for manifest update');
+              const resp3 = await tryUpdateManifest(retryBody);
+              manifestResp = resp3;
             }
-          } catch {
-            // ignore
+          } catch (retryError) {
+            console.error('Error during manifest retry:', retryError);
           }
         }
 
         if (!manifestResp.ok) {
           const errorText = `Failed to update manifest: ${manifestResp.status}`;
-          console.error(errorText, await manifestResp.text());
+          try {
+            const errorBody = await manifestResp.text();
+            console.error(errorText, errorBody);
+          } catch {
+            console.error(errorText);
+          }
           addWarn(errorText);
           return;
         }
 
         const manifestData: { success: boolean; etag: string } =
           await manifestResp.json();
-        setManifestEtag(manifestData.etag);
+        updateManifestEtag(manifestData.etag);
 
         // 3) 更新本地状态
         const newFile: UploadedFile = {
@@ -337,8 +382,8 @@ export function useFileUpload({
         } = await initResp.json();
 
         const newVersionId = initData.version_id;
-        if (!versionId) {
-          setVersionId(newVersionId);
+        if (!versionIdRef.current) {
+          updateVersionId(newVersionId);
         }
         const rk = `${userIdVal}/${nodeId}/${newVersionId}`;
         setResourceKey(rk);
@@ -437,16 +482,18 @@ export function useFileUpload({
         } = await completeResp.json();
 
         // 分片完成后更新 manifest
-        const isNewVersion = versionId === null || versionId !== newVersionId;
+        const isNewVersion =
+          versionIdRef.current === null ||
+          versionIdRef.current !== newVersionId;
         if (isNewVersion) {
-          setManifestEtag(null);
+          updateManifestEtag(null);
         }
         const sanitizedName = completeData.key.split('/').pop() || fileName;
         const body = {
           user_id: userIdVal,
           block_id: nodeId,
           version_id: newVersionId,
-          expected_etag: isNewVersion ? null : manifestEtag,
+          expected_etag: isNewVersion ? null : manifestEtagRef.current,
           new_chunk: {
             name: sanitizedName,
             file_name: fileName,
@@ -459,7 +506,7 @@ export function useFileUpload({
           status: isLastInBatch ? 'completed' : 'generating',
         } as const;
 
-        const manifestResp = await fetch(`/api/storage/upload/manifest`, {
+        let manifestResp = await fetch(`/api/storage/upload/manifest`, {
           method: 'PUT',
           credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
           headers: {
@@ -467,16 +514,52 @@ export function useFileUpload({
           },
           body: JSON.stringify(body),
         });
+
+        // 处理大文件上传的manifest更新冲突
+        if (manifestResp.status === 409) {
+          try {
+            const text = await manifestResp.text();
+            console.log(
+              'Large file manifest update conflict, retrying:',
+              text
+            );
+
+            // 重置本地etag状态并重试
+            updateManifestEtag(null);
+            const retryBody = {
+              ...body,
+              expected_etag: null,
+            };
+            manifestResp = await fetch(`/api/storage/upload/manifest`, {
+              method: 'PUT',
+              credentials: 'include',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(retryBody),
+            });
+          } catch (retryError) {
+            console.error(
+              'Error during large file manifest retry:',
+              retryError
+            );
+          }
+        }
+
         if (!manifestResp.ok) {
-          const msg = await manifestResp.text();
-          addWarn(`Failed to update manifest: ${manifestResp.status} ${msg}`);
+          try {
+            const msg = await manifestResp.text();
+            addWarn(`Failed to update manifest: ${manifestResp.status} ${msg}`);
+          } catch {
+            addWarn(`Failed to update manifest: ${manifestResp.status}`);
+          }
           return;
         }
         const j = (await manifestResp.json()) as {
           success: boolean;
           etag: string;
         };
-        setManifestEtag(j.etag);
+        updateManifestEtag(j.etag);
 
         const newFile: UploadedFile = {
           fileName,
@@ -501,36 +584,58 @@ export function useFileUpload({
   // 处理文件删除
   const handleDelete = async (file: UploadedFile, index: number) => {
     try {
-      console.log('Deleting file:', file);
       const userIdVal = await getUserId();
-
-      // 如果 task_id 存的是完整key，则优先使用
       const fullKey = file.task_id.includes('/')
         ? file.task_id
         : `${userIdVal}/${nodeId}/${versionId ?? ''}/${file.fileName}`;
 
+      // 删除存储中的文件
       const response = await fetch(`/api/storage/files/delete`, {
         method: 'DELETE',
-        credentials: 'include', // 🔒 安全修复：通过HttpOnly cookie自动认证
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: userIdVal,
           resource_key: fullKey,
         }),
       });
-      if (response.ok) {
-        console.log('File deleted successfully');
-        // 更新本地状态
-        setUploadedFiles(files => files.filter((_, i) => i !== index));
-      } else {
-        const errorText = `Failed to delete file: ${file.fileName}`;
-        console.error(errorText);
-        addWarn(errorText);
+      
+      if (!response.ok) {
+        addWarn(`Failed to delete file: ${file.fileName}`);
+        return;
       }
+
+      // 更新manifest.json，移除对应的chunk记录
+      if (versionIdRef.current) {
+        try {
+          const manifestResp = await fetch(`/api/storage/upload/manifest/remove`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: userIdVal,
+              block_id: nodeId,
+              version_id: versionIdRef.current,
+              expected_etag: manifestEtagRef.current,
+              chunk_to_remove: {
+                name: fullKey.split('/').pop() || file.fileName,
+                file_name: file.fileName,
+              },
+            }),
+          });
+
+          if (manifestResp.ok) {
+            const manifestData = await manifestResp.json();
+            updateManifestEtag(manifestData.etag);
+          }
+        } catch (manifestError) {
+          // 忽略manifest更新错误，不阻止删除操作
+        }
+      }
+
+      // 更新本地状态
+      setUploadedFiles(files => files.filter((_, i) => i !== index));
     } catch (error) {
-      console.error(`Error deleting file:`, error);
       addWarn(`Error deleting file: ${file.fileName}`);
     }
   };

@@ -135,6 +135,18 @@ class ManifestUpdateResponse(BaseModel):
     etag: str = Field(..., description="更新后的ETag")
     message: str = Field(default="清单更新成功")
 
+class ManifestRemoveChunkRequest(BaseModel):
+    user_id: str = Field(..., description="用户ID")
+    block_id: str = Field(..., description="数据块ID")
+    version_id: str = Field(..., description="版本ID")
+    expected_etag: Optional[str] = Field(None, description="期望的ETag值，用于乐观锁")
+    chunk_to_remove: Dict[str, Any] = Field(..., description="要删除的数据块信息")
+
+class ManifestRemoveChunkResponse(BaseModel):
+    success: bool = Field(..., description="操作是否成功")
+    etag: str = Field(..., description="更新后的ETag")
+    message: str = Field(default="Chunk删除成功")
+
 class DirectChunkUploadRequest(BaseModel):
     block_id: str = Field(..., description="业务数据块ID")
     file_name: str = Field(..., description="原始文件名")
@@ -634,8 +646,23 @@ async def update_manifest(
         # 更新manifest
         current_manifest["updated_at"] = datetime.utcnow().isoformat()
         
-        # 添加新的chunk信息
-        current_manifest["chunks"].append(request_data.new_chunk)
+        # 检查是否已存在相同文件的chunk，如果存在则替换，否则添加
+        new_chunk = request_data.new_chunk
+        new_chunk_name = new_chunk.get("name", "")
+        new_chunk_file_name = new_chunk.get("file_name", "")
+        
+        # 查找并替换现有的chunk，或添加新chunk
+        existing_chunk_index = -1
+        for i, chunk in enumerate(current_manifest["chunks"]):
+            if (new_chunk_name and chunk.get("name") == new_chunk_name) or \
+               (new_chunk_file_name and chunk.get("file_name") == new_chunk_file_name):
+                existing_chunk_index = i
+                break
+        
+        if existing_chunk_index >= 0:
+            current_manifest["chunks"][existing_chunk_index] = new_chunk
+        else:
+            current_manifest["chunks"].append(new_chunk)
         
         # 更新状态（如果提供）
         if request_data.status:
@@ -769,5 +796,76 @@ async def upload_chunk_direct(
         raise
     except Exception as e:
         log_error(f"[{request_id}] 直接chunk上传失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@upload_router.put("/manifest/remove", response_model=ManifestRemoveChunkResponse)
+async def remove_chunk_from_manifest(
+    request_data: ManifestRemoveChunkRequest,
+    authorization: str = Header(None, alias="Authorization"),
+    auth_provider = Depends(get_auth_provider)
+):
+    """从manifest文件中删除指定的chunk记录"""
+    try:
+        manifest_key = f"{request_data.user_id}/{request_data.block_id}/{request_data.version_id}/manifest.json"
+        
+        # 验证用户权限
+        await verify_user_and_resource_access(
+            resource_key=manifest_key,
+            authorization=authorization,
+            auth_provider=auth_provider
+        )
+        
+        # 读取现有的manifest
+        try:
+            current_content, _, current_etag = storage_adapter.get_file_with_metadata(manifest_key)
+            current_manifest = json.loads(current_content.decode('utf-8'))
+        except Exception:
+            return ManifestRemoveChunkResponse(success=True, etag="", message="Manifest不存在")
+        
+        # 检查乐观锁
+        if request_data.expected_etag is not None and current_etag != request_data.expected_etag:
+            raise HTTPException(status_code=409, detail="ETag mismatch")
+        
+        # 删除匹配的chunk
+        chunk_to_remove = request_data.chunk_to_remove
+        target_name = chunk_to_remove.get("name")
+        target_file_name = chunk_to_remove.get("file_name")
+        
+        filtered_chunks = []
+        for chunk in current_manifest.get("chunks", []):
+            chunk_name = chunk.get("name", "")
+            chunk_file_name = chunk.get("file_name", "")
+            
+            # 如果匹配则跳过（删除）
+            if (target_name and chunk_name == target_name) or \
+               (target_file_name and chunk_file_name == target_file_name):
+                continue
+            filtered_chunks.append(chunk)
+        
+        # 更新manifest
+        current_manifest["chunks"] = filtered_chunks
+        current_manifest["updated_at"] = datetime.utcnow().isoformat()
+        
+        # 保存更新后的manifest
+        updated_content = json.dumps(current_manifest, indent=2).encode('utf-8')
+        success = storage_adapter.save_file(
+            key=manifest_key,
+            file_data=updated_content,
+            content_type="application/json",
+            match_etag=current_etag
+        )
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to save manifest")
+        
+        # 获取新的ETag
+        _, _, new_etag = storage_adapter.get_file_with_metadata(manifest_key)
+        
+        return ManifestRemoveChunkResponse(success=True, etag=new_etag, message="Chunk删除成功")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
