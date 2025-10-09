@@ -1,0 +1,63 @@
+name: Batch Back-merge (tmp-main → tmp-conv)
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # daily 02:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  batch-backmerge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect non-critical changes since last PR
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BACKMERGE_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            // heuristic: always create batch PR; paths filtering occurs in immediate workflow
+            core.setOutput('should_create','true');
+
+      - name: Create/ensure batch PR (draft)
+        if: steps.detect.outputs.should_create == 'true'
+        id: ensure
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BACKMERGE_TOKEN }}
+          script: |
+            const base = 'tmp-conv';
+            const head = 'tmp-main';
+            const { owner, repo } = context.repo;
+            const headRef = `${owner}:${head}`;
+            const title = `chore(batch-back-merge): ${head} → ${base}`;
+            const body = `Scheduled batch back-merge for non-critical changes.`;
+            const prs = await github.rest.pulls.list({ owner, repo, base, head: headRef, state: 'open' });
+            if (prs.data && prs.data.length > 0) {
+              core.setOutput('pr_number', prs.data[0].number.toString());
+              core.setOutput('pr_url', prs.data[0].html_url);
+            } else {
+              const pr = await github.rest.pulls.create({ owner, repo, base, head, title, body, draft: true });
+              core.setOutput('pr_number', pr.data.number.toString());
+              core.setOutput('pr_url', pr.data.html_url);
+            }
+
+      - name: Label PR
+        if: steps.ensure.outputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.BACKMERGE_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.issues.addLabels({ owner, repo, issue_number: Number(process.env.PR_NUMBER), labels: ['back-merge','chore'] });
+        env:
+          PR_NUMBER: ${{ steps.ensure.outputs.pr_number }}
+
