@@ -37,82 +37,63 @@ jobs:
         if: steps.changes.outputs.critical != 'true'
         run: echo "No critical changes; skipping immediate back-merge." && exit 0
 
-      - name: Ensure upstream checks are green
-        id: checks
-        uses: actions/github-script@v7
+      - name: Wait required check (optional)
+        id: wait
+        uses: lewagon/wait-on-check-action@v1
+        continue-on-error: true
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            try {
-              const { owner, repo } = context.repo;
-              const sha = context.sha;
-              const res = await github.rest.checks.listForRef({ owner, repo, ref: sha });
-              const required = res.data.check_runs.filter(r => r.app && r.app.slug !== 'dependabot');
-              const failed = required.filter(r => ['failure','timed_out','cancelled','action_required'].includes(r.conclusion));
-              if (failed.length > 0) {
-                core.setOutput('all_green','false');
-              } else {
-                const pending = required.filter(r => !r.conclusion);
-                core.setOutput('all_green', pending.length === 0 ? 'true' : 'false');
-              }
-            } catch (err) {
-              core.warning(`checks.listForRef failed; treating as not green: ${err}`);
-              core.setOutput('all_green','false');
-            }
+          ref: ${{ github.sha }}
+          check-name: Build and Test Check
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          wait-interval: 10
+          allowed-conclusions: success
+          timeout: 900
 
-      - name: Create draft PR (or ensure exists)
-        if: steps.checks.outputs.all_green == 'true'
-        id: ensure
-        uses: actions/github-script@v7
+      - name: Find existing PR
+        id: find
+        uses: peter-evans/find-pull-request@v3
         with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const base = 'tmp-qubits';
-            const head = 'tmp-conv';
-            const { owner, repo } = context.repo;
-            const headRef = `${owner}:${head}`;
-            const title = `chore(back-merge): ${head} → ${base}`;
-            const body = `Auto back-merge PR (critical).\n\n- Source: \`${context.sha}\``;
-            const prs = await github.rest.pulls.list({ owner, repo, base, head: headRef, state: 'open' });
-            if (prs.data && prs.data.length > 0) {
-              core.setOutput('pr_number', prs.data[0].number.toString());
-              core.setOutput('pr_url', prs.data[0].html_url);
-            } else {
-              const pr = await github.rest.pulls.create({ owner, repo, base, head, title, body, draft: true });
-              core.setOutput('pr_number', pr.data.number.toString());
-              core.setOutput('pr_url', pr.data.html_url);
-            }
+          base: tmp-qubits
+          head: tmp-conv
+          state: open
 
-      - name: Label PR
-        if: steps.ensure.outputs.pr_number != ''
-        uses: actions/github-script@v7
+      - name: Create PR if missing (draft)
+        if: steps.find.outputs.pull-request-number == ''
+        uses: repo-sync/pull-request@v2
         with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            await github.rest.issues.addLabels({ owner, repo, issue_number: Number(process.env.PR_NUMBER), labels: ['back-merge','chore'] });
-        env:
-          PR_NUMBER: ${{ steps.ensure.outputs.pr_number }}
+          source_branch: tmp-conv
+          destination_branch: tmp-qubits
+          pr_title: "chore(back-merge): tmp-conv → tmp-qubits"
+          pr_body: |
+            Auto back-merge PR for critical changes.
 
-      - name: If checks not green, open draft + do-not-merge
-        if: steps.checks.outputs.all_green != 'true'
-        uses: actions/github-script@v7
+            - Source: `${{ github.sha }}`
+            - Trigger: push to `tmp-conv`
+          pr_draft: true
+          pr_label: "back-merge,chore"
+          github_token: ${{ secrets.BACKMERGE_TOKEN }}
+
+      - name: Refresh PR number
+        id: find2
+        uses: peter-evans/find-pull-request@v3
         with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const base = 'tmp-qubits';
-            const head = 'tmp-conv';
-            const { owner, repo } = context.repo;
-            const headRef = `${owner}:${head}`;
-            const title = `chore(back-merge): ${head} → ${base}`;
-            const body = `Auto back-merge PR (critical) - upstream checks not green.\n\n- Source: \`${context.sha}\``;
-            const prs = await github.rest.pulls.list({ owner, repo, base, head: headRef, state: 'open' });
-            let number = null; let url = null;
-            if (prs.data && prs.data.length > 0) {
-              number = prs.data[0].number; url = prs.data[0].html_url;
-            } else {
-              const pr = await github.rest.pulls.create({ owner, repo, base, head, title, body, draft: true });
-              number = pr.data.number; url = pr.data.html_url;
-            }
-            await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: ['back-merge','chore','do-not-merge'] });
+          base: tmp-qubits
+          head: tmp-conv
+          state: open
+
+      - name: Add do-not-merge if checks not green
+        if: steps.wait.outcome != 'success' && steps.find2.outputs.pull-request-number != ''
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          number: ${{ steps.find2.outputs.pull-request-number }}
+          labels: do-not-merge
+          github_token: ${{ secrets.BACKMERGE_TOKEN }}
+
+      - name: Remove do-not-merge if checks green
+        if: steps.wait.outcome == 'success' && steps.find2.outputs.pull-request-number != ''
+        uses: actions-ecosystem/action-remove-labels@v1
+        with:
+          number: ${{ steps.find2.outputs.pull-request-number }}
+          labels: do-not-merge
+          github_token: ${{ secrets.BACKMERGE_TOKEN }}
 
