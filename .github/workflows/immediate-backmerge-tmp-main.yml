@@ -39,7 +39,7 @@ jobs:
 
       - name: Wait required check (optional)
         id: wait
-        uses: lewagon/wait-on-check-action@v1
+        uses: lewagon/wait-on-check-action@v1.3.3
         continue-on-error: true
         with:
           ref: ${{ github.sha }}
