@@ -37,16 +37,7 @@ jobs:
         if: steps.changes.outputs.critical != 'true'
         run: echo "No critical changes; skipping immediate back-merge." && exit 0
 
-      - name: Find existing PR
-        id: find
-        uses: peter-evans/find-pull-request@v3
-        with:
-          base: tmp-conv
-          head: tmp-main
-          state: open
-
-      - name: Create PR if missing (draft)
-        if: steps.find.outputs.pull-request-number == ''
+      - name: Create/Update PR (draft, idempotent)
         uses: repo-sync/pull-request@v2
         with:
           source_branch: tmp-main
@@ -61,19 +52,5 @@ jobs:
           pr_label: "back-merge,chore"
           github_token: ${{ secrets.BACKMERGE_TOKEN }}
 
-      - name: Refresh PR number
-        id: find2
-        uses: peter-evans/find-pull-request@v3
-        with:
-          base: tmp-conv
-          head: tmp-main
-          state: open
-
-      - name: Ensure base labels
-        if: steps.find2.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-add-labels@v1
-        with:
-          number: ${{ steps.find2.outputs.pull-request-number }}
-          labels: back-merge,chore
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
+      # Labels are set via pr_label above; no PR number lookup required
 
