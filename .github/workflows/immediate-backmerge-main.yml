@@ -1,8 +1,8 @@
-name: Immediate Back-merge (main → convergency)
+name: Immediate Back-merge (prod)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, convergency ]
   workflow_dispatch:
 
 permissions:
@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: immediate-backmerge-main
+  group: immediate-backmerge-prod
   cancel-in-progress: false
 
 jobs:
@@ -19,6 +19,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+
+      - name: Resolve route (prod only; skip tmp-*)
+        id: route
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const src = context.ref.replace('refs/heads/','');
+            if (src.startsWith('tmp-')) { core.setOutput('dest',''); return; }
+            const map = { 'main':'convergency', 'convergency':'qubits' };
+            core.setOutput('src', src);
+            core.setOutput('dest', map[src] || '');
+
+      - name: Skip if no route
+        if: steps.route.outputs.dest == ''
+        run: echo "No production route (or tmp-*), skipping." && exit 0
 
       - name: Path filter (critical)
         id: changes
@@ -33,56 +48,20 @@ jobs:
 
       - name: Skip if not critical
         if: steps.changes.outputs.critical != 'true'
-        run: echo "No critical changes; skip back-merge." && exit 0
+        run: echo "Non-critical change, skip immediate back-merge." && exit 0
 
-      - name: Wait required check (optional)
-        id: wait
-        uses: lewagon/wait-on-check-action@v1.3.3
-        continue-on-error: true
-        with:
-          ref: ${{ github.sha }}
-          check-name: Build and Test Check
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          allowed-conclusions: success
-          timeout: 900
-
-      - name: Create PR (draft, idempotent)
+      - name: Create/Update PR (draft, idempotent)
         uses: repo-sync/pull-request@v2
         with:
-          source_branch: main
-          destination_branch: convergency
-          pr_title: "chore(back-merge): main → convergency"
+          source_branch: ${{ steps.route.outputs.src }}
+          destination_branch: ${{ steps.route.outputs.dest }}
+          pr_title: "chore(back-merge): ${{ steps.route.outputs.src }} → ${{ steps.route.outputs.dest }}"
           pr_body: |
-            Auto back-merge PR for critical changes.
+            Auto back-merge PR for critical changes (prod).
 
             - Source: `${{ github.sha }}`
-            - Trigger: push to `main`
+            - Trigger: push to `${{ steps.route.outputs.src }}`
           pr_draft: true
           pr_label: "back-merge,chore"
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
-
-      - name: Find PR number
-        id: find
-        uses: peter-evans/find-pull-request@v3
-        with:
-          base: convergency
-          head: main
-          state: open
-
-      - name: Add do-not-merge if checks not green
-        if: steps.wait.outcome != 'success' && steps.find.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-add-labels@v1
-        with:
-          number: ${{ steps.find.outputs.pull-request-number }}
-          labels: do-not-merge
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
-
-      - name: Remove do-not-merge if checks green
-        if: steps.wait.outcome == 'success' && steps.find.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-remove-labels@v1
-        with:
-          number: ${{ steps.find.outputs.pull-request-number }}
-          labels: do-not-merge
           github_token: ${{ secrets.BACKMERGE_TOKEN }}
 

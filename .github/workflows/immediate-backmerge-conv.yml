@@ -1,88 +1,62 @@
-name: Immediate Back-merge (convergency → qubits)
+name: Batch Back-merge (prod)
 
 on:
-  push:
-    branches: [ convergency ]
+  schedule:
+    - cron: '0 2 * * *'
   workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: write
 
-concurrency:
-  group: immediate-backmerge-conv
-  cancel-in-progress: false
-
 jobs:
-  backmerge:
+  batch:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
 
-      - name: Path filter (critical)
+      - name: Resolve route (prod only; skip tmp-*)
+        id: route
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const src = context.ref.replace('refs/heads/','');
+            if (src.startsWith('tmp-')) { core.setOutput('dest',''); return; }
+            const map = { 'main':'convergency', 'convergency':'qubits' };
+            // schedule runs on default branch only; for safety handle both
+            const current = src || (process.env.GITHUB_REF_NAME || '');
+            const dest = map[current] || '';
+            core.setOutput('src', current);
+            core.setOutput('dest', dest);
+
+      - name: Skip if no route
+        if: steps.route.outputs.dest == ''
+        run: echo "No production route (or tmp-*), skipping." && exit 0
+
+      - name: Path filter (non-critical)
         id: changes
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            critical:
-              - 'PuppyEngine/**'
-              - 'PuppyStorage/**'
-              - '!**/*.md'
-              - '!.github/**'
+            non_critical:
+              - 'docs/**'
+              - '.github/**'
+              - '**/*.md'
 
-      - name: Skip if not critical
-        if: steps.changes.outputs.critical != 'true'
-        run: echo "No critical changes; skip back-merge." && exit 0
+      - name: Skip if nothing to sync
+        if: steps.changes.outputs.non_critical != 'true'
+        run: echo "No non-critical changes to batch-sync." && exit 0
 
-      - name: Wait required check (optional)
-        id: wait
-        uses: lewagon/wait-on-check-action@v1.3.3
-        continue-on-error: true
-        with:
-          ref: ${{ github.sha }}
-          check-name: Build and Test Check
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          allowed-conclusions: success
-          timeout: 900
-
-      - name: Create PR (draft, idempotent)
+      - name: Create/Update batch PR (draft)
         uses: repo-sync/pull-request@v2
         with:
-          source_branch: convergency
-          destination_branch: qubits
-          pr_title: "chore(back-merge): convergency → qubits"
+          source_branch: ${{ steps.route.outputs.src }}
+          destination_branch: ${{ steps.route.outputs.dest }}
+          pr_title: "chore(batch-back-merge): ${{ steps.route.outputs.src }} → ${{ steps.route.outputs.dest }}"
           pr_body: |
-            Auto back-merge PR for critical changes.
-
-            - Source: `${{ github.sha }}`
-            - Trigger: push to `convergency`
+            Scheduled batch back-merge for non-critical changes (prod).
           pr_draft: true
           pr_label: "back-merge,chore"
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
-
-      - name: Find PR number
-        id: find
-        uses: peter-evans/find-pull-request@v3
-        with:
-          base: qubits
-          head: convergency
-          state: open
-
-      - name: Add do-not-merge if checks not green
-        if: steps.wait.outcome != 'success' && steps.find.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-add-labels@v1
-        with:
-          number: ${{ steps.find.outputs.pull-request-number }}
-          labels: do-not-merge
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
-
-      - name: Remove do-not-merge if checks green
-        if: steps.wait.outcome == 'success' && steps.find.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-remove-labels@v1
-        with:
-          number: ${{ steps.find.outputs.pull-request-number }}
-          labels: do-not-merge
           github_token: ${{ secrets.BACKMERGE_TOKEN }}
 
