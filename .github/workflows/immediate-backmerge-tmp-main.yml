@@ -37,77 +37,43 @@ jobs:
         if: steps.changes.outputs.critical != 'true'
         run: echo "No critical changes; skipping immediate back-merge." && exit 0
 
-      - name: Ensure upstream checks are green
-        id: checks
-        uses: actions/github-script@v7
+      - name: Find existing PR
+        id: find
+        uses: peter-evans/find-pull-request@v3
         with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            const sha = context.sha;
-            const res = await github.rest.checks.listForRef({ owner, repo, ref: sha });
-            const required = res.data.check_runs.filter(r => r.app && r.app.slug !== 'dependabot');
-            const failed = required.filter(r => ['failure','timed_out','cancelled','action_required'].includes(r.conclusion));
-            if (failed.length > 0) {
-              core.setOutput('all_green','false');
-            } else {
-              const pending = required.filter(r => !r.conclusion);
-              core.setOutput('all_green', pending.length === 0 ? 'true' : 'false');
-            }
+          base: tmp-conv
+          head: tmp-main
+          state: open
 
-      - name: Create draft PR (or ensure exists)
-        if: steps.checks.outputs.all_green == 'true'
-        id: ensure
-        uses: actions/github-script@v7
+      - name: Create PR if missing (draft)
+        if: steps.find.outputs.pull-request-number == ''
+        uses: repo-sync/pull-request@v2
         with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const base = 'tmp-conv';
-            const head = 'tmp-main';
-            const { owner, repo } = context.repo;
-            const headRef = `${owner}:${head}`;
-            const title = `chore(back-merge): ${head} → ${base}`;
-            const body = `Auto back-merge PR (critical).\n\n- Source: \`${context.sha}\``;
-            const prs = await github.rest.pulls.list({ owner, repo, base, head: headRef, state: 'open' });
-            if (prs.data && prs.data.length > 0) {
-              core.setOutput('pr_number', prs.data[0].number.toString());
-              core.setOutput('pr_url', prs.data[0].html_url);
-            } else {
-              const pr = await github.rest.pulls.create({ owner, repo, base, head, title, body, draft: true });
-              core.setOutput('pr_number', pr.data.number.toString());
-              core.setOutput('pr_url', pr.data.html_url);
-            }
+          source_branch: tmp-main
+          destination_branch: tmp-conv
+          pr_title: "chore(back-merge): tmp-main → tmp-conv"
+          pr_body: |
+            Auto back-merge PR for critical changes.
 
-      - name: Label PR
-        if: steps.ensure.outputs.pr_number != ''
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const { owner, repo } = context.repo;
-            await github.rest.issues.addLabels({ owner, repo, issue_number: Number(process.env.PR_NUMBER), labels: ['back-merge','chore'] });
-        env:
-          PR_NUMBER: ${{ steps.ensure.outputs.pr_number }}
+            - Source: `${{ github.sha }}`
+            - Trigger: push to `tmp-main`
+          pr_draft: true
+          pr_label: "back-merge,chore"
+          github_token: ${{ secrets.BACKMERGE_TOKEN }}
 
-      - name: If checks not green, open draft + do-not-merge
-        if: steps.checks.outputs.all_green != 'true'
-        uses: actions/github-script@v7
+      - name: Refresh PR number
+        id: find2
+        uses: peter-evans/find-pull-request@v3
         with:
-          github-token: ${{ secrets.BACKMERGE_TOKEN }}
-          script: |
-            const base = 'tmp-conv';
-            const head = 'tmp-main';
-            const { owner, repo } = context.repo;
-            const headRef = `${owner}:${head}`;
-            const title = `chore(back-merge): ${head} → ${base}`;
-            const body = `Auto back-merge PR (critical) - upstream checks not green.\n\n- Source: \`${context.sha}\``;
-            const prs = await github.rest.pulls.list({ owner, repo, base, head: headRef, state: 'open' });
-            let number = null; let url = null;
-            if (prs.data && prs.data.length > 0) {
-              number = prs.data[0].number; url = prs.data[0].html_url;
-            } else {
-              const pr = await github.rest.pulls.create({ owner, repo, base, head, title, body, draft: true });
-              number = pr.data.number; url = pr.data.html_url;
-            }
-            await github.rest.issues.addLabels({ owner, repo, issue_number: number, labels: ['back-merge','chore','do-not-merge'] });
+          base: tmp-conv
+          head: tmp-main
+          state: open
+
+      - name: Ensure base labels
+        if: steps.find2.outputs.pull-request-number != ''
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          number: ${{ steps.find2.outputs.pull-request-number }}
+          labels: back-merge,chore
+          github_token: ${{ secrets.BACKMERGE_TOKEN }}
 
