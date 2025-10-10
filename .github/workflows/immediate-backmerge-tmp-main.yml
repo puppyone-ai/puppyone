@@ -37,28 +37,7 @@ jobs:
         if: steps.changes.outputs.critical != 'true'
         run: echo "No critical changes; skipping immediate back-merge." && exit 0
 
-      - name: Wait required check (optional)
-        id: wait
-        uses: lewagon/wait-on-check-action@v1.3.3
-        continue-on-error: true
-        with:
-          ref: ${{ github.sha }}
-          check-name: Build and Test Check
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 10
-          allowed-conclusions: success
-          timeout: 900
-
-      - name: Find existing PR
-        id: find
-        uses: peter-evans/find-pull-request@v3
-        with:
-          base: tmp-conv
-          head: tmp-main
-          state: open
-
-      - name: Create PR if missing (draft)
-        if: steps.find.outputs.pull-request-number == ''
+      - name: Create/Update PR (draft, idempotent)
         uses: repo-sync/pull-request@v2
         with:
           source_branch: tmp-main
@@ -73,27 +52,5 @@ jobs:
           pr_label: "back-merge,chore"
           github_token: ${{ secrets.BACKMERGE_TOKEN }}
 
-      - name: Refresh PR number
-        id: find2
-        uses: peter-evans/find-pull-request@v3
-        with:
-          base: tmp-conv
-          head: tmp-main
-          state: open
-
-      - name: Add do-not-merge if checks not green
-        if: steps.wait.outcome != 'success' && steps.find2.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-add-labels@v1
-        with:
-          number: ${{ steps.find2.outputs.pull-request-number }}
-          labels: do-not-merge
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
-
-      - name: Remove do-not-merge if checks green
-        if: steps.wait.outcome == 'success' && steps.find2.outputs.pull-request-number != ''
-        uses: actions-ecosystem/action-remove-labels@v1
-        with:
-          number: ${{ steps.find2.outputs.pull-request-number }}
-          labels: do-not-merge
-          github_token: ${{ secrets.BACKMERGE_TOKEN }}
+      # Labels are set via pr_label above; no PR number lookup required
 
