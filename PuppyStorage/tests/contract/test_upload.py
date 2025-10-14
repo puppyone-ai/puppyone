@@ -213,6 +213,8 @@ async def test_get_upload_url_forbidden_when_strict_auth(api_client, monkeypatch
 @pytest.mark.contract
 @pytest.mark.asyncio
 async def test_abort_upload_success(api_client):
+    # Ensure relaxed local auth for this case
+    os.environ["STRICT_LOCAL_AUTH"] = "false"
     headers = {"Authorization": "Bearer t"}
     ir = await api_client.post(
         "/upload/init",
