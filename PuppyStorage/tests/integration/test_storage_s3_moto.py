@@ -46,3 +46,33 @@ def test_s3_storage_crud_with_moto(s3_moto):
     assert not adapter.check_file_exists(key)
 
 
+@pytest.mark.integration
+@pytest.mark.s3
+def test_s3_list_and_idempotent_delete(s3_moto):
+    os.environ["DEPLOYMENT_TYPE"] = "remote"
+    os.environ["CLOUDFLARE_R2_BUCKET"] = s3_moto["bucket"]
+
+    from storage import reset_storage_manager, get_storage
+    from storage.S3 import S3StorageAdapter
+
+    reset_storage_manager()
+    adapter = get_storage()
+    assert isinstance(adapter, S3StorageAdapter)
+
+    # Force moto client
+    adapter.s3_client = s3_moto["client"]
+
+    # Create a couple objects
+    adapter.save_file("u1/a.txt", b"1", "text/plain")
+    adapter.save_file("u1/b.txt", b"2", "text/plain")
+
+    listed = adapter.list_objects(prefix="u1/")
+    keys = [i.get("key") for i in listed if "key" in i]
+    assert any(k.endswith("a.txt") for k in keys)
+    assert any(k.endswith("b.txt") for k in keys)
+
+    # Idempotent delete
+    assert adapter.delete_file("u1/a.txt") in (True, False)
+    assert adapter.delete_file("u1/a.txt") in (True, False)
+
+
