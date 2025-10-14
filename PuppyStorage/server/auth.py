@@ -140,7 +140,7 @@ class RemoteAuthProvider:
             elif response.status_code == 401:
                 raise AuthenticationError("用户token验证失败")
             elif response.status_code == 403:
-                raise AuthenticationError("服务认证失败，请检查SERVICE_KEY配置")
+                raise AuthenticationError("服务认证失败，请检查SERVICE_KEY配置", status_code=403)
             else:
                 log_error(f"用户系统返回错误状态: {response.status_code}: {response.text}")
                 raise AuthenticationError("用户服务错误", status_code=503)
@@ -261,6 +261,9 @@ async def verify_user_and_resource_access(
         
         return user
         
+    except HTTPException:
+        # 保留由业务逻辑明确抛出的HTTP错误状态
+        raise
     except AuthenticationError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     except Exception as e:
