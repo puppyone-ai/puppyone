@@ -76,3 +76,30 @@ def test_s3_list_and_idempotent_delete(s3_moto):
     assert adapter.delete_file("u1/a.txt") in (True, False)
 
 
+@pytest.mark.integration
+@pytest.mark.s3
+def test_s3_error_paths_and_largeish(s3_moto):
+    os.environ["DEPLOYMENT_TYPE"] = "remote"
+    os.environ["CLOUDFLARE_R2_BUCKET"] = s3_moto["bucket"]
+
+    from storage import reset_storage_manager, get_storage
+    from storage.S3 import S3StorageAdapter
+
+    reset_storage_manager()
+    adapter = get_storage()
+    assert isinstance(adapter, S3StorageAdapter)
+
+    adapter.s3_client = s3_moto["client"]
+
+    # Large-ish file (~1MB) to speed up CI
+    key = "u1/large.bin"
+    payload = b"B" * (1024 * 1024)
+    assert adapter.save_file(key, payload, "application/octet-stream")
+    data, ctype = adapter.get_file(key)
+    assert data == payload and ctype == "application/octet-stream"
+
+    # Nonexistent get returns (None, None)
+    d2, t2 = adapter.get_file("u1/not-exist.bin")
+    assert d2 is None and t2 is None
+
+

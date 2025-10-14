@@ -80,3 +80,28 @@ def test_local_list_with_delimiter_and_idempotent_delete(tmp_storage_dir):
     assert data is None and ctype is None
 
 
+@pytest.mark.integration
+@pytest.mark.local
+def test_local_largeish_file_and_error_paths(tmp_storage_dir):
+    os.environ["DEPLOYMENT_TYPE"] = "local"
+    os.environ["LOCAL_STORAGE_PATH"] = str(tmp_storage_dir)
+
+    from storage import reset_storage_manager, get_storage
+
+    reset_storage_manager()
+    adapter = get_storage()
+
+    # Large-ish payload (~2MB)
+    key = "u1/large/test.bin"
+    payload = b"A" * (2 * 1024 * 1024)
+    assert adapter.save_file(key, payload, "application/octet-stream")
+    got, ctype = adapter.get_file(key)
+    assert got == payload and ctype == "application/octet-stream"
+
+    # Delete non-existent returns False
+    assert adapter.delete_file("u1/large/not-exist.bin") in (False,)
+
+    # List missing prefix returns empty
+    assert adapter.list_objects(prefix="missing-prefix/") == []
+
+
