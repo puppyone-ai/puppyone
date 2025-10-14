@@ -80,11 +80,12 @@ def s3_moto(test_settings):
     # Ensure app config will choose remote only when we explicitly set it in tests
     # For tests relying on moto S3, set DEPLOYMENT_TYPE=remote at test level or here.
 
-    # Provide dummy credentials for boto3 client creation
-    os.environ.setdefault("CLOUDFLARE_R2_ACCESS_KEY_ID", "test")
-    os.environ.setdefault("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "test")
-    # Leave endpoint unset so boto3 uses default; moto intercepts
-    os.environ.setdefault("CLOUDFLARE_R2_BUCKET", bucket_name)
+    # Provide credentials that satisfy potential validators (length >= 32)
+    os.environ["CLOUDFLARE_R2_ACCESS_KEY_ID"] = "A" * 32
+    os.environ["CLOUDFLARE_R2_SECRET_ACCESS_KEY"] = "B" * 32
+    # Ensure endpoint is NOT set so moto intercepts default AWS endpoint
+    os.environ.pop("CLOUDFLARE_R2_ENDPOINT", None)
+    os.environ["CLOUDFLARE_R2_BUCKET"] = bucket_name
     os.environ.setdefault("AWS_DEFAULT_REGION", "us-east-1")
 
     with mock_aws():
