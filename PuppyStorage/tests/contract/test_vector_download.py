@@ -32,14 +32,17 @@ async def test_download_url_happy_and_errors(api_client):
     from urllib.parse import urlparse
     p = urlparse(gurl.json()["upload_url"])  # local path in dev
     chunk_path = p.path
-    await api_client.put(chunk_path, content=b"x")
+    rput = await api_client.put(chunk_path, content=b"x")
+    assert rput.status_code == 200
+    etag = rput.json().get("etag")
+    assert etag
     cr = await api_client.post(
         "/upload/complete",
-        json={"key": key, "upload_id": ir.json()["upload_id"], "parts": [{"ETag": "ignore", "PartNumber": 1}]},
+        json={"key": key, "upload_id": ir.json()["upload_id"], "parts": [{"ETag": etag, "PartNumber": 1}]},
         headers=headers,
     )
-    # local complete validates part existence; 200 on success
-    assert cr.status_code in (200, 500)
+    # local complete validates part existence; should succeed
+    assert cr.status_code == 200
 
     dr = await api_client.get("/download/url", headers=headers, params={"key": key})
     # local backend returns /download/stream url; S3 would return presigned url
@@ -52,7 +55,7 @@ async def test_download_url_happy_and_errors(api_client):
         headers=headers,
         params={"key": "u1/blkX/20200101-000000-aaaa/file.txt"},
     )
-    # On local: FileNotFoundError -> 404; On S3: may 200 if bucket exists; acceptable to be 404 or 500 per adapter
+    # On local: FileNotFoundError -> 404; tolerate adapter differences
     assert dr2.status_code in (404, 500)
 
 
