@@ -1,6 +1,10 @@
 name: e2e
 
 on:
+  push:
+    branches:
+      - 'feature/testing-scaffold'
+      - 'feature/**'  # match all feature branches for testing
   workflow_dispatch: {}
   schedule:
     - cron: "0 6 * * *"  # daily at 06:00 UTC
