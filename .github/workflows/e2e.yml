@@ -25,7 +25,7 @@ jobs:
       - name: Install test runner deps (host)
         run: |
           python -m pip install --upgrade pip
-          pip install pytest requests
+          pip install -r PuppyStorage/requirements.txt
 
       - name: Compose up (pgvector + minio + wiremock + storage)
         run: docker compose -f docker-compose.e2e.yml up -d --build
@@ -43,7 +43,7 @@ jobs:
       - name: Run E2E tests
         env:
           PUPPYSTORAGE_URL: http://localhost:8002
-        run: pytest -q -m "e2e"
+        run: pytest -q -m "e2e" PuppyStorage/tests/e2e/
 
       - name: Dump compose logs on failure
         if: failure()
