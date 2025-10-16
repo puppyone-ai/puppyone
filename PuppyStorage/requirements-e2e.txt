@@ -1,0 +1,28 @@
+# E2E minimal dependencies - excludes heavy ML libraries (torch, transformers, sentence-transformers)
+# for faster Docker builds and reduced disk usage in CI
+
+python-dotenv==1.1.0
+PyYAML==6.0.2
+python-multipart==0.0.20
+
+# Vector Database - only PGV (Postgres + pgvector)
+vecs==0.4.5
+psycopg2-binary==2.9.10
+pgvector==0.3.6
+
+# Server
+boto3==1.39.4
+fastapi>=0.115,<0.116
+axiom_py==0.9.0
+hypercorn==0.17.3
+
+# Test
+pytest==8.4.1
+httpx==0.28.1
+pytest-asyncio==0.23.8
+pytest-cov==5.0.0
+pytest-xdist==3.6.1
+hypothesis==6.112.1
+moto[s3]==5.0.19
+jsonschema==4.23.0
+

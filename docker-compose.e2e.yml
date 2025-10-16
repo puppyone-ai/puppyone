@@ -44,6 +44,8 @@ services:
     build:
       context: ./PuppyStorage
       dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: requirements-e2e.txt
     container_name: e2e_puppy_storage
     environment:
       - DEPLOYMENT_TYPE=remote
