@@ -6,36 +6,36 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import os
 import logging
 from vector.vdb.vdb_base import VectorDatabase
-# from Objs.Vector.Vdb.zilliz_db_client import ZillizVectorDatabase
-# from Objs.Vector.Vdb.qdrant_db_client import QdrantVectorDatabase
-# from Objs.Vector.Vdb.pinecone_db_client import PineconeVectorDatabase
-# from Objs.Vector.Vdb.weaviate_db_client import WeaviateVectorDatabase
-from vector.vdb.pgv import PostgresVectorDatabase
-from vector.vdb.chroma import ChromaVectorDatabase
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class VectorDatabaseFactory:
-    _db_mapping = {
-        # "zilliz": ZillizVectorDatabase,  # wrenching
-        # "qdrant": QdrantVectorDatabase,  # wrenching
-        # "pinecone": PineconeVectorDatabase,  # wrenching
-        # "weaviate": WeaviateVectorDatabase,  # wrenching
-        "pgvector": PostgresVectorDatabase,  # live
-        "chroma": ChromaVectorDatabase  # local
-    }
+    # Lazy import to avoid loading all vector DB dependencies at startup
+    # This allows the service to start with minimal requirements (e.g., E2E tests)
+    
+    @classmethod
+    def _lazy_import_db(cls, db_type: str):
+        """Lazy import vector database implementations"""
+        if db_type == "pgvector":
+            from vector.vdb.pgv import PostgresVectorDatabase
+            return PostgresVectorDatabase
+        elif db_type == "chroma":
+            from vector.vdb.chroma import ChromaVectorDatabase
+            return ChromaVectorDatabase
+        else:
+            return None
 
     @classmethod
     def get_database(
         cls,
         db_type: str
     ) -> VectorDatabase:
-        db_client = cls._db_mapping.get(db_type.lower())
-        if db_client is None:
+        db_client_class = cls._lazy_import_db(db_type.lower())
+        if db_client_class is None:
             raise ValueError(f"Unsupported Vector Database Type: {db_type}")
-        return db_client()
+        return db_client_class()
 
 
 if __name__ == "__main__":
