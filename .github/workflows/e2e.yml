@@ -32,12 +32,21 @@ jobs:
 
       - name: Wait for storage health
         run: |
+          sleep 5
+          echo "=== Checking storage container status ==="
+          docker compose -f docker-compose.e2e.yml ps
+          echo "=== Storage container logs (first 50 lines) ==="
+          docker compose -f docker-compose.e2e.yml logs storage | head -50 || true
+          
           for i in {1..90}; do
             curl -sf http://localhost:8002/health && exit 0 || true
             sleep 2
           done
           echo "Storage did not become healthy in time" >&2
+          echo "=== Final container status ==="
           docker compose -f docker-compose.e2e.yml ps
+          echo "=== Full storage logs ==="
+          docker compose -f docker-compose.e2e.yml logs storage
           exit 1
 
       - name: Run E2E tests
