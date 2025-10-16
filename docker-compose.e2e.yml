@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: ankane/pgvector:latest
+    container_name: e2e_postgres
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
+
+  minio:
+    image: minio/minio:latest
+    container_name: e2e_minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: e2e_minio_setup
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh","-c"]
+    command: >
+      "mc alias set local http://minio:9000 minioadmin minioadmin &&
+       mc mb -p local/puppy-e2e || true &&
+       mc anonymous set download local/puppy-e2e || true &&
+       sleep 1"
+
+  wiremock:
+    image: wiremock/wiremock:3.6.0
+    container_name: e2e_wiremock
+    ports:
+      - "8088:8080"
+    volumes:
+      - ./PuppyStorage/tests/e2e/wiremock:/home/wiremock
+
+  storage:
+    build:
+      context: ./PuppyStorage
+      dockerfile: Dockerfile
+    container_name: e2e_puppy_storage
+    environment:
+      - DEPLOYMENT_TYPE=remote
+      - USER_SYSTEM_URL=http://wiremock:8080
+      - SERVICE_KEY=dummy
+      - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
+      - CLOUDFLARE_R2_ACCESS_KEY_ID=minioadmin
+      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minioadmin
+      - CLOUDFLARE_R2_BUCKET=puppy-e2e
+      - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+    ports:
+      - "8002:8002"
+    depends_on:
+      - postgres
+      - minio
+      - minio-setup
+      - wiremock
+
+
