@@ -27,10 +27,12 @@ services:
       - minio
     entrypoint: ["/bin/sh","-c"]
     command: >
-      "mc alias set local http://minio:9000 minioadmin minioadmin &&
+      "until mc alias set local http://minio:9000 minioadmin minioadmin; do
+         echo 'Waiting for MinIO...'; sleep 2;
+       done &&
        mc mb -p local/puppy-e2e || true &&
        mc anonymous set download local/puppy-e2e || true &&
-       sleep 1"
+       echo 'MinIO bucket puppy-e2e created successfully'"
 
   wiremock:
     image: wiremock/wiremock:3.6.0

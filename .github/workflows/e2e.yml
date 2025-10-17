@@ -52,7 +52,8 @@ jobs:
       - name: Run E2E tests
         env:
           PUPPYSTORAGE_URL: http://localhost:8002
-        run: pytest -q -m "e2e" PuppyStorage/tests/e2e/
+        working-directory: ./PuppyStorage
+        run: pytest -q -m "e2e"
 
       - name: Dump compose logs on failure
         if: failure()
