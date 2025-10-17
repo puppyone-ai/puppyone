@@ -5,9 +5,23 @@ import requests
 
 
 @pytest.mark.e2e
-def test_happy_path_end_to_end():
-    # Expect docker-compose.e2e.yml to be up
-    base = os.environ.get("PUPPYSTORAGE_URL", "http://localhost:8002")
+@pytest.mark.parametrize(
+    "backend,base_url,description",
+    [
+        ("local", "http://localhost:8002", "FS + Chroma + Local Auth"),
+        ("remote", "http://localhost:8003", "S3 + PGV + Remote Auth"),
+    ],
+    ids=["local-storage", "remote-storage"]
+)
+def test_happy_path_end_to_end(backend, base_url, description):
+    """
+    E2E happy path test for both storage backends:
+    - local: File System + ChromaDB + Local Auth (relaxed)
+    - remote: S3 (MinIO) + PGVector + Remote Auth (Wiremock)
+    """
+    # Override with env var if set, else use parametrized value
+    base = os.environ.get("PUPPYSTORAGE_URL", base_url)
+    print(f"\n🧪 Testing {backend} backend: {description}")
 
     # health
     r = requests.get(f"{base}/health")

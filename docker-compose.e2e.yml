@@ -42,31 +42,64 @@ services:
     volumes:
       - ./PuppyStorage/tests/e2e/wiremock:/home/wiremock
 
-  storage:
+  # Build once, reuse for both storage instances
+  storage-base:
     build:
       context: ./PuppyStorage
       dockerfile: Dockerfile
       args:
         REQUIREMENTS_FILE: requirements-e2e.txt
-    container_name: e2e_puppy_storage
+    image: puppy-storage-e2e:latest
+
+  # Local deployment: FS + Chroma + Local Auth
+  storage-local:
+    image: puppy-storage-e2e:latest
+    container_name: e2e_storage_local
     environment:
       - DEPLOYMENT_TYPE=local
-      - USER_SYSTEM_URL=http://wiremock:8080
-      - SERVICE_KEY=dummy
-      - STORAGE_ROOT=/tmp/puppy_storage_e2e
-      - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - STORAGE_ROOT=/app/storage_data
       - STORAGE_SERVER_URL=http://localhost:8002
-      # S3 config for future S3-specific E2E tests
-      # - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
-      # - CLOUDFLARE_R2_ACCESS_KEY_ID=minioadmin
-      # - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minioadmin
-      # - CLOUDFLARE_R2_BUCKET=puppy-e2e
+      - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
     ports:
       - "8002:8002"
+    volumes:
+      - storage-local-data:/app/storage_data
+    depends_on:
+      - postgres
+      - storage-base
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Remote deployment: S3 + PGV + Remote Auth
+  storage-remote:
+    image: puppy-storage-e2e:latest
+    container_name: e2e_storage_remote
+    environment:
+      - DEPLOYMENT_TYPE=remote
+      - USER_SYSTEM_URL=http://wiremock:8080
+      - SERVICE_KEY=dummy
+      - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
+      - CLOUDFLARE_R2_ACCESS_KEY_ID=minioadmin
+      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minioadmin
+      - CLOUDFLARE_R2_BUCKET=puppy-e2e
+      - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - STORAGE_SERVER_URL=http://localhost:8003
+    ports:
+      - "8003:8002"
     depends_on:
       - postgres
       - minio
       - minio-setup
       - wiremock
+      - storage-base
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  storage-local-data:
 
 

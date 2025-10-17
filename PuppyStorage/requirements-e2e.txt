@@ -5,10 +5,11 @@ python-dotenv==1.1.0
 PyYAML==6.0.2
 python-multipart==0.0.20
 
-# Vector Database - only PGV (Postgres + pgvector)
+# Vector Database - PGV (Postgres + pgvector) and ChromaDB
 vecs==0.4.5
 psycopg2-binary==2.9.10
 pgvector==0.3.6
+chromadb==1.0.15
 
 # Server
 boto3==1.39.4

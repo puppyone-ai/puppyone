@@ -111,7 +111,15 @@ class EmbedRequest(BaseModel):
     set_name: str
     model: str = "text-embedding-ada-002"
     user_id: str = "public"
-    vdb_type: str = "pgvector"
+    vdb_type: str = Field(default="chroma" if is_local_storage else "pgvector")
+    
+    @validator('vdb_type')
+    def validate_vdb_type(cls, v, values):
+        # 重新获取存储信息以确保最新状态
+        current_storage_info = get_storage_info()
+        if current_storage_info.get("type") == "local":
+            return "chroma"
+        return v
 
 class DeleteRequest(BaseModel):
     vdb_type: str
