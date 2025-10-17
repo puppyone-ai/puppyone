@@ -42,17 +42,14 @@ services:
     volumes:
       - ./PuppyStorage/tests/e2e/wiremock:/home/wiremock
 
-  # Build once, reuse for both storage instances
-  storage-base:
+  # Local deployment: FS + Chroma + Local Auth
+  # Build the image once with storage-local, storage-remote will reuse it
+  storage-local:
     build:
       context: ./PuppyStorage
       dockerfile: Dockerfile
       args:
         REQUIREMENTS_FILE: requirements-e2e.txt
-    image: puppy-storage-e2e:latest
-
-  # Local deployment: FS + Chroma + Local Auth
-  storage-local:
     image: puppy-storage-e2e:latest
     container_name: e2e_storage_local
     environment:
