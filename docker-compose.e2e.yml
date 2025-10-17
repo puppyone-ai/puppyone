@@ -50,14 +50,17 @@ services:
         REQUIREMENTS_FILE: requirements-e2e.txt
     container_name: e2e_puppy_storage
     environment:
-      - DEPLOYMENT_TYPE=remote
+      - DEPLOYMENT_TYPE=local
       - USER_SYSTEM_URL=http://wiremock:8080
       - SERVICE_KEY=dummy
-      - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
-      - CLOUDFLARE_R2_ACCESS_KEY_ID=minioadmin
-      - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minioadmin
-      - CLOUDFLARE_R2_BUCKET=puppy-e2e
+      - STORAGE_ROOT=/tmp/puppy_storage_e2e
       - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - STORAGE_SERVER_URL=http://localhost:8002
+      # S3 config for future S3-specific E2E tests
+      # - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
+      # - CLOUDFLARE_R2_ACCESS_KEY_ID=minioadmin
+      # - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minioadmin
+      # - CLOUDFLARE_R2_BUCKET=puppy-e2e
     ports:
       - "8002:8002"
     depends_on:
