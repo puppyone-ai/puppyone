@@ -63,7 +63,6 @@ services:
       - storage-local-data:/app/storage_data
     depends_on:
       - postgres
-      - storage-base
     deploy:
       resources:
         limits:
@@ -90,7 +89,7 @@ services:
       - minio
       - minio-setup
       - wiremock
-      - storage-base
+      - storage-local
     deploy:
       resources:
         limits:
