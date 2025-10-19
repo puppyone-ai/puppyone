@@ -1,0 +1,107 @@
+name: e2e-fast
+
+on:
+  push:
+    branches:
+      - 'feature/testing-scaffold'
+      - 'feature/**'
+  workflow_dispatch: {}
+
+jobs:
+  # 快速检查 - 只验证配置
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose config
+        run: docker compose -f docker-compose.e2e.yml config --quiet
+
+      - name: Lint Python files (quick)
+        run: |
+          pip install --quiet ruff
+          ruff check PuppyStorage/tests/e2e/ --exit-zero || true
+
+  # 完整测试 - 使用缓存加速
+  e2e:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'PuppyStorage/requirements-e2e.txt'
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-e2e-${{ hashFiles('PuppyStorage/requirements-e2e.txt', 'PuppyStorage/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-e2e-
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Install test runner deps (host)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r PuppyStorage/requirements-e2e.txt
+
+      - name: Compose up (with cache)
+        run: |
+          export DOCKER_BUILDKIT=1
+          export COMPOSE_DOCKER_CLI_BUILD=1
+          docker compose -f docker-compose.e2e.yml up -d --build
+
+      - name: Wait for services (parallel)
+        run: |
+          # Parallel health checks
+          wait_for_service() {
+            local port=$1
+            local name=$2
+            for i in {1..30}; do
+              if curl -sf http://localhost:$port/health >/dev/null 2>&1; then
+                echo "✅ $name is healthy"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "❌ $name failed to start" >&2
+            return 1
+          }
+          
+          wait_for_service 8002 "storage-local" &
+          PID1=$!
+          wait_for_service 8003 "storage-remote" &
+          PID2=$!
+          
+          wait $PID1 && wait $PID2
+
+      - name: Run E2E tests (parallel)
+        working-directory: ./PuppyStorage
+        run: pytest -v -m "e2e" -n auto
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-logs.txt || true
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: e2e-logs.txt
+
+      - name: Compose down (always)
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml down -v
+
