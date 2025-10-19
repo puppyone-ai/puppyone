@@ -77,6 +77,7 @@ services:
       - USER_SYSTEM_URL=http://wiremock:8080
       - SERVICE_KEY=dummy
       - CLOUDFLARE_R2_ENDPOINT=http://minio:9000
+      - CLOUDFLARE_R2_EXTERNAL_ENDPOINT=http://localhost:9000
       - CLOUDFLARE_R2_ACCESS_KEY_ID=minioadmin
       - CLOUDFLARE_R2_SECRET_ACCESS_KEY=minioadmin
       - CLOUDFLARE_R2_BUCKET=puppy-e2e

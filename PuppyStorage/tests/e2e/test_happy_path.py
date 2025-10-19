@@ -52,13 +52,8 @@ def test_happy_path_end_to_end(backend, base_url, description):
     
     upload_url = ur.json()["upload_url"]
     
-    # For local storage, upload_url is relative to storage server
-    # For remote storage, upload_url is a full presigned URL to MinIO
-    # We need to replace container hostname with localhost for host network access
-    if "minio:" in upload_url:
-        upload_url = upload_url.replace("http://minio:9000", "http://localhost:9000")
-    
     # upload chunk
+    # Note: S3 adapter automatically replaces internal endpoint with external endpoint
     put = requests.put(upload_url, data=b"hello")
     assert put.status_code == 200
     
@@ -98,11 +93,8 @@ def test_happy_path_end_to_end(backend, base_url, description):
     assert dr.status_code == 200
     durl = dr.json()["download_url"]
     
-    # Fix container hostname for remote storage
-    if "minio:" in durl:
-        durl = durl.replace("http://minio:9000", "http://localhost:9000")
-    
     # stream download
+    # Note: S3 adapter automatically replaces internal endpoint with external endpoint
     dl = requests.get(durl if durl.startswith("http") else f"{base}{durl}")
     assert dl.status_code in (200, 206)
     assert dl.content.startswith(b"h")

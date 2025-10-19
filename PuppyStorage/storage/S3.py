@@ -32,8 +32,13 @@ class S3StorageAdapter(StorageAdapter):
             secret_access_key = config.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
             bucket = config.get("CLOUDFLARE_R2_BUCKET")
             
+            # Optional: External endpoint for presigned URLs (for host network access in E2E tests)
+            # If not set, uses the same endpoint as internal operations
+            self.external_endpoint = config.get("CLOUDFLARE_R2_EXTERNAL_ENDPOINT") or endpoint_url
+            self.internal_endpoint = endpoint_url
+            
             # Print configuration information (excluding sensitive data)
-            log_info(f"Initializing S3 client, endpoint: {endpoint_url}, bucket: {bucket}")
+            log_info(f"Initializing S3 client, internal_endpoint: {endpoint_url}, external_endpoint: {self.external_endpoint}, bucket: {bucket}")
             
             self.s3_client = client(
                 's3',
@@ -245,6 +250,11 @@ class S3StorageAdapter(StorageAdapter):
                 ExpiresIn=expires_in
             )
             
+            # Replace internal endpoint with external endpoint for host network access
+            if self.internal_endpoint != self.external_endpoint:
+                upload_url = upload_url.replace(self.internal_endpoint, self.external_endpoint)
+                log_debug(f"Replaced internal endpoint with external: {self.internal_endpoint} -> {self.external_endpoint}")
+            
             import time
             expires_at = int(time.time()) + expires_in
             
@@ -364,6 +374,11 @@ class S3StorageAdapter(StorageAdapter):
                 Params={'Bucket': self.bucket, 'Key': key},
                 ExpiresIn=expires_in
             )
+            
+            # Replace internal endpoint with external endpoint for host network access
+            if self.internal_endpoint != self.external_endpoint:
+                download_url = download_url.replace(self.internal_endpoint, self.external_endpoint)
+                log_debug(f"Replaced internal endpoint with external in download URL")
             
             log_debug(f"S3预签名下载URL生成成功: key={key}, expires_in={expires_in}")
             
