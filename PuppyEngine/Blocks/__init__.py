@@ -2,21 +2,17 @@
 Blocks Package
 
 This package contains all block implementations for PuppyEngine.
+Provides a unified interface for creating and managing workflow blocks.
 """
 
-# New block architecture - only import what we need for the refactored system
 from .BaseBlock import BaseBlock
-from .GenericBlock import GenericBlock
 from .BlockFactory import BlockFactory
+from .BlockNormalization import normalize_block_content
+from .GenericBlock import GenericBlock
 
 __all__ = [
-    'BaseBlock',
-    'GenericBlock',
-    'BlockFactory'
+    "BaseBlock",
+    "GenericBlock",
+    "BlockFactory",
+    "normalize_block_content",
 ]
-
-# Legacy blocks can be imported directly if needed:
-# from Blocks.Database import DatabaseClient, DatabaseFactory
-# from Blocks.DataLoader import DataLoader
-# from Blocks.DataSaver import DataSaver 
-# etc.

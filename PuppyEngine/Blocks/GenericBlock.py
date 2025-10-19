@@ -5,13 +5,13 @@ This module implements a concrete block class that uses composable persistence s
 It supports dynamic switching between memory and external storage based on content size.
 """
 
-from typing import Any, Dict, AsyncGenerator
-import sys
-import os
-from .BaseBlock import BaseBlock
-from Persistence import MemoryStrategy, ExternalStorageStrategy
+from typing import Any, AsyncGenerator, Dict
+
+from Persistence import ExternalStorageStrategy, MemoryStrategy
 from Server.HybridStoragePolicy import HybridStoragePolicy
-from Utils.logger import log_info, log_debug
+from Utils.logger import log_debug, log_info
+
+from .BaseBlock import BaseBlock
 
 
 class GenericBlock(BaseBlock):

@@ -1,6 +1,15 @@
+"""
+Configuration Management
+
+This module handles application configuration loading, validation,
+and provides a singleton config instance for the application.
+"""
+
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
+
 
 def validate_axiom_connection(axiom_token, axiom_org_id, axiom_dataset):
     """
@@ -50,10 +59,16 @@ def validate_axiom_connection(axiom_token, axiom_org_id, axiom_dataset):
             return False, f"Axiom connection failed: {error_msg}"
 
 class ConfigValidationError(Exception):
-    """Configuration validation error"""
+    """Raised when configuration validation fails"""
     pass
 
 class AppConfig:
+    """
+    Application Configuration Singleton
+    
+    Loads and validates configuration from environment variables and .env file.
+    Environment variables take precedence over .env file values.
+    """
     _instance = None
     
     def __new__(cls):
@@ -63,16 +78,13 @@ class AppConfig:
         return cls._instance
     
     def _load(self):
-        # Load .env file (if exists), but don't override existing environment variables
-        # This way environment variables from platforms like Railway maintain higher priority
+        """Load configuration from .env file without overriding environment variables"""
         env_path = Path(__file__).parent.parent / ".env"
         load_dotenv(env_path, override=False)
-        
-        # Validate critical configuration items
         self._validate_config()
     
     def _validate_config(self):
-        """Validate the validity of critical configuration items"""
+        """Validate critical configuration items and connections"""
         errors = []
         
         # Validate DEPLOYMENT_TYPE
@@ -175,7 +187,19 @@ class AppConfig:
             print(f"   Logging mode: local")
 
     def get(self, key: str, default=None):
+        """
+        Get configuration value by key
+        
+        Args:
+            key: Configuration key name
+            default: Default value if key not found
+            
+        Returns:
+            Configuration value or default
+        """
         return os.getenv(key, default)
+
 
 # Singleton configuration instance
 config = AppConfig()
+

@@ -5,11 +5,13 @@ This module provides a factory for creating block instances with the appropriate
 initial persistence strategy based on block configuration.
 """
 
-from typing import Dict, Any
-from .GenericBlock import GenericBlock
-from .BaseBlock import BaseBlock
-from Persistence import MemoryStrategy, ExternalStorageStrategy
+from typing import Any, Dict
+
+from Persistence import ExternalStorageStrategy, MemoryStrategy
 from Utils.logger import log_debug
+
+from .BaseBlock import BaseBlock
+from .GenericBlock import GenericBlock
 
 
 class BlockFactory:
@@ -32,12 +34,9 @@ class BlockFactory:
         Returns:
             BaseBlock: A configured block instance
         """
-        # Determine initial persistence strategy
         storage_class = block_data.get('storage_class', 'internal')
-        has_external_metadata = bool(block_data.get('data', {}).get('external_metadata'))
 
-        # Authoritative switch: storage_class decides. External metadata without
-        # explicit external storage_class must not switch strategy implicitly.
+        # Select persistence strategy based on storage_class
         if storage_class == 'external':
             strategy = ExternalStorageStrategy()
             log_debug(f"Creating block {block_id} with ExternalStorageStrategy")
@@ -45,18 +44,14 @@ class BlockFactory:
             strategy = MemoryStrategy()
             log_debug(f"Creating block {block_id} with MemoryStrategy")
         
-        # Normalize loop flag location: frontends historically put `looped` at top level.
-        # Maintain SSOT by mirroring into data.looped for downstream components that read from data.
+        # Normalize loop flag: mirror top-level 'looped' into 'data.looped' for SSOT
         try:
-            top_level_looped = block_data.get('looped', None)
+            top_level_looped = block_data.get('looped')
             if top_level_looped is not None:
                 block_data.setdefault('data', {})['looped'] = bool(top_level_looped)
         except Exception:
-            # Best-effort normalization; ignore if block_data is malformed
             pass
 
-        # Create GenericBlock instance
-        # In the future, we could create different block types based on block_data['type']
         return GenericBlock(block_id, block_data, persistence_strategy=strategy)
     
     @staticmethod

@@ -6,8 +6,7 @@ It establishes the protocol-oriented programming (POP) approach for blocks.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, AsyncGenerator
-from datetime import datetime
+from typing import Any, AsyncGenerator, Dict
 
 
 class BaseBlock(ABC):

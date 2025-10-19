@@ -1,10 +1,10 @@
 """
-Workflow/Edge/Block schemas and validators (v0.2)
+Workflow/Edge/Block Schemas and Validators (v0.2)
 
-This module defines explicit pydantic schemas for workflow payloads and provides
-normalize + validate helpers that are compatible with the current engine design.
+This module defines Pydantic schemas for workflow payloads and provides
+normalization and validation helpers compatible with the engine design.
 
-Goals:
+Design Goals:
 - Keep Block data/external_metadata flexible to preserve UI contracts
 - Enforce Edge inputs/outputs refer to existing blocks; value is optional label
 - Restrict allowed edge types (exclude rerank/code/query_rewrite for now)
@@ -13,7 +13,8 @@ Goals:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Literal, Union
+from typing import Any, Dict, List, Literal, Optional, Union
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 

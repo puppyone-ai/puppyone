@@ -1,10 +1,13 @@
 """
-Persistence Strategies for PuppyEngine Blocks
+Persistence Package
 
-This package contains different strategies for persisting block data.
+Provides different strategies for persisting block data to memory or external storage.
 """
 
-from .MemoryStrategy import MemoryStrategy
 from .ExternalStorageStrategy import ExternalStorageStrategy
+from .MemoryStrategy import MemoryStrategy
 
-__all__ = ['MemoryStrategy', 'ExternalStorageStrategy']
+__all__ = [
+    "ExternalStorageStrategy",
+    "MemoryStrategy",
+]

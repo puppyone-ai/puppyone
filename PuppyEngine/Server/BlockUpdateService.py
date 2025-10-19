@@ -6,12 +6,14 @@ application, persistence, and event generation. It encapsulates the complex logi
 of block updates and reduces coupling in the main execution flow.
 """
 
-from typing import Dict, Any, AsyncGenerator, Tuple
 import json
-from .HybridStoragePolicy import HybridStoragePolicy
-from .EventFactory import EventFactory
+from typing import Any, AsyncGenerator, Dict, Tuple
+
 from Blocks.BaseBlock import BaseBlock
 from Utils.logger import log_debug
+
+from .EventFactory import EventFactory
+from .HybridStoragePolicy import HybridStoragePolicy
 
 
 class BlockUpdateService:

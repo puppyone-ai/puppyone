@@ -4,7 +4,8 @@ Memory Persistence Strategy
 This module implements the persistence strategy for blocks that remain in memory.
 """
 
-from typing import Any, Dict, AsyncGenerator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict
+
 from Utils.logger import log_debug
 
 if TYPE_CHECKING:
