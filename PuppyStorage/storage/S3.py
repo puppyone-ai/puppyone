@@ -33,13 +33,17 @@ class S3StorageAdapter(StorageAdapter):
             bucket = config.get("CLOUDFLARE_R2_BUCKET")
             
             # Optional: External endpoint for presigned URLs (for host network access in E2E tests)
-            # If not set, uses the same endpoint as internal operations
-            self.external_endpoint = config.get("CLOUDFLARE_R2_EXTERNAL_ENDPOINT") or endpoint_url
-            self.internal_endpoint = endpoint_url
+            # If set, this endpoint will be used to generate presigned URLs
+            # Internal endpoint is used for S3 operations (upload, download, etc.)
+            external_endpoint = config.get("CLOUDFLARE_R2_EXTERNAL_ENDPOINT")
             
             # Print configuration information (excluding sensitive data)
-            log_info(f"Initializing S3 client, internal_endpoint: {endpoint_url}, external_endpoint: {self.external_endpoint}, bucket: {bucket}")
+            if external_endpoint:
+                log_info(f"Initializing S3 client with dual endpoints - operations: {endpoint_url}, presigned URLs: {external_endpoint}, bucket: {bucket}")
+            else:
+                log_info(f"Initializing S3 client, endpoint: {endpoint_url}, bucket: {bucket}")
             
+            # S3 client for operations (using internal endpoint)
             self.s3_client = client(
                 's3',
                 endpoint_url=endpoint_url,
@@ -53,6 +57,26 @@ class S3StorageAdapter(StorageAdapter):
                     read_timeout=60
                 )
             )
+            
+            # S3 client for presigned URLs (using external endpoint if provided)
+            if external_endpoint:
+                self.s3_presigned_client = client(
+                    's3',
+                    endpoint_url=external_endpoint,
+                    aws_access_key_id=access_key_id,
+                    aws_secret_access_key=secret_access_key,
+                    region_name="auto",
+                    config=Config(
+                        signature_version='s3v4',
+                        retries={'max_attempts': 3},
+                        connect_timeout=5,
+                        read_timeout=60
+                    )
+                )
+            else:
+                # Use same client for both if no external endpoint specified
+                self.s3_presigned_client = self.s3_client
+            
             self.bucket = bucket
             log_info(f"Using S3 storage, bucket: {self.bucket}")
         except Exception as e:
@@ -239,7 +263,8 @@ class S3StorageAdapter(StorageAdapter):
             except self.s3_client.exceptions.NoSuchUpload:
                 raise Exception(f"Upload ID {upload_id} not found or has been aborted")
             
-            upload_url = self.s3_client.generate_presigned_url(
+            # Use presigned client (which uses external endpoint if configured)
+            upload_url = self.s3_presigned_client.generate_presigned_url(
                 'upload_part',
                 Params={
                     'Bucket': self.bucket,
@@ -249,11 +274,6 @@ class S3StorageAdapter(StorageAdapter):
                 },
                 ExpiresIn=expires_in
             )
-            
-            # Replace internal endpoint with external endpoint for host network access
-            if self.internal_endpoint != self.external_endpoint:
-                upload_url = upload_url.replace(self.internal_endpoint, self.external_endpoint)
-                log_debug(f"Replaced internal endpoint with external: {self.internal_endpoint} -> {self.external_endpoint}")
             
             import time
             expires_at = int(time.time()) + expires_in
@@ -368,17 +388,12 @@ class S3StorageAdapter(StorageAdapter):
         对于S3存储，返回一个有时效的预签名下载URL
         """
         try:
-            # 生成预签名下载URL
-            download_url = self.s3_client.generate_presigned_url(
+            # Use presigned client (which uses external endpoint if configured)
+            download_url = self.s3_presigned_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': self.bucket, 'Key': key},
                 ExpiresIn=expires_in
             )
-            
-            # Replace internal endpoint with external endpoint for host network access
-            if self.internal_endpoint != self.external_endpoint:
-                download_url = download_url.replace(self.internal_endpoint, self.external_endpoint)
-                log_debug(f"Replaced internal endpoint with external in download URL")
             
             log_debug(f"S3预签名下载URL生成成功: key={key}, expires_in={expires_in}")
             
