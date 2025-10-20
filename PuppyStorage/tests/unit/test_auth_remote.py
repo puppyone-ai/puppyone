@@ -1,18 +1,17 @@
 import os
 import pytest
+import httpx
 
 
-def _mock_response(status_code=200, json_data=None):
-    class R:
-        def __init__(self):
-            self.status_code = status_code
-            self._json = json_data or {}
-            self.text = str(self._json)
+class MockHttpxResponse:
+    """Mock httpx.Response for testing"""
+    def __init__(self, status_code=200, json_data=None, text_data=None):
+        self.status_code = status_code
+        self._json_data = json_data or {}
+        self.text = text_data or str(self._json_data)
 
-        def json(self):
-            return self._json
-
-    return R()
+    def json(self):
+        return self._json_data
 
 
 @pytest.mark.unit
@@ -24,10 +23,11 @@ async def test_remote_auth_valid(monkeypatch):
 
     import server.auth as auth
 
-    def fake_post(url, headers=None, timeout=None):
-        return _mock_response(200, {"valid": True, "user": {"user_id": "u1"}})
+    async def fake_post(url, headers=None, **kwargs):
+        return MockHttpxResponse(200, {"valid": True, "user": {"user_id": "u1"}})
 
-    monkeypatch.setattr(auth.requests, "post", fake_post)
+    # Mock the AsyncClient.post method
+    monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
 
     provider = auth.get_auth_provider()
     user = await provider.verify_user_token("Bearer t")
@@ -42,10 +42,10 @@ async def test_remote_auth_invalid_token(monkeypatch):
 
     import server.auth as auth
 
-    def fake_post(url, headers=None, timeout=None):
-        return _mock_response(200, {"valid": False})
+    async def fake_post(url, headers=None, **kwargs):
+        return MockHttpxResponse(200, {"valid": False})
 
-    monkeypatch.setattr(auth.requests, "post", fake_post)
+    monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
 
     provider = auth.get_auth_provider()
     with pytest.raises(auth.AuthenticationError):
@@ -58,19 +58,19 @@ async def test_remote_auth_401_403(monkeypatch):
     os.environ["DEPLOYMENT_TYPE"] = "remote"
     import server.auth as auth
 
-    def post_401(url, headers=None, timeout=None):
-        return _mock_response(401, {})
+    async def post_401(url, headers=None, **kwargs):
+        return MockHttpxResponse(401, {})
 
-    def post_403(url, headers=None, timeout=None):
-        return _mock_response(403, {})
+    async def post_403(url, headers=None, **kwargs):
+        return MockHttpxResponse(403, {})
 
-    monkeypatch.setattr(auth.requests, "post", post_401)
+    monkeypatch.setattr("httpx.AsyncClient.post", post_401)
     provider = auth.get_auth_provider()
     with pytest.raises(auth.AuthenticationError) as e1:
         await provider.verify_user_token("t")
     assert e1.value.status_code == 401
 
-    monkeypatch.setattr(auth.requests, "post", post_403)
+    monkeypatch.setattr("httpx.AsyncClient.post", post_403)
     provider = auth.get_auth_provider()
     with pytest.raises(auth.AuthenticationError) as e2:
         await provider.verify_user_token("t")
@@ -83,22 +83,19 @@ async def test_remote_auth_timeout_network(monkeypatch):
     os.environ["DEPLOYMENT_TYPE"] = "remote"
     import server.auth as auth
 
-    class Timeout(Exception):
-        pass
+    async def raise_timeout(url, headers=None, **kwargs):
+        raise httpx.TimeoutException("Timeout")
 
-    def raise_timeout(url, headers=None, timeout=None):
-        raise auth.requests.exceptions.Timeout()
+    async def raise_request_exc(url, headers=None, **kwargs):
+        raise httpx.RequestError("Network error")
 
-    def raise_request_exc(url, headers=None, timeout=None):
-        raise auth.requests.exceptions.RequestException("boom")
-
-    monkeypatch.setattr(auth.requests, "post", raise_timeout)
+    monkeypatch.setattr("httpx.AsyncClient.post", raise_timeout)
     provider = auth.get_auth_provider()
     with pytest.raises(auth.AuthenticationError) as e1:
         await provider.verify_user_token("t")
     assert e1.value.status_code == 503
 
-    monkeypatch.setattr(auth.requests, "post", raise_request_exc)
+    monkeypatch.setattr("httpx.AsyncClient.post", raise_request_exc)
     provider = auth.get_auth_provider()
     with pytest.raises(auth.AuthenticationError) as e2:
         await provider.verify_user_token("t")
