@@ -18,16 +18,14 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 # 移除PuppyException，使用FastAPI原生异常处理
 from utils.logger import log_info, log_error, log_debug
-from storage import get_storage
+from storage import get_storage_adapter
+from storage.base import StorageAdapter
 # 导入认证模块
 from server.auth import verify_user_and_resource_access, User, get_auth_provider
 from fastapi import Header
 
 # Create upload router
 upload_router = APIRouter(prefix="/upload", tags=["upload"])
-
-# 获取存储适配器
-storage_adapter = get_storage()
 
 # === Request and Response Models ===
 
@@ -246,6 +244,7 @@ async def verify_init_auth(
 @upload_router.post("/init", response_model=MultipartInitResponse)
 async def init_multipart_upload(
     request_data: MultipartInitRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     current_user: User = Depends(verify_init_auth)
 ):
     """
@@ -275,7 +274,7 @@ async def init_multipart_upload(
                 f"generated_key={key}")
         
         # 4. 调用存储适配器初始化分块上传
-        result = storage_adapter.init_multipart_upload(
+        result = storage.init_multipart_upload(
             key=key,
             content_type=request_data.content_type
         )
@@ -319,6 +318,7 @@ async def verify_url_auth(
 @upload_router.post("/get_upload_url", response_model=MultipartUrlResponse)
 async def get_multipart_upload_url(
     request_data: MultipartUrlRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     current_user: User = Depends(verify_url_auth)
 ):
     """
@@ -342,7 +342,7 @@ async def get_multipart_upload_url(
             )
         
         # 调用存储适配器获取上传URL
-        result = storage_adapter.get_multipart_upload_url(
+        result = storage.get_multipart_upload_url(
             key=request_data.key,
             upload_id=request_data.upload_id,
             part_number=request_data.part_number,
@@ -381,6 +381,7 @@ async def verify_complete_auth(
 @upload_router.post("/complete", response_model=MultipartCompleteResponse)
 async def complete_multipart_upload(
     request_data: MultipartCompleteRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     current_user: User = Depends(verify_complete_auth)
 ):
     """
@@ -410,7 +411,7 @@ async def complete_multipart_upload(
         ]
         
         # 调用存储适配器完成上传
-        result = storage_adapter.complete_multipart_upload(
+        result = storage.complete_multipart_upload(
             key=request_data.key,
             upload_id=request_data.upload_id,
             parts=parts_list
@@ -449,6 +450,7 @@ async def verify_abort_auth(
 @upload_router.post("/abort", response_model=MultipartAbortResponse)
 async def abort_multipart_upload(
     request_data: MultipartAbortRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     current_user: User = Depends(verify_abort_auth)
 ):
     """
@@ -471,7 +473,7 @@ async def abort_multipart_upload(
             )
         
         # 调用存储适配器中止上传
-        result = storage_adapter.abort_multipart_upload(
+        result = storage.abort_multipart_upload(
             key=request_data.key,
             upload_id=request_data.upload_id
         )
@@ -492,7 +494,10 @@ async def abort_multipart_upload(
 
 
 @upload_router.get("/list", response_model=MultipartListResponse)
-async def list_multipart_uploads(prefix: Optional[str] = None):
+async def list_multipart_uploads(
+    prefix: Optional[str] = None,
+    storage: StorageAdapter = Depends(get_storage_adapter)
+):
     """
     列出进行中的分块上传
     
@@ -505,7 +510,7 @@ async def list_multipart_uploads(prefix: Optional[str] = None):
         log_info(f"[{request_id}] 列出分块上传: prefix={prefix}")
         
         # 调用存储适配器列出上传
-        uploads = storage_adapter.list_multipart_uploads(prefix=prefix)
+        uploads = storage.list_multipart_uploads(prefix=prefix)
         
         log_info(f"[{request_id}] 分块上传列表查询成功: 找到{len(uploads)}个上传")
         
@@ -523,7 +528,12 @@ async def list_multipart_uploads(prefix: Optional[str] = None):
 # === Special endpoint for local storage chunk upload ===
 
 @upload_router.put("/chunk/{upload_id}/{part_number}")
-async def upload_chunk_to_local(upload_id: str, part_number: int, request: Request):
+async def upload_chunk_to_local(
+    upload_id: str, 
+    part_number: int, 
+    request: Request,
+    storage: StorageAdapter = Depends(get_storage_adapter)
+):
     """
     本地存储分块上传端点
     
@@ -558,7 +568,7 @@ async def upload_chunk_to_local(upload_id: str, part_number: int, request: Reque
             )
         
         # 调用本地存储适配器保存分块
-        result = storage_adapter.save_multipart_chunk(
+        result = storage.save_multipart_chunk(
             upload_id=upload_id,
             part_number=part_number,
             chunk_data=chunk_data
@@ -619,7 +629,7 @@ async def update_manifest(
         
         # 尝试读取现有的manifest
         try:
-            current_content, content_type, current_etag = storage_adapter.get_file_with_metadata(manifest_key)
+            current_content, content_type, current_etag = storage.get_file_with_metadata(manifest_key)
             current_manifest = json.loads(current_content.decode('utf-8'))
             log_debug(f"[{request_id}] 读取现有manifest: etag={current_etag}")
         except Exception:
@@ -672,7 +682,7 @@ async def update_manifest(
         updated_content = json.dumps(current_manifest, indent=2).encode('utf-8')
         
         try:
-            success = storage_adapter.save_file(
+            success = storage.save_file(
                 key=manifest_key,
                 file_data=updated_content,
                 content_type="application/json",
@@ -689,7 +699,7 @@ async def update_manifest(
             raise
         
         # 获取新的ETag
-        _, _, new_etag = storage_adapter.get_file_with_metadata(manifest_key)
+        _, _, new_etag = storage.get_file_with_metadata(manifest_key)
         
         log_info(f"[{request_id}] Manifest更新成功: new_etag={new_etag}")
         
@@ -749,14 +759,14 @@ async def upload_chunk_direct(
         # 5. 检查存储适配器是否支持直接保存
         if hasattr(storage_adapter, 'save_chunk_direct'):
             # 使用专门的直接保存方法
-            result = storage_adapter.save_chunk_direct(
+            result = storage.save_chunk_direct(
                 key=key,
                 chunk_data=chunk_data,
                 content_type=content_type
             )
         else:
             # 回退到普通的文件保存方法
-            success = storage_adapter.save_file(
+            success = storage.save_file(
                 key=key,
                 file_data=chunk_data,
                 content_type=content_type
@@ -765,7 +775,7 @@ async def upload_chunk_direct(
             # 获取实际的 ETag
             if success:
                 try:
-                    _, _, actual_etag = storage_adapter.get_file_with_metadata(key)
+                    _, _, actual_etag = storage.get_file_with_metadata(key)
                 except:
                     # 如果获取失败，使用生成的 ETag
                     actual_etag = uuid.uuid4().hex
@@ -818,7 +828,7 @@ async def remove_chunk_from_manifest(
         
         # 读取现有的manifest
         try:
-            current_content, _, current_etag = storage_adapter.get_file_with_metadata(manifest_key)
+            current_content, _, current_etag = storage.get_file_with_metadata(manifest_key)
             current_manifest = json.loads(current_content.decode('utf-8'))
         except Exception:
             return ManifestRemoveChunkResponse(success=True, etag="", message="Manifest不存在")
@@ -849,7 +859,7 @@ async def remove_chunk_from_manifest(
         
         # 保存更新后的manifest
         updated_content = json.dumps(current_manifest, indent=2).encode('utf-8')
-        success = storage_adapter.save_file(
+        success = storage.save_file(
             key=manifest_key,
             file_data=updated_content,
             content_type="application/json",
@@ -860,7 +870,7 @@ async def remove_chunk_from_manifest(
             raise HTTPException(status_code=500, detail="Failed to save manifest")
         
         # 获取新的ETag
-        _, _, new_etag = storage_adapter.get_file_with_metadata(manifest_key)
+        _, _, new_etag = storage.get_file_with_metadata(manifest_key)
         
         return ManifestRemoveChunkResponse(success=True, etag=new_etag, message="Chunk删除成功")
         

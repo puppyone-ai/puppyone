@@ -15,14 +15,12 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 from utils.logger import log_info, log_error, log_debug
-from storage import get_storage
+from storage import get_storage_adapter
+from storage.base import StorageAdapter
 from server.auth import verify_user_and_resource_access, User, get_auth_provider
 
 # Create management router
 management_router = APIRouter(prefix="/files", tags=["files"])
-
-# 获取存储适配器
-storage_adapter = get_storage()
 
 # === Request and Response Models ===
 
@@ -113,7 +111,7 @@ async def list_versions(
         prefix = f"{user_id}/{block_id}/"
         
         # 使用delimiter="/"来获取版本目录列表
-        objects = storage_adapter.list_objects(prefix=prefix, delimiter="/")
+        objects = storage.list_objects(prefix=prefix, delimiter="/")
         
         versions = []
         for obj in objects:
@@ -124,7 +122,7 @@ async def list_versions(
                 # 尝试获取该版本的manifest信息
                 manifest_key = f"{version_path}/manifest.json"
                 try:
-                    manifest_content, _, _ = storage_adapter.get_file_with_metadata(manifest_key)
+                    manifest_content, _, _ = storage.get_file_with_metadata(manifest_key)
                     manifest = json.loads(manifest_content.decode('utf-8'))
                     
                     versions.append(VersionInfo(
@@ -187,7 +185,7 @@ async def get_latest_version(
         prefix = f"{user_id}/{block_id}/"
         
         # 列出所有版本
-        objects = storage_adapter.list_objects(prefix=prefix, delimiter="/")
+        objects = storage.list_objects(prefix=prefix, delimiter="/")
         
         version_ids = []
         for obj in objects:
@@ -208,7 +206,7 @@ async def get_latest_version(
         manifest_key = f"{user_id}/{block_id}/{latest_version_id}/manifest.json"
         
         try:
-            manifest_content, _, _ = storage_adapter.get_file_with_metadata(manifest_key)
+            manifest_content, _, _ = storage.get_file_with_metadata(manifest_key)
             manifest = json.loads(manifest_content.decode('utf-8'))
             
             log_info(f"找到最新版本: {latest_version_id}")
@@ -260,7 +258,7 @@ async def publish_version(
         
         # 读取现有manifest
         try:
-            manifest_content, _, current_etag = storage_adapter.get_file_with_metadata(manifest_key)
+            manifest_content, _, current_etag = storage.get_file_with_metadata(manifest_key)
             manifest = json.loads(manifest_content.decode('utf-8'))
         except Exception as e:
             log_error(f"无法读取manifest: {str(e)}")
@@ -275,7 +273,7 @@ async def publish_version(
         updated_content = json.dumps(manifest, indent=2).encode('utf-8')
         
         try:
-            success = storage_adapter.save_file(
+            success = storage.save_file(
                 key=manifest_key,
                 file_data=updated_content,
                 content_type="application/json",
@@ -309,6 +307,7 @@ async def publish_version(
 @management_router.delete("/delete", response_model=DeleteFileResponse)
 async def delete_file(
     request_data: DeleteFileRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     authorization: str = Header(None, alias="Authorization"),
     auth_provider = Depends(get_auth_provider)
 ):
@@ -329,11 +328,11 @@ async def delete_file(
         log_info(f"删除文件: user={current_user.user_id}, key={request_data.resource_key}")
         
         # 检查文件是否存在
-        if not storage_adapter.check_file_exists(request_data.resource_key):
+        if not storage.check_file_exists(request_data.resource_key):
             raise HTTPException(status_code=404, detail="File not found")
         
         # 执行删除
-        success = storage_adapter.delete_file(request_data.resource_key)
+        success = storage.delete_file(request_data.resource_key)
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to delete file")
