@@ -435,7 +435,7 @@ class S3StorageAdapter(StorageAdapter):
             return file_data, content_type, etag
         except self.s3_client.exceptions.NoSuchKey:
             log_debug(f"请求的S3文件不存在: {key}")
-            raise FileNotFoundError(f"File not found: {key}")
+            return None, None, None
         except Exception as e:
             log_error(f"从S3获取文件失败: {str(e)}")
             raise
