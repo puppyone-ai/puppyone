@@ -30,10 +30,10 @@ def test_embedder_remote_openai():
     # Auth mocked via wiremock
     headers = {"Authorization": "Bearer token"}
     
-    # Store vectors using /embed endpoint with correct format
-    print("📝 Storing vectors via /embed endpoint...")
+    # Store vectors using /vector/embed endpoint with correct format
+    print("📝 Storing vectors via /vector/embed endpoint...")
     store_response = requests.post(
-        f"{base_url}/embed",
+        f"{base_url}/vector/embed",
         json={
             "user_id": "test_user_openai_compat",
             "set_name": "test_openai_set",
@@ -69,7 +69,7 @@ def test_embedder_remote_openai():
     # Search vectors
     print("🔍 Searching vectors...")
     search_response = requests.post(
-        f"{base_url}/search",
+        f"{base_url}/vector/search",
         json={
             "user_id": "test_user_openai_compat",
             "set_name": "test_openai_set",
@@ -117,10 +117,10 @@ def test_embedder_local_ollama():
     
     headers = {"Authorization": "Bearer token"}
     
-    # Store vectors via /embed endpoint
-    print("📝 Storing vectors via /embed endpoint...")
+    # Store vectors via /vector/embed endpoint
+    print("📝 Storing vectors via /vector/embed endpoint...")
     store_response = requests.post(
-        f"{base_url}/embed",
+        f"{base_url}/vector/embed",
         json={
             "user_id": "test_user_ollama",
             "set_name": "test_ollama_set",
@@ -151,7 +151,7 @@ def test_embedder_local_ollama():
     # Search vectors
     print("🔍 Searching vectors...")
     search_response = requests.post(
-        f"{base_url}/search",
+        f"{base_url}/vector/search",
         json={
             "user_id": "test_user_ollama",
             "set_name": "test_ollama_set",
