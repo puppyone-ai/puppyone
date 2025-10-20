@@ -110,24 +110,15 @@ async def test_get_download_url_file_not_found(api_client, tmp_storage_dir, mock
 
 
 @pytest.mark.contract
-async def test_get_download_url_unauthorized(api_client, tmp_storage_dir, setup_test_file, monkeypatch):
+async def test_get_download_url_unauthorized(api_client, tmp_storage_dir, setup_test_file):
     """
     Test getting download URL without authorization returns 401
     """
-    # Mock auth verification to raise HTTPException
-    # Need to patch verify_user_and_resource_access, not verify_download_auth,
-    # because FastAPI dependency injection binds at registration time
-    from fastapi import HTTPException
-    async def mock_verify_fail(*args, **kwargs):
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    from server import auth
-    monkeypatch.setattr(auth, "verify_user_and_resource_access", mock_verify_fail)
-    
-    # Try without proper auth
+    # Don't provide Authorization header - this will trigger the 401 in verify_download_auth
+    # before it even reaches verify_user_and_resource_access
     response = await api_client.get(
-        f"/download/url?key={setup_test_file['resource_key']}",
-        headers={"Authorization": "Bearer invalid_token"}
+        f"/download/url?key={setup_test_file['resource_key']}"
+        # No Authorization header
     )
     
     assert response.status_code == 401
