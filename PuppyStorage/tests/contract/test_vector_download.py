@@ -78,7 +78,13 @@ async def test_vector_search_bad_provider_and_minimal_ok(api_client, monkeypatch
             # Return small vectors
             return [[1.0, 0.0, 0.0] for _ in texts]
 
-    monkeypatch.setattr(vr, "TextEmbedder", FakeEmbedder)
+    # Monkeypatch the lazy loader function to return our fake embedder
+    def fake_get_embedder_modules():
+        class FakeModelRegistry:
+            pass
+        return FakeEmbedder, FakeModelRegistry
+    
+    monkeypatch.setattr(vr, "_get_embedder_modules", fake_get_embedder_modules)
 
     # minimal search happy path
     payload = {
