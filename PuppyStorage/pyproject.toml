@@ -25,3 +25,9 @@ exclude_lines = [
     "@abstract",
 ]
 
+# 排除未使用的embedder providers (不在scope内)
+exclude_also = [
+    "class HuggingFaceProvider",
+    "class SentenceTransformerProvider",
+]
+
