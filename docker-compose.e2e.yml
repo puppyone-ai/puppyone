@@ -83,6 +83,8 @@ services:
       - CLOUDFLARE_R2_BUCKET=puppy-e2e
       - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - STORAGE_SERVER_URL=http://localhost:8003
+      - OPENAI_API_BASE=http://wiremock:8080/v1
+      - OPENAI_API_KEY=dummy-key-for-e2e
     ports:
       - "8003:8002"
     depends_on:
