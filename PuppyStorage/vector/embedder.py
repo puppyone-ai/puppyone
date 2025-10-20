@@ -85,8 +85,6 @@ class ModelRegistry:
 import os
 import sys
 from typing import List, Union, Dict, Any, Optional, Type
-from io import BytesIO
-from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from abc import ABC, abstractmethod
