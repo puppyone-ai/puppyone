@@ -115,12 +115,14 @@ async def test_get_download_url_unauthorized(api_client, tmp_storage_dir, setup_
     Test getting download URL without authorization returns 401
     """
     # Mock auth verification to raise HTTPException
+    # Need to patch verify_user_and_resource_access, not verify_download_auth,
+    # because FastAPI dependency injection binds at registration time
     from fastapi import HTTPException
     async def mock_verify_fail(*args, **kwargs):
         raise HTTPException(status_code=401, detail="Unauthorized")
     
-    import server.routes.download_routes as dr
-    monkeypatch.setattr(dr, "verify_download_auth", mock_verify_fail)
+    from server import auth
+    monkeypatch.setattr(auth, "verify_user_and_resource_access", mock_verify_fail)
     
     # Try without proper auth
     response = await api_client.get(
