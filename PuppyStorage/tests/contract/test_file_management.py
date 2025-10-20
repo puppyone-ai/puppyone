@@ -3,36 +3,7 @@ Contract tests for file management operations (delete)
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from server.storage_server import app
-from storage import get_storage, reset_storage_manager
-import os
-import tempfile
-import shutil
-
-
-@pytest.fixture(scope="function")
-def test_client():
-    """Create test client"""
-    return TestClient(app)
-
-
-@pytest.fixture(scope="function")
-def temp_storage_dir():
-    """Create temporary storage directory"""
-    temp_dir = tempfile.mkdtemp()
-    os.environ["DEPLOYMENT_TYPE"] = "local"
-    os.environ["LOCAL_STORAGE_BASE_PATH"] = temp_dir
-    
-    # Reset storage manager to pick up new config
-    reset_storage_manager()
-    
-    yield temp_dir
-    
-    # Cleanup
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
-    reset_storage_manager()
+from storage import get_storage
 
 
 @pytest.fixture
@@ -42,7 +13,7 @@ def mock_jwt_token():
 
 
 @pytest.fixture
-def setup_test_file(temp_storage_dir):
+def setup_test_file(tmp_storage_dir):
     """Setup a test file for deletion"""
     storage = get_storage()
     
@@ -62,7 +33,7 @@ def setup_test_file(temp_storage_dir):
 
 
 @pytest.mark.contract
-def test_delete_file_success(test_client, temp_storage_dir, setup_test_file, mock_jwt_token, monkeypatch):
+async def test_delete_file_success(api_client, tmp_storage_dir, setup_test_file, mock_jwt_token, monkeypatch):
     """
     Test successful file deletion
     """
@@ -79,7 +50,7 @@ def test_delete_file_success(test_client, temp_storage_dir, setup_test_file, moc
     assert storage.check_file_exists(setup_test_file["resource_key"])
     
     # Delete the file
-    response = test_client.request(
+    response = await api_client.request(
         "DELETE",
         "/files/delete",
         json={
@@ -99,7 +70,7 @@ def test_delete_file_success(test_client, temp_storage_dir, setup_test_file, moc
 
 
 @pytest.mark.contract
-def test_delete_file_not_found(test_client, temp_storage_dir, mock_jwt_token, monkeypatch):
+async def test_delete_file_not_found(api_client, tmp_storage_dir, mock_jwt_token, monkeypatch):
     """
     Test deleting non-existent file returns 404
     """
@@ -112,7 +83,7 @@ def test_delete_file_not_found(test_client, temp_storage_dir, mock_jwt_token, mo
     monkeypatch.setattr(mr, "verify_user_and_resource_access", mock_verify)
     
     # Try to delete non-existent file
-    response = test_client.request(
+    response = await api_client.request(
         "DELETE",
         "/files/delete",
         json={
@@ -127,7 +98,7 @@ def test_delete_file_not_found(test_client, temp_storage_dir, mock_jwt_token, mo
 
 
 @pytest.mark.contract
-def test_delete_file_unauthorized(test_client, temp_storage_dir, setup_test_file, monkeypatch):
+async def test_delete_file_unauthorized(api_client, tmp_storage_dir, setup_test_file, monkeypatch):
     """
     Test deleting file without authorization returns 401
     """
@@ -140,7 +111,7 @@ def test_delete_file_unauthorized(test_client, temp_storage_dir, setup_test_file
     monkeypatch.setattr(mr, "verify_user_and_resource_access", mock_verify_fail)
     
     # Try to delete without proper auth
-    response = test_client.request(
+    response = await api_client.request(
         "DELETE",
         "/files/delete",
         json={
@@ -154,12 +125,12 @@ def test_delete_file_unauthorized(test_client, temp_storage_dir, setup_test_file
 
 
 @pytest.mark.contract
-def test_delete_file_missing_fields(test_client, mock_jwt_token):
+async def test_delete_file_missing_fields(api_client, mock_jwt_token):
     """
     Test request with missing required fields returns validation error
     """
     # Missing resource_key
-    response = test_client.request(
+    response = await api_client.request(
         "DELETE",
         "/files/delete",
         json={
