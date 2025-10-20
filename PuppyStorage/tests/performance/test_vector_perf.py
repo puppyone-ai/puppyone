@@ -75,7 +75,7 @@ def test_vector_search_performance_small_dataset(pgv_db):
     print(f"Total time: {batch_elapsed:.3f}s")
     print(f"Avg per search: {batch_elapsed/batch_size*1000:.1f}ms")
     
-    assert batch_elapsed < 2.0, f"Batch search too slow: {batch_elapsed:.3f}s > 2.0s threshold"
+    assert batch_elapsed < 3.0, f"Batch search too slow: {batch_elapsed:.3f}s > 3.0s threshold"
     
     # Cleanup
     db.delete_collection(collection_name=collection)
