@@ -36,7 +36,8 @@ def setup_test_file(tmp_storage_dir):
 # === Test GET /download/url ===
 
 @pytest.mark.contract
-async async def test_get_download_url_success(api_client, tmp_storage_dir, setup_test_file, mock_jwt_token, monkeypatch):
+@pytest.mark.asyncio
+async def test_get_download_url_success(api_client, tmp_storage_dir, setup_test_file, mock_jwt_token, monkeypatch):
     """
     Test successfully getting download URL for local storage
     """
