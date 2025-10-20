@@ -15,19 +15,24 @@ def test_text_embedder_create_ollama():
     # Register a test model using class method
     ModelRegistry.register_models("ollama", ["llama3"])
     
-    with patch('vector.embedder.OllamaProvider') as MockOllama:
-        mock_instance = Mock()
-        mock_instance.embed.return_value = [[0.1, 0.2, 0.3]]
-        MockOllama.return_value = mock_instance
+    # Mock network requests before provider instantiation
+    with patch('requests.get') as mock_get:
+        # Mock health check in OllamaProvider.__init__
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.raise_for_status = Mock()
         
-        # Create with Ollama model
+        # Create with Ollama model (will use mocked health check)
         embedder = TextEmbedder.create("llama3")
         assert embedder is not None
         
-        # Test embedding
-        result = embedder.embed(["test"])
-        assert len(result) == 1
-        assert result[0] == [0.1, 0.2, 0.3]
+        # Mock the actual embedding call
+        with patch('requests.post') as mock_post:
+            mock_post.return_value.json.return_value = {'embeddings': [0.1, 0.2, 0.3]}
+            mock_post.return_value.raise_for_status = Mock()
+            
+            result = embedder.embed(["test"])
+            assert len(result) == 1
+            assert result[0] == [0.1, 0.2, 0.3]
 
 
 @pytest.mark.unit
@@ -38,12 +43,17 @@ def test_text_embedder_create_openai():
     # Register a test model using class method
     ModelRegistry.register_models("openai", ["text-embedding-3-small"])
     
-    # Mock OpenAI API key
+    # Mock OpenAI API key and client
     with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
-        with patch('vector.embedder.OpenAIProvider') as MockOpenAI:
-            mock_instance = Mock()
-            mock_instance.embed.return_value = [[0.4, 0.5, 0.6]]
-            MockOpenAI.return_value = mock_instance
+        with patch('vector.embedder.OpenAI') as MockOpenAIClient:
+            # Mock the OpenAI client and embeddings API
+            mock_client = Mock()
+            mock_embeddings = Mock()
+            mock_response = Mock()
+            mock_response.data = [Mock(embedding=[0.4, 0.5, 0.6])]
+            mock_embeddings.create.return_value = mock_response
+            mock_client.embeddings = mock_embeddings
+            MockOpenAIClient.return_value = mock_client
             
             # Create with OpenAI model
             embedder = TextEmbedder.create("text-embedding-3-small", provider="openai")
@@ -206,16 +216,17 @@ def test_text_embedder_with_endpoint():
     # Register a test model using class method
     ModelRegistry.register_models("ollama", ["llama3"])
     
-    with patch('vector.embedder.OllamaProvider') as MockOllama:
-        mock_instance = Mock()
-        MockOllama.return_value = mock_instance
+    # Mock health check for custom endpoint
+    with patch('requests.get') as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.raise_for_status = Mock()
         
         embedder = TextEmbedder.create("llama3", endpoint="http://custom:11434")
         
-        # Verify OllamaProvider was called with custom endpoint
-        MockOllama.assert_called_once()
-        call_kwargs = MockOllama.call_args[1]
-        assert call_kwargs.get('endpoint') == "http://custom:11434"
+        # Verify health check was called with custom endpoint
+        mock_get.assert_called_once()
+        call_url = mock_get.call_args[0][0]
+        assert "http://custom:11434" in call_url
 
 
 @pytest.mark.unit
@@ -226,14 +237,15 @@ def test_text_embedder_empty_input():
     # Register a test model using class method
     ModelRegistry.register_models("ollama", ["llama3"])
     
-    with patch('vector.embedder.OllamaProvider') as MockOllama:
-        mock_instance = Mock()
-        mock_instance.embed.return_value = []
-        MockOllama.return_value = mock_instance
+    # Mock health check
+    with patch('requests.get') as mock_get:
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.raise_for_status = Mock()
         
         embedder = TextEmbedder.create("llama3")
-        result = embedder.embed([])
         
+        # Empty input should return empty result without calling API
+        result = embedder.embed([])
         assert result == []
 
 
