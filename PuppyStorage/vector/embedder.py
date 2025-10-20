@@ -201,6 +201,17 @@ class ModelRegistry:
             
         # 查找模型对应的默认提供商
         if model_name not in cls._models:
+            # Special handling for Ollama: try dynamic model lookup
+            if "ollama" in cls._available_providers:
+                try:
+                    ollama_models = OllamaProvider.get_supported_models()
+                    if model_name in ollama_models:
+                        # Dynamically register this model
+                        cls._models[model_name] = "ollama"
+                        return "ollama"
+                except:
+                    pass
+            
             raise PuppyException(3301, f"Model {model_name} not found", 
                                 "The embedding model you requested is not available.")
         
