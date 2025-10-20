@@ -601,6 +601,7 @@ async def upload_chunk_to_local(
 @upload_router.put("/manifest", response_model=ManifestUpdateResponse)
 async def update_manifest(
     request_data: ManifestUpdateRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     authorization: str = Header(None, alias="Authorization"),
     auth_provider = Depends(get_auth_provider)
 ):
@@ -812,6 +813,7 @@ async def upload_chunk_direct(
 @upload_router.put("/manifest/remove", response_model=ManifestRemoveChunkResponse)
 async def remove_chunk_from_manifest(
     request_data: ManifestRemoveChunkRequest,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     authorization: str = Header(None, alias="Authorization"),
     auth_provider = Depends(get_auth_provider)
 ):

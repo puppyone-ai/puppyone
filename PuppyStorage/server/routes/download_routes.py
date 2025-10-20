@@ -41,6 +41,13 @@ async def verify_download_auth(
     auth_provider = Depends(get_auth_provider)
 ) -> User:
     """验证下载的认证和权限"""
+    # Always require a valid Authorization header for download URL requests,
+    # even in local relaxed mode, to ensure contract tests get 401 when missing/invalid.
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid Authorization header. Expected format: 'Bearer <token>'"
+        )
     return await verify_user_and_resource_access(
         resource_key=key,
         authorization=authorization,
