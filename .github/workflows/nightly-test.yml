@@ -26,24 +26,64 @@ jobs:
           pip install -r PuppyStorage/requirements.txt
 
       - name: Compose up (full stack)
-        run: docker compose -f docker-compose.e2e.yml up -d --build
+        run: docker compose -f docker-compose.e2e.yml up -d --build ollama postgres minio minio-setup wiremock storage-local storage-remote
 
-      - name: Wait for services
+      - name: Wait for Ollama and download model
         run: |
-          echo "=== Waiting for services to be healthy ==="
+          echo "=== Waiting for Ollama service ==="
           for i in {1..60}; do
-            if curl -sf http://localhost:8002/health && curl -sf http://localhost:8003/health; then
-              echo "✅ All services are healthy"
+            if curl -sf http://localhost:11434/api/tags; then
+              echo "✅ Ollama is accessible"
               break
             fi
             sleep 2
           done
+          
+          echo "=== Checking Ollama model status ==="
+          docker compose -f docker-compose.e2e.yml logs ollama-setup | tail -20
+          
+          echo "=== Waiting for all-minilm model to be ready ==="
+          for i in {1..180}; do
+            if curl -sf http://localhost:11434/api/tags | grep -q "all-minilm"; then
+              echo "✅ all-minilm model is ready"
+              break
+            fi
+            echo "Waiting for model pull... ($i/180)"
+            sleep 2
+          done
+          
+          echo "=== Verifying Ollama is working ==="
+          curl -X POST http://localhost:11434/api/embeddings -d '{"model": "all-minilm", "prompt": "test"}' || echo "Ollama test failed"
+
+      - name: Wait for storage services
+        run: |
+          sleep 5
+          echo "=== Waiting for storage-local (8002) ==="
+          for i in {1..60}; do
+            if curl -sf http://localhost:8002/health; then
+              echo "✅ storage-local is healthy"
+              break
+            fi
+            sleep 2
+          done
+          
+          echo "=== Waiting for storage-remote (8003) ==="
+          for i in {1..60}; do
+            if curl -sf http://localhost:8003/health; then
+              echo "✅ storage-remote is healthy"
+              break
+            fi
+            sleep 2
+          done
+          
+          echo "=== All services ready ==="
 
       - name: Run E2E tests
         working-directory: ./PuppyStorage
         run: |
           echo "=== Running E2E tests ==="
-          pytest -v -m "e2e" --tb=long
+          pytest -v -m "e2e" --tb=short
+        timeout-minutes: 15
 
       - name: Dump compose logs
         if: always()
