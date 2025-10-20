@@ -117,15 +117,16 @@ def test_storage_read_performance(tmp_storage_dir):
 @pytest.mark.slow
 @pytest.mark.integration
 @pytest.mark.s3
-def test_storage_list_performance_s3(moto_s3_bucket):
+def test_storage_list_performance_s3(s3_moto):
     """
     Baseline: List operations should scale well with object count.
     Threshold: < 2 seconds to list 500 objects
     """
+    bucket_name = s3_moto
     os.environ["DEPLOYMENT_TYPE"] = "remote"
     os.environ["CLOUDFLARE_R2_ACCESS_KEY"] = "test"
     os.environ["CLOUDFLARE_R2_SECRET_KEY"] = "test"
-    os.environ["CLOUDFLARE_R2_BUCKET_NAME"] = moto_s3_bucket
+    os.environ["CLOUDFLARE_R2_BUCKET_NAME"] = bucket_name
     os.environ["CLOUDFLARE_R2_ENDPOINT_URL"] = "http://localhost:5000"
     
     from storage import reset_storage_manager, get_storage
