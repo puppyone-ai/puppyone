@@ -42,7 +42,41 @@ services:
     volumes:
       - ./PuppyStorage/tests/e2e/wiremock:/home/wiremock
 
-  # Local deployment: FS + Chroma + Local Auth
+  ollama:
+    image: ollama/ollama:latest
+    container_name: e2e_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama-setup:
+    image: curlimages/curl:latest
+    container_name: e2e_ollama_setup
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "echo 'Waiting for Ollama to be ready...' &&
+       until curl -sf http://ollama:11434/api/tags; do
+         echo 'Waiting for Ollama...'; sleep 2;
+       done &&
+       echo 'Pulling all-minilm embedding model...' &&
+       curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"all-minilm\"}' &&
+       echo 'Model pulled successfully' &&
+       curl -X POST http://ollama:11434/api/generate -d '{\"model\": \"all-minilm\", \"prompt\": \"test\", \"stream\": false}' &&
+       echo 'Ollama is ready with all-minilm model'"
+
+  # Local deployment: FS + Chroma + Local Auth + Ollama
   # Build the image once with storage-local, storage-remote will reuse it
   storage-local:
     build:
@@ -57,12 +91,14 @@ services:
       - STORAGE_ROOT=/app/storage_data
       - STORAGE_SERVER_URL=http://localhost:8002
       - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
+      - OLLAMA_ENDPOINT=http://ollama:11434
     ports:
       - "8002:8002"
     volumes:
       - storage-local-data:/app/storage_data
     depends_on:
       - postgres
+      - ollama
     deploy:
       resources:
         limits:
@@ -100,5 +136,6 @@ services:
 
 volumes:
   storage-local-data:
+  ollama-data:
 
 

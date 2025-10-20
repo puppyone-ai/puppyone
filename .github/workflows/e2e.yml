@@ -27,12 +27,39 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r PuppyStorage/requirements.txt
 
-      - name: Compose up (pgvector + minio + wiremock + storage-local + storage-remote)
+      - name: Compose up (pgvector + minio + wiremock + ollama + storage-local + storage-remote)
         run: docker compose -f docker-compose.e2e.yml up -d --build
+
+      - name: Wait for Ollama and download model
+        run: |
+          echo "=== Waiting for Ollama service ==="
+          for i in {1..60}; do
+            if curl -sf http://localhost:11434/api/tags; then
+              echo "✅ Ollama is accessible"
+              break
+            fi
+            sleep 2
+          done
+          
+          echo "=== Checking Ollama model status ==="
+          docker compose -f docker-compose.e2e.yml logs ollama-setup | tail -20
+          
+          echo "=== Waiting for all-minilm model to be ready ==="
+          for i in {1..180}; do
+            if curl -sf http://localhost:11434/api/tags | grep -q "all-minilm"; then
+              echo "✅ all-minilm model is ready"
+              break
+            fi
+            echo "Waiting for model pull... ($i/180)"
+            sleep 2
+          done
+          
+          echo "=== Verifying Ollama is working ==="
+          curl -X POST http://localhost:11434/api/embeddings -d '{"model": "all-minilm", "prompt": "test"}' || echo "Ollama test failed"
 
       - name: Wait for both storage services to be healthy
         run: |
-          sleep 10
+          sleep 5
           echo "=== Checking all container status ==="
           docker compose -f docker-compose.e2e.yml ps
           
@@ -73,9 +100,10 @@ jobs:
           
           echo "✅ Both storage services are healthy"
 
-      - name: Run E2E tests (both local and remote backends)
+      - name: Run E2E tests (both local and remote backends with Ollama)
         working-directory: ./PuppyStorage
-        run: pytest -v -m "e2e"
+        run: pytest -v -m "e2e" --tb=short
+        timeout-minutes: 15
 
       - name: Dump compose logs on failure
         if: failure()

@@ -92,24 +92,25 @@ def test_embedder_remote_openai():
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="Requires real Ollama service")
 def test_embedder_local_ollama():
     """
     E2E test for local backend with Ollama embedder
     
-    Note: Requires a running Ollama service, typically not available in CI.
-    Can be run locally with: pytest -m "e2e" --run-ollama
+    Uses real Ollama service with all-minilm model (~46MB)
+    Tests the complete flow: embedding → store → search
     """
     base_url = os.environ.get("PUPPYSTORAGE_URL", "http://localhost:8002")
-    print(f"\n🧪 Testing local backend with Ollama embedder")
+    print(f"\n🧪 Testing local backend with Ollama embedder (all-minilm)")
     
     # Health check
-    r = requests.get(f"{base_url}/health")
+    r = requests.get(f"{base_url}/health", timeout=10)
     assert r.status_code == 200
+    print("✅ Storage service healthy")
     
     headers = {"Authorization": "Bearer token"}
     
-    # Store vectors with Ollama embedding
+    # Store vectors with Ollama embedding (using lightweight all-minilm model)
+    print("📝 Storing vectors with Ollama...")
     store_response = requests.post(
         f"{base_url}/vectors/store",
         json={
@@ -118,36 +119,54 @@ def test_embedder_local_ollama():
             "items": [
                 {
                     "id": "doc1",
-                    "text": "Test document with Ollama",
-                    "metadata": {"source": "local"}
+                    "text": "Artificial intelligence and machine learning",
+                    "metadata": {"topic": "AI"}
+                },
+                {
+                    "id": "doc2",
+                    "text": "Natural language processing and text analysis",
+                    "metadata": {"topic": "NLP"}
                 }
             ],
             "provider": "ollama",
-            "model": "llama3"
+            "model": "all-minilm"
         },
         headers=headers,
-        timeout=60
+        timeout=120  # Ollama may need time for first embedding
     )
     
-    assert store_response.status_code == 200
+    print(f"Store response: {store_response.status_code}")
+    print(f"Store body: {store_response.text[:200]}")
+    assert store_response.status_code == 200, f"Store failed: {store_response.text}"
+    print("✅ Vectors stored successfully")
     
-    # Search
+    # Search with Ollama
+    print("🔍 Searching vectors with Ollama...")
     search_response = requests.post(
         f"{base_url}/vectors/search",
         json={
             "user_id": "test_user_ollama",
             "collection_name": "test_ollama_collection",
-            "query_text": "test",
+            "query_text": "machine learning AI",
             "provider": "ollama",
-            "model": "llama3",
-            "top_k": 1
+            "model": "all-minilm",
+            "top_k": 2
         },
         headers=headers,
-        timeout=60
+        timeout=120
     )
     
-    assert search_response.status_code == 200
+    print(f"Search response: {search_response.status_code}")
+    print(f"Search body: {search_response.text[:200]}")
+    assert search_response.status_code == 200, f"Search failed: {search_response.text}"
+    
     search_data = search_response.json()
     results = search_data.get("results", search_data)
-    assert len(results) > 0
+    assert len(results) > 0, "Should return search results"
+    print(f"✅ Found {len(results)} results")
+    
+    # Verify result structure
+    first_result = results[0]
+    assert "id" in first_result or "metadata" in first_result
+    print(f"✅ Ollama E2E test passed!")
 
