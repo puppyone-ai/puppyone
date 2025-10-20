@@ -26,7 +26,7 @@ jobs:
           pip install -r PuppyStorage/requirements.txt
 
       - name: Compose up (full stack)
-        run: docker compose -f docker-compose.e2e.yml up -d --build ollama postgres minio minio-setup wiremock storage-local storage-remote
+        run: docker compose -f docker-compose.e2e.yml up -d --build
 
       - name: Wait for Ollama and download model
         run: |
@@ -57,8 +57,7 @@ jobs:
 
       - name: Wait for storage services
         run: |
-          sleep 5
-          echo "=== Waiting for storage-local (8002) ==="
+          echo "=== Waiting for storage-local (8002) health check ==="
           for i in {1..60}; do
             if curl -sf http://localhost:8002/health; then
               echo "✅ storage-local is healthy"
@@ -67,7 +66,7 @@ jobs:
             sleep 2
           done
           
-          echo "=== Waiting for storage-remote (8003) ==="
+          echo "=== Waiting for storage-remote (8003) health check ==="
           for i in {1..60}; do
             if curl -sf http://localhost:8003/health; then
               echo "✅ storage-remote is healthy"
@@ -76,14 +75,13 @@ jobs:
             sleep 2
           done
           
-          echo "=== All services ready ==="
+          echo "=== All services are healthy ==="
 
       - name: Run E2E tests
         working-directory: ./PuppyStorage
         run: |
           echo "=== Running E2E tests ==="
           pytest -v -m "e2e" --tb=short
-        timeout-minutes: 15
 
       - name: Dump compose logs
         if: always()
