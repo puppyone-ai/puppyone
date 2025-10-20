@@ -23,10 +23,10 @@ async def test_remote_auth_valid(monkeypatch):
 
     import server.auth as auth
 
-    async def fake_post(url, headers=None, **kwargs):
+    async def fake_post(self, url, **kwargs):
         return MockHttpxResponse(200, {"valid": True, "user": {"user_id": "u1"}})
 
-    # Mock the AsyncClient.post method
+    # Mock the AsyncClient.post method (note: includes 'self' parameter)
     monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
 
     provider = auth.get_auth_provider()
@@ -42,7 +42,7 @@ async def test_remote_auth_invalid_token(monkeypatch):
 
     import server.auth as auth
 
-    async def fake_post(url, headers=None, **kwargs):
+    async def fake_post(self, url, **kwargs):
         return MockHttpxResponse(200, {"valid": False})
 
     monkeypatch.setattr("httpx.AsyncClient.post", fake_post)
@@ -58,10 +58,10 @@ async def test_remote_auth_401_403(monkeypatch):
     os.environ["DEPLOYMENT_TYPE"] = "remote"
     import server.auth as auth
 
-    async def post_401(url, headers=None, **kwargs):
+    async def post_401(self, url, **kwargs):
         return MockHttpxResponse(401, {})
 
-    async def post_403(url, headers=None, **kwargs):
+    async def post_403(self, url, **kwargs):
         return MockHttpxResponse(403, {})
 
     monkeypatch.setattr("httpx.AsyncClient.post", post_401)
@@ -83,10 +83,10 @@ async def test_remote_auth_timeout_network(monkeypatch):
     os.environ["DEPLOYMENT_TYPE"] = "remote"
     import server.auth as auth
 
-    async def raise_timeout(url, headers=None, **kwargs):
+    async def raise_timeout(self, url, **kwargs):
         raise httpx.TimeoutException("Timeout")
 
-    async def raise_request_exc(url, headers=None, **kwargs):
+    async def raise_request_exc(self, url, **kwargs):
         raise httpx.RequestError("Network error")
 
     monkeypatch.setattr("httpx.AsyncClient.post", raise_timeout)
