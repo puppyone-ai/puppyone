@@ -90,14 +90,17 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from abc import ABC, abstractmethod
 
 from openai import OpenAI
-from transformers import AutoTokenizer, AutoModel
-from sentence_transformers import SentenceTransformer
-from torch import no_grad, Tensor, tensor, mean, matmul
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.config import config
 import threading
 import re
 import requests
+
+# Heavy ML libraries are imported lazily within provider classes
+# to avoid loading them when not needed (especially in E2E tests)
+# - transformers: used by HuggingFaceProvider
+# - sentence_transformers: used by SentenceTransformerProvider  
+# - torch: used by HuggingFaceProvider and SentenceTransformerProvider
 
 
 class ModelRegistry:
@@ -317,22 +320,30 @@ class HuggingFaceProvider(ProviderInterface):
     _lock = threading.Lock()
     
     def __init__(self, model_name: str, **kwargs):
+        # Lazy import: only load heavy ML libraries when actually using this provider
+        from transformers import AutoTokenizer, AutoModel
+        from torch import no_grad, mean
+        
         self.model_name = model_name
+        self.AutoModel = AutoModel
+        self.AutoTokenizer = AutoTokenizer
+        self.no_grad = no_grad
+        self.mean = mean
         
         with self._lock:
             cache_key = model_name
             if cache_key in self._model_cache:
                 self.model, self.tokenizer = self._model_cache[cache_key]
             else:
-                self.model = AutoModel.from_pretrained(model_name)
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                self.model = self.AutoModel.from_pretrained(model_name)
+                self.tokenizer = self.AutoTokenizer.from_pretrained(model_name)
                 self._model_cache[cache_key] = (self.model, self.tokenizer)
     
     def embed(self, docs: List[str]) -> List[List[float]]:
         inputs = self.tokenizer(docs, padding=True, truncation=True, return_tensors="pt")
-        with no_grad():
+        with self.no_grad():
             outputs = self.model(**inputs)
-        return mean(outputs.last_hidden_state, dim=1).tolist()
+        return self.mean(outputs.last_hidden_state, dim=1).tolist()
     
     @classmethod
     def get_supported_models(cls) -> List[str]:
@@ -364,13 +375,17 @@ class SentenceTransformerProvider(ProviderInterface):
     _lock = threading.Lock()
     
     def __init__(self, model_name: str, **kwargs):
+        # Lazy import: only load heavy ML libraries when actually using this provider
+        from sentence_transformers import SentenceTransformer
+        
         self.model_name = model_name
+        self.SentenceTransformer = SentenceTransformer
         
         with self._lock:
             if model_name in self._model_cache:
                 self.model = self._model_cache[model_name]
             else:
-                self.model = SentenceTransformer(model_name)
+                self.model = self.SentenceTransformer(model_name)
                 self._model_cache[model_name] = self.model
     
     def embed(self, docs: List[str]) -> List[List[float]]:
