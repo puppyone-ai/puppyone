@@ -561,7 +561,7 @@ async def upload_chunk_to_local(
         log_debug(f"[{request_id}] 本地存储分块上传: upload_id={upload_id}, part_number={part_number}, size={len(chunk_data)}")
         
         # 检查存储适配器类型
-        if not hasattr(storage_adapter, 'save_multipart_chunk'):
+        if not hasattr(storage, 'save_multipart_chunk'):
             raise HTTPException(
                 status_code=400,
                 detail="This endpoint is only available for local storage"
@@ -757,7 +757,7 @@ async def upload_chunk_direct(
         log_info(f"[{request_id}] 开始保存chunk: size={len(chunk_data)}")
         
         # 5. 检查存储适配器是否支持直接保存
-        if hasattr(storage_adapter, 'save_chunk_direct'):
+        if hasattr(storage, 'save_chunk_direct'):
             # 使用专门的直接保存方法
             result = storage.save_chunk_direct(
                 key=key,

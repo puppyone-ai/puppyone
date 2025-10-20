@@ -76,7 +76,7 @@ async def get_download_url(
             )
         
         # 检查存储适配器是否支持生成下载URL
-        if not hasattr(storage_adapter, 'get_download_url'):
+        if not hasattr(storage, 'get_download_url'):
             raise HTTPException(
                 status_code=501, 
                 detail="当前存储后端不支持生成下载URL"
