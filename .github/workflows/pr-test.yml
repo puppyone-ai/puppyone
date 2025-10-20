@@ -63,6 +63,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
           echo "=== Running integration tests ==="
           pytest -v -m "integration" --tb=short
@@ -81,6 +82,7 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: test_db
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
         run: |
           echo "=== Running coverage analysis ==="
           pytest -m "unit or integration or contract" \
