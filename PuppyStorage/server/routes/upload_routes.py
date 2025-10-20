@@ -302,24 +302,12 @@ async def init_multipart_upload(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def verify_url_auth(
-    request_data: MultipartUrlRequest,
-    authorization: str = Header(None, alias="Authorization"),
-    auth_provider = Depends(get_auth_provider)
-) -> User:
-    """验证获取上传URL的认证和权限"""
-    return await verify_user_and_resource_access(
-        resource_key=request_data.key,
-        authorization=authorization,
-        auth_provider=auth_provider
-    )
-
-
 @upload_router.post("/get_upload_url", response_model=MultipartUrlResponse)
 async def get_multipart_upload_url(
     request_data: MultipartUrlRequest,
+    authorization: str = Header(None, alias="Authorization"),
     storage: StorageAdapter = Depends(get_storage_adapter),
-    current_user: User = Depends(verify_url_auth)
+    auth_provider = Depends(get_auth_provider)
 ):
     """
     获取分块上传URL
@@ -330,6 +318,13 @@ async def get_multipart_upload_url(
     需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
+    
+    # 验证认证和资源访问权限
+    current_user = await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
     
     try:
         log_debug(f"[{request_id}] 获取分块上传URL: user={current_user.user_id}, upload_id={request_data.upload_id}, part_number={request_data.part_number}")
@@ -365,24 +360,12 @@ async def get_multipart_upload_url(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def verify_complete_auth(
-    request_data: MultipartCompleteRequest,
-    authorization: str = Header(None, alias="Authorization"),
-    auth_provider = Depends(get_auth_provider)
-) -> User:
-    """验证完成上传的认证和权限"""
-    return await verify_user_and_resource_access(
-        resource_key=request_data.key,
-        authorization=authorization,
-        auth_provider=auth_provider
-    )
-
-
 @upload_router.post("/complete", response_model=MultipartCompleteResponse)
 async def complete_multipart_upload(
     request_data: MultipartCompleteRequest,
+    authorization: str = Header(None, alias="Authorization"),
     storage: StorageAdapter = Depends(get_storage_adapter),
-    current_user: User = Depends(verify_complete_auth)
+    auth_provider = Depends(get_auth_provider)
 ):
     """
     完成分块上传
@@ -393,6 +376,13 @@ async def complete_multipart_upload(
     需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
+    
+    # 验证认证和资源访问权限
+    current_user = await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
     
     try:
         log_info(f"[{request_id}] 完成分块上传: user={current_user.user_id}, upload_id={request_data.upload_id}, parts_count={len(request_data.parts)}")
@@ -434,24 +424,12 @@ async def complete_multipart_upload(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def verify_abort_auth(
-    request_data: MultipartAbortRequest,
-    authorization: str = Header(None, alias="Authorization"),
-    auth_provider = Depends(get_auth_provider)
-) -> User:
-    """验证中止上传的认证和权限"""
-    return await verify_user_and_resource_access(
-        resource_key=request_data.key,
-        authorization=authorization,
-        auth_provider=auth_provider
-    )
-
-
 @upload_router.post("/abort", response_model=MultipartAbortResponse)
 async def abort_multipart_upload(
     request_data: MultipartAbortRequest,
+    authorization: str = Header(None, alias="Authorization"),
     storage: StorageAdapter = Depends(get_storage_adapter),
-    current_user: User = Depends(verify_abort_auth)
+    auth_provider = Depends(get_auth_provider)
 ):
     """
     中止分块上传
@@ -461,6 +439,13 @@ async def abort_multipart_upload(
     需要提供 Authorization: Bearer <jwt_token> header
     """
     request_id = generate_request_id()
+    
+    # 验证认证和资源访问权限
+    current_user = await verify_user_and_resource_access(
+        resource_key=request_data.key,
+        authorization=authorization,
+        auth_provider=auth_provider
+    )
     
     try:
         log_info(f"[{request_id}] 中止分块上传: user={current_user.user_id}, upload_id={request_data.upload_id}")
