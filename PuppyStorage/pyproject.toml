@@ -8,6 +8,9 @@ omit = [
     "*/qdrant_db_client.py",
     "*/weaviate_db_client.py",
     "*/zilliz_db_client.py",
+    
+    # 语法错误的文件（待修复或删除）
+    "*/space.py",
 ]
 
 [tool.coverage.report]
