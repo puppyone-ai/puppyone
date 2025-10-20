@@ -12,10 +12,8 @@ def test_text_embedder_create_ollama():
     """Test TextEmbedder.create() with Ollama model"""
     from vector.embedder import TextEmbedder, ModelRegistry
     
-    # Register a test model
-    ModelRegistry._instance = None  # Reset singleton
-    registry = ModelRegistry.get_instance()
-    registry.register_model("llama3", "ollama")
+    # Register a test model using class method
+    ModelRegistry.register_models("ollama", ["llama3"])
     
     with patch('vector.embedder.OllamaProvider') as MockOllama:
         mock_instance = Mock()
@@ -37,10 +35,8 @@ def test_text_embedder_create_openai():
     """Test TextEmbedder.create() with OpenAI model"""
     from vector.embedder import TextEmbedder, ModelRegistry
     
-    # Register a test model
-    ModelRegistry._instance = None  # Reset singleton
-    registry = ModelRegistry.get_instance()
-    registry.register_model("text-embedding-3-small", "openai")
+    # Register a test model using class method
+    ModelRegistry.register_models("openai", ["text-embedding-3-small"])
     
     # Mock OpenAI API key
     with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}):
@@ -70,9 +66,9 @@ def test_ollama_provider_embed():
         mock_get.return_value.status_code = 200
         mock_get.return_value.raise_for_status = Mock()
         
-        # Mock successful embedding response
+        # Mock successful embedding response (Ollama returns "embeddings" key)
         mock_response = Mock()
-        mock_response.json.return_value = {'embedding': [0.1, 0.2, 0.3]}
+        mock_response.json.return_value = {'embeddings': [0.1, 0.2, 0.3]}
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
         
@@ -95,11 +91,11 @@ def test_ollama_provider_batch_embed():
         mock_get.return_value.status_code = 200
         mock_get.return_value.raise_for_status = Mock()
         
-        # Mock responses for batch
+        # Mock responses for batch (Ollama returns "embeddings" key)
         mock_response = Mock()
         mock_response.json.side_effect = [
-            {'embedding': [0.1, 0.2, 0.3]},
-            {'embedding': [0.4, 0.5, 0.6]}
+            {'embeddings': [0.1, 0.2, 0.3]},
+            {'embeddings': [0.4, 0.5, 0.6]}
         ]
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
@@ -182,8 +178,8 @@ def test_model_registry_singleton():
     """Test ModelRegistry is a singleton"""
     from vector.embedder import ModelRegistry
     
-    registry1 = ModelRegistry.get_instance()
-    registry2 = ModelRegistry.get_instance()
+    registry1 = ModelRegistry()
+    registry2 = ModelRegistry()
     
     assert registry1 is registry2
 
@@ -193,14 +189,13 @@ def test_model_registry_register_provider():
     """Test registering a provider in ModelRegistry"""
     from vector.embedder import ModelRegistry
     
-    registry = ModelRegistry.get_instance()
-    
     # Mock provider
     class MockProvider:
         pass
     
-    registry.register_provider("mock_provider", MockProvider)
-    assert "mock_provider" in registry._providers
+    # Register using class method
+    ModelRegistry.register_provider("mock_provider", MockProvider)
+    assert "mock_provider" in ModelRegistry._providers
 
 
 @pytest.mark.unit
@@ -208,10 +203,8 @@ def test_text_embedder_with_endpoint():
     """Test TextEmbedder.create() with custom endpoint"""
     from vector.embedder import TextEmbedder, ModelRegistry
     
-    # Register a test model
-    ModelRegistry._instance = None
-    registry = ModelRegistry.get_instance()
-    registry.register_model("llama3", "ollama")
+    # Register a test model using class method
+    ModelRegistry.register_models("ollama", ["llama3"])
     
     with patch('vector.embedder.OllamaProvider') as MockOllama:
         mock_instance = Mock()
@@ -230,10 +223,8 @@ def test_text_embedder_empty_input():
     """Test TextEmbedder with empty input"""
     from vector.embedder import TextEmbedder, ModelRegistry
     
-    # Register a test model
-    ModelRegistry._instance = None
-    registry = ModelRegistry.get_instance()
-    registry.register_model("llama3", "ollama")
+    # Register a test model using class method
+    ModelRegistry.register_models("ollama", ["llama3"])
     
     with patch('vector.embedder.OllamaProvider') as MockOllama:
         mock_instance = Mock()
@@ -257,12 +248,12 @@ def test_embedder_dimension_consistency():
         mock_get.return_value.status_code = 200
         mock_get.return_value.raise_for_status = Mock()
         
-        # Mock responses with same dimension
+        # Mock responses with same dimension (Ollama returns "embeddings" key)
         mock_response = Mock()
         mock_response.json.side_effect = [
-            {'embedding': [0.1, 0.2, 0.3]},
-            {'embedding': [0.4, 0.5, 0.6]},
-            {'embedding': [0.7, 0.8, 0.9]}
+            {'embeddings': [0.1, 0.2, 0.3]},
+            {'embeddings': [0.4, 0.5, 0.6]},
+            {'embeddings': [0.7, 0.8, 0.9]}
         ]
         mock_response.raise_for_status = Mock()
         mock_post.return_value = mock_response
