@@ -30,32 +30,28 @@ def test_embedder_remote_openai():
     # Auth mocked via wiremock
     headers = {"Authorization": "Bearer token"}
     
-    # Store vectors with OpenAI provider (actually using Ollama's OpenAI-compatible API)
-    print("📝 Storing vectors with OpenAI provider...")
+    # Store vectors using /embed endpoint with correct format
+    print("📝 Storing vectors via /embed endpoint...")
     store_response = requests.post(
-        f"{base_url}/vectors/store",
+        f"{base_url}/embed",
         json={
             "user_id": "test_user_openai_compat",
-            "collection_name": "test_openai_collection",
-            "items": [
+            "set_name": "test_openai_set",
+            "model": "all-minilm",
+            "chunks": [
                 {
-                    "id": "doc1",
-                    "text": "Artificial intelligence and deep learning systems",
-                    "metadata": {"category": "AI"}
+                    "content": "Artificial intelligence and deep learning systems",
+                    "metadata": {"category": "AI", "id": "doc1"}
                 },
                 {
-                    "id": "doc2", 
-                    "text": "Machine learning algorithms and neural networks",
-                    "metadata": {"category": "ML"}
+                    "content": "Machine learning algorithms and neural networks",
+                    "metadata": {"category": "ML", "id": "doc2"}
                 },
                 {
-                    "id": "doc3",
-                    "text": "Natural language processing and text understanding",
-                    "metadata": {"category": "NLP"}
+                    "content": "Natural language processing and text understanding",
+                    "metadata": {"category": "NLP", "id": "doc3"}
                 }
-            ],
-            "provider": "openai",
-            "model": "all-minilm"
+            ]
         },
         headers=headers,
         timeout=120
@@ -66,18 +62,18 @@ def test_embedder_remote_openai():
     
     assert store_response.status_code == 200, f"Store failed: {store_response.text}"
     store_data = store_response.json()
-    assert "stored" in store_data or "success" in store_data
-    print("✅ Vectors stored successfully")
+    assert "collection_name" in store_data
+    collection_name = store_data["collection_name"]
+    print(f"✅ Vectors stored successfully in collection: {collection_name}")
     
     # Search vectors
-    print("🔍 Searching vectors with OpenAI provider...")
+    print("🔍 Searching vectors...")
     search_response = requests.post(
-        f"{base_url}/vectors/search",
+        f"{base_url}/search",
         json={
             "user_id": "test_user_openai_compat",
-            "collection_name": "test_openai_collection",
+            "set_name": "test_openai_set",
             "query_text": "deep learning AI",
-            "provider": "openai",
             "model": "all-minilm",
             "top_k": 3
         },
@@ -121,27 +117,24 @@ def test_embedder_local_ollama():
     
     headers = {"Authorization": "Bearer token"}
     
-    # Store vectors with Ollama embedding (using lightweight all-minilm model)
-    print("📝 Storing vectors with Ollama...")
+    # Store vectors via /embed endpoint
+    print("📝 Storing vectors via /embed endpoint...")
     store_response = requests.post(
-        f"{base_url}/vectors/store",
+        f"{base_url}/embed",
         json={
             "user_id": "test_user_ollama",
-            "collection_name": "test_ollama_collection",
-            "items": [
+            "set_name": "test_ollama_set",
+            "model": "all-minilm",
+            "chunks": [
                 {
-                    "id": "doc1",
-                    "text": "Artificial intelligence and machine learning",
-                    "metadata": {"topic": "AI"}
+                    "content": "Artificial intelligence and machine learning",
+                    "metadata": {"topic": "AI", "id": "doc1"}
                 },
                 {
-                    "id": "doc2",
-                    "text": "Natural language processing and text analysis",
-                    "metadata": {"topic": "NLP"}
+                    "content": "Natural language processing and text analysis",
+                    "metadata": {"topic": "NLP", "id": "doc2"}
                 }
-            ],
-            "provider": "ollama",
-            "model": "all-minilm"
+            ]
         },
         headers=headers,
         timeout=120  # Ollama may need time for first embedding
@@ -150,17 +143,19 @@ def test_embedder_local_ollama():
     print(f"Store response: {store_response.status_code}")
     print(f"Store body: {store_response.text[:200]}")
     assert store_response.status_code == 200, f"Store failed: {store_response.text}"
-    print("✅ Vectors stored successfully")
+    store_data = store_response.json()
+    assert "collection_name" in store_data
+    collection_name = store_data["collection_name"]
+    print(f"✅ Vectors stored successfully in collection: {collection_name}")
     
-    # Search with Ollama
-    print("🔍 Searching vectors with Ollama...")
+    # Search vectors
+    print("🔍 Searching vectors...")
     search_response = requests.post(
-        f"{base_url}/vectors/search",
+        f"{base_url}/search",
         json={
             "user_id": "test_user_ollama",
-            "collection_name": "test_ollama_collection",
+            "set_name": "test_ollama_set",
             "query_text": "machine learning AI",
-            "provider": "ollama",
             "model": "all-minilm",
             "top_k": 2
         },
