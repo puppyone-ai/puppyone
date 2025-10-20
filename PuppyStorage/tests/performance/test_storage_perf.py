@@ -122,12 +122,11 @@ def test_storage_list_performance_s3(s3_moto):
     Baseline: List operations should scale well with object count.
     Threshold: < 2 seconds to list 500 objects
     """
-    bucket_name = s3_moto
+    # s3_moto fixture returns dict with 'bucket' and 'client'  
+    bucket_name = s3_moto["bucket"]
+    
     os.environ["DEPLOYMENT_TYPE"] = "remote"
-    os.environ["CLOUDFLARE_R2_ACCESS_KEY"] = "test"
-    os.environ["CLOUDFLARE_R2_SECRET_KEY"] = "test"
-    os.environ["CLOUDFLARE_R2_BUCKET_NAME"] = bucket_name
-    os.environ["CLOUDFLARE_R2_ENDPOINT_URL"] = "http://localhost:5000"
+    # Note: s3_moto already sets the necessary env vars in conftest.py
     
     from storage import reset_storage_manager, get_storage
     
