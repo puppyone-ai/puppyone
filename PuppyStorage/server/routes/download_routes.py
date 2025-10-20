@@ -117,7 +117,7 @@ async def stream_local_file(
     此端点不需要额外认证，因为URL的获取已经通过了认证。
     """
     # 检查是否为本地存储适配器
-    if not isinstance(storage_adapter, LocalStorageAdapter):
+    if not isinstance(storage, LocalStorageAdapter):
         raise HTTPException(
             status_code=404, 
             detail="此端点仅适用于本地存储环境"
@@ -137,7 +137,7 @@ async def stream_local_file(
         range_header = request.headers.get('Range')
         
         # 检查存储适配器是否支持流式传输
-        if not hasattr(storage_adapter, 'stream_from_disk'):
+        if not hasattr(storage, 'stream_from_disk'):
             raise HTTPException(
                 status_code=501,
                 detail="当前存储适配器不支持流式传输"
