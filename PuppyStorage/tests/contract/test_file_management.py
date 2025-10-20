@@ -51,8 +51,8 @@ def setup_test_file(temp_storage_dir):
     resource_key = f"{user_id}/test_block/v1/test_file.txt"
     test_content = b"Test file content for deletion"
     
-    # Upload the file
-    storage.upload_file(resource_key, test_content)
+    # Save the file (correct method name)
+    storage.save_file(resource_key, test_content, content_type="text/plain")
     
     return {
         "user_id": user_id,
