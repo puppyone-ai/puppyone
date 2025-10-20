@@ -2,6 +2,9 @@ name: Nightly Test Suite
 
 # 完整的夜间测试套件 - e2e + performance
 on:
+  push:
+    branches:
+      - 'feature/testing-scaffold'  # 临时测试用
   schedule:
     - cron: "0 2 * * *"  # 每天UTC 02:00运行
   workflow_dispatch: {}
