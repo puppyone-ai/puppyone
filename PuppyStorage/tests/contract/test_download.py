@@ -51,8 +51,8 @@ def setup_test_file(temp_storage_dir):
     resource_key = f"{user_id}/test_block/v1/test_download.txt"
     test_content = b"Test file content for download"
     
-    # Upload the file
-    storage.upload_file(resource_key, test_content)
+    # Save the file (correct method name)
+    storage.save_file(resource_key, test_content, content_type="text/plain")
     
     return {
         "user_id": user_id,
@@ -248,7 +248,7 @@ def test_stream_local_file_content_type(test_client, temp_storage_dir):
     
     # Create a JSON file
     json_key = "test_user/test_block/v1/test.json"
-    storage.upload_file(json_key, b'{"test": "data"}')
+    storage.save_file(json_key, b'{"test": "data"}', content_type="application/json")
     
     response = test_client.get(f"/download/stream/{json_key}")
     
