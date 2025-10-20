@@ -10,45 +10,55 @@ import requests
 @pytest.mark.e2e
 def test_embedder_remote_openai():
     """
-    E2E test for remote backend with OpenAI embedder (mocked via wiremock)
+    E2E test for remote backend with OpenAI-compatible embedder
     
-    Tests:
-    - Vector store with OpenAI embeddings
+    Uses Ollama's OpenAI-compatible API (/v1/embeddings) with all-minilm model
+    This tests:
+    - Real embedding computation
+    - OpenAI API compatibility
+    - Vector store with OpenAI provider
     - Vector search
     """
     base_url = os.environ.get("PUPPYSTORAGE_URL", "http://localhost:8003")
-    print(f"\n🧪 Testing remote backend with OpenAI embedder (mocked)")
+    print(f"\n🧪 Testing remote backend with OpenAI-compatible embedder (Ollama)")
     
     # Health check
-    r = requests.get(f"{base_url}/health")
+    r = requests.get(f"{base_url}/health", timeout=10)
     assert r.status_code == 200
+    print("✅ Storage service healthy")
     
     # Auth mocked via wiremock
     headers = {"Authorization": "Bearer token"}
     
-    # Store vectors with embedding
+    # Store vectors with OpenAI provider (actually using Ollama's OpenAI-compatible API)
+    print("📝 Storing vectors with OpenAI provider...")
     store_response = requests.post(
         f"{base_url}/vectors/store",
         json={
-            "user_id": "test_user_embedder",
-            "collection_name": "test_embedder_collection",
+            "user_id": "test_user_openai_compat",
+            "collection_name": "test_openai_collection",
             "items": [
                 {
                     "id": "doc1",
-                    "text": "This is a test document about artificial intelligence",
+                    "text": "Artificial intelligence and deep learning systems",
                     "metadata": {"category": "AI"}
                 },
                 {
                     "id": "doc2", 
-                    "text": "Machine learning is a subset of AI",
+                    "text": "Machine learning algorithms and neural networks",
                     "metadata": {"category": "ML"}
+                },
+                {
+                    "id": "doc3",
+                    "text": "Natural language processing and text understanding",
+                    "metadata": {"category": "NLP"}
                 }
             ],
             "provider": "openai",
-            "model": "text-embedding-3-small"
+            "model": "all-minilm"
         },
         headers=headers,
-        timeout=30
+        timeout=120
     )
     
     print(f"Store response status: {store_response.status_code}")
@@ -57,20 +67,22 @@ def test_embedder_remote_openai():
     assert store_response.status_code == 200, f"Store failed: {store_response.text}"
     store_data = store_response.json()
     assert "stored" in store_data or "success" in store_data
+    print("✅ Vectors stored successfully")
     
     # Search vectors
+    print("🔍 Searching vectors with OpenAI provider...")
     search_response = requests.post(
         f"{base_url}/vectors/search",
         json={
-            "user_id": "test_user_embedder",
-            "collection_name": "test_embedder_collection",
-            "query_text": "artificial intelligence",
+            "user_id": "test_user_openai_compat",
+            "collection_name": "test_openai_collection",
+            "query_text": "deep learning AI",
             "provider": "openai",
-            "model": "text-embedding-3-small",
-            "top_k": 2
+            "model": "all-minilm",
+            "top_k": 3
         },
         headers=headers,
-        timeout=30
+        timeout=120
     )
     
     print(f"Search response status: {search_response.status_code}")
@@ -83,12 +95,12 @@ def test_embedder_remote_openai():
     assert "results" in search_data or isinstance(search_data, list)
     results = search_data.get("results", search_data)
     assert len(results) > 0, "Search should return results"
+    print(f"✅ Found {len(results)} results")
     
     # Verify result structure
     first_result = results[0]
     assert "id" in first_result or "metadata" in first_result
-    
-    print(f"✅ Found {len(results)} results")
+    print(f"✅ OpenAI-compatible E2E test passed!")
 
 
 @pytest.mark.e2e

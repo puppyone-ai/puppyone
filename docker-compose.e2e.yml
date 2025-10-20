@@ -104,7 +104,7 @@ services:
         limits:
           memory: 512M
 
-  # Remote deployment: S3 + PGV + Remote Auth
+  # Remote deployment: S3 + PGV + Remote Auth + OpenAI-compatible API (via Ollama)
   storage-remote:
     image: puppy-storage-e2e:latest
     container_name: e2e_storage_remote
@@ -119,7 +119,7 @@ services:
       - CLOUDFLARE_R2_BUCKET=puppy-e2e
       - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - STORAGE_SERVER_URL=http://localhost:8003
-      - OPENAI_API_BASE=http://wiremock:8080/v1
+      - OPENAI_API_BASE=http://ollama:11434/v1
       - OPENAI_API_KEY=dummy-key-for-e2e
     ports:
       - "8003:8002"
@@ -128,6 +128,7 @@ services:
       - minio
       - minio-setup
       - wiremock
+      - ollama
       - storage-local
     deploy:
       resources:
