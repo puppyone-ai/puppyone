@@ -177,7 +177,8 @@ class ModelRegistry:
                 
                 # Ollama需要检查本地服务是否可用
                 try:
-                    endpoint = config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+                    # Support both OLLAMA_ENDPOINT and OLLAMA_API_ENDPOINT for flexibility
+                    endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
                     response = requests.get(f"{endpoint}/api/tags", timeout=2)
                     if response.status_code != 200:
                         cls._available_providers.discard("ollama")
@@ -204,7 +205,9 @@ class ModelRegistry:
             # Special handling for Ollama: try dynamic model lookup
             if "ollama" in cls._available_providers:
                 try:
-                    ollama_models = OllamaProvider.get_supported_models()
+                    # Get endpoint from config (same priority as OllamaProvider.__init__)
+                    endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+                    ollama_models = OllamaProvider.get_supported_models(endpoint=endpoint)
                     if model_name in ollama_models:
                         # Dynamically register this model
                         cls._models[model_name] = "ollama"
@@ -427,7 +430,8 @@ class OllamaProvider(ProviderInterface):
     def __init__(self, model_name: str, **kwargs):
         self.model_name = model_name
         # 优先从kwargs获取，其次从环境变量，最后使用默认值
-        self.endpoint = kwargs.get("endpoint") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+        # Support both OLLAMA_ENDPOINT and OLLAMA_API_ENDPOINT for flexibility
+        self.endpoint = kwargs.get("endpoint") or config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
         # 确保endpoint没有尾随斜杠
         self.endpoint = self.endpoint.rstrip("/")
         
