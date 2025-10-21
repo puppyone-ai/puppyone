@@ -96,9 +96,9 @@ jobs:
           
           echo "✅ Both storage services are healthy"
 
-      - name: Run E2E tests (both local and remote backends with Ollama)
+      - name: Run E2E tests (both local and remote backends with Ollama, strict)
         working-directory: ./PuppyStorage
-        run: pytest -v -m "e2e" --tb=short
+        run: pytest -v -m "e2e" --tb=short --maxfail=1 -W error
         timeout-minutes: 15
 
       - name: Dump compose logs on failure

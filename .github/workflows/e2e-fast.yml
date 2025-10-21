@@ -3,7 +3,6 @@ name: e2e-fast
 on:
   push:
     branches:
-      - 'feature/testing-scaffold'
       - 'feature/**'
   workflow_dispatch: {}
 
@@ -113,9 +112,9 @@ jobs:
           
           wait $PID1 && wait $PID2
 
-      - name: Run E2E tests (parallel)
+      - name: Run E2E tests (parallel, strict)
         working-directory: ./PuppyStorage
-        run: pytest -v -m "e2e" -n auto
+        run: pytest -v -m "e2e" -n auto --maxfail=1 -W error
 
       - name: Dump compose logs on failure
         if: failure()
