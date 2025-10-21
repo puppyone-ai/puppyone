@@ -450,7 +450,21 @@ class OllamaProvider(ProviderInterface):
                 )
                 response.raise_for_status()
                 data = response.json()
-                results.append(data["embeddings"])
+                # Normalize response shapes:
+                # - Some versions return {"embedding": [...]} (singular)
+                # - Others return {"embeddings": [...]} or {"embeddings": [[...]]}
+                if "embedding" in data:
+                    vector = data["embedding"]
+                elif "embeddings" in data:
+                    vec = data["embeddings"]
+                    # If it's [[...]] for single input, take first
+                    if isinstance(vec, list) and len(vec) > 0 and isinstance(vec[0], list):
+                        vector = vec[0]
+                    else:
+                        vector = vec
+                else:
+                    raise KeyError("embedding(s)")
+                results.append(vector)
             except (requests.RequestException, IOError, KeyError, ValueError) as e:
                 raise PuppyException(3303, "Ollama Embedding Failed", 
                                     f"Failed to get embeddings from Ollama: {str(e)}")
