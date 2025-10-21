@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field, conlist, validator, root_validator
+from pydantic import BaseModel, Field, conlist, validator
 from typing import List, Optional, Dict, Any
 
 # Lazy import for embedder to avoid dependencies in minimal environments
@@ -129,7 +129,6 @@ class DeleteRequest(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str  # 必需的搜索查询字符串
-    query_text: Optional[str] = None  # 兼容旧字段名
     set_name: str  # 必需的集合名称
     user_id: str = Field(default="public")  # 使用 Field 确保默认值为字符串
     model: str = Field(default="text-embedding-ada-002")
@@ -138,14 +137,6 @@ class SearchRequest(BaseModel):
     threshold: Optional[float] = Field(default=None)
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
     metric: str = Field(default="cosine")
-
-    @root_validator(pre=True)
-    def _normalize_query(cls, values):
-        # 接受 query 或 query_text，优先 query
-        if 'query' not in values or values.get('query') in (None, ""):
-            if 'query_text' in values and values.get('query_text') not in (None, ""):
-                values['query'] = values.get('query_text')
-        return values
 
     @validator('vdb_type')
     def validate_vdb_type(cls, v, values):

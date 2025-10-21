@@ -73,7 +73,7 @@ def test_embedder_remote_openai():
         json={
             "user_id": "test_user_openai_compat",
             "set_name": "test_openai_set",
-            "query_text": "deep learning AI",
+            "query": "deep learning AI",
             "model": "all-minilm",
             "top_k": 3
         },
@@ -155,7 +155,7 @@ def test_embedder_local_ollama():
         json={
             "user_id": "test_user_ollama",
             "set_name": "test_ollama_set",
-            "query_text": "machine learning AI",
+            "query": "machine learning AI",
             "model": "all-minilm",
             "top_k": 2
         },
