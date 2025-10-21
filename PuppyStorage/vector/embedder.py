@@ -461,13 +461,32 @@ class OllamaProvider(ProviderInterface):
     def get_supported_models(cls, endpoint: str = "http://localhost:11434") -> List[str]:
         """
         动态获取Ollama支持的模型列表
-        实际应用中可能需要缓存，这里简化实现
+        - 兼容返回形式如 "all-minilm:latest"：同时暴露无标签的基础名 "all-minilm"
+        - 去重，保持稳定输出
         """
         try:
             response = requests.get(f"{endpoint.rstrip('/')}/api/tags", timeout=5)
             response.raise_for_status()
             data = response.json()
-            return [model["name"] for model in data["models"]]
+            names: List[str] = []
+            for model in data.get("models", []):
+                name = model.get("name", "")
+                if not name:
+                    continue
+                names.append(name)
+                # 如果包含标签（:tag），也添加基础名以便匹配如 "all-minilm"
+                if ":" in name:
+                    base = name.split(":", 1)[0]
+                    if base:
+                        names.append(base)
+            # 去重并保持相对稳定顺序
+            seen = set()
+            deduped: List[str] = []
+            for n in names:
+                if n not in seen:
+                    seen.add(n)
+                    deduped.append(n)
+            return deduped
         except:
             # 如果无法连接到Ollama，返回空列表
             return []
