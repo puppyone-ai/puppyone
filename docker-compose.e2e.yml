@@ -124,6 +124,7 @@ services:
       - CLOUDFLARE_R2_BUCKET=puppy-e2e
       - SUPABASE_URL=postgresql://postgres:postgres@postgres:5432/postgres
       - STORAGE_SERVER_URL=http://localhost:8003
+      - OLLAMA_ENDPOINT=http://ollama:11434
       - OPENAI_API_BASE=http://ollama:11434/v1
       - OPENAI_API_KEY=dummy-key-for-e2e
     ports:
