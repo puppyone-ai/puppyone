@@ -706,6 +706,7 @@ async def upload_chunk_direct(
     block_id: str,
     file_name: str,
     request: Request,
+    storage: StorageAdapter = Depends(get_storage_adapter),
     content_type: str = "application/octet-stream",
     version_id: Optional[str] = None,  # 可选的版本ID，如果提供则使用，否则生成新的
     current_user: User = Depends(verify_init_auth)  # 使用相同的认证函数

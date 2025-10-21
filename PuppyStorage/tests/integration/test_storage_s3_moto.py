@@ -173,11 +173,14 @@ def test_s3_file_with_metadata(s3_moto):
     assert content_type == "text/plain"
     assert etag  # ETag should be present
     
-    # Test non-existent file
-    content2, ctype2, etag2 = adapter.get_file_with_metadata("nonexistent.txt")
-    assert content2 is None
-    assert ctype2 is None
-    assert etag2 is None
+    # Test non-existent file - should raise FileNotFoundError
+    from storage.exceptions import FileNotFoundError as StorageFileNotFoundError
+    try:
+        content2, ctype2, etag2 = adapter.get_file_with_metadata("nonexistent.txt")
+        assert False, "Should have raised FileNotFoundError"
+    except (StorageFileNotFoundError, FileNotFoundError):
+        # Expected behavior
+        pass
 
 
 @pytest.mark.integration
@@ -287,5 +290,45 @@ def test_s3_ping_health_check(s3_moto):
     assert result["ok"] is True
     assert result["type"] == "s3"
     assert result["bucket"] == s3_moto["bucket"]
+
+
+@pytest.mark.integration
+@pytest.mark.s3
+def test_s3_save_chunk_direct(s3_moto):
+    """Test save_chunk_direct method on S3 adapter - regression test for production bug"""
+    os.environ["DEPLOYMENT_TYPE"] = "remote"
+    os.environ["CLOUDFLARE_R2_BUCKET"] = s3_moto["bucket"]
+
+    from storage import reset_storage_manager, get_storage
+    from storage.S3 import S3StorageAdapter
+
+    reset_storage_manager()
+    adapter = get_storage()
+    assert isinstance(adapter, S3StorageAdapter)
+    adapter.s3_client = s3_moto["client"]
+
+    key = "test/direct_chunk.bin"
+    chunk_data = b"Test chunk data for direct upload"
+    content_type = "application/octet-stream"
+    
+    # Verify the method exists
+    assert hasattr(adapter, 'save_chunk_direct'), "S3StorageAdapter missing save_chunk_direct method"
+    
+    # Test save_chunk_direct
+    result = adapter.save_chunk_direct(key, chunk_data, content_type)
+    
+    assert result["success"] is True
+    assert result["key"] == key
+    assert result["size"] == len(chunk_data)
+    assert "etag" in result
+    assert result["etag"]  # ETag should not be empty
+    assert "uploaded_at" in result
+    assert result["uploaded_at"] > 0
+    
+    # Verify file was created and content is correct
+    assert adapter.check_file_exists(key)
+    content, ctype = adapter.get_file(key)
+    assert content == chunk_data
+    assert ctype == content_type
 
 
