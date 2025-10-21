@@ -152,38 +152,35 @@ class ModelRegistry:
     
     @classmethod
     def check_environment(cls):
-        """检查当前环境并标记可用的提供商"""
+        """
+        检查当前环境并标记可用的提供商
+        
+        Note: Provider availability should not depend on deployment type.
+        Each provider is checked independently based on its configuration.
+        """
         with cls._lock:
             # 重置可用提供商
             cls._available_providers = set(cls._providers.keys())
             
-            # 通过存储管理器获取部署信息
+            # Check each provider independently (not based on deployment type)
+            # This allows flexibility: remote can use Ollama, local can use OpenAI, etc.
+            
+            # 检查OpenAI：需要API key
+            if not config.get("OPENAI_API_KEY"):
+                cls._available_providers.discard("openai")
+            
+            # HuggingFace和SentenceTransformer是本地模型，默认可用
+            # （如果需要检查，可以尝试导入相关库）
+            
+            # 检查Ollama：需要服务可用
             try:
-                # 动态导入避免循环依赖
-                from storage import get_storage_info
-                storage_info = get_storage_info()
-                is_local_deployment = storage_info.get("type") == "local"
-            except ImportError:
-                # 如果存储管理器不可用，回退到配置读取
-                is_local_deployment = config.get("DEPLOYMENT_TYPE") == "local"
-                
-            # 如果是本地部署，检查各提供商的可用性
-            if is_local_deployment:
-                # OpenAI通常在本地部署中不可用，除非显式配置
-                if not config.get("OPENAI_API_KEY"):
-                    cls._available_providers.discard("openai")
-                
-                # HuggingFace和SentenceTransformer是本地模型，默认可用
-                
-                # Ollama需要检查本地服务是否可用
-                try:
-                    # Support both OLLAMA_ENDPOINT and OLLAMA_API_ENDPOINT for flexibility
-                    endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
-                    response = requests.get(f"{endpoint}/api/tags", timeout=2)
-                    if response.status_code != 200:
-                        cls._available_providers.discard("ollama")
-                except:
+                # Support both OLLAMA_ENDPOINT and OLLAMA_API_ENDPOINT for flexibility
+                endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+                response = requests.get(f"{endpoint}/api/tags", timeout=2)
+                if response.status_code != 200:
                     cls._available_providers.discard("ollama")
+            except:
+                cls._available_providers.discard("ollama")
     
     @classmethod
     def get_provider_for_model(cls, model_name: str, preferred_provider: Optional[str] = None) -> str:
