@@ -199,21 +199,20 @@ class ModelRegistry:
             
         # 查找模型对应的默认提供商
         if model_name not in cls._models:
-            # Special handling for Ollama: try dynamic model lookup
-            if "ollama" in cls._available_providers:
-                try:
-                    # Get endpoint from config (same priority as OllamaProvider.__init__)
-                    endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
-                    ollama_models = OllamaProvider.get_supported_models(endpoint=endpoint)
-                    if model_name in ollama_models:
-                        # Dynamically register this model
-                        cls._models[model_name] = "ollama"
-                        return "ollama"
-                except:
-                    pass
-            
+            # Special handling for Ollama: try dynamic model lookup even if it wasn't available at boot
+            try:
+                endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+                ollama_models = OllamaProvider.get_supported_models(endpoint=endpoint)
+                if model_name in ollama_models:
+                    # 确保提供商可用列表包含ollama（可能在启动时未就绪被剔除）
+                    cls._available_providers.add("ollama")
+                    cls._models[model_name] = "ollama"
+                    return "ollama"
+            except:
+                pass
+
             raise PuppyException(3301, f"Model {model_name} not found", 
-                                "The embedding model you requested is not available.")
+                                 "The embedding model you requested is not available.")
         
         provider_name = cls._models[model_name]
         
