@@ -1,0 +1,18 @@
+{
+    "request": {
+        "method": "POST",
+        "urlPath": "/verify_token"
+    },
+    "response": {
+        "status": 200,
+        "headers": {
+            "Content-Type": "application/json"
+        },
+        "jsonBody": {
+            "valid": true,
+            "user": {
+                "user_id": "local-user"
+            }
+        }
+    }
+}

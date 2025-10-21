@@ -1,0 +1,33 @@
+[tool.coverage.run]
+omit = [
+    # 示例代码，不需要测试
+    "*/example_usage.py",
+    
+    # 未使用的 vector database 客户端
+    "*/pinecone_db_client.py",
+    "*/qdrant_db_client.py",
+    "*/weaviate_db_client.py",
+    "*/zilliz_db_client.py",
+    
+    # 语法错误的文件（待修复或删除）
+    "*/space.py",
+]
+
+[tool.coverage.report]
+# 排除测试文件本身
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstract",
+]
+
+# 排除未使用的embedder providers (不在scope内)
+exclude_also = [
+    "class HuggingFaceProvider",
+    "class SentenceTransformerProvider",
+]
+

@@ -85,21 +85,22 @@ class ModelRegistry:
 import os
 import sys
 from typing import List, Union, Dict, Any, Optional, Type
-from io import BytesIO
-from PIL import Image
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from abc import ABC, abstractmethod
 
 from openai import OpenAI
-from transformers import AutoTokenizer, AutoModel
-from sentence_transformers import SentenceTransformer
-from torch import no_grad, Tensor, tensor, mean, matmul
 from utils.puppy_exception import PuppyException, global_exception_handler
 from utils.config import config
 import threading
 import re
 import requests
+
+# Heavy ML libraries are imported lazily within provider classes
+# to avoid loading them when not needed (especially in E2E tests)
+# - transformers: used by HuggingFaceProvider
+# - sentence_transformers: used by SentenceTransformerProvider  
+# - torch: used by HuggingFaceProvider and SentenceTransformerProvider
 
 
 class ModelRegistry:
@@ -151,37 +152,35 @@ class ModelRegistry:
     
     @classmethod
     def check_environment(cls):
-        """检查当前环境并标记可用的提供商"""
+        """
+        检查当前环境并标记可用的提供商
+        
+        Note: Provider availability should not depend on deployment type.
+        Each provider is checked independently based on its configuration.
+        """
         with cls._lock:
             # 重置可用提供商
             cls._available_providers = set(cls._providers.keys())
             
-            # 通过存储管理器获取部署信息
+            # Check each provider independently (not based on deployment type)
+            # This allows flexibility: remote can use Ollama, local can use OpenAI, etc.
+            
+            # 检查OpenAI：需要API key
+            if not config.get("OPENAI_API_KEY"):
+                cls._available_providers.discard("openai")
+            
+            # HuggingFace和SentenceTransformer是本地模型，默认可用
+            # （如果需要检查，可以尝试导入相关库）
+            
+            # 检查Ollama：需要服务可用
             try:
-                # 动态导入避免循环依赖
-                from storage import get_storage_info
-                storage_info = get_storage_info()
-                is_local_deployment = storage_info.get("type") == "local"
-            except ImportError:
-                # 如果存储管理器不可用，回退到配置读取
-                is_local_deployment = config.get("DEPLOYMENT_TYPE") == "local"
-                
-            # 如果是本地部署，检查各提供商的可用性
-            if is_local_deployment:
-                # OpenAI通常在本地部署中不可用，除非显式配置
-                if not config.get("OPENAI_API_KEY"):
-                    cls._available_providers.discard("openai")
-                
-                # HuggingFace和SentenceTransformer是本地模型，默认可用
-                
-                # Ollama需要检查本地服务是否可用
-                try:
-                    endpoint = config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
-                    response = requests.get(f"{endpoint}/api/tags", timeout=2)
-                    if response.status_code != 200:
-                        cls._available_providers.discard("ollama")
-                except:
+                # Support both OLLAMA_ENDPOINT and OLLAMA_API_ENDPOINT for flexibility
+                endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+                response = requests.get(f"{endpoint}/api/tags", timeout=2)
+                if response.status_code != 200:
                     cls._available_providers.discard("ollama")
+            except:
+                cls._available_providers.discard("ollama")
     
     @classmethod
     def get_provider_for_model(cls, model_name: str, preferred_provider: Optional[str] = None) -> str:
@@ -200,8 +199,20 @@ class ModelRegistry:
             
         # 查找模型对应的默认提供商
         if model_name not in cls._models:
+            # Special handling for Ollama: try dynamic model lookup even if it wasn't available at boot
+            try:
+                endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+                ollama_models = OllamaProvider.get_supported_models(endpoint=endpoint)
+                if model_name in ollama_models:
+                    # 确保提供商可用列表包含ollama（可能在启动时未就绪被剔除）
+                    cls._available_providers.add("ollama")
+                    cls._models[model_name] = "ollama"
+                    return "ollama"
+            except:
+                pass
+
             raise PuppyException(3301, f"Model {model_name} not found", 
-                                "The embedding model you requested is not available.")
+                                 "The embedding model you requested is not available.")
         
         provider_name = cls._models[model_name]
         
@@ -319,22 +330,30 @@ class HuggingFaceProvider(ProviderInterface):
     _lock = threading.Lock()
     
     def __init__(self, model_name: str, **kwargs):
+        # Lazy import: only load heavy ML libraries when actually using this provider
+        from transformers import AutoTokenizer, AutoModel
+        from torch import no_grad, mean
+        
         self.model_name = model_name
+        self.AutoModel = AutoModel
+        self.AutoTokenizer = AutoTokenizer
+        self.no_grad = no_grad
+        self.mean = mean
         
         with self._lock:
             cache_key = model_name
             if cache_key in self._model_cache:
                 self.model, self.tokenizer = self._model_cache[cache_key]
             else:
-                self.model = AutoModel.from_pretrained(model_name)
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                self.model = self.AutoModel.from_pretrained(model_name)
+                self.tokenizer = self.AutoTokenizer.from_pretrained(model_name)
                 self._model_cache[cache_key] = (self.model, self.tokenizer)
     
     def embed(self, docs: List[str]) -> List[List[float]]:
         inputs = self.tokenizer(docs, padding=True, truncation=True, return_tensors="pt")
-        with no_grad():
+        with self.no_grad():
             outputs = self.model(**inputs)
-        return mean(outputs.last_hidden_state, dim=1).tolist()
+        return self.mean(outputs.last_hidden_state, dim=1).tolist()
     
     @classmethod
     def get_supported_models(cls) -> List[str]:
@@ -366,13 +385,17 @@ class SentenceTransformerProvider(ProviderInterface):
     _lock = threading.Lock()
     
     def __init__(self, model_name: str, **kwargs):
+        # Lazy import: only load heavy ML libraries when actually using this provider
+        from sentence_transformers import SentenceTransformer
+        
         self.model_name = model_name
+        self.SentenceTransformer = SentenceTransformer
         
         with self._lock:
             if model_name in self._model_cache:
                 self.model = self._model_cache[model_name]
             else:
-                self.model = SentenceTransformer(model_name)
+                self.model = self.SentenceTransformer(model_name)
                 self._model_cache[model_name] = self.model
     
     def embed(self, docs: List[str]) -> List[List[float]]:
@@ -403,7 +426,8 @@ class OllamaProvider(ProviderInterface):
     def __init__(self, model_name: str, **kwargs):
         self.model_name = model_name
         # 优先从kwargs获取，其次从环境变量，最后使用默认值
-        self.endpoint = kwargs.get("endpoint") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+        # Support both OLLAMA_ENDPOINT and OLLAMA_API_ENDPOINT for flexibility
+        self.endpoint = kwargs.get("endpoint") or config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
         # 确保endpoint没有尾随斜杠
         self.endpoint = self.endpoint.rstrip("/")
         
@@ -426,7 +450,21 @@ class OllamaProvider(ProviderInterface):
                 )
                 response.raise_for_status()
                 data = response.json()
-                results.append(data["embeddings"])
+                # Normalize response shapes:
+                # - Some versions return {"embedding": [...]} (singular)
+                # - Others return {"embeddings": [...]} or {"embeddings": [[...]]}
+                if "embedding" in data:
+                    vector = data["embedding"]
+                elif "embeddings" in data:
+                    vec = data["embeddings"]
+                    # If it's [[...]] for single input, take first
+                    if isinstance(vec, list) and len(vec) > 0 and isinstance(vec[0], list):
+                        vector = vec[0]
+                    else:
+                        vector = vec
+                else:
+                    raise KeyError("embedding(s)")
+                results.append(vector)
             except (requests.RequestException, IOError, KeyError, ValueError) as e:
                 raise PuppyException(3303, "Ollama Embedding Failed", 
                                     f"Failed to get embeddings from Ollama: {str(e)}")
@@ -436,13 +474,32 @@ class OllamaProvider(ProviderInterface):
     def get_supported_models(cls, endpoint: str = "http://localhost:11434") -> List[str]:
         """
         动态获取Ollama支持的模型列表
-        实际应用中可能需要缓存，这里简化实现
+        - 兼容返回形式如 "all-minilm:latest"：同时暴露无标签的基础名 "all-minilm"
+        - 去重，保持稳定输出
         """
         try:
             response = requests.get(f"{endpoint.rstrip('/')}/api/tags", timeout=5)
             response.raise_for_status()
             data = response.json()
-            return [model["name"] for model in data["models"]]
+            names: List[str] = []
+            for model in data.get("models", []):
+                name = model.get("name", "")
+                if not name:
+                    continue
+                names.append(name)
+                # 如果包含标签（:tag），也添加基础名以便匹配如 "all-minilm"
+                if ":" in name:
+                    base = name.split(":", 1)[0]
+                    if base:
+                        names.append(base)
+            # 去重并保持相对稳定顺序
+            seen = set()
+            deduped: List[str] = []
+            for n in names:
+                if n not in seen:
+                    seen.add(n)
+                    deduped.append(n)
+            return deduped
         except:
             # 如果无法连接到Ollama，返回空列表
             return []
@@ -554,7 +611,9 @@ ModelRegistry.register_models("sentencetransformers", SentenceTransformerProvide
 
 # 如果Ollama可用，尝试注册其模型
 try:
-    ollama_models = OllamaProvider.get_supported_models()
+    # Use correct endpoint from environment variables (Docker-aware)
+    endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+    ollama_models = OllamaProvider.get_supported_models(endpoint=endpoint)
     if ollama_models:
         ModelRegistry.register_models("ollama", ollama_models)
 except:

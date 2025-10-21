@@ -1,0 +1,119 @@
+name: e2e
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * *"  # daily at 06:00 UTC
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test runner deps (host)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r PuppyStorage/requirements.txt
+
+      - name: Compose up (pgvector + minio + wiremock + ollama + storage-local + storage-remote)
+        run: docker compose -f docker-compose.e2e.yml up -d --build
+
+      - name: Wait for Ollama and download model
+        run: |
+          echo "=== Waiting for Ollama service ==="
+          for i in {1..60}; do
+            if curl -sf http://localhost:11434/api/tags; then
+              echo "✅ Ollama is accessible"
+              break
+            fi
+            sleep 2
+          done
+          
+          echo "=== Checking Ollama model status ==="
+          docker compose -f docker-compose.e2e.yml logs ollama-setup | tail -20
+          
+          echo "=== Waiting for all-minilm model to be ready ==="
+          for i in {1..180}; do
+            if curl -sf http://localhost:11434/api/tags | grep -q "all-minilm"; then
+              echo "✅ all-minilm model is ready"
+              break
+            fi
+            echo "Waiting for model pull... ($i/180)"
+            sleep 2
+          done
+          
+          echo "=== Verifying Ollama is working ==="
+          curl -X POST http://localhost:11434/api/embeddings -d '{"model": "all-minilm", "prompt": "test"}' || echo "Ollama test failed"
+
+      - name: Wait for both storage services to be healthy
+        run: |
+          sleep 5
+          echo "=== Checking all container status ==="
+          docker compose -f docker-compose.e2e.yml ps
+          
+          echo "=== Storage-local logs (first 30 lines) ==="
+          docker compose -f docker-compose.e2e.yml logs storage-local | head -30 || true
+          echo "=== Storage-remote logs (first 30 lines) ==="
+          docker compose -f docker-compose.e2e.yml logs storage-remote | head -30 || true
+          
+          echo "=== Waiting for storage-local (8002) health check ==="
+          for i in {1..60}; do
+            if curl -sf http://localhost:8002/health; then
+              echo "✅ storage-local is healthy"
+              break
+            fi
+            sleep 2
+          done
+          
+          echo "=== Waiting for storage-remote (8003) health check ==="
+          for i in {1..60}; do
+            if curl -sf http://localhost:8003/health; then
+              echo "✅ storage-remote is healthy"
+              break
+            fi
+            sleep 2
+          done
+          
+          # Final health check
+          if ! curl -sf http://localhost:8002/health; then
+            echo "❌ storage-local did not become healthy" >&2
+            docker compose -f docker-compose.e2e.yml logs storage-local
+            exit 1
+          fi
+          if ! curl -sf http://localhost:8003/health; then
+            echo "❌ storage-remote did not become healthy" >&2
+            docker compose -f docker-compose.e2e.yml logs storage-remote
+            exit 1
+          fi
+          
+          echo "✅ Both storage services are healthy"
+
+      - name: Run E2E tests (both local and remote backends with Ollama, strict)
+        working-directory: ./PuppyStorage
+        run: pytest -v -m "e2e" --tb=short --maxfail=1 -W error
+        timeout-minutes: 15
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.e2e.yml logs --no-color > e2e-logs.txt || true
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: e2e-logs.txt
+
+      - name: Compose down (always)
+        if: always()
+        run: docker compose -f docker-compose.e2e.yml down -v
+
+

@@ -10,8 +10,13 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, conlist, validator
 from typing import List, Optional, Dict, Any
 
-# TODO: Maybe only need to use multi-modal embedding in the future?
-from vector.embedder import TextEmbedder, ModelRegistry
+# Lazy import for embedder to avoid dependencies in minimal environments
+# This allows the service to start even without ML libraries (e.g., in E2E tests)
+def _get_embedder_modules():
+    """Lazy load embedder modules to avoid import errors in minimal environments"""
+    from vector.embedder import TextEmbedder, ModelRegistry
+    return TextEmbedder, ModelRegistry
+
 from vector.vector_db_factory import VectorDatabaseFactory
 from storage import get_storage_info
 
@@ -40,6 +45,9 @@ async def list_embedding_models(provider: Optional[str] = None):
         JSON: 包含可用模型和提供商的列表
     """
     try:
+        # Lazy load embedder modules
+        _, ModelRegistry = _get_embedder_modules()
+        
         # 获取可用的提供商列表
         available_providers = ModelRegistry.list_available_providers()
         
@@ -103,7 +111,15 @@ class EmbedRequest(BaseModel):
     set_name: str
     model: str = "text-embedding-ada-002"
     user_id: str = "public"
-    vdb_type: str = "pgvector"
+    vdb_type: str = Field(default="chroma" if is_local_storage else "pgvector")
+    
+    @validator('vdb_type')
+    def validate_vdb_type(cls, v, values):
+        # 重新获取存储信息以确保最新状态
+        current_storage_info = get_storage_info()
+        if current_storage_info.get("type") == "local":
+            return "chroma"
+        return v
 
 class DeleteRequest(BaseModel):
     vdb_type: str
@@ -158,6 +174,7 @@ async def embed(embed_request: EmbedRequest, user_id: str = None):
         
         # 1. Embedding process
         chunks_content = [chunk.content for chunk in embed_request.chunks]
+        TextEmbedder, _ = _get_embedder_modules()
         embedder = TextEmbedder.create(embed_request.model)
         vectors = embedder.embed(chunks_content)
             
@@ -234,6 +251,7 @@ async def search_vdb_collection(
         query = search_request.query
         
         # 嵌入处理
+        TextEmbedder, _ = _get_embedder_modules()
         embedder = TextEmbedder.create(model)
         query_vector = embedder.embed([query])[0]
 

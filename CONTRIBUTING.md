@@ -3,21 +3,25 @@
 Thanks for considering contributing!
 
 Developer setup
+
 - Fork and clone the repo
 - Create a feature branch from the latest `qubits` branch (dev)
 - Use `./scripts/run-all.sh` to start local services quickly
 - Copy `.env.example` to `.env` in each service and edit as needed
 
 Code style
+
 - Frontend: TypeScript/React, follow existing formatting; run `npm run lint` in PuppyFlow
 - Backend: Python 3.10+, use black formatting (see `pyproject.toml`); run `npm run format:backend`
 
 Branches and environments
+
 - `main`: production (stable)
 - `convergency`: stage (pre-release)
 - `qubits`: dev (integration)
 
 Branch naming
+
 - `feature/<short-slug>`
 - `fix/<short-slug>`
 - `perf/<short-slug>`
@@ -27,6 +31,7 @@ Branch naming
 - `revert-<sha-or-slug>`
 
 Pull request flow
+
 1. Default (features and non-fix work): open PR into `qubits` (dev). After validation, promote `qubits` → `convergency` → `main`.
 2. Fixes:
    - Not urgent: base `convergency` (stage). After validation, back-merge to `qubits` to keep dev aligned.
@@ -34,12 +39,42 @@ Pull request flow
    - Maintainers may direct an alternative target depending on risk/rollout.
 
 CI checks you will see
+
 - Build and Test Check: runs on push to any branch; additionally runs on PRs that target `qubits`.
 - Prettier Auto Format: runs on push/PR for frontend files; if formatting differs it will push a "style: prettier auto-format" commit to your branch.
 - Secret scanning (Gitleaks): runs on all PRs, on push to `main`, weekly on schedule, and via manual dispatch.
 - Branch housekeeping: weekly job may delete remote branches that are merged into `main`, idle >14 days, and named with `temp/`, `feature/`, `fix/`, `feat/`, `perf/`, `docs/`, or `revert-`. Protected branches: `main`, `qubits`, `convergency`.
 
+## Testing & CI
+
+- Test layers
+  - unit: pure functions/classes, no external deps
+  - integration: in-process integration (pgvector via GH Actions service)
+  - contract: FastAPI route contract tests
+  - e2e: Docker Compose full stack (postgres/minio/ollama/storage-local/remote)
+  - performance: baseline cases marked `slow`
+  - See Testing Guide: /docs/testing.md
+
+- Local commands (from `PuppyStorage`)
+  - Unit: `pytest -v -m "unit"`
+  - Integration: `pytest -v -m "integration"`
+  - Contract: `pytest -v -m "contract"`
+  - E2E: `docker compose -f docker-compose.e2e.yml up -d --build && pytest -v -m "e2e"`
+  - Coverage (CI aligned): `pytest -m "unit or integration or contract" --cov=server --cov=storage --cov=vector --cov=utils --cov-config=pyproject.toml --cov-report=term-missing`
+
+- Workflows (scope & triggers)
+  - smoke-test.yml (push: `feature/**`, `fix/**`): fast smoke (syntax/compose config/quick unit)
+  - pr-test.yml (pull_request: all PRs): unit + integration + contract + coverage (≥59%), uses GH Actions postgres service (pgvector)
+  - e2e-fast.yml (push: `feature/**`, manual): full-stack E2E with Docker layer cache; waits for Ollama (auto-pulls `all-minilm`) and storage health checks
+  - e2e.yml (manual + 06:00 UTC): full E2E verification with stricter health checks/logs
+  - nightly-test.yml (02:00 UTC): `e2e-comprehensive` + `performance` (@slow) + summary artifact
+
+- Coverage gate
+  - Threshold: 59% (temporary; tracked and raised via Issues)
+  - Reports: `PuppyStorage/htmlcov/` and `PuppyStorage/coverage.json`
+
 Commit/PR
+
 - Use concise commit messages (scope: summary). Conventional prefixes like `feat`, `fix`, `chore`, `perf`, `docs` are welcome.
 - Default PR target is `qubits` (dev). Use `convergency` for stage promotion and `main` for production releases.
 - Include a clear description and test plan in PRs. Note any rollout or migration steps.
@@ -47,6 +82,7 @@ Commit/PR
 - Choose a PR template that matches the purpose: Feature, Bugfix, Perf, Refactor, or CI.
 
 ## Process governance (avoid infinite meta-optimization)
+
 - Single source of truth: only this file and the PR templates define how to write PRs. Do not create meta-docs about the docs.
 - Automation first, minimal guidance: prefer checks and one-line inline hints in templates over long explanations.
 - Complexity budget: if you add any required section or rule, remove one of equal weight to keep total complexity flat.
@@ -87,6 +123,7 @@ Commit/PR
 - Choose a PR template that matches the purpose: Feature, Bugfix, Perf, Refactor, or CI.
 
 ## Process governance (avoid infinite meta-optimization)
+
 - Single source of truth: only this file and the PR templates define how to write PRs. Do not create meta-docs about the docs.
 - Automation first, minimal guidance: prefer checks and one-line inline hints in templates over long explanations.
 - Complexity budget: if you add any required section or rule, remove one of equal weight to keep total complexity flat.
@@ -125,8 +162,10 @@ Commit/PR
 - Change one thing at a time: do not modify both template structure and enforcer logic in the same week.
 
 Security
+
 - Never commit real secrets or `.env` files
 - If a secret leaks, rotate immediately and follow the cleanup steps in SECURITY.md
 
 License
+
 - By contributing, you agree your contributions may be used under the project license
