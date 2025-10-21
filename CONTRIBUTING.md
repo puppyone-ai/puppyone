@@ -64,7 +64,7 @@ CI checks you will see
 
 - Workflows (scope & triggers)
   - smoke-test.yml (push: `feature/**`, `fix/**`): fast smoke (syntax/compose config/quick unit)
-  - pr-test.yml (pull_request: `PuppyStorage/**`): unit + integration + contract + coverage (≥59%), uses GH Actions postgres service (pgvector)
+  - pr-test.yml (pull_request: all PRs): unit + integration + contract + coverage (≥59%), uses GH Actions postgres service (pgvector)
   - e2e-fast.yml (push: `feature/**`, manual): full-stack E2E with Docker layer cache; waits for Ollama (auto-pulls `all-minilm`) and storage health checks
   - e2e.yml (manual + 06:00 UTC): full E2E verification with stricter health checks/logs
   - nightly-test.yml (02:00 UTC): `e2e-comprehensive` + `performance` (@slow) + summary artifact

@@ -2,10 +2,7 @@ name: PR Test Suite
 
 # 针对PR的快速测试套件 - unit + integration + contract + coverage
 on:
-  pull_request:
-    paths:
-      - 'PuppyStorage/**'
-      - '.github/workflows/pr-test.yml'
+  pull_request: {}
   workflow_dispatch: {}
 
 permissions:
