@@ -86,12 +86,9 @@ def test_embedder_remote_openai():
     
     assert search_response.status_code == 200, f"Search failed: {search_response.text}"
     search_data = search_response.json()
-    # Accept both list and {results: [...]} shapes
-    if isinstance(search_data, list):
-        results = search_data
-    else:
-        results = search_data.get("results", [])
-    # Verify search results
+    # Contract: bare list response
+    assert isinstance(search_data, list), "Search API should return a bare list"
+    results = search_data
     assert len(results) > 0, "Search should return results"
     print(f"✅ Found {len(results)} results")
     
@@ -170,7 +167,8 @@ def test_embedder_local_ollama():
     assert search_response.status_code == 200, f"Search failed: {search_response.text}"
     
     search_data = search_response.json()
-    results = search_data if isinstance(search_data, list) else search_data.get("results", [])
+    assert isinstance(search_data, list), "Search API should return a bare list"
+    results = search_data
     assert len(results) > 0, "Should return search results"
     print(f"✅ Found {len(results)} results")
     
