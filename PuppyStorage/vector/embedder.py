@@ -579,7 +579,9 @@ ModelRegistry.register_models("sentencetransformers", SentenceTransformerProvide
 
 # 如果Ollama可用，尝试注册其模型
 try:
-    ollama_models = OllamaProvider.get_supported_models()
+    # Use correct endpoint from environment variables (Docker-aware)
+    endpoint = config.get("OLLAMA_ENDPOINT") or config.get("OLLAMA_API_ENDPOINT") or "http://localhost:11434"
+    ollama_models = OllamaProvider.get_supported_models(endpoint=endpoint)
     if ollama_models:
         ModelRegistry.register_models("ollama", ollama_models)
 except:
