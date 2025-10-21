@@ -32,18 +32,9 @@ class S3StorageAdapter(StorageAdapter):
             secret_access_key = config.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
             bucket = config.get("CLOUDFLARE_R2_BUCKET")
             
-            # Optional: External endpoint for presigned URLs (for host network access in E2E tests)
-            # If set, this endpoint will be used to generate presigned URLs
-            # Internal endpoint is used for S3 operations (upload, download, etc.)
-            external_endpoint = config.get("CLOUDFLARE_R2_EXTERNAL_ENDPOINT")
-            
             # Print configuration information (excluding sensitive data)
-            if external_endpoint:
-                log_info(f"Initializing S3 client with dual endpoints - operations: {endpoint_url}, presigned URLs: {external_endpoint}, bucket: {bucket}")
-            else:
-                log_info(f"Initializing S3 client, endpoint: {endpoint_url}, bucket: {bucket}")
+            log_info(f"Initializing S3 client, endpoint: {endpoint_url}, bucket: {bucket}")
             
-            # S3 client for operations (using internal endpoint)
             self.s3_client = client(
                 's3',
                 endpoint_url=endpoint_url,
@@ -57,26 +48,6 @@ class S3StorageAdapter(StorageAdapter):
                     read_timeout=60
                 )
             )
-            
-            # S3 client for presigned URLs (using external endpoint if provided)
-            if external_endpoint:
-                self.s3_presigned_client = client(
-                    's3',
-                    endpoint_url=external_endpoint,
-                    aws_access_key_id=access_key_id,
-                    aws_secret_access_key=secret_access_key,
-                    region_name="auto",
-                    config=Config(
-                        signature_version='s3v4',
-                        retries={'max_attempts': 3},
-                        connect_timeout=5,
-                        read_timeout=60
-                    )
-                )
-            else:
-                # Use same client for both if no external endpoint specified
-                self.s3_presigned_client = self.s3_client
-            
             self.bucket = bucket
             log_info(f"Using S3 storage, bucket: {self.bucket}")
         except Exception as e:
@@ -263,8 +234,7 @@ class S3StorageAdapter(StorageAdapter):
             except self.s3_client.exceptions.NoSuchUpload:
                 raise Exception(f"Upload ID {upload_id} not found or has been aborted")
             
-            # Use presigned client (which uses external endpoint if configured)
-            upload_url = self.s3_presigned_client.generate_presigned_url(
+            upload_url = self.s3_client.generate_presigned_url(
                 'upload_part',
                 Params={
                     'Bucket': self.bucket,
@@ -388,8 +358,8 @@ class S3StorageAdapter(StorageAdapter):
         对于S3存储，返回一个有时效的预签名下载URL
         """
         try:
-            # Use presigned client (which uses external endpoint if configured)
-            download_url = self.s3_presigned_client.generate_presigned_url(
+            # 生成预签名下载URL
+            download_url = self.s3_client.generate_presigned_url(
                 'get_object',
                 Params={'Bucket': self.bucket, 'Key': key},
                 ExpiresIn=expires_in
@@ -435,7 +405,7 @@ class S3StorageAdapter(StorageAdapter):
             return file_data, content_type, etag
         except self.s3_client.exceptions.NoSuchKey:
             log_debug(f"请求的S3文件不存在: {key}")
-            return None, None, None
+            raise FileNotFoundError(f"File not found: {key}")
         except Exception as e:
             log_error(f"从S3获取文件失败: {str(e)}")
             raise
@@ -485,6 +455,44 @@ class S3StorageAdapter(StorageAdapter):
             
         except Exception as e:
             log_error(f"列出S3对象失败: {str(e)}")
+            raise
+    
+    # === Direct Chunk Storage Implementation ===
+    
+    def save_chunk_direct(self, key: str, chunk_data: bytes, content_type: str = "application/octet-stream") -> Dict[str, Any]:
+        """
+        直接保存chunk到S3存储
+        这是简化后的存储方案，不涉及multipart合并
+        """
+        try:
+            # 使用现有的save_file方法直接保存到S3
+            success = self.save_file(key, chunk_data, content_type)
+            
+            if success:
+                # 获取文件的ETag
+                try:
+                    response = self.s3_client.head_object(Bucket=self.bucket, Key=key)
+                    etag = response.get('ETag', '').strip('"')
+                except:
+                    # 如果获取失败，生成一个ETag
+                    etag = uuid.uuid4().hex
+                
+                result = {
+                    "success": True,
+                    "key": key,
+                    "etag": etag,
+                    "size": len(chunk_data),
+                    "content_type": content_type,
+                    "uploaded_at": int(time.time())
+                }
+                
+                log_info(f"直接chunk保存到S3成功: key={key}, size={len(chunk_data)}")
+                return result
+            else:
+                raise Exception("保存文件到S3失败")
+                
+        except Exception as e:
+            log_error(f"直接chunk保存到S3失败: key={key}, error={str(e)}")
             raise
 
 if __name__ == "__main__":

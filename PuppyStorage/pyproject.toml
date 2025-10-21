@@ -1,5 +1,14 @@
+# ============================================================================
+# Coverage 配置
+# ============================================================================
+
 [tool.coverage.run]
+source = ["storage", "server"]
 omit = [
+    # 测试文件本身
+    "*/tests/*",
+    "*/test_*.py",
+    
     # 示例代码，不需要测试
     "*/example_usage.py",
     
@@ -14,7 +23,11 @@ omit = [
 ]
 
 [tool.coverage.report]
-# 排除测试文件本身
+precision = 2
+# 整体覆盖率要求
+fail_under = 60
+
+# 排除不计入覆盖率的代码行
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -23,6 +36,7 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
     "@abstract",
+    "except ImportError:",
 ]
 
 # 排除未使用的embedder providers (不在scope内)
@@ -30,4 +44,184 @@ exclude_also = [
     "class HuggingFaceProvider",
     "class SentenceTransformerProvider",
 ]
+
+# ============================================================================
+# 关键路径配置 (Critical Paths)
+# 用途: 定义需要更高测试覆盖率和质量标准的关键代码路径
+# ============================================================================
+
+[tool.coverage.critical_paths]
+# 关键路径列表 - 这些文件/模块必须有更高的测试覆盖率
+paths = [
+    "server/routes/upload_routes.py",           # 文件上传 API (P0)
+    "server/routes/download_routes.py",         # 文件下载 API (P0)
+    "server/routes/vector_routes.py",           # Vector API (P1)
+    "storage/S3.py",                            # S3 存储适配器 (P0)
+    "storage/local_storage.py",                 # 本地存储适配器 (P0)
+    "storage/manager.py",                       # 存储管理器 (P0)
+]
+
+# 关键路径的覆盖率要求（更严格）
+min_coverage = 90
+
+# 说明
+description = """
+关键路径是生产环境中高频使用、影响重大的代码路径。
+这些路径必须有更高的测试覆盖率（≥90%）和更严格的质量标准。
+
+关键路径识别依据:
+1. 前端高频调用 API (≥3次)
+2. 服务间关键集成 (Engine ↔ Storage)
+3. 核心业务逻辑
+4. 历史故障高发区域
+
+参考文档: docs/internal/API_DEPENDENCY_ANALYSIS.md
+"""
+
+# ============================================================================
+# Pytest 配置
+# ============================================================================
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# 测试标记定义
+markers = [
+    "unit: Unit tests (fastest, most isolated)",
+    "integration: Integration tests (requires external services)",
+    "contract: Contract/API tests (requires running server)",
+    "e2e: End-to-end tests (full system tests)",
+    "performance: Performance/load tests",
+    "smoke: Smoke tests (quick sanity checks)",
+    "critical_path: Critical path tests (must pass before deploy)",
+    "slow: Tests that take a long time to run",
+    "s3: Tests requiring S3/moto",
+    "vector: Tests for vector operations",
+    "local: Tests for local storage",
+    "remote: Tests for remote storage",
+]
+
+# 输出配置
+addopts = [
+    "-v",                          # 详细输出
+    "--strict-markers",            # 严格标记检查
+    "--tb=short",                  # 简短的 traceback
+    "--color=yes",                 # 彩色输出
+    # "--cov=storage",             # 覆盖率（按需启用）
+    # "--cov=server",
+    # "--cov-report=html",
+    # "--cov-report=term-missing",
+]
+
+# 异步测试配置
+asyncio_mode = "auto"
+
+# 日志配置
+log_cli = true
+log_cli_level = "INFO"
+log_cli_format = "%(asctime)s [%(levelname)8s] %(message)s"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"
+
+# 过滤警告
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# ============================================================================
+# 项目元数据
+# ============================================================================
+
+[project]
+name = "puppystorage"
+description = "PuppyAgent Storage Service - File and Vector Storage"
+readme = "README.md"
+requires-python = ">=3.10"
+
+# 项目依赖（可选，也可以保留 requirements.txt）
+# dependencies = [
+#     "fastapi>=0.104.0",
+#     "uvicorn>=0.24.0",
+#     "httpx>=0.25.0",
+#     # ... 其他依赖
+# ]
+
+[project.optional-dependencies]
+# 开发依赖
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.3.0",      # 并行测试
+    "moto[s3]>=4.2.0",          # S3 Mock
+    "black>=23.0.0",            # 代码格式化
+    "ruff>=0.1.0",              # Linter
+    "mypy>=1.5.0",              # 类型检查
+]
+
+# 测试依赖
+test = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "moto[s3]>=4.2.0",
+]
+
+# ============================================================================
+# 代码质量工具配置
+# ============================================================================
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false  # 逐步启用
+ignore_missing_imports = true
+
+# 关键路径的严格类型检查
+[[tool.mypy.overrides]]
+module = [
+    "server.routes.upload_routes",
+    "server.routes.download_routes",
+    "storage.S3",
+    "storage.local_storage",
+    "storage.manager",
+]
+disallow_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
 

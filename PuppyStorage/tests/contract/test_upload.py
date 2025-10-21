@@ -234,3 +234,35 @@ async def test_abort_upload_success(api_client):
     assert r.json()["success"] is True
 
 
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_direct_chunk_upload(api_client):
+    """Test direct chunk upload endpoint - regression test for production bug"""
+    headers = {"Authorization": "Bearer testtoken"}
+    
+    # Prepare chunk data
+    chunk_data = b"Direct chunk test data for contract test"
+    
+    # Upload via direct endpoint
+    r = await api_client.post(
+        "/upload/chunk/direct",
+        params={
+            "block_id": "direct_test_block",
+            "file_name": "direct_test.bin",
+            "content_type": "application/octet-stream"
+        },
+        content=chunk_data,
+        headers=headers
+    )
+    
+    assert r.status_code == 200
+    result = r.json()
+    assert result["success"] is True
+    assert result["size"] == len(chunk_data)
+    assert "key" in result
+    assert "version_id" in result
+    assert "etag" in result
+    assert result["etag"]  # ETag should not be empty
+    assert "uploaded_at" in result
+
+
