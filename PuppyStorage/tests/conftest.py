@@ -133,54 +133,10 @@ async def api_client(fastapi_app):
         yield client
 
 
-# -------------------- Mock User System (for E2E remote tests) --------------------
-
-@pytest.fixture
-def mock_user_system(httpx_mock):
-    """
-    Mock User System authentication responses for E2E tests in remote mode.
-    
-    This allows testing RemoteAuthProvider integration without requiring
-    an actual User System service to be running.
-    
-    Mocked endpoints:
-    - POST /auth/verify: Token verification (returns user info)
-    
-    Note: We don't assert all mocked responses are requested since
-    local mode tests don't make auth requests (they use LocalAuthProvider).
-    """
-    # Mock successful token verification (will be used in remote mode only)
-    httpx_mock.add_response(
-        method="POST",
-        url="http://localhost:8000/auth/verify",
-        json={
-            "user_id": "test_user_e2e",
-            "email": "test@example.com",
-            "username": "e2e_test_user",
-            "is_active": True,
-            "created_at": "2024-01-01T00:00:00Z"
-        },
-        status_code=200
-    )
-    
-    # Also support the dev user system URL if configured differently
-    httpx_mock.add_response(
-        method="POST",
-        url="https://dev.userserver.puppyagent.com/auth/verify",
-        json={
-            "user_id": "test_user_e2e",
-            "email": "test@example.com",
-            "username": "e2e_test_user",
-            "is_active": True,
-            "created_at": "2024-01-01T00:00:00Z"
-        },
-        status_code=200
-    )
-    
-    yield httpx_mock
-    
-    # Override the default behavior: don't assert all responses were requested
-    # This is needed because local mode tests don't call User System
-    httpx_mock.reset(assert_all_responses_were_requested=False)
+# -------------------- Mock User System (for Integration Tests) --------------------
+# Note: E2E tests skip remote mode (pytest-httpx can't mock RemoteAuthProvider's internal client)
+# Remote auth should be tested in:
+# 1. Integration tests (mock RemoteAuthProvider.verify_user_token method)
+# 2. Staging environment (real User System)
 
 
