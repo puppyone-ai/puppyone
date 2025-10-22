@@ -47,14 +47,19 @@ def test_block_context():
 @pytest.mark.e2e
 @pytest.mark.critical_path
 @pytest.mark.asyncio
-@pytest.mark.parametrize("deployment_type", ["local", "remote"])
+@pytest.mark.parametrize(
+    "deployment_type",
+    [
+        "local",
+        pytest.param("remote", marks=pytest.mark.usefixtures("mock_user_system")),
+    ],
+)
 async def test_direct_upload_small_file_end_to_end(
     api_client: AsyncClient,
     test_file_data: dict,
     test_block_context: dict,
     deployment_type: str,
-    monkeypatch,
-    mock_user_system  # Mock User System for remote auth tests
+    monkeypatch
 ):
     """
     E2E-01: 小文件直接上传完整流程
@@ -236,24 +241,22 @@ async def test_direct_upload_with_manifest_update(
         
         print(f"[E2E] ✅ 文件 {i+1}/3 已上传")
     
-    # 更新 Manifest（包含所有文件）
-    manifest_body = {
-        "block_id": test_block_context["block_id"],
-        "version_id": test_block_context["version_id"],
-        "files": uploaded_files
-    }
-    
-    manifest_resp = await api_client.put(
-        "/upload/manifest",
-        json=manifest_body,
-        headers={"Authorization": "Bearer testtoken"}
-    )
-    
-    assert manifest_resp.status_code == 200
-    manifest_result = manifest_resp.json()
-    
-    assert manifest_result["success"] is True
-    assert len(manifest_result.get("files", [])) == 3 or manifest_result.get("file_count") == 3
+    # 逐条以 new_chunk 方式增量更新 Manifest
+    for f in uploaded_files:
+        manifest_body = {
+            "user_id": test_block_context["user_id"],
+            "block_id": test_block_context["block_id"],
+            "version_id": test_block_context["version_id"],
+            "new_chunk": f,
+        }
+        manifest_resp = await api_client.put(
+            "/upload/manifest",
+            json=manifest_body,
+            headers={"Authorization": "Bearer testtoken"}
+        )
+        assert manifest_resp.status_code == 200
+        result = manifest_resp.json()
+        assert result["success"] is True
     
     print(f"[E2E] ✅✅ Manifest 增量更新测试完成")
     
