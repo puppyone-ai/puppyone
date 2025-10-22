@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 from fastapi import APIRouter, Request, Query
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field, conlist, validator
+from pydantic import BaseModel, Field, conlist, field_validator
 from typing import List, Optional, Dict, Any
 
 # Lazy import for embedder to avoid dependencies in minimal environments
@@ -113,8 +113,9 @@ class EmbedRequest(BaseModel):
     user_id: str = "public"
     vdb_type: str = Field(default="chroma" if is_local_storage else "pgvector")
     
-    @validator('vdb_type')
-    def validate_vdb_type(cls, v, values):
+    @field_validator('vdb_type')
+    @classmethod
+    def validate_vdb_type(cls, v):
         # 重新获取存储信息以确保最新状态
         current_storage_info = get_storage_info()
         if current_storage_info.get("type") == "local":
@@ -138,8 +139,9 @@ class SearchRequest(BaseModel):
     filters: Optional[Dict[str, Any]] = Field(default_factory=dict)
     metric: str = Field(default="cosine")
 
-    @validator('vdb_type')
-    def validate_vdb_type(cls, v, values):
+    @field_validator('vdb_type')
+    @classmethod
+    def validate_vdb_type(cls, v):
         # 重新获取存储信息以确保最新状态
         current_storage_info = get_storage_info()
         if current_storage_info.get("type") == "local":

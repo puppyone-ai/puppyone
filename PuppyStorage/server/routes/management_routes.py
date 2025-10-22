@@ -13,7 +13,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from utils.logger import log_info, log_error, log_debug
 from storage import get_storage_adapter
 from storage.base import StorageAdapter
