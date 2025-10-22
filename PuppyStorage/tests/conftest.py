@@ -133,3 +133,47 @@ async def api_client(fastapi_app):
         yield client
 
 
+# -------------------- Mock User System (for E2E remote tests) --------------------
+
+@pytest.fixture
+def mock_user_system(httpx_mock):
+    """
+    Mock User System authentication responses for E2E tests in remote mode.
+    
+    This allows testing RemoteAuthProvider integration without requiring
+    an actual User System service to be running.
+    
+    Mocked endpoints:
+    - POST /auth/verify: Token verification (returns user info)
+    """
+    # Mock successful token verification
+    httpx_mock.add_response(
+        method="POST",
+        url="http://localhost:8000/auth/verify",
+        json={
+            "user_id": "test_user_e2e",
+            "email": "test@example.com",
+            "username": "e2e_test_user",
+            "is_active": True,
+            "created_at": "2024-01-01T00:00:00Z"
+        },
+        status_code=200
+    )
+    
+    # Also support the dev user system URL if configured differently
+    httpx_mock.add_response(
+        method="POST",
+        url="https://dev.userserver.puppyagent.com/auth/verify",
+        json={
+            "user_id": "test_user_e2e",
+            "email": "test@example.com",
+            "username": "e2e_test_user",
+            "is_active": True,
+            "created_at": "2024-01-01T00:00:00Z"
+        },
+        status_code=200
+    )
+    
+    return httpx_mock
+
+

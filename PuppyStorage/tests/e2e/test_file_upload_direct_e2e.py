@@ -53,7 +53,8 @@ async def test_direct_upload_small_file_end_to_end(
     test_file_data: dict,
     test_block_context: dict,
     deployment_type: str,
-    monkeypatch
+    monkeypatch,
+    mock_user_system  # Mock User System for remote auth tests
 ):
     """
     E2E-01: 小文件直接上传完整流程
@@ -67,6 +68,10 @@ async def test_direct_upload_small_file_end_to_end(
     
     前端代码位置:
     - PuppyFlow/app/components/workflow/blockNode/hooks/useFileUpload.ts:209
+    
+    测试模式:
+    - local: 使用 LocalAuthProvider (开发模式)
+    - remote: 使用 RemoteAuthProvider (生产模式，User System 被 mock)
     """
     # 设置部署类型
     monkeypatch.setenv("DEPLOYMENT_TYPE", deployment_type)
