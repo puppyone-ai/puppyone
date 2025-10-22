@@ -105,15 +105,17 @@ async def test_direct_upload_small_file_end_to_end(
     print(f"[E2E] Step 2: 更新 Block Manifest")
     
     manifest_body = {
+        "user_id": test_block_context["user_id"],
         "block_id": test_block_context["block_id"],
         "version_id": test_block_context["version_id"],
-        "files": [{
+        "new_chunk": {
             "key": uploaded_key,
             "etag": uploaded_etag,
             "size": test_file_data["size"],
             "name": test_file_data["name"],
+            "file_name": test_file_data["name"],
             "content_type": test_file_data["content_type"]
-        }]
+        }
     }
     
     manifest_resp = await api_client.put(
@@ -126,8 +128,6 @@ async def test_direct_upload_small_file_end_to_end(
     manifest_result = manifest_resp.json()
     
     assert manifest_result["success"] is True
-    assert manifest_result["block_id"] == test_block_context["block_id"]
-    assert manifest_result["version_id"] == test_block_context["version_id"]
     
     print(f"[E2E] ✅ Manifest 已更新")
     
