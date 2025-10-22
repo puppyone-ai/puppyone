@@ -1,6 +1,5 @@
 import os
 import sys
-import asyncio
 from pathlib import Path
 import tempfile
 import shutil
@@ -54,16 +53,6 @@ def tmp_storage_dir(tmp_path_factory):
     base = tmp_path_factory.mktemp("puppy_storage")
     yield base
     # No manual cleanup needed; pytest handles tmp paths
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create an event loop for the test session (pytest-asyncio)."""
-    loop = asyncio.new_event_loop()
-    try:
-        yield loop
-    finally:
-        loop.close()
 
 
 # -------------------- S3 (moto) --------------------
@@ -142,5 +131,12 @@ async def api_client(fastapi_app):
     transport = ASGITransport(app=fastapi_app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
+
+
+# -------------------- Mock User System (for Integration Tests) --------------------
+# Note: E2E tests skip remote mode (pytest-httpx can't mock RemoteAuthProvider's internal client)
+# Remote auth should be tested in:
+# 1. Integration tests (mock RemoteAuthProvider.verify_user_token method)
+# 2. Staging environment (real User System)
 
 

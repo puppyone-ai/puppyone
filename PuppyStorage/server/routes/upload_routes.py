@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 # 移除PuppyException，使用FastAPI原生异常处理
 from utils.logger import log_info, log_error, log_debug
@@ -35,7 +35,8 @@ class MultipartInitRequest(BaseModel):
     content_type: str = Field("application/octet-stream", description="文件的MIME类型")
     file_size: Optional[int] = Field(None, description="可选，文件总大小（字节），用于校验", ge=0)
     
-    @validator('block_id')
+    @field_validator('block_id')
+    @classmethod
     def validate_block_id(cls, v):
         """验证block_id格式，确保不包含路径分隔符等特殊字符"""
         if not v or not isinstance(v, str):
@@ -48,7 +49,8 @@ class MultipartInitRequest(BaseModel):
             raise ValueError('block_id is too long (max 255 characters)')
         return v
     
-    @validator('file_name')
+    @field_validator('file_name')
+    @classmethod
     def validate_file_name(cls, v):
         """验证文件名，确保基本的安全性"""
         if not v or not isinstance(v, str):
@@ -89,9 +91,10 @@ class MultipartPart(BaseModel):
 class MultipartCompleteRequest(BaseModel):
     key: str = Field(..., description="文件的完整路径标识符")
     upload_id: str = Field(..., description="上传会话ID")
-    parts: List[MultipartPart] = Field(..., description="已上传的分块列表", min_items=1)
+    parts: List[MultipartPart] = Field(..., description="已上传的分块列表", min_length=1)
     
-    @validator('parts')
+    @field_validator('parts')
+    @classmethod
     def validate_parts_unique(cls, v):
         """验证分块序号唯一性"""
         part_numbers = [part.PartNumber for part in v]

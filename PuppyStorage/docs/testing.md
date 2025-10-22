@@ -6,7 +6,7 @@ PuppyStorage uses a comprehensive testing strategy with multiple layers to ensur
 
 ## Test Markers
 
-Tests are categorized using pytest markers defined in `pytest.ini`:
+Tests are categorized using pytest markers defined in `pyproject.toml` (`[tool.pytest.ini_options]`):
 
 ### By Test Type
 
@@ -86,7 +86,7 @@ pytest -m slow -v --durations=0
 
 ```
 PuppyStorage/
-├── pytest.ini              # Pytest configuration and markers
+├── pyproject.toml          # All tool configs including pytest
 ├── tests/
 │   ├── conftest.py         # Shared fixtures (app, client, S3, PGV)
 │   ├── unit/               # Fast unit tests (no external deps)

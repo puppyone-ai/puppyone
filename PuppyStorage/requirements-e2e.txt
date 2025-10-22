@@ -27,6 +27,7 @@ httpx==0.28.1
 pytest-asyncio==0.23.8
 pytest-cov==5.0.0
 pytest-xdist==3.6.1
+pytest-httpx==0.35.0
 hypothesis==6.112.1
 moto[s3]==5.0.19
 jsonschema==4.23.0

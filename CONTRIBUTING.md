@@ -14,6 +14,12 @@ Code style
 - Frontend: TypeScript/React, follow existing formatting; run `npm run lint` in PuppyFlow
 - Backend: Python 3.10+, use black formatting (see `pyproject.toml`); run `npm run format:backend`
 
+Configuration files
+
+- **Single source of truth**: Use `pyproject.toml` for all Python tool configurations (pytest, coverage, mypy, black, etc.)
+- **Do NOT create** `pytest.ini`, `setup.cfg`, or other tool-specific config files
+- **Rationale**: Prevents configuration drift and makes maintenance easier (PEP 518 standard)
+
 Branches and environments
 
 - `main`: production (stable)
