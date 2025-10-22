@@ -44,42 +44,23 @@ def test_block_context():
     }
 
 
-@pytest.mark.e2e
-@pytest.mark.critical_path
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "deployment_type",
-    [
-        "local",
-        pytest.param("remote", marks=pytest.mark.usefixtures("mock_user_system")),
-    ],
-)
-async def test_direct_upload_small_file_end_to_end(
+# Helper function for shared upload test logic
+async def _execute_upload_test_flow(
     api_client: AsyncClient,
     test_file_data: dict,
     test_block_context: dict,
-    deployment_type: str,
-    monkeypatch
+    deployment_type: str
 ):
     """
-    E2E-01: 小文件直接上传完整流程
+    共享的上传测试流程
     
-    测试场景:
-    1. 用户在 Block 中选择小文件上传
-    2. 前端调用 /api/storage/upload/chunk/direct
-    3. 文件存储到 S3/Local
-    4. 更新 Block Manifest
-    5. 通过下载验证文件完整性
-    
-    前端代码位置:
-    - PuppyFlow/app/components/workflow/blockNode/hooks/useFileUpload.ts:209
-    
-    测试模式:
-    - local: 使用 LocalAuthProvider (开发模式)
-    - remote: 使用 RemoteAuthProvider (生产模式，User System 被 mock)
+    Steps:
+    1. Upload file via /upload/chunk/direct
+    2. Update manifest via /upload/manifest
+    3. Get download URL via /download/url
+    4. Verify file content (local mode only)
+    5. Cleanup
     """
-    # 设置部署类型
-    monkeypatch.setenv("DEPLOYMENT_TYPE", deployment_type)
     
     # Step 1: 直接上传文件
     print(f"\n[E2E] Step 1: 直接上传文件 (deployment={deployment_type})")
@@ -191,8 +172,59 @@ async def test_direct_upload_small_file_end_to_end(
     else:
         print(f"[E2E] ⚠️  清理失败（可忽略）: {delete_resp.status_code}")
     
-    print(f"\n[E2E] ✅✅✅ E2E-01 测试完成: 小文件直接上传流程正常")
+    print(f"\n[E2E] ✅✅✅ E2E-01 测试完成: 小文件直接上传流程正常 ({deployment_type} mode)")
 
+
+# ==================== E2E-01: 小文件直接上传（分离 local/remote） ====================
+
+@pytest.mark.e2e
+@pytest.mark.critical_path
+@pytest.mark.asyncio
+async def test_direct_upload_local_mode(
+    api_client: AsyncClient,
+    test_file_data: dict,
+    test_block_context: dict,
+    monkeypatch
+):
+    """
+    E2E-01a: 小文件直接上传（本地模式）
+    
+    测试本地存储模式下的完整上传流程：
+    - 使用 LocalAuthProvider（跳过远程认证）
+    - 文件存储到本地文件系统
+    - 可直接验证文件内容
+    
+    ✅ 无需 mock 外部服务
+    """
+    monkeypatch.setenv("DEPLOYMENT_TYPE", "local")
+    await _execute_upload_test_flow(api_client, test_file_data, test_block_context, "local")
+
+
+@pytest.mark.e2e
+@pytest.mark.critical_path
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("mock_user_system")  # ✅ 明确声明需要 mock
+async def test_direct_upload_remote_mode(
+    api_client: AsyncClient,
+    test_file_data: dict,
+    test_block_context: dict,
+    monkeypatch
+):
+    """
+    E2E-01b: 小文件直接上传（远程模式）
+    
+    测试远程存储模式下的完整上传流程：
+    - 使用 RemoteAuthProvider（mock User System 认证）
+    - 模拟生产环境的认证流程
+    - 文件存储到 S3（或 mock S3）
+    
+    ✅ User System 被 mock（pytest-httpx）
+    """
+    monkeypatch.setenv("DEPLOYMENT_TYPE", "remote")
+    await _execute_upload_test_flow(api_client, test_file_data, test_block_context, "remote")
+
+
+# ==================== E2E-02: Manifest 增量更新 ====================
 
 @pytest.mark.e2e
 @pytest.mark.critical_path
