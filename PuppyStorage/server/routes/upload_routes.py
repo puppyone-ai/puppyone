@@ -91,7 +91,7 @@ class MultipartPart(BaseModel):
 class MultipartCompleteRequest(BaseModel):
     key: str = Field(..., description="文件的完整路径标识符")
     upload_id: str = Field(..., description="上传会话ID")
-    parts: List[MultipartPart] = Field(..., description="已上传的分块列表", min_items=1)
+    parts: List[MultipartPart] = Field(..., description="已上传的分块列表", min_length=1)
     
     @field_validator('parts')
     @classmethod
