@@ -143,8 +143,8 @@ async def test_direct_upload_small_file_end_to_end(
     assert download_url_resp.status_code == 200, f"获取下载 URL 失败: {download_url_resp.text}"
     download_result = download_url_resp.json()
     
-    assert "url" in download_result
-    download_url = download_result["url"]
+    assert "download_url" in download_result
+    download_url = download_result["download_url"]
     
     print(f"[E2E] ✅ 下载 URL 已生成: {download_url[:50]}...")
     
