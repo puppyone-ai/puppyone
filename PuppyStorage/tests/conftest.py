@@ -145,6 +145,9 @@ def mock_user_system(httpx_mock):
     
     Mocked endpoints:
     - POST /auth/verify: Token verification (returns user info)
+    
+    Note: pytest-httpx by default asserts all mocked responses are requested.
+    We disable this assertion since local mode tests don't make auth requests.
     """
     # Mock successful token verification
     httpx_mock.add_response(
@@ -173,6 +176,10 @@ def mock_user_system(httpx_mock):
         },
         status_code=200
     )
+    
+    # Disable assertion that all mocked responses must be requested
+    # This allows the same fixture to work for both local and remote tests
+    httpx_mock.reset_assert_all_responses_were_requested=False
     
     return httpx_mock
 
