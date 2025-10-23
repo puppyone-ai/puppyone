@@ -718,7 +718,13 @@ const JsonBlockNode = React.memo<JsonBlockNodeProps>(
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
-    }, [id, setNodeUneditable, nodeState.isLocalEdit, nodeState.nodeLabel, editNodeLabel]);
+    }, [
+      id,
+      setNodeUneditable,
+      nodeState.isLocalEdit,
+      nodeState.nodeLabel,
+      editNodeLabel,
+    ]);
 
     // 自动聚焦
     useEffect(() => {

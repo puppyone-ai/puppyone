@@ -320,7 +320,13 @@ const FileNode = React.memo<FileNodeProps>(
       return () => {
         document.removeEventListener('click', handleClickOutside);
       };
-    }, [id, setNodeUneditable, nodeState.isLocalEdit, nodeState.nodeLabel, editNodeLabel]);
+    }, [
+      id,
+      setNodeUneditable,
+      nodeState.isLocalEdit,
+      nodeState.nodeLabel,
+      editNodeLabel,
+    ]);
 
     // 自动聚焦，同时需要让cursor focus 到input 的最后一位
     useEffect(() => {
