@@ -1,0 +1,133 @@
+{
+    "metadata": {
+        "id": "getting-started",
+        "version": "1.0.0",
+        "name": "Getting Started",
+        "description": "A guided workspace to learn the basics in minutes.",
+        "author": "PuppyAgent Team",
+        "created_at": "2025-01-23T00:00:00Z",
+        "tags": [
+            "onboarding",
+            "tutorial",
+            "guide",
+            "beginner"
+        ]
+    },
+    "workflow": {
+        "blocks": [
+            {
+                "id": "intro",
+                "position": {
+                    "x": -352,
+                    "y": -64
+                },
+                "data": {
+                    "content": "Welcome to PuppyFlow!\n\nThis onboarding workspace will help you:\n1) Add a text input\n2) Connect an LLM block\n3) See results and iterate\n\nTip: right-click canvas for quick actions.",
+                    "label": "Onboarding",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": true,
+                    "isWaitingForFlow": false
+                },
+                "type": "text",
+                "width": 280,
+                "height": 220,
+                "selected": false
+            },
+            {
+                "id": "guide_llm",
+                "type": "llmnew",
+                "position": {
+                    "x": -16,
+                    "y": 0
+                },
+                "data": {
+                    "subMenuType": null,
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant guiding a new user through PuppyFlow."
+                        },
+                        {
+                            "role": "user",
+                            "content": "Respond briefly with the next step based on this note:\n{{Onboarding}}"
+                        }
+                    ],
+                    "model": "openai/gpt-5",
+                    "base_url": "",
+                    "structured_output": false,
+                    "max_tokens": 1024,
+                    "resultNode": "guide_output",
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    }
+                },
+                "selected": false,
+                "dragging": false,
+                "style": {
+                    "zIndex": 1122
+                }
+            },
+            {
+                "id": "guide_output",
+                "position": {
+                    "x": 200,
+                    "y": -64
+                },
+                "data": {
+                    "content": "Next step suggestions will appear here.",
+                    "label": "Next Step",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": true,
+                    "editable": false,
+                    "isWaitingForFlow": false
+                },
+                "width": 260,
+                "height": 196,
+                "type": "text",
+                "style": {
+                    "zIndex": 1125
+                },
+                "selected": false,
+                "dragging": false
+            }
+        ],
+        "edges": [
+            {
+                "id": "conn-guide-1",
+                "source": "intro",
+                "target": "guide_llm",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "conn-guide-2",
+                "source": "guide_llm",
+                "target": "guide_output",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                }
+            }
+        ],
+        "viewport": {
+            "x": 915,
+            "y": 801,
+            "zoom": 1
+        },
+        "version": "0.0.1"
+    },
+    "resources": {
+        "format": "inline",
+        "resources": []
+    }
+}

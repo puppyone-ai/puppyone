@@ -1,0 +1,97 @@
+{
+    "metadata": {
+        "id": "file-load",
+        "version": "1.0.0",
+        "name": "File Load Demo",
+        "description": "Load, parse, and process PDF files with AI.",
+        "author": "PuppyAgent Team",
+        "created_at": "2025-01-23T00:00:00Z",
+        "tags": [
+            "file-processing",
+            "pdf",
+            "parsing",
+            "demo"
+        ]
+    },
+    "workflow": {
+        "blocks": [
+            {
+                "id": "ZcR28v",
+                "data": {
+                    "label": "ZcR28v",
+                    "content": "",
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "storage_class": "external",
+                    "isExternalStorage": true
+                },
+                "type": "file",
+                "width": 240,
+                "height": 176,
+                "position": {
+                    "x": -400,
+                    "y": 320
+                }
+            }
+        ],
+        "edges": [],
+        "viewport": {
+            "x": 800,
+            "y": 600,
+            "zoom": 1
+        },
+        "version": "0.1.0"
+    },
+    "resources": {
+        "format": "separate",
+        "resources": [
+            {
+                "id": "sample-pdf",
+                "type": "file",
+                "block_id": "ZcR28v",
+                "reference_path": "data.file_reference",
+                "source": {
+                    "path": "resources/sample-local-pdf.pdf",
+                    "format": "binary",
+                    "mime_type": "application/pdf"
+                },
+                "target": {
+                    "strategy": "copy_as_is",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "parsed-pdf-content",
+                "type": "external_storage",
+                "block_id": "yuoc2y",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/parsed-pdf-content.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "formatted-output",
+                "type": "external_storage",
+                "block_id": "PBoxu0",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/formatted-output.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            }
+        ]
+    }
+}

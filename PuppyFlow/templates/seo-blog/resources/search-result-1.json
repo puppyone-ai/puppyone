@@ -1,0 +1,55 @@
+[
+    {
+        "kind": "customsearch#result",
+        "title": "AI in Talent Acquisition | IBM",
+        "htmlTitle": "<b>AI</b> in <b>Talent Acquisition</b> | IBM",
+        "link": "https://www.ibm.com/think/topics/ai-talent-acquisition",
+        "displayLink": "www.ibm.com",
+        "snippet": "AI in talent acquisition refers to the use of artificial intelligence in sourcing and hiring new employees. Executives in the human resources and talent ...",
+        "htmlSnippet": "<b>AI</b> in <b>talent acquisition</b> refers to the use of <b>artificial intelligence</b> in sourcing and <b>hiring</b> new employees. Executives in the <b>human resources</b> and talent&nbsp;...",
+        "formattedUrl": "https://www.ibm.com/think/topics/ai-talent-acquisition",
+        "htmlFormattedUrl": "https://www.ibm.com/think/topics/<b>ai</b>-<b>talent</b>-<b>acquisition</b>",
+        "pagemap": {
+            "cse_thumbnail": [
+                {
+                    "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQQWT26HnySz2hyibj9NRS48-V7uRqXzw6BY_q6Gtq7fZSsdOGDNxYQmrJ1&s",
+                    "width": "275",
+                    "height": "183"
+                }
+            ],
+            "metatags": [
+                {
+                    "template": "article",
+                    "og:image": "https://www.ibm.com/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/31/65/hv6b4659.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg",
+                    "ibm.com.search.appid": "thinkhub",
+                    "ibm.search.facet.field_hierarchy_01": "taxonomy : Topics / Business operations / Talent management / Talent acquisition",
+                    "og:type": "website",
+                    "ibm.search.facet.field_keyword_09": "https://prod-cloud-publish.aem.ibm.net/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/31/65/hv6b4659.component.crop-thumbnail-16-by-9-retina.ts=0.jpg/content/adobe-cms/us/en/think/topics/ai-talent-acquisition/jcr:content/root/leadspace_container/leadspace_article",
+                    "ibm.search.facet.field_hierarchy_03": "taxonomy : Content Format / Article",
+                    "countrycode": "us",
+                    "ibm.search.facet.field_hierarchy_04": "taxonomy : Content Type / Explainer",
+                    "og:title": "AI in Talent Acquisition | IBM",
+                    "ibm.search.facet.field_text_01": "19 August 2024",
+                    "dcterms.date": "2024-08-19T00:00:00.000",
+                    "og:description": "AI in talent acquisition refers to the use of artificial intelligence in sourcing and hiring new employees.",
+                    "searchtitle": "AI in Talent Acquisition",
+                    "ibm.search.facet.field_text_03": "Explainer",
+                    "languagecode": "en",
+                    "ibm.com.search.scopes": "thinkhub",
+                    "viewport": "width=device-width, initial-scale=1",
+                    "og:locale": "en-US",
+                    "sitesection": "null",
+                    "ibm.search.facet.field_keyword_01": "Talent acquisition",
+                    "og:url": "https://www.ibm.com/think/topics/ai-talent-acquisition",
+                    "focusarea": "Consulting - All"
+                }
+            ],
+            "cse_image": [
+                {
+                    "src": "https://www.ibm.com/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/31/65/hv6b4659.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg"
+                }
+            ]
+        },
+        "content": "It can be costly to recruit and hire new candidates. AI can streamline many manual processes in the talent acquisition process. By automatically scheduling appointments based on candidates availability and scanning resumes for key expertise, fewer HR representatives need to work on heavily manual tasks. Instead, they can focus on higher value tasks. For example, AI can schedule interviews based on available time, saving HR professionals from having to check their calendars and find the appropriate time to interview candidates."
+    }
+]

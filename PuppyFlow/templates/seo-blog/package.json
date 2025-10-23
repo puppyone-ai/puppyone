@@ -1,0 +1,161 @@
+{
+    "metadata": {
+        "id": "seo-blog",
+        "version": "1.0.0",
+        "name": "SEO Blog Generator",
+        "description": "Generate SEO-optimized blog articles from search queries and Google results.",
+        "author": "PuppyAgent Team",
+        "created_at": "2025-01-23T00:00:00Z",
+        "tags": [
+            "seo",
+            "blog",
+            "content-generation",
+            "google-search"
+        ]
+    },
+    "workflow": {
+        "blocks": [
+            {
+                "id": "yboH7_",
+                "position": {
+                    "x": -1568,
+                    "y": -112
+                },
+                "data": {
+                    "content": "How recruit agents can change human resources?",
+                    "label": "yboH7_",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "text",
+                "width": 336,
+                "height": 208,
+                "style": {
+                    "zIndex": 1293
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "S16BdO",
+                "position": {
+                    "x": -1568,
+                    "y": 160
+                },
+                "data": {
+                    "content": "[\n  \"interview saas\",\n  \"recruit agent\",\n  \"AI matching\"\n]",
+                    "label": "S16BdO",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "structured",
+                "width": 336,
+                "height": 208,
+                "selected": false,
+                "dragging": false,
+                "style": {
+                    "zIndex": 1294
+                },
+                "resizing": false
+            }
+        ],
+        "edges": [],
+        "viewport": {
+            "x": 845.8457000067131,
+            "y": 748.4196449104039,
+            "zoom": 0.4002903252667987
+        },
+        "version": "0.1"
+    },
+    "resources": {
+        "format": "separate",
+        "resources": [
+            {
+                "id": "query-rewrite-output",
+                "type": "external_storage",
+                "block_id": "WIQTLu",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/query-rewrite-output.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "search-result-1",
+                "type": "external_storage",
+                "block_id": "x9_unS",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/search-result-1.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "search-result-2",
+                "type": "external_storage",
+                "block_id": "GyCLUb",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/search-result-2.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "search-result-3",
+                "type": "external_storage",
+                "block_id": "U9jTWc",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/search-result-3.json",
+                    "format": "structured"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            },
+            {
+                "id": "generated-blog",
+                "type": "external_storage",
+                "block_id": "3tGDxk",
+                "reference_path": "data.content",
+                "source": {
+                    "path": "resources/generated-blog.txt",
+                    "format": "text"
+                },
+                "target": {
+                    "strategy": "copy_and_chunk",
+                    "pattern": "${userId}/${blockId}/${versionId}",
+                    "requires_user_scope": true
+                }
+            }
+        ]
+    }
+}
