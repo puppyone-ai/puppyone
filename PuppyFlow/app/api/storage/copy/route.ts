@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const body: CopyRequest = await request.json();
 
     // 构建 PuppyStorage API URL
-    const storageUrl = `${SERVER_ENV.STORAGE_SERVER_BACKEND}/files/copy_resource`;
+    const storageUrl = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/copy_resource`;
 
     // 过滤请求头并注入认证信息
     const headers = filterRequestHeadersAndInjectAuth(
