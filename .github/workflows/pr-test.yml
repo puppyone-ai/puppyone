@@ -91,7 +91,7 @@ jobs:
             --cov-report=term-missing \
             --cov-report=html \
             --cov-report=json \
-            --cov-fail-under=59
+            --cov-fail-under=67
 
       - name: Upload coverage reports
         if: always()
@@ -116,7 +116,7 @@ jobs:
             try {
               const coverage = JSON.parse(fs.readFileSync('PuppyStorage/coverage.json', 'utf8'));
               const total = coverage.totals.percent_covered.toFixed(2);
-              const body = `## Coverage Report\n\n**Total Coverage**: ${total}%\n\n${total >= 59 ? '✅' : '❌'} Coverage threshold: 59% (temporary; target: 70%)`;
+              const body = `## Coverage Report\n\n**Total Coverage**: ${total}%\n\n${total >= 67 ? '✅' : '❌'} Coverage threshold: 67% (target: 70%)`;
               
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
