@@ -150,6 +150,27 @@ class S3StorageAdapter(StorageAdapter):
             log_error(f"删除S3文件失败: {str(e)}")
             return False
 
+    def copy_resource(self, source_key: str, target_key: str) -> bool:
+        """使用S3 server-side copy复制资源"""
+        try:
+            copy_source = {
+                'Bucket': self.bucket,
+                'Key': source_key
+            }
+            
+            self.s3_client.copy_object(
+                CopySource=copy_source,
+                Bucket=self.bucket,
+                Key=target_key
+            )
+            
+            log_info(f"S3 copy succeeded: {source_key} -> {target_key}")
+            return True
+            
+        except Exception as e:
+            log_error(f"S3 copy failed: {source_key} -> {target_key}, error: {str(e)}")
+            return False
+
     def check_file_exists(self, key: str) -> bool:
         try:
             self.s3_client.head_object(Bucket=self.bucket, Key=key)
