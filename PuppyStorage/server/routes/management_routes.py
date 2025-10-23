@@ -83,11 +83,16 @@ def validate_key_format(key: str) -> bool:
     return len(parts) >= 4 and all(part.strip() for part in parts)
 
 def extract_user_id_from_key(key: str) -> str:
-    """从resource_key中提取user_id"""
+    """从resource_key中提取user_id
+    
+    支持两种格式：
+    - userId/blockId/versionId (用于resource copy)
+    - userId/blockId/versionId/filename (用于file operations)
+    """
     parts = key.split('/')
-    if len(parts) >= 4:
+    if len(parts) >= 3:
         return parts[0]
-    raise ValueError("Invalid key format")
+    raise ValueError("Invalid key format: expected at least 3 parts (userId/blockId/versionId)")
 
 # === API Endpoints ===
 
