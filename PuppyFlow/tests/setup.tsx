@@ -1,6 +1,6 @@
 /**
  * Vitest 全局测试配置
- * 
+ *
  * ⚠️ 需要根据实际项目调整：
  * - Mock 的全局配置
  * - 测试环境变量
@@ -69,4 +69,3 @@ global.cancelAnimationFrame = (id: any) => {
 // 环境变量（⚠️ 根据实际项目调整）
 // process.env.NEXT_PUBLIC_API_URL = 'http://localhost:3000/api';
 // process.env.NODE_ENV = 'test';
-

@@ -1,13 +1,13 @@
 /**
  * Text Block Node - UI 状态与交互测试
- * 
+ *
  * 测试用例：
  * - TC-TEXT-003: 清空所有内容 (P1)
  * - TC-TEXT-004: 超长文本输入 (P1)
  * - TC-TEXT-008: 保存中再次编辑 (P1)
  * - TC-TEXT-012: 加载完成后显示内容 (P1)
  * - TC-TEXT-049: 拖拽移动节点 (P1)
- * 
+ *
  * ⚠️ 需要人工验证：
  * - 超长文本的性能表现
  * - 拖拽的实际交互
@@ -16,7 +16,13 @@
 
 // @ts-nocheck
 import React from 'react';
-import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
+import {
+  render,
+  screen,
+  waitFor,
+  act,
+  fireEvent,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import TextBlockNode from '@/components/workflow/blockNode/TextBlockNode';
@@ -32,8 +38,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div 
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
       data-testid={`handle-${type}-${position}`}
       data-id={id}
       data-connectable={isConnectable}
@@ -51,8 +66,8 @@ vi.mock('@xyflow/react', () => ({
     Left: 'left',
   },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div 
-      data-testid="resize-control"
+    <div
+      data-testid='resize-control'
       data-min-width={minWidth}
       data-min-height={minHeight}
       style={style}
@@ -93,17 +108,17 @@ vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
 }));
 
 vi.mock('@/components/tableComponent/TextEditor', () => ({
-  default: ({ 
-    value, 
-    onChange, 
+  default: ({
+    value,
+    onChange,
     placeholder,
     preventParentDrag,
     allowParentDrag,
   }: any) => (
-    <textarea 
-      data-testid="text-editor" 
-      value={value} 
-      onChange={(e) => onChange(e.target.value)}
+    <textarea
+      data-testid='text-editor'
+      value={value}
+      onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
       onMouseDown={() => preventParentDrag?.()}
       onMouseUp={() => allowParentDrag?.()}
@@ -112,22 +127,27 @@ vi.mock('@/components/tableComponent/TextEditor', () => ({
 }));
 
 vi.mock('@/components/loadingIcon/SkeletonLoadingIcon', () => ({
-  default: () => <div data-testid="skeleton-loading">Loading...</div>,
+  default: () => <div data-testid='skeleton-loading'>Loading...</div>,
 }));
 
-vi.mock('@/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid="settings-button">Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/TextNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
-  default: () => <div data-testid="white-handle" />,
+  default: () => <div data-testid='white-handle' />,
 }));
 
 describe('TextBlockNode - UI 状态与交互', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<any> = {}): Node<TextBlockNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<any> = {}
+  ): Node<TextBlockNodeData> => ({
     id: 'test-node-ui',
     type: 'text',
     position: { x: 0, y: 0 },
@@ -149,7 +169,7 @@ describe('TextBlockNode - UI 状态与交互', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
 
-    mockSetNodes = vi.fn((updater) => {
+    mockSetNodes = vi.fn(updater => {
       if (typeof updater === 'function') {
         const currentNodes = [createMockNode()];
         return updater(currentNodes);
@@ -208,7 +228,7 @@ describe('TextBlockNode - UI 状态与交互', () => {
           dragging={false}
         />
       );
-      
+
       // 推进到 requestAnimationFrame 完成
       await act(async () => {
         vi.advanceTimersByTime(1);
@@ -226,7 +246,9 @@ describe('TextBlockNode - UI 状态与交互', () => {
       expect(mockSetNodes).toHaveBeenCalled();
       const setNodesCall = mockSetNodes.mock.calls[0][0];
       if (typeof setNodesCall === 'function') {
-        const result = setNodesCall([createMockNode({ content: 'Original content' })]);
+        const result = setNodesCall([
+          createMockNode({ content: 'Original content' }),
+        ]);
         expect(result[0].data.content).toBe('');
       }
     });
@@ -267,9 +289,12 @@ describe('TextBlockNode - UI 状态与交互', () => {
       });
 
       // 应该触发保存，内容为空字符串
-      await waitFor(() => {
-        expect(mockHandleDynamicStorageSwitch).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockHandleDynamicStorageSwitch).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
     });
   });
 
@@ -309,7 +334,7 @@ describe('TextBlockNode - UI 状态与交互', () => {
     it('超长文本应自动切换到外部存储', async () => {
       const longText = 'a'.repeat(MOCK_THRESHOLD + 1000);
       const mockNode = createMockNode({ content: longText });
-      
+
       mockGetNode.mockReturnValue({
         ...mockNode,
         data: {
@@ -349,9 +374,12 @@ describe('TextBlockNode - UI 状态与交互', () => {
       });
 
       // 验证调用了存储切换
-      await waitFor(() => {
-        expect(mockHandleDynamicStorageSwitch).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockHandleDynamicStorageSwitch).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
     });
 
     it('超长文本不应导致编辑器卡顿', async () => {
@@ -447,9 +475,12 @@ describe('TextBlockNode - UI 状态与交互', () => {
       });
 
       // 现在应该触发保存，内容是最新的
-      await waitFor(() => {
-        expect(mockHandleDynamicStorageSwitch).toHaveBeenCalledTimes(1);
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockHandleDynamicStorageSwitch).toHaveBeenCalledTimes(1);
+        },
+        { timeout: 3000 }
+      );
     });
   });
 
@@ -479,9 +510,9 @@ describe('TextBlockNode - UI 状态与交互', () => {
     });
 
     it('isLoading 从 true 变为 false 应显示内容', () => {
-      const mockNode = createMockNode({ 
+      const mockNode = createMockNode({
         isLoading: true,
-        content: 'Loaded content'
+        content: 'Loaded content',
       });
 
       const { rerender, queryByTestId } = render(
@@ -507,7 +538,7 @@ describe('TextBlockNode - UI 状态与交互', () => {
       // 更新为加载完成
       const updatedNode = createMockNode({
         isLoading: false,
-        content: 'Loaded content'
+        content: 'Loaded content',
       });
 
       rerender(
@@ -574,7 +605,7 @@ describe('TextBlockNode - UI 状态与交互', () => {
           xPos={0}
           yPos={0}
           zIndex={0}
-          dragging={true}  // ← 拖拽中
+          dragging={true} // ← 拖拽中
         />
       );
 
@@ -645,7 +676,7 @@ describe('TextBlockNode - UI 状态与交互', () => {
       );
 
       const editor = queryByTestId('text-editor');
-      
+
       // 如果编辑器存在，才进行编辑测试
       if (editor) {
         await act(async () => {
@@ -658,10 +689,13 @@ describe('TextBlockNode - UI 状态与交互', () => {
         });
 
         // 验证特殊字符被正确传递
-        await waitFor(() => {
-          // 验证 setNodes 或 handleDynamicStorageSwitch 被调用
-          expect(mockSetNodes).toHaveBeenCalled();
-        }, { timeout: 3000 });
+        await waitFor(
+          () => {
+            // 验证 setNodes 或 handleDynamicStorageSwitch 被调用
+            expect(mockSetNodes).toHaveBeenCalled();
+          },
+          { timeout: 3000 }
+        );
       } else {
         // 如果组件没有渲染编辑器，跳过此测试
         console.warn('编辑器未渲染，跳过特殊字符测试');
@@ -672,28 +706,27 @@ describe('TextBlockNode - UI 状态与交互', () => {
 
 /**
  * 🔧 人工验证清单：
- * 
+ *
  * 1. ✅ 超长文本性能
  *    - [ ] 在真实环境测试 10万+ 字符的编辑体验
  *    - [ ] 使用 Chrome DevTools Performance 分析
  *    - [ ] 验证是否有内存泄漏
- * 
+ *
  * 2. ✅ 拖拽交互
  *    - [ ] E2E 测试真实的拖拽流程
  *    - [ ] 验证编辑器区域确实不触发拖拽
  *    - [ ] 测试不同屏幕尺寸的拖拽表现
- * 
+ *
  * 3. ✅ 加载状态
  *    - [ ] 测试真实的数据加载场景
  *    - [ ] 验证骨架屏的视觉效果
  *    - [ ] 测试快速切换加载状态的表现
- * 
+ *
  * 4. ✅ 防抖逻辑
  *    - [ ] 真实环境验证防抖的准确性
  *    - [ ] 测试快速编辑的极限情况
  *    - [ ] 验证定时器清理是否正确
- * 
+ *
  * 📝 运行命令：
  *    npm run test -- TextBlockNode.ui.test.tsx
  */
-
