@@ -87,14 +87,19 @@ Vector data requires special handling due to its two-layer architecture:
 ```typescript
 {
   type: 'vector',
-  chunks: [...],              // ✅ Original text - copied with JSON
-  collection_configs: {
-    user_id: string,          // ← Owner identity
-    model: string,            // ← Embedding model (e.g., 'text-embedding-ada-002')
-    vdb_type: string,         // ← Vector DB type (pgvector/pinecone)
-    collection_name: string   // → Reference to actual vectors
-  }
+  chunks: [],                 // ❌ Empty in template - generated at runtime
+  status: 'pending',          // User needs to trigger indexing
+  key_path: [...],            // ✅ Rules for extracting index content from source
+  value_path: [...],          // ✅ Rules for extracting metadata
+  index_name: '',             // Empty until user creates collection
+  collection_configs: {}      // ❌ Empty in template - populated after re-embedding
 }
+
+// Chunks are dynamically generated from content using key_path:
+// chunks = content.map(item => ({
+//   content: getValueByPath(item, key_path),
+//   metadata: { retrieval_content: getValueByPath(item, value_path) }
+// }))
 ```
 
 **Layer 2: Vectors (Stored in Vector Database)**
@@ -156,10 +161,14 @@ collection_{userId}_{model}_{setName}:
 
 **MVP Strategy:**
 
-- Template includes original text `chunks` (embedded in JSON, ~10KB)
-- User re-embeds chunks with their own embedding model on instantiation
-- Ensures compatibility across different deployment configurations
-- Acceptable trade-off: 5-second embed time vs. guaranteed correctness
+- Template includes `content` (source data) and `indexing_config` (key_path, value_path)
+- Chunks are NOT pre-generated or stored in template
+- During instantiation:
+  1. Upload content to user's external storage (chunked for storage)
+  2. Copy indexing_config to workflow JSON
+  3. User's first access triggers: content → generate chunks (using key_path) → re-embed
+- Ensures chunks always sync with content (single source of truth)
+- Acceptable trade-off: 5-second embed time vs. guaranteed correctness + content-chunk consistency
 
 **Future Optimization (Phase 3):**
 
@@ -378,19 +387,30 @@ PuppyAgent-Jack/
    └─ Update workflow reference:
        ├─ external_storage: block.data.external_metadata.resource_key = newKey
        ├─ files: block.data.uploadedFiles[].key = newKey
-       └─ vector: block.data.indexingList[].collection_configs.user_id = newUserId
+       └─ vector: 
+            ├─ Keep indexingList[].key_path and value_path (extraction rules)
+            ├─ Set indexingList[].chunks = [] (empty, will be generated)
+            ├─ Set indexingList[].status = 'pending'
+            └─ Set indexingList[].collection_configs = {} (empty until re-embed)
 
 3. Create Workspace
    ├─ Call workspace store API
-   └─ Save instantiated workflow JSON (includes vector chunks)
+   └─ Save instantiated workflow JSON (content uploaded, indexing pending)
 
 4. Return
    └─ { workspace_id, success: true }
 
-Note: Vector embeddings are NOT copied. Users will re-embed chunks when:
-  - First accessing the block with indexing
-  - Running workflow that uses vector search
-  - Explicitly triggering "Re-index" in UI
+Note: Vector workflow after instantiation:
+  - User opens workspace → sees content in external storage
+  - User triggers indexing → chunks generated from content using key_path
+  - System embeds chunks → creates collection with user_id
+  - User can now use vector search
+
+This ensures:
+  ✓ Content is single source of truth
+  ✓ Chunks always sync with content
+  ✓ No stale/inconsistent chunks
+  ✓ Users control when to embed (and can re-embed if content changes)
 ```
 
 ---

@@ -1,96 +1,32 @@
 {
     "content": [
         {
-            "question": "What is PuppyAgent?",
-            "answer": "PuppyAgent is a platform that automates knowledge bases using an agentic RAG (Retrieval-Augmented Generation) system, allowing users to connect to databases, process information, and deliver results powered by AI."
+            "question": "Where are you?",
+            "answer": "PuppyAgent is based in Singapore, having 8 peoples"
         },
         {
-            "question": "Is PuppyAgent free to use? ",
-            "answer": "The information regarding whether PuppyAgent is free to use is not specified on the webpage."
+            "question": "What is PuppyAgent?",
+            "answer": "PuppyAgent is an automated AI knowledge builder that creates RAG pipelines based on your enterprise's own knowledge base, empowering businesses to automate workflows using their proprietary expertise."
+        },
+        {
+            "question": "Is PuppyAgent free to use?",
+            "answer": "PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month."
         },
         {
             "question": "What can PuppyAgent do?",
-            "answer": "PuppyAgent can connect to data sources, process information using AI, and deliver results. It also allows for rapid prototyping, flexible deployment, and enterprise-wide applications."
+            "answer": "PuppyAgent enables you to construct Retrieval-Augmented Generation (RAG) systems for your enterprise knowledge base. It can be applied to various use cases, including supports chatbots community chatbots, AI-powered search engine optimization strategies, spreadsheet automation, and various other applications."
         },
         {
             "question": "What is the mission of PuppyAgent?",
-            "answer": "The mission of PuppyAgent is to provide an ideal solution for knowledge base needs through advanced RAG techniques without complex setup."
+            "answer": "PuppyAgent's mission is to reshape the world with AI agents. We are initiating this vision by focusing on knowledge base and Retrieval-Augmented Generation (RAG) technologies."
         },
         {
             "question": "How can I contact the PuppyAgent team?",
             "answer": "You can contact the PuppyAgent team through their LinkedIn, Discord, or email."
-        }
-    ],
-    "vector_chunks": [
-        {
-            "content": "Where are you?",
-            "metadata": {
-                "id": 0,
-                "retrieval_content": {
-                    "answer": "PuppyAgent is based in Singapore, having 8 peoples",
-                    "question": "Where are you?"
-                }
-            }
         },
         {
-            "content": "What is PuppyAgent?",
-            "metadata": {
-                "id": 1,
-                "retrieval_content": {
-                    "answer": "PuppyAgent is an automated AI knowledge builder that creates RAG pipelines based on your enterprise's own knowledge base, empowering businesses to automate workflows using their proprietary expertise.",
-                    "question": "What is PuppyAgent?"
-                }
-            }
-        },
-        {
-            "content": "Is PuppyAgent free to use?",
-            "metadata": {
-                "id": 2,
-                "retrieval_content": {
-                    "answer": "PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month.",
-                    "question": "Is PuppyAgent free to use?"
-                }
-            }
-        },
-        {
-            "content": "What can PuppyAgent do?",
-            "metadata": {
-                "id": 3,
-                "retrieval_content": {
-                    "answer": "PuppyAgent enables you to construct Retrieval-Augmented Generation (RAG) systems for your enterprise knowledge base. It can be applied to various use cases, including supports chatbots community chatbots, AI-powered search engine optimization strategies, spreadsheet automation, and various other applications.",
-                    "question": "What can PuppyAgent do?"
-                }
-            }
-        },
-        {
-            "content": "What is the mission of PuppyAgent?",
-            "metadata": {
-                "id": 4,
-                "retrieval_content": {
-                    "answer": "PuppyAgent's mission is to reshape the world with AI agents. We are initiating this vision by focusing on knowledge base and Retrieval-Augmented Generation (RAG) technologies.",
-                    "question": "What is the mission of PuppyAgent?"
-                }
-            }
-        },
-        {
-            "content": "What is your support link?",
-            "metadata": {
-                "id": 5,
-                "retrieval_content": {
-                    "answer": "support link is puppyteam@puppyagent.com",
-                    "question": "What is your support link?"
-                }
-            }
-        },
-        {
-            "content": "What is your price?",
-            "metadata": {
-                "id": 6,
-                "retrieval_content": {
-                    "answer": "$25 for pro users, including more usages and storage",
-                    "question": "What is your price?"
-                }
-            }
+            "question": "What is your price?",
+            "answer": "$25 for pro users, including more usages and storage"
         }
     ],
     "indexing_config": {
