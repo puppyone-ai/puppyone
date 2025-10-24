@@ -111,7 +111,7 @@ templates/
 
 ---
 
-### Phase 1: Core Infrastructure (Day 1 Morning, 4h)
+### Phase 1: Core Infrastructure (8h)
 
 #### Task 1.1: Define TypeScript Interfaces (1h)
 
@@ -251,7 +251,38 @@ export async function POST(request: Request) {
 
 ---
 
-### Phase 2: Template Loader (Day 1 Afternoon, 4h)
+### Phase 1.5: Clean Infrastructure (2.5h)
+
+**Completed**: ✅
+
+**Deliverables**:
+- ChunkingService (lib/storage/chunking.ts)
+  - Protocol-aligned with PuppyEngine
+  - Unified chunking logic
+  - CHUNKING_SPEC.md protocol documentation
+  
+- VectorIndexing (lib/indexing/vector-indexing.ts)
+  - Direct implementation (YAGNI + Rule of Three)
+  - extractChunks(), createPendingEntry(), validate()
+  - No registry pattern (will abstract in Phase 4)
+  
+- Type updates
+  - reference_path → mounted_path (clearer naming)
+  - Updated in all template package.json files
+
+**Key Design Decisions**:
+- Direct implementation (no premature abstraction)
+- Protocol SSOT (TypeScript ↔ Python alignment)
+- mounted_path semantics (resource mount points)
+
+**Benefits for Phase 2**:
+- CloudTemplateLoader avoids ~150 lines of duplicate chunking code
+- Clean API for vector pending entry creation
+- Clearer naming throughout
+
+---
+
+### Phase 2: Template Loader (3h)
 
 #### Task 2.1: Implement CloudTemplateLoader (3h)
 
@@ -307,7 +338,7 @@ See architecture doc for detailed implementation.
 
 ---
 
-### Phase 3: Integration (Day 2 Morning, 4h)
+### Phase 3: Integration (4h)
 
 #### Task 3.1: Create Instantiation API (2h)
 
@@ -353,7 +384,7 @@ Update template selection to pass `templateId` instead of content.
 
 ---
 
-### Phase 4: Testing & Refinement (Day 2 Afternoon, 4h)
+### Phase 4: Testing & Refinement (3h)
 
 #### Task 4.1: End-to-End Testing (3h)
 

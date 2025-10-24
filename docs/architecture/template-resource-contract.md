@@ -292,7 +292,12 @@ interface ResourceDescriptor {
   id: string;                    // "knowledge-base-content"
   type: ResourceType;
   block_id: string;              // Which block uses this
-  reference_path: string;        // JSONPath to the reference
+  mounted_path: string;          // Resource mount point in workflow (e.g., "data.external_metadata.resource_key")
+  mounted_paths?: {              // For complex resources with multiple mount points
+    content?: string;
+    chunks?: string;
+    indexing_config?: string;
+  };
   
   source: ResourceSource;
   target: InstantiationTarget;
@@ -352,6 +357,13 @@ PuppyAgent-Jack/
     │           └── writing-samples.json
     │
     ├── lib/
+    │   ├── storage/
+    │   │   ├── chunking.ts          # ChunkingService (protocol-aligned)
+    │   │   └── CHUNKING_SPEC.md     # Chunking protocol specification
+    │   │
+    │   ├── indexing/
+    │   │   └── vector-indexing.ts   # VectorIndexing (direct implementation)
+    │   │
     │   └── templates/
     │       ├── types.ts             # TypeScript interfaces
     │       ├── loader.ts            # TemplateLoader interface
@@ -417,24 +429,50 @@ This ensures:
 
 ## 4. Implementation Phases
 
-### Phase 1: MVP - Official Templates + Cloud (2-3 days)
-
-**Scope**:
-
-- ✅ Official templates only (Git-managed)
-- ✅ Cloud deployment (no local support yet)
-- ✅ Basic resource copying
-- ❌ No CDN
-- ❌ No user-generated templates
+### Phase 0: Template Resources (1.5h)
 
 **Deliverables**:
+- 4 templates converted to package.json format
+- 12 resource files extracted to Git
+- Vector data corrected (content as SoT)
 
-1. Template Contract TypeScript interfaces
-2. CloudTemplateLoader implementation
-3. Storage copy APIs (S3 + Local)
-4. 4 templates converted to new format
-5. `/api/workspace/instantiate` endpoint
-6. Frontend integration
+### Phase 1: Core Infrastructure (8h)
+
+**Deliverables**:
+- StorageAdapter.copy_resource() method
+- /files/copy_resource API endpoint
+- /api/storage/copy proxy endpoint
+- Template whitelist security
+- 9 comprehensive tests
+
+### Phase 1.5: Clean Infrastructure (2.5h)
+
+**Deliverables**:
+- ChunkingService (protocol-aligned with PuppyEngine)
+- VectorIndexing (direct implementation, Rule of Three)
+- mounted_path naming (clearer semantics)
+- CHUNKING_SPEC.md protocol documentation
+
+### Phase 2: Template Loader (3h)
+
+**Deliverables**:
+- CloudTemplateLoader implementation
+- Resource processing (external_storage, vector, file)
+- Workflow reference mounting
+
+### Phase 3: Integration (4h)
+
+**Deliverables**:
+- `/api/workspace/instantiate` endpoint
+- Frontend integration (BlankWorkspace, CreateWorkspaceModal)
+- Basic smoke test
+
+### Phase 4: Testing & Refinement (3h)
+
+**Deliverables**:
+- E2E testing (all 4 templates)
+- Bug fixes
+- Documentation finalization
 
 **Success Criteria**:
 
@@ -610,6 +648,8 @@ class UniversalTemplateLoader implements TemplateLoader {
 ### 6.3 Code References
 
 - Template Types: `PuppyFlow/lib/templates/types.ts`
+- ChunkingService: `PuppyFlow/lib/storage/chunking.ts`
+- VectorIndexing: `PuppyFlow/lib/indexing/vector-indexing.ts`
 - Cloud Loader: `PuppyFlow/lib/templates/cloud.ts`
 - Instantiation API: `PuppyFlow/app/api/workspace/instantiate/route.ts`
 - Storage Adapter: `PuppyStorage/storage/base.py`
@@ -673,6 +713,7 @@ instantiateTemplate(templateId, userId, workspaceName)
 |---------|------|--------|---------|
 | 0.1 | 2025-01-20 | Architecture Team | Initial draft |
 | 0.1.1 | 2025-01-20 | Architecture Team | Added detailed technical explanation for Vector Data handling (§1.3) |
+| 0.1.2 | 2025-01-23 | Architecture Team | Updated Phase breakdown, added Phase 1.5, renamed to mounted_path |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 
