@@ -80,7 +80,7 @@ Each template follows the Template Resource Contract specification:
 
 ### 3. Vector Data Resources
 
-- **Type**: `external_storage_with_vector`
+- **Type**: `vector_collection`
 - **Format**: `structured`
 - **Special handling**: Preserves chunks for re-embedding, removes collection_configs
 - **Example**: Knowledge base with vector search

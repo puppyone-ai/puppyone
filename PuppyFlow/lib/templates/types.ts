@@ -29,7 +29,7 @@ export interface ResourceManifest {
 
 export interface ResourceDescriptor {
   id: string;
-  type: 'external_storage' | 'external_storage_with_vector' | 'file' | 'inline';
+  type: 'external_storage' | 'vector_collection' | 'file' | 'inline';
   block_id: string;
 
   // Resource mount point in workflow (renamed from reference_path for clarity)

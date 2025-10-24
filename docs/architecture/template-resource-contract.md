@@ -311,9 +311,14 @@ type ResourceType =
 
 interface ResourceSource {
   path: string;                  // "resources/knowledge-base.json"
-  format: 'raw_json' | 'pdf' | 'embeddings' | 'text';
-  checksum?: string;             // SHA256 for verification
+  format: 'text' | 'structured' | 'binary';
+  mime_type?: string;            // Optional MIME type for binary files
 }
+
+// Format meanings:
+// - 'text': Plain text files (.txt)
+// - 'structured': JSON or other parsable data (.json, arrays/objects)
+// - 'binary': Binary files like PDF, images (.pdf, .png, etc.)
 
 interface InstantiationTarget {
   strategy: 'copy_and_chunk'     // For external_storage: copy + chunk
@@ -432,6 +437,7 @@ This ensures:
 ### Phase 0: Template Resources (1.5h)
 
 **Deliverables**:
+
 - 4 templates converted to package.json format
 - 12 resource files extracted to Git
 - Vector data corrected (content as SoT)
@@ -439,6 +445,7 @@ This ensures:
 ### Phase 1: Core Infrastructure (8h)
 
 **Deliverables**:
+
 - StorageAdapter.copy_resource() method
 - /files/copy_resource API endpoint
 - /api/storage/copy proxy endpoint
@@ -448,6 +455,7 @@ This ensures:
 ### Phase 1.5: Clean Infrastructure (2.5h)
 
 **Deliverables**:
+
 - ChunkingService (protocol-aligned with PuppyEngine)
 - VectorIndexing (direct implementation, Rule of Three)
 - mounted_path naming (clearer semantics)
@@ -456,6 +464,7 @@ This ensures:
 ### Phase 2: Template Loader (3h)
 
 **Deliverables**:
+
 - CloudTemplateLoader implementation
 - Resource processing (external_storage, vector, file)
 - Workflow reference mounting
@@ -463,6 +472,7 @@ This ensures:
 ### Phase 3: Integration (4h)
 
 **Deliverables**:
+
 - `/api/workspace/instantiate` endpoint
 - Frontend integration (BlankWorkspace, CreateWorkspaceModal)
 - Basic smoke test
@@ -470,6 +480,7 @@ This ensures:
 ### Phase 4: Testing & Refinement (3h)
 
 **Deliverables**:
+
 - E2E testing (all 4 templates)
 - Bug fixes
 - Documentation finalization
