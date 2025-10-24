@@ -1,0 +1,25 @@
+# Template Code Owners
+#
+# These users are automatically requested for review when PRs modify templates.
+# Maintainers have merge authority after review.
+#
+# See MAINTENANCE.md for detailed responsibilities.
+
+# Default owners for all templates
+/PuppyFlow/templates/ @puppyagent/template-maintainers
+
+# Specific template owners (if needed in future)
+# /PuppyFlow/templates/agentic-rag/ @maintainer1
+# /PuppyFlow/templates/seo-blog/ @maintainer2
+
+# Template infrastructure
+/PuppyFlow/lib/templates/ @puppyagent/template-maintainers
+/PuppyFlow/app/api/workspace/instantiate/ @puppyagent/template-maintainers
+
+# Storage layer (affects template instantiation)
+/PuppyStorage/server/routes/management_routes.py @puppyagent/storage-team @puppyagent/template-maintainers
+
+# Documentation
+/docs/architecture/template-resource-contract.md @puppyagent/architecture-team
+/docs/implementation/template-contract-mvp.md @puppyagent/template-maintainers
+
