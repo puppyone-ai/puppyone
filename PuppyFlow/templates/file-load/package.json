@@ -50,7 +50,7 @@
                 "id": "sample-pdf",
                 "type": "file",
                 "block_id": "ZcR28v",
-                "reference_path": "data.file_reference",
+                "mounted_path": "data.file_reference",
                 "source": {
                     "path": "resources/sample-local-pdf.pdf",
                     "format": "binary",
@@ -66,7 +66,7 @@
                 "id": "parsed-pdf-content",
                 "type": "external_storage",
                 "block_id": "yuoc2y",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/parsed-pdf-content.json",
                     "format": "structured"
@@ -81,7 +81,7 @@
                 "id": "formatted-output",
                 "type": "external_storage",
                 "block_id": "PBoxu0",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/formatted-output.json",
                     "format": "structured"

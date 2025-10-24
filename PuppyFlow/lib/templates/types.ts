@@ -31,8 +31,12 @@ export interface ResourceDescriptor {
   id: string;
   type: 'external_storage' | 'external_storage_with_vector' | 'file' | 'inline';
   block_id: string;
-  reference_path: string;
-  reference_paths?: {
+
+  // Resource mount point in workflow (renamed from reference_path for clarity)
+  mounted_path: string; // e.g., "data.external_metadata.resource_key"
+
+  // For complex resources with multiple mount points
+  mounted_paths?: {
     content?: string;
     chunks?: string;
     indexing_config?: string;

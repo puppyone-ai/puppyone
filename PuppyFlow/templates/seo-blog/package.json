@@ -85,7 +85,7 @@
                 "id": "query-rewrite-output",
                 "type": "external_storage",
                 "block_id": "WIQTLu",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/query-rewrite-output.json",
                     "format": "structured"
@@ -100,7 +100,7 @@
                 "id": "search-result-1",
                 "type": "external_storage",
                 "block_id": "x9_unS",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/search-result-1.json",
                     "format": "structured"
@@ -115,7 +115,7 @@
                 "id": "search-result-2",
                 "type": "external_storage",
                 "block_id": "GyCLUb",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/search-result-2.json",
                     "format": "structured"
@@ -130,7 +130,7 @@
                 "id": "search-result-3",
                 "type": "external_storage",
                 "block_id": "U9jTWc",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/search-result-3.json",
                     "format": "structured"
@@ -145,7 +145,7 @@
                 "id": "generated-blog",
                 "type": "external_storage",
                 "block_id": "3tGDxk",
-                "reference_path": "data.content",
+                "mounted_path": "data.content",
                 "source": {
                     "path": "resources/generated-blog.txt",
                     "format": "text"

@@ -619,11 +619,11 @@
     "resources": {
         "format": "separate",
         "resources": [
-            {
-                "id": "web-content",
-                "type": "external_storage",
-                "block_id": "-DMqB-",
-                "reference_path": "data.content",
+      {
+        "id": "web-content",
+        "type": "external_storage",
+        "block_id": "-DMqB-",
+        "mounted_path": "data.content",
                 "source": {
                     "path": "resources/web-content.txt",
                     "format": "text"
@@ -634,11 +634,11 @@
                     "requires_user_scope": true
                 }
             },
-            {
-                "id": "faq-extracted",
-                "type": "external_storage",
-                "block_id": "A-4un_",
-                "reference_path": "data.content",
+      {
+        "id": "faq-extracted",
+        "type": "external_storage",
+        "block_id": "A-4un_",
+        "mounted_path": "data.content",
                 "source": {
                     "path": "resources/faq-extracted.json",
                     "format": "structured"
@@ -649,11 +649,11 @@
                     "requires_user_scope": true
                 }
             },
-            {
-                "id": "faq-schema",
-                "type": "external_storage",
-                "block_id": "cQIBpi",
-                "reference_path": "data.content",
+      {
+        "id": "faq-schema",
+        "type": "external_storage",
+        "block_id": "cQIBpi",
+        "mounted_path": "data.content",
                 "source": {
                     "path": "resources/faq-schema.json",
                     "format": "structured"
@@ -664,11 +664,11 @@
                     "requires_user_scope": true
                 }
             },
-            {
-                "id": "faq-vector-kb",
-                "type": "external_storage_with_vector",
-                "block_id": "WzK6iT",
-                "reference_paths": {
+      {
+        "id": "faq-vector-kb",
+        "type": "external_storage_with_vector",
+        "block_id": "WzK6iT",
+        "mounted_paths": {
                     "content": "data.content",
                     "chunks": "data.indexingList[0].chunks",
                     "indexing_config": "data.indexingList[0]"
