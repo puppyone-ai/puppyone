@@ -56,7 +56,7 @@ async def test_copy_resource_endpoint_success(api_client, tmp_storage_dir):
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_copy_resource_endpoint_source_not_found(api_client, tmp_storage_dir):
-    """Test endpoint returns 500 when source doesn't exist"""
+    """Test endpoint returns 500 when source doesn't exist (but user is in whitelist)"""
     os.environ["DEPLOYMENT_TYPE"] = "local"
     os.environ["LOCAL_STORAGE_PATH"] = str(tmp_storage_dir)
     os.environ["STRICT_LOCAL_AUTH"] = "false"
@@ -70,10 +70,11 @@ async def test_copy_resource_endpoint_source_not_found(api_client, tmp_storage_d
     from storage import reset_storage_manager
     reset_storage_manager()
     
+    # Use template-official (in whitelist) but with non-existent file
     response = await api_client.post(
         "/files/copy_resource",
         json={
-            "source_key": "nonexistent/block/v1",
+            "source_key": "template-official/nonexistent-block/v1",
             "target_key": "user123/block/v1"
         },
         headers={"Authorization": "Bearer test-token"}
