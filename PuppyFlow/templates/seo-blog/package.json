@@ -91,7 +91,6 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
@@ -106,7 +105,6 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
@@ -121,7 +119,6 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
@@ -136,7 +133,6 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
@@ -151,7 +147,6 @@
                     "format": "text"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }

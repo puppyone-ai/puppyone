@@ -87,7 +87,7 @@ Vector data requires special handling due to its two-layer architecture:
 ```typescript
 {
   type: 'vector',
-  chunks: [],                 // ❌ Empty in template - generated at runtime
+  entries: [],                // ❌ Empty in template - generated at runtime
   status: 'pending',          // User needs to trigger indexing
   key_path: [...],            // ✅ Rules for extracting index content from source
   value_path: [...],          // ✅ Rules for extracting metadata
@@ -95,8 +95,8 @@ Vector data requires special handling due to its two-layer architecture:
   collection_configs: {}      // ❌ Empty in template - populated after re-embedding
 }
 
-// Chunks are dynamically generated from content using key_path:
-// chunks = content.map(item => ({
+// Entries are dynamically generated from content using key_path:
+// entries = content.map(item => ({
 //   content: getValueByPath(item, key_path),
 //   metadata: { retrieval_content: getValueByPath(item, value_path) }
 // }))
@@ -162,13 +162,13 @@ collection_{userId}_{model}_{setName}:
 **MVP Strategy:**
 
 - Template includes `content` (source data) and `indexing_config` (key_path, value_path)
-- Chunks are NOT pre-generated or stored in template
+- Entries are NOT pre-generated or stored in template
 - During instantiation:
-  1. Upload content to user's external storage (chunked for storage)
+  1. Upload content to user's external storage (partitioned for storage)
   2. Copy indexing_config to workflow JSON
-  3. User's first access triggers: content → generate chunks (using key_path) → re-embed
-- Ensures chunks always sync with content (single source of truth)
-- Acceptable trade-off: 5-second embed time vs. guaranteed correctness + content-chunk consistency
+  3. User's first access triggers: content → generate entries (using key_path) → re-embed
+- Ensures entries always sync with content (single source of truth)
+- Acceptable trade-off: 5-second embed time vs. guaranteed correctness + content-entry consistency
 
 **Future Optimization (Phase 3):**
 
@@ -295,7 +295,7 @@ interface ResourceDescriptor {
   mounted_path: string;          // Resource mount point in workflow (e.g., "data.external_metadata.resource_key")
   mounted_paths?: {              // For complex resources with multiple mount points
     content?: string;
-    chunks?: string;
+    entries?: string;            // For vector collections: path to entries array
     indexing_config?: string;
   };
   
@@ -304,10 +304,14 @@ interface ResourceDescriptor {
 }
 
 type ResourceType = 
-  | 'external_storage'           // Chunked content (needs copy)
-  | 'file'                       // Single file (needs copy)
-  | 'vector_collection'          // Vector embeddings (re-embed, not copy)
-  | 'inline_data';               // Embedded in JSON (copied with JSON)
+  | 'external_storage'           // General data storage (text/structured)
+  | 'file'                       // File resource (binary/text, always uploaded)
+  | 'vector_collection';         // Vector indexing (structured only)
+
+// Note: There is NO 'inline' ResourceType!
+// "inline" is a storage_class state (internal vs external),
+// determined at runtime based on content size.
+// external_storage resources can be stored inline if < 1MB.
 
 interface ResourceSource {
   path: string;                  // "resources/knowledge-base.json"
@@ -321,14 +325,19 @@ interface ResourceSource {
 // - 'binary': Binary files like PDF, images (.pdf, .png, etc.)
 
 interface InstantiationTarget {
-  strategy: 'copy_and_chunk'     // For external_storage: copy + chunk
-           | 'copy_raw'          // For files: copy as-is
-           | 're-embed'          // For vector_collection: re-compute embeddings
-           | 'reference'         // Keep original reference (rare)
-           | 'skip';             // No action needed (inline data)
   pattern: string;               // "${userId}/${blockId}/${versionId}"
   requires_user_scope: boolean;
+  
+  // Optional: Special handling for vector collections
+  vector_handling?: 'preserve_entries_only' | 'none';
 }
+
+// Note: No 'strategy' field, no 'force_storage_class' override!
+// Storage class is ALWAYS automatically inferred from:
+//   - ResourceType (external_storage, file, vector_collection)
+//   - source.format (text, structured, binary)
+//   - Content size (< 1MB → internal/inline, ≥ 1MB → external)
+// See: PuppyFlow/lib/storage/STORAGE_SPEC.md - "Inference Rules"
 ```
 
 ### 3.2 File System Layout
@@ -363,8 +372,8 @@ PuppyAgent-Jack/
     │
     ├── lib/
     │   ├── storage/
-    │   │   ├── chunking.ts          # ChunkingService (protocol-aligned)
-    │   │   └── CHUNKING_SPEC.md     # Chunking protocol specification
+    │   │   ├── partitioning.ts      # PartitioningService (protocol-aligned)
+    │   │   └── STORAGE_SPEC.md      # Storage & Partitioning protocol specification
     │   │
     │   ├── indexing/
     │   │   └── vector-indexing.ts   # VectorIndexing (direct implementation)
@@ -392,23 +401,27 @@ PuppyAgent-Jack/
 2. For each resource in manifest:
    ├─ Read source file (resources/*.json)
    │
-   ├─ Apply instantiation strategy:
-   │   ├─ copy_and_chunk → Upload to PuppyStorage with chunking
-   │   ├─ copy_raw → Upload as-is
-   │   ├─ re-embed → Keep chunks in JSON, user re-embeds later
-   │   └─ skip → Keep as inline data
+  ├─ Infer storage processing (automatic, see STORAGE_SPEC.md):
+  │   ├─ type='file' → external, no partitioning (upload as-is)
+  │   └─ type='external_storage' or 'vector_collection' → check content size:
+  │       ├─ < 1MB → storage_class='internal' (embed in JSON)
+  │       └─ ≥ 1MB → storage_class='external' + partitioning (upload)
    │
-   ├─ Generate new resource key (if applicable):
+   ├─ Generate new resource key (if external):
    │   └─ ${newUserId}/${blockId}/${newVersionId}
    │
    └─ Update workflow reference:
-       ├─ external_storage: block.data.external_metadata.resource_key = newKey
+       ├─ external_storage: 
+       │   ├─ IF external: block.data.external_metadata.resource_key = newKey
+       │   └─ IF inline: block.data.content = resourceContent
        ├─ files: block.data.uploadedFiles[].key = newKey
-       └─ vector: 
+       └─ vector_collection: 
+            ├─ IF external: upload content, set external_metadata
+            ├─ IF inline: block.data.content = resourceContent
             ├─ Keep indexingList[].key_path and value_path (extraction rules)
-            ├─ Set indexingList[].chunks = [] (empty, will be generated)
+            ├─ Set indexingList[].entries = [] (empty, will be generated on-demand)
             ├─ Set indexingList[].status = 'pending'
-            └─ Set indexingList[].collection_configs = {} (empty until re-embed)
+            └─ Set indexingList[].collection_configs = {} (empty until user embeds)
 
 3. Create Workspace
    ├─ Call workspace store API
@@ -419,14 +432,14 @@ PuppyAgent-Jack/
 
 Note: Vector workflow after instantiation:
   - User opens workspace → sees content in external storage
-  - User triggers indexing → chunks generated from content using key_path
-  - System embeds chunks → creates collection with user_id
+  - User triggers indexing → entries generated from content using key_path
+  - System embeds entries → creates collection with user_id
   - User can now use vector search
 
 This ensures:
   ✓ Content is single source of truth
-  ✓ Chunks always sync with content
-  ✓ No stale/inconsistent chunks
+  ✓ Entries always sync with content
+  ✓ No stale/inconsistent entries
   ✓ Users control when to embed (and can re-embed if content changes)
 ```
 
@@ -456,10 +469,28 @@ This ensures:
 
 **Deliverables**:
 
-- ChunkingService (protocol-aligned with PuppyEngine)
+- PartitioningService (protocol-aligned with PuppyEngine)
 - VectorIndexing (direct implementation, Rule of Three)
 - mounted_path naming (clearer semantics)
-- CHUNKING_SPEC.md protocol documentation
+- STORAGE_SPEC.md protocol documentation
+
+### Phase 1.7: Semantic Separation (10h) ✅ COMPLETED
+
+**Deliverables**:
+
+- Vector indexing terminology: `chunks` → `entries` (semantic units)
+- Storage terminology: `chunks` → `parts` (physical storage units)
+- Workflow chunk edges: kept as `chunks` (user-facing concept)
+- Full backward compatibility (manifest fields, file names, env vars)
+- Updated 30 files (~540 changes) across PuppyStorage, PuppyEngine, PuppyFlow
+- Templates directory fully aligned
+- STORAGE_SPEC.md v1.1 (semantic separation documented)
+
+**Impact**:
+
+- Clear semantic distinction between vector entries, storage parts, and workflow chunks
+- 100% backward compatible with existing data
+- Improved code maintainability and clarity
 
 ### Phase 2: Template Loader (3h)
 
@@ -659,7 +690,7 @@ class UniversalTemplateLoader implements TemplateLoader {
 ### 6.3 Code References
 
 - Template Types: `PuppyFlow/lib/templates/types.ts`
-- ChunkingService: `PuppyFlow/lib/storage/chunking.ts`
+- PartitioningService: `PuppyFlow/lib/storage/partitioning.ts`
 - VectorIndexing: `PuppyFlow/lib/indexing/vector-indexing.ts`
 - Cloud Loader: `PuppyFlow/lib/templates/cloud.ts`
 - Instantiation API: `PuppyFlow/app/api/workspace/instantiate/route.ts`
@@ -725,6 +756,7 @@ instantiateTemplate(templateId, userId, workspaceName)
 | 0.1 | 2025-01-20 | Architecture Team | Initial draft |
 | 0.1.1 | 2025-01-20 | Architecture Team | Added detailed technical explanation for Vector Data handling (§1.3) |
 | 0.1.2 | 2025-01-23 | Architecture Team | Updated Phase breakdown, added Phase 1.5, renamed to mounted_path |
+| 0.1.3 | 2025-01-25 | Architecture Team | Phase 1.7 semantic separation: chunks→entries (vector), chunks→parts (storage) |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 

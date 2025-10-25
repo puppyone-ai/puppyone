@@ -60,7 +60,7 @@
                     "indexingList": [
                         {
                             "type": "vector",
-                            "chunks": [],
+                            "entries": [],
                             "status": "pending",
                             "key_path": [
                                 {
@@ -629,7 +629,6 @@
                     "format": "text"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
@@ -644,7 +643,6 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
@@ -659,18 +657,17 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true
                 }
             },
-      {
-        "id": "faq-vector-kb",
-        "type": "vector_collection",
-        "block_id": "WzK6iT",
+            {
+                "id": "faq-vector-kb",
+                "type": "vector_collection",
+                "block_id": "WzK6iT",
                 "mounted_paths": {
                     "content": "data.content",
-                    "chunks": "data.indexingList[0].chunks",
+                    "entries": "data.indexingList[0].entries",
                     "indexing_config": "data.indexingList[0]"
                 },
                 "source": {
@@ -678,10 +675,9 @@
                     "format": "structured"
                 },
                 "target": {
-                    "strategy": "copy_and_chunk",
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true,
-                    "vector_handling": "preserve_chunks_only"
+                    "vector_handling": "preserve_entries_only"
                 }
             }
         ]

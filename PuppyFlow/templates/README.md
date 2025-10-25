@@ -68,7 +68,7 @@ Each template follows the Template Resource Contract specification:
 
 - **Type**: `external_storage`
 - **Format**: `text` or `structured`
-- **Strategy**: `copy_and_chunk`
+- **Strategy**: `copy_and_partition`
 - **Example**: Web content, FAQ data, search results
 
 ### 2. File Resources
@@ -82,7 +82,7 @@ Each template follows the Template Resource Contract specification:
 
 - **Type**: `vector_collection`
 - **Format**: `structured`
-- **Special handling**: Preserves chunks for re-embedding, removes collection_configs
+- **Special handling**: Preserves entries for re-embedding, removes collection_configs
 - **Example**: Knowledge base with vector search
 
 ## Key Design Decisions
@@ -90,7 +90,7 @@ Each template follows the Template Resource Contract specification:
 1. **No hardcoded userIds**: All workflows have been cleaned of user-specific identifiers
 2. **Separate resources**: Resources are stored as files, not embedded in workflow JSON
 3. **Git-managed**: All templates and resources are version-controlled in Git
-4. **Vector data strategy**: Original text chunks are preserved, but embeddings and collection configs are removed (users will re-embed with their own models)
+4. **Vector data strategy**: Original text entries are preserved, but embeddings and collection configs are removed (users will re-embed with their own models)
 5. **Format preservation**: Resources maintain their native format (JSON, text, PDF) until instantiation
 
 ## Template Instantiation Flow
@@ -99,7 +99,7 @@ When a user creates a workspace from a template:
 
 1. **Load**: `CloudTemplateLoader` reads `package.json` from Git
 2. **Upload**: Resources are uploaded to user's S3 space (`${userId}/${blockId}/${versionId}`)
-3. **Chunk**: Large resources are automatically chunked by PuppyStorage
+3. **Partition**: Large resources are automatically partitioned by PuppyStorage
 4. **Rewrite**: Workflow references are updated with new `resource_key` values
 5. **Save**: Final workspace is saved to user's workspace directory
 

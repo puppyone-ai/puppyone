@@ -30,7 +30,8 @@ class ExternalStorageStrategy:
     
     def __init__(self):
         self.json_handler = StreamingJSONHandler(mode="jsonl")
-        self.chunk_size = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))  # Configurable chunk size
+        # Backward compatibility: try new STORAGE_PART_SIZE first, fallback to old STORAGE_CHUNK_SIZE
+        self.part_size = int(os.getenv("STORAGE_PART_SIZE") or os.getenv("STORAGE_CHUNK_SIZE") or "1024")
     
     async def resolve(self, storage_client: Any, block: 'BaseBlock') -> None:
         """
@@ -63,28 +64,29 @@ class ExternalStorageStrategy:
             # Determine content handling strategy, with conservative auto-detection fallback
             content_type = external_metadata.get('content_type', 'text')
 
-            # Heuristic: detect end-user file uploads only when chunk naming clearly indicates files.
-            # Rules (avoid false-positives for structured/text chunking):
+            # Heuristic: detect end-user file uploads only when part naming clearly indicates files.
+            # Rules (avoid false-positives for structured/text partitioning):
             # - DO NOT treat presence of file_name alone as files (structured uploads also include it)
             # - Consider as files when:
-            #   a) chunk.name does NOT start with "chunk_" (typical user file names), OR
+            #   a) part.name does NOT start with "part_" or "chunk_" (typical user file names), OR
             #   b) file_name exists AND file_name != name (explicitly carries original filename)
             def _looks_like_file_uploads(mani: dict) -> bool:
                 try:
-                    chunks = mani.get('chunks', [])
-                    for ch in chunks:
-                        if not isinstance(ch, dict):
-                            # String entries (legacy) that don't follow chunk_ pattern also imply files
-                            if isinstance(ch, str) and not ch.startswith('chunk_'):
+                    # Try new 'parts' field first, fallback to old 'chunks' for backward compatibility
+                    items = mani.get('parts', mani.get('chunks', []))
+                    for item in items:
+                        if not isinstance(item, dict):
+                            # String entries (legacy) that don't follow part_/chunk_ pattern also imply files
+                            if isinstance(item, str) and not (item.startswith('part_') or item.startswith('chunk_')):
                                 return True
                             continue
-                        name = ch.get('name', '') or ''
-                        file_name = ch.get('file_name')
+                        name = item.get('name', '') or ''
+                        file_name = item.get('file_name')
                         # Condition (b): explicit original filename different from storage name
                         if file_name and file_name != name:
                             return True
-                        # Condition (a): storage name doesn't follow standard chunk_* pattern
-                        if name and not name.startswith('chunk_'):
+                        # Condition (a): storage name doesn't follow standard part_/chunk_* pattern
+                        if name and not (name.startswith('part_') or name.startswith('chunk_')):
                             return True
                     return False
                 except Exception:
@@ -111,16 +113,17 @@ class ExternalStorageStrategy:
                 os.makedirs(local_dir, exist_ok=True)
 
                 files = []
-                for chunk_info in manifest.get('chunks', []):
+                # Try new 'parts' field first, fallback to old 'chunks' for backward compatibility
+                for part_info in manifest.get('parts', manifest.get('chunks', [])):
                     # 仅消费 state==done 的分块
-                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
+                    if isinstance(part_info, dict) and part_info.get('state') and part_info.get('state') != 'done':
                         continue
-                    name = chunk_info.get('name')
+                    name = part_info.get('name')
                     if not name:
                         continue
-                    chunk_key = f"{resource_key}/{name}"
+                    part_key = f"{resource_key}/{name}"
                     try:
-                        data = await storage_client.download_chunk(chunk_key)
+                        data = await storage_client.download_chunk(part_key)
                         local_path = os.path.join(local_dir, name)
                         # Ensure parent dirs exist for nested names
                         os.makedirs(os.path.dirname(local_path), exist_ok=True)
@@ -128,30 +131,30 @@ class ExternalStorageStrategy:
                             f.write(data)
                         files.append({
                             'local_path': local_path,
-                            'file_name': chunk_info.get('file_name') or name,
-                            'mime_type': chunk_info.get('mime_type'),
+                            'file_name': part_info.get('file_name') or name,
+                            'mime_type': part_info.get('mime_type'),
                             'file_type': decide_file_type(
-                                chunk_info.get('file_type'),
-                                chunk_info.get('mime_type'),
+                                part_info.get('file_type'),
+                                part_info.get('mime_type'),
                                 name
                             ),
-                            'size': chunk_info.get('size'),
-                            'etag': chunk_info.get('etag'),
+                            'size': part_info.get('size'),
+                            'etag': part_info.get('etag'),
                         })
-                        log_debug(f"Downloaded chunk to {local_path}")
+                        log_debug(f"Downloaded part to {local_path}")
                     except Exception as de:
-                        log_warning(f"Failed to download chunk {chunk_key}: {de}")
+                        log_warning(f"Failed to download part {part_key}: {de}")
                         files.append({
                             'local_path': None,
-                            'file_name': chunk_info.get('file_name') or name,
-                            'mime_type': chunk_info.get('mime_type'),
+                            'file_name': part_info.get('file_name') or name,
+                            'mime_type': part_info.get('mime_type'),
                             'file_type': decide_file_type(
-                                chunk_info.get('file_type'),
-                                chunk_info.get('mime_type'),
+                                part_info.get('file_type'),
+                                part_info.get('mime_type'),
                                 name
                             ),
-                            'size': chunk_info.get('size'),
-                            'etag': chunk_info.get('etag'),
+                            'size': part_info.get('size'),
+                            'etag': part_info.get('etag'),
                             'error': str(de)
                         })
 
@@ -165,22 +168,24 @@ class ExternalStorageStrategy:
             if content_type == 'structured':
                 # Use StreamingJSONAggregator for structured data
                 aggregator = StreamingJSONAggregator()
-                for chunk_info in manifest['chunks']:
-                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
+                # Try new 'parts' field first, fallback to old 'chunks' for backward compatibility
+                for part_info in manifest.get('parts', manifest.get('chunks', [])):
+                    if isinstance(part_info, dict) and part_info.get('state') and part_info.get('state') != 'done':
                         continue
-                    chunk_key = f"{resource_key}/{chunk_info['name']}"
-                    chunk_data = await storage_client.download_chunk(chunk_key)
-                    aggregator.add_jsonl_chunk(chunk_data)
+                    part_key = f"{resource_key}/{part_info['name']}"
+                    part_data = await storage_client.download_chunk(part_key)
+                    aggregator.add_jsonl_part(part_data)
                 block.set_content(aggregator.get_all_objects())
             else:  # text or binary
                 # Simple concatenation
                 content_parts = []
-                for chunk_info in manifest['chunks']:
-                    if isinstance(chunk_info, dict) and chunk_info.get('state') and chunk_info.get('state') != 'done':
+                # Try new 'parts' field first, fallback to old 'chunks' for backward compatibility
+                for part_info in manifest.get('parts', manifest.get('chunks', [])):
+                    if isinstance(part_info, dict) and part_info.get('state') and part_info.get('state') != 'done':
                         continue
-                    chunk_key = f"{resource_key}/{chunk_info['name']}"
-                    chunk_data = await storage_client.download_chunk(chunk_key)
-                    content_parts.append(chunk_data)
+                    part_key = f"{resource_key}/{part_info['name']}"
+                    part_data = await storage_client.download_chunk(part_key)
+                    content_parts.append(part_data)
                 if content_type == 'text':
                     block.set_content(b''.join(content_parts).decode('utf-8'))
                 else:
@@ -241,12 +246,12 @@ class ExternalStorageStrategy:
                 "timestamp": datetime.utcnow().isoformat()
             }
             
-            # Create chunk generator and perform incremental upload
-            chunk_generator = self._create_chunk_generator(block, content, content_type)
+            # Create part generator and perform incremental upload
+            part_generator = self._create_part_generator(block, content, content_type)
             await storage_client.upload_chunks_and_update_manifest(
                 block_id=block.id,
                 version_id=version_id,
-                chunk_generator=chunk_generator(),
+                chunk_generator=part_generator(),
                 manifest_key=manifest_key,
                 current_etag=current_etag
             )
@@ -282,49 +287,49 @@ class ExternalStorageStrategy:
             yield error_event
             raise
     
-    def _create_chunk_generator(self, block: 'BaseBlock', content: Any, content_type: str):
-        """Create appropriate chunk generator based on content type"""
+    def _create_part_generator(self, block: 'BaseBlock', content: Any, content_type: str):
+        """Create appropriate part generator based on content type"""
         
-        async def generate_chunks():
+        async def generate_parts():
             if content_type == 'structured':
                 # Use StreamingJSONHandler for structured data
-                chunk_index = 0
+                part_index = 0
                 if isinstance(content, list):
                     # Filter out None items to avoid generating 'null' JSONL lines
                     filtered_items = [item for item in content if item is not None]
-                    for chunk_data in self.json_handler.split_to_jsonl(filtered_items):
+                    for part_data in self.json_handler.split_to_jsonl(filtered_items):
                         # Guard: skip accidental empty buffers
-                        if not chunk_data:
+                        if not part_data:
                             continue
-                        yield f"chunk_{chunk_index:06d}.jsonl", chunk_data
-                        chunk_index += 1
+                        yield f"part_{part_index:06d}.jsonl", part_data
+                        part_index += 1
                 else:
                     # Single object as JSONL; skip if content is None
                     if content is None:
-                        log_warning("Structured content is None; skipping upload of empty JSONL chunk")
+                        log_warning("Structured content is None; skipping upload of empty JSONL part")
                         return
-                    chunk_data = json.dumps(content, ensure_ascii=False).encode('utf-8') + b'\n'
-                    if chunk_data:
-                        yield "chunk_000000.jsonl", chunk_data
+                    part_data = json.dumps(content, ensure_ascii=False).encode('utf-8') + b'\n'
+                    if part_data:
+                        yield "part_000000.jsonl", part_data
                     
             elif content_type == 'text':
-                # Text content chunking
+                # Text content partitioning
                 text_bytes = content.encode('utf-8')
-                chunk_index = 0
-                for i in range(0, len(text_bytes), self.chunk_size):
-                    chunk = text_bytes[i:i + self.chunk_size]
-                    yield f"chunk_{chunk_index:06d}.txt", chunk
-                    chunk_index += 1
+                part_index = 0
+                for i in range(0, len(text_bytes), self.part_size):
+                    part = text_bytes[i:i + self.part_size]
+                    yield f"part_{part_index:06d}.txt", part
+                    part_index += 1
                     
             else:  # binary
-                # Binary content chunking
-                chunk_index = 0
-                for i in range(0, len(content), self.chunk_size):
-                    chunk = content[i:i + self.chunk_size]
-                    yield f"chunk_{chunk_index:06d}.bin", chunk
-                    chunk_index += 1
+                # Binary content partitioning
+                part_index = 0
+                for i in range(0, len(content), self.part_size):
+                    part = content[i:i + self.part_size]
+                    yield f"part_{part_index:06d}.bin", part
+                    part_index += 1
         
-        return generate_chunks
+        return generate_parts
     
     def _determine_content_type(self, content: Any) -> str:
         """Determine the content type based on the content"""

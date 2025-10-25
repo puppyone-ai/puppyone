@@ -21,9 +21,10 @@ class EventFactory:
     @staticmethod
     def create_task_started_event(env_id: str, start_time: datetime, total_blocks: int, total_edges: int) -> Dict[str, Any]:
         """Create TASK_STARTED event"""
-        # Broadcast storage threshold to align FE/BE chunking decisions
+        # Broadcast storage threshold to align FE/BE partitioning decisions
+        # Backward compatibility: try new STORAGE_PART_SIZE first, fallback to old STORAGE_CHUNK_SIZE
         try:
-            storage_threshold_bytes = int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))
+            storage_threshold_bytes = int(os.getenv("STORAGE_PART_SIZE") or os.getenv("STORAGE_CHUNK_SIZE") or "1024")
         except Exception:
             storage_threshold_bytes = 1024
         return {

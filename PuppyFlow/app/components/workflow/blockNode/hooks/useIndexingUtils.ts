@@ -82,10 +82,10 @@ export default function useIndexingUtils() {
           dataSource = [];
         }
 
-        // 准备 chunks 数据
-        const chunks = [];
+        // 准备 entries 数据
+        const entries = [];
 
-        // 处理每个数据源，生成 chunks
+        // 处理每个数据源，生成 entries
         for (let i = 0; i < dataSource.length; i++) {
           const source = dataSource[i];
 
@@ -107,7 +107,7 @@ export default function useIndexingUtils() {
             id: i, // 使用循环索引作为 id
           };
 
-          // 创建 chunk 对象并添加到 chunks 数组
+          // 创建 entry 对象并添加到 entries 数组
           // 确保 content 为字符串，符合后端 Pydantic 校验
           const contentString =
             indexContent === null || indexContent === undefined
@@ -116,14 +116,14 @@ export default function useIndexingUtils() {
                 ? indexContent
                 : JSON.stringify(indexContent);
 
-          chunks.push({
+          entries.push({
             content: contentString,
             metadata: metadata,
           });
         }
 
-        // 更新 newItem 的 chunks 字段
-        (newItem as VectorIndexingItem).chunks = chunks;
+        // 更新 newItem 的 entries 字段
+        (newItem as VectorIndexingItem).entries = entries;
 
         // 开始处理embedding请求
         try {
@@ -132,17 +132,17 @@ export default function useIndexingUtils() {
 
           // 构建请求体
           const payloadData = {
-            chunks: (newItem as VectorIndexingItem).chunks,
+            entries: (newItem as VectorIndexingItem).entries,
             create_new: true,
             vdb_type: 'pgvector',
             model: 'text-embedding-ada-002',
             set_name: `collection_${id}_${Date.now()}`,
           };
 
-          // 检查chunks是否有效
-          if (!payloadData.chunks || payloadData.chunks.length === 0) {
+          // 检查entries是否有效
+          if (!payloadData.entries || payloadData.entries.length === 0) {
             setVectorIndexingStatus('notStarted');
-            throw new Error('No valid chunks to embed');
+            throw new Error('No valid entries to embed');
           }
 
           // 发送请求到后端

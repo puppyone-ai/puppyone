@@ -29,7 +29,14 @@ export interface ResourceManifest {
 
 export interface ResourceDescriptor {
   id: string;
-  type: 'external_storage' | 'vector_collection' | 'file' | 'inline';
+
+  // Business type (not storage form):
+  // - 'external_storage': General data (text/structured), size determines inline/external
+  // - 'file': File resource (binary/text), always external
+  // - 'vector_collection': Vector indexing (structured only), size determines inline/external
+  // Note: NO 'inline' type - inline is a storage_class determined at runtime!
+  type: 'external_storage' | 'vector_collection' | 'file';
+
   block_id: string;
 
   // Resource mount point in workflow (renamed from reference_path for clarity)
@@ -49,9 +56,10 @@ export interface ResourceDescriptor {
   };
 
   target: {
-    strategy: 'copy_and_chunk' | 'copy_as_is' | 'skip';
     pattern: string;
     requires_user_scope: boolean;
+
+    // Special handling for vector collections (preserve chunks for re-embedding)
     vector_handling?: 'preserve_chunks_only' | 'none';
   };
 }

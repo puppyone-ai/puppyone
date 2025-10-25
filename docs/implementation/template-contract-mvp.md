@@ -150,8 +150,9 @@ export interface ResourceDescriptor {
   };
   
   target: {
-    strategy: 'copy_and_chunk' | 'copy_raw' | 'skip';
     pattern: string;
+    requires_user_scope: boolean;
+    force_storage_class?: 'external' | 'internal';  // Optional override
   };
 }
 
@@ -256,14 +257,15 @@ export async function POST(request: Request) {
 **Completed**: ✅
 
 **Deliverables**:
-- ChunkingService (lib/storage/chunking.ts)
+
+- PartitioningService (lib/storage/partitioning.ts)
   - Protocol-aligned with PuppyEngine
-  - Unified chunking logic
-  - CHUNKING_SPEC.md protocol documentation
+  - Unified partitioning logic
+  - STORAGE_SPEC.md protocol documentation
   
 - VectorIndexing (lib/indexing/vector-indexing.ts)
   - Direct implementation (YAGNI + Rule of Three)
-  - extractChunks(), createPendingEntry(), validate()
+  - extractEntries(), createPendingEntry(), validate()
   - No registry pattern (will abstract in Phase 4)
   
 - Type updates
@@ -271,14 +273,59 @@ export async function POST(request: Request) {
   - Updated in all template package.json files
 
 **Key Design Decisions**:
+
 - Direct implementation (no premature abstraction)
 - Protocol SSOT (TypeScript ↔ Python alignment)
 - mounted_path semantics (resource mount points)
 
 **Benefits for Phase 2**:
-- CloudTemplateLoader avoids ~150 lines of duplicate chunking code
+
+- CloudTemplateLoader avoids ~150 lines of duplicate partitioning code
 - Clean API for vector pending entry creation
 - Clearer naming throughout
+
+---
+
+### Phase 1.7: Semantic Separation (10h)
+
+**Completed**: ✅
+
+**Deliverables**:
+
+- Semantic disambiguation across entire codebase
+  - Vector indexing: `chunks` → `entries` (semantic units for embedding)
+  - Storage: `chunks` → `parts` (physical storage units)
+  - Workflow edges: kept as `chunks` (user-facing concept)
+  
+- PuppyStorage API updates
+  - New `/upload/part/direct` endpoint
+  - Full backward compatibility with old `/upload/chunk/direct`
+  
+- Backend updates (3 Python files)
+  - ExternalStorageStrategy.py: `_create_part_generator()`, `part_000000.*` naming
+  - streaming_json_handler.py: `parse_jsonl_part()`, manifest fallback
+  - EventFactory.py: `STORAGE_PART_SIZE` with env var fallback
+  
+- Frontend updates (5 TypeScript files)
+  - vector-indexing.ts: `VectorEntry`, `extractEntries()`
+  - UI components: `VectorIndexingItem.entries`
+  - dynamicStorageStrategy.ts: `partitionContent()`, `uploadPartList()`
+  - externalStorage.ts: manifest.parts with backward compat
+  
+- Documentation updates
+  - STORAGE_SPEC.md v1.1 (renamed from CHUNKING_SPEC.md)
+  - templates/ directory: README, MAINTENANCE, CHANGELOG
+  - .env.example files: `STORAGE_PART_SIZE` with deprecation notes
+  
+- Files modified: 30 files, ~540 changes
+- Backward compatibility: 100% (manifest fields, file names, env vars)
+
+**Key Benefits**:
+
+- Clear semantic distinction eliminates confusion
+- Improved code maintainability and clarity
+- Zero breaking changes for existing data
+- Foundation for future CRDT partitioning work
 
 ---
 
@@ -292,7 +339,7 @@ Key methods:
 
 - `loadTemplate(templateId)` - Read from Git
 - `instantiateTemplate(pkg, userId, workspaceId)` - Copy resources & rewrite
-- `uploadWithChunking(content, targetKey)` - Chunk and upload
+- `uploadWithPartitioning(content, targetKey)` - Partition and upload
 - `updateReference(workflow, blockId, path, newValue)` - JSONPath update
 
 See architecture doc for detailed implementation.
@@ -324,11 +371,12 @@ See architecture doc for detailed implementation.
         "reference_path": "data.external_metadata.resource_key",
         "source": {
           "path": "resources/knowledge-base.json",
-          "format": "raw_json"
+          "format": "structured"
         },
         "target": {
-          "strategy": "copy_and_chunk",
-          "pattern": "${userId}/${blockId}/${versionId}"
+          "pattern": "${userId}/${blockId}/${versionId}",
+          "requires_user_scope": true,
+          "vector_handling": "preserve_entries_only"
         }
       }
     ]

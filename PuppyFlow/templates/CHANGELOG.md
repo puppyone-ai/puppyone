@@ -78,7 +78,7 @@ and template versions adhere to [Semantic Versioning](https://semver.org/spec/v2
 
 - All templates extracted from legacy `workspaceTemplates.json`
 - Hardcoded userIds removed: `8f3dbdc0-e742...`, `110789d4-265d...`
-- Vector data strategy: Preserve chunks, remove collection_configs
+- Vector data strategy: Preserve entries, remove collection_configs
 - Template whitelist configured in PuppyStorage management_routes.py
 
 ---

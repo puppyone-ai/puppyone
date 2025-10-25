@@ -17,7 +17,7 @@ export interface VectorIndexingConfig {
   value_path: PathSegment[];
 }
 
-export interface VectorChunk {
+export interface VectorEntry {
   content: string;
   metadata: {
     id: number;
@@ -27,16 +27,16 @@ export interface VectorChunk {
 
 export class VectorIndexing {
   /**
-   * Extract vector chunks from content using indexing config
+   * Extract vector entries from content using indexing config
    *
    * @param content - Source data array
    * @param config - Indexing configuration with key_path and value_path
-   * @returns Array of vector chunks ready for embedding
+   * @returns Array of vector entries ready for embedding
    */
-  static extractChunks(
+  static extractEntries(
     content: any[],
     config: VectorIndexingConfig
-  ): VectorChunk[] {
+  ): VectorEntry[] {
     if (!Array.isArray(content)) {
       throw new Error('Vector indexing requires array content');
     }
@@ -53,13 +53,13 @@ export class VectorIndexing {
   /**
    * Create pending indexing list entry for template instantiation
    *
-   * Returns entry with empty chunks and pending status.
-   * User will trigger indexing to populate chunks from content.
+   * Returns entry with empty entries and pending status.
+   * User will trigger indexing to populate entries from content.
    */
   static createPendingEntry(config: VectorIndexingConfig): any {
     return {
       type: 'vector',
-      chunks: [], // Empty - generated at runtime from content
+      entries: [], // Empty - generated at runtime from content
       status: 'pending', // Awaiting user action
       key_path: config.key_path,
       value_path: config.value_path,

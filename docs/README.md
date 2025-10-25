@@ -8,13 +8,15 @@ This directory contains architecture designs, implementation plans, and technica
 
 ## 📚 Documentation Structure
 
-```
+```text
 docs/
 ├── architecture/           # System design and ADRs
 │   └── template-resource-contract.md
 │
 ├── implementation/         # Implementation plans
-│   └── template-contract-mvp.md
+│   ├── template-contract-mvp.md
+│   ├── semantic-separation-scope.md
+│   └── semantic-separation-detailed-scope.md
 │
 ├── guides/                # Developer guides (coming soon)
 │   ├── template-development.md
@@ -38,7 +40,7 @@ docs/
 
 ### For Implementation
 
-2. **Then read**: [Template Contract MVP Plan](./implementation/template-contract-mvp.md)
+1. **Then read**: [Template Contract MVP Plan](./implementation/template-contract-mvp.md)
    - Focused on Phase 1 (2-3 days)
    - Step-by-step tasks
    - Code samples and file changes
@@ -58,6 +60,8 @@ docs/
 | Document | Description | Audience | Status |
 |----------|-------------|----------|--------|
 | [Template Contract MVP](./implementation/template-contract-mvp.md) | Phase 1 implementation plan | All Developers | Ready |
+| [Semantic Separation Scope](./implementation/semantic-separation-scope.md) | Chunks→entries/parts refactoring overview | All Developers | Ready |
+| [Semantic Separation (Detailed)](./implementation/semantic-separation-detailed-scope.md) | Code-level analysis with line numbers | Implementers | Ready |
 
 ### API (Coming Soon)
 
@@ -154,6 +158,8 @@ docs/
 
 | Date | Document | Change |
 |------|----------|--------|
+| 2025-01-25 | Semantic Separation (Detailed) | Code-level scope analysis with兼容性策略 |
+| 2025-01-25 | Semantic Separation Scope | Overview of chunks→entries/parts refactoring |
 | 2025-01-20 | Template Resource Contract | Initial architecture design |
 | 2025-01-20 | Template Contract MVP | Implementation plan created |
 | 2025-01-20 | docs/README.md | Documentation index created |
@@ -170,5 +176,5 @@ Found an issue or have suggestions for improving documentation?
 
 ---
 
-**Last Updated**: 2025-01-20  
+**Last Updated**: 2025-01-25  
 **Maintained By**: Architecture & Documentation Team

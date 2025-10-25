@@ -266,3 +266,76 @@ async def test_direct_chunk_upload(api_client):
     assert "uploaded_at" in result
 
 
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_upload_part_direct_with_auth(api_client):
+    """Test new /upload/part/direct endpoint (mirror of chunk/direct for semantic separation)"""
+    headers = {"Authorization": "Bearer testtoken"}
+    part_data = b"direct-part-upload-test-data" * 100
+    
+    r = await api_client.post(
+        "/upload/part/direct",
+        params={
+            "block_id": "direct_test_block_part",
+            "file_name": "direct_test_part.bin",
+            "content_type": "application/octet-stream"
+        },
+        content=part_data,
+        headers=headers
+    )
+    
+    assert r.status_code == 200
+    result = r.json()
+    assert result["success"] is True
+    assert result["size"] == len(part_data)
+    assert "key" in result
+    assert "version_id" in result
+    assert "etag" in result
+    assert result["etag"]  # ETag should not be empty
+    assert "uploaded_at" in result
+
+
+@pytest.mark.contract
+@pytest.mark.asyncio
+async def test_upload_part_chunk_compatibility(api_client):
+    """Test that part and chunk endpoints produce compatible results"""
+    headers = {"Authorization": "Bearer testtoken"}
+    test_data = b"compatibility-test-data" * 50
+    
+    # Upload via chunk endpoint
+    chunk_resp = await api_client.post(
+        "/upload/chunk/direct",
+        params={
+            "block_id": "compat_test_block",
+            "file_name": "test_chunk.bin",
+            "content_type": "application/octet-stream"
+        },
+        content=test_data,
+        headers=headers
+    )
+    
+    # Upload via part endpoint
+    part_resp = await api_client.post(
+        "/upload/part/direct",
+        params={
+            "block_id": "compat_test_block",
+            "file_name": "test_part.bin",
+            "content_type": "application/octet-stream"
+        },
+        content=test_data,
+        headers=headers
+    )
+    
+    assert chunk_resp.status_code == 200
+    assert part_resp.status_code == 200
+    
+    chunk_result = chunk_resp.json()
+    part_result = part_resp.json()
+    
+    # Both should have same structure
+    assert chunk_result["success"] == part_result["success"]
+    assert chunk_result["size"] == part_result["size"]
+    assert "key" in chunk_result and "key" in part_result
+    assert "etag" in chunk_result and "etag" in part_result
+
+

@@ -20,8 +20,8 @@ This guide defines the long-term maintenance strategy for the official template 
 
 - [ ] **Metadata complete**: id, version (semver), name, description, author, tags
 - [ ] **No hardcoded userIds**: All workflows cleaned of user-specific identifiers
-- [ ] **Resources in native format**: JSON not pre-chunked, text files readable
-- [ ] **Vector data handled correctly**: Chunks preserved, collection_configs removed
+- [ ] **Resources in native format**: JSON not pre-partitioned, text files readable
+- [ ] **Vector data handled correctly**: Entries preserved, collection_configs removed
 - [ ] **File sizes reasonable**: JSON <100KB, resources <10MB total per template
 - [ ] **Valid JSON**: All `.json` files pass `python3 -m json.tool`
 - [ ] **Workflow tested**: At least one successful instantiation + execution test
@@ -88,7 +88,7 @@ git commit -m "feat(template): Update agentic-rag to v1.0.1
 
 - Improved FAQ answers for pricing questions
 - Added 2 new knowledge base entries
-- Updated vector chunks accordingly
+- Updated vector entries accordingly
 
 Breaking: No
 Migration: No action required for existing users
@@ -609,14 +609,14 @@ nano PuppyFlow/templates/agentic-rag/resources/faq-vector-kb.json
 # 1.0.1 → 1.0.2
 
 # 4. Test thoroughly
-# (ensure chunks still work after update)
+# (ensure entries still work after update)
 
 # 5. Commit with clear description
 git commit -m "fix(template): Update agentic-rag FAQ data
 
 - Updated pricing information
 - Fixed company location info
-- Refreshed vector chunks
+- Refreshed vector entries
 
 Version: 1.0.1 → 1.0.2
 Resource: faq-vector-kb.json
