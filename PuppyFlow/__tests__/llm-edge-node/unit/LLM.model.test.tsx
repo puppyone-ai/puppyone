@@ -6,7 +6,7 @@
  * - TC-LLM-001: 选择模型
  * - TC-LLM-002: 默认模型初始化
  * - TC-LLM-003: 模型持久化
- * 
+ *
  * P1:
  * - TC-LLM-004: 切换模型
  * - TC-LLM-005: Local vs Cloud 模型
@@ -37,7 +37,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
   Handle: ({ children, type, position, id, isConnectable, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} style={style}>{children}</div>
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   MarkerType: { ArrowClosed: 'arrowclosed', Arrow: 'arrow' },
@@ -59,27 +66,37 @@ vi.mock('@/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('@/components/misc/PuppyDropDown', () => ({
   PuppyDropdown: ({ options, selectedValue, onSelect, renderOption }: any) => (
     <div data-testid='puppy-dropdown'>
-      <div data-testid='selected-value'>{selectedValue ? JSON.stringify(selectedValue) : 'null'}</div>
+      <div data-testid='selected-value'>
+        {selectedValue ? JSON.stringify(selectedValue) : 'null'}
+      </div>
       <select
         data-testid='dropdown-select'
         value={selectedValue?.id || ''}
-        onChange={(e) => {
-          const selected = options.find((opt: any) => opt.id === e.target.value);
+        onChange={e => {
+          const selected = options.find(
+            (opt: any) => opt.id === e.target.value
+          );
           if (selected) onSelect(selected);
         }}
       >
-        {Array.isArray(options) && options.map((opt: any) => (
-          <option key={opt.id || opt} value={opt.id || opt}>
-            {opt.name || opt}
-          </option>
-        ))}
+        {Array.isArray(options) &&
+          options.map((opt: any) => (
+            <option key={opt.id || opt} value={opt.id || opt}>
+              {opt.name || opt}
+            </option>
+          ))}
       </select>
     </div>
   ),
@@ -91,7 +108,7 @@ vi.mock('@/components/workflow/components/promptEditor', () => ({
       <textarea
         data-testid='prompt-textarea'
         value={JSON.stringify(messages)}
-        onChange={(e) => onChange(JSON.parse(e.target.value))}
+        onChange={e => onChange(JSON.parse(e.target.value))}
       />
     </div>
   ),
@@ -110,7 +127,9 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
   let mockGetNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<LLMConfigNodeData> = {}): Node<LLMConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<LLMConfigNodeData> = {}
+  ): Node<LLMConfigNodeData> => ({
     id: 'test-llm-1',
     type: 'llm',
     position: { x: 0, y: 0 },
@@ -230,7 +249,8 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       });
 
       // 验证 setNodes 被调用且包含正确的模型信息
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -408,7 +428,8 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -451,7 +472,8 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       dropdown.dispatchEvent(new Event('change', { bubbles: true }));
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -549,7 +571,8 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       dropdown.dispatchEvent(new Event('change', { bubbles: true }));
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -582,7 +605,9 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
       );
 
       expect(typeof mockNode.data.modelAndProvider?.provider).toBe('string');
-      expect(mockNode.data.modelAndProvider?.provider.length).toBeGreaterThan(0);
+      expect(mockNode.data.modelAndProvider?.provider.length).toBeGreaterThan(
+        0
+      );
     });
   });
 });
@@ -603,4 +628,3 @@ describe('LLM Edge Node - 模型和提供者配置', () => {
  * 📝 运行命令：
  *    npm run test -- LLM.model.test.tsx
  */
-

@@ -8,7 +8,7 @@
  * - TC-JSON-008: Internal 存储编辑后自动保存
  * - TC-JSON-008-EXT: External 存储编辑后自动保存
  * - TC-JSON-011: 保存失败处理
- * 
+ *
  * P1:
  * - TC-JSON-003: 清空所有 JSON 内容
  * - TC-JSON-004: 超长 JSON 输入（>10万字符）
@@ -118,31 +118,34 @@ vi.mock('next/dynamic', () => ({
 }));
 
 // Mock JSON 编辑器组件
-vi.mock('@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm', () => ({
-  default: ({
-    value,
-    onChange,
-    placeholder,
-    preventParentDrag,
-    allowParentDrag,
-    readonly,
-  }: any) => (
-    <div
-      data-testid='rich-json-editor'
-      data-readonly={readonly}
-      onMouseDown={() => preventParentDrag?.()}
-      onMouseUp={() => allowParentDrag?.()}
-    >
-      <textarea
-        data-testid='rich-json-textarea'
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        readOnly={readonly}
-      />
-    </div>
-  ),
-}));
+vi.mock(
+  '@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
+  () => ({
+    default: ({
+      value,
+      onChange,
+      placeholder,
+      preventParentDrag,
+      allowParentDrag,
+      readonly,
+    }: any) => (
+      <div
+        data-testid='rich-json-editor'
+        data-readonly={readonly}
+        onMouseDown={() => preventParentDrag?.()}
+        onMouseUp={() => allowParentDrag?.()}
+      >
+        <textarea
+          data-testid='rich-json-textarea'
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          readOnly={readonly}
+        />
+      </div>
+    ),
+  })
+);
 
 vi.mock('@/components/tableComponent/JSONForm', () => ({
   default: ({
@@ -739,4 +742,3 @@ describe('JsonBlockNode - 内容编辑与保存', () => {
  *    或
  *    vitest JsonNodeNew.content.test.tsx
  */
-

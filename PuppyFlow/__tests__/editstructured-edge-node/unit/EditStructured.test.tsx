@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   runSingleEdgeNode: vi.fn(),
 }));
 
-vi.mock('@xyflow/react', async (importOriginal) => {
+vi.mock('@xyflow/react', async importOriginal => {
   const actual = await importOriginal<typeof import('@xyflow/react')>();
   return {
     ...actual,
@@ -50,19 +50,26 @@ vi.mock('react-dom', async () => {
   };
 });
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: ({ contentType }: any) => <div data-testid="input-output-display">InputOutputDisplay: {contentType}</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: ({ contentType }: any) => (
+      <div data-testid='input-output-display'>
+        InputOutputDisplay: {contentType}
+      </div>
+    ),
+  })
+);
 
 // Mock PuppyDropdown
 vi.mock('../../../app/components/PuppyDropdown', () => ({
   default: ({ options, value, onChange, trigger }: any) => (
     <div>
-      <div data-testid="dropdown-trigger">{trigger || value}</div>
+      <div data-testid='dropdown-trigger'>{trigger || value}</div>
       <select
-        data-testid="puppy-dropdown"
+        data-testid='puppy-dropdown'
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
       >
         {options.map((opt: any) => (
           <option key={opt.value || opt} value={opt.value || opt}>
@@ -114,14 +121,14 @@ describe('EditStructured Edge Node', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockGetNode = vi.fn();
     mockSetNodes = vi.fn();
     mockSetEdges = vi.fn();
-    
+
     const defaultNode = createMockNode();
     mockGetNode.mockReturnValue(defaultNode);
-    
+
     // 设置所有必需的 mocks
     mocks.useReactFlow.mockReturnValue({
       getNode: mockGetNode,
@@ -129,7 +136,7 @@ describe('EditStructured Edge Node', () => {
       setEdges: mockSetEdges,
       getInternalNode: vi.fn(),
     });
-    
+
     mocks.useNodesPerFlowContext.mockReturnValue({
       isOnConnect: false,
       activatedEdge: null,
@@ -138,19 +145,19 @@ describe('EditStructured Edge Node', () => {
       activateEdge: vi.fn(),
       clearAll: vi.fn(),
     });
-    
+
     mocks.useGetSourceTarget.mockReturnValue({
       getSourceNodeIdWithLabel: vi.fn(),
       getTargetNodeIdWithLabel: vi.fn(),
     });
-    
+
     mocks.useJsonConstructUtils.mockReturnValue({
       runSingleEdgeNode: mocks.runSingleEdgeNode,
       streamResult: vi.fn(),
       reportError: vi.fn(),
       resetLoadingUI: vi.fn(),
     });
-    
+
     mocks.useAppSettings.mockReturnValue({});
   });
 
@@ -202,7 +209,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -212,7 +219,9 @@ describe('EditStructured Edge Node', () => {
       fireEvent.click(nodeButton);
 
       // 等待菜单出现并找到 Mode 下拉选择器
-      const modeDropdown = await waitFor(() => screen.getByTestId('puppy-dropdown'));
+      const modeDropdown = await waitFor(() =>
+        screen.getByTestId('puppy-dropdown')
+      );
       fireEvent.change(modeDropdown, { target: { value: 'get' } });
 
       // 等待 requestAnimationFrame 完成
@@ -221,9 +230,12 @@ describe('EditStructured Edge Node', () => {
       });
 
       // 验证 setNodes 被调用，更新 type
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([node]);
-      const updatedNode = updatedNodes.find((n: Node) => n.id === 'test-node-1');
+      const updatedNode = updatedNodes.find(
+        (n: Node) => n.id === 'test-node-1'
+      );
       expect(updatedNode.data.type).toBe('get');
     });
 
@@ -233,7 +245,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -241,16 +253,21 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      const modeDropdown = await waitFor(() => screen.getByTestId('puppy-dropdown'));
+      const modeDropdown = await waitFor(() =>
+        screen.getByTestId('puppy-dropdown')
+      );
       fireEvent.change(modeDropdown, { target: { value: 'delete' } });
 
       await waitFor(() => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([node]);
-      const updatedNode = updatedNodes.find((n: Node) => n.id === 'test-node-1');
+      const updatedNode = updatedNodes.find(
+        (n: Node) => n.id === 'test-node-1'
+      );
       expect(updatedNode.data.type).toBe('delete');
     });
 
@@ -260,7 +277,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -268,16 +285,21 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      const modeDropdown = await waitFor(() => screen.getByTestId('puppy-dropdown'));
+      const modeDropdown = await waitFor(() =>
+        screen.getByTestId('puppy-dropdown')
+      );
       fireEvent.change(modeDropdown, { target: { value: 'replace' } });
 
       await waitFor(() => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([node]);
-      const updatedNode = updatedNodes.find((n: Node) => n.id === 'test-node-1');
+      const updatedNode = updatedNodes.find(
+        (n: Node) => n.id === 'test-node-1'
+      );
       expect(updatedNode.data.type).toBe('replace');
     });
 
@@ -287,7 +309,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -295,16 +317,21 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      const modeDropdown = await waitFor(() => screen.getByTestId('puppy-dropdown'));
+      const modeDropdown = await waitFor(() =>
+        screen.getByTestId('puppy-dropdown')
+      );
       fireEvent.change(modeDropdown, { target: { value: 'get_keys' } });
 
       await waitFor(() => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([node]);
-      const updatedNode = updatedNodes.find((n: Node) => n.id === 'test-node-1');
+      const updatedNode = updatedNodes.find(
+        (n: Node) => n.id === 'test-node-1'
+      );
       expect(updatedNode.data.type).toBe('get_keys');
     });
   });
@@ -320,7 +347,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -365,7 +392,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -393,7 +420,9 @@ describe('EditStructured Edge Node', () => {
         // 验证节点被删除（输入框减少）
         await waitFor(() => {
           const currentInputs = screen.getAllByRole('textbox');
-          expect(currentInputs.length).toBeLessThanOrEqual(initialInputs.length);
+          expect(currentInputs.length).toBeLessThanOrEqual(
+            initialInputs.length
+          );
         });
       }
     });
@@ -407,7 +436,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -442,7 +471,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -482,7 +511,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -503,7 +532,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -521,9 +550,12 @@ describe('EditStructured Edge Node', () => {
         fireEvent.change(inputs[0], { target: { value: 'settings' } });
 
         // 等待数据同步
-        await waitFor(() => {
-          expect(mockSetNodes).toHaveBeenCalled();
-        }, { timeout: 3000 });
+        await waitFor(
+          () => {
+            expect(mockSetNodes).toHaveBeenCalled();
+          },
+          { timeout: 3000 }
+        );
       }
     });
   });
@@ -539,7 +571,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -552,7 +584,9 @@ describe('EditStructured Edge Node', () => {
       });
 
       // 查找 Replace Value 输入框
-      const replaceValueInput = screen.getByPlaceholderText(/Enter replacement value/i);
+      const replaceValueInput = screen.getByPlaceholderText(
+        /Enter replacement value/i
+      );
       fireEvent.change(replaceValueInput, { target: { value: '5000' } });
 
       // 验证输入值
@@ -566,7 +600,7 @@ describe('EditStructured Edge Node', () => {
 
       const { rerender } = render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={replaceNode.data} />
+          <EditStructured id='test-node-1' data={replaceNode.data} />
         </ReactFlowProvider>
       );
 
@@ -584,7 +618,7 @@ describe('EditStructured Edge Node', () => {
 
       rerender(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={getNode.data} />
+          <EditStructured id='test-node-1' data={getNode.data} />
         </ReactFlowProvider>
       );
 
@@ -607,7 +641,7 @@ describe('EditStructured Edge Node', () => {
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -639,14 +673,14 @@ describe('EditStructured Edge Node', () => {
 
       // Mock runSingleEdgeNode 为异步函数，不立即完成
       mocks.runSingleEdgeNode.mockImplementation(() => {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           setTimeout(resolve, 100);
         });
       });
 
       render(
         <ReactFlowProvider>
-          <EditStructured id="test-node-1" data={node.data} />
+          <EditStructured id='test-node-1' data={node.data} />
         </ReactFlowProvider>
       );
 
@@ -663,9 +697,10 @@ describe('EditStructured Edge Node', () => {
 
       // 验证 loading 状态下按钮显示 "Stop"
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Stop/i })).toBeInTheDocument();
+        expect(
+          screen.getByRole('button', { name: /Stop/i })
+        ).toBeInTheDocument();
       });
     });
   });
 });
-

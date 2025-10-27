@@ -4,7 +4,7 @@
  * 测试用例：
  * P0:
  * - TC-FILE-022: 点击文件下载
- * 
+ *
  * P1:
  * - TC-FILE-017: 显示文件列表
  * - TC-FILE-023: 下载文件无 URL
@@ -19,12 +19,7 @@
 
 // @ts-nocheck
 import React from 'react';
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-} from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FileNode from '@/components/workflow/blockNode/FileNode';
 import type { Node } from '@xyflow/react';
@@ -40,12 +35,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -67,9 +87,12 @@ vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   ),
 }));
 
-vi.mock('@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -85,7 +108,9 @@ describe('FileNode - 文件管理', () => {
   let mockHandleDelete: any;
   let mockWindowOpen: any;
 
-  const createMockNode = (overrides: Partial<FileNodeData> = {}): Node<FileNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<FileNodeData> = {}
+  ): Node<FileNodeData> => ({
     id: 'test-file-node-1',
     type: 'file',
     position: { x: 0, y: 0 },
@@ -153,8 +178,18 @@ describe('FileNode - 文件管理', () => {
   describe('TC-FILE-017: 显示文件列表 (P1)', () => {
     it('应该显示所有已上传的文件', () => {
       const mockFiles = [
-        { fileName: 'document.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
-        { fileName: 'spreadsheet.xlsx', fileType: 'xlsx', task_id: 'task-2', download_url: 'url2' },
+        {
+          fileName: 'document.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
+        {
+          fileName: 'spreadsheet.xlsx',
+          fileType: 'xlsx',
+          task_id: 'task-2',
+          download_url: 'url2',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -191,7 +226,12 @@ describe('FileNode - 文件管理', () => {
 
     it('文件名应该去除 file_ 前缀', () => {
       const mockFiles = [
-        { fileName: 'file_report.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'file_report.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -228,7 +268,12 @@ describe('FileNode - 文件管理', () => {
 
     it('文件名为空时应显示 task_id 或 Unnamed file', () => {
       const mockFiles = [
-        { fileName: '', fileType: 'pdf', task_id: 'task-xyz', download_url: 'url1' },
+        {
+          fileName: '',
+          fileType: 'pdf',
+          task_id: 'task-xyz',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -265,7 +310,12 @@ describe('FileNode - 文件管理', () => {
 
     it('每个文件应显示文件图标', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -302,7 +352,12 @@ describe('FileNode - 文件管理', () => {
 
     it('每个文件应有删除按钮', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -334,7 +389,7 @@ describe('FileNode - 文件管理', () => {
 
       // 查找删除按钮
       const deleteButtons = container.querySelectorAll('button');
-      const hasDeleteButton = Array.from(deleteButtons).some(btn => 
+      const hasDeleteButton = Array.from(deleteButtons).some(btn =>
         btn.querySelector('svg path[d*="M18 6L6 18M6 6l12 12"]')
       );
       expect(hasDeleteButton).toBe(true);
@@ -344,7 +399,12 @@ describe('FileNode - 文件管理', () => {
   describe('TC-FILE-022: 点击文件下载 (P0)', () => {
     it('点击文件应打开下载链接', () => {
       const mockFiles = [
-        { fileName: 'document.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'https://example.com/document.pdf' },
+        {
+          fileName: 'document.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'https://example.com/document.pdf',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -379,12 +439,20 @@ describe('FileNode - 文件管理', () => {
       fireEvent.click(fileName);
 
       // 验证 window.open 被调用
-      expect(mockWindowOpen).toHaveBeenCalledWith('https://example.com/document.pdf', '_blank');
+      expect(mockWindowOpen).toHaveBeenCalledWith(
+        'https://example.com/document.pdf',
+        '_blank'
+      );
     });
 
     it('应该在新标签页打开文件', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'https://example.com/test.pdf' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'https://example.com/test.pdf',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -425,7 +493,12 @@ describe('FileNode - 文件管理', () => {
   describe('TC-FILE-023: 下载文件无 URL (P1)', () => {
     it('download_url 为空时不应触发 window.open', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: '' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: '',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -466,7 +539,12 @@ describe('FileNode - 文件管理', () => {
   describe('TC-FILE-025: 删除单个文件 (P1)', () => {
     it('点击删除按钮应调用 handleDelete', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -497,9 +575,9 @@ describe('FileNode - 文件管理', () => {
       );
 
       // 查找删除按钮（包含 X 图标的按钮）
-      const deleteButton = Array.from(container.querySelectorAll('button')).find(btn => 
-        btn.querySelector('svg path[d*="M18 6L6 18M6 6l12 12"]')
-      );
+      const deleteButton = Array.from(
+        container.querySelectorAll('button')
+      ).find(btn => btn.querySelector('svg path[d*="M18 6L6 18M6 6l12 12"]'));
 
       expect(deleteButton).toBeTruthy();
       fireEvent.click(deleteButton!);
@@ -517,7 +595,14 @@ describe('FileNode - 文件管理', () => {
           type='file'
           data={{
             ...createMockNode().data,
-            content: [{ fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' }] as any,
+            content: [
+              {
+                fileName: 'test.pdf',
+                fileType: 'pdf',
+                task_id: 'task-1',
+                download_url: 'url1',
+              },
+            ] as any,
           }}
           selected={false}
           isConnectable={true}
@@ -530,7 +615,14 @@ describe('FileNode - 文件管理', () => {
 
       // 初始：有文件
       mocks.useFileUpload.mockReturnValue({
-        uploadedFiles: [{ fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' }],
+        uploadedFiles: [
+          {
+            fileName: 'test.pdf',
+            fileType: 'pdf',
+            task_id: 'task-1',
+            download_url: 'url1',
+          },
+        ],
         isOnUploading: false,
         inputRef: { current: document.createElement('input') },
         handleInputChange: vi.fn(),
@@ -546,7 +638,14 @@ describe('FileNode - 文件管理', () => {
           type='file'
           data={{
             ...createMockNode().data,
-            content: [{ fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' }] as any,
+            content: [
+              {
+                fileName: 'test.pdf',
+                fileType: 'pdf',
+                task_id: 'task-1',
+                download_url: 'url1',
+              },
+            ] as any,
           }}
           selected={false}
           isConnectable={true}
@@ -597,7 +696,12 @@ describe('FileNode - 文件管理', () => {
   describe('TC-FILE-028: 删除文件时阻止冒泡 (P1)', () => {
     it('点击删除按钮不应触发文件点击事件', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'https://example.com/test.pdf' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'https://example.com/test.pdf',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -628,9 +732,9 @@ describe('FileNode - 文件管理', () => {
       );
 
       // 点击删除按钮
-      const deleteButton = Array.from(container.querySelectorAll('button')).find(btn => 
-        btn.querySelector('svg path[d*="M18 6L6 18M6 6l12 12"]')
-      );
+      const deleteButton = Array.from(
+        container.querySelectorAll('button')
+      ).find(btn => btn.querySelector('svg path[d*="M18 6L6 18M6 6l12 12"]'));
 
       fireEvent.click(deleteButton!);
 
@@ -663,4 +767,3 @@ describe('FileNode - 文件管理', () => {
  * 📝 运行命令：
  *    npm run test -- FileNode.file-management.test.tsx
  */
-

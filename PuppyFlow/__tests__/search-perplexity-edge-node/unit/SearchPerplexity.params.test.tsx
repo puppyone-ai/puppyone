@@ -6,7 +6,7 @@
  * - TC-SP-001: model 参数修改后保存
  * - TC-SP-001-1: model 应保存在 extra_configs 对象中
  * - TC-SP-001-2: model 应为有效的 Perplexity 模型名称
- * 
+ *
  * P1 严重 - 参数配置异常影响搜索质量：
  * - TC-SP-002: 应能切换到 'sonar' 模型
  * - TC-SP-002-1: 应能切换到 'sonar-pro' 模型
@@ -64,9 +64,14 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
   PuppyDropdown: ({ selectedValue, onSelect, options }: any) => {
@@ -76,7 +81,7 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
         <select
           data-testid='dropdown-select'
           value={selectedValue}
-          onChange={(e) => {
+          onChange={e => {
             onSelect(e.target.value);
           }}
         >
@@ -98,9 +103,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -115,7 +123,9 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
   let mockGetNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<SearchConfigNodeData> = {}): Node<SearchConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<SearchConfigNodeData> = {}
+  ): Node<SearchConfigNodeData> => ({
     id: 'test-search-perplexity-1',
     type: 'searchPerplexity',
     position: { x: 0, y: 0 },
@@ -209,7 +219,7 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
 
       // 查找 Model dropdown
       const modelSelect = screen.getByTestId('dropdown-select');
-      
+
       // 修改 model 值
       fireEvent.change(modelSelect, { target: { value: 'sonar' } });
 
@@ -222,7 +232,8 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
       );
 
       // 验证 model 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -283,7 +294,7 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
   describe('TC-SP-001-2: model 应为有效的 Perplexity 模型名称 (P0)', () => {
     it('model 应为 sonar 类型之一', () => {
       const validModels = ['sonar', 'sonar-pro', 'sonar-reasoning-pro'];
-      
+
       validModels.forEach(model => {
         const mockNode = createMockNode({
           extra_configs: {
@@ -338,7 +349,9 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
 
       // 修改为 sonar-reasoning-pro
       const modelSelect = screen.getByTestId('dropdown-select');
-      fireEvent.change(modelSelect, { target: { value: 'sonar-reasoning-pro' } });
+      fireEvent.change(modelSelect, {
+        target: { value: 'sonar-reasoning-pro' },
+      });
 
       await waitFor(
         () => {
@@ -347,7 +360,8 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -399,7 +413,8 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -450,7 +465,8 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -487,7 +503,9 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
 
       // 切换到 sonar-reasoning-pro
       const modelSelect = screen.getByTestId('dropdown-select');
-      fireEvent.change(modelSelect, { target: { value: 'sonar-reasoning-pro' } });
+      fireEvent.change(modelSelect, {
+        target: { value: 'sonar-reasoning-pro' },
+      });
 
       await waitFor(
         () => {
@@ -496,7 +514,8 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -536,10 +555,10 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
           threshold: undefined,
         },
       });
-      
+
       // 模拟组件内部的默认值逻辑
       const effectiveModel = mockNode.data.extra_configs.model ?? 'sonar-pro';
-      
+
       render(
         <SearchPerplexity
           id={mockNode.id}
@@ -702,9 +721,9 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
       // 验证 dropdown 包含所有选项
       const modelSelect = screen.getByTestId('dropdown-select');
       const options = modelSelect.querySelectorAll('option');
-      
+
       expect(options.length).toBe(3);
-      
+
       const optionValues = Array.from(options).map((opt: any) => opt.value);
       expect(optionValues).toContain('sonar');
       expect(optionValues).toContain('sonar-pro');
@@ -739,9 +758,12 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
       const modelSelect = screen.getByTestId('dropdown-select');
       const options = modelSelect.querySelectorAll('option');
       const optionValues = Array.from(options).map((opt: any) => opt.value);
-      
-      expect(optionValues).toEqual(['sonar', 'sonar-pro', 'sonar-reasoning-pro']);
+
+      expect(optionValues).toEqual([
+        'sonar',
+        'sonar-pro',
+        'sonar-reasoning-pro',
+      ]);
     });
   });
 });
-

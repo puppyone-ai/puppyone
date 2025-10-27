@@ -5,7 +5,7 @@
  * P0 致命 - 核心参数保存失败导致搜索功能不可用：
  * - TC-SG-001: top_k 参数修改后保存
  * - TC-SG-001-1: top_k 应为数字类型
- * 
+ *
  * P1 严重 - 参数配置异常影响搜索质量：
  * - TC-SG-002: 应能将 top_k 修改为不同的数值
  * - TC-SG-003: top_k 最小值 (1) 正确保存
@@ -64,9 +64,14 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/utils/colors', () => ({
   UI_COLORS: {
@@ -75,12 +80,17 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 vi.mock('@fortawesome/react-fontawesome', () => ({
-  FontAwesomeIcon: ({ icon }: any) => <span data-testid='font-awesome-icon'>{icon?.iconName || 'icon'}</span>,
+  FontAwesomeIcon: ({ icon }: any) => (
+    <span data-testid='font-awesome-icon'>{icon?.iconName || 'icon'}</span>
+  ),
 }));
 
 vi.mock('@fortawesome/free-brands-svg-icons', () => ({
@@ -100,7 +110,9 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
   let mockGetNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<SearchConfigNodeData> = {}): Node<SearchConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<SearchConfigNodeData> = {}
+  ): Node<SearchConfigNodeData> => ({
     id: 'test-search-google-1',
     type: 'searchGoogle',
     position: { x: 0, y: 0 },
@@ -216,7 +228,8 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
       );
 
       // 验证 top_k 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -291,7 +304,8 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -350,7 +364,8 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      let setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      let setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       let updatedNodes = setNodesCall([mockNode]);
       let updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
       expect(updatedNode.data.top_k).toBe(8);
@@ -385,8 +400,11 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
-      updatedNodes = setNodesCall([{ ...mockNode, data: { ...mockNode.data, top_k: 8 } }]);
+      setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      updatedNodes = setNodesCall([
+        { ...mockNode, data: { ...mockNode.data, top_k: 8 } },
+      ]);
       updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
       expect(updatedNode.data.top_k).toBe(12);
     });
@@ -437,7 +455,8 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -490,7 +509,8 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -543,7 +563,8 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
         { timeout: 3000 }
       );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -667,10 +688,10 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
 
     it('没有提供 top_k 时应使用默认值 5', () => {
       const mockNode = createMockNode({ top_k: undefined });
-      
+
       // 模拟组件内部的默认值逻辑
       const effectiveTopK = mockNode.data.top_k ?? 5;
-      
+
       render(
         <SearchGoogle
           id={mockNode.id}
@@ -793,7 +814,7 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
 
       // Settings 区域应该收起（Result Number 不可见）
       expect(screen.queryByText('Result Number')).not.toBeInTheDocument();
-      
+
       // Show 按钮应该存在
       expect(screen.getByText('Show')).toBeInTheDocument();
     });
@@ -842,4 +863,3 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
     });
   });
 });
-

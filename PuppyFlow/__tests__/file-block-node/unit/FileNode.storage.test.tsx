@@ -6,7 +6,7 @@
  * - TC-FILE-030: 上传后生成 resourceKey
  * - TC-FILE-031: 保存 external_metadata
  * - TC-FILE-035: 删除文件后清理 external_metadata
- * 
+ *
  * P1:
  * - TC-FILE-032: 更新文件时保持 resourceKey
  * - TC-FILE-033: versionId 跟随文件变更递增
@@ -21,12 +21,7 @@
 
 // @ts-nocheck
 import React from 'react';
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-} from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FileNode from '@/components/workflow/blockNode/FileNode';
 import type { Node } from '@xyflow/react';
@@ -42,12 +37,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -69,9 +89,12 @@ vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   ),
 }));
 
-vi.mock('@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -85,7 +108,9 @@ describe('FileNode - 外部存储', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<FileNodeData> = {}): Node<FileNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<FileNodeData> = {}
+  ): Node<FileNodeData> => ({
     id: 'test-file-node-1',
     type: 'file',
     position: { x: 0, y: 0 },
@@ -150,7 +175,12 @@ describe('FileNode - 外部存储', () => {
       // Mock 上传后的状态
       const mockResourceKey = 'resource_file_abc123';
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -191,13 +221,20 @@ describe('FileNode - 外部存储', () => {
       );
 
       // 验证 resourceKey 存在
-      expect(mockNode.data.external_metadata?.resource_key).toBe(mockResourceKey);
+      expect(mockNode.data.external_metadata?.resource_key).toBe(
+        mockResourceKey
+      );
     });
 
     it('resourceKey 应以 resource_file_ 开头', () => {
       const mockResourceKey = 'resource_file_xyz789';
       const mockFiles = [
-        { fileName: 'document.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'document.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -235,7 +272,9 @@ describe('FileNode - 外部存储', () => {
         />
       );
 
-      expect(mockNode.data.external_metadata?.resource_key).toMatch(/^resource_file_/);
+      expect(mockNode.data.external_metadata?.resource_key).toMatch(
+        /^resource_file_/
+      );
     });
   });
 
@@ -243,7 +282,12 @@ describe('FileNode - 外部存储', () => {
     it('应保存完整的 external_metadata', () => {
       const mockResourceKey = 'resource_file_test123';
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -292,7 +336,12 @@ describe('FileNode - 外部存储', () => {
 
     it('external_metadata.content_type 应为 files', () => {
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -340,7 +389,12 @@ describe('FileNode - 外部存储', () => {
 
       // 第一次渲染：1个文件
       const firstFiles = [
-        { fileName: 'file1.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'file1.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -380,7 +434,12 @@ describe('FileNode - 外部存储', () => {
       // 第二次渲染：2个文件，但 resourceKey 不变
       const secondFiles = [
         ...firstFiles,
-        { fileName: 'file2.pdf', fileType: 'pdf', task_id: 'task-2', download_url: 'url2' },
+        {
+          fileName: 'file2.pdf',
+          fileType: 'pdf',
+          task_id: 'task-2',
+          download_url: 'url2',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -421,7 +480,9 @@ describe('FileNode - 外部存储', () => {
       );
 
       // 验证 resourceKey 保持一致
-      expect(mockNode.data.external_metadata?.resource_key).toBe(mockResourceKey);
+      expect(mockNode.data.external_metadata?.resource_key).toBe(
+        mockResourceKey
+      );
     });
   });
 
@@ -431,7 +492,12 @@ describe('FileNode - 外部存储', () => {
 
       // 初始：versionId = 1
       const firstFiles = [
-        { fileName: 'file1.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'file1.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -471,7 +537,12 @@ describe('FileNode - 外部存储', () => {
       // 更新后：versionId = 2
       const secondFiles = [
         ...firstFiles,
-        { fileName: 'file2.pdf', fileType: 'pdf', task_id: 'task-2', download_url: 'url2' },
+        {
+          fileName: 'file2.pdf',
+          fileType: 'pdf',
+          task_id: 'task-2',
+          download_url: 'url2',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -527,7 +598,12 @@ describe('FileNode - 外部存储', () => {
     it('删除所有文件后 external_metadata 应为空', () => {
       // 初始：有文件
       const mockFiles = [
-        { fileName: 'test.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
+        {
+          fileName: 'test.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -639,8 +715,18 @@ describe('FileNode - 外部存储', () => {
   describe('TC-FILE-037: external_metadata 包含完整文件信息 (P1)', () => {
     it('external_metadata.files 应包含所有文件', () => {
       const mockFiles = [
-        { fileName: 'file1.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
-        { fileName: 'file2.docx', fileType: 'docx', task_id: 'task-2', download_url: 'url2' },
+        {
+          fileName: 'file1.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
+        {
+          fileName: 'file2.docx',
+          fileType: 'docx',
+          task_id: 'task-2',
+          download_url: 'url2',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -763,4 +849,3 @@ describe('FileNode - 外部存储', () => {
  * 📝 运行命令：
  *    npm run test -- FileNode.storage.test.tsx
  */
-

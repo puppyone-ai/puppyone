@@ -7,7 +7,7 @@
  * - TC-GEN-002: Document 参数修改后保存
  * - TC-GEN-003: Prompt Template 参数修改后保存
  * - TC-GEN-004: Model 参数修改后保存
- * 
+ *
  * P1 严重 - 参数保存异常影响生成质量：
  * - TC-GEN-001-2: Query 参数切换更新
  * - TC-GEN-002-2: Document 参数切换更新
@@ -73,12 +73,24 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: ({ selectedValue, onSelect, options, renderOption, mapValueTodisplay, valueKey }: any) => {
+  PuppyDropdown: ({
+    selectedValue,
+    onSelect,
+    options,
+    renderOption,
+    mapValueTodisplay,
+    valueKey,
+  }: any) => {
     const getValue = (opt: any) => {
       if (valueKey && typeof opt === 'object') {
         return opt[valueKey];
@@ -96,17 +108,25 @@ vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
     return (
       <div data-testid='puppy-dropdown'>
         <span data-testid='dropdown-display'>
-          {mapValueTodisplay 
-            ? mapValueTodisplay(selectedValue) 
-            : (typeof selectedValue === 'object' && selectedValue?.label 
-                ? selectedValue.label 
-                : selectedValue || 'Select')}
+          {mapValueTodisplay
+            ? mapValueTodisplay(selectedValue)
+            : typeof selectedValue === 'object' && selectedValue?.label
+              ? selectedValue.label
+              : selectedValue || 'Select'}
         </span>
         <select
           data-testid='dropdown-select'
-          value={typeof selectedValue === 'object' ? (valueKey ? selectedValue?.[valueKey] : selectedValue?.id) : selectedValue}
-          onChange={(e) => {
-            const selected = options.find((opt: any) => getValue(opt) === e.target.value);
+          value={
+            typeof selectedValue === 'object'
+              ? valueKey
+                ? selectedValue?.[valueKey]
+                : selectedValue?.id
+              : selectedValue
+          }
+          onChange={e => {
+            const selected = options.find(
+              (opt: any) => getValue(opt) === e.target.value
+            );
             onSelect(selected);
           }}
         >
@@ -129,9 +149,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -146,7 +169,9 @@ describe('Generate Edge Node - 参数配置', () => {
   let mockGetNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<GenerateConfigNodeData> = {}): Node<GenerateConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<GenerateConfigNodeData> = {}
+  ): Node<GenerateConfigNodeData> => ({
     id: 'test-generate-1',
     type: 'generate',
     position: { x: 0, y: 0 },
@@ -177,10 +202,34 @@ describe('Generate Edge Node - 参数配置', () => {
 
   const mockModels = [
     { id: 'gpt-4', name: 'GPT-4', type: 'llm', active: true, isLocal: false },
-    { id: 'gpt-3.5', name: 'GPT-3.5 Turbo', type: 'llm', active: true, isLocal: false },
-    { id: 'llama-2', name: 'Llama 2', type: 'llm', active: true, isLocal: true },
-    { id: 'text-embedding-ada', name: 'Ada Embedding', type: 'embedding', active: true, isLocal: false },
-    { id: 'claude-inactive', name: 'Claude', type: 'llm', active: false, isLocal: false },
+    {
+      id: 'gpt-3.5',
+      name: 'GPT-3.5 Turbo',
+      type: 'llm',
+      active: true,
+      isLocal: false,
+    },
+    {
+      id: 'llama-2',
+      name: 'Llama 2',
+      type: 'llm',
+      active: true,
+      isLocal: true,
+    },
+    {
+      id: 'text-embedding-ada',
+      name: 'Ada Embedding',
+      type: 'embedding',
+      active: true,
+      isLocal: false,
+    },
+    {
+      id: 'claude-inactive',
+      name: 'Claude',
+      type: 'llm',
+      active: false,
+      isLocal: false,
+    },
   ];
 
   beforeEach(() => {
@@ -234,7 +283,7 @@ describe('Generate Edge Node - 参数配置', () => {
     it('修改 query_ids 应正确保存到 node.data.query_ids', async () => {
       const textNode = createMockTextNode('text-1', 'Test Query');
       const mockNode = createMockNode();
-      
+
       mockGetNode.mockReturnValue(mockNode);
       const mockGetSourceNodeIdWithLabel = vi.fn(() => [
         { id: 'text-1', label: 'Test Query' },
@@ -281,17 +330,21 @@ describe('Generate Edge Node - 参数配置', () => {
       // 查找并更改 Queries dropdown
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const querySelect = dropdownSelects[0]; // 第一个是 Queries dropdown
-      
+
       fireEvent.change(querySelect, {
         target: { value: 'text-1' },
       });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 query_ids 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -331,7 +384,7 @@ describe('Generate Edge Node - 参数配置', () => {
     it('修改 document_ids 应正确保存到 node.data.document_ids', async () => {
       const docNode = createMockDocumentNode('doc-1', 'Test Document');
       const mockNode = createMockNode();
-      
+
       mockGetNode.mockReturnValue(mockNode);
       const mockGetSourceNodeIdWithLabel = vi.fn(() => [
         { id: 'doc-1', label: 'Test Document' },
@@ -378,17 +431,21 @@ describe('Generate Edge Node - 参数配置', () => {
       // 查找并更改 Documents dropdown (第二个下拉框)
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const docSelect = dropdownSelects[1]; // 第二个是 Documents dropdown
-      
+
       fireEvent.change(docSelect, {
         target: { value: 'doc-1' },
       });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 document_ids 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -427,7 +484,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-003: Prompt Template 参数修改后保存 (P0)', () => {
     it('修改 promptTemplate 应正确保存到 node.data.promptTemplate', async () => {
       const mockNode = createMockNode({ promptTemplate: 'default' });
-      
+
       mockGetNode.mockReturnValue(mockNode);
 
       render(
@@ -455,17 +512,21 @@ describe('Generate Edge Node - 参数配置', () => {
       // 查找并更改 Prompt Template dropdown (第三个下拉框)
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const templateSelect = dropdownSelects[2]; // 第三个是 Prompt Template dropdown
-      
+
       fireEvent.change(templateSelect, {
         target: { value: 'data_cleaning' },
       });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 promptTemplate 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -474,7 +535,7 @@ describe('Generate Edge Node - 参数配置', () => {
 
     it('应支持所有 18 种预设模板类型', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -500,7 +561,7 @@ describe('Generate Edge Node - 参数配置', () => {
       // 验证所有模板选项存在
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const templateSelect = dropdownSelects[2];
-      
+
       const expectedTemplates = [
         'default',
         'data_cleaning',
@@ -534,7 +595,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-004: Model 参数修改后保存 (P0)', () => {
     it('修改 model 应正确保存到 node.data.model', async () => {
       const mockNode = createMockNode({ model: 'gpt-4' });
-      
+
       mockGetNode.mockReturnValue(mockNode);
 
       render(
@@ -562,17 +623,21 @@ describe('Generate Edge Node - 参数配置', () => {
       // 查找并更改 Model dropdown (第四个下拉框)
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const modelSelect = dropdownSelects[3]; // 第四个是 Model dropdown
-      
+
       fireEvent.change(modelSelect, {
         target: { value: 'gpt-3.5' },
       });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 model 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -581,7 +646,7 @@ describe('Generate Edge Node - 参数配置', () => {
 
     it('应只显示 type=llm 且 active=true 的模型', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -607,17 +672,21 @@ describe('Generate Edge Node - 参数配置', () => {
       // 验证只显示 LLM 类型且激活的模型
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const modelSelect = dropdownSelects[3];
-      
+
       // 应该包含这些模型
       expect(modelSelect.querySelector('option[value="gpt-4"]')).toBeTruthy();
       expect(modelSelect.querySelector('option[value="gpt-3.5"]')).toBeTruthy();
       expect(modelSelect.querySelector('option[value="llama-2"]')).toBeTruthy();
-      
+
       // 不应该包含 embedding 模型
-      expect(modelSelect.querySelector('option[value="text-embedding-ada"]')).toBeFalsy();
-      
+      expect(
+        modelSelect.querySelector('option[value="text-embedding-ada"]')
+      ).toBeFalsy();
+
       // 不应该包含未激活的模型
-      expect(modelSelect.querySelector('option[value="claude-inactive"]')).toBeFalsy();
+      expect(
+        modelSelect.querySelector('option[value="claude-inactive"]')
+      ).toBeFalsy();
     });
   });
 
@@ -630,7 +699,7 @@ describe('Generate Edge Node - 参数配置', () => {
       const mockNode = createMockNode({
         query_ids: { id: 'text-1', label: 'First Query' },
       });
-      
+
       mockGetNode.mockReturnValue(mockNode);
       const mockGetSourceNodeIdWithLabel = vi.fn(() => [
         { id: 'text-1', label: 'First Query' },
@@ -667,7 +736,7 @@ describe('Generate Edge Node - 参数配置', () => {
       // 切换到另一个 query
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const querySelect = dropdownSelects[0];
-      
+
       fireEvent.change(querySelect, {
         target: { value: 'text-2' },
       });
@@ -676,7 +745,8 @@ describe('Generate Edge Node - 参数配置', () => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -692,7 +762,7 @@ describe('Generate Edge Node - 参数配置', () => {
       const mockNode = createMockNode({
         document_ids: { id: 'doc-1', label: 'First Document' },
       });
-      
+
       mockGetNode.mockReturnValue(mockNode);
       const mockGetSourceNodeIdWithLabel = vi.fn(() => [
         { id: 'doc-1', label: 'First Document' },
@@ -729,7 +799,7 @@ describe('Generate Edge Node - 参数配置', () => {
       // 切换到另一个 document
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const docSelect = dropdownSelects[1];
-      
+
       fireEvent.change(docSelect, {
         target: { value: 'doc-2' },
       });
@@ -738,7 +808,8 @@ describe('Generate Edge Node - 参数配置', () => {
         expect(mockSetNodes).toHaveBeenCalled();
       });
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -752,7 +823,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-003-2: Prompt Template 切换应更新预览内容 (P1)', () => {
     it('切换模板后应显示对应的模板预览文本', async () => {
       const mockNode = createMockNode({ promptTemplate: 'default' });
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -776,18 +847,22 @@ describe('Generate Edge Node - 参数配置', () => {
       });
 
       // 验证默认模板的预览文本
-      expect(screen.getByText(/Answer the question using the provided data/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Answer the question using the provided data/i)
+      ).toBeInTheDocument();
 
       // 切换到 data_cleaning 模板
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const templateSelect = dropdownSelects[2];
-      
+
       fireEvent.change(templateSelect, {
         target: { value: 'data_cleaning' },
       });
 
       await waitFor(() => {
-        expect(screen.getByText(/Analyze the provided data and clean it/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/Analyze the provided data and clean it/i)
+        ).toBeInTheDocument();
       });
     });
   });
@@ -795,7 +870,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-003-3: 模板名称应正确格式化显示 (P1)', () => {
     it('模板名称应从下划线转换为空格并首字母大写', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -832,7 +907,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-004-2: 模型选项应显示 Local/Cloud 标签 (P1)', () => {
     it('Local 模型应有不同的显示标识', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -858,10 +933,10 @@ describe('Generate Edge Node - 参数配置', () => {
       // 验证有 renderOption 的模型下拉框
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const modelSelect = dropdownSelects[3];
-      
+
       // 应该有 llama-2 (isLocal: true)
       expect(modelSelect.querySelector('option[value="llama-2"]')).toBeTruthy();
-      
+
       // 应该有 gpt-4 (isLocal: false)
       expect(modelSelect.querySelector('option[value="gpt-4"]')).toBeTruthy();
     });
@@ -870,7 +945,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-005: Structured Output 开关切换 (P1)', () => {
     it('切换 structured_output 应正确保存到 node.data.structured_output', async () => {
       const mockNode = createMockNode({ structured_output: false });
-      
+
       mockGetNode.mockReturnValue(mockNode);
 
       render(
@@ -900,24 +975,30 @@ describe('Generate Edge Node - 参数配置', () => {
       fireEvent.click(showButton);
 
       await waitFor(() => {
-        expect(screen.getByText('Structured Output (JSON)')).toBeInTheDocument();
+        expect(
+          screen.getByText('Structured Output (JSON)')
+        ).toBeInTheDocument();
       });
 
       // 查找并点击 Structured Output 开关
       const toggleButtons = screen.getAllByRole('button');
-      const structuredOutputToggle = toggleButtons.find(btn => 
+      const structuredOutputToggle = toggleButtons.find(btn =>
         btn.className.includes('rounded-full')
       );
-      
+
       expect(structuredOutputToggle).toBeDefined();
       fireEvent.click(structuredOutputToggle!);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 structured_output 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -934,7 +1015,7 @@ describe('Generate Edge Node - 参数配置', () => {
       const mockNode = createMockNode();
       // 不设置 promptTemplate，测试默认值
       delete mockNode.data.promptTemplate;
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -959,7 +1040,7 @@ describe('Generate Edge Node - 参数配置', () => {
     it('如果 node.data.model 为空，应自动选择第一个可用的 LLM 模型', () => {
       const mockNode = createMockNode();
       delete mockNode.data.model;
-      
+
       mockGetNode.mockImplementation((id: string) => {
         if (id === mockNode.id) {
           return { ...mockNode, data: { ...mockNode.data, model: undefined } };
@@ -991,7 +1072,7 @@ describe('Generate Edge Node - 参数配置', () => {
     it('初始值应为 false', () => {
       const mockNode = createMockNode();
       delete mockNode.data.structured_output;
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1014,7 +1095,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-006: Base URL 参数保存 (P2)', () => {
     it('修改 base_url 应正确保存到 node.data.base_url', async () => {
       const mockNode = createMockNode({ base_url: '' });
-      
+
       mockGetNode.mockReturnValue(mockNode);
 
       render(
@@ -1048,18 +1129,24 @@ describe('Generate Edge Node - 参数配置', () => {
       });
 
       // 查找并修改 Base URL 输入框
-      const baseUrlInput = screen.getByPlaceholderText('https://api.example.com/v1');
-      
+      const baseUrlInput = screen.getByPlaceholderText(
+        'https://api.example.com/v1'
+      );
+
       fireEvent.change(baseUrlInput, {
         target: { value: 'https://custom-api.com/v1' },
       });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 base_url 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -1071,7 +1158,7 @@ describe('Generate Edge Node - 参数配置', () => {
     it('初始值应为空字符串', () => {
       const mockNode = createMockNode();
       delete mockNode.data.base_url;
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1094,7 +1181,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-007: 高级设置展开/收起 (P2)', () => {
     it('点击 Show 应展开高级设置区域', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1127,13 +1214,15 @@ describe('Generate Edge Node - 参数配置', () => {
       // 验证高级设置展开
       await waitFor(() => {
         expect(screen.getByText('Base URL (optional)')).toBeInTheDocument();
-        expect(screen.getByText('Structured Output (JSON)')).toBeInTheDocument();
+        expect(
+          screen.getByText('Structured Output (JSON)')
+        ).toBeInTheDocument();
       });
     });
 
     it('点击 Hide 应收起高级设置区域', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1169,7 +1258,9 @@ describe('Generate Edge Node - 参数配置', () => {
       fireEvent.click(hideButton);
 
       await waitFor(() => {
-        expect(screen.queryByText('Base URL (optional)')).not.toBeInTheDocument();
+        expect(
+          screen.queryByText('Base URL (optional)')
+        ).not.toBeInTheDocument();
       });
     });
   });
@@ -1186,7 +1277,7 @@ describe('Generate Edge Node - 参数配置', () => {
       };
 
       const mockNode = createMockNode(existingConfig);
-      
+
       mockGetNode.mockImplementation((id: string) => {
         if (id === mockNode.id) {
           return mockNode;
@@ -1213,7 +1304,9 @@ describe('Generate Edge Node - 参数配置', () => {
       expect(mockNode.data.document_ids).toEqual(existingConfig.document_ids);
       expect(mockNode.data.promptTemplate).toBe(existingConfig.promptTemplate);
       expect(mockNode.data.model).toBe(existingConfig.model);
-      expect(mockNode.data.structured_output).toBe(existingConfig.structured_output);
+      expect(mockNode.data.structured_output).toBe(
+        existingConfig.structured_output
+      );
       expect(mockNode.data.base_url).toBe(existingConfig.base_url);
     });
   });
@@ -1223,7 +1316,7 @@ describe('Generate Edge Node - 参数配置', () => {
       const mockNode = createMockNode();
       // 删除所有配置
       mockNode.data = {} as GenerateConfigNodeData;
-      
+
       mockGetNode.mockImplementation((id: string) => {
         if (id === mockNode.id) {
           return mockNode;
@@ -1257,7 +1350,7 @@ describe('Generate Edge Node - 参数配置', () => {
   describe('TC-GEN-009: UI 交互 (P3)', () => {
     it('点击节点按钮应打开配置菜单', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1291,7 +1384,7 @@ describe('Generate Edge Node - 参数配置', () => {
 
     it('配置菜单应包含所有必需字段标签', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1321,7 +1414,7 @@ describe('Generate Edge Node - 参数配置', () => {
 
     it('Queries 和 Documents 应显示红点标记（必填字段）', async () => {
       const mockNode = createMockNode();
-      
+
       render(
         <Generate
           id={mockNode.id}
@@ -1345,9 +1438,10 @@ describe('Generate Edge Node - 参数配置', () => {
       });
 
       // 查找红点标记（圆形的 div，红色背景）
-      const redDots = document.querySelectorAll('div[class*="rounded-full"][class*="bg-[#FF4D4D]"]');
+      const redDots = document.querySelectorAll(
+        'div[class*="rounded-full"][class*="bg-[#FF4D4D]"]'
+      );
       expect(redDots.length).toBeGreaterThanOrEqual(2); // Queries 和 Documents 各一个
     });
   });
 });
-

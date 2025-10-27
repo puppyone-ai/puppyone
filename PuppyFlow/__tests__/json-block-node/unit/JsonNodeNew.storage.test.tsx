@@ -6,7 +6,7 @@
  * - TC-JSON-015: 内容超阈值切换到外部存储
  * - TC-JSON-016: 内容缩减切换回内部存储
  * - TC-JSON-018: 存储切换时的数据一致性
- * 
+ *
  * P1:
  * - TC-JSON-019: 有效 JSON 识别为 structured
  * - TC-JSON-020: 无效 JSON 识别为 text
@@ -39,12 +39,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -66,11 +91,12 @@ vi.mock('@/components/states/AppSettingsContext', () => ({
 vi.mock('next/dynamic', () => ({ default: (fn: any) => fn() }));
 
 // 使用 vi.hoisted() 确保变量在 mock 之前初始化
-const { mockHandleDynamicStorageSwitch, mockGetStorageInfo, MOCK_THRESHOLD } = vi.hoisted(() => ({
-  mockHandleDynamicStorageSwitch: vi.fn(),
-  mockGetStorageInfo: vi.fn(),
-  MOCK_THRESHOLD: 50000,
-}));
+const { mockHandleDynamicStorageSwitch, mockGetStorageInfo, MOCK_THRESHOLD } =
+  vi.hoisted(() => ({
+    mockHandleDynamicStorageSwitch: vi.fn(),
+    mockGetStorageInfo: vi.fn(),
+    MOCK_THRESHOLD: 50000,
+  }));
 
 vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
   handleDynamicStorageSwitch: mockHandleDynamicStorageSwitch,
@@ -78,15 +104,48 @@ vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
   CONTENT_LENGTH_THRESHOLD: MOCK_THRESHOLD,
 }));
 
-vi.mock('@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm', () => ({
-  default: ({ value, onChange, placeholder, preventParentDrag, allowParentDrag, readonly }: any) => (
-    <textarea data-testid='rich-json-editor' value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} onMouseDown={() => preventParentDrag?.()} onMouseUp={() => allowParentDrag?.()} readOnly={readonly} />
-  ),
-}));
+vi.mock(
+  '@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
+  () => ({
+    default: ({
+      value,
+      onChange,
+      placeholder,
+      preventParentDrag,
+      allowParentDrag,
+      readonly,
+    }: any) => (
+      <textarea
+        data-testid='rich-json-editor'
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        onMouseDown={() => preventParentDrag?.()}
+        onMouseUp={() => allowParentDrag?.()}
+        readOnly={readonly}
+      />
+    ),
+  })
+);
 
 vi.mock('@/components/tableComponent/JSONForm', () => ({
-  default: ({ value, onChange, placeholder, preventParentDrag, allowParentDrag, readonly }: any) => (
-    <textarea data-testid='json-form-editor' value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} onMouseDown={() => preventParentDrag?.()} onMouseUp={() => allowParentDrag?.()} readOnly={readonly} />
+  default: ({
+    value,
+    onChange,
+    placeholder,
+    preventParentDrag,
+    allowParentDrag,
+    readonly,
+  }: any) => (
+    <textarea
+      data-testid='json-form-editor'
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      onMouseDown={() => preventParentDrag?.()}
+      onMouseUp={() => allowParentDrag?.()}
+      readOnly={readonly}
+    />
   ),
 }));
 
@@ -94,23 +153,37 @@ vi.mock('@/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
 }));
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton', () => ({
-  default: () => <button data-testid='indexing-button'>Indexing</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton',
+  () => ({
+    default: () => <button data-testid='indexing-button'>Indexing</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton', () => ({
-  default: () => <button data-testid='loop-button'>Loop</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton',
+  () => ({
+    default: () => <button data-testid='loop-button'>Loop</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton', () => ({
-  default: ({ useRichEditor, onToggle }: any) => (
-    <button data-testid='view-toggle-button' onClick={onToggle}>{useRichEditor ? 'Rich' : 'Plain'}</button>
-  ),
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton',
+  () => ({
+    default: ({ useRichEditor, onToggle }: any) => (
+      <button data-testid='view-toggle-button' onClick={onToggle}>
+        {useRichEditor ? 'Rich' : 'Plain'}
+      </button>
+    ),
+  })
+);
 
 vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   default: () => <div data-testid='white-handle' />,
@@ -128,7 +201,9 @@ describe('JsonBlockNode - 动态存储策略', () => {
   let mockGetNode: any;
   let mockGetNodes: any;
 
-  const createMockNode = (overrides: Partial<any> = {}): Node<JsonNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<any> = {}
+  ): Node<JsonNodeData> => ({
     id: 'test-json-storage',
     type: 'json',
     position: { x: 0, y: 0 },
@@ -210,7 +285,9 @@ describe('JsonBlockNode - 动态存储策略', () => {
 
   describe('TC-JSON-015: 内容超阈值切换到外部存储 (P0)', () => {
     it('应该在内容超过阈值时调用存储切换', async () => {
-      const longJson = JSON.stringify({ data: 'a'.repeat(MOCK_THRESHOLD + 1000) });
+      const longJson = JSON.stringify({
+        data: 'a'.repeat(MOCK_THRESHOLD + 1000),
+      });
 
       const mockNode = createMockNode({
         content: longJson,
@@ -255,7 +332,9 @@ describe('JsonBlockNode - 动态存储策略', () => {
     });
 
     it('应该生成 resource_key', async () => {
-      const longJson = JSON.stringify({ large: 'x'.repeat(MOCK_THRESHOLD + 5000) });
+      const longJson = JSON.stringify({
+        large: 'x'.repeat(MOCK_THRESHOLD + 5000),
+      });
 
       const mockNode = createMockNode({
         content: longJson,
@@ -598,13 +677,16 @@ describe('JsonBlockNode - 动态存储策略', () => {
         fireEvent.change(editor, { target: { value: '{"new": "content"}' } });
       });
 
-      await waitFor(() => {
-        const dirtyCall = mockSetNodes.mock.calls.find((call: any) => {
-          const result = call[0]([mockNode]);
-          return result[0]?.data?.dirty === true;
-        });
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          const dirtyCall = mockSetNodes.mock.calls.find((call: any) => {
+            const result = call[0]([mockNode]);
+            return result[0]?.data?.dirty === true;
+          });
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
     });
   });
 
@@ -642,24 +724,27 @@ describe('JsonBlockNode - 动态存储策略', () => {
         fireEvent.change(editor, { target: { value: '{"content": "test"}' } });
       });
 
-      await waitFor(() => {
-        const calls = mockSetNodes.mock.calls;
-        const internalCalls = calls.filter((call: any) => {
-          const result = call[0]([mockNode]);
-          return result[0]?.data?.storage_class === 'internal';
-        });
-
-        expect(mockSetNodes).toHaveBeenCalled();
-
-        if (internalCalls.length > 0) {
-          internalCalls.forEach((call: any) => {
+      await waitFor(
+        () => {
+          const calls = mockSetNodes.mock.calls;
+          const internalCalls = calls.filter((call: any) => {
             const result = call[0]([mockNode]);
-            if (result[0]?.data?.dirty !== undefined) {
-              expect(result[0]?.data?.dirty).toBe(false);
-            }
+            return result[0]?.data?.storage_class === 'internal';
           });
-        }
-      }, { timeout: 3000 });
+
+          expect(mockSetNodes).toHaveBeenCalled();
+
+          if (internalCalls.length > 0) {
+            internalCalls.forEach((call: any) => {
+              const result = call[0]([mockNode]);
+              if (result[0]?.data?.dirty !== undefined) {
+                expect(result[0]?.data?.dirty).toBe(false);
+              }
+            });
+          }
+        },
+        { timeout: 3000 }
+      );
     });
   });
 });
@@ -691,4 +776,3 @@ describe('JsonBlockNode - 动态存储策略', () => {
  * 📝 运行命令：
  *    npm run test -- JsonNodeNew.storage.test.tsx
  */
-

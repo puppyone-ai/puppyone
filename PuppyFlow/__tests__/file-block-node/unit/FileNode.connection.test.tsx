@@ -5,7 +5,7 @@
  * P0:
  * - TC-FILE-046: 作为源节点连接
  * - TC-FILE-049: 无连接时清空角色标记
- * 
+ *
  * P1:
  * - TC-FILE-047: 作为目标节点连接
  * - TC-FILE-048: 同时作为输入输出节点
@@ -22,11 +22,7 @@
 
 // @ts-nocheck
 import React from 'react';
-import {
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FileNode from '@/components/workflow/blockNode/FileNode';
 import type { Node } from '@xyflow/react';
@@ -44,12 +40,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -71,9 +92,12 @@ vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   ),
 }));
 
-vi.mock('@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 vi.mock('@/components/utils/manageNodeasInput', () => ({
   default: mocks.manageNodeasInput,
@@ -95,7 +119,9 @@ describe('FileNode - 节点连接', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<FileNodeData> = {}): Node<FileNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<FileNodeData> = {}
+  ): Node<FileNodeData> => ({
     id: 'test-file-node-1',
     type: 'file',
     position: { x: 0, y: 0 },
@@ -497,9 +523,15 @@ describe('FileNode - 节点连接', () => {
 
       // 验证 WhiteBallHandle source handles (4个方向)
       expect(screen.getByTestId('white-handle-source-top')).toBeInTheDocument();
-      expect(screen.getByTestId('white-handle-source-right')).toBeInTheDocument();
-      expect(screen.getByTestId('white-handle-source-bottom')).toBeInTheDocument();
-      expect(screen.getByTestId('white-handle-source-left')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-handle-source-right')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-handle-source-bottom')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-handle-source-left')
+      ).toBeInTheDocument();
     });
 
     it('应渲染四个方向的 target Handle', () => {
@@ -628,4 +660,3 @@ describe('FileNode - 节点连接', () => {
  * 📝 运行命令：
  *    npm run test -- FileNode.connection.test.tsx
  */
-

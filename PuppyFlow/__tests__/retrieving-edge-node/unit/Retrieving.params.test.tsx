@@ -7,7 +7,7 @@
  * - TC-RTV-002: DataSource 参数修改后保存
  * - TC-RTV-003: Top K 参数修改后保存
  * - TC-RTV-004: Threshold 参数修改后保存
- * 
+ *
  * P1 严重 - 参数保存异常影响检索质量：
  * - TC-RTV-005: 添加多个 DataSource 项
  * - TC-RTV-006: 删除 DataSource 项
@@ -71,19 +71,33 @@ vi.mock('@/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('@/components/misc/PuppyDropDown', () => ({
-  PuppyDropdown: ({ selectedValue, onSelect, options, renderOption, mapValueTodisplay }: any) => (
+  PuppyDropdown: ({
+    selectedValue,
+    onSelect,
+    options,
+    renderOption,
+    mapValueTodisplay,
+  }: any) => (
     <div data-testid='puppy-dropdown'>
-      {mapValueTodisplay ? mapValueTodisplay(selectedValue) : (selectedValue?.label || 'Select')}
+      {mapValueTodisplay
+        ? mapValueTodisplay(selectedValue)
+        : selectedValue?.label || 'Select'}
       <select
         data-testid='dropdown-select'
-        onChange={(e) => {
-          const selected = options.find((opt: any) => 
-            (typeof opt === 'string' ? opt : opt.id) === e.target.value
+        onChange={e => {
+          const selected = options.find(
+            (opt: any) =>
+              (typeof opt === 'string' ? opt : opt.id) === e.target.value
           );
           onSelect(selected);
         }}
@@ -111,7 +125,9 @@ describe('Retrieving Edge Node - 参数配置', () => {
   let mockGetNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<RetrievingConfigNodeData> = {}): Node<RetrievingConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<RetrievingConfigNodeData> = {}
+  ): Node<RetrievingConfigNodeData> => ({
     id: 'test-retrieving-1',
     type: 'retrieving',
     position: { x: 0, y: 0 },
@@ -202,7 +218,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
     it('修改 query_id 应正确保存到 node.data.query_id', async () => {
       const textNode = createMockTextNode('text-1', 'Test Query');
       const mockNode = createMockNode();
-      
+
       mockGetNode.mockReturnValue(mockNode);
       const mockGetSourceNodeIdWithLabel = vi.fn(() => [
         { id: 'text-1', label: 'Test Query' },
@@ -248,7 +264,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
       // 查找并更改 query dropdown
       const dropdownSelects = screen.getAllByTestId('dropdown-select');
       const querySelect = dropdownSelects[0]; // 第一个是 query dropdown
-      
+
       fireEvent.change(querySelect, {
         target: { value: 'text-1' },
       });
@@ -258,7 +274,8 @@ describe('Retrieving Edge Node - 参数配置', () => {
       });
 
       // 验证 query_id 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -298,7 +315,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
     it('添加 dataSource 应正确保存到 node.data.dataSource', async () => {
       const structuredNode = createMockStructuredNode('struct-1', 'Test Index');
       const mockNode = createMockNode();
-      
+
       mockGetNode.mockImplementation((id: string) => {
         if (id === 'struct-1') return structuredNode;
         return mockNode;
@@ -344,7 +361,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       // 点击添加按钮
       const addButtons = screen.getAllByRole('button');
-      const addButton = addButtons.find(btn => 
+      const addButton = addButtons.find(btn =>
         btn.querySelector('svg path[d*="M12 5v14M5 12h14"]')
       );
 
@@ -359,9 +376,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
         });
       }
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 dataSource 包含新项
       const setNodesCalls = mockSetNodes.mock.calls;
@@ -445,12 +465,14 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       // 查找 Top K 输入框
       const inputs = screen.getAllByRole('spinbutton');
-      const topKInput = inputs.find((input: any) => 
-        input.parentElement?.previousElementSibling?.textContent?.includes('Top K')
+      const topKInput = inputs.find((input: any) =>
+        input.parentElement?.previousElementSibling?.textContent?.includes(
+          'Top K'
+        )
       );
 
       expect(topKInput).toBeDefined();
-      
+
       if (topKInput) {
         fireEvent.change(topKInput, { target: { value: '10' } });
 
@@ -459,7 +481,8 @@ describe('Retrieving Edge Node - 参数配置', () => {
         });
 
         // 验证 top_k 更新
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -519,12 +542,14 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       // 查找 Threshold 输入框
       const inputs = screen.getAllByRole('spinbutton');
-      const thresholdInput = inputs.find((input: any) => 
-        input.parentElement?.previousElementSibling?.textContent?.includes('Threshold')
+      const thresholdInput = inputs.find((input: any) =>
+        input.parentElement?.previousElementSibling?.textContent?.includes(
+          'Threshold'
+        )
       );
 
       expect(thresholdInput).toBeDefined();
-      
+
       if (thresholdInput) {
         fireEvent.change(thresholdInput, { target: { value: '0.8' } });
 
@@ -533,7 +558,8 @@ describe('Retrieving Edge Node - 参数配置', () => {
         });
 
         // 验证 threshold 更新
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -575,7 +601,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
       const structuredNode1 = createMockStructuredNode('struct-1', 'Index 1');
       const structuredNode2 = createMockStructuredNode('struct-2', 'Index 2');
       const mockNode = createMockNode();
-      
+
       mockGetNode.mockImplementation((id: string) => {
         if (id === 'struct-1') return structuredNode1;
         if (id === 'struct-2') return structuredNode2;
@@ -658,8 +684,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
       );
 
       expect(mockNodeWithMultipleDataSources.data.dataSource).toHaveLength(2);
-      expect(mockNodeWithMultipleDataSources.data.dataSource[0].id).toBe('struct-1');
-      expect(mockNodeWithMultipleDataSources.data.dataSource[1].id).toBe('struct-2');
+      expect(mockNodeWithMultipleDataSources.data.dataSource[0].id).toBe(
+        'struct-1'
+      );
+      expect(mockNodeWithMultipleDataSources.data.dataSource[1].id).toBe(
+        'struct-2'
+      );
     });
 
     it('不应添加重复的 dataSource 项', () => {
@@ -711,7 +741,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
           },
         ],
       });
-      
+
       mockGetNode.mockReturnValue(mockNode);
 
       render(
@@ -743,7 +773,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
         // 查找删除按钮
         const deleteButtons = screen.getAllByRole('button');
-        const deleteButton = deleteButtons.find(btn => 
+        const deleteButton = deleteButtons.find(btn =>
           btn.querySelector('svg line[x1="18"][y1="6"]')
         );
 
@@ -755,9 +785,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
           });
 
           // 验证 dataSource 已删除项
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
 
           expect(updatedNode.data.dataSource).toHaveLength(0);
         }
@@ -790,8 +823,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Top K')
+        const topKInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Top K'
+          )
         );
 
         if (topKInput) {
@@ -801,9 +836,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.top_k).toBe(1);
         }
       });
@@ -833,8 +871,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Top K')
+        const topKInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Top K'
+          )
         );
 
         if (topKInput) {
@@ -844,9 +884,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.top_k).toBe(100);
         }
       });
@@ -880,8 +923,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const thresholdInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Threshold')
+        const thresholdInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Threshold'
+          )
         );
 
         if (thresholdInput) {
@@ -891,9 +936,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.extra_configs.threshold).toBe(0);
         }
       });
@@ -925,8 +973,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const thresholdInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Threshold')
+        const thresholdInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Threshold'
+          )
         );
 
         if (thresholdInput) {
@@ -936,9 +986,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.extra_configs.threshold).toBe(1);
         }
       });
@@ -979,7 +1032,9 @@ describe('Retrieving Edge Node - 参数配置', () => {
       const dataSourceItem = mockNode.data.dataSource[0];
       expect(dataSourceItem.index_item).toBeDefined();
       expect(dataSourceItem.index_item.index_name).toBe('test-index');
-      expect(dataSourceItem.index_item.collection_configs?.collection_name).toBe('test-collection');
+      expect(
+        dataSourceItem.index_item.collection_configs?.collection_name
+      ).toBe('test-collection');
     });
 
     it('只应包含 type=vector 且 status=done 的索引项', () => {
@@ -1012,7 +1067,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
       };
 
       const mockNode = createMockNode();
-      
+
       mockGetNode.mockImplementation((id: string) => {
         if (id === 'struct-1') return structuredNode;
         return mockNode;
@@ -1090,7 +1145,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       // 点击高级设置切换按钮
       const toggleButtons = screen.getAllByRole('button');
-      const advancedSettingsToggle = toggleButtons.find(btn => 
+      const advancedSettingsToggle = toggleButtons.find(btn =>
         btn.parentElement?.textContent?.includes('Advanced Settings')
       );
 
@@ -1132,10 +1187,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
       fireEvent.click(button);
 
       await waitFor(() => {
-        const advancedToggle = screen.getAllByRole('button').find(btn => 
-          btn.parentElement?.textContent?.includes('Advanced Settings')
-        );
-        
+        const advancedToggle = screen
+          .getAllByRole('button')
+          .find(btn =>
+            btn.parentElement?.textContent?.includes('Advanced Settings')
+          );
+
         if (advancedToggle) {
           fireEvent.click(advancedToggle);
         }
@@ -1146,7 +1203,9 @@ describe('Retrieving Edge Node - 参数配置', () => {
           const dropdownSelects = screen.getAllByTestId('dropdown-select');
           const modelSelect = dropdownSelects.find((select: any) => {
             const options = Array.from(select.querySelectorAll('option'));
-            return options.some((opt: any) => opt.value.includes('llama-3.1-sonar'));
+            return options.some((opt: any) =>
+              opt.value.includes('llama-3.1-sonar')
+            );
           });
 
           expect(modelSelect).toBeDefined();
@@ -1180,8 +1239,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Top K')
+        const topKInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Top K'
+          )
         );
 
         if (topKInput) {
@@ -1191,9 +1252,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.top_k).toBeUndefined();
         }
       });
@@ -1223,8 +1287,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const topKInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Top K')
+        const topKInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Top K'
+          )
         );
 
         if (topKInput) {
@@ -1234,9 +1300,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.top_k).toBeUndefined();
         }
       });
@@ -1270,8 +1339,10 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const inputs = screen.getAllByRole('spinbutton');
-        const thresholdInput = inputs.find((input: any) => 
-          input.parentElement?.previousElementSibling?.textContent?.includes('Threshold')
+        const thresholdInput = inputs.find((input: any) =>
+          input.parentElement?.previousElementSibling?.textContent?.includes(
+            'Threshold'
+          )
         );
 
         if (thresholdInput) {
@@ -1281,9 +1352,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(updatedNode.data.extra_configs.threshold).toBeUndefined();
         }
       });
@@ -1325,7 +1399,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
           },
         ],
       });
-      
+
       mockGetNode.mockReturnValue(mockNode);
 
       render(
@@ -1352,7 +1426,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
           fireEvent.mouseEnter(dataSourceItem);
 
           const deleteButtons = screen.getAllByRole('button');
-          const deleteButton = deleteButtons.find(btn => 
+          const deleteButton = deleteButtons.find(btn =>
             btn.querySelector('svg line[x1="18"][y1="6"]')
           );
 
@@ -1364,9 +1438,12 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         if (mockSetNodes.mock.calls.length > 0) {
-          const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+          const setNodesCall =
+            mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
           const updatedNodes = setNodesCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
           expect(Array.isArray(updatedNode.data.dataSource)).toBe(true);
           expect(updatedNode.data.dataSource).toHaveLength(0);
         }
@@ -1467,7 +1544,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       // 点击切换按钮
       const toggleButtons = screen.getAllByRole('button');
-      const advancedToggle = toggleButtons.find(btn => 
+      const advancedToggle = toggleButtons.find(btn =>
         btn.parentElement?.textContent?.includes('Advanced Settings')
       );
 
@@ -1503,7 +1580,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       await waitFor(() => {
         const toggleButtons = screen.getAllByRole('button');
-        const advancedToggle = toggleButtons.find(btn => 
+        const advancedToggle = toggleButtons.find(btn =>
           btn.parentElement?.textContent?.includes('Advanced Settings')
         );
 
@@ -1519,7 +1596,7 @@ describe('Retrieving Edge Node - 参数配置', () => {
 
       // 再次点击收起
       const toggleButtons = screen.getAllByRole('button');
-      const advancedToggle = toggleButtons.find(btn => 
+      const advancedToggle = toggleButtons.find(btn =>
         btn.parentElement?.textContent?.includes('Advanced Settings')
       );
 
@@ -1533,4 +1610,3 @@ describe('Retrieving Edge Node - 参数配置', () => {
     });
   });
 });
-

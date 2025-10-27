@@ -7,7 +7,7 @@
  * - TC-FILE-002: 拖拽上传单个文件
  * - TC-FILE-009: 上传中显示进度
  * - TC-FILE-011: 上传失败处理
- * 
+ *
  * P1:
  * - TC-FILE-003: 上传多个文件
  * - TC-FILE-004: 上传支持的文件类型
@@ -47,12 +47,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -74,11 +99,14 @@ vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   ),
 }));
 
-vi.mock('@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: ({ nodeid }: any) => (
-    <button data-testid='settings-button'>Settings</button>
-  ),
-}));
+vi.mock(
+  '@/components/workflow/blockNode/FileNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: ({ nodeid }: any) => (
+      <button data-testid='settings-button'>Settings</button>
+    ),
+  })
+);
 
 // Mock ReactDOM.createPortal
 vi.mock('react-dom', async () => {
@@ -96,7 +124,9 @@ describe('FileNode - 文件上传', () => {
   let mockHandleFileDrop: any;
   let mockHandleDelete: any;
 
-  const createMockNode = (overrides: Partial<FileNodeData> = {}): Node<FileNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<FileNodeData> = {}
+  ): Node<FileNodeData> => ({
     id: 'test-file-node-1',
     type: 'file',
     position: { x: 0, y: 0 },
@@ -179,7 +209,9 @@ describe('FileNode - 文件上传', () => {
       );
 
       // 查找上传区域
-      const uploadArea = screen.getByText(/Drag and drop files here/i).closest('div');
+      const uploadArea = screen
+        .getByText(/Drag and drop files here/i)
+        .closest('div');
       expect(uploadArea).toBeInTheDocument();
     });
 
@@ -245,7 +277,9 @@ describe('FileNode - 文件上传', () => {
       );
 
       // 查找可拖拽的容器区域（包含 hover:bg-gray-800/40 的 div）
-      const uploadContainers = container.querySelectorAll('.hover\\:bg-gray-800\\/40');
+      const uploadContainers = container.querySelectorAll(
+        '.hover\\:bg-gray-800\\/40'
+      );
       expect(uploadContainers.length).toBeGreaterThan(0);
     });
 
@@ -271,7 +305,9 @@ describe('FileNode - 文件上传', () => {
         />
       );
 
-      const uploadArea = screen.getByText(/Drag and drop files here/i).closest('div');
+      const uploadArea = screen
+        .getByText(/Drag and drop files here/i)
+        .closest('div');
 
       // 模拟文件拖拽释放
       const dropEvent = new Event('drop', { bubbles: true });
@@ -285,9 +321,24 @@ describe('FileNode - 文件上传', () => {
   describe('TC-FILE-003: 上传多个文件 (P1)', () => {
     it('应该能显示多个已上传的文件', () => {
       const mockFiles = [
-        { fileName: 'file1.pdf', fileType: 'pdf', task_id: 'task-1', download_url: 'url1' },
-        { fileName: 'file2.docx', fileType: 'docx', task_id: 'task-2', download_url: 'url2' },
-        { fileName: 'file3.txt', fileType: 'txt', task_id: 'task-3', download_url: 'url3' },
+        {
+          fileName: 'file1.pdf',
+          fileType: 'pdf',
+          task_id: 'task-1',
+          download_url: 'url1',
+        },
+        {
+          fileName: 'file2.docx',
+          fileType: 'docx',
+          task_id: 'task-2',
+          download_url: 'url2',
+        },
+        {
+          fileName: 'file3.txt',
+          fileType: 'txt',
+          task_id: 'task-3',
+          download_url: 'url3',
+        },
       ];
 
       mocks.useFileUpload.mockReturnValue({
@@ -343,7 +394,10 @@ describe('FileNode - 文件上传', () => {
       );
 
       const fileInput = document.querySelector('input[type="file"]');
-      expect(fileInput).toHaveAttribute('accept', '.json, .pdf, .txt, .docx, .csv, .xlsx, .markdown, .md, .mdx');
+      expect(fileInput).toHaveAttribute(
+        'accept',
+        '.json, .pdf, .txt, .docx, .csv, .xlsx, .markdown, .md, .mdx'
+      );
     });
 
     it('input 应该支持多文件上传', () => {
@@ -431,7 +485,9 @@ describe('FileNode - 文件上传', () => {
       );
 
       // 查找带动画的 SVG
-      const animatedSvg = container.querySelector('.animate-\\[spin_2s_linear_infinite\\]');
+      const animatedSvg = container.querySelector(
+        '.animate-\\[spin_2s_linear_infinite\\]'
+      );
       expect(animatedSvg).toBeInTheDocument();
     });
   });
@@ -575,4 +631,3 @@ describe('FileNode - 文件上传', () => {
  * 📝 运行命令：
  *    npm run test -- FileNode.upload.test.tsx
  */
-

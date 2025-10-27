@@ -4,7 +4,7 @@
  * 测试用例：
  * P0:
  * - TC-JSON-061: 切换视图时内容不丢失
- * 
+ *
  * P1:
  * - TC-JSON-059: 切换到 JSONForm 视图
  * - TC-JSON-060: 切换回 RichEditor 视图
@@ -22,7 +22,13 @@
 
 // @ts-nocheck
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import JsonBlockNode from '@/components/workflow/blockNode/JsonNodeNew';
@@ -40,12 +46,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -68,34 +99,58 @@ vi.mock('next/dynamic', () => ({ default: (fn: any) => fn() }));
 
 vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
   handleDynamicStorageSwitch: vi.fn(() => Promise.resolve()),
-  getStorageInfo: vi.fn(() => ({ storageClass: 'internal', resourceKey: null })),
+  getStorageInfo: vi.fn(() => ({
+    storageClass: 'internal',
+    resourceKey: null,
+  })),
   CONTENT_LENGTH_THRESHOLD: 50000,
 }));
 
 // Mock JSON 编辑器组件 - 确保可以区分两种编辑器
-vi.mock('@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm', () => ({
-  default: ({ value, onChange, placeholder, preventParentDrag, allowParentDrag, readonly, widthStyle, heightStyle }: any) => (
-    <div
-      data-testid='rich-json-container'
-      data-readonly={readonly}
-      data-width={widthStyle}
-      data-height={heightStyle}
-    >
-      <textarea
-        data-testid='rich-json-editor'
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        readOnly={readonly}
-        onMouseDown={() => preventParentDrag?.()}
-        onMouseUp={() => allowParentDrag?.()}
-      />
-    </div>
-  ),
-}));
+vi.mock(
+  '@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
+  () => ({
+    default: ({
+      value,
+      onChange,
+      placeholder,
+      preventParentDrag,
+      allowParentDrag,
+      readonly,
+      widthStyle,
+      heightStyle,
+    }: any) => (
+      <div
+        data-testid='rich-json-container'
+        data-readonly={readonly}
+        data-width={widthStyle}
+        data-height={heightStyle}
+      >
+        <textarea
+          data-testid='rich-json-editor'
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={placeholder}
+          readOnly={readonly}
+          onMouseDown={() => preventParentDrag?.()}
+          onMouseUp={() => allowParentDrag?.()}
+        />
+      </div>
+    ),
+  })
+);
 
 vi.mock('@/components/tableComponent/JSONForm', () => ({
-  default: ({ value, onChange, placeholder, preventParentDrag, allowParentDrag, readonly, widthStyle, heightStyle }: any) => (
+  default: ({
+    value,
+    onChange,
+    placeholder,
+    preventParentDrag,
+    allowParentDrag,
+    readonly,
+    widthStyle,
+    heightStyle,
+  }: any) => (
     <div
       data-testid='json-form-container'
       data-readonly={readonly}
@@ -119,25 +174,37 @@ vi.mock('@/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
 }));
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton', () => ({
-  default: () => <button data-testid='indexing-button'>Indexing</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton',
+  () => ({
+    default: () => <button data-testid='indexing-button'>Indexing</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton', () => ({
-  default: () => <button data-testid='loop-button'>Loop</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton',
+  () => ({
+    default: () => <button data-testid='loop-button'>Loop</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton', () => ({
-  default: ({ useRichEditor, onToggle }: any) => (
-    <button data-testid='view-toggle-button' onClick={onToggle}>
-      {useRichEditor ? 'Rich' : 'Plain'}
-    </button>
-  ),
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton',
+  () => ({
+    default: ({ useRichEditor, onToggle }: any) => (
+      <button data-testid='view-toggle-button' onClick={onToggle}>
+        {useRichEditor ? 'Rich' : 'Plain'}
+      </button>
+    ),
+  })
+);
 
 vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   default: () => <div data-testid='white-handle' />,
@@ -154,7 +221,9 @@ describe('JsonBlockNode - 视图切换', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<JsonNodeData> = {}): Node<JsonNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<JsonNodeData> = {}
+  ): Node<JsonNodeData> => ({
     id: 'test-json-view',
     type: 'json',
     position: { x: 0, y: 0 },
@@ -319,7 +388,9 @@ describe('JsonBlockNode - 视图切换', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('rich-json-editor')).toBeInTheDocument();
-        expect(screen.queryByTestId('json-form-editor')).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('json-form-editor')
+        ).not.toBeInTheDocument();
       });
     });
   });
@@ -715,4 +786,3 @@ describe('JsonBlockNode - 视图切换', () => {
  * 📝 运行命令：
  *    npm run test -- JsonNodeNew.view.test.tsx
  */
-

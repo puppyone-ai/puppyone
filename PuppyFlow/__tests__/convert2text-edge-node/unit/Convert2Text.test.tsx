@@ -5,7 +5,7 @@
  * P0 致命 - 数据结构完整性：
  * - TC-C2T-001: ModifyConfigNodeData 数据结构验证
  * - TC-C2T-001-1: content 字段类型验证
- * 
+ *
  * P1 严重 - 基本功能：
  * - TC-C2T-002: 点击 Run 按钮应调用 runSingleEdgeNode
  * - TC-C2T-002-1: Run 按钮在 loading 时应禁用
@@ -57,14 +57,21 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: ({ supportedInputTypes, supportedOutputTypes }: any) => (
-    <div data-testid='input-output-display'>
-      <div data-testid='supported-input-types'>{JSON.stringify(supportedInputTypes)}</div>
-      <div data-testid='supported-output-types'>{JSON.stringify(supportedOutputTypes)}</div>
-    </div>
-  ),
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: ({ supportedInputTypes, supportedOutputTypes }: any) => (
+      <div data-testid='input-output-display'>
+        <div data-testid='supported-input-types'>
+          {JSON.stringify(supportedInputTypes)}
+        </div>
+        <div data-testid='supported-output-types'>
+          {JSON.stringify(supportedOutputTypes)}
+        </div>
+      </div>
+    ),
+  })
+);
 
 vi.mock('../../../app/utils/colors', () => ({
   UI_COLORS: {
@@ -73,9 +80,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -92,7 +102,9 @@ describe('Convert2Text Edge Node - 完整测试', () => {
   let mockSetEdges: any;
   let testNode: Node<ModifyConfigNodeData>;
 
-  const createMockNode = (overrides: Partial<ModifyConfigNodeData> = {}): Node<ModifyConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<ModifyConfigNodeData> = {}
+  ): Node<ModifyConfigNodeData> => ({
     id: 'test-convert2text-1',
     type: 'convert2text',
     position: { x: 0, y: 0 },
@@ -165,17 +177,24 @@ describe('Convert2Text Edge Node - 完整测试', () => {
       // 测试 content: null（初始状态）
       const nodeWithNull = createMockNode({ content: null });
       expect(nodeWithNull.data.content).toBeNull();
-      expect(typeof nodeWithNull.data.content === 'object' || nodeWithNull.data.content === null).toBe(true);
+      expect(
+        typeof nodeWithNull.data.content === 'object' ||
+          nodeWithNull.data.content === null
+      ).toBe(true);
 
       // 测试 content: string（有内容）
-      const nodeWithContent = createMockNode({ content: 'converted text content' });
+      const nodeWithContent = createMockNode({
+        content: 'converted text content',
+      });
       expect(nodeWithContent.data.content).toBe('converted text content');
       expect(typeof nodeWithContent.data.content).toBe('string');
 
       // 验证类型为 string | null
       const validTypes = [null, 'string value'].map(val => {
         const node = createMockNode({ content: val as any });
-        return node.data.content === null || typeof node.data.content === 'string';
+        return (
+          node.data.content === null || typeof node.data.content === 'string'
+        );
       });
       expect(validTypes.every(v => v)).toBe(true);
     });
@@ -185,13 +204,25 @@ describe('Convert2Text Edge Node - 完整测试', () => {
 
   describe('P1: 基本功能', () => {
     it('TC-C2T-002: 点击 Run 按钮应调用 runSingleEdgeNode', async () => {
-      render(<Convert2Text {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <Convert2Text
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 配置菜单应该自动打开（由于 isOnGeneratingNewNode = false）
       // 等待 InputOutputDisplay 出现
-      await waitFor(() => {
-        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(
+            screen.getByTestId('input-output-display')
+          ).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       // 找到配置菜单中的 Run 按钮
       const runButtons = screen.getAllByText('Run');
@@ -223,12 +254,24 @@ describe('Convert2Text Edge Node - 完整测试', () => {
       });
       mocks.runSingleEdgeNode.mockReturnValue(runPromise);
 
-      render(<Convert2Text {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <Convert2Text
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 配置菜单应该自动打开，等待 InputOutputDisplay 出现
-      await waitFor(() => {
-        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(
+            screen.getByTestId('input-output-display')
+          ).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       // 找到 Run 按钮
       const runButtons = screen.getAllByText('Run');
@@ -263,13 +306,23 @@ describe('Convert2Text Edge Node - 完整测试', () => {
       mocks.runSingleEdgeNode.mockReturnValue(runPromise);
 
       const { container } = render(
-        <Convert2Text {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />
+        <Convert2Text
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
       );
 
       // 配置菜单应该自动打开，等待 InputOutputDisplay 出现
-      await waitFor(() => {
-        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(
+            screen.getByTestId('input-output-display')
+          ).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       // 点击前，Run 按钮显示正常
       const runButtons = screen.getAllByText('Run');
@@ -296,12 +349,24 @@ describe('Convert2Text Edge Node - 完整测试', () => {
     });
 
     it('TC-C2T-004: InputOutputDisplay 配置验证', async () => {
-      render(<Convert2Text {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <Convert2Text
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 配置菜单应该自动打开，等待 InputOutputDisplay 渲染
-      await waitFor(() => {
-        expect(screen.getByTestId('input-output-display')).toBeInTheDocument();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(
+            screen.getByTestId('input-output-display')
+          ).toBeInTheDocument();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 supportedInputTypes
       const inputTypes = screen.getByTestId('supported-input-types');
@@ -317,7 +382,14 @@ describe('Convert2Text Edge Node - 完整测试', () => {
 
   describe('P2: UI 交互和初始化', () => {
     it('TC-C2T-005: 点击节点按钮应打开/关闭配置菜单', async () => {
-      render(<Convert2Text {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <Convert2Text
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 初始状态：配置菜单不可见（实际上初始会打开，但我们测试切换功能）
       // 由于初始化会自动打开，我们先关闭它
@@ -353,7 +425,12 @@ describe('Convert2Text Edge Node - 完整测试', () => {
 
     it('TC-C2T-006: 组件挂载后应正确初始化', () => {
       const { container } = render(
-        <Convert2Text {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />
+        <Convert2Text
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
       );
 
       // 验证组件已渲染
@@ -370,11 +447,13 @@ describe('Convert2Text Edge Node - 完整测试', () => {
       // 验证特定的路径（Convert to Text 图标的特征）
       const arrowPaths = Array.from(paths).filter(path => {
         const d = path.getAttribute('d');
-        return d?.includes('M12 2L2 12') || 
-               d?.includes('M12 2L8 2') || 
-               d?.includes('M12 2L12 6') ||
-               d?.includes('M2 12L6 12') ||
-               d?.includes('M2 12L2 8');
+        return (
+          d?.includes('M12 2L2 12') ||
+          d?.includes('M12 2L8 2') ||
+          d?.includes('M12 2L12 6') ||
+          d?.includes('M2 12L6 12') ||
+          d?.includes('M2 12L2 8')
+        );
       });
       expect(arrowPaths.length).toBeGreaterThan(0);
 
@@ -383,4 +462,3 @@ describe('Convert2Text Edge Node - 完整测试', () => {
     });
   });
 });
-

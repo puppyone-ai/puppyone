@@ -6,7 +6,7 @@
  * - TC-CA-001: node.data 应包含必要字段
  * - TC-CA-001-1: sub_chunking_mode 应为 'size' 或 'tokenizer'
  * - TC-CA-001-2: extra_configs 应包含正确的子字段
- * 
+ *
  * P1 严重 - 基本功能：
  * - TC-CA-002: 点击 Run 按钮应触发执行
  *
@@ -56,9 +56,14 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/utils/colors', () => ({
   UI_COLORS: {
@@ -67,9 +72,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 vi.mock('react-dom', async () => {
   const actual = await vi.importActual('react-dom');
@@ -85,7 +93,9 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
   let mockGetInternalNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<ChunkingConfigNodeData> = {}): Node<ChunkingConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<ChunkingConfigNodeData> = {}
+  ): Node<ChunkingConfigNodeData> => ({
     id: 'test-chunkingauto-1',
     type: 'chunkingauto',
     position: { x: 0, y: 0 },
@@ -152,7 +162,7 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
   describe('P0: 数据结构完整性', () => {
     it('TC-CA-001: node.data 应包含必要字段', () => {
       const node = createMockNode();
-      
+
       // 验证所有必要字段存在
       expect(node.data).toHaveProperty('looped');
       expect(node.data).toHaveProperty('subMenuType');
@@ -220,7 +230,14 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<ChunkingAuto {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <ChunkingAuto
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       const nodeButton = screen.getByText('Chunk');
@@ -234,7 +251,10 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
       const runButtons = screen.getAllByText('Run');
       const menuRunButton = runButtons.find(button => {
         const parent = button.parentElement;
-        return parent?.className.includes('w-[57px]') && parent?.className.includes('h-[24px]');
+        return (
+          parent?.className.includes('w-[57px]') &&
+          parent?.className.includes('h-[24px]')
+        );
       });
 
       expect(menuRunButton).toBeDefined();
@@ -244,9 +264,12 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
         fireEvent.click(menuRunButton);
 
         // 等待异步执行
-        await waitFor(() => {
-          expect(mocks.runSingleEdgeNode).toHaveBeenCalled();
-        }, { timeout: 3000 });
+        await waitFor(
+          () => {
+            expect(mocks.runSingleEdgeNode).toHaveBeenCalled();
+          },
+          { timeout: 3000 }
+        );
 
         // 验证调用参数
         expect(mocks.runSingleEdgeNode).toHaveBeenCalledWith(
@@ -265,8 +288,15 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
   describe('P2: UI 交互和初始化', () => {
     it('TC-CA-003: 点击节点按钮应打开配置菜单', async () => {
       const node = createMockNode();
-      
-      render(<ChunkingAuto {...node} id={node.id} data={node.data} isConnectable={true} />);
+
+      render(
+        <ChunkingAuto
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 点击节点按钮
       const nodeButton = screen.getByText('Chunk');
@@ -280,8 +310,15 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
 
     it('TC-CA-003-1: 配置菜单应显示正确内容', async () => {
       const node = createMockNode();
-      
-      render(<ChunkingAuto {...node} id={node.id} data={node.data} isConnectable={true} />);
+
+      render(
+        <ChunkingAuto
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       const nodeButton = screen.getByText('Chunk');
@@ -305,18 +342,23 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
 
     it('TC-CA-004: 组件挂载后验证', () => {
       const node = createMockNode();
-      
+
       const { container } = render(
-        <ChunkingAuto {...node} id={node.id} data={node.data} isConnectable={true} />
+        <ChunkingAuto
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
       );
 
       // 验证组件已渲染
       expect(container).toBeInTheDocument();
-      
+
       // 验证节点按钮存在
       expect(screen.getByText('Chunk')).toBeInTheDocument();
       expect(screen.getByText('Auto')).toBeInTheDocument();
-      
+
       // 验证 SVG 图标存在
       const svgs = container.querySelectorAll('svg');
       expect(svgs.length).toBeGreaterThan(0);
@@ -327,4 +369,3 @@ describe('ChunkingAuto Edge Node - 完整测试', () => {
     });
   });
 });
-

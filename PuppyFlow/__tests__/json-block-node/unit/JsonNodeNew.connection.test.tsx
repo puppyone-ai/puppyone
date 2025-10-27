@@ -5,7 +5,7 @@
  * P0:
  * - TC-JSON-026: 从 Source Handle 拖拽创建连接
  * - TC-JSON-029: 接收其他节点的连接
- * 
+ *
  * P1:
  * - TC-JSON-025: 4个方向 Source Handle 可见
  * - TC-JSON-028: 4个方向 Target Handle 存在
@@ -35,12 +35,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -63,19 +88,33 @@ vi.mock('next/dynamic', () => ({ default: (fn: any) => fn() }));
 
 vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
   handleDynamicStorageSwitch: vi.fn(() => Promise.resolve()),
-  getStorageInfo: vi.fn(() => ({ storageClass: 'internal', resourceKey: null })),
+  getStorageInfo: vi.fn(() => ({
+    storageClass: 'internal',
+    resourceKey: null,
+  })),
   CONTENT_LENGTH_THRESHOLD: 50000,
 }));
 
-vi.mock('@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm', () => ({
-  default: ({ value, onChange }: any) => (
-    <textarea data-testid='rich-json-editor' value={value} onChange={e => onChange(e.target.value)} />
-  ),
-}));
+vi.mock(
+  '@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
+  () => ({
+    default: ({ value, onChange }: any) => (
+      <textarea
+        data-testid='rich-json-editor'
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+    ),
+  })
+);
 
 vi.mock('@/components/tableComponent/JSONForm', () => ({
   default: ({ value, onChange }: any) => (
-    <textarea data-testid='json-form-editor' value={value} onChange={e => onChange(e.target.value)} />
+    <textarea
+      data-testid='json-form-editor'
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    />
   ),
 }));
 
@@ -83,28 +122,46 @@ vi.mock('@/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
 }));
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton', () => ({
-  default: () => <button data-testid='indexing-button'>Indexing</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton',
+  () => ({
+    default: () => <button data-testid='indexing-button'>Indexing</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton', () => ({
-  default: () => <button data-testid='loop-button'>Loop</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton',
+  () => ({
+    default: () => <button data-testid='loop-button'>Loop</button>,
+  })
+);
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton', () => ({
-  default: ({ useRichEditor, onToggle }: any) => (
-    <button data-testid='view-toggle-button' onClick={onToggle}>{useRichEditor ? 'Rich' : 'Plain'}</button>
-  ),
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton',
+  () => ({
+    default: ({ useRichEditor, onToggle }: any) => (
+      <button data-testid='view-toggle-button' onClick={onToggle}>
+        {useRichEditor ? 'Rich' : 'Plain'}
+      </button>
+    ),
+  })
+);
 
 // Mock WhiteBallHandle
 vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   default: ({ id, type, position, isConnectable }: any) => (
-    <div data-testid={`white-handle-${type}-${position}`} data-handle-id={id} data-connectable={isConnectable} />
+    <div
+      data-testid={`white-handle-${type}-${position}`}
+      data-handle-id={id}
+      data-connectable={isConnectable}
+    />
   ),
 }));
 
@@ -120,7 +177,9 @@ describe('JsonBlockNode - 节点连接', () => {
   let mockGetNode: any;
   let mockActivateNode: any;
 
-  const createMockNode = (overrides: Partial<JsonNodeData> = {}): Node<JsonNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<JsonNodeData> = {}
+  ): Node<JsonNodeData> => ({
     id: 'test-json-connection',
     type: 'json',
     position: { x: 0, y: 0 },
@@ -202,9 +261,15 @@ describe('JsonBlockNode - 节点连接', () => {
 
       // 验证4个方向的 Source Handle 存在
       expect(screen.getByTestId('white-handle-source-top')).toBeInTheDocument();
-      expect(screen.getByTestId('white-handle-source-right')).toBeInTheDocument();
-      expect(screen.getByTestId('white-handle-source-bottom')).toBeInTheDocument();
-      expect(screen.getByTestId('white-handle-source-left')).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-handle-source-right')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-handle-source-bottom')
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId('white-handle-source-left')
+      ).toBeInTheDocument();
     });
 
     it('Source Handle ID 应该遵循命名规范', () => {
@@ -232,7 +297,10 @@ describe('JsonBlockNode - 节点连接', () => {
 
       expect(topHandle).toHaveAttribute('data-handle-id', `${mockNode.id}-a`);
       expect(rightHandle).toHaveAttribute('data-handle-id', `${mockNode.id}-b`);
-      expect(bottomHandle).toHaveAttribute('data-handle-id', `${mockNode.id}-c`);
+      expect(bottomHandle).toHaveAttribute(
+        'data-handle-id',
+        `${mockNode.id}-c`
+      );
       expect(leftHandle).toHaveAttribute('data-handle-id', `${mockNode.id}-d`);
     });
 
@@ -356,7 +424,9 @@ describe('JsonBlockNode - 节点连接', () => {
       );
 
       // Target Handles 是透明的 Handle 组件
-      const handles = container.querySelectorAll('[data-testid^="handle-target-"]');
+      const handles = container.querySelectorAll(
+        '[data-testid^="handle-target-"]'
+      );
 
       // 应该有4个 Target Handle
       expect(handles.length).toBeGreaterThanOrEqual(4);
@@ -455,7 +525,9 @@ describe('JsonBlockNode - 节点连接', () => {
       const nodeContainer = container.querySelector('.json-block-node');
 
       // 模拟鼠标移入 Target Handle 区域
-      const targetHandle = container.querySelector('[data-testid^="handle-target-"]');
+      const targetHandle = container.querySelector(
+        '[data-testid^="handle-target-"]'
+      );
       if (targetHandle) {
         fireEvent.mouseEnter(targetHandle);
       }
@@ -506,4 +578,3 @@ describe('JsonBlockNode - 节点连接', () => {
  * 📝 运行命令：
  *    npm run test -- JsonNodeNew.connection.test.tsx
  */
-

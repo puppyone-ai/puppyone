@@ -10,7 +10,7 @@
  * - TC-CBL-003: 修改 overlap 应正确保存到 node.data.extra_configs
  * - TC-CBL-003-1: overlap 应为数字类型
  * - TC-CBL-004: 修改 handleHalfWord 应正确保存到 node.data.extra_configs
- * 
+ *
  * P1 严重 - 重要功能：
  * - TC-CBL-005: 点击 Show 应展开 Settings
  * - TC-CBL-005-1: 点击 Hide 应收起 Settings
@@ -64,9 +64,14 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/utils/colors', () => ({
   UI_COLORS: {
@@ -75,9 +80,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 // Mock PuppyDropdown
 vi.mock('../../../app/misc/PuppyDropDown', () => ({
@@ -91,8 +99,8 @@ vi.mock('../../../app/misc/PuppyDropDown', () => ({
             // 模拟点击显示选项
           }}
         >
-          {props.mapValueTodisplay 
-            ? props.mapValueTodisplay(props.selectedValue) 
+          {props.mapValueTodisplay
+            ? props.mapValueTodisplay(props.selectedValue)
             : props.selectedValue}
         </button>
         <div data-testid='dropdown-options'>
@@ -102,7 +110,9 @@ vi.mock('../../../app/misc/PuppyDropDown', () => ({
               data-testid={`dropdown-option-${option}`}
               onClick={() => props.onSelect(option)}
             >
-              {props.mapValueTodisplay ? props.mapValueTodisplay(option) : option}
+              {props.mapValueTodisplay
+                ? props.mapValueTodisplay(option)
+                : option}
             </button>
           ))}
         </div>
@@ -126,7 +136,9 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
   let mockSetEdges: any;
   let testNode: Node<ChunkingConfigNodeData>;
 
-  const createMockNode = (overrides: Partial<ChunkingConfigNodeData> = {}): Node<ChunkingConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<ChunkingConfigNodeData> = {}
+  ): Node<ChunkingConfigNodeData> => ({
     id: 'test-chunkingbylength-1',
     type: 'chunkingbylength',
     position: { x: 0, y: 0 },
@@ -193,7 +205,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P0: subChunkMode 参数配置', () => {
     it('TC-CBL-001: 修改 subChunkMode 应正确保存到 node.data', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       const nodeButton = screen.getByText('Chunk');
@@ -230,7 +249,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P0: chunkSize 参数配置', () => {
     it('TC-CBL-002: 修改 chunkSize 应正确保存到 node.data.extra_configs', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Chunk'));
@@ -249,8 +275,8 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
       // 找到 Chunk Size 输入框
       const chunkSizeInputs = screen.getAllByRole('spinbutton');
-      const chunkSizeInput = chunkSizeInputs.find((input: HTMLInputElement) => 
-        input.value === '200'
+      const chunkSizeInput = chunkSizeInputs.find(
+        (input: HTMLInputElement) => input.value === '200'
       );
 
       expect(chunkSizeInput).toBeDefined();
@@ -285,7 +311,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P0: overlap 参数配置', () => {
     it('TC-CBL-003: 修改 overlap 应正确保存到 node.data.extra_configs', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Chunk'));
@@ -303,8 +336,8 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
       // 找到 Overlap 输入框
       const overlapInputs = screen.getAllByRole('spinbutton');
-      const overlapInput = overlapInputs.find((input: HTMLInputElement) => 
-        input.value === '20'
+      const overlapInput = overlapInputs.find(
+        (input: HTMLInputElement) => input.value === '20'
       );
 
       expect(overlapInput).toBeDefined();
@@ -339,7 +372,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P0: handleHalfWord 参数配置', () => {
     it('TC-CBL-004: 修改 handleHalfWord 应正确保存到 node.data.extra_configs', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Chunk'));
@@ -380,7 +420,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P1: Settings 交互', () => {
     it('TC-CBL-005: 点击 Show 应展开 Settings', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Chunk'));
@@ -408,7 +455,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
     });
 
     it('TC-CBL-005-1: 点击 Hide 应收起 Settings', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Chunk'));
@@ -442,13 +496,22 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P1: 边界值测试', () => {
     it('TC-CBL-006: chunkSize 和 overlap 边界值测试', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单并展开 Settings
       fireEvent.click(screen.getByText('Chunk'));
       await waitFor(() => expect(screen.getByText('Show')).toBeInTheDocument());
       fireEvent.click(screen.getByText('Show'));
-      await waitFor(() => expect(screen.getByText('Chunk Size')).toBeInTheDocument());
+      await waitFor(() =>
+        expect(screen.getByText('Chunk Size')).toBeInTheDocument()
+      );
 
       const inputs = screen.getAllByRole('spinbutton');
       const chunkSizeInput = inputs[0];
@@ -484,7 +547,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
   describe('P1: Run 功能', () => {
     it('TC-CBL-007: 点击 Run 按钮应触发执行', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Chunk'));
@@ -497,7 +567,10 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
       const runButtons = screen.getAllByText('Run');
       const menuRunButton = runButtons.find(button => {
         const parent = button.parentElement;
-        return parent?.className.includes('w-[57px]') && parent?.className.includes('h-[24px]');
+        return (
+          parent?.className.includes('w-[57px]') &&
+          parent?.className.includes('h-[24px]')
+        );
       });
 
       expect(menuRunButton).toBeDefined();
@@ -507,9 +580,12 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
         fireEvent.click(menuRunButton);
 
         // 等待异步执行
-        await waitFor(() => {
-          expect(mocks.runSingleEdgeNode).toHaveBeenCalled();
-        }, { timeout: 3000 });
+        await waitFor(
+          () => {
+            expect(mocks.runSingleEdgeNode).toHaveBeenCalled();
+          },
+          { timeout: 3000 }
+        );
 
         // 验证调用参数
         expect(mocks.runSingleEdgeNode).toHaveBeenCalledWith(
@@ -537,7 +613,14 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
     });
 
     it('TC-CBL-009: 点击节点按钮应打开配置菜单', async () => {
-      render(<ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />);
+      render(
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 点击节点按钮
       const nodeButton = screen.getByText('Chunk');
@@ -555,20 +638,24 @@ describe('ChunkingByLength Edge Node - 完整测试', () => {
 
     it('TC-CBL-010: 组件挂载后验证', () => {
       const { container } = render(
-        <ChunkingByLength {...testNode} id={testNode.id} data={testNode.data} isConnectable={true} />
+        <ChunkingByLength
+          {...testNode}
+          id={testNode.id}
+          data={testNode.data}
+          isConnectable={true}
+        />
       );
 
       // 验证组件已渲染
       expect(container).toBeInTheDocument();
-      
+
       // 验证节点按钮存在
       expect(screen.getByText('Chunk')).toBeInTheDocument();
       expect(screen.getByText('Length')).toBeInTheDocument();
-      
+
       // 验证 SVG 图标存在
       const svgs = container.querySelectorAll('svg');
       expect(svgs.length).toBeGreaterThan(0);
     });
   });
 });
-

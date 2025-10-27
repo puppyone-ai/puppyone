@@ -56,9 +56,14 @@ vi.mock('@/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('@/components/misc/PuppyDropDown', () => ({
   PuppyDropdown: () => <div data-testid='puppy-dropdown'>Dropdown</div>,
@@ -80,7 +85,9 @@ describe('LLM Edge Node - Settings 配置', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<LLMConfigNodeData> = {}): Node<LLMConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<LLMConfigNodeData> = {}
+  ): Node<LLMConfigNodeData> => ({
     id: 'test-llm-1',
     type: 'llm',
     position: { x: 0, y: 0 },
@@ -132,14 +139,16 @@ describe('LLM Edge Node - Settings 配置', () => {
     });
 
     mocks.useAppSettings.mockReturnValue({
-      availableModels: [{
-        id: 'gpt-4',
-        name: 'GPT-4',
-        provider: 'OpenAI',
-        isLocal: false,
-        active: true,
-        type: 'llm',
-      }],
+      availableModels: [
+        {
+          id: 'gpt-4',
+          name: 'GPT-4',
+          provider: 'OpenAI',
+          isLocal: false,
+          active: true,
+          type: 'llm',
+        },
+      ],
     });
   });
 
@@ -175,18 +184,19 @@ describe('LLM Edge Node - Settings 配置', () => {
 
       // 查找 Base URL 输入框
       const inputs = screen.getAllByRole('textbox');
-      const baseUrlInput = inputs.find(input => 
+      const baseUrlInput = inputs.find(input =>
         input.getAttribute('placeholder')?.includes('api.example.com')
       ) as HTMLInputElement;
 
       expect(baseUrlInput).toBeDefined();
 
       fireEvent.change(baseUrlInput!, {
-        target: { value: 'https://custom.api.com/v1' }
+        target: { value: 'https://custom.api.com/v1' },
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -244,7 +254,7 @@ describe('LLM Edge Node - Settings 配置', () => {
       fireEvent.click(showButton);
 
       const inputs = screen.getAllByRole('textbox');
-      const baseUrlInput = inputs.find(input => 
+      const baseUrlInput = inputs.find(input =>
         input.getAttribute('placeholder')?.includes('api.example.com')
       ) as HTMLInputElement;
 
@@ -278,14 +288,15 @@ describe('LLM Edge Node - Settings 配置', () => {
       fireEvent.click(showButton);
 
       const inputs = screen.getAllByRole('textbox');
-      const baseUrlInput = inputs.find(input => 
+      const baseUrlInput = inputs.find(input =>
         input.getAttribute('placeholder')?.includes('api.example.com')
       ) as HTMLInputElement;
 
       fireEvent.change(baseUrlInput!, { target: { value: '' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -321,14 +332,15 @@ describe('LLM Edge Node - Settings 配置', () => {
 
       // 查找 Max Tokens 输入框
       const numberInputs = screen.getAllByRole('spinbutton');
-      const maxTokensInput = numberInputs.find(input => 
-        input.getAttribute('min') === '1'
+      const maxTokensInput = numberInputs.find(
+        input => input.getAttribute('min') === '1'
       ) as HTMLInputElement;
 
       fireEvent.change(maxTokensInput!, { target: { value: '4096' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -386,8 +398,8 @@ describe('LLM Edge Node - Settings 配置', () => {
       fireEvent.click(showButton);
 
       const numberInputs = screen.getAllByRole('spinbutton');
-      const maxTokensInput = numberInputs.find(input => 
-        input.getAttribute('min') === '1'
+      const maxTokensInput = numberInputs.find(
+        input => input.getAttribute('min') === '1'
       ) as HTMLInputElement;
 
       expect(parseInt(maxTokensInput.value)).toBe(customTokens);
@@ -420,14 +432,15 @@ describe('LLM Edge Node - Settings 配置', () => {
       fireEvent.click(showButton);
 
       const numberInputs = screen.getAllByRole('spinbutton');
-      const maxTokensInput = numberInputs.find(input => 
-        input.getAttribute('min') === '1'
+      const maxTokensInput = numberInputs.find(
+        input => input.getAttribute('min') === '1'
       ) as HTMLInputElement;
 
       fireEvent.change(maxTokensInput!, { target: { value: '1' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -460,14 +473,15 @@ describe('LLM Edge Node - Settings 配置', () => {
       fireEvent.click(showButton);
 
       const numberInputs = screen.getAllByRole('spinbutton');
-      const maxTokensInput = numberInputs.find(input => 
-        input.getAttribute('min') === '1'
+      const maxTokensInput = numberInputs.find(
+        input => input.getAttribute('min') === '1'
       ) as HTMLInputElement;
 
       fireEvent.change(maxTokensInput!, { target: { value: '128000' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -493,4 +507,3 @@ describe('LLM Edge Node - Settings 配置', () => {
  * 📝 运行命令：
  *    npm run test -- LLM.settings.test.tsx
  */
-

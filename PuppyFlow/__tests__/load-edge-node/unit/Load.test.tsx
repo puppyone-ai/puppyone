@@ -6,7 +6,7 @@
  * - TC-LD-001: LoadNodeFrontendConfig 数据结构验证
  * - TC-LD-001-1: resultNode 字段类型验证
  * - TC-LD-001-2: LoadOperationApiPayload 数据结构验证
- * 
+ *
  * P1 严重 - 核心功能：
  * - TC-LD-002: 点击 Run 按钮调用 runSingleEdgeNode
  * - TC-LD-002-1: Run 按钮在 loading 时显示加载状态
@@ -39,7 +39,7 @@ const mocks = vi.hoisted(() => ({
   runSingleEdgeNode: vi.fn(),
 }));
 
-vi.mock('@xyflow/react', async (importOriginal) => {
+vi.mock('@xyflow/react', async importOriginal => {
   const actual = await importOriginal<typeof import('@xyflow/react')>();
   return {
     ...actual,
@@ -74,23 +74,34 @@ vi.mock('react-dom', async () => {
   };
 });
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: ({ supportedInputTypes, supportedOutputTypes, inputNodeCategory, outputNodeCategory }: any) => (
-    <div 
-      data-testid="input-output-display"
-      data-input-types={supportedInputTypes?.join(',')}
-      data-output-types={supportedOutputTypes?.join(',')}
-      data-input-category={inputNodeCategory}
-      data-output-category={outputNodeCategory}
-    >
-      InputOutputDisplay
-    </div>
-  ),
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: ({
+      supportedInputTypes,
+      supportedOutputTypes,
+      inputNodeCategory,
+      outputNodeCategory,
+    }: any) => (
+      <div
+        data-testid='input-output-display'
+        data-input-types={supportedInputTypes?.join(',')}
+        data-output-types={supportedOutputTypes?.join(',')}
+        data-input-category={inputNodeCategory}
+        data-output-category={outputNodeCategory}
+      >
+        InputOutputDisplay
+      </div>
+    ),
+  })
+);
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 // ============================================================================
 // Helper Functions
@@ -119,21 +130,21 @@ describe('Load Edge Node', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+
     mockGetNode = vi.fn();
     mockSetNodes = vi.fn();
     mockSetEdges = vi.fn();
-    
+
     const defaultNode = createMockNode();
     mockGetNode.mockReturnValue(defaultNode);
-    
+
     // 设置所有必需的 mocks
     mocks.useReactFlow.mockReturnValue({
       getNode: mockGetNode,
       setNodes: mockSetNodes,
       setEdges: mockSetEdges,
     });
-    
+
     mocks.useNodesPerFlowContext.mockReturnValue({
       isOnConnect: false,
       activatedEdge: null,
@@ -142,20 +153,20 @@ describe('Load Edge Node', () => {
       activateEdge: vi.fn(),
       clearAll: vi.fn(),
     });
-    
+
     mocks.useGetSourceTarget.mockReturnValue({
       getSourceNodeIdWithLabel: vi.fn(),
       getTargetNodeIdWithLabel: vi.fn(),
     });
-    
+
     mocks.useJsonConstructUtils.mockReturnValue({
       streamResult: vi.fn(),
       reportError: vi.fn(),
       resetLoadingUI: vi.fn(),
     });
-    
+
     mocks.useAppSettings.mockReturnValue({});
-    
+
     mocks.runSingleEdgeNode.mockResolvedValue(undefined);
   });
 
@@ -212,7 +223,9 @@ describe('Load Edge Node', () => {
       expect(expectedApiStructure).toBeDefined();
       expect(expectedApiStructure.type).toBe('load');
       expect(expectedApiStructure.data).toHaveProperty('extra_configs');
-      expect(expectedApiStructure.data.extra_configs).toHaveProperty('file_configs');
+      expect(expectedApiStructure.data.extra_configs).toHaveProperty(
+        'file_configs'
+      );
     });
   });
 
@@ -225,12 +238,12 @@ describe('Load Edge Node', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Load id="test-node-1" data={node.data} isConnectable={true} />);
+      render(<Load id='test-node-1' data={node.data} isConnectable={true} />);
 
       // 找到 Run 按钮（使用文本查找）
       const runButtons = screen.getAllByText('Run');
       expect(runButtons.length).toBeGreaterThan(0);
-      
+
       // 点击第一个 Run 按钮
       fireEvent.click(runButtons[0]);
 
@@ -252,12 +265,12 @@ describe('Load Edge Node', () => {
 
       // Mock runSingleEdgeNode 为异步函数，不立即完成
       mocks.runSingleEdgeNode.mockImplementation(() => {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           setTimeout(resolve, 100);
         });
       });
 
-      render(<Load id="test-node-1" data={node.data} isConnectable={true} />);
+      render(<Load id='test-node-1' data={node.data} isConnectable={true} />);
 
       // 找到 Run 按钮
       const runButtons = screen.getAllByText('Run');
@@ -276,20 +289,22 @@ describe('Load Edge Node', () => {
 
       // Mock runSingleEdgeNode 为异步函数
       mocks.runSingleEdgeNode.mockImplementation(() => {
-        return new Promise((resolve) => {
+        return new Promise(resolve => {
           setTimeout(resolve, 100);
         });
       });
 
-      render(<Load id="test-node-1" data={node.data} isConnectable={true} />);
+      render(<Load id='test-node-1' data={node.data} isConnectable={true} />);
 
       // 找到 Run 按钮（通过角色查找）
       const runButtons = screen.getAllByRole('button');
-      const actualRunButtons = runButtons.filter(btn => btn.textContent?.includes('Run'));
-      
+      const actualRunButtons = runButtons.filter(btn =>
+        btn.textContent?.includes('Run')
+      );
+
       expect(actualRunButtons.length).toBeGreaterThan(0);
       const firstRunButton = actualRunButtons[0];
-      
+
       // 点击 Run 按钮
       fireEvent.click(firstRunButton);
 
@@ -303,7 +318,7 @@ describe('Load Edge Node', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Load id="test-node-1" data={node.data} isConnectable={true} />);
+      render(<Load id='test-node-1' data={node.data} isConnectable={true} />);
 
       // 打开配置菜单
       const nodeButton = screen.getByTitle('Load Node');
@@ -311,12 +326,21 @@ describe('Load Edge Node', () => {
 
       // 等待菜单渲染并查找 InputOutputDisplay
       const inputOutputDisplay = screen.getByTestId('input-output-display');
-      
+
       // 验证配置
       expect(inputOutputDisplay).toHaveAttribute('data-input-types', 'file');
-      expect(inputOutputDisplay).toHaveAttribute('data-output-types', 'structured');
-      expect(inputOutputDisplay).toHaveAttribute('data-input-category', 'blocknode');
-      expect(inputOutputDisplay).toHaveAttribute('data-output-category', 'blocknode');
+      expect(inputOutputDisplay).toHaveAttribute(
+        'data-output-types',
+        'structured'
+      );
+      expect(inputOutputDisplay).toHaveAttribute(
+        'data-input-category',
+        'blocknode'
+      );
+      expect(inputOutputDisplay).toHaveAttribute(
+        'data-output-category',
+        'blocknode'
+      );
     });
   });
 
@@ -329,13 +353,15 @@ describe('Load Edge Node', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Load id="test-node-1" data={node.data} isConnectable={true} />);
+      render(<Load id='test-node-1' data={node.data} isConnectable={true} />);
 
       // 找到节点按钮
       const nodeButton = screen.getByTitle('Load Node');
 
       // 初始状态：菜单应该不可见
-      expect(screen.queryByTestId('input-output-display')).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId('input-output-display')
+      ).not.toBeInTheDocument();
 
       // 点击打开菜单
       fireEvent.click(nodeButton);
@@ -350,7 +376,9 @@ describe('Load Edge Node', () => {
 
       // 菜单应该消失
       await waitFor(() => {
-        expect(screen.queryByTestId('input-output-display')).not.toBeInTheDocument();
+        expect(
+          screen.queryByTestId('input-output-display')
+        ).not.toBeInTheDocument();
       });
     });
 
@@ -370,7 +398,7 @@ describe('Load Edge Node', () => {
         clearAll: mockClearAll,
       });
 
-      render(<Load id="test-node-1" data={node.data} isConnectable={true} />);
+      render(<Load id='test-node-1' data={node.data} isConnectable={true} />);
 
       // 验证组件按钮被渲染
       const nodeButton = screen.getByTitle('Load Node');
@@ -385,4 +413,3 @@ describe('Load Edge Node', () => {
     });
   });
 });
-

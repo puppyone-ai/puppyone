@@ -8,7 +8,7 @@
  * - TC-C2S-002: 切换到 'JSON' 模式应正确保存
  * - TC-C2S-002-1: 切换到 'wrap into dict' 模式应正确保存
  * - TC-C2S-002-2: 切换到 'wrap into list' 模式应正确保存
- * 
+ *
  * P0 致命 - 模式特定参数：
  * - TC-C2S-003: 修改 dict_key 应正确保存
  * - TC-C2S-003-1: dict_key 应为字符串类型
@@ -80,9 +80,14 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/utils/colors', () => ({
   UI_COLORS: {
@@ -91,9 +96,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 // Mock PuppyDropdown
 vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
@@ -139,7 +147,9 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
   let mockGetInternalNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<ModifyConfigNodeData> = {}): Node<ModifyConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<ModifyConfigNodeData> = {}
+  ): Node<ModifyConfigNodeData> => ({
     id: 'test-convert-1',
     type: 'convert2structured',
     position: { x: 0, y: 0 },
@@ -208,7 +218,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 点击节点打开配置菜单
       const nodeButton = screen.getByText('Convert');
@@ -219,16 +236,22 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 点击选择 'wrap into dict' 模式
-      const wrapIntoDictOption = screen.getByTestId('dropdown-option-wrap into dict');
+      const wrapIntoDictOption = screen.getByTestId(
+        'dropdown-option-wrap into dict'
+      );
       fireEvent.click(wrapIntoDictOption);
 
       // 等待 requestAnimationFrame 更新
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 setNodes 被调用，并检查 execMode 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -237,8 +260,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
     });
 
     it('TC-C2S-001-1: execMode 应为有效的模式值', () => {
-      const validModes = ['JSON', 'wrap into dict', 'wrap into list', 'split by length', 'split by character'];
-      
+      const validModes = [
+        'JSON',
+        'wrap into dict',
+        'wrap into list',
+        'split by length',
+        'split by character',
+      ];
+
       validModes.forEach(mode => {
         const node = createMockNode({ execMode: mode });
         expect(validModes).toContain(node.data.execMode);
@@ -249,7 +278,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode({ execMode: 'wrap into dict' });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -262,11 +298,15 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const jsonOption = screen.getByTestId('dropdown-option-JSON');
       fireEvent.click(jsonOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -278,7 +318,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       fireEvent.click(screen.getByText('Convert'));
 
@@ -286,14 +333,20 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
         expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
       });
 
-      const wrapIntoDictOption = screen.getByTestId('dropdown-option-wrap into dict');
+      const wrapIntoDictOption = screen.getByTestId(
+        'dropdown-option-wrap into dict'
+      );
       fireEvent.click(wrapIntoDictOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -305,7 +358,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       fireEvent.click(screen.getByText('Convert'));
 
@@ -313,14 +373,20 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
         expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
       });
 
-      const wrapIntoListOption = screen.getByTestId('dropdown-option-wrap into list');
+      const wrapIntoListOption = screen.getByTestId(
+        'dropdown-option-wrap into list'
+      );
       fireEvent.click(wrapIntoListOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -336,7 +402,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode({ execMode: 'wrap into dict' });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -347,15 +420,19 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
 
       // 找到 Key 输入框
       const keyInput = screen.getByRole('textbox');
-      
+
       // 输入 key 值
       fireEvent.change(keyInput, { target: { value: 'myKey' } });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -364,7 +441,7 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
     });
 
     it('TC-C2S-003-1: dict_key 应为字符串类型', async () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'wrap into dict',
         extra_configs: {
           dict_key: 'testKey',
@@ -378,7 +455,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode({ execMode: 'split by length' });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -389,15 +473,19 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
 
       // 找到 Length 输入框
       const lengthInput = screen.getByRole('spinbutton');
-      
+
       // 输入长度值
       fireEvent.change(lengthInput, { target: { value: '20' } });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -406,7 +494,7 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
     });
 
     it('TC-C2S-004-1: length_separator 应为数字类型', () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by length',
         extra_configs: {
           length_separator: 15,
@@ -424,7 +512,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode({ execMode: 'split by character' });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -434,15 +529,18 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 验证 deliminator 状态会被保存（通过 setNodes）
-      await waitFor(() => {
-        // list_separator 在初始化时就会被设置
-        const calls = mockSetNodes.mock.calls;
-        expect(calls.length).toBeGreaterThan(0);
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          // list_separator 在初始化时就会被设置
+          const calls = mockSetNodes.mock.calls;
+          expect(calls.length).toBeGreaterThan(0);
+        },
+        { timeout: 3000 }
+      );
     });
 
     it('TC-C2S-005-1: list_separator 应为数组类型（解析后）', () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by character',
         extra_configs: {
           list_separator: '[",",";"]',
@@ -450,19 +548,23 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 解析 JSON 字符串
-      const parsed = JSON.parse(node.data.extra_configs?.list_separator as string);
+      const parsed = JSON.parse(
+        node.data.extra_configs?.list_separator as string
+      );
       expect(Array.isArray(parsed)).toBe(true);
     });
 
     it('TC-C2S-005-2: list_separator 应正确解析 JSON 字符串', () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by character',
         extra_configs: {
           list_separator: '[",",";",".","\\n"]',
         },
       });
 
-      const parsed = JSON.parse(node.data.extra_configs?.list_separator as string);
+      const parsed = JSON.parse(
+        node.data.extra_configs?.list_separator as string
+      );
       expect(parsed).toEqual([',', ';', '.', '\n']);
     });
   });
@@ -474,7 +576,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode({ execMode: 'split by character' });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -506,26 +615,32 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
         fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 
         // 验证分隔符被添加（通过 setNodes 更新）
-        await waitFor(() => {
-          const calls = mockSetNodes.mock.calls;
-          if (calls.length > 0) {
-            const lastCall = calls[calls.length - 1];
-            if (typeof lastCall[0] === 'function') {
-              const updatedNodes = lastCall[0]([node]);
-              const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
-              const deliminator = updatedNode?.data?.extra_configs?.list_separator;
-              if (deliminator) {
-                const parsed = JSON.parse(deliminator);
-                expect(parsed).toContain('|');
+        await waitFor(
+          () => {
+            const calls = mockSetNodes.mock.calls;
+            if (calls.length > 0) {
+              const lastCall = calls[calls.length - 1];
+              if (typeof lastCall[0] === 'function') {
+                const updatedNodes = lastCall[0]([node]);
+                const updatedNode = updatedNodes.find(
+                  (n: any) => n.id === node.id
+                );
+                const deliminator =
+                  updatedNode?.data?.extra_configs?.list_separator;
+                if (deliminator) {
+                  const parsed = JSON.parse(deliminator);
+                  expect(parsed).toContain('|');
+                }
               }
             }
-          }
-        }, { timeout: 3000 });
+          },
+          { timeout: 3000 }
+        );
       }
     });
 
     it('TC-C2S-006-1: 删除分隔符应正确更新', async () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by character',
         extra_configs: {
           list_separator: '[",",";","|"]',
@@ -533,7 +648,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -555,9 +677,12 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
         fireEvent.click(xButton);
 
         // 验证分隔符被删除
-        await waitFor(() => {
-          expect(mockSetNodes).toHaveBeenCalled();
-        }, { timeout: 3000 });
+        await waitFor(
+          () => {
+            expect(mockSetNodes).toHaveBeenCalled();
+          },
+          { timeout: 3000 }
+        );
       }
     });
 
@@ -565,7 +690,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode({ execMode: 'split by character' });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -579,13 +711,16 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       fireEvent.click(pipeButton);
 
       // 验证分隔符被添加
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
     });
 
     it('TC-C2S-007-1: 不能添加重复的分隔符', async () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by character',
         extra_configs: {
           list_separator: '[","]',
@@ -593,7 +728,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -605,12 +747,12 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       // 尝试添加已存在的分隔符
       const commaButton = screen.getByText('Comma (,)');
       const initialCallCount = mockSetNodes.mock.calls.length;
-      
+
       fireEvent.click(commaButton);
 
       // 由于分隔符已存在，不应该触发新的 setNodes 调用（或调用但不改变）
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // 验证没有新的重复添加
       const finalCallCount = mockSetNodes.mock.calls.length;
       // 可能会有调用，但不会增加重复的分隔符
@@ -618,7 +760,7 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
     });
 
     it('TC-C2S-008: 特殊字符分隔符正确显示', async () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by character',
         extra_configs: {
           list_separator: '["\\n","\\t"," "]',
@@ -627,7 +769,12 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       mockGetNode.mockReturnValue(node);
 
       const { container } = render(
-        <Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
       );
 
       // 打开配置菜单
@@ -640,10 +787,10 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       // 验证特殊字符的显示
       // Enter 应该显示为 "Enter" 文本和 SVG 图标
       expect(screen.getByText('Enter')).toBeInTheDocument();
-      
+
       // Tab 应该显示为 "Tab"
       expect(screen.getByText('Tab')).toBeInTheDocument();
-      
+
       // Space 应该显示为 "Space"
       expect(screen.getByText('Space')).toBeInTheDocument();
     });
@@ -656,7 +803,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 验证默认 execMode
       expect(node.data.execMode).toBe('JSON');
@@ -664,13 +818,13 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
 
     it('TC-C2S-009-1: length_separator 默认值应为 10', () => {
       const node = createMockNode({ execMode: 'split by length' });
-      
+
       // 验证默认 length_separator
       expect(node.data.extra_configs?.length_separator).toBe(10);
     });
 
     it('TC-C2S-009-2: delimiters 默认值应为 [",",";",".","\\n"]', () => {
-      const node = createMockNode({ 
+      const node = createMockNode({
         execMode: 'split by character',
         extra_configs: {
           list_separator: '[",",";",".","\\n"]',
@@ -678,7 +832,9 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 解析 JSON 并验证默认分隔符
-      const parsed = JSON.parse(node.data.extra_configs?.list_separator as string);
+      const parsed = JSON.parse(
+        node.data.extra_configs?.list_separator as string
+      );
       expect(parsed).toEqual([',', ';', '.', '\n']);
     });
 
@@ -691,7 +847,14 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
       mockGetNode.mockReturnValue(existingNode);
 
-      render(<Convert2Structured {...existingNode} id={existingNode.id} data={existingNode.data} isConnectable={true} />);
+      render(
+        <Convert2Structured
+          {...existingNode}
+          id={existingNode.id}
+          data={existingNode.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Convert'));
@@ -714,8 +877,15 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
   describe('P2: UI 交互', () => {
     it('TC-C2S-011: 点击节点按钮应打开配置菜单', async () => {
       const node = createMockNode();
-      
-      render(<Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />);
+
+      render(
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 点击节点按钮
       const nodeButton = screen.getByText('Convert');
@@ -735,7 +905,12 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       mockGetNode.mockReturnValue(node);
 
       const { rerender } = render(
-        <Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
       );
 
       // 打开配置菜单
@@ -749,7 +924,9 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 切换到 wrap into dict 模式
-      const wrapIntoDictOption = screen.getByTestId('dropdown-option-wrap into dict');
+      const wrapIntoDictOption = screen.getByTestId(
+        'dropdown-option-wrap into dict'
+      );
       fireEvent.click(wrapIntoDictOption);
 
       await waitFor(() => {
@@ -757,7 +934,9 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 切换到 split by length 模式
-      const splitByLenOption = screen.getByTestId('dropdown-option-split by length');
+      const splitByLenOption = screen.getByTestId(
+        'dropdown-option-split by length'
+      );
       fireEvent.click(splitByLenOption);
 
       await waitFor(() => {
@@ -765,7 +944,9 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
       });
 
       // 切换到 split by character 模式
-      const splitByCharOption = screen.getByTestId('dropdown-option-split by character');
+      const splitByCharOption = screen.getByTestId(
+        'dropdown-option-split by character'
+      );
       fireEvent.click(splitByCharOption);
 
       await waitFor(() => {
@@ -775,18 +956,23 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
 
     it('TC-C2S-012: 组件挂载后验证', () => {
       const node = createMockNode();
-      
+
       const { container } = render(
-        <Convert2Structured {...node} id={node.id} data={node.data} isConnectable={true} />
+        <Convert2Structured
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
       );
 
       // 验证组件已渲染
       expect(container).toBeInTheDocument();
-      
+
       // 验证节点按钮存在
       expect(screen.getByText('Convert')).toBeInTheDocument();
       expect(screen.getByText('Struct')).toBeInTheDocument();
-      
+
       // 验证 SVG 图标存在
       const svgs = container.querySelectorAll('svg');
       expect(svgs.length).toBeGreaterThan(0);
@@ -797,4 +983,3 @@ describe('Convert2Structured Edge Node - 完整测试', () => {
     });
   });
 });
-

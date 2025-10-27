@@ -6,7 +6,7 @@
  * - TC-LLM-020: 选择 text 输出
  * - TC-LLM-021: 选择 structured text 输出
  * - TC-LLM-023: 输出类型持久化
- * 
+ *
  * P1:
  * - TC-LLM-022: 默认输出类型
  * - TC-LLM-024: 切换输出类型
@@ -56,24 +56,32 @@ vi.mock('@/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('@/components/misc/PuppyDropDown', () => ({
   PuppyDropdown: ({ options, selectedValue, onSelect }: any) => (
     <div data-testid='puppy-dropdown'>
-      <div data-testid='selected-output-type'>{typeof selectedValue === 'string' ? selectedValue : ''}</div>
+      <div data-testid='selected-output-type'>
+        {typeof selectedValue === 'string' ? selectedValue : ''}
+      </div>
       <select
         data-testid='output-type-select'
         value={selectedValue}
-        onChange={(e) => onSelect(e.target.value)}
+        onChange={e => onSelect(e.target.value)}
       >
-        {Array.isArray(options) && options.map((opt: string) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
+        {Array.isArray(options) &&
+          options.map((opt: string) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
       </select>
     </div>
   ),
@@ -95,7 +103,9 @@ describe('LLM Edge Node - 输出类型配置', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<LLMConfigNodeData> = {}): Node<LLMConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<LLMConfigNodeData> = {}
+  ): Node<LLMConfigNodeData> => ({
     id: 'test-llm-1',
     type: 'llm',
     position: { x: 0, y: 0 },
@@ -147,14 +157,16 @@ describe('LLM Edge Node - 输出类型配置', () => {
     });
 
     mocks.useAppSettings.mockReturnValue({
-      availableModels: [{
-        id: 'gpt-4',
-        name: 'GPT-4',
-        provider: 'OpenAI',
-        isLocal: false,
-        active: true,
-        type: 'llm',
-      }],
+      availableModels: [
+        {
+          id: 'gpt-4',
+          name: 'GPT-4',
+          provider: 'OpenAI',
+          isLocal: false,
+          active: true,
+          type: 'llm',
+        },
+      ],
     });
   });
 
@@ -186,14 +198,17 @@ describe('LLM Edge Node - 输出类型配置', () => {
 
       // 查找输出类型下拉框
       const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select => 
-        Array.from(select.options).some((opt: any) => opt.value === 'text' || opt.value === 'structured text')
+      const outputSelect = selects.find(select =>
+        Array.from(select.options).some(
+          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
+        )
       );
 
       fireEvent.change(outputSelect!, { target: { value: 'text' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -225,14 +240,17 @@ describe('LLM Edge Node - 输出类型配置', () => {
       fireEvent.click(button);
 
       const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select => 
-        Array.from(select.options).some((opt: any) => opt.value === 'text' || opt.value === 'structured text')
+      const outputSelect = selects.find(select =>
+        Array.from(select.options).some(
+          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
+        )
       );
 
       fireEvent.change(outputSelect!, { target: { value: 'structured text' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -286,8 +304,8 @@ describe('LLM Edge Node - 输出类型配置', () => {
       fireEvent.click(button);
 
       const selectedTypes = screen.getAllByTestId('selected-output-type');
-      const outputType = selectedTypes.find(el => 
-        el.textContent === 'text' || el.textContent === 'structured text'
+      const outputType = selectedTypes.find(
+        el => el.textContent === 'text' || el.textContent === 'structured text'
       );
 
       expect(outputType?.textContent).toBe('text');
@@ -315,8 +333,8 @@ describe('LLM Edge Node - 输出类型配置', () => {
       fireEvent.click(button);
 
       const selectedTypes = screen.getAllByTestId('selected-output-type');
-      const outputType = selectedTypes.find(el => 
-        el.textContent === 'text' || el.textContent === 'structured text'
+      const outputType = selectedTypes.find(
+        el => el.textContent === 'text' || el.textContent === 'structured text'
       );
 
       expect(outputType?.textContent).toBe('structured text');
@@ -346,14 +364,17 @@ describe('LLM Edge Node - 输出类型配置', () => {
       fireEvent.click(button);
 
       const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select => 
-        Array.from(select.options).some((opt: any) => opt.value === 'text' || opt.value === 'structured text')
+      const outputSelect = selects.find(select =>
+        Array.from(select.options).some(
+          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
+        )
       );
 
       fireEvent.change(outputSelect!, { target: { value: 'structured text' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -383,14 +404,17 @@ describe('LLM Edge Node - 输出类型配置', () => {
       fireEvent.click(button);
 
       const selects = screen.getAllByTestId('output-type-select');
-      const outputSelect = selects.find(select => 
-        Array.from(select.options).some((opt: any) => opt.value === 'text' || opt.value === 'structured text')
+      const outputSelect = selects.find(select =>
+        Array.from(select.options).some(
+          (opt: any) => opt.value === 'text' || opt.value === 'structured text'
+        )
       );
 
       fireEvent.change(outputSelect!, { target: { value: 'text' } });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -415,4 +439,3 @@ describe('LLM Edge Node - 输出类型配置', () => {
  * 📝 运行命令：
  *    npm run test -- LLM.output.test.tsx
  */
-

@@ -6,7 +6,7 @@
  * - TC-LLM-009: 编辑消息内容
  * - TC-LLM-010: 默认消息初始化
  * - TC-LLM-011: 消息持久化
- * 
+ *
  * P1:
  * - TC-LLM-012: 添加多条消息
  * - TC-LLM-013: 删除消息
@@ -59,9 +59,14 @@ vi.mock('@/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '@/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('@/components/misc/PuppyDropDown', () => ({
   PuppyDropdown: ({ selectedValue }: any) => (
@@ -75,7 +80,7 @@ vi.mock('@/components/workflow/components/promptEditor', () => ({
       <textarea
         data-testid='prompt-textarea'
         value={JSON.stringify(messages)}
-        onChange={(e) => {
+        onChange={e => {
           try {
             onChange(JSON.parse(e.target.value));
           } catch (error) {
@@ -99,7 +104,9 @@ describe('LLM Edge Node - Messages 配置', () => {
   let mockSetNodes: any;
   let mockGetNode: any;
 
-  const createMockNode = (overrides: Partial<LLMConfigNodeData> = {}): Node<LLMConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<LLMConfigNodeData> = {}
+  ): Node<LLMConfigNodeData> => ({
     id: 'test-llm-1',
     type: 'llm',
     position: { x: 0, y: 0 },
@@ -151,14 +158,16 @@ describe('LLM Edge Node - Messages 配置', () => {
     });
 
     mocks.useAppSettings.mockReturnValue({
-      availableModels: [{
-        id: 'gpt-4',
-        name: 'GPT-4',
-        provider: 'OpenAI',
-        isLocal: false,
-        active: true,
-        type: 'llm',
-      }],
+      availableModels: [
+        {
+          id: 'gpt-4',
+          name: 'GPT-4',
+          provider: 'OpenAI',
+          isLocal: false,
+          active: true,
+          type: 'llm',
+        },
+      ],
     });
   });
 
@@ -210,7 +219,8 @@ describe('LLM Edge Node - Messages 配置', () => {
       });
 
       // 验证 content 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
       const updatedNodes = setNodesCall([mockNode]);
       const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -275,7 +285,9 @@ describe('LLM Edge Node - Messages 配置', () => {
         if (calls.length > 0) {
           const lastCall = calls[calls.length - 1][0];
           const updatedNodes = lastCall([mockNode]);
-          const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
+          const updatedNode = updatedNodes.find(
+            (n: any) => n.id === mockNode.id
+          );
 
           expect(Array.isArray(updatedNode.data.content)).toBe(true);
           expect(updatedNode.data.content.length).toBeGreaterThan(0);
@@ -411,7 +423,8 @@ describe('LLM Edge Node - Messages 配置', () => {
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -461,7 +474,8 @@ describe('LLM Edge Node - Messages 配置', () => {
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -512,7 +526,8 @@ describe('LLM Edge Node - Messages 配置', () => {
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -556,11 +571,14 @@ describe('LLM Edge Node - Messages 配置', () => {
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
-        expect(updatedNode.data.content[1].content).toBe('Answer: {{inputText}}');
+        expect(updatedNode.data.content[1].content).toBe(
+          'Answer: {{inputText}}'
+        );
         expect(updatedNode.data.content[1].content).toContain('{{');
         expect(updatedNode.data.content[1].content).toContain('}}');
       });
@@ -588,21 +606,22 @@ describe('LLM Edge Node - Messages 配置', () => {
       fireEvent.click(button);
 
       const textarea = screen.getByTestId('prompt-textarea');
-      const message = [
-        { role: 'user', content: '{{var1}} and {{var2}}' },
-      ];
+      const message = [{ role: 'user', content: '{{var1}} and {{var2}}' }];
 
       fireEvent.change(textarea, {
         target: { value: JSON.stringify(message) },
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
         // 变量语法应完全保留
-        expect(updatedNode.data.content[0].content).toBe('{{var1}} and {{var2}}');
+        expect(updatedNode.data.content[0].content).toBe(
+          '{{var1}} and {{var2}}'
+        );
       });
     });
   });
@@ -642,7 +661,8 @@ describe('LLM Edge Node - Messages 配置', () => {
       });
 
       await waitFor(() => {
-        const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
+        const setNodesCall =
+          mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1][0];
         const updatedNodes = setNodesCall([mockNode]);
         const updatedNode = updatedNodes.find((n: any) => n.id === mockNode.id);
 
@@ -675,4 +695,3 @@ describe('LLM Edge Node - Messages 配置', () => {
  * 📝 运行命令：
  *    npm run test -- LLM.messages.test.tsx
  */
-

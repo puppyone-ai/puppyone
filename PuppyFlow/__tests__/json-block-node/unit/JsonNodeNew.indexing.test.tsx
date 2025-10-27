@@ -22,7 +22,10 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import JsonBlockNode from '@/components/workflow/blockNode/JsonNodeNew';
 import type { Node } from '@xyflow/react';
-import type { JsonNodeData, VectorIndexingItem } from '@/components/workflow/blockNode/JsonNodeNew';
+import type {
+  JsonNodeData,
+  VectorIndexingItem,
+} from '@/components/workflow/blockNode/JsonNodeNew';
 
 // Mock 配置
 const mocks = vi.hoisted(() => ({
@@ -36,12 +39,37 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@xyflow/react', () => ({
   useReactFlow: mocks.useReactFlow,
-  Handle: ({ children, type, position, id, isConnectable, onMouseEnter, onMouseLeave, style }: any) => (
-    <div data-testid={`handle-${type}-${position}`} data-id={id} data-connectable={isConnectable} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} style={style}>{children}</div>
+  Handle: ({
+    children,
+    type,
+    position,
+    id,
+    isConnectable,
+    onMouseEnter,
+    onMouseLeave,
+    style,
+  }: any) => (
+    <div
+      data-testid={`handle-${type}-${position}`}
+      data-id={id}
+      data-connectable={isConnectable}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+    >
+      {children}
+    </div>
   ),
   Position: { Top: 'top', Right: 'right', Bottom: 'bottom', Left: 'left' },
   NodeResizeControl: ({ children, minWidth, minHeight, style }: any) => (
-    <div data-testid='resize-control' data-min-width={minWidth} data-min-height={minHeight} style={style}>{children}</div>
+    <div
+      data-testid='resize-control'
+      data-min-width={minWidth}
+      data-min-height={minHeight}
+      style={style}
+    >
+      {children}
+    </div>
   ),
 }));
 
@@ -64,19 +92,33 @@ vi.mock('next/dynamic', () => ({ default: (fn: any) => fn() }));
 
 vi.mock('@/components/workflow/utils/dynamicStorageStrategy', () => ({
   handleDynamicStorageSwitch: vi.fn(() => Promise.resolve()),
-  getStorageInfo: vi.fn(() => ({ storageClass: 'internal', resourceKey: null })),
+  getStorageInfo: vi.fn(() => ({
+    storageClass: 'internal',
+    resourceKey: null,
+  })),
   CONTENT_LENGTH_THRESHOLD: 50000,
 }));
 
-vi.mock('@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm', () => ({
-  default: ({ value, onChange }: any) => (
-    <textarea data-testid='rich-json-editor' value={value} onChange={e => onChange(e.target.value)} />
-  ),
-}));
+vi.mock(
+  '@/components/tableComponent/RichJSONFormTableStyle/RichJSONForm',
+  () => ({
+    default: ({ value, onChange }: any) => (
+      <textarea
+        data-testid='rich-json-editor'
+        value={value}
+        onChange={e => onChange(e.target.value)}
+      />
+    ),
+  })
+);
 
 vi.mock('@/components/tableComponent/JSONForm', () => ({
   default: ({ value, onChange }: any) => (
-    <textarea data-testid='json-form-editor' value={value} onChange={e => onChange(e.target.value)} />
+    <textarea
+      data-testid='json-form-editor'
+      value={value}
+      onChange={e => onChange(e.target.value)}
+    />
   ),
 }));
 
@@ -84,50 +126,64 @@ vi.mock('@/components/loadingIcon/SkeletonLoadingIcon', () => ({
   default: () => <div data-testid='skeleton-loading'>Loading...</div>,
 }));
 
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton', () => ({
-  default: () => <button data-testid='settings-button'>Settings</button>,
-}));
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeSettingsButton',
+  () => ({
+    default: () => <button data-testid='settings-button'>Settings</button>,
+  })
+);
 
 // Mock NodeIndexingButton - 用于触发索引操作
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton', () => ({
-  default: ({ nodeid, indexingList, onAddIndex, onRemoveIndex }: any) => (
-    <div data-testid='indexing-button-wrapper'>
-      <button
-        data-testid='add-index-button'
-        onClick={() =>
-          onAddIndex({
-            type: 'vector',
-            key_path: [{ id: '1', type: 'key', value: 'items' }],
-            value_path: [{ id: '2', type: 'key', value: 'text' }],
-          })
-        }
-      >
-        Add Index
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeIndexingButton',
+  () => ({
+    default: ({ nodeid, indexingList, onAddIndex, onRemoveIndex }: any) => (
+      <div data-testid='indexing-button-wrapper'>
+        <button
+          data-testid='add-index-button'
+          onClick={() =>
+            onAddIndex({
+              type: 'vector',
+              key_path: [{ id: '1', type: 'key', value: 'items' }],
+              value_path: [{ id: '2', type: 'key', value: 'text' }],
+            })
+          }
+        >
+          Add Index
+        </button>
+        {indexingList.map((item: any, index: number) => (
+          <div key={index} data-testid={`index-item-${index}`}>
+            <span data-testid={`index-status-${index}`}>{item.status}</span>
+            <button
+              data-testid={`remove-index-${index}`}
+              onClick={() => onRemoveIndex(index)}
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+    ),
+  })
+);
+
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton',
+  () => ({
+    default: () => <button data-testid='loop-button'>Loop</button>,
+  })
+);
+
+vi.mock(
+  '@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton',
+  () => ({
+    default: ({ useRichEditor, onToggle }: any) => (
+      <button data-testid='view-toggle-button' onClick={onToggle}>
+        {useRichEditor ? 'Rich' : 'Plain'}
       </button>
-      {indexingList.map((item: any, index: number) => (
-        <div key={index} data-testid={`index-item-${index}`}>
-          <span data-testid={`index-status-${index}`}>{item.status}</span>
-          <button
-            data-testid={`remove-index-${index}`}
-            onClick={() => onRemoveIndex(index)}
-          >
-            Remove
-          </button>
-        </div>
-      ))}
-    </div>
-  ),
-}));
-
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeLoopButton', () => ({
-  default: () => <button data-testid='loop-button'>Loop</button>,
-}));
-
-vi.mock('@/components/workflow/blockNode/JsonNodeTopSettingBar/NodeViewToggleButton', () => ({
-  default: ({ useRichEditor, onToggle }: any) => (
-    <button data-testid='view-toggle-button' onClick={onToggle}>{useRichEditor ? 'Rich' : 'Plain'}</button>
-  ),
-}));
+    ),
+  })
+);
 
 vi.mock('@/components/workflow/handles/WhiteBallHandle', () => ({
   default: () => <div data-testid='white-handle' />,
@@ -144,7 +200,9 @@ describe('JsonBlockNode - 索引管理', () => {
   let mockHandleAddIndex: any;
   let mockHandleRemoveIndex: any;
 
-  const createMockNode = (overrides: Partial<any> = {}): Node<JsonNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<any> = {}
+  ): Node<JsonNodeData> => ({
     id: 'test-json-indexing',
     type: 'json',
     position: { x: 0, y: 0 },
@@ -163,7 +221,9 @@ describe('JsonBlockNode - 索引管理', () => {
     },
   });
 
-  const createVectorIndexItem = (status: string = 'processing'): VectorIndexingItem => ({
+  const createVectorIndexItem = (
+    status: string = 'processing'
+  ): VectorIndexingItem => ({
     type: 'vector',
     status: status as any,
     key_path: [{ id: '1', type: 'key', value: 'items' }],
@@ -299,9 +359,7 @@ describe('JsonBlockNode - 索引管理', () => {
 
       // 验证临时状态被设置为 processing
       await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalledWith(
-          expect.any(Function)
-        );
+        expect(mockSetNodes).toHaveBeenCalledWith(expect.any(Function));
       });
     });
   });
@@ -750,4 +808,3 @@ describe('JsonBlockNode - 索引管理', () => {
  * 📝 运行命令：
  *    npm run test -- JsonNodeNew.indexing.test.tsx
  */
-

@@ -6,7 +6,7 @@
  * - TC-ET-001: 修改 textContent 应正确保存到 node.data.content
  * - TC-ET-001-1: textContent 应为字符串类型
  * - TC-ET-002: 空文本内容应正确保存
- * 
+ *
  * P0 致命 - retMode 参数配置：
  * - TC-ET-003: 修改 retMode 应正确保存到 node.data.extra_configs
  * - TC-ET-003-1: retMode 应为有效的模式值
@@ -76,9 +76,14 @@ vi.mock('../../../app/components/states/AppSettingsContext', () => ({
   useAppSettings: mocks.useAppSettings,
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay', () => ({
-  default: () => <div data-testid='input-output-display'>InputOutputDisplay</div>,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/components/InputOutputDisplay',
+  () => ({
+    default: () => (
+      <div data-testid='input-output-display'>InputOutputDisplay</div>
+    ),
+  })
+);
 
 vi.mock('../../../app/utils/colors', () => ({
   UI_COLORS: {
@@ -87,9 +92,12 @@ vi.mock('../../../app/utils/colors', () => ({
   },
 }));
 
-vi.mock('../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor', () => ({
-  runSingleEdgeNode: mocks.runSingleEdgeNode,
-}));
+vi.mock(
+  '../../../app/components/workflow/edgesNode/edgeNodesNew/hook/runSingleEdgeNodeExecutor',
+  () => ({
+    runSingleEdgeNode: mocks.runSingleEdgeNode,
+  })
+);
 
 // Mock PuppyDropdown
 vi.mock('../../../app/components/misc/PuppyDropDown', () => ({
@@ -135,7 +143,9 @@ describe('EditText Edge Node - 完整测试', () => {
   let mockGetInternalNode: any;
   let mockSetEdges: any;
 
-  const createMockNode = (overrides: Partial<ModifyConfigNodeData> = {}): Node<ModifyConfigNodeData> => ({
+  const createMockNode = (
+    overrides: Partial<ModifyConfigNodeData> = {}
+  ): Node<ModifyConfigNodeData> => ({
     id: 'test-edittext-1',
     type: 'edittext',
     position: { x: 0, y: 0 },
@@ -207,7 +217,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 点击节点打开配置菜单
       const nodeButton = screen.getByText('Edit');
@@ -218,18 +235,24 @@ describe('EditText Edge Node - 完整测试', () => {
       });
 
       // 找到 Return Text textarea
-      const textarea = screen.getByPlaceholderText(/use {{}} and id to reference input content/i);
-      
+      const textarea = screen.getByPlaceholderText(
+        /use {{}} and id to reference input content/i
+      );
+
       // 输入文本内容
       fireEvent.change(textarea, { target: { value: 'Hello World' } });
 
       // 等待 requestAnimationFrame 更新
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 setNodes 被调用，并检查 content 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -246,7 +269,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode({ content: 'Initial content' });
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Edit'));
@@ -256,15 +286,21 @@ describe('EditText Edge Node - 完整测试', () => {
       });
 
       // 清空 textarea
-      const textarea = screen.getByPlaceholderText(/use {{}} and id to reference input content/i);
+      const textarea = screen.getByPlaceholderText(
+        /use {{}} and id to reference input content/i
+      );
       fireEvent.change(textarea, { target: { value: '' } });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证空字符串被保存
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -280,7 +316,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Edit'));
@@ -290,26 +333,40 @@ describe('EditText Edge Node - 完整测试', () => {
       });
 
       // 点击选择 'return first n' 模式
-      const returnFirstNOption = screen.getByTestId('dropdown-option-return first n');
+      const returnFirstNOption = screen.getByTestId(
+        'dropdown-option-return first n'
+      );
       fireEvent.click(returnFirstNOption);
 
       // 等待 requestAnimationFrame 更新
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 setNodes 被调用，并检查 retMode 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
-        expect(updatedNode?.data?.extra_configs?.retMode).toBe('return first n');
+        expect(updatedNode?.data?.extra_configs?.retMode).toBe(
+          'return first n'
+        );
       }
     });
 
     it('TC-ET-003-1: retMode 应为有效的模式值', () => {
-      const validModes = ['return all', 'return first n', 'return last n', 'exclude first n', 'exclude last n'];
-      
+      const validModes = [
+        'return all',
+        'return first n',
+        'return last n',
+        'exclude first n',
+        'exclude last n',
+      ];
+
       validModes.forEach(mode => {
         const node = createMockNode({
           extra_configs: {
@@ -340,7 +397,14 @@ describe('EditText Edge Node - 完整测试', () => {
       });
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Edit'));
@@ -351,16 +415,20 @@ describe('EditText Edge Node - 完整测试', () => {
 
       // 找到 configNum 输入框
       const configNumInput = screen.getByRole('spinbutton');
-      
+
       // 输入新的数值
       fireEvent.change(configNumInput, { target: { value: '50' } });
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
       // 验证 configNum 更新
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -390,7 +458,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       fireEvent.click(screen.getByText('Edit'));
 
@@ -398,18 +473,26 @@ describe('EditText Edge Node - 完整测试', () => {
         expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
       });
 
-      const returnFirstNOption = screen.getByTestId('dropdown-option-return first n');
+      const returnFirstNOption = screen.getByTestId(
+        'dropdown-option-return first n'
+      );
       fireEvent.click(returnFirstNOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
-        expect(updatedNode?.data?.extra_configs?.retMode).toBe('return first n');
+        expect(updatedNode?.data?.extra_configs?.retMode).toBe(
+          'return first n'
+        );
       }
     });
 
@@ -417,7 +500,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       fireEvent.click(screen.getByText('Edit'));
 
@@ -425,14 +515,20 @@ describe('EditText Edge Node - 完整测试', () => {
         expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
       });
 
-      const returnLastNOption = screen.getByTestId('dropdown-option-return last n');
+      const returnLastNOption = screen.getByTestId(
+        'dropdown-option-return last n'
+      );
       fireEvent.click(returnLastNOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
@@ -444,7 +540,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       fireEvent.click(screen.getByText('Edit'));
 
@@ -452,18 +555,26 @@ describe('EditText Edge Node - 完整测试', () => {
         expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
       });
 
-      const excludeFirstNOption = screen.getByTestId('dropdown-option-exclude first n');
+      const excludeFirstNOption = screen.getByTestId(
+        'dropdown-option-exclude first n'
+      );
       fireEvent.click(excludeFirstNOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
-        expect(updatedNode?.data?.extra_configs?.retMode).toBe('exclude first n');
+        expect(updatedNode?.data?.extra_configs?.retMode).toBe(
+          'exclude first n'
+        );
       }
     });
 
@@ -471,7 +582,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       fireEvent.click(screen.getByText('Edit'));
 
@@ -479,18 +597,26 @@ describe('EditText Edge Node - 完整测试', () => {
         expect(screen.getByTestId('puppy-dropdown')).toBeInTheDocument();
       });
 
-      const excludeLastNOption = screen.getByTestId('dropdown-option-exclude last n');
+      const excludeLastNOption = screen.getByTestId(
+        'dropdown-option-exclude last n'
+      );
       fireEvent.click(excludeLastNOption);
 
-      await waitFor(() => {
-        expect(mockSetNodes).toHaveBeenCalled();
-      }, { timeout: 3000 });
+      await waitFor(
+        () => {
+          expect(mockSetNodes).toHaveBeenCalled();
+        },
+        { timeout: 3000 }
+      );
 
-      const setNodesCall = mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
+      const setNodesCall =
+        mockSetNodes.mock.calls[mockSetNodes.mock.calls.length - 1];
       if (setNodesCall && typeof setNodesCall[0] === 'function') {
         const updatedNodes = setNodesCall[0]([node]);
         const updatedNode = updatedNodes.find((n: any) => n.id === node.id);
-        expect(updatedNode?.data?.extra_configs?.retMode).toBe('exclude last n');
+        expect(updatedNode?.data?.extra_configs?.retMode).toBe(
+          'exclude last n'
+        );
       }
     });
   });
@@ -510,7 +636,14 @@ describe('EditText Edge Node - 完整测试', () => {
       });
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Edit'));
@@ -531,7 +664,14 @@ describe('EditText Edge Node - 完整测试', () => {
       const node = createMockNode();
       mockGetNode.mockReturnValue(node);
 
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 打开配置菜单
       fireEvent.click(screen.getByText('Edit'));
@@ -574,8 +714,15 @@ describe('EditText Edge Node - 完整测试', () => {
   describe('P2: UI 交互', () => {
     it('TC-ET-008: 点击节点按钮应打开配置菜单', async () => {
       const node = createMockNode();
-      
-      render(<EditText {...node} id={node.id} data={node.data} isConnectable={true} />);
+
+      render(
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
+      );
 
       // 点击节点按钮
       const nodeButton = screen.getByText('Edit');
@@ -593,18 +740,23 @@ describe('EditText Edge Node - 完整测试', () => {
 
     it('TC-ET-008-1: 组件挂载后验证', () => {
       const node = createMockNode();
-      
+
       const { container } = render(
-        <EditText {...node} id={node.id} data={node.data} isConnectable={true} />
+        <EditText
+          {...node}
+          id={node.id}
+          data={node.data}
+          isConnectable={true}
+        />
       );
 
       // 验证组件已渲染
       expect(container).toBeInTheDocument();
-      
+
       // 验证节点按钮存在
       expect(screen.getByText('Edit')).toBeInTheDocument();
       expect(screen.getByText('Text')).toBeInTheDocument();
-      
+
       // 验证 SVG 图标存在
       const svgs = container.querySelectorAll('svg');
       expect(svgs.length).toBeGreaterThan(0);
@@ -615,4 +767,3 @@ describe('EditText Edge Node - 完整测试', () => {
     });
   });
 });
-
