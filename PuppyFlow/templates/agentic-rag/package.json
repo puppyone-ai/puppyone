@@ -11,7 +11,21 @@
             "retrieval",
             "knowledge-base",
             "vector-search"
-        ]
+        ],
+        "requirements": {
+            "embedding_models": {
+                "preferred": [
+                    "text-embedding-ada-002",
+                    "text-embedding-3-small"
+                ],
+                "compatible": [
+                    "openai/*",
+                    "ollama/all-minilm",
+                    "ollama/nomic-embed-text"
+                ],
+                "minimum_dimension": 384
+            }
+        }
     },
     "workflow": {
         "blocks": [
@@ -677,7 +691,13 @@
                 "target": {
                     "pattern": "${userId}/${blockId}/${versionId}",
                     "requires_user_scope": true,
-                    "vector_handling": "preserve_entries_only"
+                    "vector_handling": "preserve_entries_only",
+                    "embedding_model": {
+                        "model_id": "text-embedding-ada-002",
+                        "provider": "OpenAI",
+                        "dimension": 1536,
+                        "fallback_strategy": "auto"
+                    }
                 }
             }
         ]

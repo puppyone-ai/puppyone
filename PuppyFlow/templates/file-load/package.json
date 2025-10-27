@@ -11,7 +11,10 @@
             "pdf",
             "parsing",
             "demo"
-        ]
+        ],
+        "requirements": {
+            "embedding_models": null
+        }
     },
     "workflow": {
         "blocks": [

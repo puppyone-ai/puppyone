@@ -11,7 +11,10 @@
             "blog",
             "content-generation",
             "google-search"
-        ]
+        ],
+        "requirements": {
+            "embedding_models": null
+        }
     },
     "workflow": {
         "blocks": [

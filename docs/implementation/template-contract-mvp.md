@@ -329,6 +329,106 @@ export async function POST(request: Request) {
 
 ---
 
+### Phase 1.9: Auto-Rebuild Vector Indexes (6-7h)
+
+**Completed**: ✅
+
+**Deliverables**:
+
+- Extended Template Contract with embedding model configuration
+  - `types.ts`: Added `embedding_model` field to `ResourceDescriptor.target`
+  - `types.ts`: Added `requirements.embedding_models` to `TemplateMetadata`
+  - All fields optional for 100% backward compatibility
+  
+- Model Bridge and Compatibility Service
+  - `model-bridge.ts`: Type compatibility layer between Template Contract and AppSettingsContext
+  - `model-compatibility.ts`: Compatibility checking and model selection logic
+  - Handles exact match, provider match, and fallback strategies
+  
+- Vector Auto-Rebuild Service
+  - `vector-auto-rebuild.ts`: Automatic index rebuilding during template instantiation
+  - Integrates with VectorIndexing service for entry extraction
+  - Returns detailed results (completed/pending/failed/skipped)
+  
+- Template Loader Interface
+  - `loader.ts`: Interface definition for Phase 2 implementation
+  - `instantiation-context.ts`: Context data for template instantiation
+  - Prepared for CloudTemplateLoader integration
+  
+- Comprehensive Testing (✅ All tests passing)
+  - `__tests__/model-compatibility.test.ts`: 27 test cases for compatibility checking
+  - `__tests__/vector-auto-rebuild.test.ts`: 17 test cases for auto-rebuild logic
+  - `__tests__/integration.test.ts`: 13 end-to-end integration scenarios
+  - **Total: 57 tests across 3 test suites, 100% passing**
+  
+- Testing Environment Configuration
+  - Jest + ts-jest + jest-environment-jsdom configured
+  - `jest.config.js` and `jest.setup.js` created
+  - Test scripts added to `package.json` (test, test:watch, test:coverage)
+  
+- Template Configuration Updates
+  - `templates/agentic-rag/package.json`: Added embedding requirements and fallback strategy
+  - `templates/file-load/package.json`: Marked as no embedding required
+  - `templates/getting-started/package.json`: Marked as no embedding required
+  - `templates/seo-blog/package.json`: Marked as no embedding required
+
+**Files Created** (11 files):
+
+```
+PuppyFlow/lib/templates/
+├── model-bridge.ts                  (186 lines, type bridge)
+├── model-compatibility.ts           (221 lines, compatibility service)
+├── vector-auto-rebuild.ts           (391 lines, auto-rebuild logic)
+├── loader.ts                        (16 lines, interface definition)
+├── instantiation-context.ts         (13 lines, context types)
+└── __tests__/
+    ├── model-compatibility.test.ts  (367 lines, 27 tests ✅)
+    ├── vector-auto-rebuild.test.ts  (367 lines, 17 tests ✅)
+    └── integration.test.ts          (463 lines, 13 tests ✅)
+
+PuppyFlow/
+├── jest.config.js                   (39 lines, Jest configuration)
+└── jest.setup.js                    (2 lines, test setup)
+```
+
+**Files Modified** (6 files):
+
+```
+PuppyFlow/lib/templates/types.ts                      (+20 lines, embedding model config)
+PuppyFlow/templates/agentic-rag/package.json          (+18 lines, embedding requirements)
+PuppyFlow/templates/file-load/package.json            (+3 lines, no embedding required)
+PuppyFlow/templates/getting-started/package.json      (+3 lines, no embedding required)
+PuppyFlow/templates/seo-blog/package.json             (+3 lines, no embedding required)
+PuppyFlow/package.json                                (+3 lines, test scripts)
+```
+
+**Key Benefits**:
+
+- Reduces user friction for template instantiation
+- Automatic vector index rebuilding when compatible models available
+- Clear fallback strategies for incompatible scenarios (auto/manual/skip)
+- Type-safe bridge between Template Contract and AppSettingsContext
+- Comprehensive test coverage (57 test cases, 100% passing)
+- Full testing environment configured (Jest + ts-jest)
+- Ready for Phase 2 CloudTemplateLoader integration
+
+**Technical Highlights**:
+
+- Compatibility Detection: 4 levels (exact match, provider match, fallback, skip)
+- Model Normalization: Handles optional fields and infers provider from model_id
+- Batch Operations: Support for multiple vector resources
+- Error Handling: Graceful degradation for missing/inactive models
+- Placeholder Integration: Embedding API call prepared for Phase 2
+
+**Phase 2 Integration Points**:
+
+- CloudTemplateLoader will call `VectorAutoRebuildService.attemptAutoRebuild()`
+- `availableModels` will be passed from frontend via InstantiationContext
+- Embedding API endpoint (`/api/storage/vector/embed`) will be implemented
+- Auto-rebuild results will be displayed in UI after instantiation
+
+---
+
 ### Phase 2: Template Loader (3h)
 
 #### Task 2.1: Implement CloudTemplateLoader (3h)

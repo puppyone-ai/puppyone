@@ -20,6 +20,20 @@ export interface TemplateMetadata {
   author: string;
   created_at: string;
   tags?: string[];
+
+  // Phase 1.9: Template requirements and dependencies
+  requirements?: {
+    min_engine_version?: string;
+    min_storage_version?: string;
+    required_features?: string[];
+
+    // Embedding model requirements for auto-rebuild
+    embedding_models?: {
+      preferred?: string[]; // Preferred models (by model_id)
+      compatible?: string[]; // Compatible model patterns (e.g., "openai/*", "ollama/all-minilm")
+      minimum_dimension?: number; // Minimum vector dimension required
+    };
+  };
 }
 
 export interface ResourceManifest {
@@ -61,6 +75,14 @@ export interface ResourceDescriptor {
 
     // Special handling for vector collections (preserve chunks for re-embedding)
     vector_handling?: 'preserve_chunks_only' | 'none';
+
+    // Phase 1.9: Embedding model configuration for auto-rebuild
+    embedding_model?: {
+      model_id: string; // Model identifier (e.g., "text-embedding-ada-002")
+      provider: string; // Model provider (e.g., "OpenAI", "Ollama")
+      dimension?: number; // Vector dimension (e.g., 1536)
+      fallback_strategy?: 'auto' | 'manual' | 'skip'; // What to do if model not available
+    };
   };
 }
 

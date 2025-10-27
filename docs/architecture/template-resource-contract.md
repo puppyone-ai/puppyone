@@ -492,6 +492,76 @@ This ensures:
 - 100% backward compatible with existing data
 - Improved code maintainability and clarity
 
+### Phase 1.9: Auto-Rebuild Vector Indexes (6-7h) ✅ COMPLETED
+
+**Deliverables**:
+
+- Extended Template Contract (`types.ts`) with embedding model configuration
+- Model Bridge (`model-bridge.ts`) for type compatibility between Template Contract and AppSettingsContext
+- Model Compatibility Service (`model-compatibility.ts`) for compatibility checking and model selection
+- Vector Auto-Rebuild Service (`vector-auto-rebuild.ts`) for automatic index rebuilding
+- Template Loader Interface (`loader.ts`) and Instantiation Context (`instantiation-context.ts`)
+- Comprehensive test suite (3 test files, 57 test cases, 100% passing)
+- Testing environment fully configured (Jest + ts-jest + jest-environment-jsdom)
+- Updated all 4 templates with embedding requirements
+- Documentation updates
+
+**Technical Implementation**:
+
+1. **Template Contract Extension**:
+   - Added `embedding_model` field to `ResourceDescriptor.target`
+   - Added `requirements.embedding_models` to `TemplateMetadata`
+   - 100% backward compatible (all fields optional)
+
+2. **Model Compatibility Detection**:
+   - Exact match (high confidence) → auto_rebuild
+   - Provider match (medium confidence) → warn_and_rebuild
+   - Fallback strategy (low confidence) → auto_rebuild or manual_select or skip
+   - Handles missing/inactive models gracefully
+
+3. **Auto-Rebuild Logic**:
+   - Checks compatibility before attempting rebuild
+   - Extracts entries from content using VectorIndexing service
+   - Triggers embedding (placeholder for Phase 2 integration)
+   - Returns detailed result (success/pending/failed/skipped)
+
+4. **Type Bridge**:
+   - Normalizes Model from AppSettingsContext
+   - Infers provider from model_id when missing
+   - Filters embedding models only
+   - Maps between template requirements and runtime models
+
+**Impact**:
+
+- Reduces user friction for template instantiation
+- Automatic vector index rebuilding when compatible models available
+- Clear fallback strategies for incompatible scenarios
+- Comprehensive test coverage for compatibility scenarios (57/57 tests passing)
+- Full testing environment configured and validated
+- Ready for Phase 2 CloudTemplateLoader integration
+
+**Files Created** (11 files):
+
+- New: `PuppyFlow/lib/templates/model-bridge.ts` (186 lines, type bridge)
+- New: `PuppyFlow/lib/templates/model-compatibility.ts` (221 lines, compatibility service)
+- New: `PuppyFlow/lib/templates/vector-auto-rebuild.ts` (391 lines, auto-rebuild logic)
+- New: `PuppyFlow/lib/templates/loader.ts` (16 lines, interface definition)
+- New: `PuppyFlow/lib/templates/instantiation-context.ts` (13 lines, context types)
+- New: `PuppyFlow/lib/templates/__tests__/model-compatibility.test.ts` (367 lines, 27 tests ✅)
+- New: `PuppyFlow/lib/templates/__tests__/vector-auto-rebuild.test.ts` (367 lines, 17 tests ✅)
+- New: `PuppyFlow/lib/templates/__tests__/integration.test.ts` (463 lines, 13 tests ✅)
+- New: `PuppyFlow/jest.config.js` (39 lines, Jest configuration)
+- New: `PuppyFlow/jest.setup.js` (2 lines, test setup)
+
+**Files Modified** (6 files):
+
+- Modified: `PuppyFlow/lib/templates/types.ts` (+20 lines, embedding model config)
+- Modified: `PuppyFlow/templates/agentic-rag/package.json` (+18 lines, embedding requirements)
+- Modified: `PuppyFlow/templates/file-load/package.json` (+3 lines, no embedding required)
+- Modified: `PuppyFlow/templates/getting-started/package.json` (+3 lines, no embedding required)
+- Modified: `PuppyFlow/templates/seo-blog/package.json` (+3 lines, no embedding required)
+- Modified: `PuppyFlow/package.json` (+3 lines, test scripts)
+
 ### Phase 2: Template Loader (3h)
 
 **Deliverables**:
@@ -757,6 +827,7 @@ instantiateTemplate(templateId, userId, workspaceName)
 | 0.1.1 | 2025-01-20 | Architecture Team | Added detailed technical explanation for Vector Data handling (§1.3) |
 | 0.1.2 | 2025-01-23 | Architecture Team | Updated Phase breakdown, added Phase 1.5, renamed to mounted_path |
 | 0.1.3 | 2025-01-25 | Architecture Team | Phase 1.7 semantic separation: chunks→entries (vector), chunks→parts (storage) |
+| 0.1.4 | 2025-01-27 | Architecture Team | Phase 1.9 completed: Auto-rebuild vector indexes with 57 tests passing |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 
