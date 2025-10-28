@@ -427,6 +427,20 @@ PuppyFlow/package.json                                (+3 lines, test scripts)
 - Embedding API endpoint (`/api/storage/vector/embed`) will be implemented
 - Auto-rebuild results will be displayed in UI after instantiation
 
+**Testing Framework Note**:
+
+Phase 1.9 currently uses **Jest + ts-jest + jsdom** for testing. The team is implementing a unified **Vitest** framework for frontend testing. Migration is planned after Phase 2-3 completion to:
+
+- Unify testing strategy across the codebase
+- Leverage Vitest's performance benefits (2-5x faster)
+- Minimize disruption during active Phase 2 development
+
+**Migration Plan** (Post Phase 2-3):
+- ✅ Tests are API-compatible (0 code changes needed)
+- ✅ Estimated migration time: 2-3 hours
+- ✅ Expected performance gain: 2-5x faster execution
+- 📋 Will migrate alongside other test suites for consistency
+
 ---
 
 ### Phase 2: Template Loader (3h)
@@ -601,6 +615,13 @@ PuppyFlow/app/components/blankworkspace/templete/*.json
 
 ## Testing Checklist
 
+### Phase 1.9 Tests ✅
+- [x] 57 unit and integration tests passing (Jest)
+- [x] Model compatibility detection working
+- [x] Vector auto-rebuild logic validated
+- [x] Type bridge between Template Contract and AppSettingsContext verified
+
+### Phase 2-3 Integration Tests (Planned)
 - [ ] All TypeScript interfaces compile without errors
 - [ ] Storage copy API works for both S3 and local
 - [ ] Template loads from Git successfully
@@ -609,6 +630,12 @@ PuppyFlow/app/components/blankworkspace/templete/*.json
 - [ ] Frontend creates workspace successfully
 - [ ] All 4 templates execute workflows without auth errors
 - [ ] No regressions in existing workspace operations
+
+### Post Phase 2-3: Vitest Migration
+- [ ] Migrate Jest tests to Vitest (2-3h)
+- [ ] Verify all 57+ tests pass under Vitest
+- [ ] Update CI/CD pipeline for Vitest
+- [ ] Document performance improvements
 
 ---
 
@@ -639,6 +666,10 @@ If critical issues arise:
 2. Document any technical debt or workarounds
 3. Gather user feedback on template experience
 4. Plan workspace divergence cleanup (separate effort)
+5. **Migrate Phase 1.9 tests from Jest to Vitest** (2-3h, after team Vitest framework is ready)
+   - Coordinate with frontend team on unified testing strategy
+   - Verify all 57 tests pass under Vitest
+   - Update documentation and CI/CD configuration
 
 ---
 
