@@ -1,7 +1,7 @@
 # Template Resource Contract - Architecture Design Document
 
 > **Status**: Draft  
-> **Created**: 2025-01-20  
+> **Created**: 2025-10-20  
 > **Author**: Architecture Team  
 > **Type**: Architecture Decision Record (ADR)
 

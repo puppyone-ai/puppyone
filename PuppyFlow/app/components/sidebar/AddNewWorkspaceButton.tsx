@@ -18,7 +18,7 @@ function AddNewWorkspaceButton() {
     workspaces,
   } = useWorkspaces();
   const { switchToWorkspace } = useDisplaySwitch();
-  const { planLimits } = useAppSettings();
+  const { planLimits, availableModels } = useAppSettings();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const isWorkspaceLimitReached =
@@ -74,6 +74,103 @@ function AddNewWorkspaceButton() {
       }
     } catch (error) {
       console.error('Failed to create workspace:', error);
+    }
+  };
+
+  const createWorkspaceFromTemplate = async (
+    templateId: string,
+    workspaceName: string
+  ) => {
+    if (isWorkspaceLimitReached) return;
+
+    try {
+      // Call new instantiation API (server will generate workspace ID)
+      const response = await fetch('/api/workspace/instantiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          templateId,
+          workspaceName,
+          availableModels,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to instantiate template');
+      }
+
+      const result = await response.json();
+
+      if (result?.success && result?.workspace_id) {
+        const workspaceId = result.workspace_id;
+
+        console.log(
+          `[AddNewWorkspaceButton] ✅ API returned success. Workspace ID: ${workspaceId}`,
+          { result }
+        );
+
+        // Create optimistic workspace with server-generated ID
+        const optimistic = createEmptyWorkspace(workspaceId, workspaceName);
+        console.log(
+          `[AddNewWorkspaceButton] 📦 Created optimistic workspace:`,
+          optimistic
+        );
+
+        addWorkspace(optimistic);
+
+        console.log(
+          `[AddNewWorkspaceButton] 🔄 Fetching workspace content from database...`
+        );
+
+        // Fetch workspace content from database
+        const switchResult = await workspaceManagement.switchToWorkspace(
+          workspaceId,
+          optimistic
+        );
+
+        if (switchResult.success && switchResult.content) {
+          console.log(
+            `[AddNewWorkspaceButton] ✅ Fetched content with ${switchResult.content.blocks?.length || 0} blocks`
+          );
+
+          // Update workspace with actual content
+          updateWorkspace(workspaceId, {
+            content: switchResult.content,
+            pullFromDatabase: true,
+            pushToDatabase: false,
+          });
+        } else {
+          console.error(
+            `[AddNewWorkspaceButton] ❌ Failed to fetch content:`,
+            switchResult.error
+          );
+        }
+
+        // Switch UI to show the new workspace
+        setShowingItem({
+          type: 'workspace',
+          id: workspaceId,
+          name: workspaceName,
+        });
+        switchToWorkspace();
+
+        console.log(
+          `[AddNewWorkspaceButton] ✅ Successfully instantiated template ${templateId} as workspace ${workspaceId}`
+        );
+      } else {
+        console.error(
+          `[AddNewWorkspaceButton] ❌ API response missing success or workspace_id:`,
+          result
+        );
+      }
+    } catch (error) {
+      console.error(
+        '[AddNewWorkspaceButton] Failed to instantiate template:',
+        error
+      );
+      // TODO: Show error message to user
     }
   };
 
@@ -146,6 +243,7 @@ function AddNewWorkspaceButton() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onCreateWorkspace={createNewWorkspace}
+        onCreateWorkspaceFromTemplate={createWorkspaceFromTemplate}
         workspaceTemplates={workspaceTemplates as any}
       />
     </div>

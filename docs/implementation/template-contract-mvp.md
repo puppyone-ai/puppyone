@@ -436,6 +436,7 @@ Phase 1.9 currently uses **Jest + ts-jest + jsdom** for testing. The team is imp
 - Minimize disruption during active Phase 2 development
 
 **Migration Plan** (Post Phase 2-3):
+
 - ✅ Tests are API-compatible (0 code changes needed)
 - ✅ Estimated migration time: 2-3 hours
 - ✅ Expected performance gain: 2-5x faster execution
@@ -616,12 +617,14 @@ PuppyFlow/app/components/blankworkspace/templete/*.json
 ## Testing Checklist
 
 ### Phase 1.9 Tests ✅
+
 - [x] 57 unit and integration tests passing (Jest)
 - [x] Model compatibility detection working
 - [x] Vector auto-rebuild logic validated
 - [x] Type bridge between Template Contract and AppSettingsContext verified
 
 ### Phase 2-3 Integration Tests (Planned)
+
 - [ ] All TypeScript interfaces compile without errors
 - [ ] Storage copy API works for both S3 and local
 - [ ] Template loads from Git successfully
@@ -632,6 +635,7 @@ PuppyFlow/app/components/blankworkspace/templete/*.json
 - [ ] No regressions in existing workspace operations
 
 ### Post Phase 2-3: Vitest Migration
+
 - [ ] Migrate Jest tests to Vitest (2-3h)
 - [ ] Verify all 57+ tests pass under Vitest
 - [ ] Update CI/CD pipeline for Vitest

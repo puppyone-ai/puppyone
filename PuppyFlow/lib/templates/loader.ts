@@ -104,7 +104,6 @@ export const DEFAULT_LOADER_CONFIG: TemplateLoaderConfig = {
  * Template Loader Factory
  *
  * Creates a template loader instance based on deployment type.
- * Will be implemented in Phase 2.
  */
 export class TemplateLoaderFactory {
   /**
@@ -114,9 +113,9 @@ export class TemplateLoaderFactory {
    * @returns Template loader instance
    */
   static create(config?: Partial<TemplateLoaderConfig>): TemplateLoader {
-    // Phase 2: Implement CloudTemplateLoader
-    throw new Error(
-      'TemplateLoaderFactory.create() not implemented yet. Will be completed in Phase 2.'
-    );
+    // Phase 2: CloudTemplateLoader implementation
+    const { CloudTemplateLoader } = require('./cloud');
+    const mergedConfig = { ...DEFAULT_LOADER_CONFIG, ...config };
+    return new CloudTemplateLoader(mergedConfig);
   }
 }
