@@ -833,7 +833,8 @@ python3 merge_workflow.py
 
 **Discovery Date**: 2025-10-30 (during template verification)
 
-**Symptoms**: 
+**Symptoms**:
+
 - `seo-blog` had only 2 blocks instead of 22
 - `file-load` had only 1 block instead of 7
 - Other templates seemed incomplete or incorrect
@@ -873,6 +874,7 @@ pkg['workflow'] = seo_source  # Replace workflow only
 ```
 
 **Files Modified**:
+
 - `templates/seo-blog/package.json` (workflow replaced: 2→22 blocks)
 - `templates/file-load/package.json` (workflow replaced: 1→7 blocks)
 
@@ -936,6 +938,7 @@ Phase 2 focused on **getting-started template** (no resources) as MVP validation
 **Location**: `PuppyFlow/lib/templates/cloud.ts:427-466`
 
 **Current Behavior**:
+
 ```typescript
 // Partitioning works ✅
 const parts = PartitioningService.partition(content, contentType);
@@ -948,12 +951,14 @@ for (const part of parts) {
 ```
 
 **Impact**:
+
 - ✅ Templates with resources will **not crash**
 - ✅ Partitioning logic **executes correctly**
 - ❌ Resources **not uploaded** to PuppyStorage
 - ❌ Subsequent resource access will **404**
 
 **Phase 3 Implementation**:
+
 - Call `/api/storage/upload/chunk/direct` (already exists in frontend)
 - Upload each part with proper auth headers
 - Upload manifest JSON
@@ -966,6 +971,7 @@ for (const part of parts) {
 **Location**: `PuppyFlow/lib/templates/cloud.ts:399-416`
 
 **Current Behavior**:
+
 ```typescript
 private async processFile(...) {
   // TODO: Implement file resource handling
@@ -974,10 +980,12 @@ private async processFile(...) {
 ```
 
 **Impact**:
+
 - ❌ **file-load template** cannot fully instantiate (has 1 PDF file resource)
 - ✅ Other resource types (external_storage, vector_collection) will process (but not upload)
 
 **Phase 3 Implementation**:
+
 - Copy file from template namespace to user namespace
 - Update block reference with new file key
 - ~1 hour of work
@@ -989,14 +997,17 @@ private async processFile(...) {
 **Location**: Phase 1.9 marked for Phase 2, deferred to Phase 3
 
 **Current Behavior**:
+
 - Vector auto-rebuild logic exists in `VectorAutoRebuildService` ✅
 - `/api/storage/vector/embed` endpoint **does not exist** ❌
 
 **Impact**:
+
 - ❌ **agentic-rag template** cannot rebuild vector index (has 1 vector_collection)
 - ✅ Template will instantiate workflow structure correctly
 
 **Phase 3 Implementation**:
+
 - Create `/api/storage/vector/embed` endpoint
 - Proxy to PuppyStorage embedding service
 - ~1-2 hours of work
@@ -1028,6 +1039,7 @@ private async processFile(...) {
 | **file-load** | ✅ 7 blocks | ⚠️ 3 (1 file + 2 ext) | ⚠️ Placeholder | Needs file + upload |
 
 **Legend**:
+
 - ✅ Fully working
 - ⚠️ Placeholder - will not crash, but resources won't upload
 - ext = external_storage
