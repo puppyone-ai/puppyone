@@ -19,31 +19,50 @@
     "workflow": {
         "blocks": [
             {
-                "id": "yboH7_",
+                "id": "WIQTLu",
                 "position": {
-                    "x": -1568,
-                    "y": -112
+                    "x": -144,
+                    "y": 320
                 },
                 "data": {
-                    "content": "How recruit agents can change human resources?",
-                    "label": "yboH7_",
+                    "content": "{\n  \"final_topic\": \"How recruit agents can change human resources?\",\n  \"original_queries\": [\n    \"interview saas\",\n    \"recruit agent\",\n    \"AI matching\"\n  ],\n  \"rewritten_queries\": [\n    \"AI recruiting agents transforming HR workflows and talent acquisition 2025\",\n    \"best interview SaaS platforms for automated screening, scheduling, and assessments\",\n    \"AI candidate-job matching for HR: skills-based matching, bias reduction, and ROI\"\n  ]\n}",
+                    "label": "WIQTLu",
                     "isLoading": false,
                     "locked": false,
-                    "isInput": true,
+                    "isInput": false,
                     "isOutput": false,
                     "editable": false,
                     "dirty": false,
-                    "savingStatus": "saved"
+                    "savingStatus": "saved",
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "structured",
+                    "storage_class": "internal",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/WIQTLu/20250922-071108880220-6a402c45",
+                        "content_type": "structured",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-22T07:11:12.596026",
+                        "version_id": "20250922-071108880220-6a402c45",
+                        "totalChunks": 1,
+                        "loadedChunks": 1,
+                        "totalRecords": 1,
+                        "parsedRecords": 1,
+                        "parseErrors": 0
+                    },
+                    "groupIds": [
+                        "KabxFb"
+                    ]
                 },
-                "type": "text",
-                "width": 336,
-                "height": 208,
+                "type": "structured",
+                "width": 736,
+                "height": 432,
                 "style": {
-                    "zIndex": 1293
+                    "zIndex": 1209
                 },
+                "resizing": false,
                 "selected": false,
-                "dragging": false,
-                "resizing": false
+                "dragging": false
             },
             {
                 "id": "S16BdO",
@@ -71,9 +90,938 @@
                     "zIndex": 1294
                 },
                 "resizing": false
+            },
+            {
+                "id": "NLO9_v",
+                "type": "llmnew",
+                "position": {
+                    "x": -592,
+                    "y": 512
+                },
+                "data": {
+                    "sourceNodeId": "S16BdO",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "llm",
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI that search on Google and generate seo blogs"
+                        },
+                        {
+                            "role": "user",
+                            "content": "you need to rewrite those query: {{S16BdO}} those queries are used for google search. The finial topic of the SEO blog is like this: {{yboH7_}}, Here is an example, and you should follow this templete in this format: {{HtJmZC}}"
+                        }
+                    ],
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "base_url": "",
+                    "structured_output": true,
+                    "max_tokens": 4096
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1028
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "yboH7_",
+                "position": {
+                    "x": -1568,
+                    "y": -112
+                },
+                "data": {
+                    "content": "How recruit agents can change human resources?",
+                    "label": "yboH7_",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "type": "text",
+                "width": 336,
+                "height": 208,
+                "style": {
+                    "zIndex": 1293
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "HtJmZC",
+                "position": {
+                    "x": -864,
+                    "y": 624
+                },
+                "data": {
+                    "content": "{\n  \"final_topic\": \"Top 5 AI CRM SaaS products\",\n  \"original_queries\": [\n    \"AI agent\",\n    \"RAG\",\n    \"Context engineering\"\n  ],\n  \"rewritten_queries\": [\n    \"top 5 CRM SaaS products 2025 with Agentic AI\",\n    \"How context engineering can change CRM\",\n    \"best AI CRM for SMB vs enterprise 2025\"\n  ]\n}",
+                    "label": "HtJmZC",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": true,
+                    "isOutput": false,
+                    "editable": false,
+                    "dirty": false,
+                    "savingStatus": "saved",
+                    "groupIds": [
+                        "KabxFb"
+                    ]
+                },
+                "type": "structured",
+                "width": 624,
+                "height": 352,
+                "style": {
+                    "zIndex": 1208
+                },
+                "resizing": false,
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "6hCi4c",
+                "type": "editStructured",
+                "position": {
+                    "x": 672,
+                    "y": 512
+                },
+                "data": {
+                    "sourceNodeId": "WIQTLu",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "edit-structured",
+                    "type": "get",
+                    "getConfigData": [
+                        {
+                            "key": "key",
+                            "value": "rewritten_queries"
+                        }
+                    ],
+                    "paramv": "",
+                    "resultNode": "-a2PEl"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1062
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "-a2PEl",
+                "position": {
+                    "x": 832,
+                    "y": 368
+                },
+                "data": {
+                    "content": "[\n  \"AI recruiting agents transforming HR workflows and talent acquisition 2025\",\n  \"best interview SaaS platforms for automated screening, scheduling, and assessments\",\n  \"AI candidate-job matching for HR: skills-based matching, bias reduction, and ROI\"\n]",
+                    "label": "-a2PEl",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "structured",
+                    "groupIds": [
+                        "KabxFb"
+                    ]
+                },
+                "width": 576,
+                "height": 336,
+                "type": "structured",
+                "style": {
+                    "zIndex": 1288
+                },
+                "resizing": false,
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "rhXts0",
+                "type": "editStructured",
+                "position": {
+                    "x": 1648,
+                    "y": 320
+                },
+                "data": {
+                    "sourceNodeId": "-a2PEl",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "edit-structured",
+                    "type": "get",
+                    "getConfigData": [
+                        {
+                            "key": "num",
+                            "value": "0"
+                        }
+                    ],
+                    "paramv": "",
+                    "resultNode": "eoVbAT"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1036
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "eoVbAT",
+                "position": {
+                    "x": 1824,
+                    "y": 256
+                },
+                "data": {
+                    "content": "AI recruiting agents transforming HR workflows and talent acquisition 2025",
+                    "label": "eoVbAT",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "text",
+                    "groupIds": [
+                        "KabxFb"
+                    ]
+                },
+                "width": 240,
+                "height": 176,
+                "type": "text",
+                "style": {
+                    "zIndex": 1070
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "qmEYld",
+                "type": "editStructured",
+                "position": {
+                    "x": 1648,
+                    "y": 512
+                },
+                "data": {
+                    "sourceNodeId": "-a2PEl",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "edit-structured",
+                    "type": "get",
+                    "getConfigData": [
+                        {
+                            "key": "num",
+                            "value": "1"
+                        }
+                    ],
+                    "paramv": "",
+                    "resultNode": "L66Gq_"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1037
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "L66Gq_",
+                "position": {
+                    "x": 1824,
+                    "y": 448
+                },
+                "data": {
+                    "content": "best interview SaaS platforms for automated screening, scheduling, and assessments",
+                    "label": "L66Gq_",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "text",
+                    "groupIds": [
+                        "KabxFb"
+                    ]
+                },
+                "width": 240,
+                "height": 176,
+                "type": "text",
+                "style": {
+                    "zIndex": 1140
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "jbBN0O",
+                "type": "editStructured",
+                "position": {
+                    "x": 1648,
+                    "y": 704
+                },
+                "data": {
+                    "sourceNodeId": "-a2PEl",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "edit-structured",
+                    "type": "get",
+                    "getConfigData": [
+                        {
+                            "key": "num",
+                            "value": "2"
+                        }
+                    ],
+                    "paramv": "",
+                    "resultNode": "LJTFfH"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1064
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "LJTFfH",
+                "position": {
+                    "x": 1824,
+                    "y": 640
+                },
+                "data": {
+                    "content": "AI candidate-job matching for HR skills-based matching, bias reduction, and ROI",
+                    "label": "LJTFfH",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": false,
+                    "semantic_type": "text",
+                    "groupIds": [
+                        "KabxFb"
+                    ],
+                    "dirty": false,
+                    "savingStatus": "saved"
+                },
+                "width": 240,
+                "height": 176,
+                "type": "text",
+                "style": {
+                    "zIndex": 1221
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "K1jyC7",
+                "type": "searchGoogle",
+                "position": {
+                    "x": 2176,
+                    "y": 320
+                },
+                "data": {
+                    "sourceNodeId": "eoVbAT",
+                    "sourceNodeType": "text",
+                    "subMenuType": "google",
+                    "top_k": 1,
+                    "resultNode": "x9_unS"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1141
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "gGAZxW",
+                "type": "searchGoogle",
+                "position": {
+                    "x": 2176,
+                    "y": 512
+                },
+                "data": {
+                    "sourceNodeId": "L66Gq_",
+                    "sourceNodeType": "text",
+                    "subMenuType": "google",
+                    "top_k": 1,
+                    "resultNode": "GyCLUb"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1223
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "WQCjyr",
+                "type": "searchGoogle",
+                "position": {
+                    "x": 2176,
+                    "y": 704
+                },
+                "data": {
+                    "sourceNodeId": "LJTFfH",
+                    "sourceNodeType": "text",
+                    "subMenuType": "google",
+                    "top_k": 1,
+                    "resultNode": "Nw92iI"
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1233
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "x9_unS",
+                "position": {
+                    "x": 2336,
+                    "y": 256
+                },
+                "data": {
+                    "content": "[\n  {\n    \"kind\": \"customsearch#result\",\n    \"title\": \"AI in Talent Acquisition | IBM\",\n    \"htmlTitle\": \"<b>AI</b> in <b>Talent Acquisition</b> | IBM\",\n    \"link\": \"https://www.ibm.com/think/topics/ai-talent-acquisition\",\n    \"displayLink\": \"www.ibm.com\",\n    \"snippet\": \"AI in talent acquisition refers to the use of artificial intelligence in sourcing and hiring new employees. Executives in the human resources and talent\u00a0...\",\n    \"htmlSnippet\": \"<b>AI</b> in <b>talent acquisition</b> refers to the use of <b>artificial intelligence</b> in sourcing and <b>hiring</b> new employees. Executives in the <b>human resources</b> and talent&nbsp;...\",\n    \"formattedUrl\": \"https://www.ibm.com/think/topics/ai-talent-acquisition\",\n    \"htmlFormattedUrl\": \"https://www.ibm.com/think/topics/<b>ai</b>-<b>talent</b>-<b>acquisition</b>\",\n    \"pagemap\": {\n      \"cse_thumbnail\": [\n        {\n          \"src\": \"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQQWT26HnySz2hyibj9NRS48-V7uRqXzw6BY_q6Gtq7fZSsdOGDNxYQmrJ1&s\",\n          \"width\": \"275\",\n          \"height\": \"183\"\n        }\n      ],\n      \"metatags\": [\n        {\n          \"template\": \"article\",\n          \"og:image\": \"https://www.ibm.com/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/31/65/hv6b4659.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg\",\n          \"ibm.com.search.appid\": \"thinkhub\",\n          \"ibm.search.facet.field_hierarchy_01\": \"taxonomy : Topics / Business operations / Talent management / Talent acquisition\",\n          \"og:type\": \"website\",\n          \"ibm.search.facet.field_keyword_09\": \"https://prod-cloud-publish.aem.ibm.net/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/31/65/hv6b4659.component.crop-thumbnail-16-by-9-retina.ts=0.jpg/content/adobe-cms/us/en/think/topics/ai-talent-acquisition/jcr:content/root/leadspace_container/leadspace_article\",\n          \"ibm.search.facet.field_hierarchy_03\": \"taxonomy : Content Format / Article\",\n          \"countrycode\": \"us\",\n          \"ibm.search.facet.field_hierarchy_04\": \"taxonomy : Content Type / Explainer\",\n          \"og:title\": \"AI in Talent Acquisition | IBM\",\n          \"ibm.search.facet.field_text_01\": \"19 August 2024\",\n          \"dcterms.date\": \"2024-08-19T00:00:00.000\",\n          \"og:description\": \"AI in talent acquisition refers to the use of artificial intelligence in sourcing and hiring new employees.\",\n          \"searchtitle\": \"AI in Talent Acquisition\",\n          \"ibm.search.facet.field_text_03\": \"Explainer\",\n          \"languagecode\": \"en\",\n          \"ibm.com.search.scopes\": \"thinkhub\",\n          \"viewport\": \"width=device-width, initial-scale=1\",\n          \"og:locale\": \"en-US\",\n          \"sitesection\": \"null\",\n          \"ibm.search.facet.field_keyword_01\": \"Talent acquisition\",\n          \"og:url\": \"https://www.ibm.com/think/topics/ai-talent-acquisition\",\n          \"focusarea\": \"Consulting - All\"\n        }\n      ],\n      \"cse_image\": [\n        {\n          \"src\": \"https://www.ibm.com/content/dam/connectedassets-adobe-cms/worldwide-content/stock-assets/getty/image/photography/31/65/hv6b4659.jpg/_jcr_content/renditions/cq5dam.web.1280.1280.jpeg\"\n        }\n      ]\n    },\n    \"content\": \"It can be costly to recruit and hire new candidates. AI can streamline many manual processes in the talent acquisition process. By automatically scheduling appointments based on candidates availability and scanning resumes for key expertise, fewer HR representatives need to work on heavily manual tasks. Instead, they can focus on higher value tasks. For example, AI can schedule interviews based on available time, saving HR professionals from having to check their calendars and find the appropriate time to interview candidates.\"\n  }\n]",
+                    "label": "x9_unS",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/x9_unS/20250922-073433933341-77d65891",
+                        "content_type": "structured",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-22T07:34:37.369237",
+                        "version_id": "20250922-073433933341-77d65891",
+                        "totalChunks": 1,
+                        "loadedChunks": 1,
+                        "totalRecords": 1,
+                        "parsedRecords": 1,
+                        "parseErrors": 0
+                    },
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "structured",
+                    "groupIds": [
+                        "KabxFb"
+                    ]
+                },
+                "width": 720,
+                "height": 176,
+                "type": "structured",
+                "style": {
+                    "zIndex": 1228
+                },
+                "resizing": false
+            },
+            {
+                "id": "GyCLUb",
+                "position": {
+                    "x": 2336,
+                    "y": 448
+                },
+                "data": {
+                    "content": "[\n  {\n    \"kind\": \"customsearch#result\",\n    \"title\": \"Conversational hiring software that gets work done for you - Paradox\",\n    \"htmlTitle\": \"Conversational hiring software that gets work done for you \u2014 Paradox\",\n    \"link\": \"https://www.paradox.ai/\",\n    \"displayLink\": \"www.paradox.ai\",\n    \"snippet\": \"We believe every great hire starts with hello. Our conversational software automates recruiting tasks like screening, interview scheduling, and onboarding\u00a0...\",\n    \"htmlSnippet\": \"We believe every <b>great</b> hire starts with hello. Our conversational software automates recruiting tasks like <b>screening</b>, <b>interview scheduling</b>, and onboarding&nbsp;...\",\n    \"formattedUrl\": \"https://www.paradox.ai/\",\n    \"htmlFormattedUrl\": \"https://www.paradox.ai/\",\n    \"pagemap\": {\n      \"cse_thumbnail\": [\n        {\n          \"src\": \"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSI6zGC5v4YO3gvhKZMKO0CGVTRagLXDYQlu9JT0pMbKLdszRsirsErVV4&s\",\n          \"width\": \"318\",\n          \"height\": \"159\"\n        }\n      ],\n      \"metatags\": [\n        {\n          \"og:image\": \"https://cdn.prod.website-files.com/611dc730a416cbf8f5934ebc/656fa2fa7219a492bbd2eff4_Open%20Graph-Home-1200x600.webp\",\n          \"referrer\": \"origin\",\n          \"twitter:title\": \"Conversational hiring software that gets work done for you \u2014 Paradox\",\n          \"og:type\": \"website\",\n          \"twitter:card\": \"summary_large_image\",\n          \"viewport\": \"width=device-width, initial-scale=1\",\n          \"twitter:description\": \"We believe every great hire starts with hello. Our conversational software automates recruiting tasks like screening, interview scheduling, and onboarding to get your candidates from hello to hired faster, and easier, than ever.\",\n          \"og:title\": \"Conversational hiring software that gets work done for you \u2014 Paradox\",\n          \"og:description\": \"We believe every great hire starts with hello. Our conversational software automates recruiting tasks like screening, interview scheduling, and onboarding to get your candidates from hello to hired faster, and easier, than ever.\",\n          \"twitter:image\": \"https://cdn.prod.website-files.com/611dc730a416cbf8f5934ebc/656fa2fa7219a492bbd2eff4_Open%20Graph-Home-1200x600.webp\",\n          \"facebook-domain-verification\": \"fg3krut3hpk1uvi07nwxsc85odljzo\"\n        }\n      ],\n      \"cse_image\": [\n        {\n          \"src\": \"https://cdn.prod.website-files.com/611dc730a416cbf8f5934ebc/656fa2fa7219a492bbd2eff4_Open%20Graph-Home-1200x600.webp\"\n        }\n      ]\n    },\n    \"content\": \"Hiring takes time. But our AI assistant Olivia gives you more of it \u2014 automating tasks so you spend more time with people, not software.\"\n  }\n]",
+                    "label": "GyCLUb",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/GyCLUb/20250922-073435435690-671e6d4e",
+                        "content_type": "structured",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-22T07:34:39.018533",
+                        "version_id": "20250922-073435435690-671e6d4e",
+                        "totalChunks": 1,
+                        "loadedChunks": 1,
+                        "totalRecords": 1,
+                        "parsedRecords": 1,
+                        "parseErrors": 0
+                    },
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "structured",
+                    "dirty": false,
+                    "savingStatus": "saved",
+                    "groupIds": [
+                        "KabxFb"
+                    ]
+                },
+                "width": 720,
+                "height": 176,
+                "type": "structured",
+                "style": {
+                    "zIndex": 1229
+                },
+                "resizing": false
+            },
+            {
+                "id": "3tGDxk",
+                "position": {
+                    "x": 3696,
+                    "y": -528
+                },
+                "data": {
+                    "content": "Title: Recruit Agents Are Rewriting HR: From Admin Heavy to Strategy First\n\nRecruiting has always been expensive and time-consuming. That\u2019s changing fast as \u201crecruit agents\u201d\u2014AI-powered tools that source, screen, schedule, and nurture candidates\u2014move into the HR stack. According to IBM\u2019s overview of AI in talent acquisition, automation can take over manual tasks like resume scanning and interview scheduling so HR teams can focus on higher-value work. And vendors like Paradox show how conversational AI can handle the back-and-forth with candidates in real time, from screening through onboarding. Roundups of leading platforms also point to measurable ROI, from faster time-to-hire to improved candidate completion rates.\n\nWhat are recruit agents?\nThink of them as AI assistants embedded across the hiring journey. They:\n- Engage candidates 24/7 via chat, answer FAQs, and screen for must-haves (Paradox)\n- Automatically schedule interviews by syncing calendars and availability (IBM)\n- Parse and match resumes to roles using context-aware, semantic search\n- Provide assessments\u2014skills, behavioral, psychometric\u2014to raise the quality of shortlists\n- Nudge candidates to complete applications and keep pipelines warm\n- Surface insights on funnel health, time-to-hire, and cost-to-hire (Transformify roundup)\n\nHow they change HR\n\n1) Speed and cost\n- IBM highlights that AI can automate scheduler tasks and resume scans, cutting the hours recruiters spend on manual work.\n- In Transformify\u2019s 2025 roundup, case studies reported materially shorter hiring cycles, such as cutting time-to-hire from months to weeks, alongside significant cost-per-hire reductions due to automated screening.\n- High-volume employers saw higher application completion rates using chat-based engagement (e.g., Paradox\u2019s assistants).\n\n2) Candidate experience at scale\n- Conversational agents meet candidates where they are\u2014mobile-first, always-on\u2014and move them forward quickly with real-time answers and instant scheduling (Paradox).\n- That responsiveness reduces drop-off and creates a more human feel than long forms and email backlogs.\n\n3) Better matching and quality-of-hire\n- Tools increasingly go beyond keyword matching, using context-aware parsing and talent graphs to find fit based on skills, potential, and values\u2014not just job titles (Transformify roundup).\n- Structured video interviews and game-based assessments can standardize evaluation while adding richer signals than a resume alone.\n\n4) Diversity, fairness, and inclusive hiring\n- Recruit agents can help mitigate bias at critical points: inclusive job descriptions, structured early-stage screening, and diversity-aware sourcing filters (Transformify roundup).\n- Fairness and explainability should be table stakes when selecting vendors, with regular audits to verify outcomes.\n\n5) Global scale and compliance\n- For distributed teams, platforms with built-in compliance checks (e.g., GDPR readiness, local labor nuances) and multilingual parsing are critical (Transformify roundup).\n- This reduces cross-border risk while widening access to talent pools.\n\nWhat changes for HR teams\n\n- From administrators to strategists: With scheduling, screening, and coordination handled by agents, recruiters can spend more time on relationship-building, employer branding, and hiring manager partnership (IBM).\n- New skills: Data literacy (understanding funnel metrics), vendor and change management, content crafting for job posts and chatbot scripts, and responsible AI oversight.\n- Governance: HR will increasingly own AI governance\u2014bias checks, data privacy controls, transparent candidate communications, and compliance with local regulations and company policy.\n\nAn adoption playbook that works\n\n- Start small: Pilot in one function or role family (Transformify). Pick a use case with clear pain points\u2014e.g., interview scheduling overload or high-volume frontline hiring.\n- Involve stakeholders early: HR, Ops, IT, Legal, and D&I leaders\u2014so data, integrations, policy, and change management are aligned.\n- Track clear KPIs:\n  - Time-to-apply, time-to-slate, time-to-offer\n  - Application completion rate\n  - Interview no-show rate\n  - Quality-of-hire proxies (e.g., 90-day retention, hiring manager satisfaction)\n  - Cost-per-hire and recruiter capacity freed\n- Iterate: Refresh workflows and prompts as the agent learns and as your roles evolve. Treat it as a continuous improvement program, not a set-and-forget deployment (Transformify).\n- Budget beyond licenses: Plan for integration fees, implementation and training, and seat-based costs that scale with growth (Transformify).\n\nChoosing the right recruit agents for your context\n\n- Match to your pain points:\n  - High-volume frontline roles: Conversational agents that screen and schedule instantly (Paradox).\n  - Consistency in evaluation: Structured video and skills-based assessments.\n  - Strategic pipelines and mobility: Talent intelligence platforms that analyze skills and potential over time.\n  - Global hiring: Tools with multilingual parsing and compliance readiness.\n- Check integration-first: Agents should plug into your ATS, calendars, and HRIS with minimal friction.\n- Prioritize fairness and transparency: Demand explainability, bias testing, and candidate-friendly disclosures.\n- Look for measurable value: Reporting and analytics should make ROI visible\u2014not just automate steps.\n\nRisks and guardrails\n\n- The \u201cimpersonal bot\u201d trap: Poorly designed outreach or rigid chat flows can alienate candidates. Keep scripts warm, short, and brand-aligned; test them with real users.\n- Hidden complexity: Underestimate integrations, change management, or data quality, and you\u2019ll miss the ROI. Invest in onboarding and continuous training.\n- Bias creep: Automation can scale biased outcomes if left unchecked. Require fairness controls and run regular outcome audits.\n- Data privacy: Ensure consent, retention limits, and secure handling across borders, especially for assessments and video data.\n\nWhat success looks like\n\nAs summarized in Transformify\u2019s analysis of AI recruiting tools:\n- Hiring cycles get markedly faster\n- Candidate pipelines stay engaged more consistently\n- Cost-per-hire declines as screening and scheduling time drops\n- Recruiters reclaim time for strategic work, improving quality-of-hire and stakeholder alignment\n\nBottom line\n\nRecruit agents don\u2019t replace recruiters\u2014they elevate them. By handing repetitive tasks to AI, you unlock time and attention for judgment-heavy work: storytelling, relationship building, and long-term workforce planning. The HR teams that win won\u2019t just buy tools; they\u2019ll design responsible, data-driven hiring systems that are faster, fairer, and more human.\n\nSources\n- IBM: AI in Talent Acquisition \u2013 https://www.ibm.com/think/topics/ai-talent-acquisition\n- Paradox: Conversational hiring software \u2013 https://www.paradox.ai/\n- Transformify: 20 Best AI Recruiting Tools to Use in 2025 \u2013 https://www.transformify.org/blog/resources/best-ai-recruiting-tools-2025",
+                    "label": "3tGDxk",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": true,
+                    "editable": false,
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/3tGDxk/20250922-073910805722-b542e347",
+                        "content_type": "text",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-22T07:39:14.494946",
+                        "version_id": "20250922-073910805722-b542e347",
+                        "totalChunks": 7,
+                        "loadedChunks": 7,
+                        "totalRecords": 0,
+                        "parsedRecords": 0,
+                        "parseErrors": 0
+                    },
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "text"
+                },
+                "type": "text",
+                "width": 752,
+                "height": 1040,
+                "style": {
+                    "zIndex": 1284
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
+            },
+            {
+                "id": "biGWa-",
+                "type": "llmnew",
+                "position": {
+                    "x": 3488,
+                    "y": -32
+                },
+                "data": {
+                    "sourceNodeId": "x9_unS",
+                    "sourceNodeType": "structured",
+                    "subMenuType": "llm",
+                    "content": [
+                        {
+                            "role": "system",
+                            "content": "You are an AI blog generator"
+                        },
+                        {
+                            "role": "user",
+                            "content": "You need to write a blog based on this topic: {{yboH7_}} according to this documents: {{x9_unS}} {{GyCLUb}} {{U9jTWc}}"
+                        }
+                    ],
+                    "modelAndProvider": {
+                        "id": "openai/gpt-5",
+                        "name": "GPT-5",
+                        "provider": "OpenAI",
+                        "isLocal": false
+                    },
+                    "base_url": "",
+                    "structured_output": false,
+                    "max_tokens": 4096
+                },
+                "width": 80,
+                "height": 48,
+                "style": {
+                    "zIndex": 1285
+                },
+                "selected": false,
+                "dragging": false
+            },
+            {
+                "id": "KabxFb",
+                "position": {
+                    "x": -992,
+                    "y": -368
+                },
+                "data": {
+                    "content": "",
+                    "label": "Blog Generate",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "backgroundColor": "rgba(143, 63, 61, 0.2)"
+                },
+                "type": "group",
+                "width": 4224,
+                "height": 1536,
+                "style": {
+                    "zIndex": -1
+                },
+                "selected": false
+            },
+            {
+                "id": "U9jTWc",
+                "position": {
+                    "x": 2336,
+                    "y": 640
+                },
+                "data": {
+                    "content": "[\n  {\n    \"kind\": \"customsearch#result\",\n    \"title\": \"20 Best AI Recruiting Tools to Use in 2025\",\n    \"htmlTitle\": \"20 Best <b>AI</b> Recruiting Tools to Use in 2025\",\n    \"link\": \"https://www.transformify.org/blog/resources/best-ai-recruiting-tools-2025\",\n    \"displayLink\": \"www.transformify.org\",\n    \"snippet\": \"Jul 31, 2025 ... Findem uses talent graphs to source candidates based on skills, values, and potential\u2014not just work history. ... AI-powered candidate-job matching.\",\n    \"htmlSnippet\": \"Jul 31, 2025 <b>...</b> Findem uses talent graphs to source candidates <b>based</b> on <b>skills</b>, values, and potential\u2014not just work history. ... <b>AI</b>-powered <b>candidate</b>-<b>job matching</b>.\",\n    \"formattedUrl\": \"https://www.transformify.org/blog/resources/best-ai-recruiting-tools-2025\",\n    \"htmlFormattedUrl\": \"https://www.transformify.org/blog/resources/best-<b>ai</b>-recruiting-tools-2025\",\n    \"pagemap\": {\n      \"cse_thumbnail\": [\n        {\n          \"src\": \"https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT8dtxf9LhegXVNRfpAG3jWbdwGmato6pGDavS8dlB1Tqx6GdvJPMj3QUw&s\",\n          \"width\": \"310\",\n          \"height\": \"163\"\n        }\n      ],\n      \"metatags\": [\n        {\n          \"msapplication-tilecolor\": \"#da532c\",\n          \"og:image\": \"https://www.transformify.org/media/cache/thumb_og_linkedin/images/blog/688b3bf60ef06361329891.jpg\",\n          \"msapplication-config\": \"/build/tfy/images/favicons/browserconfig.03e6af9f.xml\",\n          \"twitter:card\": \"summary_large_image\",\n          \"twitter:title\": \"20 Best AI Recruiting Tools to Use in 2025\",\n          \"og:type\": \"article\",\n          \"og:image:width\": \"180\",\n          \"article:published_time\": \"2025-07-31T09:48:41+00:00\",\n          \"theme-color\": \"#ffffff\",\n          \"og:site_name\": \"Transformify.org\",\n          \"og:title\": \"20 Best AI Recruiting Tools to Use in 2025\",\n          \"og:image:height\": \"110\",\n          \"title\": \"20 Best AI Recruiting Tools to Use in 2025\",\n          \"msapplication-tileimage\": \"/build/tfy/images/favicons/mstile-144x144.b0ba7000.png\",\n          \"og:description\": \"Talent acquisition is evolving fast\u2014and AI is at the heart of that transformation. Companies like Unilever are already seeing massive gains, screening 250,000+ applications using AI and cutting hiring time from four months to just four weeks. That&r\",\n          \"twitter:image\": \"https://www.transformify.org/media/cache/thumb_og_twitter/images/blog/688b3bf60ef06361329891.jpg\",\n          \"article:author\": \"Joseph Elegbua\",\n          \"twitter:site\": \"@Transformify\",\n          \"viewport\": \"width=device-width, initial-scale=1.0\",\n          \"twitter:description\": \"Talent acquisition is evolving fast\u2014and AI is at the heart of that transformation. Companies like Unilever are already seeing massive gains, screening 250,000+ applications using AI and cutting hiring time from four months to just four weeks. That&r\",\n          \"og:url\": \"https://www.transformify.org/blog/resources/best-ai-recruiting-tools-2025\"\n        }\n      ],\n      \"cse_image\": [\n        {\n          \"src\": \"https://www.transformify.org/media/cache/thumb_og_linkedin/images/blog/688b3bf60ef06361329891.jpg\"\n        }\n      ]\n    },\n    \"content\": \"Humans, Work Smarter, Not Harder Talent acquisition is evolving fast\u2014and AI is at the heart of that transformation. Companies like Unilever are already seeing massive gains , screening 250,000+ applications using AI and cutting hiring time from four months to just four weeks. That\u2019s over 50,000 hours saved. Meanwhile, high-volume employers like FedEx and Chipotle report application completion rates over 85% with Paradox\u2019s chatbot, Ava Cado. The message is clear: AI isn\u2019t just a trend\u2014it\u2019s a strategic advantage. With dozens of platforms on the market, it\u2019s critical to pick a tool that fits your goals\u2014not just your budget. Here\u2019s how to approach the decision: 1. Identify Your Hiring Pain Points Are you losing candidates to slow processes? Struggling to find diverse talent? Pinpoint what\u2019s holding you back. 2. Match Features to Your Business Scale Some tools shine in startups; others are built for enterprise teams. Choose based on your volume, workflows, and internal capacity. 3. Prioritize Fairness & Transparency Bias mitigation isn\u2019t optional in 2025. Make sure the tools you use offer explainable AI and align with compliance best practices. 4. Evaluate Analytics & ROI Tools should go beyond automation\u2014they should deliver measurable value. According to IQTalent, 73% of recruiting teams now track ROI metrics to guide hiring decisions. Here\u2019s a breakdown of the best recruting tools transforming hiring this year: 1. TFY\u00a0\u2013 Best AI Recruiting Tool for Global, Compliant Hiring TFY\u00a0is more than just an ATS\u2014it\u2019s a\u00a0complete ai powered applicant tracking system built for companies hiring across borders. Its AI sourcing engine analyzes role requirements, scans global talent pools, and recommends candidates with the right skills, experience, and compliance readiness. Predictive analytics forecast time-to-hire and cost-per-hire, giving HR leaders real-time control over recruitment KPIs. With\u00a0seamless job board integration\u00a0across 184+ countries, automated offer letter generation, and compliance checks aligned with local labor laws, TFY minimizes the risk of cross-border hiring errors. It\u2019s especially valuable for companies hiring remotely in multiple countries, where payroll compliance and GDPR adherence are non-negotiable. Standout Features AI-driven global talent matching Predictive hiring analytics & KPI tracking Automated, compliance-ready offer letters Diversity hiring dashboards Pros Built-in compliance for global hiring Strong diversity & inclusion analytics Wide international job board integrations 2. PerformYard \u2013 Best AI Tool for Performance Feedback that Improves Hiring Quality PerformYard brings AI into performance management, giving HR and talent leaders the data they need to continuously improve hiring quality. By analyzing feedback, reviews, and goal progress, the platform reveals which roles, competencies, and interview signals correlate with top performers. This transforms performance insights into a strategic advantage for future recruiting. Standout Features AI-assisted review writing and instant performance summaries Goal tracking with cascaded, role-aligned competencies 360\u00b0 feedback and lightweight check-ins that feed hiring analytics Calibration tools to standardize ratings and interview scorecards Pros Converts performance data into actionable\u00a0quality-of-hire\u00a0insights Speeds up reviews while improving feedback consistency and fairness Helps recruiting leaders refine competencies and interview guides Strong user satisfaction and quick rollout for mid-market teams Cons Not a candidate sourcing tool\u2014best as a\u00a0companion\u00a0to your ATS/CRM Works best when your org commits to regular check-ins and clear goals 3. Paradox (Olivia) \u2013 Best AI Recruiting Tool for High-Volume Hiring Paradox\u2019s Olivia is like having an\u00a0AI recruiter on-call 24/7. Using conversational AI, Olivia engages candidates instantly, answers FAQs, screens qualifications, and schedules interviews\u2014without human intervention. Olivia integrates with your existing ATS and calendar tools, making it possible to coordinate hundreds of interviews per week without logistical headaches. The conversational AI keeps candidate interactions\u00a0warm, personalized, and human-like, even at scale. Standout Features AI chatbot for screening & scheduling Real-time candidate responses Mobile-friendly recruiting Pros Drastically reduces recruiter admin time Works especially well for retail, hospitality, and seasonal hiring Always-on candidate engagement Cons Limited for deep candidate evaluation Works best when paired with a traditional ATS 4. HireVue \u2013 Best AI Recruiting Tool for Structured Video Assessments HireVue brings consistency to high-scale hiring with\u00a0AI-powered video interviewing and skill-based assessments. It evaluates both content and delivery\u2014looking at tone, choice of words, and behavioral indicators. The platform helps large organizations make faster, fairer hiring decisions while integrating with HRIS systems for seamless onboarding. Standout Features Structured interview templates Game-based cognitive and skills assessments Bias mitigation algorithms Pros Richer candidate insights beyond resumes Strong compliance and fairness features Easy integration with major HR tools Cons Requires candidate comfort with video interviews Higher cost than basic screening tools 5. Eightfold \u2013 Best AI Recruiting Tool for Talent Intelligence & Retention Eightfold goes beyond hiring\u2014it\u2019s a\u00a0talent intelligence platform\u00a0that predicts internal mobility, identifies skill gaps, and suggests upskilling paths. It leverages billions of global profiles to match candidates with both current openings and future opportunities, making it ideal for\u00a0enterprise workforce planning. Standout Features AI-driven skill gap analysis Internal mobility recommendations Diversity analytics Pros Supports long-term workforce planning Excellent for large, global enterprises Enhances retention strategies Cons Overkill for small hiring teams Requires clean internal HR data for best results 6. SeekOut \u2013 Best AI Recruiting Tool for Diversity & Inclusive Hiring SeekOut is designed for\u00a0inclusive talent sourcing. It uses AI to uncover underrepresented talent pools while offering diversity filters for gender, ethnicity, veteran status, and more. Its deep profile search and \u201cBoolean-plus\u201d capabilities allow recruiters to reach candidates beyond the traditional LinkedIn search bubble. Standout Features Diversity-focused candidate filters Talent pool analytics Passive candidate sourcing Pros Strong commitment to inclusive hiring Excellent for niche talent searches User-friendly interface Cons Best results require advanced search skills Limited direct ATS functions\u2014more a sourcing tool than full ATS 7. Fetcher \u2013 Best AI Recruiting Tool for Automated Passive Candidate Outreach Fetcher pairs AI sourcing with\u00a0personalized outreach automation. It finds passive candidates, sends tailored outreach, and optimizes follow-up timing based on engagement data. Standout Features AI-powered sourcing Outreach personalization engine Automated multi-step follow-up Pros Saves time finding and engaging candidates Maintains a personal touch at scale Great for niche and hard-to-fill roles Cons Outreach automation can feel impersonal if poorly customized Requires well-crafted messaging templates 8. Workable \u2013 Best AI Recruiting Tool for All-in-One Hiring Workable covers the entire recruitment process\u2014from AI-sourced candidates to onboarding. Its AI tools help write job descriptions, screen resumes, and automate interview scheduling. Standout Features AI job description generator Integrated video interviews 400+ integrations with HR tech Pros Easy to implement for growing teams Strong collaboration tools Flexible workflows Cons May lack deep analytics for enterprise hiring Setup complexity for advanced customizations 9. Manatal \u2013 Best AI Recruiting Tool for Social Media-Driven Sourcing Manatal ranks candidates with AI scoring and enriches profiles with\u00a0social media data\u00a0from LinkedIn, GitHub, and Facebook. Its drag-and-drop pipelines and CRM make it ideal for lean recruiting teams that need efficiency without sacrificing insights. Standout Features Social media enrichment Candidate scoring Compliance-ready data handling Pros Great for small to mid-sized teams Intuitive user interface Strong sourcing beyond traditional resumes Cons Limited analytics depth compared to enterprise tools No payroll integration 10. Recruit CRM \u2013 Best AI Recruiting Tool for Agencies Recruit CRM is purpose-built for agencies, combining\u00a0ATS and client CRM\u00a0into one. It handles multi-client pipelines, invoicing, and advanced resume parsing. Standout Features Client invoice generation AI-powered resume parsing 5,000+ app integrations via Zapier Pros Optimized for agency workflows Handles both candidate and client relationships Customizable sales pipelines Cons Not designed for single-company internal recruiting Custom branding locked to higher tiers 11. Skillate \u2013 Best AI Recruiting Tool for High-Volume Resume Screening Skillate uses\u00a0context-aware AI\u00a0to match resumes to job descriptions beyond keyword matching. This makes it powerful for\u00a0high-volume, high-precision hiring. Standout Features Multilingual resume parsing Contextual job matching Source channel performance analytics Pros Extremely accurate screening for large applicant pools Saves time for recruiters in volume hiring Works well alongside existing ATS Cons Limited candidate engagement features Best suited for the screening stage, not end-to-end hiring 12. Textkernel \u2013 Best AI Recruiting Tool for Multilingual Parsing & Semantic Search Textkernel is built for\u00a0global, multilingual recruiting. Its parsing engine can read and interpret resumes in multiple languages and formats, making it a favorite for companies hiring across borders. Its\u00a0semantic search\u00a0understands meaning\u2014not just keywords\u2014so you can find candidates who match role intent even if their wording is different. Standout Features Multilingual resume parsing Semantic talent search Deep integration with existing ATS Pros Ideal for global hiring teams Excellent accuracy in complex formats Works well with local and niche job boards Cons Primarily a sourcing and parsing tool, not a full ATS Requires integration for end-to-end workflows 13. Sapia \u2013 Best AI Recruiting Tool for Bias-Free Screening Sapia uses\u00a0structured, chat-based assessments\u00a0to evaluate candidates without traditional CV bias. Candidates answer role-specific questions via conversational AI, which then analyzes responses for soft skills, values, and cultural fit. Standout Features Bias mitigation in screening Soft skills and behavioral insights Mobile-first candidate experience Pros Increases fairness in early-stage hiring Engaging, low-pressure candidate format Scalable for high-volume applications Cons Limited technical skills testing Works best for initial screening, not full evaluation 14. Interviewer.ai \u2013 Best AI Recruiting Tool for Video-Based Pre-Screening Interviewer.ai uses AI to assess candidates during short, structured video interviews. It evaluates\u00a0communication skills, confidence, and presentation\u00a0to help recruiters quickly shortlist top talent. Standout Features Automated video interview analysis Role-specific question templates Candidate ranking dashboards Pros Saves recruiter time in initial interviews Objective scoring reduces human bias Flexible question libraries Cons Internet quality impacts candidate performance Not ideal for asynchronous-only teams 15. Talocity \u2013 Best AI Recruiting Tool for Personality & Psychometric Evaluation Talocity offers\u00a0\u201ctouchless\u201d interviews\u00a0with built-in psychometric testing and NLP analysis. It\u2019s ideal for roles where emotional intelligence, empathy, and personality matter as much as technical skills. Standout Features Psychometric profiling NLP-based speech and tone analysis Automated video interviewing Pros Strong focus on soft skills and personality Great for customer-facing roles Reduces manual interview bias Cons May not suit purely technical hiring Requires candidate comfort with AI assessments 16. Panna \u2013 Best AI Recruiting Tool for Technical Skills Assessment Panna specializes in\u00a0live coding interviews\u00a0and behavioral assessments for tech roles. Recruiters and hiring managers can watch real-time problem-solving while also gauging cultural fit. Standout Features Live coding environments Behavioral interview integration AI-driven candidate scoring Pros Highly accurate technical skills verification Combines technical and soft skills evaluation Ideal for fast tech hiring Cons Limited to technical hiring Requires trained interviewers for full benefit 17. Datapeople \u2013 Best AI Recruiting Tool for Inclusive Job Descriptions Datapeople ensures your job postings are\u00a0inclusive, clear, and optimized for search. It flags biased language, readability issues, and jargon that may alienate candidates, while also improving SEO. Standout Features Bias detection and removal Readability scoring SEO optimization for job boards Pros Expands reach to diverse talent pools Improves job posting conversion rates Easy for recruiters to use without training Cons Limited outside of job description optimization Works best alongside a sourcing or ATS tool 18. Narrato \u2013 Best AI Recruiting Tool for SEO-Optimized Job Content Narrato applies\u00a0content marketing principles\u00a0to recruitment. It generates job descriptions that are SEO-friendly, brand-consistent, and candidate-focused, increasing both visibility and application quality. Standout Features AI-generated, brand-aligned content SEO keyword optimization Collaboration tools for HR & marketing teams Pros Boosts job listing rankings on Google and job boards Saves time writing engaging job posts Supports employer branding efforts Cons Requires good SEO keyword research for best results Doesn\u2019t handle applicant tracking or screening 19. Findem \u2013 Best AI Recruiting Tool for Values-Driven Sourcing Findem uses\u00a0talent graphs\u00a0to source candidates based on skills, values, and potential\u2014not just work history. This makes it a powerful tool for building\u00a0future-ready, culture-fit teams. Standout Features Talent graph technology Culture and values-based search filters Long-term talent pipeline building Pros Finds candidates others overlook Great for niche or high-competition hiring Encourages alignment beyond technical fit Cons Requires clarity on long-term hiring goals Best for strategic sourcing, not quick hires 20. Senseloaf \u2013 Best AI Recruiting Tool for Funnel Optimization Senseloaf blends\u00a0AI matching, forecasting, and smart scheduling\u00a0to streamline recruiting from start to finish. It also gives recruiters visibility into pipeline health and recruiter performance metrics. Standout Features AI-powered candidate-job matching Hiring funnel analytics Automated scheduling and reminders Pros Improves recruiter productivity Gives data-backed hiring insights Strong automation for repetitive tasks Cons Newer entrant, smaller user base than others Works best when paired with an established ATS Real Results: AI Recruiting ROI in Action The best AI tools don\u2019t just promise\u2014they perform. Case studies from Reccopilot show: 50% faster hiring cycles Higher-quality candidates Zero workflow disruption Veris Insights analyzed 129 AI use cases in talent acquisition. Of those, 33 demonstrated clear ROI using Time-to-Value benchmarks. Pesto, meanwhile, tracked a 30% reduction in cost-per-hire for a global enterprise, thanks to automated screening. Watch for These Hidden Costs AI recruiting tools can unlock major efficiency\u2014but only if you understand the full pricing picture. Watch out for: Extra fees for integrations or add-ons Seat-based licenses that scale fast Setup, customization, or onboarding costs Training/support that ends post-trial Plan for scale by budgeting for growth\u2014not just the first hire. Getting the Most from Your AI Investment To make AI work for you: Start with a pilot in one department Involve HR, Ops, and IT early for smoother rollout Track KPIs like time-to-hire, quality per hire, and pipeline conversion Regularly update workflows as platforms evolve Frameworks from platforms like IQTalent and Impress AI stress the importance of iterative optimization\u2014it\u2019s not one-and-done. Smarter Hiring Starts with the Right Tool AI doesn\u2019t replace recruiters\u2014it empowers them. When matched to your strategy, these tools reduce bias, boost efficiency, and unlock hiring at scale. With Transformify ai powered ATS , you get more than automation\u2014you get compliance-aligned, predictive insights built for global hiring. Whether you\u2019re growing fast or entering new markets, our AI-powered solution adapts to your needs. Ready to see what Transformify ATS can do for you? Book a demo\"\n  }\n]",
+                    "label": "U9jTWc",
+                    "isLoading": false,
+                    "locked": false,
+                    "isInput": false,
+                    "isOutput": false,
+                    "editable": false,
+                    "groupIds": [
+                        "KabxFb"
+                    ],
+                    "storage_class": "external",
+                    "external_metadata": {
+                        "resource_key": "110789d4-265d-4d70-97da-89c7a93bd580/U9jTWc/20250922-073742957724-df02ae95",
+                        "content_type": "structured",
+                        "chunked": true,
+                        "uploaded_at": "2025-09-22T07:37:46.444304",
+                        "version_id": "20250922-073742957724-df02ae95",
+                        "totalChunks": 1,
+                        "loadedChunks": 1,
+                        "totalRecords": 1,
+                        "parsedRecords": 1,
+                        "parseErrors": 0
+                    },
+                    "isWaitingForFlow": false,
+                    "isExternalStorage": true,
+                    "semantic_type": "structured"
+                },
+                "type": "structured",
+                "width": 720,
+                "height": 176,
+                "style": {
+                    "zIndex": 1295
+                },
+                "selected": false,
+                "dragging": false,
+                "resizing": false
             }
         ],
-        "edges": [],
+        "edges": [
+            {
+                "id": "0BkBT4",
+                "source": "S16BdO",
+                "target": "NLO9_v",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "source": "NLO9_v",
+                "sourceHandle": "NLO9_v-b",
+                "target": "WIQTLu",
+                "targetHandle": "WIQTLu-d",
+                "id": "connection-1758524792662",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "source": "yboH7_",
+                "sourceHandle": "yboH7_-b",
+                "target": "NLO9_v",
+                "targetHandle": "NLO9_v-d",
+                "id": "connection-1758524928686",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "source": "HtJmZC",
+                "sourceHandle": "HtJmZC-a",
+                "target": "NLO9_v",
+                "targetHandle": "NLO9_v-d",
+                "id": "connection-1758525249904",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "XvpS8h",
+                "source": "WIQTLu",
+                "target": "6hCi4c",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "connection-1758525475378",
+                "source": "6hCi4c",
+                "target": "-a2PEl",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "id": "giKHfe",
+                "source": "-a2PEl",
+                "target": "rhXts0",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "id": "connection-1758525506428",
+                "source": "rhXts0",
+                "target": "eoVbAT",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                },
+                "selected": false
+            },
+            {
+                "id": "i6ongX",
+                "source": "-a2PEl",
+                "target": "qmEYld",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "id": "connection-1758525516310",
+                "source": "qmEYld",
+                "target": "L66Gq_",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                },
+                "selected": false
+            },
+            {
+                "id": "R2k7tv",
+                "source": "-a2PEl",
+                "target": "jbBN0O",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "id": "connection-1758525536583",
+                "source": "jbBN0O",
+                "target": "LJTFfH",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                },
+                "selected": false
+            },
+            {
+                "id": "SCdV8V",
+                "source": "eoVbAT",
+                "target": "K1jyC7",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "-HX_lY",
+                "source": "L66Gq_",
+                "target": "gGAZxW",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "ypcyyY",
+                "source": "LJTFfH",
+                "target": "WQCjyr",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "connection-1758526391454",
+                "source": "K1jyC7",
+                "target": "x9_unS",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "id": "connection-1758526395537",
+                "source": "gGAZxW",
+                "target": "GyCLUb",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "id": "IG7Xpx",
+                "source": "x9_unS",
+                "target": "biGWa-",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "id": "VR-lZ6",
+                "source": "biGWa-",
+                "target": "3tGDxk",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "source": "GyCLUb",
+                "sourceHandle": "GyCLUb-b",
+                "target": "biGWa-",
+                "targetHandle": "biGWa--d",
+                "id": "connection-1758526504426",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            },
+            {
+                "source": "yboH7_",
+                "sourceHandle": "yboH7_-b",
+                "target": "biGWa-",
+                "targetHandle": "biGWa--d",
+                "id": "connection-1758526580816",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                },
+                "selected": false
+            },
+            {
+                "source": "WQCjyr",
+                "sourceHandle": "WQCjyr-b",
+                "target": "U9jTWc",
+                "targetHandle": "U9jTWc-d",
+                "id": "connection-1758526655837",
+                "type": "floating",
+                "data": {
+                    "connectionType": "CTT"
+                },
+                "markerEnd": {
+                    "type": "arrowclosed",
+                    "width": 8,
+                    "height": 20,
+                    "color": "#CDCDCD",
+                    "strokeWidth": 0.1
+                }
+            },
+            {
+                "source": "U9jTWc",
+                "sourceHandle": "U9jTWc-b",
+                "target": "biGWa-",
+                "targetHandle": "biGWa--d",
+                "id": "connection-1758526661441",
+                "type": "floating",
+                "data": {
+                    "connectionType": "STC"
+                }
+            }
+        ],
         "viewport": {
             "x": 845.8457000067131,
             "y": 748.4196449104039,

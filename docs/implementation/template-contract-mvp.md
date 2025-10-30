@@ -491,11 +491,13 @@ Phase 1.9 currently uses **Jest + ts-jest + jsdom** for testing. The team is imp
 
 **File**: `PuppyFlow/templates/getting-started/package.json` (722 lines)
 
-**Migration Source**: 
+**Migration Source**:
+
 - ❌ Original plan: `onboarding_guide.json` (3 simple blocks)
 - ✅ Actual source: `finalgetstarted.json` (18 blocks, 6 tutorial sections)
 
 **Template Content**:
+
 ```json
 {
   "metadata": {
@@ -523,6 +525,7 @@ Phase 1.9 currently uses **Jest + ts-jest + jsdom** for testing. The team is imp
 ```
 
 **Template Sections**:
+
 1. ✅ Text Block - Unstructured content
 2. ✅ Structured Text Block - JSON-like structure
 3. ✅ File Block - File handling
@@ -600,6 +603,7 @@ export async function POST(request: Request) {
 **Problem**: `addHistory` could fail if workspace didn't exist yet, but error was silently swallowed.
 
 **Solution**: Added try-catch with retry:
+
 - Try `addHistory` first
 - If 404 (workspace not found), create workspace and retry
 - Throw error if it's not a "not found" error
@@ -613,6 +617,7 @@ export async function POST(request: Request) {
 **File 1**: `PuppyFlow/app/components/blankworkspace/BlankWorkspace.tsx`
 
 **Changes**:
+
 - ✅ Added `createWorkspaceFromTemplate(templateId, workspaceName)` method
 - ✅ Updated `templates` array with `templateId` field for each template
 - ✅ Integrated with `workspaceManagement.switchToWorkspace()` for data fetching
@@ -621,6 +626,7 @@ export async function POST(request: Request) {
 **File 2**: `PuppyFlow/app/components/blankworkspace/CreateWorkspaceModal.tsx`
 
 **Changes**:
+
 - ✅ Added `onCreateWorkspaceFromTemplate` prop
 - ✅ Updated `handleCreateOption` to check for `templateId` and route accordingly
 - ✅ Backward compatible with old `onCreateWorkspace` flow
@@ -628,6 +634,7 @@ export async function POST(request: Request) {
 **File 3**: `PuppyFlow/app/components/sidebar/AddNewWorkspaceButton.tsx`
 
 **Changes**:
+
 - ✅ Added `createWorkspaceFromTemplate` method (mirrors BlankWorkspace)
 - ✅ Passed `availableModels` from `useAppSettings()`
 - ✅ Updated to fetch content after API success
@@ -636,7 +643,8 @@ export async function POST(request: Request) {
 
 **Problem**: Frontend generated ID-A, backend generated ID-B, causing data fetch to fail.
 
-**Solution**: 
+**Solution**:
+
 - Backend generates workspace ID
 - Frontend uses `result.workspace_id` from API response
 - Ensures consistency between creation and fetching
@@ -646,6 +654,7 @@ export async function POST(request: Request) {
 **Problem**: Frontend only set `pullFromDatabase: true` flag without actually fetching content.
 
 **Solution**:
+
 ```typescript
 // After API success, fetch actual content
 const switchResult = await workspaceManagement.switchToWorkspace(workspaceId, optimistic);
@@ -679,6 +688,7 @@ updateWorkspace(workspaceId, {
 | No empty workspace | ✅ Pass | No "Clearing ReactFlow canvas" errors |
 
 **Console Validation**:
+
 ```
 [AddNewWorkspaceButton] ✅ API returned success. Workspace ID: xxx
 [AddNewWorkspaceButton] 📦 Created optimistic workspace
@@ -695,7 +705,8 @@ updateWorkspace(workspaceId, {
 
 **Symptoms**: Empty workspace displayed, data not found
 
-**Root Cause**: 
+**Root Cause**:
+
 ```typescript
 // Frontend generated ID-A
 const workspaceId = uuidv4();
@@ -707,6 +718,7 @@ const workspaceId = uuidv4();
 ```
 
 **Fix**: Backend-controlled ID generation
+
 ```typescript
 // Backend returns ID
 return { success: true, workspace_id: backendGeneratedId };
@@ -715,7 +727,8 @@ return { success: true, workspace_id: backendGeneratedId };
 const workspaceId = result.workspace_id;
 ```
 
-**Files Modified**: 
+**Files Modified**:
+
 - `app/api/workspace/instantiate/route.ts`
 - `app/components/blankworkspace/BlankWorkspace.tsx`
 - `app/components/sidebar/AddNewWorkspaceButton.tsx`
@@ -727,6 +740,7 @@ const workspaceId = result.workspace_id;
 **Symptoms**: API returned success, but workspace was empty
 
 **Root Cause**:
+
 ```typescript
 try {
   await store.addHistory(...);
@@ -737,6 +751,7 @@ return { success: true };  // ❌ Lie!
 ```
 
 **Fix**: Retry logic with workspace creation
+
 ```typescript
 try {
   await store.addHistory(...);
@@ -761,6 +776,7 @@ try {
 **Symptoms**: ReactFlow cleared canvas for "empty workspace"
 
 **Root Cause**:
+
 ```typescript
 // Only set flag, no actual data
 updateWorkspace(workspaceId, {
@@ -769,6 +785,7 @@ updateWorkspace(workspaceId, {
 ```
 
 **Fix**: Actually fetch content
+
 ```typescript
 // Fetch from database
 const switchResult = await workspaceManagement.switchToWorkspace(workspaceId);
@@ -783,6 +800,7 @@ updateWorkspace(workspaceId, {
 **Inspiration**: Copied pattern from `FlowElement.tsx` workspace switching logic
 
 **Files Modified**:
+
 - `app/components/blankworkspace/BlankWorkspace.tsx`
 - `app/components/sidebar/AddNewWorkspaceButton.tsx`
 
@@ -794,7 +812,8 @@ updateWorkspace(workspaceId, {
 
 **Root Cause**: Used `onboarding_guide.json` instead of `finalgetstarted.json`
 
-**Fix**: 
+**Fix**:
+
 ```bash
 # Copy correct source
 cp app/components/blankworkspace/templete/finalgetstarted.json \
@@ -807,6 +826,57 @@ python3 merge_workflow.py
 **Result**: 18 blocks with 6 complete tutorial sections
 
 **Files Modified**: `templates/getting-started/package.json`
+
+---
+
+**Bug #5: Template Migration Source Mismatch (Post-Phase 2 Discovery)**
+
+**Discovery Date**: 2025-10-30 (during template verification)
+
+**Symptoms**: 
+- `seo-blog` had only 2 blocks instead of 22
+- `file-load` had only 1 block instead of 7
+- Other templates seemed incomplete or incorrect
+
+**Root Cause Analysis**:
+
+| Template | Current (Wrong) | Should Be | Correct Source | Status |
+|----------|----------------|-----------|----------------|--------|
+| getting-started | 18 blocks ✅ | 18 blocks | finalgetstarted.json | ✅ Correct |
+| agentic-rag | 13 blocks ✅ | 13 blocks | RAG templete.json | ✅ Correct |
+| **seo-blog** | **2 blocks** ❌ | **22 blocks** | seo blog.json | ❌ Wrong |
+| **file-load** | **1 block** ❌ | **7 blocks** | file load.json | ❌ Wrong |
+
+**Fix**:
+
+```python
+# Read correct source and replace workflow section
+with open('app/components/blankworkspace/templete/seo blog.json') as f:
+    seo_source = json.load(f)
+
+with open('templates/seo-blog/package.json') as f:
+    pkg = json.load(f)
+
+pkg['workflow'] = seo_source  # Replace workflow only
+# (Preserve metadata & resources from Phase 1.9)
+
+# Same for file-load...
+```
+
+**Verification**:
+
+```bash
+✅ getting-started: 18 blocks, 10 edges, 0 resources
+✅ agentic-rag:     13 blocks, 11 edges, 4 resources
+✅ seo-blog:        22 blocks, 23 edges, 5 resources (fixed)
+✅ file-load:       7 blocks,  5 edges,  3 resources (fixed)
+```
+
+**Files Modified**:
+- `templates/seo-blog/package.json` (workflow replaced: 2→22 blocks)
+- `templates/file-load/package.json` (workflow replaced: 1→7 blocks)
+
+**Impact**: Phase 2 core functionality validated with getting-started (18 blocks, no resources). Other templates now have correct workflow structures for future Phase 3+ resource testing.
 
 ---
 
@@ -852,6 +922,116 @@ tools/extract_template_resources.py                    (resource extraction tool
 PuppyFlow/lib/templates/workspaceTemplates.json
 PuppyFlow/app/components/blankworkspace/templete/*.json
 ```
+
+---
+
+## Phase 2 Known Limitations
+
+### 🚧 Placeholder Implementations
+
+Phase 2 focused on **getting-started template** (no resources) as MVP validation. The following are **intentional placeholders** for Phase 3+:
+
+#### 1. `uploadWithPartitioning()` - No Actual Upload
+
+**Location**: `PuppyFlow/lib/templates/cloud.ts:427-466`
+
+**Current Behavior**:
+```typescript
+// Partitioning works ✅
+const parts = PartitioningService.partition(content, contentType);
+
+// Upload is placeholder ❌
+for (const part of parts) {
+  console.log(`[CloudTemplateLoader] Would upload part: ${partKey}`);
+  // TODO: Actual upload to PuppyStorage
+}
+```
+
+**Impact**:
+- ✅ Templates with resources will **not crash**
+- ✅ Partitioning logic **executes correctly**
+- ❌ Resources **not uploaded** to PuppyStorage
+- ❌ Subsequent resource access will **404**
+
+**Phase 3 Implementation**:
+- Call `/api/storage/upload/chunk/direct` (already exists in frontend)
+- Upload each part with proper auth headers
+- Upload manifest JSON
+- ~30 minutes of work
+
+---
+
+#### 2. `processFile()` - File Resource Unimplemented
+
+**Location**: `PuppyFlow/lib/templates/cloud.ts:399-416`
+
+**Current Behavior**:
+```typescript
+private async processFile(...) {
+  // TODO: Implement file resource handling
+  console.log(`[CloudTemplateLoader] File resource handling not yet implemented`);
+}
+```
+
+**Impact**:
+- ❌ **file-load template** cannot fully instantiate (has 1 PDF file resource)
+- ✅ Other resource types (external_storage, vector_collection) will process (but not upload)
+
+**Phase 3 Implementation**:
+- Copy file from template namespace to user namespace
+- Update block reference with new file key
+- ~1 hour of work
+
+---
+
+#### 3. Vector Embedding API - Not Implemented
+
+**Location**: Phase 1.9 marked for Phase 2, deferred to Phase 3
+
+**Current Behavior**:
+- Vector auto-rebuild logic exists in `VectorAutoRebuildService` ✅
+- `/api/storage/vector/embed` endpoint **does not exist** ❌
+
+**Impact**:
+- ❌ **agentic-rag template** cannot rebuild vector index (has 1 vector_collection)
+- ✅ Template will instantiate workflow structure correctly
+
+**Phase 3 Implementation**:
+- Create `/api/storage/vector/embed` endpoint
+- Proxy to PuppyStorage embedding service
+- ~1-2 hours of work
+
+---
+
+### ✅ What IS Fully Implemented
+
+| Feature | Status | Tested With |
+|---------|--------|-------------|
+| Template loading from filesystem | ✅ Complete | All 4 templates |
+| Workflow structure instantiation | ✅ Complete | getting-started (18 blocks) |
+| Workspace creation & database save | ✅ Complete | getting-started |
+| Frontend integration (API + UI) | ✅ Complete | getting-started |
+| Partitioning service | ✅ Complete | Validated with code |
+| Model compatibility checking | ✅ Complete | Phase 1.9 tests |
+| Vector auto-rebuild logic | ✅ Complete | Phase 1.9 tests |
+| Template metadata & resources manifest | ✅ Complete | All 4 templates |
+
+---
+
+### 📦 Template Status Summary
+
+| Template | Workflow | Resources | Tested | Notes |
+|----------|----------|-----------|--------|-------|
+| **getting-started** | ✅ 18 blocks | ✅ 0 (none) | ✅ **Full E2E** | Phase 2 MVP complete |
+| **agentic-rag** | ✅ 13 blocks | ⚠️ 4 (3 ext + 1 vec) | ⚠️ Placeholder | Needs vector embed API |
+| **seo-blog** | ✅ 22 blocks | ⚠️ 5 (all ext) | ⚠️ Placeholder | Needs upload implementation |
+| **file-load** | ✅ 7 blocks | ⚠️ 3 (1 file + 2 ext) | ⚠️ Placeholder | Needs file + upload |
+
+**Legend**:
+- ✅ Fully working
+- ⚠️ Placeholder - will not crash, but resources won't upload
+- ext = external_storage
+- vec = vector_collection
 
 ---
 
