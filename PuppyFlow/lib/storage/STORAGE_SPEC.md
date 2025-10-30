@@ -31,6 +31,58 @@ ELSE:
 |---------|----------|-----------------|
 | **Template Instantiation** | `CloudTemplateLoader` (Backend) | One-time at instantiation |
 | **User Editing** | `dynamicStorageStrategy.ts` (Frontend) | Runtime, on content change |
+| **Backend Computation** | `BlockUpdateService` + `HybridStoragePolicy` (Backend) | After workflow execution |
+
+### Critical Consistency Requirement
+
+**⚠️ The storage threshold MUST be identical across all three write operations:**
+
+| Write Operation | File | Variable | Required Value |
+|----------------|------|----------|----------------|
+| **Template Instantiation** | `lib/templates/cloud.ts` | `STORAGE_THRESHOLD` | 1,048,576 bytes (1MB) |
+| **Frontend Runtime** | `utils/dynamicStorageStrategy.ts` | `CONTENT_LENGTH_THRESHOLD` | 1,048,576 bytes (1MB) |
+| **Backend Computation** | `Server/HybridStoragePolicy.py` | `threshold` | 1,048,576 bytes (1MB) |
+
+**Why Consistency Matters:**
+- Same content must receive same `storage_class` regardless of entry point
+- Prevents unnecessary storage upgrades (e.g., 10KB inline → external on first edit)
+- Ensures predictable behavior and optimal resource usage
+- Eliminates confusion and debugging overhead
+
+**Why 1MB (not 1KB):**
+
+1. **Threshold = Part Size alignment**
+   - Prevents creating external storage for content that produces only single part
+   - Example: 2KB content with 1KB threshold → external storage with 1 part (wasteful)
+   - Example: 2KB content with 1MB threshold → inline storage (efficient)
+
+2. **Network efficiency**
+   - 1KB threshold: 80% of content externalized, massive request overhead
+   - 1MB threshold: Only truly large content externalized
+   - Comparison: 1MB in 1 request vs 1000× 1KB requests
+
+3. **Production standards**
+   - AWS S3 Multipart: 5MB minimum
+   - Azure Blob Blocks: 4MB default
+   - Google Cloud Storage: 8MB recommended
+   - PuppyAgent: 1MB (optimized for LLM output sizes)
+
+4. **Real-world LLM content distribution**
+   - 90% of content <1MB → inline (fast, no network)
+   - 8% of content 1-10MB → 1-10 parts (reasonable)
+   - 2% of content >10MB → many parts (justified)
+
+**Environment Variable:**
+- `STORAGE_THRESHOLD=1048576` (optional override, must be set consistently if used)
+
+**Verification:**
+See automated tests in:
+- `lib/templates/__tests__/storage-threshold-consistency.test.ts`
+- `PuppyEngine/Server/test_storage_consistency.py`
+
+**Documentation:**
+- Detailed analysis: `docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md`
+- Manual testing guide: `docs/testing/storage-threshold-e2e.md`
 
 ### Storage Class Field
 

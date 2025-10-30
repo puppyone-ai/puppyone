@@ -3,6 +3,20 @@ Hybrid Storage Policy
 
 This module provides a unified storage strategy decision system that determines
 whether content should be stored internally or externally based on configurable thresholds.
+
+CRITICAL CONSISTENCY REQUIREMENT:
+The storage threshold MUST match across all three write operations:
+1. Template Instantiation: CloudTemplateLoader.STORAGE_THRESHOLD (1MB)
+2. Frontend Runtime: dynamicStorageStrategy.CONTENT_LENGTH_THRESHOLD (1MB)
+3. Backend Computation: HybridStoragePolicy.threshold (1MB)
+
+Design Rationale:
+- Threshold = Part Size (1MB) to avoid creating external storage for single-part content
+- 1MB is production-grade standard (AWS S3: 5MB, Azure: 4MB, GCP: 8MB)
+- Content <1MB: inline storage (efficient, no network overhead)
+- Content >=1MB: external storage with partitioning
+
+See: docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md
 """
 
 import os
@@ -24,8 +38,10 @@ class HybridStoragePolicy:
         
         Args:
             threshold: Size threshold in characters. If None, reads from environment
+                      Default: 1MB = 1,048,576 bytes (aligned with frontend and template instantiation)
         """
-        self.threshold = threshold or int(os.getenv("STORAGE_CHUNK_SIZE", "1024"))
+        STORAGE_THRESHOLD_MB = 1024 * 1024  # 1MB = 1,048,576 bytes
+        self.threshold = threshold or int(os.getenv("STORAGE_THRESHOLD", str(STORAGE_THRESHOLD_MB)))
     
     def should_use_external_storage(self, content: Any, force_external: bool = False) -> bool:
         """

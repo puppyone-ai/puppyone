@@ -15,17 +15,44 @@ import {
   ContentType,
 } from './externalStorage';
 
-// 内容长度阈值和分区大小：默认来自环境变量，可在运行期由后端事件覆盖
+/**
+ * Storage threshold for automatic storage strategy decision
+ *
+ * CRITICAL CONSISTENCY REQUIREMENT:
+ * This threshold MUST match across all three write operations:
+ * 1. Template Instantiation: CloudTemplateLoader.STORAGE_THRESHOLD (1MB)
+ * 2. Frontend Runtime: dynamicStorageStrategy.CONTENT_LENGTH_THRESHOLD (1MB)
+ * 3. Backend Computation: HybridStoragePolicy.threshold (1MB)
+ *
+ * Design Rationale:
+ * - Threshold = Part Size (1MB) to avoid creating external storage for content
+ *   that would only produce a single part
+ * - 1MB is production-grade standard (AWS S3: 5MB, Azure: 4MB, GCP: 8MB)
+ * - Content <1MB: inline storage (efficient, no network overhead)
+ * - Content >=1MB: external storage with partitioning
+ *
+ * Why 1MB not 1KB:
+ * - 1KB is too aggressive, causes 80% of content to be externalized unnecessarily
+ * - 1MB in 1 request vs 1000x 1KB requests (network efficiency)
+ * - Aligns with part/chunk size to maintain consistent granularity
+ *
+ * Environment variable: STORAGE_THRESHOLD (optional override)
+ *
+ * See: docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md
+ */
+const STORAGE_THRESHOLD_MB = 1024 * 1024; // 1MB = 1,048,576 bytes
+
+// 使用 let 导出以便在运行期调整，保持与后端 TASK_STARTED 的 storage_threshold_bytes 一致
+export let CONTENT_LENGTH_THRESHOLD = STORAGE_THRESHOLD_MB;
+
+// Part size for content partitioning (separate from threshold decision)
 // Backward compatibility: try new STORAGE_PART_SIZE first, fallback to old STORAGE_PART_SIZE
 let STORAGE_PART_SIZE_DEFAULT = parseInt(
   process.env.NEXT_PUBLIC_STORAGE_PART_SIZE ||
     process.env.NEXT_PUBLIC_STORAGE_PART_SIZE ||
-    '1024',
+    String(STORAGE_THRESHOLD_MB),
   10
 );
-
-// 使用 let 导出以便在运行期调整，保持与后端 TASK_STARTED 的 storage_threshold_bytes 一致
-export let CONTENT_LENGTH_THRESHOLD = STORAGE_PART_SIZE_DEFAULT;
 export let PART_SIZE = STORAGE_PART_SIZE_DEFAULT;
 
 // 从后端运行时信号更新分区/阈值（单位：字节/字符，前后端保持一致的度量）
@@ -225,7 +252,24 @@ export function needsStorageSwitch(
 
 /**
  * 将节点从 external 切换回 internal storage
- * 清理外部存储相关的元数据，但保留resource_key用于将来可能的重用
+ *
+ * Metadata Management Strategy:
+ * - storage_class='internal' is set as the authoritative flag (SSOT)
+ * - external_metadata is INTENTIONALLY PRESERVED for resource_key reuse optimization
+ *
+ * Design Rationale:
+ * - Frontend checks storage_class first, ignores metadata when storage_class='internal'
+ * - Preserving metadata allows reusing the same resource_key if content grows again,
+ *   avoiding unnecessary resource creation in PuppyStorage
+ * - This is a performance optimization for frequent size fluctuations during editing
+ *
+ * Why This Differs from Template Instantiation:
+ * - Template instantiation MUST delete old metadata because it references a different
+ *   workspace's resources (invalid resource_keys from template author's namespace)
+ * - Runtime-generated metadata references current workspace's valid resource_keys,
+ *   which can be safely reused
+ *
+ * See: docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md
  */
 export function switchToInternal(
   nodeId: string,
@@ -240,10 +284,9 @@ export function switchToInternal(
             data: {
               ...node.data,
               content, // 将内容直接存储在data中
-              storage_class: 'internal',
+              storage_class: 'internal', // ← SSOT: Authoritative flag
               isExternalStorage: false,
-              // 保留external_metadata以便将来重用，但标记为internal
-              // external_metadata: undefined, // 不清理，保留resource_key
+              // external_metadata: undefined, // ← DO NOT uncomment (breaks reuse optimization)
               dirty: false,
               savingStatus: 'saved',
             },

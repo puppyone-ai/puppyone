@@ -12,6 +12,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { set as setPath } from 'lodash';
 import { Model } from '@/app/components/states/AppSettingsContext';
+import { SERVER_ENV } from '@/lib/serverEnv';
 import {
   TemplateLoader,
   TemplateLoaderConfig,
@@ -252,7 +253,8 @@ export class CloudTemplateLoader implements TemplateLoader {
       const resourceKey = await this.uploadWithPartitioning(
         resourceContent,
         resource.source.format,
-        targetKey
+        targetKey,
+        userId
       );
 
       // Update workflow reference to external storage
@@ -280,6 +282,11 @@ export class CloudTemplateLoader implements TemplateLoader {
       );
       block.data.storage_class = 'internal';
       block.data.isExternalStorage = false;
+
+      // Clear any old external_metadata from template
+      if (block.data.external_metadata) {
+        delete block.data.external_metadata;
+      }
     }
   }
 
@@ -305,7 +312,8 @@ export class CloudTemplateLoader implements TemplateLoader {
       const resourceKey = await this.uploadWithPartitioning(
         resourceContent,
         resource.source.format,
-        targetKey
+        targetKey,
+        userId
       );
 
       // Set external storage metadata
@@ -327,6 +335,11 @@ export class CloudTemplateLoader implements TemplateLoader {
       }
       block.data.storage_class = 'internal';
       block.data.isExternalStorage = false;
+
+      // Clear any old external_metadata from template
+      if (block.data.external_metadata) {
+        delete block.data.external_metadata;
+      }
     }
 
     // Initialize indexing list with pending status
@@ -377,6 +390,51 @@ export class CloudTemplateLoader implements TemplateLoader {
   }
 
   /**
+   * Upload a file directly to PuppyStorage backend
+   *
+   * @param fileKey - Full key for the file (userId/blockId/versionId/fileName)
+   * @param fileBuffer - File content as Buffer
+   * @param fileName - File name
+   * @param mimeType - MIME type of the file
+   * @param userId - User ID for namespace
+   */
+  private async uploadFileToPuppyStorage(
+    fileKey: string,
+    fileBuffer: Buffer,
+    fileName: string,
+    mimeType: string,
+    userId: string
+  ): Promise<void> {
+    const url = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/upload/file`;
+
+    // Parse key: userId/blockId/versionId/fileName
+    const [uid, blockId, ...rest] = fileKey.split('/');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-service-key': SERVER_ENV.SERVICE_KEY || '',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        block_id: blockId,
+        file_path: rest.join('/'),
+        file_name: fileName,
+        content: fileBuffer.toString('base64'),
+        mime_type: mimeType,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `File upload failed: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+  }
+
+  /**
    * Process file resource
    */
   private async processFile(
@@ -388,18 +446,22 @@ export class CloudTemplateLoader implements TemplateLoader {
   ): Promise<void> {
     // For file resources, we need to upload the file as-is
     // Files are always external, no partitioning
-    const versionId = uuidv4();
     const fileName = path.basename(resourcePath);
-    const targetKey = `${userId}/${block.id}/${versionId}/${fileName}`;
-
-    // Read file as binary
     const fileBuffer = await fs.readFile(resourcePath);
+    const targetKey = `${userId}/${block.id}/files/${fileName}`;
 
-    // Upload file (this is a placeholder - actual upload needs API integration)
-    // TODO: Implement actual file upload via /api/storage/upload endpoint
-    console.warn(
-      `[CloudTemplateLoader] File upload not yet implemented for ${fileName}`
+    console.log(`[CloudTemplateLoader] Uploading file: ${fileName}`);
+
+    // Upload file
+    await this.uploadFileToPuppyStorage(
+      targetKey,
+      fileBuffer,
+      fileName,
+      resource.source.mime_type || 'application/octet-stream',
+      userId
     );
+
+    console.log(`[CloudTemplateLoader] File uploaded: ${targetKey}`);
 
     // Update workflow reference
     if (!block.data.uploadedFiles) {
@@ -415,6 +477,53 @@ export class CloudTemplateLoader implements TemplateLoader {
   }
 
   /**
+   * Upload a part directly to PuppyStorage backend
+   *
+   * @param partKey - Full key for the part (userId/blockId/versionId/partName)
+   * @param content - Part content as Uint8Array
+   * @param contentType - MIME type of the content
+   * @param userId - User ID for namespace
+   * @returns Upload result with etag and size
+   */
+  private async uploadPartToPuppyStorage(
+    partKey: string,
+    content: Uint8Array,
+    contentType: string,
+    userId: string
+  ): Promise<{ etag: string; size: number }> {
+    const url = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/upload/part/direct`;
+
+    // Parse key: userId/blockId/versionId/partName
+    const [uid, blockId, versionId, ...rest] = partKey.split('/');
+    const fileName = rest.join('/');
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-service-key': SERVER_ENV.SERVICE_KEY || '',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        block_id: blockId,
+        version_id: versionId,
+        file_name: fileName,
+        content: Buffer.from(content).toString('base64'),
+        content_type: contentType,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Upload part failed: ${response.status} ${response.statusText} - ${errorText}`
+      );
+    }
+
+    return await response.json();
+  }
+
+  /**
    * Upload content with partitioning
    *
    * Uses PartitioningService to partition large content and uploads each part.
@@ -422,42 +531,60 @@ export class CloudTemplateLoader implements TemplateLoader {
    * @param content - Content to upload
    * @param format - Content format ('text' or 'structured')
    * @param targetKey - Base key for uploaded resource
+   * @param userId - User ID for namespace
    * @returns Final resource key
    */
   private async uploadWithPartitioning(
     content: string,
     format: 'text' | 'structured' | 'binary',
-    targetKey: string
+    targetKey: string,
+    userId: string
   ): Promise<string> {
     const contentType = format === 'structured' ? 'structured' : 'text';
     const parts = PartitioningService.partition(content, contentType);
 
     console.log(
-      `[CloudTemplateLoader] Partitioned content into ${parts.length} parts for ${targetKey}`
+      `[CloudTemplateLoader] Uploading ${parts.length} parts for ${targetKey}...`
     );
+
+    const manifestParts = [];
 
     // Upload each part
     for (const part of parts) {
       const partKey = `${targetKey}/${part.name}`;
+      const result = await this.uploadPartToPuppyStorage(
+        partKey,
+        part.bytes,
+        part.mime,
+        userId
+      );
 
-      // TODO: Implement actual upload via /api/storage/copy or direct upload API
-      // For now, this is a placeholder
-      console.log(`[CloudTemplateLoader] Would upload part: ${partKey}`);
+      manifestParts.push({
+        name: part.name,
+        mime: part.mime,
+        size: result.size,
+        etag: result.etag,
+      });
     }
 
     // Create manifest
     const manifest = {
       format: 'partitioned',
-      parts: parts.map(p => ({
-        name: p.name,
-        mime: p.mime,
-        size: p.bytes.length,
-      })),
+      parts: manifestParts,
     };
 
     // Upload manifest
-    const manifestKey = `${targetKey}/manifest.json`;
-    console.log(`[CloudTemplateLoader] Would upload manifest: ${manifestKey}`);
+    const manifestBytes = new TextEncoder().encode(JSON.stringify(manifest));
+    await this.uploadPartToPuppyStorage(
+      `${targetKey}/manifest.json`,
+      manifestBytes,
+      'application/json',
+      userId
+    );
+
+    console.log(
+      `[CloudTemplateLoader] Uploaded ${parts.length} parts + manifest for ${targetKey}`
+    );
 
     return targetKey;
   }

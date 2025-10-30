@@ -264,36 +264,39 @@ export class VectorAutoRebuildService {
     collectionName: string,
     model: NormalizedEmbeddingModel
   ): Promise<void> {
-    // TODO: Phase 2 implementation
-    // This will call the embedding API endpoint:
-    // POST /api/storage/vector/embed
-    // Body: {
-    //   entries: entries.map(e => e.content),
-    //   collection_name: collectionName,
-    //   model_id: model.id,
-    //   key_path: [...],
-    //   value_path: [...]
-    // }
-
-    console.log('[Phase 1.9 Placeholder] Triggering embedding:', {
+    console.log('[VectorAutoRebuildService] Triggering embedding:', {
       entriesCount: entries.length,
       collectionName,
       modelId: model.id,
-      modelProvider: model.provider,
     });
 
-    // Simulate async operation
-    await new Promise(resolve => setTimeout(resolve, 100));
+    const response = await fetch('/api/storage/vector/embed', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        entries: entries.map(e => e.content),
+        collection_name: collectionName,
+        model_id: model.id,
+        model_provider: model.provider,
+        key_path: entries[0]?.key_path || [],
+        value_path: entries[0]?.value_path || [],
+      }),
+    });
 
-    // In Phase 2, this will:
-    // 1. Send entries to PuppyEngine for embedding
-    // 2. Store vectors in ChromaDB
-    // 3. Update indexing status to 'completed'
-    // 4. Store collection metadata
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(
+        `Embedding failed: ${error.message || response.statusText}`
+      );
+    }
 
-    console.log(
-      '[Phase 1.9 Placeholder] Embedding triggered successfully (simulated)'
-    );
+    const result = await response.json();
+    console.log('[VectorAutoRebuildService] Embedding completed:', {
+      collection: result.collection_name,
+      vectorsCount: result.vectors_count,
+    });
   }
 
   /**
