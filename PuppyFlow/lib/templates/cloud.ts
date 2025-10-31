@@ -411,14 +411,19 @@ export class CloudTemplateLoader implements TemplateLoader {
       'Content-Type': 'application/json',
     };
 
-    // Step 1: Initialize upload
+    // Parse fileKey to extract block_id: userId/blockId/files/fileName
+    const keyParts = fileKey.split('/');
+    const blockId = keyParts[1]; // Extract blockId from path
+
+    // Step 1: Initialize upload (API generates key internally)
     const initResponse = await fetch(`${baseUrl}/upload/init`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        key: fileKey,
+        block_id: blockId,
         file_name: fileName,
         content_type: mimeType,
+        file_size: fileBuffer.length,
       }),
     });
 
