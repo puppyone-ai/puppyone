@@ -1368,6 +1368,7 @@ PuppyEngine/Persistence/ExternalStorageStrategy.py  (prefetch logic)
 
 - Bug #4: File block `external_metadata` cleanup (related symptom)
 - Bug #5: Template migration source mismatch (independent)
+- Bug #7: Vector Collection state inconsistency (Phase 3.7)
 - FILE-BLOCK-CONTRACT.md: Standard contract violated
 
 **Authentication References**:
@@ -1417,6 +1418,187 @@ PuppyStorage upload APIs require **user JWT token** (Authorization header):
 - All code changes completed
 - No linter errors
 - Ready for manual browser testing with file-load template
+
+---
+
+**Bug #7: Vector Collection State Inconsistency (Template Metadata Issue)**
+
+**Status**: 🔍 **DISCOVERED** (Pre-implementation analysis: 2025-10-31)
+
+**Discovery Date**: 2025-10-31 (during agentic-rag template review before Phase 3 testing)
+
+**Severity**: 🟡 **MEDIUM** - Template metadata incomplete, affects delete operation and UI consistency
+
+**Symptoms**:
+
+1. Template `indexingList[0]` missing `collection_configs` field (or has empty `{}`)
+2. Template uses `status: "pending"` instead of `"notStarted"`
+3. `storage_class: "external"` + `isExternalStorage: false` semantic contradiction
+
+**Discovery Context**:
+
+During pre-Phase 3 review of agentic-rag template (before RAG chatbot testing), systematic inspection revealed:
+
+```json
+// templates/agentic-rag/package.json - Block WzK6iT (line 74-93)
+{
+  "indexingList": [{
+    "type": "vector",
+    "entries": [],
+    "status": "pending",           // ❌ Should be "notStarted"
+    "key_path": [...],
+    "value_path": [],
+    "index_name": "",
+    // ❌ Missing: collection_configs
+  }],
+  "storage_class": "external",      // ❌ Inconsistent
+  "isExternalStorage": false        // ❌ Contradictory
+}
+```
+
+**Root Cause Analysis**:
+
+| # | Issue | Current State | Expected State | Impact |
+|---|-------|---------------|----------------|--------|
+| **1** | **collection_configs missing** | ❌ Not present or `{}` | ✅ Complete structure with all fields | 🔴 **Delete index fails** |
+| **2** | **status enum mismatch** | `"pending"` | `"notStarted"` | 🟡 UI state display |
+| **3** | **storage_class contradiction** | `external` + `isExternalStorage: false` | Consistent values | 🟡 Code readability |
+
+**Detailed Impact Analysis**:
+
+**Issue #1: collection_configs Missing** 🔴
+
+**Frontend TypeScript Expectation**:
+
+```typescript
+interface VectorIndexingItem {
+  type: 'vector';
+  status: VectorIndexingStatus;
+  key_path: PathSegment[];
+  value_path: PathSegment[];
+  entries: any[];
+  index_name: string;
+  collection_configs: {        // ✅ Required
+    set_name: string;
+    model: string;
+    vdb_type: string;
+    user_id: string;
+    collection_name: string;
+  };
+}
+```
+
+**Runtime Impact**:
+
+1. **On Load**: ✅ No crash - `CloudTemplateLoader.processVectorCollection()` sets `collection_configs = {}`
+2. **On Display**: ✅ UI renders correctly (only checks `status`, not `collection_configs`)
+3. **On Delete Index**: ❌ **Fails** - `useIndexingUtils.ts:240` accesses undefined fields:
+
+```typescript
+// useIndexingUtils.ts:236-241 - Delete index operation
+const deleteParams = {
+  vdb_type: vectorItem.collection_configs.vdb_type || 'pgvector',  // undefined → 'pgvector'
+  user_id: userId,
+  model: vectorItem.collection_configs.model || 'text-embedding-ada-002',  // undefined → fallback
+  set_name: vectorItem.collection_configs.set_name,  // ❌ undefined!
+};
+```
+
+**Issue #2: status Enum Mismatch** 🟡
+
+**Template**: `"status": "pending"`  
+**Frontend Type**: `type VectorIndexingStatus = 'notStarted' | 'processing' | 'done' | 'error'`
+
+- ❌ `"pending"` not in enum
+- ⚠️ May cause UI state display issues
+- 💡 TypeScript compilation may flag type error (if strict mode)
+
+**Issue #3: storage_class Inconsistency** 🟡
+
+```json
+{
+  "storage_class": "external",      // Says "external"
+  "isExternalStorage": false        // But marked as false
+}
+```
+
+**Semantic Confusion**: Vector collection's **content** is inline (in `data.content`), but **embeddings** are external (in vector DB).
+
+**Correct Interpretation**:
+
+- For content storage: `storage_class: 'internal'` (content in JSON)
+- For embeddings: Stored externally in vector DB (different mechanism)
+
+**Should be**:
+
+```json
+{
+  "storage_class": "internal",      // ✅ Content is inline
+  "isExternalStorage": false        // ✅ Consistent
+}
+```
+
+**PuppyEngine Impact Analysis**: ✅ **No Runtime Errors**
+
+- PuppyEngine does **NOT** depend on `collection_configs` or `indexingList`
+- Uses `storage_class` for persistence strategy (MemoryStrategy vs ExternalStorageStrategy)
+- Reads `block.data.content` directly
+- Retrieve block uses independent vector search API
+
+**Phase 3.7 Refactoring Plan**:
+
+**Option A: Minimal Fix (Quick validation)** ⏱️ 0.5h
+
+1. Fix `agentic-rag/package.json` template:
+   - Add `collection_configs: {}` to indexingList
+   - Change `status: "pending"` → `"notStarted"`
+   - Fix `storage_class` contradiction
+
+**Option B: Complete Fix (Recommended)** ⏱️ 1-1.5h
+
+1. Fix template structure (Option A)
+2. Improve `CloudTemplateLoader.processVectorCollection()`:
+
+```typescript
+if (indexingConfigPath && block.data.indexingList.length > 0) {
+  const indexingItem = block.data.indexingList[0];
+  
+  // Ensure complete collection_configs structure
+  indexingItem.collection_configs = {
+    set_name: '',
+    model: '',
+    vdb_type: 'pgvector',
+    user_id: userId,
+    collection_name: '',
+  };
+  indexingItem.status = 'notStarted';  // ✅ Correct enum
+  indexingItem.index_name = '';
+  indexingItem.entries = [];
+  
+  // ... auto-rebuild logic
+}
+```
+
+**Testing Plan**:
+
+1. ✅ Verify template loads without errors
+2. ✅ Verify UI displays indexing status correctly
+3. ✅ Test delete index operation (requires indexed collection first)
+4. ✅ Run full agentic-rag workflow
+
+**Files to Modify**:
+
+```
+PuppyFlow/templates/agentic-rag/package.json        (fix metadata)
+PuppyFlow/lib/templates/cloud.ts                    (optional: improve processVectorCollection)
+docs/implementation/template-contract-mvp.md        (document issue)
+```
+
+**Estimated Effort**: 0.5-1.5 hours (depending on Option A vs B)
+
+**Priority**: 🟡 **MEDIUM** - Does not block initial testing, but should fix before production
+
+**Decision Point**: Test agentic-rag first, fix if delete operation needed during testing
 
 ---
 

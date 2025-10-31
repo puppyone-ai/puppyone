@@ -491,8 +491,14 @@ const loader = TemplateLoaderFactory.create(undefined, finalAuthHeader);
             ├─ IF inline: block.data.content = resourceContent
             ├─ Keep indexingList[].key_path and value_path (extraction rules)
             ├─ Set indexingList[].entries = [] (empty, will be generated on-demand)
-            ├─ Set indexingList[].status = 'pending'
-            └─ Set indexingList[].collection_configs = {} (empty until user embeds)
+            ├─ Set indexingList[].status = 'notStarted' (NOT 'pending' - enum type)
+            └─ Set indexingList[].collection_configs = {
+                  set_name: '',
+                  model: '',
+                  vdb_type: 'pgvector',
+                  user_id: userId,
+                  collection_name: ''
+                } (complete structure required for delete operation)
 
 3. Create Workspace
    ├─ Call workspace store API
@@ -672,6 +678,55 @@ This ensures:
 - `/api/workspace/instantiate` endpoint
 - Frontend integration (BlankWorkspace, CreateWorkspaceModal)
 - Basic smoke test
+
+### Phase 3.5: File Block Standard Compliance (4-6h) ✅ COMPLETED
+
+**Status**: ✅ **Completed** (2025-10-31)
+
+**Deliverables**:
+
+- Fixed CloudTemplateLoader authentication (user JWT + localhost fallback)
+- Rewrote file upload to use standard manifest.json flow
+- Removed frontend workaround for internal file blocks
+- File blocks now ALWAYS use external storage + prefetch mechanism
+
+**Key Changes**:
+
+- Authentication: `getUserAuthHeader()` with `Bearer local-dev` fallback
+- File upload: `/upload/chunk/direct` API with manifest.json creation
+- Frontend: Removed internal mode handling from `buildFileNodeJson()`
+- Standards: Full compliance with FILE-BLOCK-CONTRACT.md
+
+### Phase 3.7: Vector Collection Metadata Fix (0.5-1.5h) 🔍 DISCOVERED
+
+**Status**: 🔍 **DISCOVERED** (Pre-implementation analysis: 2025-10-31)
+
+**Issue Discovered**: During pre-testing review of agentic-rag template
+
+**Problems Identified**:
+
+1. **collection_configs missing or incomplete** → Delete index operation fails
+2. **status enum mismatch** (`"pending"` should be `"notStarted"`)
+3. **storage_class inconsistency** (semantic contradiction in template)
+
+**Proposed Deliverables**:
+
+**Option A (Minimal - 0.5h)**:
+
+- Fix `agentic-rag/package.json` template metadata
+- Add complete `collection_configs` structure
+- Correct `status` enum value
+- Fix `storage_class` contradiction
+
+**Option B (Complete - 1-1.5h)**:
+
+- All of Option A
+- Improve `CloudTemplateLoader.processVectorCollection()` to ensure complete structure
+- Add validation for vector collection metadata
+
+**Impact**: Medium priority - does not block initial testing, but required for delete index functionality
+
+**Decision**: Test first, implement fix if needed during agentic-rag testing
 
 ### Phase 4: Testing & Refinement (3h)
 
@@ -929,6 +984,9 @@ instantiateTemplate(templateId, userId, workspaceName)
 | 0.1.6 | 2025-10-31 | Architecture Team | Added authentication section (§3.3) for resource operations |
 |       |            |                   | Documented user JWT token requirement vs SERVICE_KEY |
 |       |            |                   | Added localhost fallback strategy and comparison with PuppyEngine |
+| 0.1.7 | 2025-10-31 | Architecture Team | Documented vector collection metadata requirements (Phase 3.7) |
+|       |            |                   | Identified template state inconsistencies (collection_configs, status enum) |
+|       |            |                   | Added clarification on storage_class semantics for vector collections |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 
