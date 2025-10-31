@@ -1650,12 +1650,14 @@ docs/implementation/template-contract-mvp.md        (status updated)
 **Design Decision**:
 
 **Option A**: Keep Manual (Current Phase 3.7)
+
 - ✅ Faster instantiation (~2 seconds)
 - ✅ User has control over embedding timing
 - ❌ Requires manual "Start Indexing" click for vector search to work
 - ❌ Extra step for RAG workflow testing
 
 **Option B**: Auto-Embedding (Phase 3.8) ✅ **SELECTED**
+
 - ✅ Vector search works immediately after instantiation
 - ✅ Better UX for template users (zero manual steps)
 - ✅ Reuses existing `/api/storage/vector/embed` endpoint
@@ -1815,6 +1817,7 @@ if (rebuildResult.success && rebuildResult.entries) {
 **Impact on agentic-rag Template**:
 
 Before Phase 3.8:
+
 ```
 1. Instantiate template (2 seconds)
 2. Open vector collection block
@@ -1824,6 +1827,7 @@ Before Phase 3.8:
 ```
 
 After Phase 3.8:
+
 ```
 1. Instantiate template (12-32 seconds)
 2. Vector search works immediately ✅
