@@ -75,7 +75,7 @@
                         {
                             "type": "vector",
                             "entries": [],
-                            "status": "pending",
+                            "status": "notStarted",
                             "key_path": [
                                 {
                                     "id": "NK-LPz",
@@ -84,11 +84,18 @@
                                 }
                             ],
                             "index_name": "",
-                            "value_path": []
+                            "value_path": [],
+                            "collection_configs": {
+                                "set_name": "",
+                                "model": "",
+                                "vdb_type": "pgvector",
+                                "user_id": "",
+                                "collection_name": ""
+                            }
                         }
                     ],
                     "savingStatus": "saved",
-                    "storage_class": "external",
+                    "storage_class": "internal",
                     "isWaitingForFlow": false,
                     "isExternalStorage": false
                 },

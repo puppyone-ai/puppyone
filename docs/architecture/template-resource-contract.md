@@ -486,19 +486,35 @@ const loader = TemplateLoaderFactory.create(undefined, finalAuthHeader);
        │   ├─ block.data.storage_class = 'external'
        │   └─ DO NOT set block.data.content (prefetch will handle it)
        │
-       └─ vector_collection: 
-            ├─ IF external: upload content, set external_metadata
-            ├─ IF inline: block.data.content = resourceContent
-            ├─ Keep indexingList[].key_path and value_path (extraction rules)
-            ├─ Set indexingList[].entries = [] (empty, will be generated on-demand)
-            ├─ Set indexingList[].status = 'notStarted' (NOT 'pending' - enum type)
-            └─ Set indexingList[].collection_configs = {
-                  set_name: '',
-                  model: '',
-                  vdb_type: 'pgvector',
-                  user_id: userId,
-                  collection_name: ''
-                } (complete structure required for delete operation)
+      └─ vector_collection: 
+           ├─ IF external: upload content, set external_metadata
+           ├─ IF inline: block.data.content = resourceContent
+           ├─ Keep indexingList[].key_path and value_path (extraction rules)
+           ├─ [Phase 1.9] Auto-rebuild: VectorAutoRebuildService.attemptAutoRebuild()
+           │   └─ Extract entries from content using key_path
+           ├─ [Phase 3.8] Auto-embedding (if enableAutoEmbed = true):
+           │   ├─ Set indexingList[].status = 'processing'
+           │   ├─ Call /api/storage/vector/embed with entries
+           │   ├─ Wait for embedding completion (10-30 seconds)
+           │   ├─ Set indexingList[].status = 'done'
+           │   ├─ Set indexingList[].index_name = collection_name
+           │   └─ Set indexingList[].collection_configs = {
+           │         set_name: result.set_name,
+           │         model: 'text-embedding-ada-002',
+           │         vdb_type: 'pgvector',
+           │         user_id: userId,
+           │         collection_name: result.collection_name
+           │       } (complete structure from embedding result)
+           └─ IF auto-embedding disabled OR failed:
+               ├─ Set indexingList[].entries = rebuildResult.entries
+               ├─ Set indexingList[].status = 'notStarted' (ready for manual trigger)
+               └─ Set indexingList[].collection_configs = {
+                     set_name: '',
+                     model: '',
+                     vdb_type: 'pgvector',
+                     user_id: userId,
+                     collection_name: ''
+                   } (empty structure for manual completion)
 
 3. Create Workspace
    ├─ Call workspace store API
@@ -727,6 +743,64 @@ This ensures:
 **Impact**: Medium priority - does not block initial testing, but required for delete index functionality
 
 **Decision**: Test first, implement fix if needed during agentic-rag testing
+
+### Phase 3.8: Auto-Embedding for Vector Collections (1-1.5h) ✅ COMPLETED
+
+**Status**: ✅ **COMPLETED** (Implementation completed: 2025-10-31)
+
+**Motivation**: After Phase 3.7 metadata fixes, enable fully automated RAG template workflow by auto-embedding vectors during instantiation.
+
+**Deliverables**:
+
+1. **Config Addition**:
+   - Add `enableAutoEmbed?: boolean` to `TemplateLoaderConfig`
+   - Default: `true` (auto-embedding enabled)
+   - File: `lib/templates/loader.ts`
+
+2. **Embedding API Method**:
+   - Implement `callEmbeddingAPI()` in `CloudTemplateLoader`
+   - Reuses existing `/api/storage/vector/embed` endpoint
+   - Synchronous execution (waits for completion)
+   - File: `lib/templates/cloud.ts`
+
+3. **Integration**:
+   - Update `processVectorCollection()` to call embedding after auto-rebuild
+   - Graceful fallback: if embedding fails, set `status: 'notStarted'` for manual trigger
+   - Complete `collection_configs` structure from embedding result
+   - File: `lib/templates/cloud.ts`
+
+**Architecture**:
+
+```
+processVectorCollection() Flow:
+  1. Auto-rebuild entries (Phase 1.9)
+  2. IF enableAutoEmbed = true:
+     - Set status = 'processing'
+     - Call /api/storage/vector/embed
+     - Wait for completion (10-30 seconds)
+     - Update collection_configs with result
+     - Set status = 'done'
+  3. ELSE:
+     - Set status = 'notStarted'
+     - User triggers embedding manually
+```
+
+**User Experience**:
+
+- **Before Phase 3.8**: Instantiate → Manual "Start Indexing" → Wait → Vector search works
+- **After Phase 3.8**: Instantiate (wait 10-30s) → Vector search works immediately ✅
+
+**Performance Impact**:
+
+- Templates without vector collections: No change (~2 seconds)
+- Templates with vector collections: +10-30 seconds per collection (configurable)
+
+**Files Modified**:
+
+- `PuppyFlow/lib/templates/loader.ts` (added config)
+- `PuppyFlow/lib/templates/cloud.ts` (added method + integration)
+
+**Testing**: Ready for E2E testing with `agentic-rag` template
 
 ### Phase 4: Testing & Refinement (3h)
 
@@ -987,6 +1061,10 @@ instantiateTemplate(templateId, userId, workspaceName)
 | 0.1.7 | 2025-10-31 | Architecture Team | Documented vector collection metadata requirements (Phase 3.7) |
 |       |            |                   | Identified template state inconsistencies (collection_configs, status enum) |
 |       |            |                   | Added clarification on storage_class semantics for vector collections |
+| 0.1.8 | 2025-10-31 | Architecture Team | Implemented auto-embedding for vector collections (Phase 3.8) |
+|       |            |                   | Added `enableAutoEmbed` configuration flag (default: true) |
+|       |            |                   | Auto-embedding reuses `/api/storage/vector/embed` endpoint |
+|       |            |                   | Template instantiation with vector collections now fully automated |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 

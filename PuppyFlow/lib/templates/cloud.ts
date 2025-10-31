@@ -379,11 +379,17 @@ export class CloudTemplateLoader implements TemplateLoader {
     if (indexingConfigPath && block.data.indexingList.length > 0) {
       const indexingItem = block.data.indexingList[0];
 
-      // Set pending status and empty entries
+      // Ensure complete structure for vector indexing
       indexingItem.entries = [];
-      indexingItem.status = 'pending';
+      indexingItem.status = 'notStarted'; // Correct enum: 'notStarted' | 'processing' | 'done' | 'error'
       indexingItem.index_name = '';
-      indexingItem.collection_configs = {};
+      indexingItem.collection_configs = {
+        set_name: '',
+        model: '',
+        vdb_type: 'pgvector',
+        user_id: userId,
+        collection_name: '',
+      };
 
       // Attempt auto-rebuild if enabled
       if (this.config.enableAutoRebuild && Array.isArray(parsedContent)) {
@@ -400,10 +406,54 @@ export class CloudTemplateLoader implements TemplateLoader {
 
           if (rebuildResult.success && rebuildResult.entries) {
             indexingItem.entries = rebuildResult.entries;
-            indexingItem.status = 'pending'; // Still pending actual embedding
-            console.log(
-              `[CloudTemplateLoader] Auto-rebuild prepared ${rebuildResult.entries.length} entries for block ${block.id}`
-            );
+
+            // Phase 3.8: Auto-embedding support
+            if (
+              this.config.enableAutoEmbed &&
+              rebuildResult.entries.length > 0
+            ) {
+              try {
+                indexingItem.status = 'processing';
+                console.log(
+                  `[CloudTemplateLoader] Auto-rebuild prepared ${rebuildResult.entries.length} entries, starting embedding...`
+                );
+
+                // Call embedding API (waits for completion)
+                const embeddingResult = await this.callEmbeddingAPI(
+                  userId,
+                  block.id,
+                  rebuildResult.entries
+                );
+
+                // Update indexing item with embedding results
+                indexingItem.status = 'done';
+                indexingItem.index_name = embeddingResult.collection_name;
+                indexingItem.collection_configs = {
+                  set_name: embeddingResult.set_name,
+                  model: 'text-embedding-ada-002',
+                  vdb_type: 'pgvector',
+                  user_id: userId,
+                  collection_name: embeddingResult.collection_name,
+                };
+
+                console.log(
+                  `[CloudTemplateLoader] ✅ Auto-embedding completed for block ${block.id}: ${embeddingResult.collection_name}`
+                );
+              } catch (error) {
+                console.warn(
+                  `[CloudTemplateLoader] ⚠️ Auto-embedding failed for block ${block.id}:`,
+                  error
+                );
+                // Fallback: keep entries but mark as notStarted for manual trigger
+                indexingItem.status = 'notStarted';
+              }
+            } else {
+              // Auto-embedding disabled or no entries
+              indexingItem.status = 'notStarted'; // Ready for user to trigger embedding manually
+              console.log(
+                `[CloudTemplateLoader] Auto-rebuild prepared ${rebuildResult.entries.length} entries for block ${block.id} (auto-embedding ${this.config.enableAutoEmbed ? 'enabled but no entries' : 'disabled'})`
+              );
+            }
           }
         } catch (error) {
           console.warn(
@@ -414,6 +464,75 @@ export class CloudTemplateLoader implements TemplateLoader {
         }
       }
     }
+  }
+
+  /**
+   * Call embedding API to generate vectors for entries
+   *
+   * Phase 3.8: Auto-embedding support
+   *
+   * Reuses the same API endpoint as manual embedding (/api/storage/vector/embed).
+   * Synchronously waits for embedding to complete (10-30 seconds typically).
+   *
+   * @param userId - User ID for namespace
+   * @param blockId - Block ID for collection naming
+   * @param entries - Vector entries to embed
+   * @returns Embedding result with collection name and configs
+   */
+  private async callEmbeddingAPI(
+    userId: string,
+    blockId: string,
+    entries: any[]
+  ): Promise<{
+    collection_name: string;
+    set_name: string;
+  }> {
+    // Use localhost for server-side API calls (same process)
+    const apiUrl = 'http://localhost:3000/api/storage/vector/embed';
+
+    // Build payload (same structure as frontend useIndexingUtils.ts)
+    const payload = {
+      entries,
+      create_new: true,
+      vdb_type: 'pgvector',
+      model: 'text-embedding-ada-002', // Default model (TODO: select from availableModels)
+      set_name: `collection_${blockId}_${Date.now()}`,
+    };
+
+    console.log(
+      `[CloudTemplateLoader] Calling embedding API for ${entries.length} entries...`
+    );
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: this.getUserAuthHeader(),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(
+        `Embedding API failed: ${response.status} - ${errorText}`
+      );
+    }
+
+    const result = await response.json();
+
+    if (!result.collection_name) {
+      throw new Error('Embedding API did not return collection_name');
+    }
+
+    console.log(
+      `[CloudTemplateLoader] ✅ Embedding completed: ${result.collection_name}`
+    );
+
+    return {
+      collection_name: result.collection_name,
+      set_name: payload.set_name,
+    };
   }
 
   /**
@@ -455,7 +574,7 @@ export class CloudTemplateLoader implements TemplateLoader {
         Authorization: this.getUserAuthHeader(),
         'Content-Type': 'application/octet-stream',
       },
-      body: fileBuffer,
+      body: fileBuffer as any, // Buffer is valid body type in Node.js fetch
     });
 
     if (!response.ok) {

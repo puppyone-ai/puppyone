@@ -75,6 +75,15 @@ export interface TemplateLoaderConfig {
   enableAutoRebuild?: boolean;
 
   /**
+   * Whether to enable auto-embedding after auto-rebuild
+   * Default: true (Phase 3.8)
+   *
+   * When enabled, automatically calls embedding API after entries are generated.
+   * Template instantiation will wait for embedding to complete (adds 10-30s).
+   */
+  enableAutoEmbed?: boolean;
+
+  /**
    * Timeout for template loading (ms)
    * Default: 30000 (30 seconds)
    */
@@ -96,6 +105,7 @@ export const DEFAULT_LOADER_CONFIG: TemplateLoaderConfig = {
     'https://raw.githubusercontent.com/PuppyAgent/PuppyAgent-Jack/main/PuppyFlow/templates',
   storageServiceUrl: process.env.PUPPYSTORAGE_URL || 'http://localhost:9002',
   enableAutoRebuild: true,
+  enableAutoEmbed: true, // Phase 3.8: Auto-embedding enabled by default
   loadTimeout: 30000,
   instantiateTimeout: 60000,
 };
