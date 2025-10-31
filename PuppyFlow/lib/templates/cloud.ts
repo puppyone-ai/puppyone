@@ -405,33 +405,102 @@ export class CloudTemplateLoader implements TemplateLoader {
     mimeType: string,
     userId: string
   ): Promise<void> {
-    const url = `${SERVER_ENV.PUPPY_STORAGE_BACKEND}/files/upload/file`;
+    const baseUrl = SERVER_ENV.PUPPY_STORAGE_BACKEND;
+    const headers = {
+      Authorization: `Bearer ${SERVER_ENV.SERVICE_KEY || 'dev-token'}`,
+      'Content-Type': 'application/json',
+    };
 
-    // Parse key: userId/blockId/versionId/fileName
-    const [uid, blockId, ...rest] = fileKey.split('/');
-
-    const response = await fetch(url, {
+    // Step 1: Initialize upload
+    const initResponse = await fetch(`${baseUrl}/upload/init`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-service-key': SERVER_ENV.SERVICE_KEY || '',
-      },
+      headers,
       body: JSON.stringify({
-        user_id: userId,
-        block_id: blockId,
-        file_path: rest.join('/'),
+        key: fileKey,
         file_name: fileName,
-        content: fileBuffer.toString('base64'),
-        mime_type: mimeType,
+        content_type: mimeType,
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
+    if (!initResponse.ok) {
+      const errorText = await initResponse.text();
       throw new Error(
-        `File upload failed: ${response.status} ${response.statusText} - ${errorText}`
+        `File upload init failed: ${initResponse.status} - ${errorText}`
       );
     }
+
+    const { upload_id, key } = await initResponse.json();
+
+    // Step 2: Get upload URL
+    const urlResponse = await fetch(`${baseUrl}/upload/get_upload_url`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        key,
+        upload_id,
+        part_number: 1,
+      }),
+    });
+
+    if (!urlResponse.ok) {
+      const errorText = await urlResponse.text();
+      throw new Error(
+        `Get upload URL failed: ${urlResponse.status} - ${errorText}`
+      );
+    }
+
+    const { upload_url } = await urlResponse.json();
+
+    // Step 3: Upload file content
+    const uploadResponse = await fetch(upload_url, {
+      method: 'PUT',
+      body: fileBuffer,
+      headers: {
+        'Content-Type': mimeType,
+      },
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(
+        `File content upload failed: ${uploadResponse.status} - ${errorText}`
+      );
+    }
+
+    // Get ETag from response (S3-style or local storage)
+    let etag: string;
+    const etagHeader = uploadResponse.headers.get('etag');
+    if (etagHeader) {
+      etag = etagHeader.replace(/"/g, '');
+    } else {
+      // For local storage, etag might be in JSON response
+      try {
+        const uploadResult = await uploadResponse.json();
+        etag = uploadResult.etag;
+      } catch {
+        etag = 'local-etag-' + Date.now();
+      }
+    }
+
+    // Step 4: Complete upload
+    const completeResponse = await fetch(`${baseUrl}/upload/complete`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        key,
+        upload_id,
+        parts: [{ PartNumber: 1, ETag: etag }],
+      }),
+    });
+
+    if (!completeResponse.ok) {
+      const errorText = await completeResponse.text();
+      throw new Error(
+        `File upload complete failed: ${completeResponse.status} - ${errorText}`
+      );
+    }
+
+    console.log(`[CloudTemplateLoader] File uploaded successfully: ${fileKey}`);
   }
 
   /**
