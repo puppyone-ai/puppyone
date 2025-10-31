@@ -317,9 +317,12 @@ describe('EditStructured Edge Node', () => {
       if (!nodeButton) throw new Error('Node button not found');
       fireEvent.click(nodeButton);
 
-      const modeDropdown = await waitFor(() =>
-        screen.getByTestId('puppy-dropdown')
-      );
+      // 等待菜单出现，然后获取所有的 dropdown，第一个是 Mode dropdown
+      const modeDropdown = await waitFor(() => {
+        const dropdowns = screen.queryAllByTestId('puppy-dropdown');
+        if (dropdowns.length === 0) throw new Error('No dropdowns found');
+        return dropdowns[0];
+      });
       fireEvent.change(modeDropdown, { target: { value: 'get_keys' } });
 
       await waitFor(() => {
@@ -653,8 +656,10 @@ describe('EditStructured Edge Node', () => {
         expect(screen.getByText(/Path/i)).toBeInTheDocument();
       });
 
-      // 查找 Run 按钮
-      const runButton = screen.getByRole('button', { name: /Run/i });
+      // 查找 Run 按钮 - 页面上有两个Run按钮，获取所有按钮然后选择配置面板中的（第二个）
+      const runButtons = screen.getAllByRole('button', { name: /Run/i });
+      // 选择可见的配置面板中的 Run 按钮（通常是第二个）
+      const runButton = runButtons.length > 1 ? runButtons[1] : runButtons[0];
       fireEvent.click(runButton);
 
       // 验证 runSingleEdgeNode 被调用
@@ -692,7 +697,9 @@ describe('EditStructured Edge Node', () => {
         expect(screen.getByText(/Path/i)).toBeInTheDocument();
       });
 
-      const runButton = screen.getByRole('button', { name: /Run/i });
+      // 查找 Run 按钮 - 页面上有两个Run按钮，获取所有按钮然后选择配置面板中的（第二个）
+      const runButtons = screen.getAllByRole('button', { name: /Run/i });
+      const runButton = runButtons.length > 1 ? runButtons[1] : runButtons[0];
       fireEvent.click(runButton);
 
       // 验证 loading 状态下按钮显示 "Stop"

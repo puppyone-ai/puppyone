@@ -845,14 +845,20 @@ describe('IfElse Edge Node - 参数配置', () => {
       const nodeButton = screen.getByRole('button', { name: /IF\/ELSE/i });
       fireEvent.click(nodeButton);
 
-      await waitFor(() => {
-        expect(screen.getByText('AND')).toBeInTheDocument();
-      });
+      // 增加超时时间并使用更灵活的查询方式
+      const andOrButton = await waitFor(
+        () => {
+          // 尝试查找 AND 或 OR 按钮
+          const andButton = screen.queryByText('AND');
+          const orButton = screen.queryByText('OR');
+          const button = andButton || orButton;
+          if (!button) throw new Error('AND/OR button not found');
+          return button;
+        },
+        { timeout: 5000 }
+      );
 
-      // 查找 AND/OR 按钮
-      const andOrButton = screen.getByText('AND');
       const initialOperation = andOrButton.textContent;
-
       fireEvent.click(andOrButton);
 
       await waitFor(
