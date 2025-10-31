@@ -467,84 +467,9 @@ export class CloudTemplateLoader implements TemplateLoader {
       }
     }
 
-    // Phase 3.8.1: Sync collection_configs to edges that reference this block
-    this.syncVectorCollectionConfigsToEdges(
-      workflow,
-      block.id,
-      indexingItem?.collection_configs
-    );
-  }
-
-  /**
-   * Sync collection_configs from vector collection block to edges that reference it
-   *
-   * Phase 3.8.1: Fix edge validation error
-   *
-   * When a vector collection block's collection_configs is updated (e.g., after auto-embedding),
-   * we need to update all edges that reference this block in their dataSource.index_item.
-   *
-   * @param workflow - Workflow definition with edges
-   * @param blockId - Vector collection block ID
-   * @param collectionConfigs - Complete collection_configs from the block
-   */
-  private syncVectorCollectionConfigsToEdges(
-    workflow: WorkflowDefinition,
-    blockId: string,
-    collectionConfigs?: {
-      set_name: string;
-      model: string;
-      vdb_type: string;
-      user_id: string;
-      collection_name: string;
-    }
-  ): void {
-    if (!workflow.edges) {
-      return;
-    }
-
-    // Find all edges that reference this block in dataSource/data_source
-    // Note: Frontend uses camelCase (dataSource), PuppyEngine expects snake_case (data_source)
-    for (const edge of workflow.edges) {
-      if (!edge.data) {
-        continue;
-      }
-
-      // Check both camelCase (frontend) and snake_case (backend) formats
-      const dataSourceList =
-        edge.data.dataSource || edge.data.data_source || null;
-
-      if (dataSourceList && Array.isArray(dataSourceList)) {
-        for (const dataSource of dataSourceList) {
-          if (dataSource.id === blockId && dataSource.index_item) {
-            // Update index_item.collection_configs
-            if (collectionConfigs) {
-              dataSource.index_item.collection_configs = {
-                ...collectionConfigs,
-              };
-              // Also update index_name if available
-              if (collectionConfigs.collection_name) {
-                dataSource.index_item.index_name =
-                  collectionConfigs.collection_name;
-              }
-              console.log(
-                `[CloudTemplateLoader] Synced collection_configs to edge ${edge.id} for block ${blockId}`
-              );
-            } else {
-              // Fallback: ensure at least empty structure exists (may still fail validation)
-              if (!dataSource.index_item.collection_configs) {
-                dataSource.index_item.collection_configs = {
-                  set_name: '',
-                  model: '',
-                  vdb_type: 'pgvector',
-                  user_id: '',
-                  collection_name: '',
-                };
-              }
-            }
-          }
-        }
-      }
-    }
+    // Phase 3.9: Runtime Resolution - No need to sync collection_configs to edges
+    // collection_configs will be resolved at runtime from Block's indexingList
+    // using index_name stored in Edge's data_source.index_item
   }
 
   /**

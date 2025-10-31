@@ -226,8 +226,10 @@ export type RetrievingEdgeJsonType = {
       id: string;
       label: string;
       index_item: {
-        index_name: string;
-        collection_configs: {
+        index_name: string; // ✅ Required: Identifier for selected indexed set
+        // ✅ collection_configs removed - resolved at runtime from Block's indexingList
+        collection_configs?: {
+          // Optional for backward compatibility only
           set_name: string;
           model: string;
           vdb_type: string;
@@ -1284,23 +1286,34 @@ export function useEdgeNodeBackEndJsonBuilder() {
       top_k = nodeData.top_k;
     }
 
-    // 直接使用完整的 dataSource 结构，确保保留所有字段包括 index_item
-    const dataSourceArray = nodeData?.dataSource as
-      | {
-          id: string;
-          label: string;
-          index_item: {
-            index_name: string;
-            collection_configs: {
-              set_name: string;
-              model: string;
-              vdb_type: string;
-              user_id: string;
-              collection_name: string;
-            };
-          };
-        }[]
-      | undefined;
+    // Phase 3.9: Runtime Resolution - Only store index_name, remove collection_configs
+    // collection_configs will be resolved at runtime from Block's indexingList
+    const dataSourceArray =
+      (
+        nodeData?.dataSource as
+          | {
+              id: string;
+              label: string;
+              index_item?: {
+                index_name?: string;
+                collection_configs?: {
+                  set_name: string;
+                  model: string;
+                  vdb_type: string;
+                  user_id: string;
+                  collection_name: string;
+                };
+              };
+            }[]
+          | undefined
+      )?.map(ds => ({
+        id: ds.id,
+        label: ds.label,
+        index_item: {
+          index_name: ds.index_item?.index_name || '', // ✅ Only store index_name
+          // ✅ collection_configs removed - will be resolved at runtime
+        },
+      })) || [];
 
     return {
       type: 'search',

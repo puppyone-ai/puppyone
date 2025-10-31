@@ -121,13 +121,25 @@ class SearchDataSourceItem(BaseModel):
     @field_validator("index_item")
     @classmethod
     def _validate_index_item(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        # Require index_item.collection_configs
+        # Phase 3.9: Runtime Resolution Support
+        # Option 1: collection_configs already provided (old format, backward compatibility)
         cc = v.get("collection_configs")
-        if not isinstance(cc, dict):
-            raise ValueError("index_item.collection_configs must be provided")
-        # Validate collection_configs with our nested model
-        SearchCollectionConfigs(**cc)
-        return v
+        if isinstance(cc, dict) and cc.get("collection_name"):
+            # Validate collection_configs with our nested model
+            SearchCollectionConfigs(**cc)
+            return v
+        
+        # Option 2: Only index_name provided (new format, will be resolved at runtime)
+        index_name = v.get("index_name")
+        if index_name:
+            # Allow this format - collection_configs will be resolved in SearchConfigParser
+            return v
+        
+        # Neither format: raise error
+        raise ValueError(
+            "index_item must include either collection_configs (with collection_name) "
+            "or index_name (for runtime resolution)"
+        )
 
 
 class VectorSearchModel(BaseModel):

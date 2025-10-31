@@ -380,12 +380,19 @@ class Env:
         return results
 
     def _prepare_block_configs(self, edge_id: str) -> Dict[str, Any]:
-        """Prepare block configurations for edge execution"""
+        """
+        Prepare block configurations for edge execution
+        
+        Phase 3.9: Runtime Resolution Support
+        - Extracts input blocks (query blocks)
+        - Extracts data_source blocks (vector collection blocks) for search edges
+        - Includes indexingList for runtime resolution of collection_configs
+        """
         # Get input blocks for this edge
         input_block_ids = self.planner.edge_to_inputs_mapping.get(edge_id, set())
         block_configs = {}
 
-        # Despite the type annotation, EdgeConfigParser actually expects a dict
+        # Extract input blocks
         for block_id in input_block_ids:
             block = self.blocks.get(block_id)
             if block:
@@ -402,6 +409,27 @@ class Env:
                     "looped": loop_flag,  # control-flow flag consumed by parsers
                     "collection_configs": {},  # Not used in new architecture
                 }
+
+        # Phase 3.9: Extract data_source blocks for vector search edges
+        edge_config = self.edges.get(edge_id, {}).get("data", {})
+        if edge_config.get("search_type") == "vector":
+            data_sources = edge_config.get("data_source", []) or edge_config.get("dataSource", [])
+            
+            for ds in data_sources:
+                ds_block_id = ds.get("id")
+                if ds_block_id and ds_block_id not in block_configs:  # Avoid duplicates
+                    block = self.blocks.get(ds_block_id)
+                    if block:
+                        # Extract indexingList for runtime resolution
+                        indexing_list = block.data.get("indexingList", [])
+                        block_configs[ds_block_id] = {
+                            "label": block.label,
+                            "indexingList": indexing_list,  # For runtime resolution
+                        }
+                        log_debug(
+                            f"Extracted indexingList for data_source block {ds_block_id}: "
+                            f"{len(indexing_list)} indexed sets"
+                        )
 
         return block_configs
 
