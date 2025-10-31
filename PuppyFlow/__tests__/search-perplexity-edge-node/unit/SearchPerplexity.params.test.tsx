@@ -624,10 +624,10 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
       // 验证下拉框存在并有值（可能是默认值或配置值）
       const dropdownDisplay = screen.queryByTestId('dropdown-display');
       const dropdownSelect = screen.queryByTestId('dropdown-select');
-      
+
       // 至少有一个下拉组件应该存在
       expect(dropdownDisplay || dropdownSelect).toBeTruthy();
-      
+
       // 如果dropdown-display存在，验证它有内容
       if (dropdownDisplay) {
         expect(dropdownDisplay.textContent).toBeTruthy();
@@ -667,10 +667,10 @@ describe('SearchPerplexity Edge Node - 参数配置', () => {
       // 验证下拉框存在并有值（可能是默认值或配置值）
       const dropdownDisplay = screen.queryByTestId('dropdown-display');
       const dropdownSelect = screen.queryByTestId('dropdown-select');
-      
+
       // 至少有一个下拉组件应该存在
       expect(dropdownDisplay || dropdownSelect).toBeTruthy();
-      
+
       // 如果dropdown-display存在，验证它有内容
       if (dropdownDisplay) {
         expect(dropdownDisplay.textContent).toBeTruthy();

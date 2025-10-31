@@ -218,7 +218,7 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
 
       // 修改 top_k 值
       fireEvent.change(topKInput, { target: { value: '10' } });
-      
+
       // 验证输入框的值已更新
       await waitFor(() => {
         expect(topKInput).toHaveValue(10);
@@ -395,7 +395,9 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
       // 验证 setNodes 再次被调用，表明支持连续修改
       await waitFor(
         () => {
-          expect(mockSetNodes.mock.calls.length).toBeGreaterThan(firstCallCount);
+          expect(mockSetNodes.mock.calls.length).toBeGreaterThan(
+            firstCallCount
+          );
         },
         { timeout: 5000 }
       );
@@ -748,11 +750,11 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
       // 验证输入框存在且可以显示值（组件可能使用默认值或配置值）
       const inputElements = screen.getAllByRole('spinbutton');
       expect(inputElements.length).toBeGreaterThan(0);
-      
+
       const inputElement = inputElements[0];
       expect(inputElement).toBeInTheDocument();
       expect(inputElement).toHaveAttribute('type', 'number');
-      
+
       // 验证输入框有值（无论是默认值还是配置值）
       expect(inputElement.value).toBeTruthy();
     });
@@ -793,11 +795,11 @@ describe('SearchGoogle Edge Node - 参数配置', () => {
       // 验证输入框存在且可以显示值
       const inputElements = screen.getAllByRole('spinbutton');
       expect(inputElements.length).toBeGreaterThan(0);
-      
+
       const inputElement = inputElements[0];
       expect(inputElement).toBeInTheDocument();
       expect(inputElement).toHaveAttribute('type', 'number');
-      
+
       // 验证输入框有值（无论是默认值还是配置值）
       expect(inputElement.value).toBeTruthy();
     });
