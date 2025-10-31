@@ -399,22 +399,35 @@ PuppyAgent-Jack/
    └─ Validate against schema
 
 2. For each resource in manifest:
-   ├─ Read source file (resources/*.json)
+   ├─ Read source file (resources/*.json or resources/*.pdf)
    │
-  ├─ Infer storage processing (automatic, see STORAGE_SPEC.md):
-  │   ├─ type='file' → external, no partitioning (upload as-is)
-  │   └─ type='external_storage' or 'vector_collection' → check content size:
-  │       ├─ < 1MB → storage_class='internal' (embed in JSON)
-  │       └─ ≥ 1MB → storage_class='external' + partitioning (upload)
+   ├─ Infer storage processing (automatic, see STORAGE_SPEC.md):
+   │   ├─ type='file' → ALWAYS external + manifest.json
+   │   │   ├─ Upload file to PuppyStorage (multipart upload)
+   │   │   ├─ Create manifest.json with file metadata
+   │   │   ├─ Upload manifest.json
+   │   │   └─ Set storage_class='external' + external_metadata
+   │   │
+   │   └─ type='external_storage' or 'vector_collection' → check content size:
+   │       ├─ < 1MB → storage_class='internal' (embed in JSON)
+   │       └─ ≥ 1MB → storage_class='external' + partitioning (upload)
    │
-   ├─ Generate new resource key (if external):
+   ├─ Generate new resource key:
    │   └─ ${newUserId}/${blockId}/${newVersionId}
    │
    └─ Update workflow reference:
        ├─ external_storage: 
        │   ├─ IF external: block.data.external_metadata.resource_key = newKey
        │   └─ IF inline: block.data.content = resourceContent
-       ├─ files: block.data.uploadedFiles[].key = newKey
+       │
+       ├─ file (ALWAYS external, standard contract):
+       │   ├─ block.data.external_metadata = {
+       │   │     resource_key: '${userId}/${blockId}/${versionId}',
+       │   │     content_type: 'files'
+       │   │   }
+       │   ├─ block.data.storage_class = 'external'
+       │   └─ DO NOT set block.data.content (prefetch will handle it)
+       │
        └─ vector_collection: 
             ├─ IF external: upload content, set external_metadata
             ├─ IF inline: block.data.content = resourceContent
@@ -425,22 +438,44 @@ PuppyAgent-Jack/
 
 3. Create Workspace
    ├─ Call workspace store API
-   └─ Save instantiated workflow JSON (content uploaded, indexing pending)
+   └─ Save instantiated workflow JSON (all resources configured)
 
-4. Return
+4. Return to user
    └─ { workspace_id, success: true }
 
-Note: Vector workflow after instantiation:
-  - User opens workspace → sees content in external storage
-  - User triggers indexing → entries generated from content using key_path
-  - System embeds entries → creates collection with user_id
-  - User can now use vector search
+---
+
+## Execution Flow (Runtime)
+
+When user executes workflow with file/external resources:
+
+### File Block Execution:
+1. **Env.run()** detects block with `storage_class='external'`
+2. **_start_prefetching()** triggers prefetch for file block
+3. **ExternalStorageStrategy.resolve()** runs:
+   - Fetches manifest.json from `${resource_key}/manifest.json`
+   - Downloads each file to local temp directory
+   - Updates block.data.content with: `[{ local_path, file_name, mime_type, ... }]`
+   - Sets block.is_resolved = true
+4. **ExecutionPlanner** marks block as "processed" (has content + resolved)
+5. **Load Edge** executes:
+   - Reads content[].local_path
+   - Parses files from local temp
+   - Returns parsed content
+
+### Vector Collection Execution:
+- User opens workspace → sees content in external storage
+- User triggers indexing → entries generated from content using key_path
+- System embeds entries → creates collection with user_id
+- User can now use vector search
 
 This ensures:
-  ✓ Content is single source of truth
-  ✓ Entries always sync with content
-  ✓ No stale/inconsistent entries
-  ✓ Users control when to embed (and can re-embed if content changes)
+  ✓ File blocks follow standard prefetch mechanism
+  ✓ Content is fetched just-in-time before execution
+  ✓ Load edge always receives local_path (not remote keys)
+  ✓ Consistent behavior between runtime upload and template instantiation
+  ✓ Vector content is single source of truth
+  ✓ Vector entries always sync with content
 ```
 
 ---
@@ -828,6 +863,9 @@ instantiateTemplate(templateId, userId, workspaceName)
 | 0.1.2 | 2025-01-23 | Architecture Team | Updated Phase breakdown, added Phase 1.5, renamed to mounted_path |
 | 0.1.3 | 2025-01-25 | Architecture Team | Phase 1.7 semantic separation: chunks→entries (vector), chunks→parts (storage) |
 | 0.1.4 | 2025-01-27 | Architecture Team | Phase 1.9 completed: Auto-rebuild vector indexes with 57 tests passing |
+| 0.1.5 | 2025-10-31 | Architecture Team | Clarified file block contract: ALWAYS external + manifest.json (§3.3) |
+|       |            |                   | Added execution flow documentation for file blocks and prefetch mechanism |
+|       |            |                   | Documented Phase 3.5 refactoring plan for file block standard compliance |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 

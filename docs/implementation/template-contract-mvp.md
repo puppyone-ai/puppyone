@@ -882,6 +882,203 @@ pkg['workflow'] = seo_source  # Replace workflow only
 
 ---
 
+**Bug #6: File Block Storage Design Inconsistency (Design-Level Issue)**
+
+**Discovery Date**: 2025-10-31 (during file-load template E2E testing)
+
+**Severity**: ⚠️ **CRITICAL DESIGN FLAW** - Requires architectural refactoring
+
+**Symptoms**:
+
+1. Template instantiation sets file blocks to `storage_class='internal'`
+2. Single-edge execution fails: "Workflow execution stuck - no executable edges found"
+3. Load edge expects `local_path` in content (from prefetch), but receives `task_id` instead
+4. Design violates FILE-BLOCK-CONTRACT.md standard
+
+**Root Cause Analysis**:
+
+Template instantiation bypassed the standard prefetch mechanism by using non-standard storage mode:
+
+| Scenario | Storage Mode | Data Structure | Prefetch? | Load Works? |
+|----------|--------------|----------------|-----------|-------------|
+| **User runtime upload** | external + manifest | `external_metadata.resource_key` | ✅ Yes | ✅ Yes |
+| **Template instantiation** | internal + direct ref | `content[].task_id` | ❌ No | ❌ No |
+
+**Standard Flow** (User runtime):
+```
+1. File Block → storage_class='external', external_metadata.resource_key
+2. Prefetch (ExternalStorageStrategy) → Download to temp, set content[].local_path
+3. Load Edge → Read local_path, parse files
+```
+
+**Current Template Flow** (Broken):
+```
+1. processFile() → storage_class='internal', content[].task_id  ❌ Non-standard
+2. Prefetch → Skipped (is_external=False)  ❌ No local files
+3. Load Edge → No local_path found  ❌ Fails
+```
+
+**Why This Happened**:
+
+Original implementation comment in `cloud.ts:569`:
+> "File blocks don't use manifest.json, they use direct file references"
+
+This was a **misunderstanding** of the file block contract. File blocks **MUST** use:
+- manifest.json (file directory metadata)
+- external storage mode
+- prefetch mechanism (download to local temp)
+
+**Architectural Impact**:
+
+❌ **Workarounds attempted**:
+1. Fix `buildFileNodeJson` to preserve `task_id` content ✅ Done
+2. Fix load edge to handle missing `local_path` ⚠️ Incomplete
+3. Multiple inconsistencies across codebase ❌ Technical debt
+
+✅ **Correct solution**: Align with FILE-BLOCK-CONTRACT.md
+
+**Refactoring Plan** (Phase 3.5):
+
+**Task 3.5.1: Implement Standard File Upload Flow** (2-3h)
+
+File: `PuppyFlow/lib/templates/cloud.ts`
+
+```typescript
+private async processFile(...): Promise<void> {
+  const versionId = `${Date.now()}-${uuidv4().slice(0, 8)}`;
+  
+  // 1. Upload file to PuppyStorage (multipart upload)
+  const fileKey = await this.uploadFileToPuppyStorage(...);
+  
+  // 2. Create manifest.json (standard file block contract)
+  const manifest = {
+    version: '1.0',
+    block_id: block.id,
+    version_id: versionId,
+    created_at: new Date().toISOString(),
+    status: 'completed',
+    chunks: [{  // Note: 'chunks' for file metadata, not 'parts'
+      name: fileName,
+      file_name: fileName,
+      mime_type: resource.source.mime_type,
+      size: fileBuffer.length,
+      etag: '...',
+      file_type: inferFileType(fileName, mimeType)
+    }]
+  };
+  
+  // 3. Upload manifest.json
+  await this.uploadManifestToPuppyStorage(
+    `${userId}/${block.id}/${versionId}/manifest.json`,
+    manifest
+  );
+  
+  // 4. Set external mode (STANDARD!)
+  block.data.external_metadata = {
+    resource_key: `${userId}/${block.id}/${versionId}`,
+    content_type: 'files'
+  };
+  block.data.storage_class = 'external';  // ✅ External!
+  
+  // 5. DO NOT set content - prefetch will handle it
+  delete block.data.content;
+}
+```
+
+**Task 3.5.2: Revert Frontend Workaround** (0.5h)
+
+File: `PuppyFlow/app/components/workflow/edgesNode/edgeNodesNew/hook/blockNodeJsonBuilders.ts`
+
+```typescript
+function buildFileNodeJson(...) {
+  // Remove internal mode handling
+  // Only keep external mode (standard contract)
+  
+  if (nodeData?.storage_class === 'external' && resourceKey) {
+    return {
+      label,
+      type: 'file',
+      storage_class: 'external',
+      data: {
+        external_metadata: {
+          resource_key: resourceKey,
+          content_type: 'files'
+        }
+      },
+      ...
+    };
+  }
+  
+  // Fallback: empty file block
+  return {
+    label,
+    type: 'file',
+    data: { content: null },  // Will be populated by prefetch
+    ...
+  };
+}
+```
+
+**Task 3.5.3: Verify Standard Flow** (1h)
+
+1. Template instantiation creates manifest.json ✅
+2. File block has `storage_class='external'` + `external_metadata` ✅
+3. Prefetch downloads file, sets `content[].local_path` ✅
+4. Load edge reads `local_path`, parses files ✅
+
+**Verification**:
+
+```bash
+# E2E Test: file-load template
+1. Create workspace from file-load template
+2. Verify manifest.json exists in PuppyStorage
+3. Run single-edge test: file → load
+4. Confirm prefetch log: "Downloaded file to /tmp/..."
+5. Confirm load edge log: "Parsing from local_path: /tmp/..."
+6. Run full workflow: file → load → structured → llm
+7. All steps complete successfully
+```
+
+**Benefits of Refactoring**:
+
+✅ **Standards Compliance**: Aligns with FILE-BLOCK-CONTRACT.md
+✅ **Code Consistency**: Same flow for runtime and template
+✅ **Maintainability**: No special cases or workarounds
+✅ **Future-proof**: Works with file block enhancements
+✅ **Correct Semantics**: Prefetch mechanism works as designed
+
+**Estimated Effort**:
+
+- Refactoring: 3-4 hours
+- Testing: 1-2 hours
+- **Total**: 4-6 hours
+
+**Priority**: ⭐⭐⭐ **HIGH** - Complete before Phase 4 (marketplace)
+
+**Files to Modify**:
+
+```
+PuppyFlow/lib/templates/cloud.ts                    (processFile rewrite)
+PuppyFlow/app/components/workflow/.../blockNodeJsonBuilders.ts  (revert workaround)
+docs/implementation/template-contract-mvp.md        (update status)
+```
+
+**Files to Test**:
+
+```
+templates/file-load/package.json                    (has 1 PDF file)
+PuppyEngine/ModularEdges/LoadEdge/load_file.py     (expects local_path)
+PuppyEngine/Persistence/ExternalStorageStrategy.py  (prefetch logic)
+```
+
+**Related Issues**:
+
+- Bug #4: File block `external_metadata` cleanup (related symptom)
+- Bug #5: Template migration source mismatch (independent)
+- FILE-BLOCK-CONTRACT.md: Standard contract violated
+
+---
+
 ## Phase 2 File Changes Summary
 
 ### New Files (Phase 2)
