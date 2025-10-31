@@ -905,6 +905,7 @@ Template instantiation bypassed the standard prefetch mechanism by using non-sta
 | **Template instantiation** | internal + direct ref | `content[].task_id` | ❌ No | ❌ No |
 
 **Standard Flow** (User runtime):
+
 ```
 1. File Block → storage_class='external', external_metadata.resource_key
 2. Prefetch (ExternalStorageStrategy) → Download to temp, set content[].local_path
@@ -912,6 +913,7 @@ Template instantiation bypassed the standard prefetch mechanism by using non-sta
 ```
 
 **Current Template Flow** (Broken):
+
 ```
 1. processFile() → storage_class='internal', content[].task_id  ❌ Non-standard
 2. Prefetch → Skipped (is_external=False)  ❌ No local files
@@ -924,64 +926,342 @@ Original implementation comment in `cloud.ts:569`:
 > "File blocks don't use manifest.json, they use direct file references"
 
 This was a **misunderstanding** of the file block contract. File blocks **MUST** use:
+
 - manifest.json (file directory metadata)
 - external storage mode
 - prefetch mechanism (download to local temp)
 
+**Additional Discovery** (2025-10-31 - Authentication Issue):
+
+During Phase 3.5 planning, discovered a second critical issue: **CloudTemplateLoader Authentication**
+
+**Problem**: `CloudTemplateLoader` uses `SERVICE_KEY` for PuppyStorage API calls, which violates PuppyStorage's authentication model:
+
+```typescript
+// Current (WRONG):
+const headers = {
+  Authorization: `Bearer ${SERVER_ENV.SERVICE_KEY || 'dev-token'}`,
+  'Content-Type': 'application/json',
+};
+```
+
+**Why This Is Wrong**:
+
+1. **PuppyStorage API Design**: All upload/manifest APIs require **user JWT token** (not service key)
+2. **Service Key Purpose**: `X-Service-Key` header is for service-to-service auth, not file operations
+3. **Localhost Incompatibility**: No fallback mechanism for local development (extractAuthHeader returns `undefined`)
+
+**Comparison with PuppyEngine** (✅ Correct Implementation):
+
+```typescript
+// Engine API Proxy: PuppyFlow/app/api/engine/[[...path]]/route.ts
+filterRequestHeadersAndInjectAuth(request, headers, {
+  includeServiceKey: false,
+  localFallback: true,  // ← Injects 'Bearer local-dev' for localhost
+});
+```
+
+**Authentication Flow Analysis**:
+
+| Component | Auth Header Source | Localhost Fallback | Works? |
+|-----------|-------------------|-------------------|---------|
+| **PuppyEngine** | User JWT from proxy | ✅ `Bearer local-dev` | ✅ Yes |
+| **CloudTemplateLoader** | ❌ `SERVICE_KEY` | ❌ None | ❌ No |
+
+**Impact**:
+
+- ✅ PuppyEngine can execute workflows (auth passes through proxy)
+- ❌ Template instantiation will fail when uploading resources
+- ⚠️ Localhost development broken (no auth header available)
+
+**Root Cause**:
+
+- `extractAuthHeader(request)` in `/api/workspace/instantiate/route.ts` may return `undefined` in localhost
+- `CloudTemplateLoader` constructor doesn't accept `authHeader` parameter
+- No unified localhost fallback strategy (unlike Engine proxy)
+
+---
+
 **Architectural Impact**:
 
 ❌ **Workarounds attempted**:
+
 1. Fix `buildFileNodeJson` to preserve `task_id` content ✅ Done
 2. Fix load edge to handle missing `local_path` ⚠️ Incomplete
 3. Multiple inconsistencies across codebase ❌ Technical debt
 
-✅ **Correct solution**: Align with FILE-BLOCK-CONTRACT.md
+✅ **Correct solution**: 
+1. Align file block handling with FILE-BLOCK-CONTRACT.md
+2. Fix CloudTemplateLoader authentication to use user JWT token
+3. Implement localhost fallback consistent with Engine proxy
 
 **Refactoring Plan** (Phase 3.5):
+
+**Task 3.5.0: Fix Authentication for Template Instantiation** (1-1.5h)
+
+**Subtask 3.5.0.1**: Update CloudTemplateLoader to accept and use user auth header
+
+File: `PuppyFlow/lib/templates/cloud.ts`
+
+```typescript
+export class CloudTemplateLoader implements TemplateLoader {
+  private userAuthHeader?: string;
+  
+  constructor(config?: LoaderConfig, userAuthHeader?: string) {
+    this.config = config || {};
+    this.userAuthHeader = userAuthHeader;
+  }
+  
+  /**
+   * Get authentication header for PuppyStorage API calls
+   * Strategy:
+   * 1. Use provided authHeader (from /api/workspace/instantiate)
+   * 2. Fallback to 'Bearer local-dev' for localhost (consistent with Engine proxy)
+   * 3. Error in cloud mode without auth
+   */
+  private getUserAuthHeader(): string {
+    // If auth header provided, use it
+    if (this.userAuthHeader) {
+      return this.userAuthHeader;
+    }
+    
+    // Localhost fallback - consistent with Engine proxy behavior
+    const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
+    if (mode !== 'cloud') {
+      console.log('[CloudTemplateLoader] Localhost mode: using default auth token');
+      return 'Bearer local-dev';  // ← Same as Engine proxy
+    }
+    
+    throw new Error('Cloud deployment requires user authentication header');
+  }
+  
+  private async uploadFileToPuppyStorage(...): Promise<...> {
+    const headers = {
+      Authorization: this.getUserAuthHeader(),  // ← Use unified method
+      'Content-Type': 'application/json',
+    };
+    // ... rest of upload logic
+  }
+  
+  private async updateManifest(...): Promise<void> {
+    const headers = {
+      Authorization: this.getUserAuthHeader(),  // ← Use unified method
+      'Content-Type': 'application/json',
+    };
+    // ... rest of manifest update logic
+  }
+}
+```
+
+**Subtask 3.5.0.2**: Update instantiation API to pass auth header
+
+File: `PuppyFlow/app/api/workspace/instantiate/route.ts`
+
+```typescript
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { templateId, workspaceName, availableModels } = body;
+  
+  const userId = await getCurrentUserId(request);
+  const authHeader = extractAuthHeader(request);
+  
+  // Localhost fallback - consistent with Engine proxy
+  let finalAuthHeader = authHeader;
+  if (!finalAuthHeader && (process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud') {
+    console.log('[Instantiate API] Localhost mode: using default auth token');
+    finalAuthHeader = 'Bearer local-dev';
+  }
+  
+  // Pass auth header to loader
+  const loader = TemplateLoaderFactory.create(undefined, finalAuthHeader);
+  
+  // ... rest of instantiation logic
+}
+```
+
+**Subtask 3.5.0.3**: Update TemplateLoaderFactory
+
+File: `PuppyFlow/lib/templates/loader.ts`
+
+```typescript
+export class TemplateLoaderFactory {
+  static create(config?: LoaderConfig, authHeader?: string): TemplateLoader {
+    // For now, only CloudTemplateLoader is implemented
+    return new CloudTemplateLoader(config, authHeader);
+  }
+}
+```
+
+**Benefits**:
+
+✅ Aligns with PuppyStorage authentication model (user JWT token)
+✅ Consistent with Engine proxy behavior (localhost fallback)
+✅ Works in both cloud and localhost environments
+✅ Removes incorrect SERVICE_KEY usage
+
+---
 
 **Task 3.5.1: Implement Standard File Upload Flow** (2-3h)
 
 File: `PuppyFlow/lib/templates/cloud.ts`
 
+**Key Question 1**: Which upload API to use?
+
+**Options**:
+
+| API Endpoint | Use Case | Pros | Cons |
+|-------------|----------|------|------|
+| 4-step multipart | Large files (>5MB) | Resumable, efficient | Complex, overkill for small files |
+| `/upload/chunk/direct` | Small files (<5MB) | Simple, single request | No resumability |
+
+**Decision**: Use `/upload/chunk/direct` (small file API)
+
+**Rationale**:
+- Template files are typically small (PDFs, images < 5MB)
+- Simpler implementation (1 request vs 4)
+- Consistent with frontend `useFileUpload.ts` for small files
+- Can upgrade to multipart later if needed
+
+**Key Question 2**: Manifest field naming - `chunks` or `parts`?
+
+**Answer**: Use `chunks` (not `parts`)
+
+**Rationale**:
+- File metadata uses `chunks` array (semantic: file list)
+- Storage partitioning uses `parts` (semantic: content split)
+- ExternalStorageStrategy expects `manifest.get('chunks', [])` for files
+- See: template-resource-contract.md §3.3 and STORAGE_SPEC.md
+
+**Key Question 3**: Manifest creation strategy?
+
+**Options**:
+
+| Strategy | When | How |
+|----------|------|-----|
+| **Client creates manifest** | Template instantiation | Create manifest.json locally, upload to PuppyStorage |
+| **Server creates manifest** | User runtime upload | PuppyStorage creates manifest during multipart complete |
+
+**Decision**: Client creates manifest (CloudTemplateLoader)
+
+**Rationale**:
+- Consistent with structured/text resource handling (client-side partitioning)
+- Full control over metadata (file_type inference, mime_type)
+- PuppyStorage `/upload/chunk/direct` doesn't auto-create manifests
+- Explicit is better than implicit
+
+**Implementation**:
+
 ```typescript
 private async processFile(...): Promise<void> {
   const versionId = `${Date.now()}-${uuidv4().slice(0, 8)}`;
+  const resourceKey = `${userId}/${block.id}/${versionId}`;
   
-  // 1. Upload file to PuppyStorage (multipart upload)
-  const fileKey = await this.uploadFileToPuppyStorage(...);
+  // 1. Read file from template resources
+  const fileBuffer = await fs.readFile(path.join(templateDir, resource.source.path));
+  const fileName = path.basename(resource.source.path);
+  const mimeType = resource.source.mime_type || 'application/octet-stream';
   
-  // 2. Create manifest.json (standard file block contract)
+  // 2. Upload file to PuppyStorage (direct upload for small files)
+  const fileKey = `${resourceKey}/${fileName}`;
+  const uploadResponse = await fetch(`${STORAGE_URL}/upload/chunk/direct`, {
+    method: 'POST',
+    headers: {
+      Authorization: this.getUserAuthHeader(),  // ← Uses fixed auth
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      key: fileKey,
+      content: fileBuffer.toString('base64'),  // Base64 encode for JSON transport
+    }),
+  });
+  
+  if (!uploadResponse.ok) {
+    throw new Error(`File upload failed: ${uploadResponse.status}`);
+  }
+  
+  const { etag } = await uploadResponse.json();
+  
+  // 3. Infer file type (using frontend logic)
+  const fileType = this.inferFileType(fileName, mimeType);
+  
+  // 4. Create manifest.json (standard file block contract)
   const manifest = {
     version: '1.0',
     block_id: block.id,
     version_id: versionId,
     created_at: new Date().toISOString(),
     status: 'completed',
-    chunks: [{  // Note: 'chunks' for file metadata, not 'parts'
+    chunks: [{  // ← 'chunks' for file metadata (not 'parts')
       name: fileName,
       file_name: fileName,
-      mime_type: resource.source.mime_type,
+      mime_type: mimeType,
       size: fileBuffer.length,
-      etag: '...',
-      file_type: inferFileType(fileName, mimeType)
-    }]
+      etag: etag,
+      file_type: fileType,
+    }],
   };
   
-  // 3. Upload manifest.json
-  await this.uploadManifestToPuppyStorage(
-    `${userId}/${block.id}/${versionId}/manifest.json`,
-    manifest
-  );
+  // 5. Upload manifest.json
+  await this.updateManifest(`${resourceKey}/manifest.json`, manifest);
   
-  // 4. Set external mode (STANDARD!)
+  // 6. Set external mode (STANDARD!)
   block.data.external_metadata = {
-    resource_key: `${userId}/${block.id}/${versionId}`,
-    content_type: 'files'
+    resource_key: resourceKey,
+    content_type: 'files',
   };
   block.data.storage_class = 'external';  // ✅ External!
   
-  // 5. DO NOT set content - prefetch will handle it
+  // 7. DO NOT set content - prefetch will handle it
   delete block.data.content;
+  
+  console.log(`[CloudTemplateLoader] Uploaded file resource: ${resourceKey}`);
+}
+
+/**
+ * Infer file type from extension and MIME type
+ * Logic copied from frontend: useFileUpload.ts
+ */
+private inferFileType(fileName: string, mimeType: string): string {
+  const extension = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+  
+  // Extension-based mapping (priority 1)
+  const extensionMap: Record<string, string> = {
+    // Documents
+    'pdf': 'pdf',
+    'doc': 'word',
+    'docx': 'word',
+    'txt': 'text',
+    'md': 'markdown',
+    'csv': 'csv',
+    'json': 'json',
+    'xml': 'xml',
+    // Spreadsheets
+    'xls': 'excel',
+    'xlsx': 'excel',
+    // Images
+    'jpg': 'image',
+    'jpeg': 'image',
+    'png': 'image',
+    'gif': 'image',
+    'webp': 'image',
+    // Others
+    'zip': 'archive',
+    'html': 'html',
+  };
+  
+  if (extensionMap[extension]) {
+    return extensionMap[extension];
+  }
+  
+  // MIME type fallback (priority 2)
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('text/')) return 'text';
+  if (mimeType.includes('pdf')) return 'pdf';
+  if (mimeType.includes('word')) return 'word';
+  if (mimeType.includes('excel') || mimeType.includes('spreadsheet')) return 'excel';
+  
+  // Default
+  return 'file';
 }
 ```
 
@@ -1049,18 +1329,23 @@ function buildFileNodeJson(...) {
 
 **Estimated Effort**:
 
-- Refactoring: 3-4 hours
-- Testing: 1-2 hours
-- **Total**: 4-6 hours
+- Task 3.5.0 (Authentication fix): 1-1.5 hours
+- Task 3.5.1 (File upload rewrite): 2-3 hours
+- Task 3.5.2 (Revert workaround): 0.5 hours
+- Task 3.5.3 (E2E verification): 1 hour
+- **Total**: 4.5-7.5 hours
 
 **Priority**: ⭐⭐⭐ **HIGH** - Complete before Phase 4 (marketplace)
 
 **Files to Modify**:
 
 ```
-PuppyFlow/lib/templates/cloud.ts                    (processFile rewrite)
+PuppyFlow/lib/templates/cloud.ts                    (auth fix + processFile rewrite)
+PuppyFlow/lib/templates/loader.ts                   (auth parameter)
+PuppyFlow/app/api/workspace/instantiate/route.ts    (auth header passing)
 PuppyFlow/app/components/workflow/.../blockNodeJsonBuilders.ts  (revert workaround)
 docs/implementation/template-contract-mvp.md        (update status)
+docs/architecture/FILE-BLOCK-CONTRACT.md           (if clarification needed)
 ```
 
 **Files to Test**:
@@ -1076,6 +1361,21 @@ PuppyEngine/Persistence/ExternalStorageStrategy.py  (prefetch logic)
 - Bug #4: File block `external_metadata` cleanup (related symptom)
 - Bug #5: Template migration source mismatch (independent)
 - FILE-BLOCK-CONTRACT.md: Standard contract violated
+
+**Authentication References**:
+
+- ✅ Correct pattern: `PuppyFlow/app/api/engine/[[...path]]/route.ts` (Engine proxy)
+- ✅ Correct pattern: `PuppyFlow/lib/auth/http.ts` (`filterRequestHeadersAndInjectAuth`)
+- ✅ Correct pattern: `PuppyEngine/Server/middleware/auth_middleware.py` (localhost handling)
+- ✅ Correct pattern: `PuppyStorage/server/auth.py` (LocalAuthProvider loose mode)
+- ❌ Wrong pattern: `CloudTemplateLoader` using SERVICE_KEY
+
+**Key Insight**: 
+
+PuppyStorage upload APIs require **user JWT token** (Authorization header):
+- In cloud: Real user token from extractAuthHeader
+- In localhost: `Bearer local-dev` fallback (accepted by LocalAuthProvider loose mode)
+- SERVICE_KEY is only for `X-Service-Key` header (service-to-service auth)
 
 ---
 
@@ -1333,11 +1633,13 @@ If critical issues arise:
 ### Problem Analysis
 
 **Three Write Operations**:
+
 1. Template Instantiation (CloudTemplateLoader) - 1MB threshold ✅
 2. Frontend Runtime (dynamicStorageStrategy) - 1KB threshold ❌
 3. Backend Computation (HybridStoragePolicy) - 1KB threshold ❌
 
 **Impact**:
+
 - Template-created 10KB inline resources upgraded to external on first user edit
 - Unnecessary network requests and PuppyStorage overhead
 - Unpredictable behavior: same content different storage_class depending on entry point
@@ -1346,22 +1648,26 @@ If critical issues arise:
 ### Fix Implemented
 
 **Code Changes**:
+
 - **Frontend**: `CONTENT_LENGTH_THRESHOLD = 1024 * 1024` (from 1KB → 1MB)
 - **Backend**: `HybridStoragePolicy.threshold = 1024 * 1024` (from 1KB → 1MB)
 - Added comprehensive documentation comments explaining consistency requirement
 
 **Metadata Management Clarified**:
+
 - Template instantiation: Deletes old `external_metadata` (invalid resource_keys from template author's workspace)
 - Runtime/Backend: Preserves `external_metadata` for resource_key reuse optimization (valid keys from current workspace)
 - This difference is intentional and documented with rationale
 
 **Testing Infrastructure Created**:
+
 - ✅ Frontend: `storage-threshold-consistency.test.ts` (17 automated tests)
 - ✅ Backend: `test_storage_consistency.py` (9 automated tests)
 - ✅ E2E guide: `docs/testing/storage-threshold-e2e.md`
 - ✅ All tests passing
 
 **Documentation**:
+
 - Created: `docs/architecture/STORAGE_CONSISTENCY_BEST_PRACTICES.md` (30KB comprehensive analysis)
 - Updated: `STORAGE_SPEC.md` (added consistency requirements + rationale)
 - Created: `docs/testing/storage-threshold-e2e.md` (manual testing scenarios)
@@ -1376,18 +1682,21 @@ If critical issues arise:
 ### Verification Status
 
 **Automated Tests**: ✅ All passing
+
 - Frontend: 17/17 tests pass
 - Backend: 9/9 tests pass
 
 **Manual E2E**: ⏳ Ready for testing (see `docs/testing/storage-threshold-e2e.md`)
 
 **Next Steps**:
+
 1. Manual E2E validation across all 4 templates
 2. Monitor production metrics after deployment: expect ~70% reduction in external storage requests
 
 ---
 
 **Documentation Coverage**:
+
 - ✅ Design rationale documented
 - ✅ Automated regression tests in place
 - ✅ Manual testing guide created

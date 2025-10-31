@@ -391,7 +391,65 @@ PuppyAgent-Jack/
                 └── route.ts         # Instantiation API endpoint
 ```
 
-### 3.3 Resource Instantiation Flow
+### 3.3 Authentication for Resource Operations
+
+**Critical Design Principle**: All resource uploads to PuppyStorage must use **user JWT token** (not SERVICE_KEY).
+
+**Authentication Strategy**:
+
+| Environment | Auth Header Source | Value | PuppyStorage Validation |
+|-------------|-------------------|-------|------------------------|
+| **Cloud** | `extractAuthHeader(request)` | User's real JWT token | RemoteAuthProvider verifies with PuppyUserSystem |
+| **Localhost** | Fallback if no cookie | `Bearer local-dev` | LocalAuthProvider accepts (loose mode) |
+
+**Implementation Pattern**:
+
+```typescript
+// In CloudTemplateLoader
+private getUserAuthHeader(): string {
+  if (this.userAuthHeader) {
+    return this.userAuthHeader;  // Passed from /api/workspace/instantiate
+  }
+  
+  // Localhost fallback (consistent with Engine proxy)
+  if ((process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud') {
+    return 'Bearer local-dev';
+  }
+  
+  throw new Error('Cloud deployment requires user authentication header');
+}
+
+// In /api/workspace/instantiate
+const authHeader = extractAuthHeader(request);
+const finalAuthHeader = authHeader || 
+  ((process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud' 
+    ? 'Bearer local-dev' 
+    : undefined);
+const loader = TemplateLoaderFactory.create(undefined, finalAuthHeader);
+```
+
+**Why User Token (Not SERVICE_KEY)**:
+
+1. **Resource Ownership**: Files must belong to the user's namespace (`${userId}/${blockId}/${versionId}`)
+2. **Security Model**: PuppyStorage enforces user-scoped access control
+3. **Consistency**: Same auth pattern as runtime file uploads (frontend → API → PuppyStorage)
+
+**Comparison with PuppyEngine**:
+
+| Component | Auth Source | Localhost Fallback | Implemented |
+|-----------|-------------|-------------------|-------------|
+| **PuppyEngine** | User JWT via proxy | ✅ `Bearer local-dev` | ✅ Yes |
+| **CloudTemplateLoader** | User JWT from API | ✅ `Bearer local-dev` | ⚠️ Phase 3.5 |
+
+**Reference Implementations**:
+
+- ✅ Correct: `PuppyFlow/app/api/engine/[[...path]]/route.ts` (`filterRequestHeadersAndInjectAuth`)
+- ✅ Correct: `PuppyEngine/Server/middleware/auth_middleware.py` (localhost handling)
+- ✅ Correct: `PuppyStorage/server/auth.py` (`LocalAuthProvider` loose mode)
+
+---
+
+### 3.4 Resource Instantiation Flow
 
 ```
 1. Load Template
@@ -445,7 +503,9 @@ PuppyAgent-Jack/
 
 ---
 
-## Execution Flow (Runtime)
+---
+
+## 3.5 Execution Flow (Runtime)
 
 When user executes workflow with file/external resources:
 
@@ -863,9 +923,12 @@ instantiateTemplate(templateId, userId, workspaceName)
 | 0.1.2 | 2025-01-23 | Architecture Team | Updated Phase breakdown, added Phase 1.5, renamed to mounted_path |
 | 0.1.3 | 2025-01-25 | Architecture Team | Phase 1.7 semantic separation: chunks→entries (vector), chunks→parts (storage) |
 | 0.1.4 | 2025-01-27 | Architecture Team | Phase 1.9 completed: Auto-rebuild vector indexes with 57 tests passing |
-| 0.1.5 | 2025-10-31 | Architecture Team | Clarified file block contract: ALWAYS external + manifest.json (§3.3) |
-|       |            |                   | Added execution flow documentation for file blocks and prefetch mechanism |
+| 0.1.5 | 2025-10-31 | Architecture Team | Clarified file block contract: ALWAYS external + manifest.json (§3.4) |
+|       |            |                   | Added execution flow documentation for file blocks and prefetch mechanism (§3.5) |
 |       |            |                   | Documented Phase 3.5 refactoring plan for file block standard compliance |
+| 0.1.6 | 2025-10-31 | Architecture Team | Added authentication section (§3.3) for resource operations |
+|       |            |                   | Documented user JWT token requirement vs SERVICE_KEY |
+|       |            |                   | Added localhost fallback strategy and comparison with PuppyEngine |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 
