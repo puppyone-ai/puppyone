@@ -112,6 +112,20 @@ class Env:
                 if not batch_edges:
                     # No edges ready, check if we're stuck
                     if self._is_stuck():
+                        # Log detailed debugging information
+                        block_states_summary = {
+                            bid: {
+                                "state": state,
+                                "has_content": self.blocks[bid].get_content() is not None,
+                                "storage_class": getattr(self.blocks[bid], 'storage_class', 'unknown'),
+                                "is_resolved": getattr(self.blocks[bid], 'is_resolved', False)
+                            }
+                            for bid, state in self.planner.block_states.items()
+                        }
+                        log_info(f"[DEBUG] Block states: {block_states_summary}")
+                        log_info(f"[DEBUG] Edge states: {self.planner.edge_states}")
+                        log_info(f"[DEBUG] Edge to inputs mapping: {self.planner.edge_to_inputs_mapping}")
+                        
                         raise PuppyException(
                             6100,
                             "Workflow execution stuck",
