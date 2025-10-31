@@ -537,7 +537,8 @@ export class CloudTemplateLoader implements TemplateLoader {
 
     console.log(`[CloudTemplateLoader] File uploaded: ${targetKey}`);
 
-    // Update workflow reference
+    // Update workflow reference - use content array (not external_metadata)
+    // File blocks store files in uploadedFiles/content, not via manifest.json
     if (!block.data.uploadedFiles) {
       block.data.uploadedFiles = [];
     }
@@ -548,6 +549,26 @@ export class CloudTemplateLoader implements TemplateLoader {
       size: fileBuffer.length,
       type: resource.source.mime_type || 'application/octet-stream',
     });
+
+    // Update content array for file block (task_id format expected by PuppyEngine)
+    block.data.content = [
+      {
+        fileName: fileName,
+        task_id: targetKey,
+        fileType: resource.source.mime_type?.split('/')[1] || 'pdf',
+        size: fileBuffer.length,
+      },
+    ];
+
+    // Clear any old external_metadata from template
+    // File blocks don't use manifest.json, they use direct file references
+    if (block.data.external_metadata) {
+      delete block.data.external_metadata;
+    }
+
+    // File blocks don't use external storage class (they have direct file access)
+    block.data.storage_class = 'internal';
+    block.data.isExternalStorage = false;
   }
 
   /**
