@@ -560,15 +560,27 @@ export class CloudTemplateLoader implements TemplateLoader {
       },
     ];
 
+    console.log(
+      `[CloudTemplateLoader] ✅ Updated block ${block.id} content:`,
+      JSON.stringify(block.data.content)
+    );
+
     // Clear any old external_metadata from template
     // File blocks don't use manifest.json, they use direct file references
     if (block.data.external_metadata) {
       delete block.data.external_metadata;
+      console.log(
+        `[CloudTemplateLoader] 🗑️ Deleted external_metadata from block ${block.id}`
+      );
     }
 
     // File blocks don't use external storage class (they have direct file access)
     block.data.storage_class = 'internal';
     block.data.isExternalStorage = false;
+
+    console.log(
+      `[CloudTemplateLoader] ✅ File block ${block.id} processed: storage_class=${block.data.storage_class}, content_length=${block.data.content?.length || 0}`
+    );
   }
 
   /**
