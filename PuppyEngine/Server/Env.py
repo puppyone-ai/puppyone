@@ -113,7 +113,9 @@ class Env:
                     # No edges ready, check if we're stuck
                     if self._is_stuck():
                         raise PuppyException(
-                            "Workflow execution stuck - no executable edges found"
+                            6100,
+                            "Workflow execution stuck",
+                            "No executable edges found - workflow may have circular dependencies or missing inputs"
                         )
 
                     # Wait a bit before checking again
