@@ -41,9 +41,36 @@ const STORAGE_THRESHOLD = 1024 * 1024; // 1MB
 export class CloudTemplateLoader implements TemplateLoader {
   private config: TemplateLoaderConfig;
   private currentTemplateId: string = '';
+  private userAuthHeader?: string;
 
-  constructor(config?: Partial<TemplateLoaderConfig>) {
+  constructor(config?: Partial<TemplateLoaderConfig>, userAuthHeader?: string) {
     this.config = { ...DEFAULT_LOADER_CONFIG, ...config };
+    this.userAuthHeader = userAuthHeader;
+  }
+
+  /**
+   * Get authentication header for PuppyStorage API calls
+   *
+   * Strategy:
+   * 1. Use provided authHeader (from /api/workspace/instantiate)
+   * 2. Fallback to 'Bearer local-dev' for localhost (consistent with Engine proxy)
+   * 3. Error in cloud mode without auth
+   */
+  private getUserAuthHeader(): string {
+    if (this.userAuthHeader) {
+      return this.userAuthHeader;
+    }
+
+    // Localhost fallback - consistent with Engine proxy behavior
+    const mode = (process.env.DEPLOYMENT_MODE || '').toLowerCase();
+    if (mode !== 'cloud') {
+      console.log(
+        '[CloudTemplateLoader] Localhost mode: using default auth token'
+      );
+      return 'Bearer local-dev';
+    }
+
+    throw new Error('Cloud deployment requires user authentication header');
   }
 
   /**
@@ -390,126 +417,128 @@ export class CloudTemplateLoader implements TemplateLoader {
   }
 
   /**
-   * Upload a file directly to PuppyStorage backend
+   * Upload file to PuppyStorage (direct upload for small template files)
    *
-   * @param fileKey - Full key for the file (userId/blockId/versionId/fileName)
+   * Uses /upload/chunk/direct API for simple single-request upload.
+   * Suitable for template files which are typically small (<5MB).
+   *
+   * API expects:
+   * - block_id and file_name as query parameters
+   * - Raw file data as request body
+   *
+   * @param fileKey - Storage key (userId/blockId/versionId/fileName)
    * @param fileBuffer - File content as Buffer
-   * @param fileName - File name
-   * @param mimeType - MIME type of the file
-   * @param userId - User ID for namespace
+   * @returns ETag of uploaded file
    */
   private async uploadFileToPuppyStorage(
     fileKey: string,
-    fileBuffer: Buffer,
-    fileName: string,
-    mimeType: string,
-    userId: string
-  ): Promise<void> {
+    fileBuffer: Buffer
+  ): Promise<string> {
     const baseUrl = SERVER_ENV.PUPPY_STORAGE_BACKEND;
-    const headers = {
-      Authorization: `Bearer ${SERVER_ENV.SERVICE_KEY || 'dev-token'}`,
-      'Content-Type': 'application/json',
-    };
 
-    // Parse fileKey to extract block_id: userId/blockId/files/fileName
+    // Parse fileKey: userId/blockId/versionId/fileName
     const keyParts = fileKey.split('/');
-    const blockId = keyParts[1]; // Extract blockId from path
+    const blockId = keyParts[1];
+    const versionId = keyParts[2];
+    const fileName = keyParts.slice(3).join('/'); // Handle filenames with slashes
 
-    // Step 1: Initialize upload (API generates key internally)
-    const initResponse = await fetch(`${baseUrl}/upload/init`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        block_id: blockId,
-        file_name: fileName,
-        content_type: mimeType,
-        file_size: fileBuffer.length,
-      }),
+    // Build query parameters
+    const params = new URLSearchParams({
+      block_id: blockId,
+      file_name: fileName,
+      version_id: versionId,
     });
 
-    if (!initResponse.ok) {
-      const errorText = await initResponse.text();
-      throw new Error(
-        `File upload init failed: ${initResponse.status} - ${errorText}`
-      );
-    }
-
-    const { upload_id, key } = await initResponse.json();
-
-    // Step 2: Get upload URL
-    const urlResponse = await fetch(`${baseUrl}/upload/get_upload_url`, {
+    const response = await fetch(`${baseUrl}/upload/chunk/direct?${params}`, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        key,
-        upload_id,
-        part_number: 1,
-      }),
-    });
-
-    if (!urlResponse.ok) {
-      const errorText = await urlResponse.text();
-      throw new Error(
-        `Get upload URL failed: ${urlResponse.status} - ${errorText}`
-      );
-    }
-
-    const { upload_url } = await urlResponse.json();
-
-    // Step 3: Upload file content
-    const uploadResponse = await fetch(upload_url, {
-      method: 'PUT',
-      body: fileBuffer,
       headers: {
-        'Content-Type': mimeType,
+        Authorization: this.getUserAuthHeader(),
+        'Content-Type': 'application/octet-stream',
       },
+      body: fileBuffer,
     });
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      throw new Error(
-        `File content upload failed: ${uploadResponse.status} - ${errorText}`
-      );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`File upload failed: ${response.status} - ${errorText}`);
     }
 
-    // Get ETag from response (S3-style or local storage)
-    let etag: string;
-    const etagHeader = uploadResponse.headers.get('etag');
-    if (etagHeader) {
-      etag = etagHeader.replace(/"/g, '');
-    } else {
-      // For local storage, etag might be in JSON response
-      try {
-        const uploadResult = await uploadResponse.json();
-        etag = uploadResult.etag;
-      } catch {
-        etag = 'local-etag-' + Date.now();
-      }
-    }
-
-    // Step 4: Complete upload
-    const completeResponse = await fetch(`${baseUrl}/upload/complete`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        key,
-        upload_id,
-        parts: [{ PartNumber: 1, ETag: etag }],
-      }),
-    });
-
-    if (!completeResponse.ok) {
-      const errorText = await completeResponse.text();
-      throw new Error(
-        `File upload complete failed: ${completeResponse.status} - ${errorText}`
-      );
-    }
-
-    console.log(`[CloudTemplateLoader] File uploaded successfully: ${fileKey}`);
+    const { etag } = await response.json();
+    console.log(`[CloudTemplateLoader] Successfully uploaded file: ${fileKey}`);
+    return etag;
   }
 
   /**
-   * Process file resource
+   * Infer file type from extension and MIME type
+   *
+   * Logic copied from frontend: useFileUpload.ts
+   *
+   * @param fileName - File name with extension
+   * @param mimeType - MIME type of the file
+   * @returns Inferred file type string
+   */
+  private inferFileType(fileName: string, mimeType: string): string {
+    const extension = fileName
+      .substring(fileName.lastIndexOf('.') + 1)
+      .toLowerCase();
+
+    // Extension-based mapping (priority 1)
+    const extensionMap: Record<string, string> = {
+      // Documents
+      pdf: 'pdf',
+      doc: 'word',
+      docx: 'word',
+      txt: 'text',
+      md: 'markdown',
+      csv: 'csv',
+      json: 'json',
+      xml: 'xml',
+      // Spreadsheets
+      xls: 'excel',
+      xlsx: 'excel',
+      // Images
+      jpg: 'image',
+      jpeg: 'image',
+      png: 'image',
+      gif: 'image',
+      webp: 'image',
+      // Others
+      zip: 'archive',
+      html: 'html',
+    };
+
+    if (extensionMap[extension]) {
+      return extensionMap[extension];
+    }
+
+    // MIME type fallback (priority 2)
+    if (mimeType.startsWith('image/')) return 'image';
+    if (mimeType.startsWith('text/')) return 'text';
+    if (mimeType.includes('pdf')) return 'pdf';
+    if (mimeType.includes('word')) return 'word';
+    if (mimeType.includes('excel') || mimeType.includes('spreadsheet'))
+      return 'excel';
+
+    // Default
+    return 'file';
+  }
+
+  /**
+   * Process file resource (Phase 3.5 - Standard FILE-BLOCK-CONTRACT)
+   *
+   * File blocks now use external storage mode with manifest.json (standard contract).
+   * Process:
+   * 1. Upload file to PuppyStorage
+   * 2. Create manifest.json with chunks array
+   * 3. Upload manifest.json
+   * 4. Set external_metadata + storage_class='external'
+   * 5. Delete content (prefetch will populate it)
+   *
+   * @param resource - Resource descriptor
+   * @param resourcePath - Local path to file
+   * @param userId - User ID
+   * @param block - Block data
+   * @param workflow - Workflow definition
    */
   private async processFile(
     resource: ResourceDescriptor,
@@ -518,68 +547,74 @@ export class CloudTemplateLoader implements TemplateLoader {
     block: any,
     workflow: WorkflowDefinition
   ): Promise<void> {
-    // For file resources, we need to upload the file as-is
-    // Files are always external, no partitioning
-    const fileName = path.basename(resourcePath);
+    const versionId = `${Date.now()}-${uuidv4().slice(0, 8)}`;
+    const resourceKey = `${userId}/${block.id}/${versionId}`;
+
     const fileBuffer = await fs.readFile(resourcePath);
-    const targetKey = `${userId}/${block.id}/files/${fileName}`;
+    const fileName = path.basename(resourcePath);
+    const mimeType = resource.source.mime_type || 'application/octet-stream';
 
-    console.log(`[CloudTemplateLoader] Uploading file: ${fileName}`);
-
-    // Upload file
-    await this.uploadFileToPuppyStorage(
-      targetKey,
-      fileBuffer,
-      fileName,
-      resource.source.mime_type || 'application/octet-stream',
-      userId
+    console.log(
+      `[CloudTemplateLoader] Processing file: ${fileName} (${fileBuffer.length} bytes)`
     );
 
-    console.log(`[CloudTemplateLoader] File uploaded: ${targetKey}`);
+    // 1. Upload file
+    const fileKey = `${resourceKey}/${fileName}`;
+    const etag = await this.uploadFileToPuppyStorage(fileKey, fileBuffer);
 
-    // Update workflow reference - use content array (not external_metadata)
-    // File blocks store files in uploadedFiles/content, not via manifest.json
-    if (!block.data.uploadedFiles) {
-      block.data.uploadedFiles = [];
-    }
+    // 2. Create manifest.json
+    const manifest = {
+      version: '1.0',
+      block_id: block.id,
+      version_id: versionId,
+      created_at: new Date().toISOString(),
+      status: 'completed',
+      chunks: [
+        {
+          name: fileName,
+          file_name: fileName,
+          mime_type: mimeType,
+          size: fileBuffer.length,
+          etag: etag,
+          file_type: this.inferFileType(fileName, mimeType),
+        },
+      ],
+    };
 
-    block.data.uploadedFiles.push({
-      key: targetKey,
-      name: fileName,
-      size: fileBuffer.length,
-      type: resource.source.mime_type || 'application/octet-stream',
-    });
+    // 3. Upload manifest
+    const manifestKey = `${resourceKey}/manifest.json`;
+    const manifestContent = JSON.stringify(manifest);
+    await this.uploadFileToPuppyStorage(
+      manifestKey,
+      Buffer.from(manifestContent, 'utf-8')
+    );
 
-    // Update content array for file block (task_id format expected by PuppyEngine)
+    // 4. Set external mode (STANDARD)
+    block.data.external_metadata = {
+      resource_key: resourceKey,
+      content_type: 'files',
+    };
+    block.data.storage_class = 'external';
+
+    // 5. Set UI placeholder content (for frontend display)
+    // NOTE: This is a temporary placeholder for UI. Prefetch will REPLACE this
+    // with actual file data including local_path when workflow executes.
+    // Structure matches manual upload: { fileName, task_id, fileType, size, etag }
     block.data.content = [
       {
         fileName: fileName,
-        task_id: targetKey,
-        fileType: resource.source.mime_type?.split('/')[1] || 'pdf',
+        task_id: fileKey, // Full storage key (matches manual upload pattern)
+        fileType: this.inferFileType(fileName, mimeType),
         size: fileBuffer.length,
+        etag: etag,
       },
     ];
 
-    console.log(
-      `[CloudTemplateLoader] ✅ Updated block ${block.id} content:`,
-      JSON.stringify(block.data.content)
-    );
-
-    // Clear any old external_metadata from template
-    // File blocks don't use manifest.json, they use direct file references
-    if (block.data.external_metadata) {
-      delete block.data.external_metadata;
-      console.log(
-        `[CloudTemplateLoader] 🗑️ Deleted external_metadata from block ${block.id}`
-      );
-    }
-
-    // File blocks don't use external storage class (they have direct file access)
-    block.data.storage_class = 'internal';
-    block.data.isExternalStorage = false;
+    // Clean up old fields
+    delete block.data.uploadedFiles;
 
     console.log(
-      `[CloudTemplateLoader] ✅ File block ${block.id} processed: storage_class=${block.data.storage_class}, content_length=${block.data.content?.length || 0}`
+      `[CloudTemplateLoader] ✅ File uploaded with manifest: ${resourceKey}`
     );
   }
 
@@ -608,7 +643,7 @@ export class CloudTemplateLoader implements TemplateLoader {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-service-key': SERVER_ENV.SERVICE_KEY || '',
+        Authorization: this.getUserAuthHeader(),
       },
       body: JSON.stringify({
         user_id: userId,

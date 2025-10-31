@@ -884,9 +884,13 @@ pkg['workflow'] = seo_source  # Replace workflow only
 
 **Bug #6: File Block Storage Design Inconsistency (Design-Level Issue)**
 
+**Status**: ✅ **FIXED** (Implementation completed: 2025-10-31)
+
 **Discovery Date**: 2025-10-31 (during file-load template E2E testing)
 
-**Severity**: ⚠️ **CRITICAL DESIGN FLAW** - Requires architectural refactoring
+**Fix Date**: 2025-10-31 (Phase 3.5 refactoring completed)
+
+**Severity**: ⚠️ **CRITICAL DESIGN FLAW** - Requires architectural refactoring (RESOLVED)
 
 **Symptoms**:
 
@@ -990,7 +994,8 @@ filterRequestHeadersAndInjectAuth(request, headers, {
 2. Fix load edge to handle missing `local_path` ⚠️ Incomplete
 3. Multiple inconsistencies across codebase ❌ Technical debt
 
-✅ **Correct solution**: 
+✅ **Correct solution**:
+
 1. Align file block handling with FILE-BLOCK-CONTRACT.md
 2. Fix CloudTemplateLoader authentication to use user JWT token
 3. Implement localhost fallback consistent with Engine proxy
@@ -1117,6 +1122,7 @@ File: `PuppyFlow/lib/templates/cloud.ts`
 **Decision**: Use `/upload/chunk/direct` (small file API)
 
 **Rationale**:
+
 - Template files are typically small (PDFs, images < 5MB)
 - Simpler implementation (1 request vs 4)
 - Consistent with frontend `useFileUpload.ts` for small files
@@ -1127,6 +1133,7 @@ File: `PuppyFlow/lib/templates/cloud.ts`
 **Answer**: Use `chunks` (not `parts`)
 
 **Rationale**:
+
 - File metadata uses `chunks` array (semantic: file list)
 - Storage partitioning uses `parts` (semantic: content split)
 - ExternalStorageStrategy expects `manifest.get('chunks', [])` for files
@@ -1144,6 +1151,7 @@ File: `PuppyFlow/lib/templates/cloud.ts`
 **Decision**: Client creates manifest (CloudTemplateLoader)
 
 **Rationale**:
+
 - Consistent with structured/text resource handling (client-side partitioning)
 - Full control over metadata (file_type inference, mime_type)
 - PuppyStorage `/upload/chunk/direct` doesn't auto-create manifests
@@ -1370,12 +1378,45 @@ PuppyEngine/Persistence/ExternalStorageStrategy.py  (prefetch logic)
 - ✅ Correct pattern: `PuppyStorage/server/auth.py` (LocalAuthProvider loose mode)
 - ❌ Wrong pattern: `CloudTemplateLoader` using SERVICE_KEY
 
-**Key Insight**: 
+**Key Insight**:
 
 PuppyStorage upload APIs require **user JWT token** (Authorization header):
+
 - In cloud: Real user token from extractAuthHeader
 - In localhost: `Bearer local-dev` fallback (accepted by LocalAuthProvider loose mode)
 - SERVICE_KEY is only for `X-Service-Key` header (service-to-service auth)
+
+**Implementation Summary** (Completed: 2025-10-31):
+
+✅ **Task 3.5.0** - Authentication Fix:
+
+- Added `userAuthHeader` parameter to `CloudTemplateLoader` constructor
+- Implemented `getUserAuthHeader()` method with localhost fallback
+- Updated `TemplateLoaderFactory.create()` to accept `authHeader`
+- Modified `/api/workspace/instantiate` to pass auth header with `Bearer local-dev` fallback
+- Updated all PuppyStorage API calls to use `getUserAuthHeader()`
+
+✅ **Task 3.5.1** - File Upload Rewrite:
+
+- Rewrote `uploadFileToPuppyStorage()` to use `/upload/chunk/direct` API (single request)
+- Added `inferFileType()` helper method with extension and MIME type mapping
+- Rewrote `processFile()` to:
+  - Upload file to PuppyStorage
+  - Create manifest.json with chunks array
+  - Upload manifest.json
+  - Set `external_metadata` + `storage_class='external'`
+  - Delete content (prefetch will populate it)
+
+✅ **Task 3.5.2** - Frontend Cleanup:
+
+- Removed temporary internal mode handling from `buildFileNodeJson()`
+- File blocks now ALWAYS use external storage mode (FILE-BLOCK-CONTRACT.md)
+
+✅ **Task 3.5.3** - Ready for E2E Testing:
+
+- All code changes completed
+- No linter errors
+- Ready for manual browser testing with file-load template
 
 ---
 

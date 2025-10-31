@@ -110,12 +110,16 @@ export class TemplateLoaderFactory {
    * Create a template loader
    *
    * @param config - Loader configuration
+   * @param authHeader - User authentication header (optional for localhost)
    * @returns Template loader instance
    */
-  static create(config?: Partial<TemplateLoaderConfig>): TemplateLoader {
+  static create(
+    config?: Partial<TemplateLoaderConfig>,
+    authHeader?: string
+  ): TemplateLoader {
     // Phase 2: CloudTemplateLoader implementation
     const { CloudTemplateLoader } = require('./cloud');
     const mergedConfig = { ...DEFAULT_LOADER_CONFIG, ...config };
-    return new CloudTemplateLoader(mergedConfig);
+    return new CloudTemplateLoader(mergedConfig, authHeader);
   }
 }

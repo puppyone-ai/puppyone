@@ -49,8 +49,19 @@ export async function POST(request: Request) {
       `[API:/api/workspace/instantiate] User ${userId} instantiating template: ${templateId}`
     );
 
+    // Get auth header with localhost fallback
+    const authHeader = extractAuthHeader(request);
+    let finalAuthHeader = authHeader;
+    if (
+      !finalAuthHeader &&
+      (process.env.DEPLOYMENT_MODE || '').toLowerCase() !== 'cloud'
+    ) {
+      console.log('[Instantiate API] Localhost mode: using default auth token');
+      finalAuthHeader = 'Bearer local-dev';
+    }
+
     // Create template loader
-    const loader = TemplateLoaderFactory.create();
+    const loader = TemplateLoaderFactory.create(undefined, finalAuthHeader);
 
     // Load template
     let pkg;
@@ -104,7 +115,6 @@ export async function POST(request: Request) {
 
     // Save instantiated workflow using existing /api/workspace logic
     // This includes retry logic if workspace doesn't exist yet
-    const authHeader = extractAuthHeader(request);
     const timestamp = new Date().toISOString();
 
     try {
