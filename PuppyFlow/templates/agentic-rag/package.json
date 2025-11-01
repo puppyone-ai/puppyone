@@ -62,7 +62,7 @@
                 "id": "WzK6iT",
                 "data": {
                     "dirty": false,
-                    "label": "WzK6iT",
+                    "label": "FAQ Knowledge Base",
                     "locked": false,
                     "looped": false,
                     "content": "",
@@ -75,7 +75,7 @@
                         {
                             "type": "vector",
                             "entries": [],
-                            "status": "notStarted",
+                            "status": "done",
                             "key_path": [
                                 {
                                     "id": "NK-LPz",
@@ -83,14 +83,14 @@
                                     "value": "question"
                                 }
                             ],
-                            "index_name": "",
+                            "index_name": "collection_demo_faq_kb",
                             "value_path": [],
                             "collection_configs": {
-                                "set_name": "",
-                                "model": "",
+                                "set_name": "collection_WzK6iT_demo",
+                                "model": "text-embedding-ada-002",
                                 "vdb_type": "pgvector",
-                                "user_id": "",
-                                "collection_name": ""
+                                "user_id": "demo-user",
+                                "collection_name": "collection_demo_faq_kb"
                             }
                         }
                     ],
@@ -348,9 +348,9 @@
                     "dataSource": [
                         {
                             "id": "WzK6iT",
-                            "label": "Knowledge Base Vector Index",
+                            "label": "FAQ Knowledge Base",
                             "index_item": {
-                                "index_name": ""
+                                "index_name": "collection_demo_faq_kb"
                             }
                         }
                     ],
