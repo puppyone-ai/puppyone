@@ -467,9 +467,59 @@ export class CloudTemplateLoader implements TemplateLoader {
       }
     }
 
-    // Phase 3.9: Runtime Resolution - No need to sync collection_configs to edges
-    // collection_configs will be resolved at runtime from Block's indexingList
-    // using index_name stored in Edge's data_source.index_item
+    // Phase 3.9: Lightweight sync - Only sync index_name to edges (for UI display and runtime lookup)
+    // collection_configs is NOT synced - it will be resolved at runtime from Block's indexingList
+    if (indexingItem?.index_name) {
+      this.syncIndexNameToEdges(workflow, block.id, indexingItem.index_name);
+    }
+  }
+
+  /**
+   * Sync index_name from vector collection block to edges that reference it
+   *
+   * Phase 3.9: Lightweight sync (index_name only)
+   *
+   * After auto-embedding completes, we need to update the Edge's index_name so that:
+   * 1. Runtime resolution can perform precise lookup (not just fallback)
+   * 2. UI can display the correct index name
+   *
+   * Note: We do NOT sync collection_configs - that will be resolved at runtime.
+   *
+   * @param workflow - Workflow definition with edges
+   * @param blockId - Vector collection block ID
+   * @param indexName - The index_name from the block's indexingList[0]
+   */
+  private syncIndexNameToEdges(
+    workflow: WorkflowDefinition,
+    blockId: string,
+    indexName: string
+  ): void {
+    if (!workflow.edges) {
+      return;
+    }
+
+    // Find all edges that reference this block in dataSource/data_source
+    for (const edge of workflow.edges) {
+      if (!edge.data) {
+        continue;
+      }
+
+      // Check both camelCase (frontend) and snake_case (backend) formats
+      const dataSourceList =
+        edge.data.dataSource || edge.data.data_source || null;
+
+      if (dataSourceList && Array.isArray(dataSourceList)) {
+        for (const dataSource of dataSourceList) {
+          if (dataSource.id === blockId && dataSource.index_item) {
+            // Update only index_name (lightweight)
+            dataSource.index_item.index_name = indexName;
+            console.log(
+              `[CloudTemplateLoader] Synced index_name to edge ${edge.id} for block ${blockId}: ${indexName}`
+            );
+          }
+        }
+      }
+    }
   }
 
   /**

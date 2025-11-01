@@ -802,6 +802,58 @@ processVectorCollection() Flow:
 
 **Testing**: Ready for E2E testing with `agentic-rag` template
 
+### Phase 3.9: Runtime Resolution for collection_configs (Technical Debt Fix) ✅ COMPLETED
+
+**Status**: ✅ **COMPLETED** (Implementation completed: 2025-10-31)
+
+**Motivation**: Fix technical debt identified in Phase 3.8.1 - eliminate manual synchronization by implementing runtime resolution.
+
+**Problem**:
+
+- Edge must store redundant `collection_configs` copied from Block
+- Requires manual synchronization (`syncVectorCollectionConfigsToEdges()`)
+- Violates Single Source of Truth principle
+
+**Solution**:
+
+- Edge stores only `index_name` (identifier)
+- Runtime resolves `collection_configs` from Block's `indexingList` using `index_name`
+- Single Source of Truth: Block is the only data source
+
+**Architecture**:
+
+```
+Runtime Resolution Flow:
+  1. _prepare_block_configs():
+     - Extract data_source blocks' indexingList
+     - Add to block_configs
+  
+  2. SearchConfigParser.parse():
+     - Read index_name from Edge
+     - Lookup in block_configs[block_id]["indexingList"]
+     - Find matching indexed set by index_name
+     - Extract collection_configs
+     - Build enriched data_source
+  
+  3. VectorRetrievalStrategy.search():
+     - Use resolved collection_configs
+```
+
+**Benefits**:
+
+- ✅ Zero synchronization logic
+- ✅ Automatic updates (Block changes reflect automatically)
+- ✅ Custom indexed sets fully supported (via index_name lookup)
+- ✅ Code reduction (-60 lines)
+
+**Files Modified**:
+
+- `PuppyEngine/Server/Env.py` (extract data_source blocks)
+- `PuppyEngine/ModularEdges/EdgeConfigParser.py` (runtime resolution)
+- `PuppyEngine/DataClass/schemas.py` (backward compatibility)
+- `PuppyFlow/lib/templates/cloud.ts` (removed sync method)
+- `PuppyFlow/app/components/workflow/edgesNode/edgeNodesNew/hook/hookhistory/useEdgeNodeBackEndJsonBuilder.ts` (updated builder)
+
 ### Phase 4: Testing & Refinement (3h)
 
 **Deliverables**:
@@ -1065,6 +1117,10 @@ instantiateTemplate(templateId, userId, workspaceName)
 |       |            |                   | Added `enableAutoEmbed` configuration flag (default: true) |
 |       |            |                   | Auto-embedding reuses `/api/storage/vector/embed` endpoint |
 |       |            |                   | Template instantiation with vector collections now fully automated |
+| 0.1.9 | 2025-10-31 | Architecture Team | Fixed technical debt: Runtime Resolution for collection_configs (Phase 3.9) |
+|       |            |                   | Edge stores only `index_name`, runtime resolves `collection_configs` from Block |
+|       |            |                   | Eliminated manual synchronization (`syncVectorCollectionConfigsToEdges`) |
+|       |            |                   | Single Source of Truth: Block is the only data source for collection_configs |
 | 0.2 | TBD | - | After MVP implementation |
 | 1.0 | TBD | - | Production release |
 

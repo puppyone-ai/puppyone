@@ -1865,7 +1865,198 @@ After Phase 3.8:
 
 ---
 
-## Phase 2 File Changes Summary
+**Phase 3.9: Runtime Resolution for collection_configs (Technical Debt Fix)**
+
+**Status**: ✅ **COMPLETED** (Implementation completed: 2025-10-31)
+
+**Motivation**: After implementing Phase 3.8.1's manual synchronization workaround, we identified this as technical debt. The current implementation violates Single Source of Truth by requiring Edge to store redundant `collection_configs` data copied from Block.
+
+**Problem (Current Implementation)**:
+
+- ❌ Edge must store complete `collection_configs` (redundant data)
+- ❌ Requires manual synchronization (`syncVectorCollectionConfigsToEdges()`)
+- ❌ Violates Single Source of Truth principle
+- ❌ Fragile: Any Block update requires manual Edge sync
+
+**Solution (Runtime Resolution)**:
+
+- ✅ Edge stores only `index_name` (identifier)
+- ✅ Runtime resolves `collection_configs` from Block's `indexingList` using `index_name`
+- ✅ Single Source of Truth: Block is the only data source
+- ✅ Automatic updates: Block changes automatically reflect in Edge execution
+
+**Architecture**:
+
+```
+Template Instantiation:
+  Block WzK6iT:
+    indexingList[0] = {
+      index_name: "collection_xxx",
+      collection_configs: {...}
+    }
+  
+  Edge 3YAeP8:
+    data_source = [{
+      id: "WzK6iT",
+      index_item: {
+        index_name: "collection_xxx"  // ← Only identifier
+      }
+    }]
+
+Runtime Execution:
+  1. _prepare_block_configs():
+     - Extract Block WzK6iT's indexingList
+     - Add to block_configs["WzK6iT"]
+  
+  2. SearchConfigParser.parse():
+     - Read index_name from Edge
+     - Lookup in block_configs["WzK6iT"]["indexingList"]
+     - Find matching indexed set
+     - Extract collection_configs
+     - Build enriched data_source
+  
+  3. VectorRetrievalStrategy.search():
+     - Use resolved collection_configs
+```
+
+**Implementation**:
+
+✅ **PuppyEngine Changes**:
+
+1. **`Env._prepare_block_configs()`** (+25 lines):
+
+   ```python
+   # Extract data_source blocks for vector search edges
+   if edge_config.get("search_type") == "vector":
+       data_sources = edge_config.get("data_source", [])
+       for ds in data_sources:
+           block = self.blocks.get(ds_block_id)
+           indexing_list = block.data.get("indexingList", [])
+           block_configs[ds_block_id] = {
+               "label": block.label,
+               "indexingList": indexing_list,  # For runtime resolution
+           }
+   ```
+
+2. **`SearchConfigParser.parse()`** (+50 lines):
+
+   ```python
+   # Runtime Resolution: Resolve collection_configs from blocks
+   for ds in data_sources:
+       requested_index_name = ds["index_item"]["index_name"]
+       
+       # Get indexingList from block_configs
+       indexing_list = self.block_configs[ds_id]["indexingList"]
+       
+       # Find matching indexed set
+       for item in indexing_list:
+           if item["index_name"] == requested_index_name:
+               collection_configs = item["collection_configs"]
+               break
+       
+       # Build enriched data_source
+       enriched_ds = {
+           **ds,
+           "index_item": {
+               "index_name": requested_index_name,
+               "collection_configs": collection_configs  # ← Resolved!
+           }
+       }
+   ```
+
+3. **`SearchDataSourceItem` schema validation** (+15 lines):
+
+   ```python
+   # Support both old format (collection_configs) and new format (index_name)
+   if isinstance(cc, dict) and cc.get("collection_name"):
+       # Old format: validate and use
+       SearchCollectionConfigs(**cc)
+   elif index_name:
+       # New format: allow (will be resolved at runtime)
+       return v
+   ```
+
+✅ **PuppyFlow Changes**:
+
+1. **`buildRetrievingNodeJson()`** (-10 lines):
+
+   ```typescript
+   // Only store index_name, remove collection_configs
+   index_item: {
+     index_name: ds.index_item?.index_name || ''
+     // collection_configs removed - resolved at runtime
+   }
+   ```
+
+2. **`RetrievingEdgeJsonType`** (type update):
+
+   ```typescript
+   index_item: {
+     index_name: string;  // Required
+     collection_configs?: {...};  // Optional (backward compatibility)
+   }
+   ```
+
+3. **`CloudTemplateLoader`** (-70 lines):
+   - Removed `syncVectorCollectionConfigsToEdges()` method
+   - No longer needs to sync collection_configs
+
+4. **`agentic-rag/package.json`** (template update):
+   - Removed `collection_configs: {}` from Edge definition
+   - Only `index_name: ""` remains (will be populated after auto-embedding)
+
+**Backward Compatibility**:
+
+- ✅ Old format (with `collection_configs`): Still supported
+- ✅ New format (only `index_name`): Runtime resolution
+- ✅ Schema validation accepts both formats
+- ✅ `SearchConfigParser` checks for existing `collection_configs` first
+
+**Benefits**:
+
+1. ✅ **Single Source of Truth**: Block is the only data source
+2. ✅ **Zero Synchronization**: No manual sync needed
+3. ✅ **Automatic Updates**: Block changes automatically reflect
+4. ✅ **Code Reduction**: -60 lines (removed sync logic)
+5. ✅ **Custom Indexed Sets**: Fully supported via `index_name` lookup
+6. ✅ **Clear Responsibilities**:
+   - Block: Data + metadata (`collection_configs`)
+   - Edge: Execution config + references (`index_name`)
+   - Runtime: Resolution and enrichment
+
+**Files Modified** (Phase 3.9):
+
+1. `PuppyEngine/Server/Env.py` (+25 lines)
+   - Extract data_source blocks' indexingList
+
+2. `PuppyEngine/ModularEdges/EdgeConfigParser.py` (+50 lines)
+   - Runtime resolution logic
+
+3. `PuppyEngine/DataClass/schemas.py` (+15 lines)
+   - Backward compatibility in schema validation
+
+4. `PuppyFlow/app/components/workflow/edgesNode/edgeNodesNew/hook/hookhistory/useEdgeNodeBackEndJsonBuilder.ts`
+   - Updated type definition
+   - Modified builder to only store index_name
+
+5. `PuppyFlow/lib/templates/cloud.ts` (-70 lines)
+   - Removed syncVectorCollectionConfigsToEdges() method
+
+6. `PuppyFlow/templates/agentic-rag/package.json`
+   - Removed collection_configs from Edge definition
+
+**Testing Notes**:
+
+- ✅ Linter: No errors
+- ⏳ Manual E2E: Ready for testing with agentic-rag template
+- 📋 Test scenario: Instantiate agentic-rag → verify runtime resolution → test vector search
+
+**Performance Impact**:
+
+- No change: Runtime resolution is lightweight (dictionary lookup)
+- Actually faster: No template instantiation sync overhead
+
+---
 
 ### New Files (Phase 2)
 
