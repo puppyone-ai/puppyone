@@ -2058,6 +2058,87 @@ Runtime Execution:
 
 ---
 
+**Phase 3.9.1: Lightweight index_name Sync (Refinement)**
+
+**Status**: ✅ **COMPLETED** (Implementation completed: 2025-10-31)
+
+**Issue Identified**: After Phase 3.9 implementation, three problems emerged:
+1. ❌ Edge's `index_item.index_name` was not updated after auto-embedding
+2. ❌ UI displayed block ID (`"WzK6iT"`) instead of meaningful name
+3. ❌ Runtime resolution could only use fallback (not precise lookup)
+
+**Root Cause**: Complete removal of sync logic was too aggressive.
+
+**Why `index_name` Still Needs Sync**:
+1. **UI Display**: Frontend shows `dataSource[0].label` and needs updated `index_name` for tooltip/details
+2. **Runtime Lookup**: Precise matching by `index_name` (not just fallback to first `done` item)
+3. **User Experience**: Template should display friendly labels, not block IDs
+
+**Solution**: Lightweight sync of **ONLY** `index_name` (not `collection_configs`):
+
+```typescript
+// Phase 3.9.1: Lightweight sync
+private syncIndexNameToEdges(
+  workflow: WorkflowDefinition,
+  blockId: string,
+  indexName: string  // ← ONLY index_name (~10 bytes)
+): void {
+  for (const edge of workflow.edges) {
+    for (const dataSource of edge.data.dataSource || []) {
+      if (dataSource.id === blockId && dataSource.index_item) {
+        dataSource.index_item.index_name = indexName;  // ← Lightweight update
+        // ✅ collection_configs NOT synced - still runtime-resolved
+      }
+    }
+  }
+}
+```
+
+**Architecture Comparison**:
+
+| Approach | What's Synced | Size | Benefits | Trade-offs |
+|----------|---------------|------|----------|------------|
+| Phase 3.8.1 (Old) | Full `collection_configs` | ~200 bytes | None | ❌ Data redundancy, ❌ Manual sync |
+| Phase 3.9 (Initial) | Nothing | 0 bytes | ✅ Pure SSOT | ❌ No precise lookup, ❌ Poor UI |
+| **Phase 3.9.1 (Final)** | **Only `index_name`** | **~10 bytes** | ✅ SSOT maintained, ✅ Precise lookup, ✅ Good UI | ✅ Minimal sync overhead |
+
+**Template Fix**: Updated `dataSource[0].label`:
+```json
+// Before: "label": "WzK6iT"  (block ID - not user-friendly)
+// After:  "label": "Knowledge Base Vector Index"  (descriptive)
+```
+
+**Benefits**:
+1. ✅ **Single Source of Truth Maintained**: `collection_configs` still resolved at runtime from Block
+2. ✅ **Precise Runtime Lookup**: `index_name` enables exact matching (not just fallback)
+3. ✅ **Better UI**: Friendly label + updated `index_name` for display
+4. ✅ **95% Smaller Sync**: ~10 bytes vs ~200 bytes (only identifier, not full config)
+5. ✅ **Custom Indexed Sets**: Precise lookup supports user-selected specific sets
+
+**Files Modified** (Phase 3.9.1):
+- `PuppyFlow/lib/templates/cloud.ts` (added `syncIndexNameToEdges()`)
+- `PuppyFlow/templates/agentic-rag/package.json` (updated label to be user-friendly)
+
+**Final Architecture**:
+
+```
+Template Instantiation:
+  ├─ processVectorCollection()
+  │   ├─ Auto-rebuild entries
+  │   ├─ Auto-embedding (Phase 3.8)
+  │   ├─ Update Block's indexingList[0].index_name = "collection_xxx"
+  │   └─ Sync index_name to Edge ← Phase 3.9.1 (lightweight)
+  └─ Edge.dataSource[0].index_item.index_name = "collection_xxx" ✅
+
+Runtime Execution:
+  ├─ _prepare_block_configs() extracts Block's indexingList
+  ├─ SearchConfigParser.parse() reads Edge's index_name
+  ├─ Precise lookup: find item where item.index_name == edge.index_name
+  └─ Extract collection_configs from matched item ← Runtime resolution (SSOT)
+```
+
+---
+
 ### New Files (Phase 2)
 
 ```
