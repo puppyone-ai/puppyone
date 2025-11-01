@@ -378,9 +378,9 @@
             {
                 "id": "m3bHrN",
                 "data": {
-                    "label": "m3bHrN",
+                    "label": "Retrieved Results",
                     "locked": false,
-                    "content": "",
+                    "content": "[\n  {\n    \"question\": \"What is your price?\",\n    \"answer\": \"$25 for pro users, including more usages and storage\",\n    \"score\": 0.89\n  },\n  {\n    \"question\": \"Is PuppyAgent free to use?\",\n    \"answer\": \"PuppyAgent provides a free plan for individual users. For teams or enterprises requiring enhanced functionality, we offer Professional plans tailored to meet more advanced needs it's 28$ per user per month.\",\n    \"score\": 0.85\n  },\n  {\n    \"question\": \"What is PuppyAgent?\",\n    \"answer\": \"PuppyAgent is an automated AI knowledge builder that creates RAG pipelines based on your enterprise's own knowledge base, empowering businesses to automate workflows using their proprietary expertise.\",\n    \"score\": 0.72\n  }\n]",
                     "isInput": false,
                     "editable": false,
                     "groupIds": [
